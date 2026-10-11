@@ -35,6 +35,234 @@ def resolve(
     )
 
 
+def test_prunes_builtin_defaults_by_default(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        defaults = {
+            "languages": ["r", "python", "sql"],
+            "r": {"vanilla": False, "resolution": "automatic"},
+            "python": None,
+            "startup": None,
+            "inherit_environment": True,
+            "environment": {},
+            "tool": {"parameters": {"timeout_ms": {"enabled": True}}},
+        }
+        selected = root / "defaults.json"
+        selected.write_text(json.dumps(defaults), encoding="utf-8")
+        for mode in ((), ("--no-sandbox",)):
+            for selection in (("--no-config",), ("--config-file", str(selected))):
+                for output in ((), ("--prune",)):
+                    result = resolve(
+                        binary, root, *selection, *mode, *output, "--format", "json"
+                    )
+                    assert result.returncode == 0 and result.stderr == "", result
+                    assert json.loads(result.stdout) == {}, result.stdout
+            yaml = resolve(binary, root, "--no-config", *mode, "--prune")
+            assert yaml.returncode == 0 and yaml.stderr == "", yaml
+            selected.write_text(yaml.stdout, encoding="utf-8")
+            again = resolve(
+                binary, root, "--config-file", str(selected), *mode, "--format", "json"
+            )
+            assert again.returncode == 0 and json.loads(again.stdout) == {}, again
+            selected.write_text(json.dumps(defaults), encoding="utf-8")
+    return [{"default_and_prune_match": True, "builtin_defaults": {}}]
+
+
+def test_prunes_against_builtin_defaults_after_layering(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        home = root / "console-home"
+        home.mkdir()
+        (home / "config.yaml").write_text(
+            json.dumps({"r": {"vanilla": True, "resolution": "startup_only"}}),
+            encoding="utf-8",
+        )
+        project = root / ".agents" / "console"
+        project.mkdir(parents=True)
+        (project / "config.yaml").write_text(
+            json.dumps({"r": {"resolution": "automatic"}}), encoding="utf-8"
+        )
+        result = resolve(binary, root, "--format", "json", "-c", "r.packages=[]")
+        assert result.returncode == 0 and result.stderr == "", result
+        settings = json.loads(result.stdout)
+        assert settings == {"r": {"vanilla": True, "packages": []}}, settings
+        explicit = resolve(
+            binary, root, "--prune", "--format", "json", "-c", "r.packages=[]"
+        )
+        assert explicit.returncode == 0 and json.loads(explicit.stdout) == settings
+    return [settings]
+
+
+def test_prunes_nested_values_without_losing_empty_overrides(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        result = resolve(
+            binary,
+            root,
+            "--no-config",
+            "--format",
+            "json",
+            "-c",
+            "environment={EMPTY: ''}",
+            "-c",
+            "inherit_environment=false",
+            "-c",
+            "resolver.inherit_environment=true",
+            "-c",
+            "sandbox.filesystem={}",
+            "-c",
+            "python.managed.packages=[]",
+        )
+        assert result.returncode == 0 and result.stderr == "", result
+        settings = json.loads(result.stdout)
+        assert settings == {
+            "environment": {"EMPTY": ""},
+            "inherit_environment": False,
+            "resolver": {"environment": {"EMPTY": ""}, "inherit_environment": True},
+            "sandbox": {"filesystem": {"read_only": [], "read_write": [], "deny": []}},
+            "python": {"managed": {"packages": [], "resolution": "automatic"}},
+        }, settings
+        selected = root / "pruned.json"
+        selected.write_text(result.stdout, encoding="utf-8")
+        again = resolve(
+            binary, root, "--config-file", str(selected), "--format", "json"
+        )
+        assert again.returncode == 0 and again.stderr == "", again
+        assert json.loads(again.stdout) == settings
+    return [settings]
+
+
+def test_pruned_tool_settings_round_trip(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        selected = root / "selected.json"
+        selected.write_text(
+            json.dumps(
+                {
+                    "languages": ["python"],
+                    "tool": {
+                        "instructions": "",
+                        "parameters": {
+                            "timeout_ms": {"enabled": False},
+                            "python": {"description": ""},
+                            "requirements": {
+                                "parameters": {"action": {"description": "Choose."}}
+                            },
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        full = resolve(
+            binary, root, "--config-file", str(selected), "--full", "--format", "json"
+        )
+        assert full.returncode == 0 and full.stderr == "", full
+        result = resolve(binary, root, "--config-file", str(selected), "--prune")
+        assert result.returncode == 0 and result.stderr == "", result
+        selected.write_text(result.stdout, encoding="utf-8")
+        again = resolve(
+            binary, root, "--config-file", str(selected), "--full", "--format", "json"
+        )
+        assert again.returncode == 0 and again.stderr == "", again
+        assert json.loads(again.stdout) == json.loads(full.stdout)
+        pruned = resolve(
+            binary, root, "--config-file", str(selected), "--format", "json"
+        )
+        assert pruned.returncode == 0 and pruned.stderr == "", pruned
+        settings = json.loads(pruned.stdout)
+        assert settings["tool"]["instructions"] == ""
+        fields = settings["tool"]["parameters"]
+        assert fields["timeout_ms"] == {"enabled": False}
+        assert fields["python"]["description"] == ""
+        assert "cache" not in settings and "r" not in settings
+        assert "r" not in fields and "sql" not in fields
+    return [{"pruned_tool_round_trip": True, "empty_strings_preserved": True}]
+
+
+def test_pruning_preserves_explicit_conditional_tool_prose(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        selected = root / "selected.json"
+        for mode in ((), ("--no-sandbox",)):
+            original = resolve(
+                binary, root, "--no-config", *mode, "--full", "--format", "json"
+            )
+            assert original.returncode == 0 and original.stderr == "", original
+            defaults = json.loads(original.stdout)
+            edited = json.loads(original.stdout)
+            edited["tool"]["parameters"]["timeout_ms"]["enabled"] = False
+            languages = {
+                "languages": ["python"],
+                "tool": {
+                    "description": defaults["tool"]["description"],
+                    "instructions": defaults["tool"]["instructions"],
+                    "parameters": {
+                        field: {
+                            "description": defaults["tool"]["parameters"][field][
+                                "description"
+                            ]
+                        }
+                        for field in ("python", "stdin")
+                    },
+                },
+            }
+            cases = [("timeout", edited), ("languages", languages)]
+            if not mode:
+                cases.append(
+                    ("permissions", defaults | {"sandbox": {"network": "enabled"}})
+                )
+            for name, source in cases:
+                for output in ("yaml", "json"):
+                    selected.write_text(json.dumps(source), encoding="utf-8")
+                    expected = resolve(
+                        binary,
+                        root,
+                        "--config-file",
+                        str(selected),
+                        *mode,
+                        "--full",
+                        "--format",
+                        "json",
+                    )
+                    assert expected.returncode == 0 and expected.stderr == "", expected
+                    pruned = resolve(
+                        binary,
+                        root,
+                        "--config-file",
+                        str(selected),
+                        *mode,
+                        "--prune",
+                        "--format",
+                        output,
+                    )
+                    assert pruned.returncode == 0 and pruned.stderr == "", pruned
+                    selected.write_text(pruned.stdout, encoding="utf-8")
+                    again = resolve(
+                        binary,
+                        root,
+                        "--config-file",
+                        str(selected),
+                        *mode,
+                        "--full",
+                        "--format",
+                        "json",
+                    )
+                    assert again.returncode == 0 and again.stderr == "", again
+                    assert json.loads(again.stdout) == json.loads(expected.stdout), name
+    return [{"explicit_tool_prose_preserved": ["timeout", "languages", "permissions"]}]
+
+
+def test_rejects_conflicting_output_modes(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        result = resolve(binary, Path(temporary), "--full", "--prune")
+        assert result.returncode == 2 and result.stdout == "", result
+        assert "cannot be used with" in result.stderr, result
+    return [{"conflicting_output_modes_rejected": True}]
+
+
 def test_materializes_without_starting_runtimes(binary: Path) -> Transcript:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
@@ -42,6 +270,7 @@ def test_materializes_without_starting_runtimes(binary: Path) -> Transcript:
             binary,
             root,
             "--no-config",
+            "--full",
             "--format",
             "json",
             "-c",
@@ -75,7 +304,7 @@ def test_exports_round_trip_and_preserve_edits(binary: Path) -> Transcript:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         original = resolve(
-            binary, root, "--no-config", "--no-sandbox", "--format", "json"
+            binary, root, "--no-config", "--no-sandbox", "--full", "--format", "json"
         )
         assert original.returncode == 0, original
         settings = json.loads(original.stdout)
@@ -94,13 +323,22 @@ def test_exports_round_trip_and_preserve_edits(binary: Path) -> Transcript:
         (home / "config.yaml").write_text(
             "unknown: must-not-rediscover\n", encoding="utf-8"
         )
-        exported = resolve(binary, root, "--config-file", str(selected), "--no-sandbox")
+        exported = resolve(
+            binary, root, "--config-file", str(selected), "--no-sandbox", "--full"
+        )
         assert exported.returncode == 0 and exported.stderr == "", exported
         assert "parameters:" in exported.stdout, exported.stdout
         yaml = root / "selected.yaml"
         yaml.write_text(exported.stdout, encoding="utf-8")
         again = resolve(
-            binary, root, "--config-file", str(yaml), "--no-sandbox", "--format", "json"
+            binary,
+            root,
+            "--config-file",
+            str(yaml),
+            "--no-sandbox",
+            "--full",
+            "--format",
+            "json",
         )
         assert again.returncode == 0 and again.stderr == "", again
         assert json.loads(again.stdout) == settings
@@ -132,7 +370,7 @@ def test_exports_round_trip_and_preserve_edits(binary: Path) -> Transcript:
 def test_rejects_edits_to_parameter_types(binary: Path) -> Transcript:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
-        result = resolve(binary, root, "--no-config", "--format", "json")
+        result = resolve(binary, root, "--no-config", "--full", "--format", "json")
         assert result.returncode == 0, result
         settings = json.loads(result.stdout)
         settings["tool"]["parameters"]["timeout_ms"]["schema"]["type"] = "string"
@@ -262,7 +500,13 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
             }
             selected.write_text(json.dumps(source), encoding="utf-8")
             first = resolve(
-                binary, root, "--config-file", str(selected), "--format", "json"
+                binary,
+                root,
+                "--config-file",
+                str(selected),
+                "--full",
+                "--format",
+                "json",
             )
             assert first.returncode == 0 and first.stderr == "", first
             settings = json.loads(first.stdout)
@@ -279,7 +523,13 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
                 )
             selected.write_text(first.stdout, encoding="utf-8")
             again = resolve(
-                binary, root, "--config-file", str(selected), "--format", "json"
+                binary,
+                root,
+                "--config-file",
+                str(selected),
+                "--full",
+                "--format",
+                "json",
             )
             assert again.returncode == 0 and again.stderr == "", again
             assert json.loads(again.stdout) == settings

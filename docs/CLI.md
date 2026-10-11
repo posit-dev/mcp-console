@@ -74,11 +74,14 @@ In PowerShell, quote the complete assignment when it contains spaces or structur
 
 ```sh
 mcp-console config resolve > session.yaml
-mcp-console config resolve --no-config --format json
+mcp-console config resolve --full --no-config --format json
 mcp-console serve --config-file session.yaml
 ```
 
-`config resolve` prints captured configuration, generated tool prose, and all parameter settings without starting runtimes or preparing packages.
+`config resolve` defaults to `--prune`, printing only settings that differ from the binary's built-in defaults.
+`--full` includes all configuration defaults, generated tool prose, and every parameter setting.
+The two flags are mutually exclusive.
+Neither mode starts runtimes or prepares packages.
 Configuration selection flags and `-c` work before `config` or after `resolve`.
 YAML is the default output; `--format json` selects JSON.
 For host execution, use `--no-sandbox` during both materialization and launch.

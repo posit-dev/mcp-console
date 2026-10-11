@@ -5,13 +5,13 @@ use serde_json::{Value, json};
 
 use super::{Cache, SandboxSettings};
 
-pub(crate) fn render(
+pub(crate) fn configuration(
     captured: super::Captured,
     mut value: Value,
     policy: &SandboxSettings,
     no_sandbox: bool,
-    format: crate::cli::ConfigFormat,
-) -> Result<String, String> {
+    defaults: Option<&mut Value>,
+) -> Result<Value, String> {
     if no_sandbox && (captured.sandbox_requested || captured.resolver_sandbox_requested) {
         return Err("explicit sandbox or resolver.sandbox permissions require sandboxing; remove them when using --no-sandbox".into());
     }
@@ -27,7 +27,20 @@ pub(crate) fn render(
         .languages
         .map(Ok)
         .unwrap_or_else(crate::cell::Languages::from_environment)?;
-    let tool = crate::server::materialized_tool(languages, policy, no_sandbox, &captured.tool);
+    if let Some(defaults) = defaults {
+        // Removing explicit prose is safe only when this launch would regenerate
+        // the same text. Visibility defaults still remain enabled for pruning.
+        defaults["tool"] = serde_json::to_value(crate::server::materialized_tool(
+            languages,
+            policy,
+            no_sandbox,
+            &captured.tool,
+            false,
+        ))
+        .expect("tool defaults");
+    }
+    let tool =
+        crate::server::materialized_tool(languages, policy, no_sandbox, &captured.tool, true);
     value["tool"] = serde_json::to_value(tool).expect("tool configuration");
     value
         .as_object_mut()
@@ -88,6 +101,20 @@ pub(crate) fn render(
         "environment": captured.resolver.get("environment").cloned().unwrap_or_else(|| json!({})),
         "sandbox": if no_sandbox || cfg!(windows) { Value::Null } else { permissions(&captured.resolver) },
     });
+    Ok(value)
+}
+
+pub(crate) fn render(
+    mut value: Value,
+    defaults: Option<Value>,
+    format: crate::cli::ConfigFormat,
+) -> Result<String, String> {
+    if let Some(mut defaults) = defaults {
+        // The resolver inherits the shared setting when omitted. Keep an
+        // explicit override when it differs from that conditional default.
+        defaults["resolver"]["inherit_environment"] = value["inherit_environment"].clone();
+        prune(&mut value, &defaults);
+    }
     let serialized = serde_json::to_string_pretty(&value).map_err(|error| error.to_string())?;
     match format {
         crate::cli::ConfigFormat::Json => Ok(serialized),
@@ -101,6 +128,22 @@ pub(crate) fn render(
                 .map_err(|error| error.to_string())?;
             Ok(output)
         }
+    }
+}
+
+/// Mappings merge recursively; arrays, scalars, and null are complete values.
+fn prune(value: &mut Value, defaults: &Value) {
+    if let (Some(value), Some(defaults)) = (value.as_object_mut(), defaults.as_object()) {
+        value.retain(|name, value| {
+            let Some(default) = defaults.get(name) else {
+                return true;
+            };
+            if value == default {
+                return false;
+            }
+            prune(value, default);
+            !value.as_object().is_some_and(serde_json::Map::is_empty)
+        });
     }
 }
 

@@ -25,13 +25,18 @@ pub(crate) fn materialized_tool(
     policy: &SandboxSettings,
     no_sandbox: bool,
     tool: &crate::settings::Tool,
+    apply_overrides: bool,
 ) -> crate::settings::Tool {
     let profile = Profile {
         languages,
         builtin: true,
         timeout: tool.enabled("timeout_ms"),
     };
-    let mut tool = tool.clone();
+    let mut tool = if apply_overrides {
+        tool.clone()
+    } else {
+        crate::settings::Tool::default()
+    };
     tool.instructions.get_or_insert_with(|| profile.summary());
     tool.description
         .get_or_insert_with(|| profile.description(&profile.summary(), policy, no_sandbox));

@@ -67,13 +67,15 @@ fn main() -> ExitCode {
                 cli::ConfigCommand::Resolve {
                     overrides: command_overrides,
                     no_sandbox,
+                    full,
+                    prune: _,
                     format,
                 },
         } => {
             if let Err(error) = overrides.extend(command_overrides) {
                 return exit_with_error(error);
             }
-            match resolve_configuration(&overrides, no_sandbox, format) {
+            match resolve_configuration(&overrides, no_sandbox, full, format) {
                 Ok(output) => {
                     println!("{output}");
                     ExitCode::SUCCESS
@@ -152,6 +154,7 @@ fn main() -> ExitCode {
 fn resolve_configuration(
     overrides: &cli::ConfigOverrides,
     no_sandbox: bool,
+    full: bool,
     format: cli::ConfigFormat,
 ) -> Result<String, String> {
     let directory = std::env::current_dir().map_err(|error| error.to_string())?;
@@ -161,7 +164,35 @@ fn resolve_configuration(
     } else {
         sandbox::materialize_settings(captured.policy.clone(), Vec::new(), &directory)?
     };
-    settings::materialize::render(captured, value, &policy, no_sandbox, format)
+    let mut defaults = if full {
+        None
+    } else {
+        let (mut captured, defaults) = settings::read(
+            &directory,
+            &cli::ConfigOverrides {
+                no_config: true,
+                no_global_config: false,
+                no_project_config: false,
+                config_file: None,
+                values: Vec::new(),
+            },
+        )?;
+        // Compare with the binary's defaults, including when the internal
+        // language environment selects a different interface for this launch.
+        captured.languages = Some(cell::Languages::all());
+        let policy = captured.policy.clone();
+        Some(settings::materialize::configuration(
+            captured, defaults, &policy, no_sandbox, None,
+        )?)
+    };
+    let value = settings::materialize::configuration(
+        captured,
+        value,
+        &policy,
+        no_sandbox,
+        defaults.as_mut(),
+    )?;
+    settings::materialize::render(value, defaults, format)
 }
 
 fn run_server(

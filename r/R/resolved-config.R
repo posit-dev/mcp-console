@@ -53,7 +53,14 @@ resolve_console_config <- function(
   project <- normalizePath(project, mustWork = TRUE)
   result <- processx::run(
     binary,
-    c("config", "resolve", "--format", "json", console_cli_arguments(config)),
+    c(
+      "config",
+      "resolve",
+      "--full",
+      "--format",
+      "json",
+      console_cli_arguments(config)
+    ),
     wd = project,
     error_on_status = FALSE
   )

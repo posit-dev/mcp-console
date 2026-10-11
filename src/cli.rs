@@ -188,13 +188,19 @@ pub enum Command {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
-    /// Print captured settings and the complete editable tool presentation
+    /// Print resolved configuration
     Resolve {
         #[command(flatten)]
         overrides: ConfigOverrides,
         /// Resolve defaults for a subsequent serve --no-sandbox launch
         #[arg(long)]
         no_sandbox: bool,
+        /// Include all configuration defaults and the complete editable tool presentation
+        #[arg(long, conflicts_with = "prune")]
+        full: bool,
+        /// Include only settings that differ from built-in defaults (the default)
+        #[arg(long)]
+        prune: bool,
         /// Output format
         #[arg(long, value_enum, default_value = "yaml")]
         format: ConfigFormat,
