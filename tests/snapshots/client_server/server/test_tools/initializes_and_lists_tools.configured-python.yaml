@@ -1,0 +1,198 @@
+---
+input:
+  method: initialize
+  params:
+    protocolVersion: 2025-11-25
+    capabilities: {}
+    clientInfo:
+      name: acceptance-test
+      version: 1.0.0
+result:
+  protocolVersion: 2025-11-25
+  capabilities:
+    tools: {}
+  serverInfo:
+    name: mcp-console
+    version: 0.0.4
+  instructions: >-
+    Persistent Python REPL for calculations, data exploration and analysis,
+    database queries, debugging, simulations, and plots. Reuse objects
+    across calls to inspect results, test hypotheses, and compare
+    approaches.
+---
+input:
+  method: notifications/initialized
+---
+input:
+  method: tools/list
+result:
+  tools:
+    - name: send
+      description: >-
+        Persistent Python REPL for calculations, data exploration and analysis,
+        database queries, debugging, simulations, and plots. Reuse objects
+        across calls to inspect results, test hypotheses, and compare
+        approaches.
+
+
+        Send one complete `python` cell per call. Results display automatically;
+        supported plots return as images.
+
+
+        Use Python when its libraries or format-specific parsing simplify the
+        task.
+
+
+        Run one cell at a time. Wait for its `send` to return before another
+        call with code. You can interrupt a pending call with
+        `send(control="interrupt")`. An error can leave earlier changes in
+        place. If work is still running, poll with an empty `send`; do not
+        resubmit the cell. When waiting for completion, use `timeout_ms=300000`
+        for a long poll; it returns early when work finishes or needs input.
+        Avoid repeated short polls such as `timeout_ms=1000`. Defaults:
+        `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
+
+
+        Text results, including notices, have an 8 KiB limit, retaining the
+        beginning and latest tail; images have separate limits. Response notices
+        report state and omitted-output locations.
+
+
+        Evaluated code can read host files subject to configured restrictions
+        and cannot directly access the network. Writable locations: private
+        `TMPDIR`; subject to more specific read/deny rules. Package preparation
+        may execute installation or build code with separate filesystem and
+        network permissions; use only trusted dependencies.
+      inputSchema:
+        $schema: https://json-schema.org/draft/2020-12/schema
+        additionalProperties: false
+        type: object
+        properties:
+          python:
+            description: >-
+              Evaluate one complete Python cell in persistent `__main__` state. The
+              final visible expression autoprints; leave the primary result last.
+              Import packages normally; managed sessions prepare missing PyPI
+              distributions on first import. Use `requirements.python` when import and
+              distribution names differ or to prepare before execution.
+              `matplotlib.pyplot.show()` returns open figures as PNGs immediately and
+              closes them. At cell end, even after errors, remaining open figures
+              return as PNGs and close; `show()` is optional. Closing an unshown
+              figure suppresses capture.
+            type:
+              - string
+              - "null"
+          timeout_ms:
+            description: >-
+              Wait for output for up to this many milliseconds (default 60,000). When
+              waiting for completion, use `timeout_ms=300000` for a long poll; it
+              returns early when work finishes or needs input. Avoid repeated short
+              polls such as `timeout_ms=1000`. `0` returns without waiting for
+              completion. Expiry returns available output while work continues. This
+              is a wait budget, not cancellation or a whole-call deadline: preparation
+              and control can exceed it; standalone preparation has no timeout.
+            type: integer
+            format: uint64
+            minimum: 0
+            default: 60000
+          control:
+            description: >-
+              Apply control before same-call stdin/code. `interrupt` requests a
+              cooperative interrupt and cancellation of dependency preparation,
+              preserving live state. A following cell runs only if prior work stops.
+              `restart` discards live state, including debugger and unread input;
+              same-call stdin/code go only to the replacement.
+            type: string
+            enum:
+              - interrupt
+              - restart
+          stdin:
+            description: >-
+              Send stdin alone to answer an active read, prompt, or debugger. UTF-8
+              text is queued exactly; no newline is added, so line input normally
+              needs a trailing `\n`. Empty text queues nothing. With a cell, input
+              queues before code; an already waiting read may consume it first,
+              including while interrupted work unwinds. Unread input can satisfy later
+              reads; restart discards it.
+            type:
+              - string
+              - "null"
+          requirements:
+            description: >-
+              Inspect declarations or prepare dependencies on the execution host
+              without importing, attaching, or loading them. Requires host preparation
+              support; bare runtimes use installed packages. Alone, performs
+              standalone preparation. With a cell, preparation precedes code; without
+              control it also precedes bundled stdin. Failure or a required restart
+              withholds the cell. Compatible additions preserve live state on an idle
+              worker; other changes need restart. With restart, candidate resolution
+              precedes replacement; resolution failure preserves the current worker
+              and sends no stdin/code. Standalone preparation rejects nonempty stdin.
+              Only add can accompany interrupt, with a following cell; providers
+              without this preparation support reject the combination before signaling
+              or input. Otherwise interrupt and stdin precede deferred
+              validation/preparation and are not rolled back on failure.
+            type:
+              - object
+              - "null"
+            properties:
+              action:
+                description: |-
+                  get reads the retained declaration, not an installed-package inventory, without starting a
+                  worker or consuming output; use it alone, without code, stdin, control, or payload fields.
+                  The complete declaration is in structuredContent.requirements.
+                  add (default) accumulates up to 64 entries per language per call; bare {} is invalid.
+                  set replaces the whole declaration without defaults; omitted lists/constraints are empty,
+                  even with only action supplied. reset restores startup defaults and rejects payload fields.
+                  Changed set/reset with a live worker require control="restart"; unchanged declarations are
+                  no-ops. set accepts the complete accumulated manifest without add's per-list limit.
+                type: string
+                enum:
+                  - get
+                  - add
+                  - set
+                  - reset
+              python_version:
+                description: |-
+                  Python version numbers or ==, !=, <, <=, >, >= constraints (e.g. >=3.11).
+                  add appends; changes with a live worker require control="restart".
+                type: array
+                items:
+                  type: string
+              exclude_newer:
+                description: |-
+                  Package publication cutoff accepted by uv, e.g. "2026-01-01".
+                  set clears an omitted/null cutoff; add preserves omission and cannot replace an existing one.
+                type:
+                  - string
+                  - "null"
+              duckdb:
+                description: |-
+                  Managed DuckDB extension names, e.g. fts or spatial: lowercase ASCII letter first, then
+                  lowercase letters, digits, or underscores (at most 64 characters).
+                  Use DuckDB's LOAD or automatic loading after preparation.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+              r:
+                description: >-
+                  Single-line ir package references for dependency preparation, e.g. DBI
+                  or duckdb, including supported remote references; local sources and
+                  NUL/line breaks are rejected.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+              python:
+                description: |-
+                  Named PEP 508 registry requirements with versions, extras, or markers, e.g. polars>=1 or
+                  requests[socks]. Paths, URLs, editable requirements, direct references, and local sources
+                  are rejected. Bare or explicitly selected Python environments and custom workers disable
+                  managed Python requirements.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+            additionalProperties: false

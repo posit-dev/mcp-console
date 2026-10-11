@@ -67,7 +67,7 @@ impl Source {
             let active = client.evaluation.try_lock().ok()?;
             if let Some(active) = active
                 .as_ref()
-                .filter(|active| active.generation.is(&self.generation))
+                .filter(|active| active.evaluation.admission.generation.is(&self.generation))
                 && active.evaluation.replacement_observation()?
             {
                 return Some("replacement");
@@ -107,7 +107,7 @@ impl Client {
             .try_lock()
             .ok()?
             .as_ref()
-            .filter(|active| active.generation.is(&generation))
+            .filter(|active| active.evaluation.admission.generation.is(&generation))
             .map(|active| std::sync::Arc::downgrade(&active.evaluation));
         let lifecycle = self.0.lifecycle.try_lock().ok()?;
         if !lifecycle.generation.is(&generation) {

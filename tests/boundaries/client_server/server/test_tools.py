@@ -118,6 +118,9 @@ def test_initializes_and_lists_tools(
         "python-only.yaml": _initializes_and_lists_tools(
             binary, execution, python_only=True
         ),
+        "configured-python.yaml": _initializes_and_lists_tools(
+            binary, execution, bootstrap_languages="python"
+        ),
         "python-managed.yaml": _initializes_and_lists_tools(
             binary, execution, python_only=True, python_managed=True
         ),

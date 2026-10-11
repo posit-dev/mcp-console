@@ -1,0 +1,53 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: discarded_cell = True
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: worker startup interrupted
+  isError: true
+---
+send:
+  control: restart
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: assert 'discarded_cell' not in globals(); 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

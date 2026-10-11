@@ -27,6 +27,7 @@ enum Bootstrap {
     Disabled,
     Running,
     Finished,
+    Interrupted,
 }
 
 struct OperationStateCell {
@@ -117,7 +118,11 @@ impl WorkerOperationState {
         state.ensure_running()
     }
 
-    pub(super) fn finish_bootstrap(&self) -> Result<(), String> {
+    pub(in crate::worker_client) fn finish_bootstrap(
+        &self,
+        interrupted: bool,
+        admitted: Option<&Evaluation>,
+    ) -> Result<(), String> {
         let mut state = self.lock()?;
         if !matches!(state.bootstrap, Bootstrap::Running) {
             return Err("worker sent an unexpected runtime initialization result".into());
@@ -135,36 +140,65 @@ impl WorkerOperationState {
                 "worker initialized runtimes before completing runtime R activation".into(),
             );
         }
-        state.bootstrap = Bootstrap::Finished;
+        // The caller holds the active-cell publication guard. Include cells
+        // whose evaluator has not attached yet, but never a later admission.
+        if interrupted && let Some(evaluation) = admitted {
+            evaluation.admission.interrupt(|| Ok(()))?;
+        }
+        state.bootstrap = if interrupted {
+            Bootstrap::Interrupted
+        } else {
+            Bootstrap::Finished
+        };
         drop(state);
         self.0.runtime_r_reply.notify_all();
         Ok(())
     }
 
-    pub(in crate::worker_client) fn interrupt_bootstrap_cell(
+    pub(in crate::worker_client) fn interrupt_cell<T>(
         &self,
         evaluation: Option<&Evaluation>,
-    ) -> Result<(), String> {
-        // Serialize interrupt admission with release of the waiting cell.
-        // kill(SIGINT) acknowledges dispatch, not worker-side observation.
-        let state = self.lock()?;
-        if matches!(state.bootstrap, Bootstrap::Running)
-            && let Some(evaluation) = evaluation
-        {
-            evaluation.interrupt_bootstrap()?;
+        enqueue: impl FnOnce() -> Result<T, String>,
+    ) -> Result<T, String> {
+        // Lock order: active publication -> lifecycle -> operation -> admission
+        // -> response/output. Never wait for a receipt while holding these.
+        let _state = self.lock()?;
+        match evaluation {
+            Some(evaluation) => evaluation.admission.interrupt(enqueue),
+            None => enqueue(),
         }
-        Ok(())
+    }
+
+    pub(in crate::worker_client) fn dispatch_cell(
+        &self,
+        evaluation: &Evaluation,
+        enqueue: impl FnOnce() -> Result<(), String>,
+    ) -> Result<bool, String> {
+        let state = self.lock()?;
+        state.ensure_running()?;
+        assert!(!matches!(state.bootstrap, Bootstrap::Running));
+        evaluation.admission.dispatch(enqueue)
+    }
+
+    pub(in crate::worker_client) fn is_bootstrapping(&self) -> Result<bool, String> {
+        Ok(matches!(self.lock()?.bootstrap, Bootstrap::Running))
     }
 
     pub(in crate::worker_client) fn abort_bootstrap_cell(&self) -> Result<(), String> {
-        let operation = self
-            .lock()?
+        let mut state = self.lock()?;
+        let operation = state
             .operation
             .take()
             .ok_or("interrupted bootstrap has no waiting cell")?;
         let OperationKind::Cell(evaluation) = operation.kind else {
             return Err("interrupted bootstrap did not own a waiting cell".into());
         };
+        // Withholding never ran this cell. Its input may still belong to an
+        // idle callback that ignored interruption; return ownership before
+        // another input event can observe the detached operation.
+        assert!(state.idle_input.is_none());
+        state.idle_input = evaluation.take_input_request()?;
+        drop(state);
         evaluation.complete_cell_after_grace();
         Ok(())
     }
@@ -268,8 +302,8 @@ impl WorkerOperationState {
                 .wait(state)
                 .map_err(|_| "worker operation state lock poisoned".to_string())?;
         }
-        if state.idle_input.take().is_some() {
-            evaluation.resume_input_request()?;
+        if let Some(prompt) = state.idle_input.take() {
+            evaluation.resume_input_request(prompt)?;
         }
         let mut operation = Some(Operation {
             kind: OperationKind::Cell(evaluation.clone()),
@@ -392,8 +426,15 @@ impl WorkerOperationState {
             state.operation.take()
         };
         self.0.runtime_r_reply.notify_all();
-        if let Some(result) = operation.and_then(|operation| operation.result) {
-            let _ = result.send(Err(error));
+        if let Some(operation) = operation {
+            if let OperationKind::Cell(evaluation) = &operation.kind {
+                evaluation
+                    .admission
+                    .finish(crate::worker_client::admission::CellOutcome::Failed);
+            }
+            if let Some(result) = operation.result {
+                let _ = result.send(Err(error));
+            }
         }
     }
 
@@ -406,6 +447,13 @@ impl WorkerOperationState {
             state.bootstrap_suspended = false;
             state.runtime_r_callback = None;
             state.environment_preparation_reserved = false;
+            if let Some(OperationKind::Cell(evaluation)) =
+                state.operation.as_ref().map(|op| &op.kind)
+            {
+                evaluation
+                    .admission
+                    .finish(crate::worker_client::admission::CellOutcome::Failed);
+            }
             state
                 .operation
                 .as_mut()
@@ -778,6 +826,7 @@ mod tests {
         let output = OutputTape::new();
         let operation = WorkerOperationState::new(false);
         let evaluation = Arc::new(Evaluation::new(
+            crate::worker_client::lifecycle::WorkerGeneration::new(),
             crate::transcript::Transcript::new(true),
             None,
             output.clone(),

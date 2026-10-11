@@ -59,6 +59,7 @@ impl Client {
         };
         let (idle_prelude, worker_revision) = self.0.output.take_admission_prelude();
         let evaluation = Arc::new(Evaluation::new(
+            generation.clone(),
             transcript,
             call_id,
             self.0.output.clone(),
@@ -76,7 +77,6 @@ impl Client {
                 .expect("a new evaluation must accept initial stdin");
         }
         *active = Some(ActiveEvaluation {
-            generation: generation.clone(),
             evaluation: evaluation.clone(),
             language: cell.language,
             initial_requirements: Arc::new(Mutex::new(initial_requirements)),
@@ -237,7 +237,7 @@ impl Client {
                 tokio::runtime::Handle::current().block_on(Self::wait_for_startup(readiness));
             self.ensure_generation(&generation)
                 .map_err(SendFailure::from)?;
-            if !evaluation.is_interruptible()? {
+            if evaluation.admission.outcome()?.is_some() {
                 return Ok(());
             }
             if let Err(error) = readiness.and_then(|()| self.validate_cell(&cell)) {

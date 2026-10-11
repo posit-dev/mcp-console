@@ -1,0 +1,56 @@
+---
+relay:
+  kind: ready
+---
+relay:
+  kind: input_requested
+  prompt: "idle> "
+---
+relay:
+  kind: resolve_python_version
+  request:
+    constraints:
+      - ">=3.11"
+---
+server:
+  kind: python_version_resolution_failed
+  message: Python requirements are unavailable with a custom worker
+---
+server:
+  kind: interrupt
+  request_id: 0
+---
+relay:
+  kind: interrupt_result
+  request_id: 0
+---
+server:
+  kind: stdin
+  data: |
+    answer
+---
+relay:
+  kind: input_received
+---
+relay:
+  kind: resolve_python_version
+  request:
+    constraints:
+      - ">=3.11"
+---
+server:
+  kind: python_version_resolution_failed
+  message: Python requirements are unavailable with a custom worker
+---
+server:
+  kind: evaluate
+  language: r
+  source: fresh cell
+---
+relay:
+  kind: console_output
+  data: |
+    original worker survived
+---
+relay:
+  kind: completed

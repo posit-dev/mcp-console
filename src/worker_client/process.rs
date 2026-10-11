@@ -851,18 +851,22 @@ impl Worker {
             return Err(error);
         }
         self.operation.wait_for_bootstrap()?;
-        if evaluation.bootstrap_interrupted()? {
-            // The receipt marks logical admission, even when this evaluator did
-            // not start waiting until bootstrap had already been interrupted.
+        let dispatched = self.operation.dispatch_cell(&evaluation, || {
+            self.relay
+                .commands
+                .send(RelayCommand::Evaluate { language, source })
+        });
+        let dispatched = match dispatched {
+            Ok(dispatched) => dispatched,
+            Err(error) => {
+                self.operation.fail(error.clone());
+                return Err(error);
+            }
+        };
+        if !dispatched {
+            // Controller withholding survives receipt processing and delayed
+            // evaluator attachment. No Evaluate was queued for this owner.
             return self.operation.abort_bootstrap_cell();
-        }
-        if let Err(error) = self
-            .relay
-            .commands
-            .send(RelayCommand::Evaluate { language, source })
-        {
-            self.operation.fail(error.clone());
-            return Err(error);
         }
         match receive_operation(result)? {
             OperationResult::Completed => Ok(()),
@@ -1156,7 +1160,10 @@ impl InterruptRequests {
         })))
     }
 
-    fn request(&self, commands: &RelayCommandSender) -> Result<(), String> {
+    fn enqueue(
+        &self,
+        commands: &RelayCommandSender,
+    ) -> Result<mpsc::Receiver<Result<(), String>>, String> {
         let (result, receiver) = mpsc::sync_channel(1);
         let request_id = {
             let mut state = self
@@ -1175,9 +1182,7 @@ impl InterruptRequests {
             self.remove(request_id);
             return Err(error);
         }
-        receiver
-            .recv()
-            .map_err(|_| "worker interrupt response was not received".to_string())?
+        Ok(receiver)
     }
 
     pub(super) fn complete(&self, request_id: u64, error: Option<String>) -> Result<(), String> {
@@ -1263,6 +1268,10 @@ impl LocalShutdownObservation {
 }
 
 impl WorkerShutdownHandle {
+    pub(super) fn is_same_connection(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.commands.state, &other.commands.state)
+    }
+
     pub(super) fn reserve_failed_shutdown(&self, deadline: Instant) {
         self.reserve_shutdown(deadline, relay_retirement_deadline(deadline));
     }
@@ -1271,8 +1280,16 @@ impl WorkerShutdownHandle {
     }
 
     pub(super) fn interrupt(&self, evaluation: Option<&super::Evaluation>) -> Result<(), String> {
-        self.operation.interrupt_bootstrap_cell(evaluation)?;
-        self.interrupts.request(&self.commands)
+        let acknowledgment = self
+            .operation
+            .interrupt_cell(evaluation, || self.interrupts.enqueue(&self.commands))?;
+        acknowledgment
+            .recv()
+            .map_err(|_| "worker interrupt response was not received".to_string())?
+    }
+
+    pub(super) fn is_bootstrapping(&self) -> Result<bool, String> {
+        self.operation.is_bootstrapping()
     }
 
     /// Requests relay-owned worker shutdown and enforces bounded relay retirement.

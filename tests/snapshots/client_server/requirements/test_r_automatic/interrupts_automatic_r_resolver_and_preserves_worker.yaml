@@ -11,6 +11,15 @@ result:
 ---
 send:
   r: |
+    local({
+      gate <- fifo(
+        Sys.getenv("MCP_CONSOLE_TEST_R_RESOLVER_RELEASE"),
+        "rb",
+        blocking = TRUE
+      )
+      stopifnot(identical(readBin(gate, "raw", 1L), charToRaw("1")))
+      close(gate)
+    })
     package <- "RcppRoll"
     do.call(base::loadNamespace, list(package = package))
     resolver_interrupt_cell_ran <- TRUE

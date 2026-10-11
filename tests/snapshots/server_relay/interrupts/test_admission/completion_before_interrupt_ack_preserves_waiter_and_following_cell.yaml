@@ -1,0 +1,42 @@
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: first cell
+---
+server:
+  kind: stdin
+  data: |
+    waiter owns first response
+---
+server:
+  kind: interrupt
+  request_id: 0
+---
+relay:
+  kind: console_output
+  data: |
+    first cell completed
+---
+relay:
+  kind: completed
+---
+relay:
+  kind: interrupt_result
+  request_id: 0
+---
+server:
+  kind: evaluate
+  language: r
+  source: following cell
+---
+relay:
+  kind: console_output
+  data: |
+    following cell completed
+---
+relay:
+  kind: completed

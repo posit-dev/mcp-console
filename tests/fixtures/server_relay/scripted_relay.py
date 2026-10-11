@@ -487,6 +487,33 @@ def run_interrupt(relay: ScriptedRelay) -> None:
     relay.retire()
 
 
+def run_withheld_idle_input(relay: ScriptedRelay) -> None:
+    relay.make_checkpoint(PRELUDE_RELEASE_NAME)
+    relay.make_checkpoint(PRELUDE_PROCESSED_NAME)
+    relay.make_checkpoint(POLL_STDIN_RECEIVED_NAME)
+    relay.ready()
+    relay.wait_for_checkpoint(PRELUDE_RELEASE_NAME)
+    relay.send({"kind": "input_requested", "prompt": "idle> "})
+    relay.send(RESOLVE_PYTHON_VERSION)
+    relay.expect(PYTHON_VERSION_RESOLUTION_FAILED)
+    relay.notify_checkpoint(PRELUDE_PROCESSED_NAME)
+
+    # The idle callback ignores interruption and keeps its live input request.
+    interrupt = relay.receive()
+    assert interrupt == {"kind": "interrupt", "request_id": 0}, interrupt
+    relay.send({"kind": "interrupt_result", "request_id": 0})
+    relay.expect({"kind": "stdin", "data": "answer\n"})
+    relay.send({"kind": "input_received"})
+    relay.send(RESOLVE_PYTHON_VERSION)
+    relay.expect(PYTHON_VERSION_RESOLUTION_FAILED)
+    relay.notify_checkpoint(POLL_STDIN_RECEIVED_NAME)
+
+    relay.expect({"kind": "evaluate", "language": "r", "source": "fresh cell"})
+    relay.send({"kind": "console_output", "data": "original worker survived\n"})
+    relay.complete()
+    relay.retire()
+
+
 def run_controlled_restart_stdin(relay: ScriptedRelay) -> None:
     relay.ready()
     command = relay.receive()
@@ -832,6 +859,25 @@ def run_controlled_interrupt_with_waiting_poll(relay: ScriptedRelay) -> None:
             "data": "original waiter evaluation finished\n",
         }
     )
+    relay.complete()
+    relay.retire()
+
+
+def run_completion_before_interrupt_ack(relay: ScriptedRelay) -> None:
+    relay.make_checkpoint(POLL_STDIN_RECEIVED_NAME)
+    relay.make_checkpoint(INTERRUPT_ACK_RELEASE_NAME)
+    relay.ready()
+    relay.expect({"kind": "evaluate", "language": "r", "source": "first cell"})
+    (relay.root / EVALUATING_NAME).touch()
+    relay.expect({"kind": "stdin", "data": "waiter owns first response\n"})
+    relay.notify_checkpoint(POLL_STDIN_RECEIVED_NAME)
+    relay.expect({"kind": "interrupt", "request_id": 0})
+    relay.send({"kind": "console_output", "data": "first cell completed\n"})
+    relay.send(COMPLETED)
+    relay.wait_for_checkpoint(INTERRUPT_ACK_RELEASE_NAME)
+    relay.send({"kind": "interrupt_result", "request_id": 0})
+    relay.expect({"kind": "evaluate", "language": "r", "source": "following cell"})
+    relay.send({"kind": "console_output", "data": "following cell completed\n"})
     relay.complete()
     relay.retire()
 
@@ -1465,6 +1511,7 @@ def main() -> None:
         "live_r_requirements_then_evaluate": run_live_r_requirements_then_evaluate,
         "stdin_forwarding_failure": run_stdin_forwarding_failure,
         "interrupt": run_interrupt,
+        "withheld_idle_input": run_withheld_idle_input,
         "controlled_restart_stdin": run_controlled_restart_stdin,
         "controlled_restart_stdin_only": run_controlled_restart_stdin_only,
         "controlled_restart_requirements": run_controlled_restart_requirements,
@@ -1490,6 +1537,7 @@ def main() -> None:
         "controlled_interrupt_with_waiting_poll": (
             run_controlled_interrupt_with_waiting_poll
         ),
+        "completion_before_interrupt_ack": run_completion_before_interrupt_ack,
         "cancelled_interrupt_during_live_r_preparation": (
             run_cancelled_interrupt_during_live_r_preparation
         ),

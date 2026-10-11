@@ -11,6 +11,7 @@
 
 static pthread_t main_thread;
 static atomic_uint attempts;
+static unsigned admission_ordinal = 1;
 static _Atomic(pthread_cond_t *) main_condition;
 static _Atomic(pthread_mutex_t *) main_mutex;
 static atomic_bool input_returned;
@@ -20,6 +21,8 @@ static _Thread_local bool input_eof;
 
 __attribute__((constructor)) static void initialize(void) {
     main_thread = pthread_self();
+    const char *ordinal = getenv("MCP_CONSOLE_TEST_ADMISSION_ORDINAL");
+    if (ordinal) admission_ordinal = (unsigned)atoi(ordinal);
     // Only the server is gated, never its preparation children.
     unsetenv("DYLD_INSERT_LIBRARIES");
     unsetenv("LD_PRELOAD");
@@ -47,8 +50,8 @@ static void gate_retry(void) {
 
 static int observed_fstat(int descriptor, struct stat *status) {
     // Each startup attempt inspects MCP stdin before admission. Hold the
-    // retry here, leaving the real protocol reader and shutdown responsive.
-    if (descriptor == STDIN_FILENO && atomic_fetch_add(&attempts, 1) == 1) gate_retry();
+    // selected attempt here; the protocol reader and shutdown remain responsive.
+    if (descriptor == STDIN_FILENO && atomic_fetch_add(&attempts, 1) == admission_ordinal) gate_retry();
     return fstat(descriptor, status);
 }
 

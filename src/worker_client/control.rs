@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use super::environment::{PreparationIntent, PrepareResult};
 use super::evaluation::{self, Evaluation, EvaluationWait};
-use super::lifecycle::{ControlledSendAdmission, WorkerGeneration};
+use super::lifecycle::{ControlledSendAdmission, SelectedInterruptTarget, WorkerGeneration};
 use super::output::{self, Response, SendFailure, SendResponse};
 use super::send::send_response_from_wait;
 use super::{
@@ -271,9 +271,9 @@ impl Client {
         if self.0.python_only && requirements.is_some() {
             return Err("Python requirements cannot accompany control: interrupt; prepare before first use or with control: restart".into());
         }
-        self.interrupt_blocking()?;
+        let target = self.interrupt_blocking()?;
         self.ensure_controlled_generation(control, &generation)?;
-        match self.submit_controlled_stdin(stdin, &generation, control) {
+        match self.submit_controlled_stdin(stdin, &generation, control, &target) {
             Ok(()) => {}
             Err(ControlledStdinFailure::ActiveEvaluation(error)) => return Err(error),
             Err(ControlledStdinFailure::IdleWorker(failure)) => {
@@ -281,6 +281,11 @@ impl Client {
             }
         }
         std::thread::sleep(INTERRUPT_GRACE);
+        if cell.is_some() {
+            // Keep the prior receipt/output for collection even if replacement
+            // already finished. Its logical generation alone cannot admit code.
+            target.ensure_followup_connection(self)?;
+        }
         self.continue_after_interrupt(control, generation, cell, requirements, transcript, call_id)
     }
 
@@ -439,7 +444,7 @@ impl Client {
                 // No-op preparation preserves the accepted cell. Its input
                 // and observation must not wait for its worker lock.
                 self.ensure_controlled_generation(control, &generation)?;
-                if !active.generation.is(&generation) {
+                if !active.evaluation.admission.generation.is(&generation) {
                     return Err("session restarted before the operation began".into());
                 }
                 let wait_claim = active.evaluation.claim()?;
@@ -537,28 +542,41 @@ impl Client {
         stdin: Option<String>,
         generation: &WorkerGeneration,
         control: &ControlledSendAdmission,
+        target: &SelectedInterruptTarget,
     ) -> Result<(), ControlledStdinFailure> {
         let Some(stdin) = stdin.filter(|stdin| !stdin.is_empty()) else {
             return Ok(());
         };
         self.ensure_controlled_generation(control, generation)
             .map_err(ControlledStdinFailure::ActiveEvaluation)?;
-        if let Some(active) = self
-            .current_evaluation()
-            .map_err(ControlledStdinFailure::ActiveEvaluation)?
-        {
-            if !active.generation.is(generation) {
+        if let Some(evaluation) = target.evaluation() {
+            if !evaluation.admission.generation.is(generation) {
                 return Err(ControlledStdinFailure::ActiveEvaluation(
                     "session restarted before stdin was queued".to_string(),
                 ));
             }
-            active
-                .evaluation
+            evaluation
                 .submit_stdin(stdin)
                 .map_err(ControlledStdinFailure::ActiveEvaluation)
-        } else {
-            self.write_idle_stdin_blocking(stdin, generation.clone())
+        } else if let Some(worker) = target.worker() {
+            self.0.unused_default.store(false, Ordering::Release);
+            worker
+                .write_startup_stdin(stdin)
+                .map_err(SendFailure::from)
                 .map_err(ControlledStdinFailure::IdleWorker)
+        } else if matches!(
+            target,
+            SelectedInterruptTarget::Resolver { startup: None, .. }
+        ) {
+            // A resolver selected before any worker startup may be followed by
+            // lazy startup in the admitted generation. Preserve its terminal
+            // failure; an established target never uses this path.
+            self.write_idle_stdin_admitted(stdin, generation.clone(), Some(control))
+                .map_err(ControlledStdinFailure::IdleWorker)
+        } else {
+            Err(ControlledStdinFailure::ActiveEvaluation(
+                "worker startup interrupted".into(),
+            ))
         }
     }
 
@@ -573,13 +591,17 @@ impl Client {
             return Ok(PriorEvaluation::None);
         };
         self.ensure_controlled_generation(control, generation)?;
-        if !current.generation.is(generation) {
+        if !current.evaluation.admission.generation.is(generation) {
             return Err("session restarted before the interrupted evaluation settled".to_string());
         }
         let evaluation = current.evaluation.clone();
         // A code-free interrupt observes through a wait claim, including after
         // completion. It must not retire another send's evaluation or delivery.
         if !cell_follows {
+            return Ok(PriorEvaluation::Active(evaluation));
+        }
+        let outcome = evaluation.admission.outcome()?;
+        if outcome.is_none() {
             return Ok(PriorEvaluation::Active(evaluation));
         }
         let reservation = evaluation.reserve_completed_for_handoff()?;
@@ -589,7 +611,11 @@ impl Client {
         *active = None;
         drop(active);
         match self.settle_reserved_evaluation(Some(reservation), false) {
-            Ok(response) => Ok(PriorEvaluation::Completed(response)),
+            Ok(response) => Ok(if outcome == Some(super::admission::CellOutcome::Failed) {
+                PriorEvaluation::Failed(response)
+            } else {
+                PriorEvaluation::Completed(response)
+            }),
             Err(mut failure) => {
                 failure.response.push_tool_error(failure.message);
                 Ok(PriorEvaluation::Failed(failure.response))

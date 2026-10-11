@@ -346,7 +346,7 @@ impl Client {
                     // An accepted early cell may own preparation's write lock.
                     // Poll its evaluation without reserving another operation.
                     self.ensure_ordinary_generation(&generation)?;
-                    if !active.generation.is(&generation) {
+                    if !active.evaluation.admission.generation.is(&generation) {
                         return Err("session restarted before the operation began"
                             .to_string()
                             .into());
@@ -377,7 +377,7 @@ impl Client {
                     loop {
                         if let Some(active) = self.current_evaluation()? {
                             self.ensure_ordinary_generation(&generation)?;
-                            if !active.generation.is(&generation) {
+                            if !active.evaluation.admission.generation.is(&generation) {
                                 return Err("session restarted before the operation began"
                                     .to_string()
                                     .into());

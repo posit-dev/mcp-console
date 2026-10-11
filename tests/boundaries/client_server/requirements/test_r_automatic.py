@@ -1064,8 +1064,10 @@ def test_interrupts_automatic_r_resolver_and_preserves_worker(
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         environment, record = recording_ir_environment(directory)
+        cell_release = FifoCheckpoint.create(directory / "cell-release")
         started = FifoCheckpoint.create(directory / "ir-started")
         interrupted = FifoCheckpoint.create(directory / "ir-interrupted")
+        environment["MCP_CONSOLE_TEST_R_RESOLVER_RELEASE"] = str(cell_release.path)
         environment["MCP_CONSOLE_TEST_IR_BLOCK_REQUIREMENT"] = package
         environment["MCP_CONSOLE_TEST_IR_STARTED"] = str(started.path)
         environment["MCP_CONSOLE_TEST_IR_INTERRUPTED"] = str(interrupted.path)
@@ -1083,13 +1085,25 @@ def test_interrupts_automatic_r_resolver_and_preserves_worker(
 
             # fmt: r
             r = code(r"""
+                local({
+                  gate <- fifo(
+                    Sys.getenv("MCP_CONSOLE_TEST_R_RESOLVER_RELEASE"),
+                    "rb",
+                    blocking = TRUE
+                  )
+                  stopifnot(identical(readBin(gate, "raw", 1L), charToRaw("1")))
+                  close(gate)
+                })
                 package <- "RcppRoll"
                 do.call(base::loadNamespace, list(package = package))
                 resolver_interrupt_cell_ran <- TRUE
                 """)
             # Release the cell's response claim before the interrupt becomes
             # the sole reader of the resolver error and evaluation completion.
+            # The resolver cannot start before this response is projected.
             client.expect("\n[running; poll with an empty send]", r=r, timeout_ms=0)
+            assert "phase:" not in last_result_text(client), last_result_text(client)
+            cell_release.release()
             started.wait("automatic R resolver")
             resolver = [
                 child
@@ -1122,6 +1136,8 @@ def test_interrupts_automatic_r_resolver_and_preserves_worker(
             passed = True
             return transcript
         finally:
+            cell_release.release()
+            cell_release.close()
             started.close()
             interrupted.close()
             if not passed:

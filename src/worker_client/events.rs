@@ -706,10 +706,7 @@ fn handle_semantic_event(
             Ok(())
         }
         RelayEvent::RuntimeInitialized { interrupted } => {
-            if interrupted {
-                callbacks.interrupt_bootstrap_cell()?;
-            }
-            operation.finish_bootstrap()
+            callbacks.finish_bootstrap(operation, interrupted)
         }
         RelayEvent::RInitialization { complete } => {
             callbacks.generation.r_initialization(complete);

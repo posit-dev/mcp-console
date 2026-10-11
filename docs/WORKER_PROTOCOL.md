@@ -74,6 +74,11 @@ Bootstrap then uses the same interpreter thread and can produce output, input, a
 
 `runtime_initialized` ends built-in bootstrap and reports interruption.
 The server withholds an already admitted cell's evaluation until bootstrap settles.
+Controller interrupt admission, processing this receipt, and enqueueing `evaluate` share a short ordering point.
+An interrupt admitted before dispatch withholds the pending cell even when the worker already sampled `interrupted = false`.
+An interrupted receipt affects only the cell admitted before receipt processing, including an evaluator that has not attached yet.
+Later cells do not inherit that withholding.
+These transitions enqueue commands without waiting for pipe I/O or signal acknowledgment; acknowledgment confirms dispatch, not worker-side interruption or cell completion.
 Native R startup reports its admission and successful completion through `r_initialization`; failed or interrupted R initialization requires explicit restart rather than in-place or automatic retry.
 Custom workers need not send built-in bootstrap events.
 

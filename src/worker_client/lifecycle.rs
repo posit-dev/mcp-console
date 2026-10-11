@@ -13,7 +13,7 @@ use super::{Client, WorkerRetirement, WorkerRetirementFailure, WorkerState, plat
 pub(crate) struct WorkerGeneration(Arc<AtomicBool>);
 
 impl WorkerGeneration {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self(Arc::new(AtomicBool::new(true)))
     }
 
@@ -53,6 +53,78 @@ pub(crate) struct WorkerStartupAdmission {
     client: Client,
     generation: WorkerGeneration,
     pub(super) transport_ready: Arc<AtomicBool>,
+}
+
+pub(super) enum SelectedInterruptTarget {
+    Resolver {
+        resolver: crate::resolver::ResolverStopHandle,
+        startup: Option<Arc<WorkerStartupAdmission>>,
+        worker: Option<platform::WorkerShutdownHandle>,
+        evaluation: Option<Arc<super::Evaluation>>,
+    },
+    Startup {
+        _owner: Arc<WorkerStartupAdmission>,
+        evaluation: Option<Arc<super::Evaluation>>,
+    },
+    Worker {
+        worker: platform::WorkerShutdownHandle,
+        _generation: WorkerGeneration,
+        evaluation: Option<Arc<super::Evaluation>>,
+    },
+    Busy,
+    NoTarget,
+}
+
+impl SelectedInterruptTarget {
+    fn interrupt(&self) -> Result<(), String> {
+        match self {
+            Self::Resolver { resolver, .. } => resolver.interrupt().map(|_| ()),
+            Self::Startup { .. } => Ok(()),
+            Self::Worker {
+                worker, evaluation, ..
+            } => worker.interrupt(evaluation.as_deref()),
+            Self::Busy => Err("session control is in progress".into()),
+            Self::NoTarget => Err("worker is not running".into()),
+        }
+    }
+
+    pub(super) fn evaluation(&self) -> Option<&Arc<super::Evaluation>> {
+        match self {
+            Self::Worker { evaluation, .. }
+            | Self::Resolver { evaluation, .. }
+            | Self::Startup { evaluation, .. } => evaluation.as_ref(),
+            Self::Busy | Self::NoTarget => None,
+        }
+    }
+
+    pub(super) fn worker(&self) -> Option<&platform::WorkerShutdownHandle> {
+        match self {
+            Self::Worker { worker, .. } => Some(worker),
+            Self::Resolver { worker, .. } => worker.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub(super) fn ensure_followup_connection(&self, client: &Client) -> Result<(), String> {
+        let Some(selected) = self.worker() else {
+            return Ok(());
+        };
+        let lifecycle = client
+            .0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned")?;
+        if lifecycle
+            .processes
+            .worker
+            .as_ref()
+            .is_some_and(|current| current.is_same_connection(selected))
+        {
+            Ok(())
+        } else {
+            Err("interrupted worker connection changed; cell was not run".into())
+        }
+    }
 }
 
 struct RetiringGeneration {
@@ -145,15 +217,11 @@ impl LifecycleControl {
             .cloned()
     }
 
-    fn interrupt_startup(&mut self) -> bool {
-        let Some(startup) = self.startup.as_mut() else {
-            return false;
-        };
-        if startup.owner.strong_count() == 0 {
-            return false;
-        }
+    fn interrupt_startup(&mut self) -> Option<Arc<WorkerStartupAdmission>> {
+        let startup = self.startup.as_mut()?;
+        let owner = startup.owner.upgrade()?;
         startup.interrupted = true;
-        true
+        Some(owner)
     }
 
     pub(super) fn old_generation_commit_disposition(
@@ -442,103 +510,86 @@ impl Client {
     }
 
     pub(super) fn interrupt_standalone_blocking(&self) -> Result<(), String> {
-        let (resolver, startup) = {
-            let mut lifecycle = self
-                .0
-                .lifecycle
-                .lock()
-                .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
-            (
-                lifecycle.processes.resolver.clone(),
-                lifecycle.interrupt_startup(),
-            )
-        };
-        if let Some(resolver) = resolver
-            && resolver.interrupt()?
-        {
-            return Ok(());
-        }
-        if startup {
-            return Ok(());
-        }
-
-        let active = self.evaluation()?;
-        let (processes, worker_allowed, startup, evaluation) = {
-            let mut lifecycle = self
-                .0
-                .lifecycle
-                .lock()
-                .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
-            let active_is_interruptible = active
-                .as_ref()
-                .map(|active| active.evaluation.is_interruptible())
-                .transpose()?
-                .unwrap_or(false);
-            let worker_allowed = lifecycle.controlled_send.is_none()
-                || (lifecycle.state == LifecycleState::Ready
-                    && active_is_interruptible
-                    && active
-                        .as_ref()
-                        .is_some_and(|active| active.generation.is(&lifecycle.generation)));
-            (
-                lifecycle.processes.clone(),
-                worker_allowed,
-                lifecycle.interrupt_startup(),
-                active
-                    .as_ref()
-                    .filter(|active| active.generation.is(&lifecycle.generation))
-                    .map(|active| active.evaluation.clone()),
-            )
-        };
-        // Receipt dispatch can mark the accepted cell before an interrupt reply.
-        // Never hold its slot lock while waiting for that dispatcher.
-        drop(active);
-        if let Some(resolver) = processes.resolver
-            && resolver.interrupt()?
-        {
-            return Ok(());
-        }
-        if startup {
-            return Ok(());
-        }
-        if worker_allowed {
-            return processes
-                .worker
-                .ok_or_else(|| "worker is not running".to_string())?
-                .interrupt(evaluation.as_deref());
-        }
-        Err("session control is in progress".to_string())
+        self.select_interrupt_target(false)?.interrupt()
     }
 
-    pub(super) fn interrupt_blocking(&self) -> Result<(), String> {
-        let (processes, startup, evaluation) = {
-            let active = self.evaluation()?;
-            let mut lifecycle = self
-                .0
-                .lifecycle
-                .lock()
-                .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
-            (
-                lifecycle.processes.clone(),
-                lifecycle.interrupt_startup(),
+    pub(super) fn interrupt_blocking(&self) -> Result<SelectedInterruptTarget, String> {
+        let target = self.select_interrupt_target(true)?;
+        target.interrupt()?;
+        Ok(target)
+    }
+
+    fn select_interrupt_target(&self, controlled: bool) -> Result<SelectedInterruptTarget, String> {
+        // Select once under publication/lifecycle locks. The selected connection
+        // survives completion, lost acknowledgment and same-generation replacement.
+        // No receipt wait or resolver I/O may hold these guards.
+        let active = self.evaluation()?;
+        let mut lifecycle = self
+            .0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        let evaluation = active
+            .as_ref()
+            .filter(|active| {
                 active
-                    .as_ref()
-                    .filter(|active| active.generation.is(&lifecycle.generation))
-                    .map(|active| active.evaluation.clone()),
-            )
-        };
-        if let Some(resolver) = processes.resolver
-            && resolver.interrupt()?
+                    .evaluation
+                    .admission
+                    .generation
+                    .is(&lifecycle.generation)
+            })
+            .map(|active| active.evaluation.clone());
+        let startup = lifecycle.interrupt_startup();
+        if startup.is_some()
+            && let Some(evaluation) = &evaluation
         {
-            return Ok(());
+            evaluation.admission.interrupt(|| Ok(()))?;
         }
-        if startup {
-            return Ok(());
+        if let Some(resolver) = lifecycle.processes.resolver.clone() {
+            return Ok(SelectedInterruptTarget::Resolver {
+                resolver,
+                startup,
+                worker: lifecycle.processes.worker.clone(),
+                evaluation,
+            });
         }
-        processes
+        if let Some(startup) = startup {
+            return Ok(SelectedInterruptTarget::Startup {
+                _owner: startup,
+                evaluation,
+            });
+        }
+        let active_execution = evaluation
+            .as_ref()
+            .map(|evaluation| {
+                evaluation
+                    .admission
+                    .outcome()
+                    .map(|outcome| outcome.is_none())
+            })
+            .transpose()?
+            .unwrap_or(false);
+        let worker_starting = lifecycle
+            .processes
             .worker
-            .ok_or_else(|| "worker is not running".to_string())?
-            .interrupt(evaluation.as_deref())
+            .as_ref()
+            .map(|worker| worker.is_bootstrapping())
+            .transpose()?
+            .unwrap_or(false);
+        let worker_allowed = controlled
+            || lifecycle.controlled_send.is_none()
+            || (lifecycle.state == LifecycleState::Ready && (active_execution || worker_starting));
+        Ok(if !worker_allowed {
+            SelectedInterruptTarget::Busy
+        } else if let Some(worker) = lifecycle.processes.worker.clone() {
+            SelectedInterruptTarget::Worker {
+                worker,
+                _generation: lifecycle.generation.clone(),
+                evaluation,
+            }
+        } else {
+            SelectedInterruptTarget::NoTarget
+        })
     }
 
     /// Defers the replacement-ready marker when this admission owns a follow-up operation.
@@ -1539,6 +1590,7 @@ mod tests {
         ));
         client.finish_startup(Ok(()));
         let evaluation = Arc::new(super::super::Evaluation::new(
+            WorkerGeneration::new(),
             crate::transcript::Transcript::new(true),
             None,
             client.0.output.clone(),
@@ -1591,6 +1643,7 @@ mod tests {
         ));
         client.finish_startup(Ok(()));
         let evaluation = Arc::new(super::super::Evaluation::new(
+            WorkerGeneration::new(),
             crate::transcript::Transcript::new(true),
             None,
             client.0.output.clone(),

@@ -10,6 +10,7 @@ const INPUT_REQUEST_GRACE: Duration = Duration::from_millis(10);
 const CELL_COMPLETION_GRACE: Duration = Duration::from_millis(1);
 
 pub(super) struct Evaluation {
+    pub(super) admission: super::admission::CellAdmission,
     state: Mutex<EvaluationState>,
     changed: tokio::sync::Notify,
     delivery_changed: Arc<tokio::sync::Notify>,
@@ -36,19 +37,22 @@ struct EvaluationState {
     completion_collected: bool,
     /// Whether successful cell completion must end with an explicit final marker.
     controlled_completion: bool,
-    input_report_at: Option<Instant>,
+    input_request: Option<InputRequest>,
     /// Whether one `send` currently owns the right to drain this evaluation's response.
     waiting: bool,
     /// Restart or controlled handoff permanently retires this evaluation.
     /// Releasing its response reservation must not revive late task failures.
     retired: bool,
-    /// This accepted cell preceded an interrupted bootstrap receipt.
-    bootstrap_interrupted: bool,
     restart_handoff: Option<Response>,
     #[cfg(any(unix, windows))]
     stdin: Option<super::platform::StdinSender>,
     pending_stdin: String,
     observed_worker_revision: u64,
+}
+
+struct InputRequest {
+    prompt: String,
+    report_at: Instant,
 }
 
 #[derive(Clone, Copy)]
@@ -116,7 +120,9 @@ enum WaitKind {
 }
 
 impl Evaluation {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
+        generation: super::lifecycle::WorkerGeneration,
         transcript: crate::transcript::Transcript,
         call_id: Option<u64>,
         output: OutputTape,
@@ -127,6 +133,7 @@ impl Evaluation {
     ) -> Self {
         let delivery_changed = Arc::new(tokio::sync::Notify::new());
         Self {
+            admission: super::admission::CellAdmission::new(generation),
             state: Mutex::new(EvaluationState {
                 phase: EvaluationPhase::Evaluating,
                 completion_cut: None,
@@ -137,10 +144,9 @@ impl Evaluation {
                 delivery_changed: Arc::clone(&delivery_changed),
                 completion_collected: false,
                 controlled_completion,
-                input_report_at: None,
+                input_request: None,
                 waiting: false,
                 retired: false,
-                bootstrap_interrupted: false,
                 restart_handoff: None,
                 #[cfg(any(unix, windows))]
                 stdin: None,
@@ -191,38 +197,10 @@ impl Evaluation {
         }))
     }
 
-    pub(super) fn is_interruptible(&self) -> Result<bool, String> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        Ok(matches!(
-            state.phase,
-            EvaluationPhase::Evaluating | EvaluationPhase::ReplacementStarting
-        ))
-    }
-
     /// None omits a busy observation; false leaves other owners observable.
     pub(super) fn replacement_observation(&self) -> Option<bool> {
         let state = self.state.try_lock().ok()?;
         Some(!state.retired && matches!(state.phase, EvaluationPhase::ReplacementStarting))
-    }
-
-    pub(super) fn interrupt_bootstrap(&self) -> Result<(), String> {
-        let mut state = self
-            .state
-            .lock()
-            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        state.bootstrap_interrupted = true;
-        Ok(())
-    }
-
-    pub(super) fn bootstrap_interrupted(&self) -> Result<bool, String> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        Ok(state.bootstrap_interrupted)
     }
 
     /// Reserves an open response until restart finishes retiring the worker.
@@ -362,8 +340,8 @@ impl Evaluation {
             return Ok(());
         }
 
-        if let Some(report_at) = state.input_report_at.as_mut() {
-            *report_at = Instant::now() + INPUT_REQUEST_GRACE;
+        if let Some(request) = state.input_request.as_mut() {
+            request.report_at = Instant::now() + INPUT_REQUEST_GRACE;
         }
         #[cfg(any(unix, windows))]
         if let Some(writer) = &state.stdin {
@@ -419,24 +397,27 @@ impl Evaluation {
             .state
             .lock()
             .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        if state.input_report_at.is_some() {
+        if state.input_request.is_some() {
             return Err("worker requested new input before receiving prior input".to_string());
         }
         let prompt = serde_json::to_string(&prompt)
             .map_err(|error| format!("failed to render worker input prompt: {error}"))?;
         self.output
             .push_notice_line(format!("input requested: {prompt}"));
-        state.input_report_at = Some(Instant::now() + INPUT_REQUEST_GRACE);
+        state.input_request = Some(InputRequest {
+            prompt,
+            report_at: Instant::now() + INPUT_REQUEST_GRACE,
+        });
         self.changed.notify_one();
         Ok(())
     }
 
-    pub(super) fn resume_input_request(&self) -> Result<(), String> {
+    pub(super) fn resume_input_request(&self, prompt: String) -> Result<(), String> {
         let mut state = self
             .state
             .lock()
             .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        if state.input_report_at.is_some() {
+        if state.input_request.is_some() {
             return Err("worker evaluation already has an outstanding input request".to_string());
         }
         let grace = if state.pending_stdin.is_empty() {
@@ -444,9 +425,20 @@ impl Evaluation {
         } else {
             INPUT_REQUEST_GRACE
         };
-        state.input_report_at = Some(Instant::now() + grace);
+        state.input_request = Some(InputRequest {
+            prompt,
+            report_at: Instant::now() + grace,
+        });
         self.changed.notify_one();
         Ok(())
+    }
+
+    pub(super) fn take_input_request(&self) -> Result<Option<String>, String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
+        Ok(state.input_request.take().map(|request| request.prompt))
     }
 
     pub(super) fn input_received(&self) -> Result<(), String> {
@@ -455,7 +447,7 @@ impl Evaluation {
             .lock()
             .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
         state
-            .input_report_at
+            .input_request
             .take()
             .ok_or_else(|| "worker reported received input without requesting it".to_string())?;
         self.changed.notify_one();
@@ -467,17 +459,24 @@ impl Evaluation {
             .state
             .lock()
             .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        if state.input_report_at.is_some() {
+        if state.input_request.is_some() {
             return Err("worker completed with an outstanding input request".to_string());
         }
         Ok(())
     }
 
     pub(super) fn complete_cell(&self, result: Result<(), SendFailure>) {
+        self.admission.finish(if result.is_ok() {
+            super::admission::CellOutcome::Completed
+        } else {
+            super::admission::CellOutcome::Failed
+        });
         self.complete(result, CompletionKind::Cell, None);
     }
 
     pub(super) fn complete_cell_after_grace(self: &Arc<Self>) {
+        self.admission
+            .finish(super::admission::CellOutcome::Completed);
         // Give raw-output readers a brief window to publish cross-pipe output that
         // arrived with Completed. The cut still leaves later observations for the
         // next response; it does not claim cross-pipe chronology.
@@ -485,7 +484,7 @@ impl Evaluation {
         let Ok(mut state) = self.state.lock() else {
             return;
         };
-        state.input_report_at = None;
+        state.input_request = None;
         state.phase = EvaluationPhase::CellCompletionGrace(deadline);
         state.completion_cut = None;
         state.completion_collected = false;
@@ -524,10 +523,11 @@ impl Evaluation {
     }
 
     pub(super) fn start_replacement(&self, failure: SendFailure) {
+        self.admission.finish(super::admission::CellOutcome::Failed);
         let Ok(mut state) = self.state.lock() else {
             return;
         };
-        state.input_report_at = None;
+        state.input_request = None;
         state.completion_cut = None;
         self.finish_cell_output();
         self.output.push_failure(failure);
@@ -553,7 +553,7 @@ impl Evaluation {
         let Ok(mut state) = self.state.lock() else {
             return;
         };
-        state.input_report_at = None;
+        state.input_request = None;
         if let Err(failure) = result
             && (!state.retired || failure.should_survive_restart())
         {
@@ -724,7 +724,7 @@ impl Evaluation {
             }
             EvaluationPhase::Evaluating | EvaluationPhase::ReplacementStarting => {}
         }
-        let Some(report_at) = state.input_report_at else {
+        let Some(request) = state.input_request.as_ref() else {
             if at_deadline {
                 let cut = self.output.cut();
                 let mut output = take_owned_response(&mut state, &self.output, cut);
@@ -736,7 +736,7 @@ impl Evaluation {
             }
             return Ok(EvaluationStatus::Waiting);
         };
-        let grace = report_at.saturating_duration_since(Instant::now());
+        let grace = request.report_at.saturating_duration_since(Instant::now());
         if !at_deadline && !grace.is_zero() {
             return Ok(EvaluationStatus::Grace(grace));
         }
@@ -910,6 +910,7 @@ mod tests {
     async fn completed_response() -> (Arc<Evaluation>, Response) {
         let output = OutputTape::new();
         let evaluation = Arc::new(Evaluation::new(
+            super::super::lifecycle::WorkerGeneration::new(),
             crate::transcript::Transcript::new(true),
             None,
             output,

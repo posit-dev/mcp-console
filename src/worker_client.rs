@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+mod admission;
 mod configuration;
 mod control;
 mod environment;
@@ -291,7 +292,6 @@ impl WorkerState {
 
 #[derive(Clone)]
 struct ActiveEvaluation {
-    generation: WorkerGeneration,
     evaluation: Arc<Evaluation>,
     language: crate::cell::Language,
     initial_requirements: Arc<Mutex<Option<Requirements>>>,
@@ -503,17 +503,19 @@ impl Client {
 }
 
 impl WorkerCallbacks {
-    fn interrupt_bootstrap_cell(&self) -> Result<(), String> {
-        // Admission and interruption share the evaluation-slot lock. The marker
-        // survives delayed blocking-task scheduling and applies only to the
-        // generation whose bootstrap was interrupted.
+    fn finish_bootstrap(
+        &self,
+        operation: &events::WorkerOperationState,
+        interrupted: bool,
+    ) -> Result<(), String> {
+        // Keep the receipt cutoff atomic with cell publication, including an
+        // evaluator that has not attached to the worker operation yet.
         let active = self.client.evaluation()?;
-        if let Some(active) = active.as_ref()
-            && active.generation.is(&self.generation)
-        {
-            active.evaluation.interrupt_bootstrap()?;
-        }
-        Ok(())
+        let evaluation = active
+            .as_ref()
+            .filter(|active| active.evaluation.admission.generation.is(&self.generation))
+            .map(|active| active.evaluation.as_ref());
+        operation.finish_bootstrap(interrupted, evaluation)
     }
 
     fn resolve_r(

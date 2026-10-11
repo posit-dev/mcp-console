@@ -95,6 +95,9 @@ impl Worker {
 pub(super) struct WorkerShutdownHandle;
 
 impl WorkerShutdownHandle {
+    pub(super) fn is_same_connection(&self, _other: &Self) -> bool {
+        unreachable!("unsupported workers cannot start")
+    }
     pub(super) fn reserve_failed_shutdown(&self, _deadline: std::time::Instant) {}
     pub(super) fn reserve_shutdown(
         &self,
@@ -104,6 +107,10 @@ impl WorkerShutdownHandle {
     }
     pub(super) fn interrupt(&self, _evaluation: Option<&super::Evaluation>) -> Result<(), String> {
         Err("worker interrupts are supported only on macOS".to_string())
+    }
+
+    pub(super) fn is_bootstrapping(&self) -> Result<bool, String> {
+        Ok(false)
     }
 
     pub(super) fn shutdown(&self, _deadline: std::time::Instant) -> Result<(), String> {
