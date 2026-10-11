@@ -15,6 +15,7 @@ use super::input::{finish_console_stdin_operation, read_console_stdin};
 use crate::cell::Language;
 use crate::worker_protocol::ConsoleChannel;
 
+mod documentation;
 mod parse;
 #[cfg(unix)]
 mod unix;

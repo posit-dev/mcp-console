@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Console rendered vignette</title>
+  <style>STYLE_PAYLOAD_SENTINEL { background: url(data:text/plain,ASSET_SENTINEL); }</style>
+  <script>throw new Error("SCRIPT_PAYLOAD_SENTINEL");</script>
+  <script src="https://example.invalid/must-not-fetch.js"></script>
+  <link rel="stylesheet" href="https://example.invalid/must-not-fetch.css">
+</head>
+<body>
+  <h1>Rendered results</h1>
+  <p>Installed HTML: café, 日本語, and €.</p>
+  <p>This paragraph comes after a blank line.</p>
+  <h2>Steps</h2>
+  <ul><li>Read installed HTML</li><li>Keep evaluated results</li></ul>
+  <ol><li>First step</li><li>Second step</li></ol>
+  <pre><code>if (TRUE) {
+  sum(c(20, 22))
+}
+## [1] 42 — evaluated result</code></pre>
+  <table>
+    <caption>Evaluated totals</caption>
+    <thead><tr><th>Group</th><th>Total</th></tr></thead>
+    <tbody><tr><td>alpha</td><td>42</td></tr><tr><td>beta</td><td>7</td></tr></tbody>
+  </table>
+  <p>See <a href="https://example.org/vignette?x=1&amp;y=2">the reference</a>
+    and <a href="other.html#details">local details</a>.</p>
+  <figure>
+    <img src="data:image/png;base64,IMAGE_PAYLOAD_SENTINEL" alt="A rising trend">
+    <figcaption>Figure 1: evaluated trend.</figcaption>
+  </figure>
+  <img src="https://example.invalid/must-not-fetch.png" alt="Remote figure description">
+  <script>document.write("DYNAMIC_CONTENT_SENTINEL");</script>
+</body>
+</html>

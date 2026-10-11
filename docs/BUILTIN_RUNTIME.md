@@ -50,14 +50,28 @@ text <- capture.output(print(?stats::lm))
 writeLines(text[80:120])
 ```
 
-`vignette("grid", package = "grid")` prints the installed vignette source, including its prose and code.
+`vignette()` prints readable text from an installed HTML vignette, including its evaluated results.
+The vignette object's rendered-artifact metadata selects the file; Console does not execute its source or render it again.
+Headings, paragraphs, lists, code indentation, simple tables, link destinations, captions, and available image alt text appear as text.
+Scripts, styles, and embedded image payloads are omitted; linked assets are not fetched.
+Figures appear only through their captions and alt text, and JavaScript-dependent content is unavailable.
+The text does not expose image paths or a request mechanism for figure pixels.
+To inspect an original figure, locate the installed HTML with `file.path(x$Dir, "doc", x$PDF)` from the retained vignette object and inspect its image references.
+Images may be separate local files, embedded data, or remote URLs.
+A client can use its own image tools or display a locally decoded figure through [ordinary plot capture](#plots-and-images).
 Assignment stays quiet, so you can retain the ordinary vignette object and print it later.
-Source must be installed and encoded as UTF-8 or ASCII; missing source is an error.
-Console does not render HTML, Markdown, or PDF vignettes, or execute their source.
-Generated results and figures are absent from this source view.
+Use `capture.output(print(vignette("topic", package = "pkg")))` to capture its text and print selected line ranges with `writeLines()`.
+
+PDF-only, source-only, and other non-HTML vignettes retain the installed source view, labeled `Vignette source:`.
+That view omits evaluated results and figures; source must be installed as UTF-8 or ASCII.
+HTML contents must be UTF-8; conversion failures and missing source are errors.
+R opens the installed file using its native filename handling and passes its bytes to a native callback using Rust's `html2text` crate, without Pandoc, knitr, rmarkdown, or a browser.
 
 Console installs text help and pager defaults after native R startup, once per worker.
 Later changes to R options or print methods remain in effect until restart.
+Custom pagers receive converted HTML through `file.show()` with its standard encoding behavior and `delete.file = TRUE`.
+A pager that returns before reading the file must remove it after use.
+Console removes the temporary file if a function pager raises an error.
 
 ## Python
 

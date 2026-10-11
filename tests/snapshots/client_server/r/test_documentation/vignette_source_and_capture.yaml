@@ -7,6 +7,7 @@ result:
   content:
     - type: text
       text: |
+        Vignette source: source.Rnw
         \documentclass{article}
         \usepackage[utf8]{inputenc}
         %\VignetteIndexEntry{Console fixture vignette}
@@ -29,7 +30,10 @@ result:
 send:
   r: |
     stopifnot(inherits(saved, "vignette"))
-    source <- readLines(file.path(saved$Dir, "doc", saved$File), encoding = "UTF-8")
+    source <- c(
+      paste("Vignette source:", saved$File),
+      readLines(file.path(saved$Dir, "doc", saved$File), encoding = "UTF-8")
+    )
     stopifnot(
       identical(capture.output(print(saved)), source),
       identical(
@@ -46,11 +50,25 @@ send:
     grid_source <- utils::vignette("grid", package = "grid")
     stopifnot(identical(
       capture.output(print(grid_source)),
-      readLines(
-        file.path(grid_source$Dir, "doc", grid_source$File),
-        encoding = "UTF-8"
+      c(
+        paste("Vignette source:", grid_source$File),
+        readLines(
+          file.path(grid_source$Dir, "doc", grid_source$File),
+          encoding = "UTF-8"
+        )
       )
     ))
+    for (topic in c("pdf", "markdown")) {
+      other <- utils::vignette(topic, package = "consolehelp")
+      stopifnot(nzchar(other$PDF), !grepl("html$", other$PDF))
+      stopifnot(identical(
+        capture.output(print(other)),
+        c(
+          paste("Vignette source:", other$File),
+          readLines(file.path(other$Dir, "doc", other$File), encoding = "UTF-8")
+        )
+      ))
+    }
     local({
       previous <- Sys.getlocale("LC_CTYPE")
       on.exit(Sys.setlocale("LC_CTYPE", previous))

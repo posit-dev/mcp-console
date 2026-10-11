@@ -1,0 +1,45 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    options(pager = function(files, header, title, delete.file) {
+      pending <<- list(files = files, delete.file = delete.file)
+    })
+    vignette("rendered", package = "consolehelp")
+    stopifnot(file.exists(pending$files), pending$delete.file)
+    cat("HTML remains available for a deferred pager\n")
+result:
+  content:
+    - type: text
+      text: |
+        HTML remains available for a deferred pager
+  isError: false
+---
+send:
+  r: |
+    text <- readLines(pending$files, encoding = "UTF-8")
+    stopifnot(any(grepl("42 — evaluated result", text, fixed = TRUE)))
+    if (pending$delete.file) {
+      unlink(pending$files)
+    }
+    stopifnot(!file.exists(pending$files))
+    options(pager = function(files, header, title, delete.file) {
+      failed <<- files
+      stop("pager failed")
+    })
+    error <- tryCatch(
+      print(vignette("rendered", package = "consolehelp")),
+      error = identity
+    )
+    stopifnot(
+      identical(conditionMessage(error), "pager failed"),
+      !file.exists(failed)
+    )
+    cat("deferred pager reads evaluated results and owns cleanup\n")
+result:
+  content:
+    - type: text
+      text: |
+        deferred pager reads evaluated results and owns cleanup
+  isError: false

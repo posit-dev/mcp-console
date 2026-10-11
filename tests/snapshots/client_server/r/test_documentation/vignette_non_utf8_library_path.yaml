@@ -1,0 +1,29 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    local({
+      previous <- Sys.getlocale("LC_CTYPE")
+      on.exit(Sys.setlocale("LC_CTYPE", previous))
+      stopifnot(identical(Sys.setlocale("LC_CTYPE", "C"), "C"))
+      original <- utils::vignette("rendered", package = "consolehelp")
+      text <- capture.output(print(original))
+      library <- rawToChar(c(charToRaw("library-"), as.raw(255)))
+      stopifnot(dir.create(library))
+      stopifnot(file.copy(original$Dir, library, recursive = TRUE))
+      saved <- utils::vignette(
+        "rendered",
+        package = "consolehelp",
+        lib.loc = library
+      )
+      stopifnot(as.raw(255) %in% charToRaw(saved$Dir))
+      stopifnot(identical(capture.output(print(saved)), text))
+      cat("rendered vignettes preserve native filename bytes\n")
+    })
+result:
+  content:
+    - type: text
+      text: |
+        rendered vignettes preserve native filename bytes
+  isError: false

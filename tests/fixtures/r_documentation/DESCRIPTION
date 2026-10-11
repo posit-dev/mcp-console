@@ -1,7 +1,7 @@
 Package: consolehelp
 Version: 0.0.1
 Title: Console Documentation Fixture
-Description: Exercises installed help and vignette source output.
+Description: Exercises installed help, rendered HTML, and vignette source output.
 License: MIT
 Author: Test
 Maintainer: Test <test@example.org>

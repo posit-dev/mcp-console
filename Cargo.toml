@@ -19,6 +19,7 @@ chrono = { version = "0.4", default-features = false, features = ["now"] }
 clap = { version = "4.5", features = ["derive", "wrap_help"] }
 ctor = "1.0.7"
 harp = { git = "https://github.com/t-kalinowski/ark", rev = "37d3db0074e01a184d67b7a85faf9a3492836422" }
+html2text = "0.17.1"
 libc = "0.2"
 libloading = "0.9"
 libr = { git = "https://github.com/t-kalinowski/ark", rev = "37d3db0074e01a184d67b7a85faf9a3492836422" }

@@ -1,0 +1,216 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: ?stats::lm
+result:
+  content:
+    - type: text
+      text: |+
+        lm                    package:stats                    R Documentation
+
+        Fitting Linear Models
+
+        Description:
+
+             'lm' is used to fit linear models, including multivariate ones.
+             It can be used to carry out regression, single stratum analysis of
+             variance and analysis of covariance (although 'aov' may provide a
+             more convenient interface for these).
+
+        Usage:
+
+             lm(formula, data, subset, weights, na.action,
+                method = "qr", model = TRUE, x = FALSE, y = FALSE, qr = TRUE,
+                singular.ok = TRUE, contrasts = NULL, offset, ...)
+
+             ## S3 method for class 'lm'
+             print(x, digits = max(3L, getOption("digits") - 3L), ...)
+
+        Arguments:
+
+         formula: an object of class '"formula"' (or one that can be coerced to
+                  that class): a symbolic description of the model to be
+                  fitted.  The details of model specification are given under
+                  'Details'.
+
+            data: an optional data frame, list or environment (or object
+                  coercible by 'as.data.frame' to a data frame) containing the
+                  variables in the model.  If not found in 'data', the
+                  variables are taken from 'environment(formula)', typically
+                  the environment from which 'lm' is called.
+
+          subset: an optional vector specifying a subset of observations to be
+                  used in the fitting process.  (See additional details about
+                  how this argument interacts with data-dependent bases in the
+                  'Details' below.)
+
+         weights: an optional vector of weights to be used in the fitting
+                  process.  Should be 'NULL' or a numeric vector.  If non-NULL,
+                  weighted least squares is used with weights 'weights' (that
+                  is, minimizing 'sum(w*e^2)'); otherwise ordinary least
+                  squares is used.  See also 'Details',
+
+        na.action: a function which indicates what should happen when the data
+                  contain 'NA's.  The default is set by the 'na.action' setting
+                  of 'options', and is 'na.fail' if that is unset.  The
+                  'factory-fresh' default is 'na.omit'.  Another possible value
+                  is 'NULL', no action.  Value 'na.exclude' can be useful.
+
+          method: the method to be used; for fitting, currently only 'method =
+                  "qr"' is supported; 'method = "model.frame"' returns the
+                  model frame (the same as with 'model = TRUE', see below).
+
+        model, x, y, qr: logicals.  If 'TRUE' the corresponding components of
+                  the fit (the model frame, the model matrix, the response, the
+                  QR decomposition) are returned.
+
+        singular.ok: logical. If 'FALSE' (the default in S but not in R) a
+                  singular fit is an error.
+
+        contrasts: an optional list. See the 'contrasts.arg' of
+                  'model.matrix.default'.
+
+          offset: this can be used to specify an _a priori_ known component to
+                  be included in the linear predictor during fitting.  This
+                  should be 'NULL' or a numeric vector or matrix of extents
+                  matching those of the response.  One or more 'offset' terms
+                  can be included in the formula instead or as well, and if
+                  more than one are specified their sum is used.  See
+                  'model.offset'.
+
+             ...: For 'lm()': additional arguments to be passed to the low
+                  level regression fitting functions (see below).
+
+          digits: the number of _significant_ digits to be passed to
+                  'format(coef(x), .)' when 'print()'ing.
+
+        Details:
+
+             Models for 'lm' are specified symbolically.  A typical model has
+             the form 'response ~ terms' where 'response' is the (numeric)
+             response vector and 'terms' is a series of terms which specifies a
+             linear predictor for 'response'.  A terms specification of the
+             form 'first + second' indicates all the terms in 'first' together
+             with all the terms in 'second' with duplicates removed.  A
+             specification of the form 'first:second' indicates the set of
+             terms obtained by taking the interactions of all terms in 'first'
+             with all t
+        [output omitted: 2985 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000001.log]
+        s.
+
+            rank: the numeric rank of the fitted linear model.
+
+         weights: (only for weighted fits) the specified weights.
+
+        df.residual: the residual degrees of freedom.
+
+            call: the matched call.
+
+           terms: the 'terms' object used.
+
+        contrasts: (only where relevant) the contrasts used.
+
+         xlevels: (only where relevant) a record of the levels of the factors
+                  used in fitting.
+
+          offset: the offset used (missing if none were used).
+
+               y: if requested, the response used.
+
+               x: if requested, the model matrix used.
+
+           model: if requested (the default), the model frame used.
+
+        na.action: (where relevant) information returned by 'model.frame' on
+                  the special handling of 'NA's.
+
+             In addition, non-null fits will have components 'assign',
+             'effects' and (unless not requested) 'qr' relating to the linear
+             fit, for use by extractor functions such as 'summary' and
+             'effects'.
+
+        Using time series:
+
+             Considerable care is needed when using 'lm' with time series.
+
+             Unless 'na.action = NULL', the time series attributes are stripped
+             from the variables before the regression is done.  (This is
+             necessary as omitting 'NA's would invalidate the time series
+             attributes, and if 'NA's are omitted in the middle of the series
+             the result would no longer be a regular time series.)
+
+             Even if the time series attributes are retained, they are not used
+             to line up series, so that the time shift of a lagged or
+             differenced regressor would be ignored.  It is good practice to
+             prepare a 'data' argument by 'ts.intersect(..., dframe = TRUE)',
+             then apply a suitable 'na.action' to that data frame and call 'lm'
+             with 'na.action = NULL' so that residuals and fitted values are
+             time series.
+
+        Author(s):
+
+             The design was inspired by the S function of the same name
+             described in Chambers (1992).  The implementation of model formula
+             by Ross Ihaka was based on Wilkinson and Rogers (1973).
+
+        References:
+
+             Chambers JM (1992). "Linear Models." In Chambers JM, Hastie TJ
+             (eds.), _Statistical Models in S_, chapter 4. Wadsworth &
+             Brooks/Cole.
+
+             Wilkinson GN, Rogers CE (1973). "Symbolic Description of Factorial
+             Models for Analysis of Variance." _Applied Statistics_, *22*(3),
+             392. doi:10.2307/2346786 <https://doi.org/10.2307/2346786>.
+
+        See Also:
+
+             'summary.lm' for more detailed summaries and 'anova.lm' for the
+             ANOVA table; 'aov' for a different interface.
+
+             The generic functions 'coef', 'effects', 'residuals', 'fitted',
+             'vcov'.
+
+             'predict.lm' (via 'predict') for prediction, including confidence
+             and prediction intervals; 'confint' for confidence intervals of
+             _parameters_.
+
+             'lm.influence' for regression diagnostics, and 'glm' for
+             *generalized* linear models.
+
+             The underlying low level functions, 'lm.fit' for plain, and
+             'lm.wfit' for weighted regression fitting.
+
+             More 'lm()' examples are available e.g., in 'anscombe',
+             'attitude', 'freeny', 'LifeCycleSavings', 'longley', 'stackloss',
+             'swiss'.
+
+             'biglm' in package 'biglm'
+             <https://CRAN.R-project.org/package=biglm> for an alternative way
+             to fit linear models to large datasets (especially those with many
+             cases).
+
+        Examples:
+
+             require(graphics)
+
+             ## Annette Dobson (1990) "An Introduction to Generalized Linear Models".
+             ## Page 9: Plant Weight Data.
+             ctl <- c(4.17,5.58,5.18,6.11,4.50,4.61,5.17,4.53,5.33,5.14)
+             trt <- c(4.81,4.17,4.41,3.59,5.87,3.83,6.03,4.89,4.32,4.69)
+             group <- gl(2, 10, 20, labels = c("Ctl","Trt"))
+             weight <- c(ctl, trt)
+             lm.D9 <- lm(weight ~ group)
+             lm.D90 <- lm(weight ~ group - 1) # omitting intercept
+
+             anova(lm.D9)
+             summary(lm.D90)
+
+             opar <- par(mfrow = c(2,2), oma = c(0, 0, 1.1, 0))
+             plot(lm.D9, las = 1)      # Residuals, Fitted, ...
+             par(opar)
+
+             ### less simple examples in "See Also" above
+
+  isError: false

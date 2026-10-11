@@ -5,6 +5,9 @@ send:
   r: |
     stopifnot(identical(ls(all.names = TRUE), character()))
     stopifnot(length(capture.output(?consolehelp::topic)) > 10L)
+    browser_error <- tryCatch(getOption("browser")(), error = identity)
+    stopifnot(identical(conditionMessage(browser_error), "browser invoked"))
+    rm(browser_error)
     cat("documentation defaults installed after native profiles\n")
 result:
   content:
@@ -41,7 +44,25 @@ result:
   isError: false
 ---
 send:
+  r: vignette("rendered", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        user pager
+  isError: false
+---
+send:
   r: capture.output(utils::vignette(consolehelp::source))
+result:
+  content:
+    - type: text
+      text: |
+        [1] "user pager"
+  isError: false
+---
+send:
+  r: capture.output(utils::vignette(consolehelp::rendered))
 result:
   content:
     - type: text
@@ -73,7 +94,25 @@ result:
   isError: false
 ---
 send:
+  r: vignette("rendered", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        user vignette
+  isError: false
+---
+send:
   r: capture.output(utils::vignette(consolehelp::source))
+result:
+  content:
+    - type: text
+      text: |
+        [1] "user vignette"
+  isError: false
+---
+send:
+  r: capture.output(utils::vignette(consolehelp::rendered))
 result:
   content:
     - type: text
@@ -105,6 +144,9 @@ send:
   r: |
     stopifnot(identical(ls(all.names = TRUE), character()))
     stopifnot(length(capture.output(?consolehelp::topic)) > 10L)
+    browser_error <- tryCatch(getOption("browser")(), error = identity)
+    stopifnot(identical(conditionMessage(browser_error), "browser invoked"))
+    rm(browser_error)
     cat("documentation defaults installed after native profiles\n")
 result:
   content:
