@@ -1,0 +1,121 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: print(help("topic", package = "consolehelp", help_type = "text"))
+result:
+  content:
+    - type: text
+      text: |+
+        topic               package:consolehelp                R Documentation
+
+        Console fixture help
+
+        Description:
+
+             Installed help includes a café. See Console documentation
+             <https://example.org/console-help>.
+
+        Usage:
+
+             topic()
+
+        Value:
+
+             Nothing, invisibly.
+
+        Examples:
+
+             topic()
+
+  isError: false
+---
+send:
+  r: ?consolehelp::topic
+result:
+  content:
+    - type: text
+      text: |+
+        topic               package:consolehelp                R Documentation
+
+        Console fixture help
+
+        Description:
+
+             Installed help includes a café. See Console documentation
+             <https://example.org/console-help>.
+
+        Usage:
+
+             topic()
+
+        Value:
+
+             Nothing, invisibly.
+
+        Examples:
+
+             topic()
+
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(getOption("help_type"), "text"),
+      identical(ls(all.names = TRUE), character())
+    )
+    page <- capture.output(print(help("topic", package = "consolehelp")))
+    stopifnot(
+      length(page) > 10L,
+      identical(page, capture.output(?consolehelp::topic)),
+      identical(
+        page,
+        capture.output(print(help("topic-alias", package = "consolehelp")))
+      ),
+      any(grepl("Console fixture help", page, fixed = TRUE)),
+      any(grepl("https://example.org/console-help", page, fixed = TRUE)),
+      !any(grepl("\b", page, fixed = TRUE))
+    )
+    search <- capture.output(help.search(
+      "Console fixture help",
+      package = "consolehelp"
+    ))
+    operator <- capture.output(??consolehelp::"Console fixture help")
+    index <- capture.output(help(package = "consolehelp"))
+    stopifnot(
+      any(grepl("consolehelp::topic", search, fixed = TRUE)),
+      identical(search, operator),
+      any(grepl("Console fixture help", index, fixed = TRUE))
+    )
+    long <- capture.output(print(?stats::lm))
+    stopifnot(length(long) > 120L)
+    part <- capture.output(writeLines(long[80:120]))
+    stopifnot(identical(part, long[80:120]))
+    cat("help capture, aliases, search, and indexes retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        help capture, aliases, search, and indexes retained
+  isError: false
+---
+send:
+  r: |
+    selection <- capture.output(help("mean", package = c("consolehelp", "base")))
+    stopifnot(
+      any(grepl("Choose one", selection, fixed = TRUE)),
+      any(grepl("Console fixture help", selection, fixed = TRUE)),
+      any(grepl("Arithmetic Mean", selection, fixed = TRUE)),
+      any(grepl("https://example.org/console-help", selection, fixed = TRUE))
+    )
+    cat("native help selection retained\n")
+  stdin: |
+    1
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "Selection: "]
+        native help selection retained
+  isError: false

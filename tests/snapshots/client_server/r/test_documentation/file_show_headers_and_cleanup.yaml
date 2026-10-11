@@ -1,0 +1,39 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    first <- tempfile()
+    second <- tempfile()
+    writeLines("first page", first)
+    writeLines("second page", second)
+    text <- capture.output(file.show(
+      first,
+      second,
+      header = c("First header", "Second header"),
+      delete.file = TRUE
+    ))
+    stopifnot(
+      identical(
+        text,
+        c("First header", "first page", "Second header", "second page")
+      ),
+      !file.exists(first),
+      !file.exists(second)
+    )
+    missing <- tempfile()
+    writeLines("first page", first)
+    discarded <- capture.output(
+      error <- tryCatch(
+        suppressWarnings(file.show(first, missing, delete.file = TRUE)),
+        error = identity
+      )
+    )
+    stopifnot(inherits(error, "error"), !file.exists(first))
+    cat("headers, multiple files, and cleanup retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        headers, multiple files, and cleanup retained
+  isError: false

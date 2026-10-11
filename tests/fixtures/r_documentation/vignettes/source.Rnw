@@ -1,0 +1,9 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+%\VignetteIndexEntry{Console fixture vignette}
+\begin{document}
+Installed source: 日本語 and €.
+<<source-only>>=
+stop("vignette source must not execute")
+@
+\end{document}

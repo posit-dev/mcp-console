@@ -34,6 +34,7 @@ EXPECTED_SOURCES = {
     "src/resolver/programs/uv_binary.R",
     "src/sql/bridge.R",
     "src/sql/dbapi.py",
+    "src/worker/embedded_r/documentation.R",
     "src/worker/embedded_r/parse.R",
 }
 INCLUDE_PATTERN = re.compile(

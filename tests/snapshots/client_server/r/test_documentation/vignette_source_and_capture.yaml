@@ -1,0 +1,90 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: vignette("source", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        \documentclass{article}
+        \usepackage[utf8]{inputenc}
+        %\VignetteIndexEntry{Console fixture vignette}
+        \begin{document}
+        Installed source: 日本語 and €.
+        <<source-only>>=
+        stop("vignette source must not execute")
+        @
+        \end{document}
+  isError: false
+---
+send:
+  r: saved <- utils::vignette("source", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(inherits(saved, "vignette"))
+    source <- readLines(file.path(saved$Dir, "doc", saved$File), encoding = "UTF-8")
+    stopifnot(
+      identical(capture.output(print(saved)), source),
+      identical(
+        capture.output(vignette("source", package = "consolehelp")),
+        source
+      ),
+      identical(capture.output(utils::vignette(consolehelp::source)), source),
+      identical(capture.output(vignette(consolehelp::source)), source)
+    )
+    printed <- capture.output(returned <- withVisible(print(saved)))
+    stopifnot(identical(returned$value, saved), !returned$visible)
+    listing <- capture.output(vignette(package = "consolehelp"))
+    stopifnot(any(grepl("Console fixture vignette", listing, fixed = TRUE)))
+    grid_source <- utils::vignette("grid", package = "grid")
+    stopifnot(identical(
+      capture.output(print(grid_source)),
+      readLines(
+        file.path(grid_source$Dir, "doc", grid_source$File),
+        encoding = "UTF-8"
+      )
+    ))
+    local({
+      previous <- Sys.getlocale("LC_CTYPE")
+      on.exit(Sys.setlocale("LC_CTYPE", previous))
+      stopifnot(identical(Sys.setlocale("LC_CTYPE", "C"), "C"))
+      text <- capture.output(print(saved))
+      stopifnot(identical(
+        charToRaw(paste(text, collapse = "\n")),
+        charToRaw(paste(source, collapse = "\n"))
+      ))
+    })
+    cat("qualified vignette lookup, capture, and return value retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        qualified vignette lookup, capture, and return value retained
+  isError: false
+---
+send:
+  r: |
+    unlink(file.path(saved$Dir, "doc", saved$File))
+    error <- tryCatch(print(saved), error = identity)
+    stopifnot(
+      inherits(error, "error"),
+      grepl(
+        "Installed vignette source is unavailable",
+        conditionMessage(error),
+        fixed = TRUE
+      )
+    )
+    cat("missing installed source fails clearly\n")
+result:
+  content:
+    - type: text
+      text: |
+        missing installed source fails clearly
+  isError: false

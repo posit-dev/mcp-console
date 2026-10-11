@@ -1,0 +1,114 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    stopifnot(identical(ls(all.names = TRUE), character()))
+    stopifnot(length(capture.output(?consolehelp::topic)) > 10L)
+    cat("documentation defaults installed after native profiles\n")
+result:
+  content:
+    - type: text
+      text: |
+        documentation defaults installed after native profiles
+  isError: false
+---
+send:
+  r: |
+    options(pager = function(...) cat("user pager\n"), help_type = "text")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: help("topic", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        user pager
+  isError: false
+---
+send:
+  r: vignette("source", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        user pager
+  isError: false
+---
+send:
+  r: capture.output(utils::vignette(consolehelp::source))
+result:
+  content:
+    - type: text
+      text: |
+        [1] "user pager"
+  isError: false
+---
+send:
+  r: |
+    registerS3method(
+      "print",
+      "vignette",
+      function(x, ...) cat("user vignette\n"),
+      envir = baseenv()
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: vignette("source", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        user vignette
+  isError: false
+---
+send:
+  r: capture.output(utils::vignette(consolehelp::source))
+result:
+  content:
+    - type: text
+      text: |
+        [1] "user vignette"
+  isError: false
+---
+send:
+  r: help("topic", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        user pager
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(identical(ls(all.names = TRUE), character()))
+    stopifnot(length(capture.output(?consolehelp::topic)) > 10L)
+    cat("documentation defaults installed after native profiles\n")
+result:
+  content:
+    - type: text
+      text: |
+        documentation defaults installed after native profiles
+  isError: false

@@ -80,6 +80,7 @@ pub(super) struct Runtime {
 
 impl Runtime {
     pub(super) fn initialize() -> Result<Self, Box<dyn Error>> {
+        harp::parse_eval_base(include_str!("embedded_r/documentation.R"))?;
         Ok(Self {
             parser: parse::Parser::initialize()?,
             graphics: crate::r_graphics::Bridge::initialize()?,

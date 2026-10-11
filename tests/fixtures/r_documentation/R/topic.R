@@ -1,0 +1,1 @@
+topic <- function() invisible(NULL)

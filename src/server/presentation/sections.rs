@@ -47,7 +47,7 @@ pub(super) const CUSTOM_PYTHON: &str = "Evaluate one complete Python cell in the
 
 pub(super) const CUSTOM_SQL: &str = "Evaluate one complete SQL cell; the custom worker supplies the connection, dialect, and display.";
 
-pub(super) const R_RUNTIME: &str = r#"Evaluate one complete R cell in persistent global state. Visible top-level expressions autoprint; leave the primary result last. Load CRAN packages normally through `library()`, `require()`, `requireNamespace()`, `loadNamespace()`, `::`, or `:::`; managed sessions prepare missing packages on first use. Avoid availability probes or `install.packages()`."#;
+pub(super) const R_RUNTIME: &str = r#"Evaluate one complete R cell in persistent global state. Visible top-level expressions autoprint; leave the primary result last. Load CRAN packages normally through `library()`, `require()`, `requireNamespace()`, `loadNamespace()`, `::`, or `:::`; managed sessions prepare missing packages on first use. Avoid availability probes or `install.packages()`. `?pkg::topic` and `help.search()` print installed help; `vignette()` prints installed UTF-8/ASCII source. Capture long help with `text <- capture.output(print(?pkg::topic))`, then print line ranges with `writeLines()`."#;
 
 pub(super) const R_BRIDGE: &str = " Access Python globals through `py$name`.";
 
