@@ -6,4 +6,4 @@ configuration:
 stderr: >
   configuration with CLI overrides: tool.parameters.timeout_ms.type:
   unknown field `type`, expected one of `enabled`, `description`,
-  `parameters`; see docs/CONFIGURATION.md for the public format
+  `schema`, `parameters`; see docs/CONFIGURATION.md for the public format

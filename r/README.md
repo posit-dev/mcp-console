@@ -126,6 +126,35 @@ It cannot be combined with an explicit resolver policy.
 Those choices remain available as `config@discovery` and `config@sandbox`.
 The native CLI owns final validation, defaults, supported paths, and platform capabilities.
 
+## Inspect and edit configuration
+
+Resolve configuration once to inspect the generated tool text and all parameter settings before starting a session:
+
+```r
+config <- resolve_console_config(ConsoleConfig(languages = "r"))
+print(config)
+config$tool$description <- "Run one R cell in a persistent workbench."
+config$tool$parameters$timeout_ms$enabled <- FALSE
+config$tool$parameters$r$description <- "Evaluate a complete R expression."
+tool <- console_tool(config = config)
+```
+
+The result is a named list with ordinary `$` editing; `print()` shows its full contents.
+The selected native executable supplies the defaults and schema without starting interpreters or installing packages.
+Pass `path`, `version`, and `project` to `resolve_console_config()` when needed; the result retains those launch choices, and `console_tool(config = config)` does not rediscover global or project configuration.
+File discovery remains opt-in through `ConsoleConfig(discovery = ConfigDiscovery())`.
+
+`schema` records read-only parameter types and constraints, with nested fields under `parameters`.
+Use `enabled = FALSE` to hide a field; assigning `NULL` removes an override and restores its default.
+Saved descriptions are literal: changing visibility does not regenerate them.
+Runtime-dependent selections, package defaults, and inherited environment variables remain launch policies.
+`as.list(config)` exposes JSON-ready application settings without the retained executable, project, or sandbox launch flag.
+
+`tool$instructions` is server guidance returned during MCP initialization, which some clients use for deferred tool discovery.
+`tool$description` and parameter descriptions arrive through `tools/list`.
+The ellmer adapter uses the latter tool definition and does not automatically insert server instructions into the chat prompt.
+See [tool presentation and lifecycle](https://t-kalinowski.github.io/mcp-console/CONFIGURATION.html#tool-descriptions-and-parameters).
+
 ## Sandbox policies
 
 A `SandboxPolicy()` can configure worker or resolver permissions.
@@ -171,4 +200,4 @@ Descriptions replace the complete selected text, including empty strings.
 `instructions` independently replaces MCP initialization instructions.
 Hidden parameters are removed from the signature and rejected if supplied; omission retains their runtime defaults.
 Hiding `timeout_ms` retains the 60,000 ms wait budget.
-See `?ToolConfig` and the [tool configuration contract](../docs/CONFIGURATION.md#tool-descriptions-and-parameters).
+See `?ToolConfig` and the [tool configuration contract](https://t-kalinowski.github.io/mcp-console/CONFIGURATION.html#tool-descriptions-and-parameters).

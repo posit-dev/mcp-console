@@ -2,7 +2,7 @@ mod arguments;
 #[cfg(windows)]
 mod input_windows;
 mod presentation;
-pub(crate) use presentation::parameter_schema;
+pub(crate) use presentation::{materialized_tool, parameter_schema};
 mod startup;
 use std::error::Error;
 use std::path::PathBuf;

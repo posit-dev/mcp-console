@@ -137,8 +137,22 @@ tool:
       enabled: false
 ```
 
-`tool.description` replaces the complete tool description.
-`tool.instructions` replaces the separate MCP initialization instructions.
+`tool.description` replaces the complete `send` description returned by `tools/list`.
+`tool.instructions` replaces the server instructions returned in the earlier `initialize` response.
+Despite their location under `tool`, instructions describe the server as a whole.
+
+| Setting                              | Lifecycle and purpose                                                                                                                                                            |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool.instructions`                  | Available to the client when the connection initializes. Introduce the workbench and when to select it; a client may use this text for a server summary or deferred tool search. |
+| `tool.description`                   | Returned when the client lists tools, alongside `send`'s input schema. Explain when and how to call `send`, including polling, state, and result handling.                       |
+| `tool.parameters.<name>.description` | Part of that input schema. Explain the corresponding argument and how to supply its value.                                                                                       |
+
+The client controls when these texts enter the model's context.
+A client can fetch `tools/list` at connection time while deferring the full definition until the model searches for it.
+In that workflow, initialization instructions may supply the initial server summary; other clients use their own server description or expose tools immediately.
+Do not assume instructions are always shown, shown in full, or the only text visible before loading a tool.
+See [deferred tool discovery](TOOL_DESCRIPTIONS.md#deferred-tool-discovery) for client-specific guidance and the protocol references.
+
 Each parameter's `description` replaces its complete description; nested parameters use another `parameters` mapping.
 Strings are used verbatim, including empty strings, without appending generated guidance or permission text.
 Omitted descriptions and instructions keep their generated text.
@@ -159,6 +173,44 @@ To hide only the timeout through the command line:
 ```sh
 mcp-console serve -c tool.parameters.timeout_ms.enabled=false
 ```
+
+## Inspect and edit resolved configuration
+
+Materialize configuration before editing descriptions or running an evaluation:
+
+```sh
+mcp-console config resolve > session.yaml
+# Inspect and edit session.yaml, then launch with that file alone.
+mcp-console serve --config-file session.yaml
+```
+
+`config resolve` uses the same file selection, ordered `-c` overrides, and validation as `serve`.
+Use `--no-config` for built-in configuration without discovered files, or `--config-file PATH` to start from one selected file.
+`--format json` emits JSON instead of YAML.
+The command does not start interpreters, prepare packages, or create session/cache directories.
+
+The output contains captured settings, configuration defaults, generated instructions and descriptions, and every parameter selected by `languages`, including disabled parameters.
+Each parameter has explicit `enabled` and `description` fields, read-only `schema` metadata for its type and constraints, and a `parameters` mapping for nested fields.
+Changes to the `schema` metadata fail validation.
+Use `enabled: false` to hide a parameter while retaining its details for inspection or re-enabling.
+
+Materialized text is an explicit override: subsequently hiding `timeout_ms` does not rewrite the saved tool description.
+Edit that text too if the experiment should remove its timeout guidance.
+Removing an override or setting `description: null` restores generated text; an empty string replaces it with empty text.
+The exported document keeps the ordinary configuration semantics; deleting a parameter entry restores its defaults rather than hiding it.
+
+Use the same launch directory for export and execution so relative permission paths retain their meaning.
+For host execution, pass `--no-sandbox` to both `config resolve` and `serve`; launch flags are not stored in application YAML.
+The selected configuration file bypasses automatic global/project discovery.
+
+Values determined during runtime preparation remain policies: omitted automatic package lists, `python: null` for normal interpreter selection, inherited environment variables, and runtime-created cache and temporary paths.
+Python `first_available` lists retain their candidates, including `active_venv`; the next launch evaluates them against its own environment and filesystem.
+The export does not pin installed dependencies or copy the host environment.
+Exported interpreter paths must be representable as UTF-8; other native paths produce a configuration error.
+Changing `languages` may make saved parameter entries unavailable; resolve the desired language selection before editing the tool.
+
+R provides the same workflow through [`resolve_console_config()`](../r/README.md#inspect-and-edit-configuration).
+It returns a printable, editable list and retains the executable, launch directory, and sandbox choice for `console_tool(config = config)`.
 
 ## Python environment selection
 

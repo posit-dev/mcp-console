@@ -26,6 +26,17 @@ Bridge examples require both source languages to be visible; Python-owned SQL re
 MCP initialization instructions introduce the server; the `send` definition explains the tool.
 Start both with a short task-oriented summary so deferred-discovery clients can choose Console before loading its full schema.
 
+These are separate protocol fields: [`initialize`](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#initialization) returns server `instructions`; [`tools/list`](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#listing-tools) returns each tool's `description` and `inputSchema`, including argument descriptions.
+Initialization makes instructions available to the client before it lists tools.
+The client decides which text to put in the model's context and when.
+Fetching a definition from Console does not necessarily expose that definition to the model immediately.
+
+With deferred loading, a server summary can help the model decide where to search before it receives individual tool schemas.
+[Claude Code's server-author guidance](https://code.claude.com/docs/en/mcp#tool-search-for-mcp-server-authors) describes using initialization instructions for that decision.
+Other integrations can use a separately supplied server description, as in the [Responses API tool-search workflow](https://developers.openai.com/api/docs/guides/tools-tool-search#use-namespaces-where-possible).
+Instructions are therefore relevant beyond the connection handshake, but their visibility is client-dependent.
+The R `console_tool()` adapter uses the tool description and schema to construct its ellmer tool; it does not automatically add initialization instructions to the chat prompt.
+
 The implementation review recorded on October 9, 2026 found a 250-character first-line preview in the examined Codex deferred-discovery implementation and a documented default 2,048-character cap in Claude Code.
 These are dated client behaviors, not MCP limits.
 See the [pinned Codex preview implementation](https://github.com/openai/codex/blob/36ae1561b9324c93d5638b45eb19fe2cc070a581/codex-rs/core/src/context/world_state/tools.rs) and [Claude Code author guidance](https://code.claude.com/docs/en/mcp#for-mcp-server-authors).

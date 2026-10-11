@@ -62,6 +62,25 @@ fn main() -> ExitCode {
     let cli = cli::Cli::parse();
     let mut overrides = cli.overrides;
     match cli.command {
+        cli::Command::Config {
+            command:
+                cli::ConfigCommand::Resolve {
+                    overrides: command_overrides,
+                    no_sandbox,
+                    format,
+                },
+        } => {
+            if let Err(error) = overrides.extend(command_overrides) {
+                return exit_with_error(error);
+            }
+            match resolve_configuration(&overrides, no_sandbox, format) {
+                Ok(output) => {
+                    println!("{output}");
+                    ExitCode::SUCCESS
+                }
+                Err(error) => exit_with_error(error),
+            }
+        }
         #[cfg(windows)]
         cli::Command::SandboxSetup { status, state_dir } => {
             match sandbox::windows_setup(status, state_dir) {
@@ -128,6 +147,21 @@ fn main() -> ExitCode {
             }
         }
     }
+}
+
+fn resolve_configuration(
+    overrides: &cli::ConfigOverrides,
+    no_sandbox: bool,
+    format: cli::ConfigFormat,
+) -> Result<String, String> {
+    let directory = std::env::current_dir().map_err(|error| error.to_string())?;
+    let (captured, value) = settings::read(&directory, overrides)?;
+    let policy = if no_sandbox {
+        captured.policy.clone()
+    } else {
+        sandbox::materialize_settings(captured.policy.clone(), Vec::new(), &directory)?
+    };
+    settings::materialize::render(captured, value, &policy, no_sandbox, format)
 }
 
 fn run_server(

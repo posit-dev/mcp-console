@@ -30,7 +30,8 @@ jobs:
     name: Windows local execution
     runs-on: windows-latest
     env:
-      LC_ALL: C
+      # Keep English diagnostics without forcing R's text rendering into ASCII.
+      LANGUAGE: en
       # Packaging/source installs must reuse the same restored Cargo workspace.
       MCP_CONSOLE_SANDBOX_SOURCE: ${{ github.workspace }}/.sandbox-runner-source
     steps:

@@ -1,0 +1,10 @@
+---
+permission_round_trips:
+  - defaults
+  - common
+  - limited
+  - empty
+  - enabled
+  - restricted
+  - groups
+environment_preserved: true

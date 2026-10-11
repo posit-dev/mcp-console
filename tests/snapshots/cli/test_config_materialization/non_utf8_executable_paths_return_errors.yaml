@@ -1,0 +1,10 @@
+---
+parameter: python.existing
+exit_code: 1
+stderr: |
+  cannot export python.existing: path contains invalid UTF-8 characters
+---
+parameter: r.executable
+exit_code: 1
+stderr: |
+  cannot export r.executable: path contains invalid UTF-8 characters

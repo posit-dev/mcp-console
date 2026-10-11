@@ -70,6 +70,20 @@ Examples use POSIX shell quoting.
 In PowerShell, quote the complete assignment when it contains spaces or structured values.
 [Configuration](CONFIGURATION.md) defines paths, merging, and trust.
 
+## Inspect configuration
+
+```sh
+mcp-console config resolve > session.yaml
+mcp-console config resolve --no-config --format json
+mcp-console serve --config-file session.yaml
+```
+
+`config resolve` prints captured configuration, generated tool prose, and all parameter settings without starting runtimes or preparing packages.
+Configuration selection flags and `-c` work before `config` or after `resolve`.
+YAML is the default output; `--format json` selects JSON.
+For host execution, use `--no-sandbox` during both materialization and launch.
+See [inspect and edit resolved configuration](CONFIGURATION.md#inspect-and-edit-resolved-configuration) for supported edits and runtime-dependent defaults.
+
 ## Windows sandbox setup
 
 On native Windows x64:

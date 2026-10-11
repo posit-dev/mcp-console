@@ -27,6 +27,7 @@ reference:
   - title: Use Console with ellmer
     contents:
     - console_tool
+    - resolve_console_config
     - ConsoleConfig
     - ConfigDiscovery
     - ToolConfig

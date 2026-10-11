@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 
+pub(crate) mod materialize;
 mod python;
 mod resolution;
 mod sandbox;
@@ -185,6 +186,13 @@ pub fn discover(
     directory: &Path,
     overrides: &crate::cli::ConfigOverrides,
 ) -> Result<Captured, String> {
+    read(directory, overrides).map(|(captured, _)| captured)
+}
+
+pub(crate) fn read(
+    directory: &Path,
+    overrides: &crate::cli::ConfigOverrides,
+) -> Result<(Captured, Value), String> {
     let mut paths = Vec::new();
     // Select sources before resolving or inspecting them. Explicit selection and
     // global exclusions must not resolve Console home for configuration discovery.
@@ -222,10 +230,11 @@ pub fn discover(
         (_, true) => format!("configuration from {files}"),
         (_, false) => format!("configuration from {files} with CLI overrides"),
     };
-    let mut project: Project = serde_path_to_error::deserialize(
-        value.unwrap_or_else(|| serde_json::json!({})),
-    )
-    .map_err(|error| format!("{name}: {error}; see docs/CONFIGURATION.md for the public format"))?;
+    let value = value.unwrap_or_else(|| serde_json::json!({}));
+    let mut project: Project =
+        serde_path_to_error::deserialize(value.clone()).map_err(|error| {
+            format!("{name}: {error}; see docs/CONFIGURATION.md for the public format")
+        })?;
     if let Some(packages) = project.r.as_ref().and_then(|r| r.packages.as_ref()) {
         crate::worker_client::validate_r_requirements(packages)
             .map_err(|error| format!("{name}: r.packages: {error}"))?;
@@ -326,19 +335,22 @@ pub fn discover(
             );
         }
     }
-    Ok(Captured {
-        tool: project.tool,
-        r: project.r,
-        startup: project.startup,
-        cache: project.cache,
-        languages,
-        python: project.python.map(python::Python::capture).transpose()?,
-        source: configured.then_some(name),
-        policy,
-        resolver,
-        sandbox_requested,
-        resolver_sandbox_requested,
-    })
+    Ok((
+        Captured {
+            tool: project.tool,
+            r: project.r,
+            startup: project.startup,
+            cache: project.cache,
+            languages,
+            python: project.python.map(python::Python::capture).transpose()?,
+            source: configured.then_some(name),
+            policy,
+            resolver,
+            sandbox_requested,
+            resolver_sandbox_requested,
+        },
+        value,
+    ))
 }
 
 pub fn from_environment(name: &str) -> Result<SandboxSettings, String> {

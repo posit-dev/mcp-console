@@ -2,10 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-#[derive(Clone, Default, Deserialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct Tool {
     pub description: Option<String>,
@@ -13,13 +13,16 @@ pub(crate) struct Tool {
     parameters: BTreeMap<String, Parameter>,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Parameter {
     #[serde(default = "enabled_by_default")]
     enabled: bool,
     #[serde(default)]
     description: Option<String>,
+    /// Inspection metadata from materialization; cannot change the call contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    schema: Option<Map<String, Value>>,
     #[serde(default)]
     parameters: BTreeMap<String, Parameter>,
 }
@@ -29,6 +32,10 @@ fn enabled_by_default() -> bool {
 }
 
 impl Tool {
+    pub fn materialize(&mut self, schema: &Map<String, Value>) {
+        materialize_parameters(&mut self.parameters, schema);
+    }
+
     pub fn validate(&self, languages: Option<crate::cell::Languages>) -> Result<(), String> {
         if self.parameters.is_empty() {
             return Ok(());
@@ -75,6 +82,13 @@ fn configure_parameters(
             .ok_or_else(|| format!("{path}: unknown or unavailable parameter"))?
             .as_object_mut()
             .expect("parameter schemas are objects");
+        if let Some(schema) = &settings.schema
+            && *schema != parameter_metadata(property)
+        {
+            return Err(format!(
+                "{path}.schema is read-only; parameter types and constraints cannot be replaced"
+            ));
+        }
         if let Some(description) = &settings.description {
             property.insert("description".into(), description.clone().into());
         }
@@ -88,6 +102,40 @@ fn configure_parameters(
         }
     }
     Ok(())
+}
+
+fn parameter_metadata(property: &Map<String, Value>) -> Map<String, Value> {
+    property
+        .iter()
+        .filter(|(name, _)| !matches!(name.as_str(), "description" | "properties"))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect()
+}
+
+fn materialize_parameters(
+    parameters: &mut BTreeMap<String, Parameter>,
+    schema: &Map<String, Value>,
+) {
+    let Some(properties) = schema.get("properties").and_then(Value::as_object) else {
+        return;
+    };
+    for (name, property) in properties {
+        let property = property.as_object().expect("parameter schema object");
+        let parameter = parameters.entry(name.clone()).or_insert_with(|| Parameter {
+            enabled: true,
+            description: None,
+            schema: None,
+            parameters: BTreeMap::new(),
+        });
+        if parameter.description.is_none() {
+            parameter.description = property
+                .get("description")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+        }
+        parameter.schema = Some(parameter_metadata(property));
+        materialize_parameters(&mut parameter.parameters, property);
+    }
 }
 
 fn validate_arguments(

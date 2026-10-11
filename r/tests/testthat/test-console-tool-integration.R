@@ -407,3 +407,47 @@ test_that("requirements actions preserve scalar fields and empty lists", {
     )
   })
 })
+
+test_that("resolved configurations can be inspected, edited, and launched", {
+  binary <- real_mcp_console()
+  with_temp_working_directory({
+    dir.create(".agents/console", recursive = TRUE)
+    writeLines(
+      '{"languages":["r"],"tool":{"instructions":"Discover this workbench."}}',
+      ".agents/console/config.yaml"
+    )
+    config <- resolve_console_config(
+      ConsoleConfig(
+        discovery = ConfigDiscovery(global = FALSE),
+        sandbox = FALSE,
+        r = RConfig(packages = character(), resolution = "disabled")
+      ),
+      path = binary
+    )
+    expect_s3_class(config, "resolved_console_config")
+    expect_identical(config$languages, list("r"))
+    expect_true(config$tool$parameters$timeout_ms$enabled)
+    expect_true(
+      "integer" %in% unlist(config$tool$parameters$timeout_ms$schema$type)
+    )
+    printed <- paste(capture.output(print(config)), collapse = "\n")
+    expect_match(printed, "Discover this workbench.", fixed = TRUE)
+    expect_match(printed, "timeout_ms", fixed = TRUE)
+    config$tool$description <- "Run an evaluation cell."
+    config$tool$parameters$timeout_ms$enabled <- FALSE
+    config$tool$parameters$r$description <- ""
+    writeLines("unknown: must-not-rediscover", ".agents/console/config.yaml")
+    dir.create("another-directory")
+    project <- getwd()
+    setwd("another-directory")
+    tool <- console_tool(config = config)
+    setwd(project)
+    expect_identical(tool@description, "Run an evaluation cell.")
+    expect_false("timeout_ms" %in% names(tool@arguments@properties))
+    expect_identical(tool@arguments@properties$r@json$description, "")
+    expect_match(tool(r = "cat(6 * 7)")@text, "42", fixed = TRUE)
+    expect_identical(tool(r = "cat(basename(getwd()))")@text, basename(project))
+    rm(tool)
+    invisible(gc())
+  })
+})

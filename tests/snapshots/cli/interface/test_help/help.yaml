@@ -8,6 +8,8 @@ stderr: |
   Usage: mcp-console [OPTIONS] <COMMAND>
 
   Commands:
+    config   Inspect configuration without starting interpreters or preparing
+             packages
     serve    Run the MCP server over standard input and output
     sandbox  Run a command with the default or an explicit sandbox policy
     help     Print this message or the help of the given subcommand(s)
@@ -38,6 +40,8 @@ stdout: |
   Usage: mcp-console [OPTIONS] <COMMAND>
 
   Commands:
+    config   Inspect configuration without starting interpreters or preparing
+             packages
     serve    Run the MCP server over standard input and output
     sandbox  Run a command with the default or an explicit sandbox policy
     help     Print this message or the help of the given subcommand(s)
@@ -77,6 +81,63 @@ stdout: |
   Examples:
     mcp-console serve
     mcp-console sandbox -- python -c 'print("hello")'
+---
+command: mcp-console config --help
+stdout: |
+  Inspect configuration without starting interpreters or preparing packages
+
+  Usage: mcp-console config <COMMAND>
+
+  Commands:
+    resolve  Print captured settings and the complete editable tool presentation
+    help     Print this message or the help of the given subcommand(s)
+
+  Options:
+    -h, --help  Print help
+---
+command: mcp-console config resolve --help
+stdout: |
+  Print captured settings and the complete editable tool presentation
+
+  Usage: mcp-console config resolve [OPTIONS]
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; apply only -c overrides
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+        --no-sandbox
+            Resolve defaults for a subsequent serve --no-sandbox launch
+
+        --format <FORMAT>
+            Output format
+            
+            [default: yaml]
+            [possible values: yaml, json]
+
+    -h, --help
+            Print help (see a summary with '-h')
 ---
 command: mcp-console serve --help
 stdout: |

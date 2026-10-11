@@ -89,6 +89,11 @@ impl ConfigOverrides {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Inspect configuration without starting interpreters or preparing packages
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
     /// Provision the native Windows sandbox accounts and network rules
     #[cfg(windows)]
     #[command(after_help = SANDBOX_SETUP_DETAILS)]
@@ -179,4 +184,25 @@ pub enum Command {
         )]
         command: Vec<OsString>,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ConfigCommand {
+    /// Print captured settings and the complete editable tool presentation
+    Resolve {
+        #[command(flatten)]
+        overrides: ConfigOverrides,
+        /// Resolve defaults for a subsequent serve --no-sandbox launch
+        #[arg(long)]
+        no_sandbox: bool,
+        /// Output format
+        #[arg(long, value_enum, default_value = "yaml")]
+        format: ConfigFormat,
+    },
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum ConfigFormat {
+    Yaml,
+    Json,
 }

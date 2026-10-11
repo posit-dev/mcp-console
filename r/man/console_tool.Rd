@@ -24,7 +24,9 @@ console_tool(
 \code{ConsoleConfig()} combining runtimes, package preparation, permissions,
 and optional discovery. The default skips global and project config files
 and uses built-in permissions: host reads, private temporary writes, and
-no worker networking. Resolver defaults remain independent.}
+no worker networking. Resolver defaults remain independent. Alternatively,
+pass the edited result of \code{\link[=resolve_console_config]{resolve_console_config()}}; it retains its
+executable and project, so omit \code{path}, \code{version}, and \code{project}.}
 
 \item{project}{Existing directory to use as the child process's working
 directory, defaulting to \code{getwd()}. Relative config and runtime paths use

@@ -211,7 +211,10 @@ config_parameters <- function() {
 #' @param description `NULL` or one string replacing the complete tool or
 #'   parameter description.
 #' @param instructions `NULL` or one string replacing MCP initialization
-#'   instructions, independently of the tool description.
+#'   instructions: server guidance received when the client connects, which some
+#'   clients use for deferred tool search. The tool and parameter descriptions
+#'   are returned later through `tools/list`. The ellmer adapter uses those
+#'   descriptions and does not add initialization instructions to the chat prompt.
 #' @param parameters `NULL` or a named list of [ToolParameterConfig()] objects.
 #'   Nest another `parameters` list to configure fields inside an object parameter.
 #' @param enabled `NULL`, `TRUE`, or `FALSE`; controls parameter visibility.

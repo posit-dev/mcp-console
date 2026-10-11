@@ -19,7 +19,10 @@ parameter description.}
 Nest another \code{parameters} list to configure fields inside an object parameter.}
 
 \item{instructions}{\code{NULL} or one string replacing MCP initialization
-instructions, independently of the tool description.}
+instructions: server guidance received when the client connects, which some
+clients use for deferred tool search. The tool and parameter descriptions
+are returned later through \code{tools/list}. The ellmer adapter uses those
+descriptions and does not add initialization instructions to the chat prompt.}
 }
 \value{
 An S7 configuration object. The constructor is also its S7 class.

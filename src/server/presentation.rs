@@ -19,6 +19,33 @@ struct Profile {
     timeout: bool,
 }
 
+/// Render editable configuration without creating a server or starting runtimes.
+pub(crate) fn materialized_tool(
+    languages: Languages,
+    policy: &SandboxSettings,
+    no_sandbox: bool,
+    tool: &crate::settings::Tool,
+) -> crate::settings::Tool {
+    let profile = Profile {
+        languages,
+        builtin: true,
+        timeout: tool.enabled("timeout_ms"),
+    };
+    let mut tool = tool.clone();
+    tool.instructions.get_or_insert_with(|| profile.summary());
+    tool.description
+        .get_or_insert_with(|| profile.description(&profile.summary(), policy, no_sandbox));
+    let mut schema = parameter_schema(languages);
+    profile.configure_fields(
+        schema
+            .get_mut("properties")
+            .and_then(Value::as_object_mut)
+            .expect("schema properties"),
+    );
+    tool.materialize(&schema);
+    tool
+}
+
 impl ConsoleServer {
     pub(super) fn configured_presentation(
         languages: Languages,
