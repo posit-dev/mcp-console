@@ -1,0 +1,5 @@
+---
+large_unicode_message: preserved
+error: fixture error
+recovery: recovered
+reconnect: reconnected

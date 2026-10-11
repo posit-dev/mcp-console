@@ -12,7 +12,7 @@ from ._common import Command, content_text, result_text, stdio_command
 
 if TYPE_CHECKING:
     from agents import FunctionTool
-    from mcp.types import Tool
+    from mcp.types import CallToolResult, Tool
 
     from ._client import AsyncMCPConsole
     from ._sync import MCPConsole
@@ -152,7 +152,7 @@ def responses_tool(
 
     tool = console.send_tool
     if isinstance(console, MCPConsole):
-        return ResponsesTool(console, AsyncResponsesTool(console._async, tool))
+        return ResponsesTool(console, tool)
     return AsyncResponsesTool(console, tool)
 
 
@@ -228,6 +228,45 @@ def agents_server(
     )
 
 
+def _responses_definition(tool: Tool) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "name": tool.name,
+        "description": tool.description,
+        "parameters": tool.input_schema,
+        "strict": False,
+    }
+
+
+def _responses_arguments(arguments: str | Mapping[str, Any]) -> Mapping[str, Any]:
+    parsed = json.loads(arguments) if isinstance(arguments, str) else arguments
+    if not isinstance(parsed, Mapping):
+        raise TypeError("OpenAI function arguments must decode to a JSON object")
+    return parsed
+
+
+def _responses_content(result: CallToolResult) -> str | list[dict]:
+    text = result_text(result)
+    if all(item.type == "text" for item in result.content):
+        return text
+    return [
+        {
+            "type": "input_image",
+            "detail": "auto",
+            "image_url": f"data:{item.mime_type};base64,{item.data}",
+        }
+        if item.type == "image"
+        else {"type": "input_text", "text": content_text(item)}
+        for item in result.content
+    ]
+
+
+def _responses_call(call: Any) -> tuple[str, str | Mapping[str, Any]]:
+    if isinstance(call, Mapping):
+        return call["call_id"], call["arguments"]
+    return call.call_id, call.arguments
+
+
 class AsyncResponsesTool:
     """An async Responses function tool that preserves Console text and images.
 
@@ -266,13 +305,7 @@ class AsyncResponsesTool:
     @property
     def definition(self) -> dict[str, Any]:
         """Function-tool definition to place in ``responses.create(tools=...)``."""
-        return {
-            "type": "function",
-            "name": self._tool.name,
-            "description": self._tool.description,
-            "parameters": self._tool.input_schema,
-            "strict": False,
-        }
+        return _responses_definition(self._tool)
 
     async def call(self, arguments: str | Mapping[str, Any]) -> str | list[dict]:
         """Execute `send` arguments supplied as a JSON string or mapping.
@@ -281,23 +314,9 @@ class AsyncResponsesTool:
         `input_image` blocks for rich output. A model call's `arguments` can be
         passed directly; `output()` also attaches its `call_id`.
         """
-        parsed = json.loads(arguments) if isinstance(arguments, str) else arguments
-        if not isinstance(parsed, Mapping):
-            raise TypeError("OpenAI function arguments must decode to a JSON object")
-        result = await self._console._call_send(parsed)
-        text = result_text(result)
-        if all(item.type == "text" for item in result.content):
-            return text
-        return [
-            {
-                "type": "input_image",
-                "detail": "auto",
-                "image_url": f"data:{item.mime_type};base64,{item.data}",
-            }
-            if item.type == "image"
-            else {"type": "input_text", "text": content_text(item)}
-            for item in result.content
-        ]
+        return _responses_content(
+            await self._console._call_send(_responses_arguments(arguments))
+        )
 
     async def output(self, call: Any) -> dict[str, Any]:
         """Execute a model function call and return its `function_call_output`.
@@ -306,10 +325,7 @@ class AsyncResponsesTool:
         and `arguments`. Pass the returned item in the next request's `input`.
         `await tool(call)` is shorthand for `await tool.output(call)`.
         """
-        if isinstance(call, Mapping):
-            call_id, arguments = call["call_id"], call["arguments"]
-        else:
-            call_id, arguments = call.call_id, call.arguments
+        call_id, arguments = _responses_call(call)
         return {
             "type": "function_call_output",
             "call_id": call_id,
@@ -341,14 +357,14 @@ class ResponsesTool:
         ```
     """
 
-    def __init__(self, console: MCPConsole, tool: AsyncResponsesTool) -> None:
+    def __init__(self, console: MCPConsole, tool: Tool) -> None:
         self._console = console
-        self._async = tool
+        self._tool = tool
 
     @property
     def definition(self) -> dict[str, Any]:
         """Function-tool definition to place in ``responses.create(tools=...)``."""
-        return self._async.definition
+        return _responses_definition(self._tool)
 
     def call(self, arguments: str | Mapping[str, Any]) -> str | list[dict]:
         """Execute `send` arguments supplied as a JSON string or mapping.
@@ -357,7 +373,9 @@ class ResponsesTool:
         `input_image` blocks for rich output. A model call's `arguments` can be
         passed directly; `output()` also attaches its `call_id`.
         """
-        return self._console._run(self._async.call, arguments)
+        return _responses_content(
+            self._console._call_send(_responses_arguments(arguments))
+        )
 
     def output(self, call: Any) -> dict[str, Any]:
         """Execute a model function call and return its `function_call_output`.
@@ -366,6 +384,11 @@ class ResponsesTool:
         and `arguments`. Pass the returned item in the next request's `input`.
         `tool(call)` is shorthand for `tool.output(call)`.
         """
-        return self._console._run(self._async.output, call)
+        call_id, arguments = _responses_call(call)
+        return {
+            "type": "function_call_output",
+            "call_id": call_id,
+            "output": self.call(arguments),
+        }
 
     __call__ = output

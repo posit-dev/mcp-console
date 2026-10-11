@@ -1,14 +1,13 @@
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import ExitStack
-from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ._client import AsyncMCPConsole, Requirements
-from ._common import Command
+from ._common import Command, result_text
 
 if TYPE_CHECKING:
     from anyio.from_thread import BlockingPortal
-    from mcp.types import Tool
+    from mcp.types import CallToolResult, Tool
 
 
 class MCPConsole:
@@ -18,6 +17,12 @@ class MCPConsole:
     The context starts Console and discovers its tools; leaving it closes the
     connection and subprocess. Variables persist across calls on this connection.
     The application owns its model clients, agents, and tool loops.
+
+    Calls block while the official MCP client runs on a background event loop.
+    Catching `KeyboardInterrupt` while waiting cancels that request's wait,
+    leaving an admitted cell running.
+    Poll to collect its output or send `control="interrupt"` to stop execution.
+    Connect and close only when no other call is in progress.
 
     Args:
         command: Console executable. Defaults to the installed `mcp-console`.
@@ -84,13 +89,19 @@ class MCPConsole:
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         self.close()
 
-    def _run(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    def _call_send(self, arguments: Mapping[str, Any]) -> "CallToolResult":
         if self._portal is None:
             raise RuntimeError(
                 "MCPConsole is not connected; use `with MCPConsole() as console` "
                 "or call `console.connect()` first"
             )
-        return self._portal.call(partial(func, *args, **kwargs))
+        future = self._portal.start_task_soon(self._async._call_send, arguments)
+        try:
+            return future.result()
+        except KeyboardInterrupt:
+            # Let the SDK cancel the request without interrupting the cell.
+            future.cancel()
+            raise
 
     def send(
         self,
@@ -111,18 +122,21 @@ class MCPConsole:
         the remaining output with `console.send()` before submitting another cell.
         Images appear as MIME placeholders; MCP tool errors raise `RuntimeError`.
         """
-        return self._run(
-            self._async.send,
-            r=r,
-            python=python,
-            sql=sql,
-            control=control,
-            requirements=requirements,
-            stdin=stdin,
-            timeout_ms=timeout_ms,
+        arguments = {
+            "r": r,
+            "python": python,
+            "sql": sql,
+            "control": control,
+            "requirements": requirements,
+            "stdin": stdin,
+            "timeout_ms": timeout_ms,
+        }
+        return result_text(
+            self._call_send(
+                {name: value for name, value in arguments.items() if value is not None}
+            )
         )
 
-    send.__doc__ = AsyncMCPConsole.send.__doc__
     __call__ = send
 
     @property
