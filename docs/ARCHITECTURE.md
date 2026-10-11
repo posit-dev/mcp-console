@@ -143,8 +143,14 @@ Aborting a partial command ends that transport; no control can be inserted into 
 
 Physical cleanup, protocol settlement, and output delivery are separate results.
 Available output is drained within bounds even when cleanup fails.
-Unconfirmed native retirement blocks replacement.
-A forced launcher kill or pipe EOF cannot be promoted into proof of successful cleanup.
+The local launch adapter retains raw exit status, requested termination, and Console-owned storage retirement independently of diagnostic suppression.
+Readiness and the origin of an operation failure affect error reporting, not those observations.
+
+The existing failure-recovery barrier requires direct-launcher reaping, successful Console-owned storage retirement, and settled I/O.
+Storage-removal failure blocks replacement.
+Recovery after runner loss can still permit replacement without confirming native descendant or runner-owned storage cleanup.
+A forced launcher kill, pipe EOF, or suppressed status diagnostic cannot prove that cleanup.
+The pinned runner has no separate Unix cleanup receipt; a nonzero status can represent workload failure or a cleanup error.
 
 Connection closure cancels startup/preparation, retires execution resources, settles accepted responses, and bounds blocked MCP delivery.
 Native runner loss retains the [documented lifetime limits](SANDBOX.md#supported-hosts-and-lifetime-limits); Console has no independent recovery daemon.

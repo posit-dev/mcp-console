@@ -285,5 +285,59 @@ def test_manager_crash_retires_the_worker_generation(binary: Path) -> Transcript
         _close_client_streams(client)
 
 
+@requires(MACOS_SANDBOX, NATIVE_FIXTURES, PROCESS_EVENTS)
+def test_worker_failure_retires_generation_without_duplicate_error(
+    binary: Path,
+) -> Transcript:
+    environment = os.environ.copy()
+    with (
+        tempfile.TemporaryDirectory() as directory,
+        observed_sandbox_descendants(Path(directory), environment) as observe,
+    ):
+        client = McpClient(binary, SANDBOXED.serve(), environment)
+        generation: Generation | None = None
+        generation_reaping = select.kqueue()
+        try:
+            client.initialize_and_list_tools()
+            generation = _spawn_detached_generation(client)
+            observe(generation[3][0], client.process)
+            reap_watches = [
+                select.kevent(
+                    identity[0],
+                    filter=select.KQ_FILTER_PROC,
+                    flags=select.KQ_EV_ADD | select.KQ_EV_CLEAR,
+                    fflags=select.KQ_NOTE_EXIT | _KQ_NOTE_REAP,
+                )
+                for identity in generation[:4]
+            ]
+            assert generation_reaping.control(reap_watches, 0, 0) == []
+            assert live_darwin_processes(generation[:4]) == [
+                identity[0] for identity in generation[:4]
+            ], "worker generation changed while registering reap watches"
+
+            result = client.send(python="os._exit(47)")
+            assert result["isError"] is True, result
+            text = result["content"][0]["text"]
+            assert text.count("[worker exited with status 47]") == 1, text
+            assert "worker launcher" not in text, text
+            _wait_for_process_reaping(generation_reaping, generation[:4], TIMEOUT)
+            assert not generation[4].exists(), (
+                f"worker temporary directory survived workload failure: {generation[4]}"
+            )
+
+            client.send(python="print('replacement ready')")
+            assert _last_text(client) == "replacement ready\n"
+            transcript, stderr = client.finish_with_standard_error()
+            assert not stderr, stderr
+            return transcript
+        finally:
+            stop_client(client)
+            if generation is not None:
+                kill_darwin_processes(generation[:4])
+                shutil.rmtree(generation[4].parent, ignore_errors=True)
+            _close_client_streams(client)
+            generation_reaping.close()
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)

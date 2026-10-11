@@ -1,0 +1,54 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  python: |
+    import os
+    import subprocess
+
+    crash_child = subprocess.Popen(
+        ["/bin/sleep", "60"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    print(f"worker={os.getpid()}")
+    print(f"relay={os.getppid()}")
+    print(f"child={crash_child.pid}")
+    print(f"temp={os.environ['TMPDIR']}")
+result:
+  content:
+    - type: text
+      text: |
+        worker=<worker pid>
+        relay=<relay pid>
+        child=<detached child pid>
+        temp=<sandbox temp>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  process_ids: omitted
+  sandbox_temporary_directory: omitted
+---
+send:
+  python: os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: print('replacement ready')
+result:
+  content:
+    - type: text
+      text: |
+        replacement ready
+  isError: false

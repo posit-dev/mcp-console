@@ -72,19 +72,48 @@ struct RelayConnection {
 
 struct RelayProcess {
     temporary: Option<crate::local_runtime::TemporaryDirectory>,
-    temporary_retirement: Result<(), String>,
     child: Child,
     retirement_grace: Duration,
     no_sandbox: bool,
     exit: ChildExitWaiter,
     exited: bool,
-    reaped: bool,
+    launcher_exit: Option<LauncherExit>,
+    // Diagnostic policy only; never used as physical retirement evidence.
     ready_committed: bool,
-    relay_exit_recovery_expected: bool,
     retirement_requested: bool,
     retirement_deadline: Option<Instant>,
     kill_deadline: Option<Instant>,
     retirement: Option<Result<(), String>>,
+}
+
+/// Direct-launcher observations, not a receipt for native descendants or
+/// runner-owned storage after supervisor loss.
+#[derive(Clone)]
+struct LauncherExit {
+    status: ExitStatus,
+    no_sandbox: bool,
+    retirement_requested: bool,
+    temporary_retirement: Result<(), String>,
+}
+
+impl LauncherExit {
+    fn status_result(&self) -> Result<(), String> {
+        // A direct relay terminates normally under our SIGTERM request or
+        // Windows process-handle termination, which has no signal status.
+        if self.status.success()
+            || self.no_sandbox
+                && self.retirement_requested
+                && (cfg!(windows) || self.status.signal() == Some(libc::SIGTERM))
+        {
+            Ok(())
+        } else if let Some(code) = self.status.code() {
+            Err(format!("worker launcher exited with status {code}"))
+        } else if let Some(signal) = self.status.signal() {
+            Err(format!("worker launcher terminated by signal {signal}"))
+        } else {
+            Err("worker launcher exited without a status code or signal".to_string())
+        }
+    }
 }
 
 struct RelayTasks {
@@ -118,9 +147,7 @@ struct RetirementResult {
     normal: Result<(), String>,
     cleanup: Result<(), String>,
     io: Result<Option<WorkerProcessOutcome>, String>,
-    launcher_reaped: bool,
-    // Replacement evidence is separate from native launcher status policy.
-    resources_confirmed: bool,
+    launcher_exit: Option<LauncherExit>,
 }
 
 impl RetirementResult {
@@ -131,7 +158,7 @@ impl RetirementResult {
         // Reaping and successful I/O settlement also supersede the normal
         // barrier when launcher status or temporary-storage cleanup fails.
         // Those independent cleanup failures still retain their own evidence.
-        if self.cleanup.is_ok() || self.launcher_reaped && self.io.is_ok() {
+        if self.cleanup.is_ok() || self.launcher_exit.is_some() && self.io.is_ok() {
             self.cleanup.clone()
         } else {
             combine_shutdown_results(self.normal.clone(), self.cleanup.clone())
@@ -454,15 +481,13 @@ impl RelayProcess {
         };
         Ok(Self {
             temporary: None,
-            temporary_retirement: Ok(()),
             child,
             retirement_grace,
             no_sandbox,
             exit,
             exited: false,
-            reaped: false,
+            launcher_exit: None,
             ready_committed: false,
-            relay_exit_recovery_expected: false,
             retirement_requested: false,
             retirement_deadline: None,
             kill_deadline: None,
@@ -512,9 +537,9 @@ impl RelayProcess {
 
     fn retire_launcher(
         &mut self,
-        before_reap: impl FnOnce(&mut Self) -> Result<(), String>,
+        before_reap: impl FnOnce() -> Result<(), String>,
     ) -> Result<(), String> {
-        if self.reaped {
+        if self.is_reaped() {
             return self.retirement.clone().unwrap_or(Ok(()));
         }
         let requested = self.request_retirement();
@@ -525,7 +550,7 @@ impl RelayProcess {
         );
         // Capture generation evidence at the original boundary: after launcher
         // grace and before reaping or final force-stop classification.
-        let prepared = before_reap(self);
+        let prepared = before_reap();
         let cleanup = match observed {
             Ok(true) => self.reap(),
             outcome => {
@@ -623,7 +648,7 @@ impl RelayProcess {
     }
 
     fn reap(&mut self) -> Result<(), String> {
-        if self.reaped {
+        if self.is_reaped() {
             return Ok(());
         }
         let status = self
@@ -635,36 +660,21 @@ impl RelayProcess {
 
     fn finish_reaped_status(&mut self, status: ExitStatus) -> Result<(), String> {
         self.exited = true;
-        self.reaped = true;
-        if let Some(mut temporary) = self.temporary.take() {
-            self.temporary_retirement = temporary.retire();
-            self.temporary_retirement.clone()?;
-        }
-        // A direct relay's exit is redundant when its EOF established the
-        // worker failure. The sandbox runner still owes cleanup; status 137
-        // records a target SIGKILL already reported by that same relay failure.
-        // A direct relay also terminates normally under our own SIGTERM request
-        // or Windows process-handle termination, which has no signal status.
-        if !self.ready_committed
-            || status.success()
-            || self.no_sandbox
-                && self.retirement_requested
-                && (cfg!(windows) || status.signal() == Some(libc::SIGTERM))
-            || self.relay_exit_recovery_expected
-                && (self.no_sandbox || status.code() == Some(128 + 9))
-        {
-            Ok(())
-        } else if let Some(code) = status.code() {
-            Err(format!("worker launcher exited with status {code}"))
-        } else if let Some(signal) = status.signal() {
-            Err(format!("worker launcher terminated by signal {signal}"))
-        } else {
-            Err("worker launcher exited without a status code or signal".to_string())
-        }
+        let temporary_retirement = match self.temporary.take() {
+            Some(mut temporary) => temporary.retire(),
+            None => Ok(()),
+        };
+        self.launcher_exit = Some(LauncherExit {
+            status,
+            no_sandbox: self.no_sandbox,
+            retirement_requested: self.retirement_requested,
+            temporary_retirement: temporary_retirement.clone(),
+        });
+        temporary_retirement
     }
 
     fn has_exited(&mut self) -> Result<bool, String> {
-        if self.exited || self.reaped {
+        if self.exited || self.is_reaped() {
             return Ok(true);
         }
         self.exited = self.exit.wait(Duration::ZERO)?;
@@ -672,16 +682,16 @@ impl RelayProcess {
     }
 
     fn is_reaped(&self) -> bool {
-        self.reaped
+        self.launcher_exit.is_some()
     }
 }
 
 impl Drop for RelayProcess {
     fn drop(&mut self) {
-        if self.reaped {
+        if self.is_reaped() {
             return;
         }
-        let _ = self.retire_launcher(|_| Ok(()));
+        let _ = self.retire_launcher(|| Ok(()));
     }
 }
 
@@ -893,7 +903,14 @@ impl Worker {
         let shutdown = self.shutdown_handle();
         shutdown.request_shutdown(deadline, retirement_deadline);
         let retirement = shutdown.retire();
-        let can_replace = retirement.io.is_ok() && retirement.resources_confirmed;
+        // Preserve the local replacement barrier: launcher reaping, Console's
+        // own storage retirement, and I/O settlement. Runner loss still lacks
+        // a native descendant/storage cleanup guarantee.
+        let can_replace = retirement.io.is_ok()
+            && retirement
+                .launcher_exit
+                .as_ref()
+                .is_some_and(|exit| exit.temporary_retirement.is_ok());
         let result = match (retirement.process_result(), retirement.io) {
             (Ok(()), Ok(outcome)) => Ok(outcome),
             (Err(error), Ok(outcome)) => Err(super::WorkerRetirementFailure::new(error, outcome)),
@@ -1391,16 +1408,11 @@ impl WorkerShutdownHandle {
             ),
         );
         let cleanup = self.stop_relay(deadline, retirement_deadline, allowance);
-        let (launcher_reaped, resources_confirmed) = self
+        let launcher_exit = self
             .child
             .lock()
-            .map(|child| {
-                (
-                    child.is_reaped(),
-                    child.is_reaped() && child.temporary_retirement.is_ok(),
-                )
-            })
-            .unwrap_or((false, false));
+            .ok()
+            .and_then(|child| child.launcher_exit.clone());
         // Failed process cleanup must still drain available output and join all
         // owned I/O. Neither a normal-barrier timeout nor an I/O join confirms
         // native cleanup; the retained process result remains authoritative.
@@ -1423,8 +1435,7 @@ impl WorkerShutdownHandle {
             normal,
             cleanup,
             io,
-            launcher_reaped,
-            resources_confirmed,
+            launcher_exit,
         };
         let mut state = self
             .retirement
@@ -1447,9 +1458,6 @@ impl WorkerShutdownHandle {
             .child
             .lock()
             .map_err(|_| "worker child lock poisoned".to_string())?;
-        if let Some(result) = child.retirement.as_ref() {
-            return result.clone();
-        }
         let remaining = deadline.saturating_duration_since(Instant::now());
         let mut errors = Vec::new();
         let mut exited = match child.wait_timeout_without_reaping(remaining) {
@@ -1473,9 +1481,10 @@ impl WorkerShutdownHandle {
                 Err(error) => errors.push(error),
             }
         }
-        let cleanup = if exited {
+        let mut relay_exit_caused_failure = false;
+        let mut cleanup = if exited {
             match self.operation.relay_exit_caused_failure() {
-                Ok(expected) => child.relay_exit_recovery_expected = expected,
+                Ok(expected) => relay_exit_caused_failure = expected,
                 Err(error) => errors.push(error),
             }
             child.reap()
@@ -1483,20 +1492,31 @@ impl WorkerShutdownHandle {
             self.commands.report_command_transport_failure(
                 "worker relay command transport retired".to_string(),
             );
-            child.retire_launcher(|child| {
-                child.relay_exit_recovery_expected = self.operation.relay_exit_caused_failure()?;
+            child.retire_launcher(|| {
+                relay_exit_caused_failure = self.operation.relay_exit_caused_failure()?;
                 Ok(())
             })
         };
+        // Suppression controls only diagnostics. Status 137 is ambiguous in
+        // the pinned runner contract; retaining the existing suppression when
+        // relay exit caused the failure does not confirm native cleanup.
+        // Storage failure keeps its existing precedence over status reporting.
+        if let Some(exit) = &child.launcher_exit
+            && exit.temporary_retirement.is_ok()
+            && child.ready_committed
+            && !(relay_exit_caused_failure
+                && (exit.no_sandbox || exit.status.code() == Some(128 + 9)))
+        {
+            cleanup = combine_shutdown_results(cleanup, exit.status_result());
+        }
         if let Err(error) = cleanup {
             errors.push(error);
         }
-        let result = if errors.is_empty() {
+        if errors.is_empty() {
             Ok(())
         } else {
             Err(errors.join("; additionally "))
-        };
-        child.finish_retirement(result)
+        }
     }
 
     fn should_wait_for_relay_retirement(
