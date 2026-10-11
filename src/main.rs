@@ -139,6 +139,7 @@ fn run_server(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let directory = std::env::current_dir()?;
     let settings::Captured {
+        tool,
         startup,
         cache,
         python,
@@ -189,6 +190,7 @@ fn run_server(
         resolver,
         startup,
         languages,
+        tool,
     ));
     // `server::run` has already finished owned runtime retirement and response settling. Tokio's
     // stdout uses a blocking task that cannot be cancelled while the client

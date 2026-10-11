@@ -233,7 +233,7 @@ stderr: >
 path: extends
 stderr: >
   configuration with CLI overrides: extends: unknown field `extends`,
-  expected one of `startup`, `cache`, `python`, `r`, `languages`,
+  expected one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
   `inherit_environment`, `environment`, `sandbox`, `resolver`; see
   docs/CONFIGURATION.md for the public format
 ---

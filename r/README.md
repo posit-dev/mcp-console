@@ -145,3 +145,30 @@ Worker and resolver policies are independent; an omitted resolver filesystem ret
 Explicit resolver sandbox policies are unsupported on Windows, where preparation runs with host permissions.
 
 See `?ConsoleConfig` and `?SandboxPolicy`.
+
+Use `ToolConfig()` to replace descriptions or hide parameters for evaluations:
+
+```r
+console_tool(
+  config = ConsoleConfig(
+    tool = ToolConfig(
+      description = "Run R code in a persistent session.",
+      parameters = list(
+        r = ToolParameterConfig(description = "Execute one complete R cell."),
+        timeout_ms = ToolParameterConfig(enabled = FALSE),
+        requirements = ToolParameterConfig(
+          parameters = list(
+            r = ToolParameterConfig(description = "R package requirements.")
+          )
+        )
+      )
+    )
+  )
+)
+```
+
+Descriptions replace the complete selected text, including empty strings.
+`instructions` independently replaces MCP initialization instructions.
+Hidden parameters are removed from the signature and rejected if supplied; omission retains their runtime defaults.
+Hiding `timeout_ms` retains the 60,000 ms wait budget.
+See `?ToolConfig` and the [tool configuration contract](../docs/CONFIGURATION.md#tool-descriptions-and-parameters).

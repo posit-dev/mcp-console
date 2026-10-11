@@ -42,6 +42,106 @@ def options(binary: Path, execution: Execution) -> dict:
     }
 
 
+def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcript:
+    from agents.tool_context import ToolContext
+
+    async def exercise(console) -> dict:
+        tool = console.send_tool
+        assert "timeout_ms" not in tool.input_schema["properties"]
+        assert tool.description == "Evaluation tool."
+        assert (
+            tool.input_schema["properties"]["python"]["description"] == "Python cell."
+        )
+        source = "print(6 * 7)"
+        arguments = {"python": source}
+        encoded = json.dumps(arguments)
+        context = ToolContext(
+            context=None,
+            tool_name="send",
+            tool_call_id="call_1",
+            tool_arguments=encoded,
+        )
+        responses = mcp_console.openai.responses_tool(console)
+        agent = mcp_console.openai.agents_tool(console)
+        anthropic = mcp_console.anthropic.tool(console)
+        chatlas = mcp_console.chatlas.tool(console)
+        assert (
+            responses.definition["description"]
+            == agent.description
+            == anthropic.to_dict()["description"]
+            == chatlas.schema["function"]["description"]
+            == tool.description
+        )
+        for schema in (
+            responses.definition["parameters"],
+            agent.params_json_schema,
+            anthropic.to_dict()["input_schema"],
+            chatlas.schema["function"]["parameters"],
+        ):
+            assert schema == tool.input_schema
+        outputs = []
+        for invoke in (
+            lambda: console.send(**arguments),
+            lambda: console(**arguments, timeout_ms=None),
+            lambda: responses.call(arguments),
+            lambda: agent.on_invoke_tool(context, encoded),
+            lambda: anthropic.call(arguments),
+            lambda: chatlas.func(**arguments),
+        ):
+            output = invoke()
+            outputs.append(await output if inspect.isawaitable(output) else output)
+        assert outputs == ["42\n"] * 6, outputs
+        try:
+            output = console.send(**arguments, timeout_ms=60_000)
+            if inspect.isawaitable(output):
+                await output
+        except RuntimeError as error:
+            assert str(error) == "`timeout_ms` is hidden by `tool.parameters`", error
+            rejected = str(error)
+        else:
+            raise AssertionError("explicit hidden timeout was accepted")
+        return {
+            "client": type(console).__name__,
+            "tool": tool.model_dump(exclude_none=True),
+            "outputs": outputs,
+            "explicit_timeout_error": rejected,
+        }
+
+    async def run() -> Transcript:
+        with tempfile.TemporaryDirectory() as directory:
+            settings = {
+                "command": binary,
+                "args": DIRECT.serve(
+                    "--no-config",
+                    "-c",
+                    "languages=[python]",
+                    "-c",
+                    "python=" + json.dumps(sys.executable),
+                    "-c",
+                    "tool.description=Evaluation tool.",
+                    "-c",
+                    "tool.parameters.python.description=Python cell.",
+                    "-c",
+                    "tool.parameters.timeout_ms.enabled=false",
+                ),
+                "server_parameters": {
+                    "cwd": directory,
+                    "env": dict(
+                        os.environ,
+                        MCP_CONSOLE_LANGUAGES="python",
+                        MCP_CONSOLE_HOME=directory,
+                    ),
+                },
+            }
+            async with AsyncMCPConsole(**settings) as console:
+                asynchronous = await exercise(console)
+            with MCPConsole(**settings) as console:
+                synchronous = await exercise(console)
+            return [asynchronous, synchronous]
+
+    return asyncio.run(run())
+
+
 @requires(POSIX)
 @executions(DIRECT, SANDBOXED)
 @requires(command("ir"))

@@ -14,6 +14,10 @@ It stays stable when startup succeeds or fails.
 Configured languages control visible code fields and relevant examples; actual runtime availability is checked during execution.
 Requirements can remain visible for a hidden SQL provider.
 
+Launcher [tool configuration](CONFIGURATION.md#tool-descriptions-and-parameters) applies after generated presentation.
+It can replace tool prose, initialization instructions, and nested parameter descriptions verbatim, or hide parameters while preserving their omission defaults.
+The editorial guidance below governs generated text; explicit replacements are owned by the launcher.
+
 Do not equate visibility with initialization, installation, or a security boundary.
 Bridge examples require both source languages to be visible; Python-owned SQL registration must not imply that an R-owned connection is a DB-API object.
 

@@ -2,6 +2,7 @@ mod arguments;
 #[cfg(windows)]
 mod input_windows;
 mod presentation;
+pub(crate) use presentation::parameter_schema;
 mod startup;
 use std::error::Error;
 use std::path::PathBuf;
@@ -38,6 +39,7 @@ struct ConsoleServer {
     language_setting: &'static str,
     tool_router: ToolRouter<Self>,
     instructions: String,
+    tool_settings: Arc<crate::settings::Tool>,
 }
 
 impl ConsoleServer {
@@ -53,6 +55,7 @@ impl ConsoleServer {
         resolver: crate::settings::SandboxSettings,
         startup: Option<crate::settings::startup::Startup>,
         visibility: Option<Languages>,
+        tool_settings: crate::settings::Tool,
     ) -> Result<Self, String> {
         let recording_directory = std::env::current_dir();
         let (languages, language_setting) = match visibility {
@@ -68,7 +71,8 @@ impl ConsoleServer {
             worker.is_none(),
             &sandbox_settings,
             no_sandbox,
-        );
+            &tool_settings,
+        )?;
         let runtime = Arc::new(startup::Runtime {
             worker: crate::worker_client::Client::pending(),
             transcript: crate::transcript::Transcript::pending(
@@ -127,6 +131,7 @@ impl ConsoleServer {
             language_setting,
             tool_router,
             instructions,
+            tool_settings: Arc::new(tool_settings),
         })
     }
 }
@@ -428,7 +433,11 @@ impl ServerHandler for ConsoleServer {
             request.arguments.as_ref(),
             self.languages,
             self.language_setting,
-        );
+        )
+        .and_then(|()| {
+            self.tool_settings
+                .validate_arguments(request.arguments.as_ref())
+        });
         let call_future = async {
             validation.map_err(|message| ErrorData::invalid_params(message, None))?;
             (send.call)(ToolCallContext::new(self, request, context)).await
@@ -483,6 +492,7 @@ pub async fn run(
     resolver: crate::settings::SandboxSettings,
     startup: Option<crate::settings::startup::Startup>,
     visibility: Option<Languages>,
+    tool_settings: crate::settings::Tool,
 ) -> Result<(), Box<dyn Error>> {
     let (input_closed, wait_for_input_close) = oneshot::channel();
     let input_closed = InputClosed(Arc::new(Mutex::new(Some(input_closed))));
@@ -499,6 +509,7 @@ pub async fn run(
         resolver,
         startup,
         visibility,
+        tool_settings,
     )
     .map_err(std::io::Error::other)?;
     let startup = server.startup.clone();

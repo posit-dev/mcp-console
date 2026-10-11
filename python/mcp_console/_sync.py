@@ -101,7 +101,7 @@ class MCPConsole:
         control: Literal["interrupt", "restart"] | None = None,
         requirements: Requirements | None = None,
         stdin: str | None = None,
-        timeout_ms: int = 60_000,
+        timeout_ms: int | None = None,
     ) -> str:
         """Run or control a cell on this connection and return its text output.
 

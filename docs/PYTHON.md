@@ -56,6 +56,8 @@ Responses and native MCP integrations preserve images.
 
 Keep one connection per conversation.
 `timeout_ms` limits observation, not execution; after a running notice, poll with `console.send(timeout_ms=300000)` rather than rerunning code.
+Omitting `timeout_ms`, or passing `None`, leaves the server's 60,000 ms default in effect.
+If [tool configuration](CONFIGURATION.md#tool-descriptions-and-parameters) hides that parameter, poll with `console.send()` and omit it from other calls.
 Use [Send operations](SEND_OPERATIONS.md) for input, control, and sequencing, and [Recordings](RECORDING.md) for retained output.
 
 ## Inspect or replace requirements

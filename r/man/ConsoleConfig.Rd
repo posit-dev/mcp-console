@@ -16,7 +16,8 @@ ConsoleConfig(
   languages = NULL,
   cache = NULL,
   environment = NULL,
-  inherit_environment = NULL
+  inherit_environment = NULL,
+  tool = NULL
 )
 }
 \arguments{
@@ -44,14 +45,17 @@ mapping. Resolver assignments override worker assignments for preparation.}
 
 \item{inherit_environment}{\code{NULL}, \code{TRUE}, or \code{FALSE}; controls inheritance
 of the trusted launch environment. Console retains its owned assignments.}
+
+\item{tool}{\code{NULL} or a \code{\link[=ToolConfig]{ToolConfig()}} customizing descriptions and parameter
+visibility.}
 }
 \value{
 An S7 configuration object. The constructor is also its S7 class.
 }
 \description{
 \code{ConsoleConfig()} combines runtime selection, package preparation, worker
-permissions, and resolver settings for \code{\link[=console_tool]{console_tool()}}. Constructors have
-the same field names as Console's application configuration.
+permissions, resolver settings, and tool presentation for \code{\link[=console_tool]{console_tool()}}.
+Constructors have the same field names as Console's application configuration.
 }
 \details{
 With no configuration, Console uses its built-in defaults without reading

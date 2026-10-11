@@ -16,6 +16,7 @@ use crate::settings::SandboxSettings;
 struct Profile {
     languages: Languages,
     builtin: bool,
+    timeout: bool,
 }
 
 impl ConsoleServer {
@@ -24,58 +25,82 @@ impl ConsoleServer {
         builtin: bool,
         policy: &SandboxSettings,
         no_sandbox: bool,
-    ) -> (ToolRouter<Self>, String) {
-        let profile = Profile { languages, builtin };
-        let instructions = profile.summary();
+        tool: &crate::settings::Tool,
+    ) -> Result<(ToolRouter<Self>, String), String> {
+        let profile = Profile {
+            languages,
+            builtin,
+            timeout: tool.enabled("timeout_ms"),
+        };
+        let instructions = tool
+            .instructions
+            .clone()
+            .unwrap_or_else(|| profile.summary());
         let mut router = Self::tool_router();
         let send = router
             .map
             .get_mut("send")
             .expect("send tool must be registered");
         send.attr.description = Some(
-            profile
-                .description(&instructions, policy, no_sandbox)
+            tool.description
+                .clone()
+                .unwrap_or_else(|| profile.description(&profile.summary(), policy, no_sandbox))
                 .into(),
         );
-        let schema = Arc::make_mut(&mut send.attr.input_schema);
+        let mut schema = parameter_schema(languages);
         let properties = schema
             .get_mut("properties")
             .and_then(Value::as_object_mut)
             .expect("send schema must have object properties");
-        let control = properties
-            .get_mut("control")
-            .and_then(Value::as_object_mut)
-            .expect("send control schema must be an object");
-        control.insert("type".to_string(), Value::String("string".to_string()));
-        if let Some(values) = control.get_mut("enum").and_then(Value::as_array_mut) {
-            values.retain(|value| !value.is_null());
-        }
-        // Omission carries meaning for get/reset. Do not advertise payload defaults.
-        for property in properties
-            .get_mut("requirements")
-            .and_then(|requirements| requirements.get_mut("properties"))
-            .and_then(Value::as_object_mut)
-            .expect("requirements schema properties")
-            .values_mut()
-        {
-            property
-                .as_object_mut()
-                .expect("requirement property schema")
-                .remove("default");
-        }
-        // Configured fields stay visible even when an interpreter is unavailable.
-        for (field, enabled) in [
-            ("r", languages.r),
-            ("python", languages.python),
-            ("sql", languages.sql),
-        ] {
-            if !enabled {
-                properties.shift_remove(field);
-            }
-        }
         profile.configure_fields(properties);
-        (router, instructions)
+        tool.configure_schema(&mut schema)?;
+        send.attr.input_schema = Arc::new(schema);
+        Ok((router, instructions))
     }
+}
+
+/// Shared by configuration discovery and MCP presentation so both validate the same fields.
+pub(crate) fn parameter_schema(languages: Languages) -> Map<String, Value> {
+    let mut schema =
+        (*rmcp::handler::server::common::schema_for_input::<super::arguments::SendArguments>()
+            .expect("send arguments must have a valid input schema"))
+        .clone();
+    let properties = schema
+        .get_mut("properties")
+        .and_then(Value::as_object_mut)
+        .expect("send schema must have object properties");
+    let control = properties
+        .get_mut("control")
+        .and_then(Value::as_object_mut)
+        .expect("send control schema must be an object");
+    control.insert("type".to_string(), Value::String("string".to_string()));
+    if let Some(values) = control.get_mut("enum").and_then(Value::as_array_mut) {
+        values.retain(|value| !value.is_null());
+    }
+    // Omission carries meaning for get/reset. Do not advertise payload defaults.
+    for property in properties
+        .get_mut("requirements")
+        .and_then(|requirements| requirements.get_mut("properties"))
+        .and_then(Value::as_object_mut)
+        .expect("requirements schema properties")
+        .values_mut()
+    {
+        property
+            .as_object_mut()
+            .expect("requirement property schema")
+            .remove("default");
+    }
+    // Configured fields stay visible even when an interpreter is unavailable.
+    for (field, enabled) in [
+        ("r", languages.r),
+        ("python", languages.python),
+        ("sql", languages.sql),
+    ] {
+        if !enabled {
+            properties.shift_remove(field);
+        }
+    }
+    schema
 }
 
 impl Profile {
@@ -140,8 +165,12 @@ impl Profile {
         description.push_str("\n\n");
         description.push_str(sections::SEND_ORDERING);
         description.push(' ');
-        description.push_str(sections::POLLING);
-        description.push_str(sections::DEFAULTS);
+        if self.timeout {
+            description.push_str(sections::POLLING);
+            description.push_str(sections::DEFAULTS);
+        } else {
+            description.push_str(sections::POLLING_DEFAULT_TIMEOUT);
+        }
         description.push_str("\n\n");
         description.push_str(sections::OUTPUT);
         description.push_str("\n\n");

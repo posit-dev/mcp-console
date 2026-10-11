@@ -198,6 +198,46 @@ mock_completion <- function(message, finish_reason) {
   )
 }
 
+test_that("console_tool exposes configured descriptions and omits hidden parameters", {
+  with_temp_working_directory({
+    send <- console_tool(
+      path = real_mcp_console(),
+      config = ConsoleConfig(
+        r = RConfig(resolution = "disabled"),
+        languages = "r",
+        sandbox = FALSE,
+        tool = ToolConfig(
+          description = "Evaluation tool.",
+          instructions = "Evaluation server.",
+          parameters = list(
+            r = ToolParameterConfig(description = "Run one R cell."),
+            timeout_ms = ToolParameterConfig(enabled = FALSE),
+            requirements = ToolParameterConfig(
+              parameters = list(
+                r = ToolParameterConfig(description = "R packages.")
+              )
+            )
+          )
+        )
+      )
+    )
+    expect_identical(send@description, "Evaluation tool.")
+    arguments <- send@arguments@properties
+    expect_setequal(
+      names(arguments),
+      c("r", "control", "stdin", "requirements")
+    )
+    expect_identical(arguments$r@json$description, "Run one R cell.")
+    expect_identical(
+      arguments$requirements@json$properties$r$description,
+      "R packages."
+    )
+    expect_identical(send(r = "6 * 7")@text, "[1] 42\n")
+    rm(send)
+    invisible(gc())
+  })
+})
+
 test_that("console_tool works when registered with an ellmer chat", {
   # fmt: r
   source <- r"(

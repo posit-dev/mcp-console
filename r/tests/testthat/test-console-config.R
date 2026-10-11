@@ -81,6 +81,8 @@ test_that("configuration classes have matching uppercase CamelCase names", {
   ))
   for (name in c(
     "ConsoleConfig",
+    "ToolConfig",
+    "ToolParameterConfig",
     "ConfigDiscovery",
     "RConfig",
     "ManagedPython",
@@ -96,6 +98,70 @@ test_that("configuration classes have matching uppercase CamelCase names", {
     class <- getExportedValue("mcp.console", name)
     expect_identical(class@name, name)
   }
+})
+
+test_that("tool configuration preserves descriptions and nested parameter mappings", {
+  tool <- ToolConfig(
+    description = "Evaluation tool.\n\nUse the parameter descriptions.",
+    instructions = "",
+    parameters = list(
+      r = ToolParameterConfig(description = "Run one R cell."),
+      timeout_ms = ToolParameterConfig(enabled = FALSE),
+      requirements = ToolParameterConfig(
+        parameters = list(
+          r = ToolParameterConfig(description = "", enabled = TRUE)
+        )
+      )
+    )
+  )
+  expected <- list(
+    tool = list(
+      description = "Evaluation tool.\n\nUse the parameter descriptions.",
+      instructions = "",
+      parameters = list(
+        r = list(description = "Run one R cell."),
+        timeout_ms = list(enabled = FALSE),
+        requirements = list(
+          parameters = list(
+            r = list(description = "", enabled = TRUE)
+          )
+        )
+      )
+    )
+  )
+  config <- ConsoleConfig(tool = tool)
+  expect_identical(as.list(config), expected)
+  expect_identical(
+    jsonlite::fromJSON(
+      jsonlite::toJSON(as.list(config), auto_unbox = TRUE),
+      simplifyVector = FALSE
+    ),
+    expected
+  )
+  empty <- structure(list(), names = character())
+  expect_identical(as.list(ToolConfig()), empty)
+  expect_identical(
+    as.list(ToolConfig(parameters = list())),
+    list(parameters = empty)
+  )
+  expect_identical(as.list(ToolParameterConfig()), empty)
+  expect_error(ToolConfig(description = NA_character_), "description")
+  expect_error(
+    ToolParameterConfig(description = c("one", "two")),
+    "description"
+  )
+  expect_error(ToolParameterConfig(enabled = NA), "enabled")
+  expect_error(
+    ToolConfig(parameters = list(ToolParameterConfig())),
+    "parameters"
+  )
+  expect_error(ToolConfig(parameters = list(r = list())), "parameters")
+  expect_error(
+    ToolParameterConfig(
+      parameters = list(r = ToolParameterConfig(), r = ToolParameterConfig())
+    ),
+    "parameters"
+  )
 })
 
 test_that("configuration rejects unsupported choices before launching", {

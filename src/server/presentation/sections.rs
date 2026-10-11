@@ -17,6 +17,8 @@ pub(super) const POLLING: &str = "If work is still running, poll with an empty `
 pub(super) const DEFAULTS: &str =
     r#" Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`."#;
 
+pub(super) const POLLING_DEFAULT_TIMEOUT: &str = r#"If work is still running, poll with an empty `send`; do not resubmit the cell. Each call waits for output for up to 60 seconds; it returns early when work finishes or needs input. Expiry returns available output while work continues. Default: `requirements.action="add"`."#;
+
 pub(super) const OUTPUT: &str = "Text results, including notices, have an 8 KiB limit, retaining the beginning and latest tail; images have separate limits. Response notices report state and omitted-output locations.";
 
 pub(super) const CUSTOM_CAPABILITIES: &str = "Language fields describe the configured interface; evaluation, display, SQL, and sharing depend on the worker. Console does not supply built-in runtime packages, import hooks, or a default SQL connection. Managed requirements need compatible worker callbacks; Python requirements are unavailable.";

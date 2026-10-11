@@ -1,0 +1,10 @@
+---
+configuration:
+  parameters:
+    timeout_ms:
+      parameters:
+        missing:
+          description: unused
+stderr: >
+  configuration with CLI overrides: tool.parameters.timeout_ms.parameters:
+  this parameter has no nested parameters

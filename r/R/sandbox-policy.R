@@ -441,6 +441,8 @@ config_mapping <- function(fields) {
       fields[[name]] <- as.list(value)
     } else if (name == "environment") {
       fields[[name]] <- json_object(as.list(value))
+    } else if (name == "parameters") {
+      fields[[name]] <- json_object(lapply(value, as.list))
     } else if (
       name %in%
         arrays &&

@@ -1,0 +1,8 @@
+---
+configuration:
+  parameters:
+    missing:
+      enabled: false
+stderr: >
+  configuration with CLI overrides: tool.parameters.missing: unknown or
+  unavailable parameter

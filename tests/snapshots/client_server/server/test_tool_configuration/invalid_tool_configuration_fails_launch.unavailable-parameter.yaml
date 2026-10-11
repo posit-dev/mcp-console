@@ -1,0 +1,8 @@
+---
+configuration:
+  parameters:
+    r:
+      description: Unavailable R cell.
+stderr: >
+  configuration with CLI overrides: tool.parameters.r: unknown or
+  unavailable parameter

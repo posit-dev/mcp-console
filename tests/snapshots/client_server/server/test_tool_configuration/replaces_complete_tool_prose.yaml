@@ -1,0 +1,192 @@
+---
+input:
+  method: initialize
+  params:
+    protocolVersion: 2025-11-25
+    capabilities: {}
+    clientInfo:
+      name: acceptance-test
+      version: 1.0.0
+result:
+  protocolVersion: 2025-11-25
+  capabilities:
+    tools: {}
+  serverInfo:
+    name: mcp-console
+    version: 0.0.4
+  instructions: Evaluation server.
+---
+input:
+  method: notifications/initialized
+---
+input:
+  method: tools/list
+result:
+  tools:
+    - name: send
+      description: |-
+        Evaluation tool.
+
+        Use the supplied parameter descriptions.
+      inputSchema:
+        $schema: https://json-schema.org/draft/2020-12/schema
+        additionalProperties: false
+        type: object
+        properties:
+          r:
+            description: Replacement for r.
+            type:
+              - string
+              - "null"
+          python:
+            description: Replacement for python.
+            type:
+              - string
+              - "null"
+          timeout_ms:
+            description: Replacement for timeout_ms.
+            type: integer
+            format: uint64
+            minimum: 0
+            default: 60000
+          control:
+            description: Replacement for control.
+            type: string
+            enum:
+              - interrupt
+              - restart
+          stdin:
+            description: ""
+            type:
+              - string
+              - "null"
+          requirements:
+            description: Replacement for requirements.
+            type:
+              - object
+              - "null"
+            properties:
+              action:
+                description: Replacement for requirements.action.
+                type: string
+                enum:
+                  - get
+                  - add
+                  - set
+                  - reset
+              python_version:
+                description: Replacement for requirements.python_version.
+                type: array
+                items:
+                  type: string
+              exclude_newer:
+                description: Replacement for requirements.exclude_newer.
+                type:
+                  - string
+                  - "null"
+              duckdb:
+                description: Replacement for requirements.duckdb.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+              r:
+                description: Replacement for requirements.r.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+              python:
+                description: Replacement for requirements.python.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+            additionalProperties: false
+---
+input:
+  method: tools/list
+result:
+  tools:
+    - name: send
+      description: |-
+        Evaluation tool.
+
+        Use the supplied parameter descriptions.
+      inputSchema:
+        $schema: https://json-schema.org/draft/2020-12/schema
+        additionalProperties: false
+        type: object
+        properties:
+          r:
+            description: Replacement for r.
+            type:
+              - string
+              - "null"
+          python:
+            description: Replacement for python.
+            type:
+              - string
+              - "null"
+          timeout_ms:
+            description: Replacement for timeout_ms.
+            type: integer
+            format: uint64
+            minimum: 0
+            default: 60000
+          control:
+            description: Replacement for control.
+            type: string
+            enum:
+              - interrupt
+              - restart
+          stdin:
+            description: ""
+            type:
+              - string
+              - "null"
+          requirements:
+            description: Replacement for requirements.
+            type:
+              - object
+              - "null"
+            properties:
+              action:
+                description: Replacement for requirements.action.
+                type: string
+                enum:
+                  - get
+                  - add
+                  - set
+                  - reset
+              python_version:
+                description: Replacement for requirements.python_version.
+                type: array
+                items:
+                  type: string
+              exclude_newer:
+                description: Replacement for requirements.exclude_newer.
+                type:
+                  - string
+                  - "null"
+              duckdb:
+                description: Replacement for requirements.duckdb.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+                  maxLength: 64
+              r:
+                description: Replacement for requirements.r.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+              python:
+                description: Replacement for requirements.python.
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+            additionalProperties: false

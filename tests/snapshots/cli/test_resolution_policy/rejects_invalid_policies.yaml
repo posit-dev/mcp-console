@@ -52,7 +52,7 @@ stderr: >
 setting: resolution=automatic
 stderr: >
   configuration with CLI overrides: resolution: unknown field
-  `resolution`, expected one of `startup`, `cache`, `python`, `r`,
+  `resolution`, expected one of `tool`, `startup`, `cache`, `python`, `r`,
   `languages`, `inherit_environment`, `environment`, `sandbox`,
   `resolver`; see docs/CONFIGURATION.md for the public format
 ---

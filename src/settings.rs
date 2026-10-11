@@ -9,9 +9,11 @@ use serde_json::{Map, Value};
 mod python;
 mod resolution;
 mod sandbox;
+mod tool;
 pub(crate) use python::Managed as ManagedPythonSettings;
 pub(crate) use python::PythonChoice;
 pub(crate) use resolution::Resolution;
+pub(crate) use tool::Tool;
 pub(crate) mod startup;
 
 pub const ENVIRONMENT: &str = "MCP_CONSOLE_SANDBOX_SETTINGS";
@@ -93,6 +95,7 @@ pub fn native_variant_name(value: &Value) -> Option<&str> {
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct Project {
+    tool: Tool,
     startup: Option<startup::Startup>,
     cache: Option<Cache>,
     python: Option<python::Python>,
@@ -165,6 +168,7 @@ fn environment<'de, D: serde::Deserializer<'de>>(
 
 #[derive(Default)]
 pub(crate) struct Captured {
+    pub tool: Tool,
     pub startup: Option<startup::Startup>,
     pub cache: Option<Cache>,
     pub python: Option<PythonChoice>,
@@ -273,6 +277,10 @@ pub fn discover(
             Ok(languages)
         })
         .transpose()?;
+    project
+        .tool
+        .validate(languages)
+        .map_err(|error| format!("{name}: {error}"))?;
     let sandbox_requested = project.sandbox.is_some();
     let resolver_sandbox_requested = project.resolver.sandbox.is_some();
     if cfg!(windows) && resolver_sandbox_requested {
@@ -319,6 +327,7 @@ pub fn discover(
         }
     }
     Ok(Captured {
+        tool: project.tool,
         r: project.r,
         startup: project.startup,
         cache: project.cache,

@@ -214,6 +214,68 @@ def test_discovers_only_launch_directory_configuration(binary: Path) -> Transcri
     return transcript
 
 
+def test_tool_parameter_settings_are_validated_before_launch(
+    binary: Path,
+) -> Transcript:
+    cases = (
+        ("unknown", {"missing": {"enabled": False}}, "tool.parameters.missing"),
+        ("unavailable", {"r": {"description": "unused"}}, "tool.parameters.r"),
+        (
+            "unknown nested",
+            {"requirements": {"parameters": {"missing": {"enabled": False}}}},
+            "tool.parameters.requirements.parameters.missing",
+        ),
+        (
+            "scalar children",
+            {"timeout_ms": {"parameters": {"missing": {"enabled": False}}}},
+            "tool.parameters.timeout_ms.parameters",
+        ),
+    )
+    transcript = []
+    with TemporaryDirectory() as directory:
+        host = Path(directory).resolve()
+        config = host / CONFIG
+        config.parent.mkdir(parents=True)
+        for name, parameters, diagnostic in cases:
+            for visibility in ("configuration", "environment"):
+                settings = {"tool": {"parameters": parameters}}
+                if visibility == "configuration":
+                    settings["languages"] = ["python"]
+                config.write_text(json.dumps(settings), encoding="utf-8")
+                for arguments in (
+                    (
+                        "sandbox",
+                        "--",
+                        sys.executable,
+                        "-c",
+                        "print('workload started')",
+                    ),
+                    ("serve", "--worker", "unused-worker"),
+                ):
+                    result = subprocess.run(
+                        [binary, *arguments],
+                        cwd=host,
+                        env={**os.environ, "MCP_CONSOLE_LANGUAGES": "python"},
+                        input="",
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    assert result.returncode == 1 and result.stdout == "", result
+                    assert CONFIG in result.stderr and diagnostic in result.stderr, (
+                        result
+                    )
+                    transcript.append(
+                        {
+                            "case": name,
+                            "visibility": visibility,
+                            "command": arguments[0],
+                            "stderr": result.stderr.replace(str(host), "<project>"),
+                        }
+                    )
+    return transcript
+
+
 @requires(SANDBOX)
 def test_accepts_supported_project_settings(binary: Path) -> Transcript:
     cases = (

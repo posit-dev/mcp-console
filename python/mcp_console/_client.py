@@ -167,7 +167,7 @@ class AsyncMCPConsole:
         control: Literal["interrupt", "restart"] | None = None,
         requirements: Requirements | None = None,
         stdin: str | None = None,
-        timeout_ms: int = 60_000,
+        timeout_ms: int | None = None,
     ) -> str:
         """Run or control the persistent R, Python, and SQL console.
 
@@ -187,6 +187,7 @@ class AsyncMCPConsole:
                 Changed replacements of a live worker require control="restart".
             stdin: Exact input for an active prompt or debugger.
             timeout_ms: Maximum wait after dispatch; timeout does not cancel work.
+                Omission or None uses the server default of 60,000 ms.
 
         Returns:
             Collected text output and lifecycle notices. Images appear as MIME

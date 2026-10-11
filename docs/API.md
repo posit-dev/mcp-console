@@ -109,7 +109,7 @@ These helpers do not make R and Python connection objects interchangeable.
 ## CLI and configuration
 
 The [CLI reference](CLI.md) covers `serve`, `sandbox`, and Windows `sandbox-setup`.
-[Configuration](CONFIGURATION.md) owns discovery, merge rules, interpreter selection, and startup settings.
+[Configuration](CONFIGURATION.md) owns discovery, merge rules, interpreter selection, startup settings, and tool description/parameter overrides.
 [Sandbox configuration](SANDBOX_CONFIGURATION.md) owns the public permission schema.
 
 The low-level `sandbox --config-env NAME` interface explicitly selects the separately pinned native runner's complete JSON policy.

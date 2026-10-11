@@ -170,11 +170,89 @@ ResolverConfig <- S7::new_class(
   )
 )
 
+config_description <- function() {
+  S7::new_property(NULL | S7::class_character, validator = function(value) {
+    if (!is.null(value) && (length(value) != 1L || is.na(value))) {
+      "must be NULL or one string"
+    }
+  })
+}
+
+config_parameters <- function() {
+  S7::new_property(NULL | S7::class_list, validator = function(value) {
+    if (
+      !is.null(value) &&
+        length(value) &&
+        (is.null(names(value)) ||
+          anyNA(names(value)) ||
+          any(!nzchar(names(value))) ||
+          anyDuplicated(names(value)) ||
+          !all(vapply(value, S7::S7_inherits, logical(1), ToolParameterConfig)))
+    ) {
+      "must be a named list of ToolParameterConfig() objects with unique, non-empty names"
+    }
+  })
+}
+
+#' Customize the exposed tool definition
+#'
+#' Use `ToolConfig()` as `ConsoleConfig(tool = ...)` to replace tool prose or
+#' hide parameters for evaluations. Descriptions are used verbatim, including
+#' empty strings. Omitted fields retain generated text or inherited settings.
+#'
+#' `ToolParameterConfig(enabled = FALSE)` removes a parameter from the exposed
+#' signature and rejects calls supplying it. Omission keeps its runtime default;
+#' hiding `timeout_ms` retains the 60,000 ms wait budget.
+#'
+#' Parameter names must exist in the schema selected by `ConsoleConfig(languages
+#' = ...)`. Unknown or unavailable parameters and nested parameters under scalar
+#' fields fail launch. Parameter types and runtime defaults cannot be replaced.
+#'
+#' @param description `NULL` or one string replacing the complete tool or
+#'   parameter description.
+#' @param instructions `NULL` or one string replacing MCP initialization
+#'   instructions, independently of the tool description.
+#' @param parameters `NULL` or a named list of [ToolParameterConfig()] objects.
+#'   Nest another `parameters` list to configure fields inside an object parameter.
+#' @param enabled `NULL`, `TRUE`, or `FALSE`; controls parameter visibility.
+#' @inherit ConsoleConfig return
+#' @examples
+#' ConsoleConfig(tool = ToolConfig(
+#'   description = "Run R code in a persistent session.",
+#'   parameters = list(
+#'     r = ToolParameterConfig(description = "Execute one complete R cell."),
+#'     timeout_ms = ToolParameterConfig(enabled = FALSE)
+#'   )
+#' ))
+#' @name ToolConfig
+#' @export
+ToolParameterConfig <- S7::new_class(
+  "ToolParameterConfig",
+  parent = ConfigNode,
+  properties = list(
+    description = config_description(),
+    enabled = config_flag(),
+    parameters = config_parameters()
+  )
+)
+
+#' @rdname ToolConfig
+#' @export
+ToolConfig <- S7::new_class(
+  "ToolConfig",
+  parent = ConfigNode,
+  properties = list(
+    description = config_description(),
+    instructions = config_description(),
+    parameters = config_parameters()
+  )
+)
+
 #' Configure a Console session
 #'
 #' `ConsoleConfig()` combines runtime selection, package preparation, worker
-#' permissions, and resolver settings for [console_tool()]. Constructors have
-#' the same field names as Console's application configuration.
+#' permissions, resolver settings, and tool presentation for [console_tool()].
+#' Constructors have the same field names as Console's application configuration.
 #'
 #' With no configuration, Console uses its built-in defaults without reading
 #' global or project configuration files. Workers can read host files, write
@@ -218,6 +296,8 @@ ResolverConfig <- S7::new_class(
 #'   mapping. Resolver assignments override worker assignments for preparation.
 #' @param inherit_environment `NULL`, `TRUE`, or `FALSE`; controls inheritance
 #'   of the trusted launch environment. Console retains its owned assignments.
+#' @param tool `NULL` or a [ToolConfig()] customizing descriptions and parameter
+#'   visibility.
 #' @return An S7 configuration object. The constructor is also its S7 class.
 #' @examples
 #' ConsoleConfig()
@@ -250,7 +330,8 @@ ConsoleConfig <- S7::new_class(
     languages = config_string_list(),
     cache = config_choice(c("console", "host")),
     environment = config_environment(),
-    inherit_environment = config_flag()
+    inherit_environment = config_flag(),
+    tool = NULL | ToolConfig
   ),
   validator = function(self) {
     if (

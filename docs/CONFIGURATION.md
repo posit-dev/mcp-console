@@ -1,7 +1,7 @@
 # Configuration
 
 Console works without a configuration file.
-Use configuration to choose interpreters, startup packages, environment variables, and permissions.
+Use configuration to choose interpreters, startup packages, environment variables, permissions, and the exposed tool definition.
 All settings use snake_case; environment-variable names retain their spelling.
 
 A project using its own Python environment and allowing workspace writes might use:
@@ -108,11 +108,57 @@ Choose a nonempty subset of `r`, `python`, and `sql`.
 A later list replaces the whole list.
 This controls the tool schema and accepted source fields, not interpreter availability or permissions.
 SQL can use a hidden R or Python provider.
-Requirements, polling, input, and controls remain available.
+Requirements, polling, input, and controls remain available unless hidden through `tool.parameters`.
 
 A hidden source field is rejected even when its value is `null`.
 Exposing a language does not install its runtime.
 This is a presentation setting, not a security boundary.
+
+## Tool descriptions and parameters
+
+Use `tool` to customize the exposed `send` definition for evaluations or other clients:
+
+```yaml
+languages: [python]
+tool:
+  description: |-
+    Run Python code in a persistent session.
+    Poll with an empty call when work is still running.
+  instructions: Persistent Python session.
+  parameters:
+    python:
+      description: Execute one complete Python cell.
+    requirements:
+      description: Prepare dependencies before execution.
+      parameters:
+        python:
+          description: Python registry package requirements.
+    timeout_ms:
+      enabled: false
+```
+
+`tool.description` replaces the complete tool description.
+`tool.instructions` replaces the separate MCP initialization instructions.
+Each parameter's `description` replaces its complete description; nested parameters use another `parameters` mapping.
+Strings are used verbatim, including empty strings, without appending generated guidance or permission text.
+Omitted descriptions and instructions keep their generated text.
+Override each description you want to change; replacing the tool description does not clear parameter descriptions.
+
+Set `enabled: false` to remove a parameter from the advertised schema and reject calls that supply it, including `null` values.
+Omission keeps the parameter's existing runtime default.
+For example, hiding `timeout_ms` makes every call use the existing 60,000 ms wait budget; work continues after that budget expires, and an empty call polls for more output.
+Generated timeout guidance follows this choice.
+When hiding other parameters, supply matching description overrides if their generated prose refers to the hidden fields.
+
+Parameter settings apply after `languages`; unknown or unavailable names and nested parameters under scalar fields fail launch.
+Both `serve` and ordinary `sandbox` launches validate these settings before starting a worker or target process.
+These settings customize descriptions and visibility, while parameter names, types, constraints, and runtime defaults retain their existing contracts.
+They use the ordinary configuration merge rules and are captured once per server connection.
+To hide only the timeout through the command line:
+
+```sh
+mcp-console serve -c tool.parameters.timeout_ms.enabled=false
+```
 
 ## Python environment selection
 
