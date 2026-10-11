@@ -1,33 +1,52 @@
 # MCP Console
 
-A persistent R, Python, and SQL workspace for agents.
-One MCP tool, `send`, runs code and returns text and plots.
-Objects, imports, models, and database state remain available between calls.
+An interactive, sandboxed workspace for AI agents working with data in R, Python, and SQL.
 
-Python and SQL work without R.
-When both runtimes are available, reticulate connects them: Python can read `r.name`, R can read `py$name`, and R-backed SQL can query R data frames.
+Load data once, explore questions, refine plots, read help, and debug code with objects and models still in memory.
+
+Console provides a persistent session—a REPL—through one MCP tool, `send`.
+The agent can run code, inspect the result, and continue from the same live state.
+
+Code runs in an [OS-level sandbox](docs/SANDBOX.md) by default, with configurable limits on filesystem writes and direct network access.
+By default, Console prepares environments and packages automatically; no Console configuration file is required.
+
+The agent can use [R, Python, or SQL](docs/BUILTIN_RUNTIME.md), or combine them in one session.
+The runtimes are embedded in one process, so data can move between languages without intermediate files.
+Console works with MCP-compatible clients such as Codex and Claude Code and does not depend on a particular model provider.
 
 **Development preview:** interfaces may change.
 macOS and Linux are supported; Windows x64 support is [experimental](docs/WINDOWS.md).
 
 ## Quickstart
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then install Console from source:
+Source installation requires [uv](https://docs.astral.sh/uv/getting-started/installation/), Git, Rust, and platform build tools.
+See [Get started](docs/getting-started.qmd) for prerequisites and optional R installation.
+
+Once these are installed, run:
 
 ```sh
 uv tool install git+https://github.com/t-kalinowski/mcp-console
 ```
 
-Source installation requires Git, Rust, and platform build tools.
-See [Get started](docs/getting-started.qmd) for prerequisites, optional R installation, and client setup.
-
-Configure your MCP client to launch `mcp-console serve` over stdio.
+Configure your MCP client to launch `mcp-console serve` over stdio, following the [client setup examples](docs/getting-started.qmd#connect-your-client).
 Run the client and Console on the same host, with the client's shell and filesystem tools using the same workspace.
+
+By default, Console prepares R packages, Python packages, and DuckDB extensions for the session.
+The agent can request additional R packages, Python packages, and DuckDB extensions as it works.
+See [Requirements and environments](docs/REQUIREMENTS.md) for details.
 
 Ask your agent:
 
 > Use Console to generate a small dataset, fit a model, and plot the result.
 > Keep the data and model for follow-up.
+
+## Where Console fits
+
+- **Unattended analysis:** run long analyses with limits on where the agent can write files and connect to the network.
+- **Model evaluations:** evaluate how an agent explores data, checks its work, and responds to results.
+- **Conversational analysis:** discuss questions and results while the agent runs the analysis in its own session.
+- **Large datasets:** keep data and intermediate results in memory for follow-up questions.
+- **Debugging and package development:** pause execution, inspect live objects, and evaluate code where a failure occurs.
 
 ## Limits and trust boundaries
 

@@ -9,18 +9,17 @@ Console does not manage remote connections or containers.
 
 ## Install
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
-To use R, install it separately, for example with [rig](https://github.com/r-lib/rig#id-installation) and `rig add release`.
-Python and SQL also work without R.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), Git, and [Rust through rustup](https://rustup.rs/).
+The Rust compiler must meet the version requirement in [`Cargo.toml`](../Cargo.toml).
+Console builds from source, so it also needs platform build tools.
 
-Source installation needs Git, [rustup](https://rustup.rs/) with a compiler satisfying `Cargo.toml`, and platform build tools.
-On macOS:
+On macOS, install the Xcode Command Line Tools:
 
 ```sh
 xcode-select --install
 ```
 
-On Ubuntu:
+On Ubuntu, install the build tools and system libraries:
 
 ```sh
 sudo apt-get update
@@ -30,14 +29,17 @@ sudo apt-get install -y build-essential git pkg-config libcap-dev libssl-dev lib
 Windows users should follow [Windows installation](WINDOWS.md#build-and-run).
 Package source builds can require additional system libraries; the [release guide](../RELEASE.md#private-sandbox-executable) covers native build requirements.
 
-Install Console and its pinned sandbox runner:
+Install Console:
 
 ```sh
 uv tool install git+https://github.com/t-kalinowski/mcp-console
 ```
 
-Installation builds native components.
-First startup can also download interpreters, packages, and extensions.
+This command builds Console and its sandbox runner from source.
+On first startup, Console may also download Python, packages, and DuckDB extensions.
+
+To use R, install it separately, for example with [rig](https://github.com/r-lib/rig#id-installation) and `rig add release`.
+Python and SQL also work without R.
 
 ## Connect your client
 
