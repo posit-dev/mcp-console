@@ -15,10 +15,8 @@ from boundaries.client_server.server.test_startup import (
     gated_discovery,
 )
 from boundaries.client_server.lifecycle.test_startup import startup_fixture
-from boundaries.client_server.python.test_startup import (
-    isolated_python,
-    selected_python,
-)
+from boundaries.client_server.python.test_startup import selected_python
+from support.python import isolated_python
 from support.progress import elapsed_progress, phase_progress, without_elapsed
 from support.snapshots import execution_snapshots
 from support.requirements import (

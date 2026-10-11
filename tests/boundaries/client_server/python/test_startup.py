@@ -25,7 +25,7 @@ from support.requirements import (
 )
 from support.r import install_r_startup, r_test_environment
 from support.resolvers import bare_runtime_environment
-from support.python import virtualenv_python
+from support.python import isolated_python
 from support.linux_sandbox import retain_system_bwrap
 from support.suites import run_this_suite
 from boundaries.client_server.python.test_without_r import (
@@ -38,21 +38,6 @@ def selected_python(directory: Path, python: Path) -> dict[str, str]:
     environment = bare_runtime_environment(os.environ.copy(), directory / "r-library")
     environment["RETICULATE_PYTHON"] = str(python)
     return environment
-
-
-def isolated_python(directory: Path) -> tuple[Path, Path]:
-    environment = directory / "python"
-    subprocess.run(
-        [sys.executable, "-m", "venv", "--without-pip", str(environment)],
-        check=True,
-        capture_output=True,
-    )
-    python = virtualenv_python(environment)
-    site = subprocess.check_output(
-        [python, "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
-        text=True,
-    ).strip()
-    return python, Path(site)
 
 
 def startup_input(binary: Path, execution: Execution, hook: str) -> list:

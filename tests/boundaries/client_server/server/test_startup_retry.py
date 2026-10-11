@@ -13,10 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from boundaries.client_server.python.test_startup import (
-    isolated_python,
-    selected_python,
-)
+from boundaries.client_server.python.test_startup import selected_python
+from support.python import isolated_python
 from boundaries.client_server.python.test_without_r import environment as without_r
 from boundaries.client_server.server.test_startup import (
     discovery_environment,

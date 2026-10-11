@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import POSIX, R_EVENT_LOOP, command, requires
+from support.requirements import POSIX, R, R_EVENT_LOOP, command, requires
 from support.assertions import (
     last_result_text,
     release_worker_callback_gate,
@@ -29,6 +29,7 @@ from support.resolvers import (
     recording_ir_environment,
 )
 from support.suites import run_this_suite
+from support.python import isolated_python
 
 
 def named_requirement_error(requirement: str) -> str:
@@ -472,6 +473,58 @@ def test_failed_mixed_preparation_retains_live_python_activation(
             uv_release.close()
             if not passed:
                 stop_client(client)
+
+
+@requires(R)
+@executions(DIRECT, SANDBOXED)
+def test_preparation_preserves_input_before_native_r_startup(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        python, site = isolated_python(root)
+        (site / "sitecustomize.py").write_text(
+            # fmt: python
+            code("""
+                import builtins
+                import sys
+
+                if sys.argv[0] != "-c":
+                    builtins.startup_answer = input("startup> ")
+                """)
+        )
+        environment, _ = r_test_environment()
+        environment.update(
+            RETICULATE_PYTHON=str(python),
+            PYTHONPATH=str(site),
+            RETICULATE_PYTHONPATH=str(site),
+        )
+        with McpClient(binary, execution.serve(), environment, root) as client:
+            client.initialize_and_list_tools()
+            wait_for_idle_output(
+                client,
+                '[input requested: "startup> "]\n[waiting for stdin]',
+                "Python input before native R startup",
+                completion_timeout_seconds=client.response_timeout,
+            )
+            for requirements in ({"r": ["dplyr"]}, {"action": "reset"}):
+                result = client.send(requirements=requirements)
+                assert result["isError"] is False, result
+                assert result["content"][0]["text"] == "[prepared]", result
+            result = client.send(requirements={"r": ["praise"]})
+            assert result["isError"] is True, result
+            assert result["content"][0]["text"] == (
+                "runtime startup requested input; supply stdin before preparing requirements"
+            ), result
+            client.expect(
+                "'ready'\n",
+                python="import builtins; builtins.startup_answer",
+                stdin="ready\n",
+            )
+            client.expect("[1] 42\n", r="42L")
+            client.send(requirements={"r": ["praise"]})
+            assert last_result_text(client) == "[prepared]", client.transcript[-1]
+            return client.finish()
 
 
 @executions(DIRECT, SANDBOXED)

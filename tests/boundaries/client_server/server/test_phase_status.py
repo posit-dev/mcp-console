@@ -9,10 +9,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.lifecycle.test_startup import startup_fixture
-from boundaries.client_server.python.test_startup import (
-    isolated_python,
-    selected_python,
-)
+from boundaries.client_server.python.test_startup import selected_python
+from support.python import isolated_python
 from boundaries.client_server.server.test_startup import gated_discovery
 from support.assertions import last_result_text
 from support.checkpoints import FifoCheckpoint, wait_for_path, wait_for_worker_file

@@ -86,6 +86,8 @@ A bare requirements object `{}` is invalid; `{"action":"set"}` intentionally cle
 
 Changed `set` or `reset` needs explicit restart after a worker has accepted user code or nonempty input.
 An unused prewarmed worker can be replaced automatically after successful preparation.
+Unchanged requirements do not wait for bootstrap.
+When R is available, changed requirements wait for runtime bootstrap to finish; supply any requested startup input before changing requirements.
 Configured session startup code and failed/interrupted native R startup end that exception.
 An explicitly requested restart still occurs for unchanged requirements.
 

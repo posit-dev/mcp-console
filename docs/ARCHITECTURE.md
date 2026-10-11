@@ -59,6 +59,10 @@ Custom workers remain lazy.
 
 Transport readiness connects command, input, output, and resolver services before built-in interpreter bootstrap.
 It does not mean either interpreter is initialized.
+Unchanged requirements do not wait for bootstrap.
+When R is available, changed requirements wait for built-in bootstrap before reserving environment changes, including replacement of an unused worker.
+This prevents retirement from interrupting a native R startup attempt that began after replacement was selected.
+Python-only workers can replace an unused blocked bootstrap because they cannot enter native R startup.
 Early cells reserve the ordinary evaluation slot; there is no queue.
 Cancelling a call's wait does not cancel shared startup or replay an admitted cell.
 

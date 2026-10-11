@@ -96,6 +96,17 @@ impl Client {
             }
             return Err(active.reject_preparation_message().to_string());
         }
+        // Unchanged declarations do not wait for bootstrap. Recalculate after
+        // admission because bootstrap callbacks can change the environment.
+        {
+            let environment = environment
+                .lock()
+                .map_err(|_| "worker environment lock poisoned".to_string())?;
+            self.ensure_generation(generation)?;
+            if RequirementDelta::calculate(&environment, requirements.clone())?.is_empty() {
+                return Ok(PrepareResult::Prepared);
+            }
+        }
         // Preparation owns admission and no evaluation is active. A delivered
         // completion can precede release of the evaluator's worker lock.
         let mut worker = self
@@ -103,10 +114,14 @@ impl Client {
             .worker
             .lock()
             .map_err(|_| "worker lock poisoned".to_string())?;
-        let mut replace_default = self
-            .0
-            .unused_default
-            .load(std::sync::atomic::Ordering::Acquire)
+        // A worker with R must finish bootstrap before replacement can be
+        // selected: suspending callbacks does not prevent native R startup.
+        // Python-only workers retain replacement of a blocked bootstrap.
+        let mut replace_default = self.0.python_only
+            && self
+                .0
+                .unused_default
+                .load(std::sync::atomic::Ordering::Acquire)
             && generation.r_startup_permitted()
             && matches!(&*worker, WorkerState::Running(_));
         let environment_preparation = if let WorkerState::Running(running) = &*worker {
@@ -262,27 +277,6 @@ impl Client {
         };
 
         if replace_default {
-            if !generation.r_startup_permitted() {
-                // R can enter native startup while the candidate is prepared.
-                // Resume callbacks without holding the environment, then wait
-                // for this attempt to finish before retiring an unused worker.
-                drop(_environment_preparation);
-                drop(environment);
-                if let WorkerState::Running(running) = &*worker {
-                    running.wait_for_bootstrap()?;
-                }
-                environment = self
-                    .0
-                    .environment
-                    .as_ref()
-                    .unwrap()
-                    .lock()
-                    .map_err(|_| "worker environment lock poisoned".to_string())?;
-                self.ensure_generation(generation)?;
-                if !generation.r_startup_permitted() {
-                    return Err("R initialization is incomplete; explicit restart required".into());
-                }
-            }
             // Resolve the complete candidate first: failed preparation must
             // preserve the prewarmed worker and committed declaration.
             match self

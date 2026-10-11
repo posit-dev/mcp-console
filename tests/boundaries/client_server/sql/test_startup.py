@@ -31,7 +31,7 @@ from support.records import (
 from support.requirements import POSIX, PROCESS_EVENTS, R, SQL, command, requires
 from support.resolvers import matplotlib_test_environment
 from support.snapshots import execution_snapshots
-from boundaries.client_server.python.test_startup import isolated_python
+from support.python import isolated_python
 from boundaries.client_server.server.test_no_r import no_r_environment
 
 

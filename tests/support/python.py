@@ -12,6 +12,21 @@ def virtualenv_python(directory: Path) -> Path:
     return directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
+def isolated_python(directory: Path) -> tuple[Path, Path]:
+    environment = directory / "python"
+    subprocess.run(
+        [sys.executable, "-m", "venv", "--without-pip", str(environment)],
+        check=True,
+        capture_output=True,
+    )
+    python = virtualenv_python(environment)
+    site = subprocess.check_output(
+        [python, "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+        text=True,
+    ).strip()
+    return python, Path(site)
+
+
 def runtime_source_line(statement: str) -> int:
     """Keep public setup tracebacks exact when embedded source moves."""
     source = (Path(__file__).resolve().parents[2] / "src/python/runtime.py").read_text()
