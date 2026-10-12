@@ -1,4 +1,4 @@
-"""MCP Console configuration for the official thread SDK."""
+"""MCP Console configuration for the Codex SDK (openai-codex)."""
 
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -12,7 +12,7 @@ def server(
     args: Sequence[Command] | None = None,
     server_parameters: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Configure Console as a stdio MCP server for the official thread SDK.
+    """Configure Console as a stdio MCP server for the Codex SDK (openai-codex).
 
     Put this entry inside the thread's `mcp_servers` configuration. The SDK starts
     Console and routes tool calls to it; this function only builds configuration.
@@ -27,8 +27,8 @@ def server(
         One server entry for `config["mcp_servers"]`.
 
     Examples:
-        Install with `pip install 'mcp-console[codex]'` and authenticate the
-        thread SDK before running this script. It starts a thread with Console
+        Install with `pip install 'mcp-console[codex]'` and authenticate Codex
+        before running this script. It starts a thread with Console
         available as a tool and prints the final response:
 
         ```python

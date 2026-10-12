@@ -31,13 +31,13 @@ Reconnect starts a new session.
 Install the matching extra instead of `client`.
 Reference examples describe provider credentials, model selection, and cleanup.
 
-| Framework        | Extra           | Existing Console connection                           | Framework-managed connection                                 |
-| ---------------- | --------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
-| chatlas          | `chatlas`       | [tool](reference/chatlas.tool.qmd)                    | [register](reference/chatlas.register.qmd)                   |
-| OpenAI Responses | `openai`        | [responses_tool](reference/openai.responses_tool.qmd) | Application-owned loop.                                      |
-| OpenAI Agents    | `openai-agents` | [agents_tool](reference/openai.agents_tool.qmd)       | [agents_server](reference/openai.agents_server.qmd)          |
-| Anthropic        | `anthropic`     | [tool](reference/anthropic.tool.qmd)                  | [tools](reference/anthropic.tools.qmd)                       |
-| Thread SDK       | `codex`         | —                                                     | [server](reference/codex.server.qmd) supplies configuration. |
+| Framework                    | Extra           | Existing Console connection                           | Framework-managed connection                                 |
+| ---------------------------- | --------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
+| chatlas                      | `chatlas`       | [tool](reference/chatlas.tool.qmd)                    | [register](reference/chatlas.register.qmd)                   |
+| `openai` — Responses API     | `openai`        | [responses_tool](reference/openai.responses_tool.qmd) | Application-owned loop.                                      |
+| `openai-agents` — Agents SDK | `openai-agents` | [agents_tool](reference/openai.agents_tool.qmd)       | [agents_server](reference/openai.agents_server.qmd)          |
+| `openai-codex` — Codex SDK   | `codex`         | —                                                     | [server](reference/codex.server.qmd) supplies configuration. |
+| Anthropic                    | `anthropic`     | [tool](reference/anthropic.tool.qmd)                  | [tools](reference/anthropic.tools.qmd)                       |
 
 Responses and native MCP integrations preserve images.
 Text-tool adapters return MIME placeholders for images.

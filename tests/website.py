@@ -12,6 +12,8 @@ import unittest
 from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 
+from bs4 import BeautifulSoup
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -228,6 +230,56 @@ class WebsiteTests(unittest.TestCase):
                     if not urlsplit(link).scheme and not urlsplit(link).netloc
                 }
                 self.assertIn(home, destinations)
+
+    def test_python_integrations_are_grouped_by_package(self) -> None:
+        groups = {
+            "openai — Responses API": {
+                "openai.responses_tool",
+                "openai.ResponsesTool",
+                "openai.AsyncResponsesTool",
+            },
+            "openai-agents — Agents SDK": {
+                "openai.agents_tool",
+                "openai.agents_server",
+            },
+            "openai-codex — Codex SDK": {"codex.server"},
+        }
+        reference = self.site / "python/reference/index.html"
+        index = BeautifulSoup(reference.read_text(), "html.parser")
+        sections = {
+            heading.get_text(" ", strip=True): heading.find_parent("section")
+            for heading in index.select("main h2")
+        }
+        for label, symbols in groups.items():
+            with self.subTest(group=label):
+                self.assertIn(label, sections.keys())
+                links = {
+                    (reference.parent / unquote(urlsplit(link["href"]).path)).resolve()
+                    for link in sections[label].select("a[href]")
+                    if urlsplit(link["href"]).path.endswith(".html")
+                }
+                self.assertEqual(
+                    links,
+                    {reference.parent / f"{symbol}.html" for symbol in symbols},
+                )
+        for name in ("python/index.html", "PYTHON.html"):
+            with self.subTest(guide=name):
+                page = BeautifulSoup((self.site / name).read_text(), "html.parser")
+                labels = {
+                    row.find("td").get_text(" ", strip=True)
+                    for row in page.select("table tbody tr")
+                }
+                self.assertEqual(groups.keys() & labels, groups.keys())
+        adapter = (
+            BeautifulSoup(
+                (self.site / "python/reference/codex.server.html").read_text(),
+                "html.parser",
+            )
+            .select_one("main")
+            .get_text(" ", strip=True)
+        )
+        self.assertIn("Codex SDK", adapter)
+        self.assertNotIn("thread SDK", adapter)
 
     def test_python_methods_are_inline(self) -> None:
         for name, context_methods in (
