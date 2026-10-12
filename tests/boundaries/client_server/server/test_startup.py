@@ -14,13 +14,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import POSIX, R, requires
+from support.requirements import NATIVE_FIXTURES, POSIX, R, requires
 from support.checkpoints import FifoCheckpoint
 from support.assertions import last_result_text
 from support.progress import elapsed_progress, without_elapsed_result
 from support.client import McpClient
 from support.execution import DIRECT, Execution, executions
 from support.normalization import code
+from support.native import LOADER_VARIABLE, build_interposer
 from support.records import Transcript
 from support.r import r_test_environment
 from support.resolvers import bare_runtime_environment
@@ -86,9 +87,13 @@ def discovery_environment(
 
 @contextmanager
 def gated_discovery(
-    binary: Path, *, r_home: Path | None = None
+    binary: Path,
+    *,
+    r_home: Path | None = None,
+    server_environment: dict[str, str] | None = None,
 ) -> Iterator[tuple[McpClient, FifoCheckpoint]]:
     with discovery_environment(r_home=r_home) as (environment, reached, release, alive):
+        environment.update(server_environment or {})
         with McpClient(
             binary, ("serve", "--no-sandbox"), environment, response_timeout=5
         ) as client:
@@ -199,6 +204,69 @@ def test_reports_discovery_failure_without_losing_mcp(binary: Path) -> Transcrip
         transcript, errors = client.finish_with_standard_error(expected_exit_status=1)
         assert "fixture R discovery failed" in errors, errors
         return transcript + [{"stderr": errors}]
+
+
+@requires(POSIX, NATIVE_FIXTURES)
+def test_standalone_requirements_wait_for_discovery(binary: Path) -> Transcript:
+    with (
+        tempfile.TemporaryDirectory() as directory,
+        closing(FifoCheckpoint.create(Path(directory) / "recorded")) as recorded,
+    ):
+        root = Path(directory)
+        armed = root / "armed"
+        environment = {
+            LOADER_VARIABLE: str(build_interposer(root, "startup_request_recorded")),
+            "MCP_CONSOLE_TEST_REQUEST_ARMED": str(armed),
+            "MCP_CONSOLE_TEST_REQUEST_RECORDED": str(recorded.path),
+        }
+        with gated_discovery(binary, server_environment=environment) as (
+            client,
+            release,
+        ):
+            return standalone_requirements_during_discovery(
+                client, release, armed, recorded
+            )
+
+
+def standalone_requirements_during_discovery(
+    client: McpClient,
+    release: FifoCheckpoint,
+    armed: Path,
+    recorded: FifoCheckpoint,
+) -> Transcript:
+    client.transcript.append(
+        {
+            "scenario": "Standalone preparation waits for initial discovery even with timeout_ms=0.",
+            "fixture": "The R discovery probe is held at a FIFO and fails after release. A native checkpoint observes the request recorder returning to its pool before a ping acknowledges readiness-wait dispatch.",
+        }
+    )
+    client.initialize_and_list_tools()
+    armed.touch()
+    pending = client.start_send(
+        requirements={"action": "set", "r": ["must-not-resolve"]},
+        timeout_ms=0,
+    )
+    # The recorder's completion wakes the send handler before the later ping
+    # enters the current-thread runtime's FIFO ready queue. The handler runs
+    # through validation to its readiness wait before that ping can reply.
+    recorded.wait("standalone request recorder returned to its blocking pool")
+    ping = client.start_request("ping")
+    client.receive(ping)
+    assert ping["result"] == {}, ping
+    if select.select([client.stdout], [], [], 0)[0]:
+        client.receive(pending)
+        raise AssertionError(
+            f"standalone preparation returned during discovery: {pending}"
+        )
+    release.release()
+    client.receive(pending)
+    assert pending["result"]["isError"] is True, pending
+    assert "fixture R discovery failed" in pending["result"]["content"][0]["text"], (
+        pending
+    )
+    transcript, errors = client.finish_with_standard_error(expected_exit_status=1)
+    assert "fixture R discovery failed" in errors, errors
+    return transcript + [{"stderr": errors}]
 
 
 @requires(POSIX)

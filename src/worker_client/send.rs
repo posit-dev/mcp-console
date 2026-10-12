@@ -124,7 +124,13 @@ impl Client {
                 self.0.output.take(),
             )));
         }
-        if initial_restart
+        if request.control.is_none() && request.cell.is_none() && request.requirements.is_some() {
+            // Standalone preparation has no output-observation deadline, including
+            // initial discovery. Its shared startup owner still handles cancellation.
+            if let Err(error) = self.ready().await {
+                return Ok(self.startup_failure_response(error));
+            }
+        } else if initial_restart
             || !matches!(request.control, Some(SendControl::Restart))
             || !self.is_configured()
         {

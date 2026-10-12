@@ -122,6 +122,7 @@ Effective version-constraint changes on a live interpreter require restart.
 Requirements may accompany one cell or stand alone.
 Failed preparation withholds the accompanying cell.
 Standalone success returns `[prepared]`; standalone preparation rejects nonempty stdin.
+Its wait includes initial runtime discovery and is not limited by `timeout_ms`.
 
 ```json
 {

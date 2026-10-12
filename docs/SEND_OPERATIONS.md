@@ -29,7 +29,7 @@ A valid early cell can be accepted while the shared startup continues.
 Its observation deadline includes startup; timeout does not cancel it or create another worker.
 
 An empty poll or requirements inspection can return `[worker starting]`.
-Early standalone requirements that time out before readiness are not accepted and must be submitted again.
+Standalone requirements wait for shared startup and preparation, including initial discovery, without a `timeout_ms` deadline.
 Once transport is ready, `[idle]` does not necessarily mean every interpreter startup hook has finished.
 
 After initial setup failure, fix the reported problem and explicitly restart.
@@ -111,7 +111,7 @@ See [Requirements actions](REQUIREMENTS.md#inspecting-and-replacing-requirements
 
 The observation deadline starts at call entry.
 After startup, explicit preparation and control/retirement work can make the total call exceed it.
-Standalone package preparation has no `timeout_ms` execution deadline.
+Standalone package preparation, including initial discovery, has no `timeout_ms` deadline.
 
 Cancelling a request's wait after admission does not cancel the accepted cell or shared startup.
 Poll to discover retained state.

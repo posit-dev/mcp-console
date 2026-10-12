@@ -110,6 +110,29 @@ test_that("materializing and pruning retain edits and explicit empty values", {
       full@sandbox@filesystem@read_write,
       "./reports"
     )
+    full@sandbox@network <- "enabled"
+    compact <- prune_console_config(full, path = binary)
+    expect_identical(
+      compact@sandbox@filesystem@read_write,
+      c("./output", "./reports")
+    )
+    expect_identical(compact@sandbox@network, "enabled")
+    expect_match(
+      paste(capture.output(print(compact)), collapse = "\n"),
+      "./reports",
+      fixed = TRUE
+    )
+  })
+})
+
+test_that("materializing and pruning retain managed proxy edits", {
+  skip_if(
+    .Platform$OS.type == "windows",
+    "Managed proxies are not supported by the pinned Windows runner"
+  )
+  with_sandbox_directory({
+    binary <- sandbox_test_binary()
+    full <- materialize_console_config(path = binary)
     full@sandbox@network <- SandboxNetwork(
       proxy = SandboxProxy(
         domains = SandboxDomains(allow = "api.example.com")
@@ -120,10 +143,6 @@ test_that("materializing and pruning retain edits and explicit empty values", {
       "mail.example.com"
     )
     compact <- prune_console_config(full, path = binary)
-    expect_identical(
-      compact@sandbox@filesystem@read_write,
-      c("./output", "./reports")
-    )
     expect_identical(
       compact@sandbox@network@proxy@domains@allow,
       c("api.example.com", "mail.example.com")
