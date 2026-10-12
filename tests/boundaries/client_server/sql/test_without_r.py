@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -24,7 +23,7 @@ from support.linux_sandbox import retain_system_bwrap
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code, normalize_python_resolution_error
 from support.records import Transcript, TranscriptWithCompanions
-from support.resolvers import expose_uv
+from support.resolvers import expose_uv, write_python_executable
 
 UV_NAME = "uv.exe" if os.name == "nt" else "uv"
 
@@ -99,7 +98,7 @@ def test_prepares_builtin_extensions_without_downloads(
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        expose_uv(root)
+        uv = expose_uv(root).resolve()
         env = dict(
             environment(root),
             MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY=str(root / "extensions"),
@@ -116,14 +115,26 @@ def test_prepares_builtin_extensions_without_downloads(
             client.finish()
         assert not list((root / "extensions").glob("**/json.duckdb_extension"))
         assert not list((root / "extensions").glob("**/parquet.duckdb_extension"))
-        uv = root / "uv"
-        real_uv = uv.resolve()
-        uv.unlink()
-        uv.write_text(
-            "#!/bin/sh\nexec " + shlex.quote(str(real_uv)) + ' --offline "$@"\n',
-            encoding="utf-8",
+        offline_uv = root / UV_NAME
+        offline_uv.unlink()
+        offline_receipt = root / "extensions/offline-uv-used"
+        offline_receipt.parent.mkdir(parents=True, exist_ok=True)
+        # R-free preparation selects uv from PATH and ignores RETICULATE_UV.
+        # Replace the exposed link, delegating to the saved real executable.
+        # Use its flag because Console removes ambient UV_OFFLINE.
+        write_python_executable(
+            offline_uv,
+            # fmt: python
+            code(f"""
+                #!{sys.executable} -S
+                import os
+                import sys
+                from pathlib import Path
+
+                Path({str(offline_receipt)!r}).touch()
+                os.execv({str(uv)!r}, [{str(uv)!r}, "--offline", *sys.argv[1:]])
+                """),
         )
-        uv.chmod(0o755)
         config = root / ".agents/console/config.yaml"
         config.parent.mkdir(parents=True, exist_ok=True)
         config.write_text(
@@ -145,6 +156,10 @@ def test_prepares_builtin_extensions_without_downloads(
             client.expect(
                 "('42',)\n",
                 python="_console.sql_connection().execute('SELECT ?::JSON', [retained]).fetchone()",
+            )
+            assert not list((root / "extensions").glob("**/json.duckdb_extension"))
+            assert offline_receipt.is_file(), (
+                "R-free preparation did not use the offline uv wrapper"
             )
             return [
                 {

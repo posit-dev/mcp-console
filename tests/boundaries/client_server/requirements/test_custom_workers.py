@@ -6,6 +6,7 @@ import os
 import select
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -192,7 +193,21 @@ def standalone_preparation(
                 requirements={**action, "r": ["standalone-requirement"]},
                 timeout_ms=0,
             )
-            resolver_started.wait("standalone requirement resolver")
+            # Resolver launch uses the preparation budget, including cold
+            # sandbox startup. An early response must expose its complete error.
+            deadline = client.response_deadline()
+            readable, _, _ = select.select(
+                [resolver_started.descriptor, client.stdout],
+                [],
+                [],
+                max(0, deadline - time.monotonic()),
+            )
+            if client.stdout in readable:
+                client.receive(preparation)
+                raise AssertionError(
+                    f"standalone preparation returned before its resolver checkpoint: {preparation}"
+                )
+            resolver_started.wait("standalone requirement resolver", timeout=0)
             if action:
                 snapshot = client.send(requirements={"action": "get"})[
                     "structuredContent"

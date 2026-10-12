@@ -7,3 +7,9 @@ pkgdown::build_site_github_pages(
   install = TRUE,
   examples = FALSE
 )
+
+# Repository links in the package README target guides beside the r/ subsite.
+home <- file.path(output_dir, "r", "index.html")
+html <- readLines(home, encoding = "UTF-8", warn = FALSE)
+html <- gsub('href="../docs/', 'href="../', html, fixed = TRUE)
+writeLines(html, home, useBytes = TRUE)

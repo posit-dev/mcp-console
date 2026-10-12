@@ -3,6 +3,19 @@
 ---
 send:
   r: |
+    saved <- utils::vignette("rendered", package = "consolehelp")
+    text <- capture.output(print(saved))
+    reference <- tempfile()
+    writeBin(charToRaw(paste(c(text, ""), collapse = "\n")), reference)
+    file.show(
+      reference,
+      encoding = "UTF-8",
+      delete.file = TRUE,
+      pager = function(files, header, title, delete.file) {
+        expected <<- readBin(files, "raw", n = file.info(files)$size)
+        if (delete.file) unlink(files)
+      }
+    )
     options(pager = function(files, header, title, delete.file) {
       pending <<- list(files = files, delete.file = delete.file)
     })
@@ -18,8 +31,15 @@ result:
 ---
 send:
   r: |
+    stopifnot(identical(
+      readBin(pending$files, "raw", n = file.info(pending$files)$size),
+      expected
+    ))
     text <- readLines(pending$files, encoding = "UTF-8")
-    stopifnot(any(grepl("42 — evaluated result", text, fixed = TRUE)))
+    stopifnot(any(
+      grepl("42", text, fixed = TRUE) &
+        grepl("evaluated result", text, fixed = TRUE)
+    ))
     if (pending$delete.file) {
       unlink(pending$files)
     }

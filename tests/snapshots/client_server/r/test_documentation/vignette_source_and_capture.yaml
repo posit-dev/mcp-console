@@ -34,14 +34,18 @@ send:
       paste("Vignette source:", saved$File),
       readLines(file.path(saved$Dir, "doc", saved$File), encoding = "UTF-8")
     )
-    stopifnot(
-      identical(capture.output(print(saved)), source),
+    # capture.output can leave UTF-8 bytes unmarked in the C locale.
+    same_source <- function(text) {
       identical(
-        capture.output(vignette("source", package = "consolehelp")),
-        source
-      ),
-      identical(capture.output(utils::vignette(consolehelp::source)), source),
-      identical(capture.output(vignette(consolehelp::source)), source)
+        charToRaw(paste(text, collapse = "\n")),
+        charToRaw(paste(source, collapse = "\n"))
+      )
+    }
+    stopifnot(
+      same_source(capture.output(print(saved))),
+      same_source(capture.output(vignette("source", package = "consolehelp"))),
+      same_source(capture.output(utils::vignette(consolehelp::source))),
+      same_source(capture.output(vignette(consolehelp::source)))
     )
     printed <- capture.output(returned <- withVisible(print(saved)))
     stopifnot(identical(returned$value, saved), !returned$visible)

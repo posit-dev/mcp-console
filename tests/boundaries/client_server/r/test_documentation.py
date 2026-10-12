@@ -15,7 +15,7 @@ from support.assertions import last_tool_text, wait_for_evaluation_output
 from support.client import McpClient
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_trailing_spaces
-from support.r import FIXTURES, r_test_environment
+from support.r import FIXTURES, UTF8_LOCALE, r_test_environment
 from support.records import Transcript
 from support.requirements import NON_UTF8_FILENAMES, R, requires
 from support.resolvers import bare_runtime_environment
@@ -144,7 +144,8 @@ def test_vignette_workflow(binary: Path, execution: Execution) -> Transcript:
 @requires(R)
 @executions(RUNTIME)
 def test_help_lookup_and_capture(binary: Path, execution: Execution) -> Transcript:
-    with documentation_client(binary, execution) as client:
+    # Native Rd2txt renders Unicode according to the R locale.
+    with documentation_client(binary, execution, locale=UTF8_LOCALE) as client:
         output = wait_for_evaluation_output(
             client,
             None,
@@ -156,9 +157,18 @@ def test_help_lookup_and_capture(binary: Path, execution: Execution) -> Transcri
         assert "https://example.org/console-help" in output, output
         assert "café" in output, output
         assert "\b" not in output, output
-        normalize_trailing_spaces(client)
-        client.expect(output, r="?consolehelp::topic")
-        normalize_trailing_spaces(client)
+        page = normalize_trailing_spaces(client)
+        wait_for_evaluation_output(
+            client,
+            None,
+            "qualified installed help output",
+            completion_timeout_seconds=client.response_timeout,
+            r="?consolehelp::topic",
+        )
+        # Compare complete pages with the same incidental whitespace treatment
+        # used for snapshots, including native blank-line padding.
+        qualified_page = normalize_trailing_spaces(client)
+        assert qualified_page == page, (page, qualified_page)
         client.expect(
             "help capture, aliases, search, and indexes retained\n",
             # fmt: r
@@ -268,7 +278,7 @@ def test_file_show_headers_and_cleanup(
 @requires(R)
 @executions(DIRECT, SANDBOXED)
 def test_vignette_rendered_html(binary: Path, execution: Execution) -> Transcript:
-    with documentation_client(binary, execution) as client:
+    with documentation_client(binary, execution, locale=UTF8_LOCALE) as client:
         client.send(r='vignette("rendered", package = "consolehelp")')
         output = last_tool_text(client)
         assert "42 — evaluated result" in output, output
@@ -316,15 +326,11 @@ def test_vignette_rendered_html(binary: Path, execution: Execution) -> Transcrip
                 local({
                   previous <- Sys.getlocale("LC_CTYPE")
                   on.exit(Sys.setlocale("LC_CTYPE", previous))
-                  stopifnot(identical(Sys.setlocale("LC_CTYPE", "C"), "C"))
-                  captured <- capture.output(print(saved))
-                  stopifnot(identical(
-                    charToRaw(paste(captured, collapse = "\n")),
-                    charToRaw(paste(text, collapse = "\n"))
-                  ))
+                  # Native package lookup needs a locale that can list this filename.
+                  # Prepare the object first, then test its rendering in the C locale.
                   library <- enc2utf8("library-café")
                   stopifnot(identical(Encoding(library), "UTF-8"))
-                  # Under C, Unix filenames use native bytes; Windows APIs use Unicode.
+                  # Unix filenames use native bytes; Windows APIs use Unicode.
                   if (.Platform$OS.type == "unix") {
                     Encoding(library) <- "unknown"
                   }
@@ -335,6 +341,17 @@ def test_vignette_rendered_html(binary: Path, execution: Execution) -> Transcrip
                     package = "consolehelp",
                     lib.loc = library
                   )
+                  # Unix filenames use native bytes; Windows keeps its UTF-8 tag
+                  # for wide-character filenames after the locale changes.
+                  if (.Platform$OS.type != "windows") {
+                    native$Dir <- rawToChar(charToRaw(native$Dir))
+                  }
+                  stopifnot(identical(Sys.setlocale("LC_CTYPE", "C"), "C"))
+                  captured <- capture.output(print(saved))
+                  stopifnot(identical(
+                    charToRaw(paste(captured, collapse = "\n")),
+                    charToRaw(paste(text, collapse = "\n"))
+                  ))
                   native_text <- capture.output(print(native))
                   stopifnot(identical(
                     charToRaw(paste(native_text, collapse = "\n")),
@@ -424,14 +441,18 @@ def test_vignette_source_and_capture(binary: Path, execution: Execution) -> Tran
                   paste("Vignette source:", saved$File),
                   readLines(file.path(saved$Dir, "doc", saved$File), encoding = "UTF-8")
                 )
-                stopifnot(
-                  identical(capture.output(print(saved)), source),
+                # capture.output can leave UTF-8 bytes unmarked in the C locale.
+                same_source <- function(text) {
                   identical(
-                    capture.output(vignette("source", package = "consolehelp")),
-                    source
-                  ),
-                  identical(capture.output(utils::vignette(consolehelp::source)), source),
-                  identical(capture.output(vignette(consolehelp::source)), source)
+                    charToRaw(paste(text, collapse = "\n")),
+                    charToRaw(paste(source, collapse = "\n"))
+                  )
+                }
+                stopifnot(
+                  same_source(capture.output(print(saved))),
+                  same_source(capture.output(vignette("source", package = "consolehelp"))),
+                  same_source(capture.output(utils::vignette(consolehelp::source))),
+                  same_source(capture.output(vignette(consolehelp::source)))
                 )
                 printed <- capture.output(returned <- withVisible(print(saved)))
                 stopifnot(identical(returned$value, saved), !returned$visible)
@@ -500,6 +521,19 @@ def test_vignette_deferred_pager(binary: Path, execution: Execution) -> Transcri
             "HTML remains available for a deferred pager\n",
             # fmt: r
             r=code(r"""
+                saved <- utils::vignette("rendered", package = "consolehelp")
+                text <- capture.output(print(saved))
+                reference <- tempfile()
+                writeBin(charToRaw(paste(c(text, ""), collapse = "\n")), reference)
+                file.show(
+                  reference,
+                  encoding = "UTF-8",
+                  delete.file = TRUE,
+                  pager = function(files, header, title, delete.file) {
+                    expected <<- readBin(files, "raw", n = file.info(files)$size)
+                    if (delete.file) unlink(files)
+                  }
+                )
                 options(pager = function(files, header, title, delete.file) {
                   pending <<- list(files = files, delete.file = delete.file)
                 })
@@ -512,8 +546,15 @@ def test_vignette_deferred_pager(binary: Path, execution: Execution) -> Transcri
             "deferred pager reads evaluated results and owns cleanup\n",
             # fmt: r
             r=code(r"""
+                stopifnot(identical(
+                  readBin(pending$files, "raw", n = file.info(pending$files)$size),
+                  expected
+                ))
                 text <- readLines(pending$files, encoding = "UTF-8")
-                stopifnot(any(grepl("42 — evaluated result", text, fixed = TRUE)))
+                stopifnot(any(
+                  grepl("42", text, fixed = TRUE) &
+                    grepl("evaluated result", text, fixed = TRUE)
+                ))
                 if (pending$delete.file) {
                   unlink(pending$files)
                 }

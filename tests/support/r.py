@@ -4,6 +4,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -14,6 +15,11 @@ from support.execution import Execution
 
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+
+# R accepts the Windows code-page suffix and platform-native Unix locale names.
+UTF8_LOCALE = (
+    ".UTF-8" if os.name == "nt" else "C.UTF-8" if sys.platform == "linux" else "UTF-8"
+)
 
 
 def r_test_environment() -> tuple[dict[str, str], Path]:
