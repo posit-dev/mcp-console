@@ -17,6 +17,7 @@ unsafe extern "C-unwind" {
 const R_GRAPHICS_BRIDGE_SOURCE: &str = include_str!("r_graphics/bridge.R");
 
 struct ManagedDevice {
+    id: i32,
     pointer: usize,
     path_prefix: String,
     path_suffix: String,
@@ -27,6 +28,7 @@ struct ManagedDevice {
 
 impl ManagedDevice {
     fn new(
+        id: i32,
         pointer: libr::pDevDesc,
         path: String,
         new_page: NewPageCallback,
@@ -36,6 +38,7 @@ impl ManagedDevice {
             .rsplit_once("%06d")
             .expect("managed plot path should contain its page placeholder");
         Self {
+            id,
             pointer: pointer as usize,
             path_prefix: path_prefix.to_string(),
             path_suffix: path_suffix.to_string(),
@@ -67,10 +70,27 @@ static OUTPUT_STATE: Mutex<OutputState> = Mutex::new(OutputState {
 
 #[allow(clippy::result_large_err)]
 #[harp::register]
-pub extern "C-unwind" fn mcp_console_plot_started(path: SEXP) -> harp::Result<libr::SEXP> {
+pub extern "C-unwind" fn mcp_console_plot_started(
+    path: SEXP,
+    id: SEXP,
+) -> harp::Result<libr::SEXP> {
     let path = String::try_from(harp::object::RObject::view(path))?;
-    unsafe { register_managed_device(path) };
+    let id = i32::try_from(harp::object::RObject::view(id))?;
+    unsafe { register_managed_device(path, id) };
     unsafe { Ok(libr::R_NilValue) }
+}
+
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_plot_is_open(id: SEXP) -> harp::Result<libr::SEXP> {
+    let id = i32::try_from(harp::object::RObject::view(id))?;
+    let open = {
+        let state = OUTPUT_STATE
+            .lock()
+            .expect("R graphics output lock should not be poisoned");
+        state.devices.iter().any(|device| device.id == id)
+    };
+    Ok(harp::object::RObject::from(open).sexp)
 }
 
 #[unsafe(no_mangle)]
@@ -148,7 +168,7 @@ fn find_device_index(state: &OutputState, pointer: libr::pDevDesc) -> usize {
         .expect("managed graphics callback should belong to a managed device")
 }
 
-unsafe fn register_managed_device(path: String) {
+unsafe fn register_managed_device(path: String, id: i32) {
     let pointer = unsafe { current_device() };
     let mut state = OUTPUT_STATE
         .lock()
@@ -164,7 +184,7 @@ unsafe fn register_managed_device(path: String) {
     let (new_page, close) = unsafe { replace_callbacks(pointer) };
     state
         .devices
-        .push(ManagedDevice::new(pointer, path, new_page, close));
+        .push(ManagedDevice::new(id, pointer, path, new_page, close));
 }
 
 unsafe fn current_device() -> libr::pDevDesc {

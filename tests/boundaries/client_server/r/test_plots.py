@@ -383,5 +383,108 @@ def test_leaves_explicit_plot_devices_user_controlled(
     return client.finish()
 
 
+@executions(RUNTIME)
+def test_preserves_reused_device_with_distinct_filename(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return reused_managed_device(binary, execution, same_filename=False)
+
+
+@executions(RUNTIME)
+def test_preserves_reused_device_with_managed_filename(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return reused_managed_device(binary, execution, same_filename=True)
+
+
+def reused_managed_device(
+    binary: Path, execution: Execution, *, same_filename: bool
+) -> Transcript:
+    environment, rscript = r_test_environment()
+    managed_plot = "plot(1:3)"
+    expected_plot = reference_plots(
+        rscript,
+        environment,
+        managed_plot,
+        width=800 / 96,
+        height=600 / 96,
+        dpi=96,
+        pages=1,
+    )
+    with McpClient(binary, execution.serve(), environment) as client:
+        client.initialize_and_list_tools()
+        filename = (
+            "managed_filename"
+            if same_filename
+            else 'tempfile("user-plot-", fileext = "-%06d.png")'
+        )
+        # fmt: r
+        r = code(r"""
+            plot(1:3)
+            managed_device <- grDevices::dev.cur()
+            managed_filename <- attr(.Devices[[managed_device]], "filepath")
+            stopifnot(is.character(managed_filename), length(managed_filename) == 1L)
+            invisible(grDevices::dev.off())
+            explicit_filename <- USER_FILENAME
+            grDevices::png(explicit_filename)
+            explicit_device <- grDevices::dev.cur()
+            stopifnot(identical(explicit_device, managed_device))
+            plot(3:1)
+            cat("user device reused the managed slot\n")
+            """)
+        client.send(r=r.replace("USER_FILENAME", filename))
+        assert_result_content(
+            client,
+            [expected_plot[0], "user device reused the managed slot\n"],
+        )
+        client.send(
+            # fmt: r
+            r=code(r"""
+                stopifnot(identical(grDevices::dev.cur(), explicit_device))
+                invisible(grDevices::dev.new())
+                next_managed_filename <- attr(.Devices[[grDevices::dev.cur()]], "filepath")
+                stopifnot(
+                  !identical(next_managed_filename, managed_filename),
+                  !identical(next_managed_filename, explicit_filename)
+                )
+                plot(1:3)
+                invisible(grDevices::dev.set(explicit_device))
+                cat("managed plot used a distinct filename while the user device stayed open\n")
+                """),
+        )
+        assert_result_content(
+            client,
+            [
+                "managed plot used a distinct filename while the user device stayed open\n",
+                expected_plot[0],
+            ],
+        )
+        client.send(
+            # fmt: r
+            r=code(r"""
+                stopifnot(identical(grDevices::dev.cur(), explicit_device))
+                lines(1:3, col = "red")
+                invisible(grDevices::dev.off(which = explicit_device))
+                explicit_file <- sprintf(explicit_filename, 1L)
+                stopifnot(file.exists(explicit_file), file.info(explicit_file)$size > 0)
+                unlink(explicit_file)
+                cat("user device remained open and completed explicitly\n")
+                """),
+        )
+        assert_result_content(
+            client, ["user device remained open and completed explicitly\n"]
+        )
+        client.send(
+            # fmt: r
+            r=code(r"""
+                plot(1:3)
+                invisible(grDevices::dev.off())
+                plot(1:3)
+                """),
+        )
+        assert_result_content(client, [expected_plot[0], expected_plot[0]])
+        return client.finish()
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)

@@ -193,10 +193,11 @@ The initial plot and two replays start three pages, but the replay transitions b
 Observing only those hooks and cell end would miss the intermediate publication points and move completed images past intervening R console text.
 The device callbacks publish after the backend finalizes each page, without replaying plots or capturing incomplete pages.
 
-The [R bridge](../src/r_graphics/bridge.R) matches cleanup ownership by device number and filename template.
-An explicit user device that reuses the number with a different template remains open and uncaptured.
-If it also reuses the managed template exposed by `.Devices`, cleanup can mistake it for the managed device and close it.
-Device-reuse coverage and the same-template collision are tracked in [open work](TODO.md#graphics-coverage).
+The [R bridge](../src/r_graphics/bridge.R) assigns each managed device a registration ID unique within its worker.
+The same counter keeps managed filename templates unique across cells, since preserved user devices may still be using an earlier template.
+The native close callback retires that registration; cell cleanup closes only registrations still present in the native registry.
+An explicit user device that reuses a closed managed device's number remains open and uncaptured, even when it also reuses the filename template exposed by `.Devices`.
+The public [plot cases](../tests/boundaries/client_server/r/test_plots.py) cover both distinct and reused templates, drawing in a later cell, and explicit closure.
 The [C trampoline](../src/r_graphics.c) invokes the backend outside Rust lookup/notification frames and locks because R callbacks can `longjmp`; Rust is notified only after normal return.
 Any replacement must preserve these boundaries and the [existing plot contract](BUILTIN_RUNTIME.md#plots-and-images).
 

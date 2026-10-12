@@ -228,6 +228,7 @@ options(
 ```
 
 Explicit user devices are neither closed nor captured.
+This includes devices that reuse a closed managed device's number and filename template.
 Native R startup happens before the managed device attaches, so its plots use R's native device.
 
 Python captures open pyplot figures at cell end, including after an exception, and then closes them.

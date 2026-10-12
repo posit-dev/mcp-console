@@ -1,0 +1,78 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    plot(1:3)
+    managed_device <- grDevices::dev.cur()
+    managed_filename <- attr(.Devices[[managed_device]], "filepath")
+    stopifnot(is.character(managed_filename), length(managed_filename) == 1L)
+    invisible(grDevices::dev.off())
+    explicit_filename <- managed_filename
+    grDevices::png(explicit_filename)
+    explicit_device <- grDevices::dev.cur()
+    stopifnot(identical(explicit_device, managed_device))
+    plot(3:1)
+    cat("user device reused the managed slot\n")
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+    - type: text
+      text: |
+        user device reused the managed slot
+  isError: false
+---
+send:
+  r: |
+    stopifnot(identical(grDevices::dev.cur(), explicit_device))
+    invisible(grDevices::dev.new())
+    next_managed_filename <- attr(.Devices[[grDevices::dev.cur()]], "filepath")
+    stopifnot(
+      !identical(next_managed_filename, managed_filename),
+      !identical(next_managed_filename, explicit_filename)
+    )
+    plot(1:3)
+    invisible(grDevices::dev.set(explicit_device))
+    cat("managed plot used a distinct filename while the user device stayed open\n")
+result:
+  content:
+    - type: text
+      text: |
+        managed plot used a distinct filename while the user device stayed open
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+  isError: false
+---
+send:
+  r: |
+    stopifnot(identical(grDevices::dev.cur(), explicit_device))
+    lines(1:3, col = "red")
+    invisible(grDevices::dev.off(which = explicit_device))
+    explicit_file <- sprintf(explicit_filename, 1L)
+    stopifnot(file.exists(explicit_file), file.info(explicit_file)$size > 0)
+    unlink(explicit_file)
+    cat("user device remained open and completed explicitly\n")
+result:
+  content:
+    - type: text
+      text: |
+        user device remained open and completed explicitly
+  isError: false
+---
+send:
+  r: |
+    plot(1:3)
+    invisible(grDevices::dev.off())
+    plot(1:3)
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live Rscript page 2>
+      mimeType: image/png
+  isError: false
