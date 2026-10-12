@@ -49,6 +49,9 @@ With sandboxing enabled, the sandbox manager owns cleanup of worker
 descendants; the R wrapper's fallback targets only the server process.
 With \code{ConsoleConfig(sandbox = FALSE)}, worker descendants may survive
 server shutdown.
+
+See \code{vignette("autonomous-report", package = "mcp.console")} for an explicit
+configuration, permission edits, inspection, and an ellmer launch.
 }
 \section{Executable resolution}{
 

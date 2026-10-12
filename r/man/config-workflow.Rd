@@ -107,6 +107,9 @@ supply a config explicitly and set \code{inherit_environment = FALSE} to exclude
 inherited worker/resolver variables. Interpreter selection, automatic package
 lists, and runtime-owned cache paths remain launch policies; these operations
 do not create a dependency lock or snapshot the process environment.
+
+See \code{vignette("autonomous-report", package = "mcp.console")} for a
+scheduled-report workflow using these operations.
 }
 \examples{
 \dontrun{

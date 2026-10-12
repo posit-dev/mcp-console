@@ -36,8 +36,8 @@ Requirement actions are `get`, `add`, `set`, and `reset`; use `character()` for 
 Changed live replacements normally require restart.
 Read [Requirements](https://t-kalinowski.github.io/mcp-console/REQUIREMENTS.html) before replacing a declaration.
 
-By default, `console_tool()` skips global and project configuration files.
-Workers can read host files, write private temporary storage, and cannot use the network.
+By default, `console_tool()` discovers global and project configuration files.
+Pass `config = ConsoleConfig()` to skip them and use built-in defaults: workers can read host files, write private temporary storage, and cannot use the network.
 Dependency preparation uses its independent built-in permissions and may download packages.
 `ConsoleConfig(sandbox = FALSE)` runs workers and preparation with host permissions, without the native runner's descendant-cleanup guarantee.
 Read [Sandbox and trust](https://t-kalinowski.github.io/mcp-console/SANDBOX.html) for default host reads, preparation permissions, and cleanup limits.
@@ -206,63 +206,15 @@ Materialization does not lock dependencies or copy inherited environment variabl
 The ellmer adapter uses the latter tool definition and does not automatically insert server instructions into the chat prompt.
 See [tool presentation and lifecycle](https://t-kalinowski.github.io/mcp-console/CONFIGURATION.html#tool-descriptions-and-parameters).
 
-## Configure a scheduled report
+## Give an agent an R session
 
-A scheduled agent can declare its runtimes, environment, and permissions in code, then inspect the resulting configuration before launch:
+[Giving an agent an R session](https://t-kalinowski.github.io/mcp-console/r/articles/autonomous-report.html) uses a scheduled report to walk through explicit settings, sandbox permissions, configuration inspection, and launching an ellmer chat.
+It uses `RConfig(executable = current_r())` to select the R installation running the script on every platform.
+Open it from an installed package with:
 
 ```r
-config <- ConsoleConfig(
-  languages = "r",
-  inherit_environment = FALSE,
-  environment = c(REPORT_API_KEY = Sys.getenv("REPORT_API_KEY")),
-  r = RConfig(
-    executable = file.path(
-      R.home("bin"),
-      if (.Platform$OS.type == "windows") "R.exe" else "R"
-    ),
-    vanilla = TRUE,
-    packages = c("rmarkdown", "httr2"),
-    resolution = "startup_only"
-  ),
-  sandbox = SandboxPolicy(
-    filesystem = SandboxFilesystem(
-      read_only = "./data",
-      read_write = "./reports",
-      deny = path.expand("~/.ssh")
-    ),
-    network = SandboxNetwork(
-      proxy = SandboxProxy(
-        domains = SandboxDomains(allow = "api.mail.example.com")
-      )
-    )
-  )
-)
-
-# Extend the declared grants before generating the tool's permission guidance.
-config@sandbox@filesystem@read_write <- c(
-  config@sandbox@filesystem@read_write,
-  "./figures"
-)
-config@sandbox@network@proxy@domains@allow <- c(
-  config@sandbox@network@proxy@domains@allow,
-  "data.example.com"
-)
-
-config <- materialize_console_config(config, project = "/path/to/report")
-print(prune_console_config(config, project = "/path/to/report"))
-send <- console_tool(config = config, project = "/path/to/report")
+vignette("autonomous-report", package = "mcp.console")
 ```
-
-Create writable directories before launch.
-Filesystem rules retain the host-read baseline: `read_only = "./data"` does not hide other readable host files; use `deny` for sensitive locations.
-Proxy allow rules are hostnames or IP patterns, not URL paths or email-recipient restrictions.
-Worker and dependency-preparation permissions are separate; configure `ResolverConfig(sandbox = ...)` when preparation needs a different policy.
-Explicit resolver sandbox policies are unsupported on Windows.
-
-`inherit_environment = FALSE` excludes inherited worker and resolver environment variables; Console still supplies its owned runtime variables.
-The launcher still uses its trusted host environment to locate executables and prepare dependencies.
-For reproducible runtime selection, choose an executable or managed version explicitly, and use `vanilla = TRUE` to skip R startup profiles.
-Printing a config also prints its configured environment values, so inspect it before adding credentials if the output will be shared.
 
 ## Existing callers
 

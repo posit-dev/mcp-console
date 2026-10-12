@@ -121,7 +121,7 @@ python3 tests/website.py
 
 The website test renders a fresh temporary copy and checks titles, navigation, search, and local links/anchors, including both package references.
 Quarto's post-render scripts build `docs/_site/r/` and `docs/_site/python/`.
-Python reference uses static source analysis; examples are displayed without execution, so API credentials and a Console executable are not required for that build.
+Python reference uses static source analysis, and the R workflow vignette displays its examples without execution, so API credentials and a Console executable are not required for those builds.
 
 Edit Python API docstrings and R roxygen sources for generated reference changes, not generated HTML.
 The site configurations are `docs/_quarto.yml`, `great-docs.yml`, and `r/_pkgdown.yml`.

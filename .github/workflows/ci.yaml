@@ -160,6 +160,8 @@ jobs:
             any::processx
             any::ps
             any::httr2
+            any::knitr
+            any::rmarkdown
             any::testthat
       - name: Inventory Windows development prerequisites
         run: |

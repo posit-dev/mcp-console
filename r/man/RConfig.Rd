@@ -9,7 +9,8 @@ RConfig(executable = NULL, packages = NULL, resolution = NULL, vanilla = NULL)
 \arguments{
 \item{executable}{\code{NULL} or a path to an R executable or ordinary launcher,
 such as \verb{/opt/R/bin/R}. Directories and Rscript executables are unsupported.
-Console owns launch-relative resolution and supported \code{~} expansion.}
+Console owns launch-relative resolution and supported \code{~} expansion.
+Use \code{\link[=current_r]{current_r()}} to select the R installation running this code.}
 
 \item{packages}{\code{NULL} for bundled defaults, or a character vector replacing
 optional startup packages. \code{character()} requests no optional packages.}

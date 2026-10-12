@@ -59,6 +59,7 @@ ConfigDiscovery <- S7::new_class(
 #' @param executable `NULL` or a path to an R executable or ordinary launcher,
 #'   such as `/opt/R/bin/R`. Directories and Rscript executables are unsupported.
 #'   Console owns launch-relative resolution and supported `~` expansion.
+#'   Use [current_r()] to select the R installation running this code.
 #' @param packages `NULL` for bundled defaults, or a character vector replacing
 #'   optional startup packages. `character()` requests no optional packages.
 #' @param resolution `NULL`, `"automatic"`, `"explicit"`, `"startup_only"`, or
@@ -91,6 +92,21 @@ RConfig <- S7::new_class(
     }
   }
 )
+
+#' Select the current R installation
+#'
+#' Use [RConfig()] with `executable = current_r()` to run Console with the R
+#' installation running this code. `R.home("bin")` accounts for the current
+#' architecture on Windows; the launcher is `R.exe` on Windows and `R` elsewhere. This does not
+#' search `PATH` or copy the current R session's objects, libraries, or options.
+#'
+#' @return A path to the current installation's R launcher.
+#' @examples
+#' RConfig(executable = current_r(), vanilla = TRUE)
+#' @export
+current_r <- function() {
+  file.path(R.home("bin"), if (.Platform$OS.type == "windows") "R.exe" else "R")
+}
 
 PythonConfig <- S7::new_class(
   "PythonConfig",

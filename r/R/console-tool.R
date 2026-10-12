@@ -11,6 +11,9 @@
 #' With `ConsoleConfig(sandbox = FALSE)`, worker descendants may survive
 #' server shutdown.
 #'
+#' See `vignette("autonomous-report", package = "mcp.console")` for an explicit
+#' configuration, permission edits, inspection, and an ellmer launch.
+#'
 #' @section Executable resolution:
 #'
 #' * If `path` is supplied, `console_tool()` uses that executable directly.

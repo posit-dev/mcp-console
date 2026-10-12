@@ -100,7 +100,10 @@ test_that("explicit runtime selections reach native configuration", {
     binary <- sandbox_test_binary()
     python <- sandbox_test_python()
     config <- ConsoleConfig(
-      r = RConfig(executable = sandbox_test_r(), resolution = "disabled"),
+      r = RConfig(
+        executable = mcp.console::current_r(),
+        resolution = "disabled"
+      ),
       python = ExistingPython(python),
       languages = c("r", "python"),
       environment = c(MCP_CONSOLE_TEST_SETTING = "worker"),

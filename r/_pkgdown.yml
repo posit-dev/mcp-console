@@ -16,7 +16,7 @@ repo:
 
 navbar:
   structure:
-    left: [console, reference]
+    left: [console, reference, articles]
     right: [search, github]
   components:
     console:
@@ -36,6 +36,7 @@ reference:
   - title: Runtime selection and dependency preparation
     contents:
     - RConfig
+    - current_r
     - ExistingPython
     - ManagedPython
     - FirstAvailablePython
