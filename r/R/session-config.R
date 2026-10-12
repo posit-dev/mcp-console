@@ -146,6 +146,72 @@ ManagedPython <- S7::new_class(
   )
 )
 
+#' @rdname PythonConfig
+#' @param first_available A nonempty list of [ExistingPython()] candidates,
+#'   optionally one `"active_venv"` and a final [ManagedPython()] candidate.
+#'   Only absent paths are skipped; present but unusable environments fail.
+#' @export
+FirstAvailablePython <- S7::new_class(
+  "FirstAvailablePython",
+  parent = PythonConfig,
+  properties = list(
+    first_available = S7::new_property(
+      S7::class_list,
+      validator = function(value) {
+        if (
+          !length(value) ||
+            !all(vapply(
+              value,
+              function(candidate) {
+                identical(candidate, "active_venv") ||
+                  S7::S7_inherits(candidate, ExistingPython) ||
+                  S7::S7_inherits(candidate, ManagedPython)
+              },
+              logical(1)
+            ))
+        ) {
+          return(
+            "must contain ExistingPython(), active_venv, or ManagedPython() candidates"
+          )
+        }
+        if (sum(vapply(value, identical, logical(1), "active_venv")) > 1L) {
+          return("must contain at most one active_venv candidate")
+        }
+        managed <- which(vapply(
+          value,
+          S7::S7_inherits,
+          logical(1),
+          ManagedPython
+        ))
+        if (length(managed) > 1L || any(managed != length(value))) {
+          "must contain at most one ManagedPython() candidate, last"
+        }
+      }
+    )
+  )
+)
+
+#' Configure session startup source
+#'
+#' Pass this object as `ConsoleConfig(startup = StartupConfig(...))` to select
+#' a user-owned SQL connection before the first SQL cell. The source runs once
+#' per worker generation and must select a connection with
+#' `.console$sql_connection()` in R or `_console.sql_connection()` in Python.
+#' Native Console validates source and platform constraints at launch.
+#'
+#' @param language `"r"` or `"python"`, the interpreter running the source.
+#' @param code One string containing startup source.
+#' @inherit ConsoleConfig return
+#' @export
+StartupConfig <- S7::new_class(
+  "StartupConfig",
+  parent = ConfigNode,
+  properties = list(
+    language = config_choice(c("r", "python")),
+    code = config_scalar()
+  )
+)
+
 #' Configure dependency preparation permissions and environment
 #'
 #' Use this object as `ConsoleConfig(resolver = ResolverConfig(...))`. Worker
@@ -218,6 +284,9 @@ config_parameters <- function() {
 #' @param parameters `NULL` or a named list of [ToolParameterConfig()] objects.
 #'   Nest another `parameters` list to configure fields inside an object parameter.
 #' @param enabled `NULL`, `TRUE`, or `FALSE`; controls parameter visibility.
+#' @param schema `NULL` or a JSON-ready list of read-only type and constraint
+#'   metadata populated by [resolve_console_config()]. Native validation rejects
+#'   changes to the parameter's types or constraints.
 #' @inherit ConsoleConfig return
 #' @examples
 #' ConsoleConfig(tool = ToolConfig(
@@ -235,7 +304,8 @@ ToolParameterConfig <- S7::new_class(
   properties = list(
     description = config_description(),
     enabled = config_flag(),
-    parameters = config_parameters()
+    parameters = config_parameters(),
+    schema = NULL | S7::class_list
   )
 )
 
@@ -257,12 +327,18 @@ ToolConfig <- S7::new_class(
 #' permissions, resolver settings, and tool presentation for [console_tool()].
 #' Constructors have the same field names as Console's application configuration.
 #'
-#' With no configuration, Console uses its built-in defaults without reading
+#' An empty `ConsoleConfig()` uses built-in defaults without reading
 #' global or project configuration files. Workers can read host files, write
 #' private temporary storage, and cannot use the network. Dependency preparation
 #' retains its independent built-in permissions and may download packages.
 #'
 #' @section Discovery and layering:
+#' Prefer [discover_console_config()] to read files once into an inspectable
+#' object, or [materialize_console_config()] to fill defaults without file reads.
+#' [prune_console_config()] produces a compact view of nondefault settings.
+#' [console_tool()] discovers files when `config` is omitted.
+#'
+#' The following launch-time discovery interface is retained for existing callers.
 #' `ConfigDiscovery()` explicitly enables global and project file discovery.
 #' Disable either source with `global = FALSE` or `project = FALSE`. Project
 #' discovery reads `.agents/console/config.yaml` in `console_tool()`'s launch
@@ -288,7 +364,9 @@ ToolConfig <- S7::new_class(
 #'
 #' @param discovery `NULL` (no file discovery), or a [ConfigDiscovery()].
 #' @param r `NULL` or an [RConfig()].
-#' @param python `NULL`, an [ExistingPython()], or a [ManagedPython()].
+#' @param python `NULL`, an [ExistingPython()], a [ManagedPython()], or a
+#'   [FirstAvailablePython()].
+#' @param startup `NULL` or a [StartupConfig()] selecting a SQL connection.
 #' @param resolver `NULL` or a [ResolverConfig()].
 #' @param sandbox `NULL`, a [SandboxPolicy()], or `FALSE` for host execution.
 #' @param languages `NULL` or a character vector selecting `"r"`, `"python"`,
@@ -334,7 +412,8 @@ ConsoleConfig <- S7::new_class(
     cache = config_choice(c("console", "host")),
     environment = config_environment(),
     inherit_environment = config_flag(),
-    tool = NULL | ToolConfig
+    tool = NULL | ToolConfig,
+    startup = NULL | StartupConfig
   ),
   validator = function(self) {
     if (
@@ -352,6 +431,22 @@ S7::method(as.list, ManagedPython) <- function(x, ...) {
   list(managed = config_mapping(S7::props(x)))
 }
 
+S7::method(print, ConsoleConfig) <- function(x, ...) {
+  cat(
+    "<ConsoleConfig>\n",
+    jsonlite::toJSON(
+      config_mapping(S7::props(x)),
+      auto_unbox = TRUE,
+      null = "null",
+      pretty = TRUE,
+      digits = NA
+    ),
+    "\n",
+    sep = ""
+  )
+  invisible(x)
+}
+
 S7::method(as.list, ConsoleConfig) <- function(x, ...) {
   S7::validate(x)
   fields <- S7::props(x)
@@ -362,7 +457,7 @@ S7::method(as.list, ConsoleConfig) <- function(x, ...) {
   config_mapping(fields)
 }
 
-console_cli_arguments <- function(config) {
+console_cli_arguments <- function(config, file, files = character()) {
   settings <- S7::props(config)
   discovery <- if (!is.null(settings$discovery)) S7::props(settings$discovery)
   resolver <- if (!is.null(settings$resolver)) S7::props(settings$resolver)
@@ -384,13 +479,22 @@ console_cli_arguments <- function(config) {
     if (!is.null(settings$python)) "python"
   )
   values <- as.list(config)
+  overrides <- c(
+    vapply(clears, function(key) paste0(key, "=null"), character(1)),
+    unlist(Map(config_override, names(values), values), use.names = FALSE)
+  )
+  writeLines(
+    as.character(jsonlite::toJSON(
+      list(files = unname(as.list(files)), values = unname(as.list(overrides))),
+      auto_unbox = TRUE
+    )),
+    file,
+    useBytes = TRUE
+  )
   c(
     flags,
     if (disabled) "--no-sandbox",
-    unlist(
-      lapply(clears, function(key) c("-c", paste0(key, "=null"))),
-      use.names = FALSE
-    ),
-    unlist(Map(config_override, names(values), values), use.names = FALSE)
+    "--config-overrides-file",
+    file
   )
 }

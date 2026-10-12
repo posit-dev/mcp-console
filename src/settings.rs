@@ -189,11 +189,34 @@ pub fn discover(
     read(directory, overrides).map(|(captured, _)| captured)
 }
 
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AdapterOverrides {
+    files: Vec<PathBuf>,
+    values: Vec<String>,
+}
+
 pub(crate) fn read(
     directory: &Path,
     overrides: &crate::cli::ConfigOverrides,
 ) -> Result<(Captured, Value), String> {
-    let mut paths = Vec::new();
+    // The R adapter transports the same ordered overrides in a file so tool
+    // prose and valid startup programs are not bounded by process argv limits.
+    let adapter: AdapterOverrides = if let Some(path) = &overrides.values_file {
+        let source = std::fs::read(directory.join(path)).map_err(|error| {
+            format!("cannot read config overrides '{}': {error}", path.display())
+        })?;
+        serde_json::from_slice(&source)
+            .map_err(|error| format!("invalid config overrides '{}': {error}", path.display()))?
+    } else {
+        AdapterOverrides::default()
+    };
+    let mut values = adapter.values;
+    values.extend(overrides.values.iter().cloned());
+    let mut paths = adapter.files;
+    if !paths.is_empty() && (!overrides.no_config || overrides.config_file.is_some()) {
+        return Err("adapter configuration files require --no-config".into());
+    }
     // Select sources before resolving or inspecting them. Explicit selection and
     // global exclusions must not resolve Console home for configuration discovery.
     if let Some(path) = &overrides.config_file {
@@ -211,19 +234,15 @@ pub(crate) fn read(
             paths.push(PathBuf::from(".agents/console/config.yaml"));
         }
     }
-    let crate::config::Loaded { value, paths } = crate::config::load(
-        directory,
-        &paths,
-        &overrides.values,
-        overrides.config_file.is_some(),
-    )?;
+    let crate::config::Loaded { value, paths } =
+        crate::config::load(directory, &paths, &values, overrides.config_file.is_some())?;
     let configured = value.is_some();
     let files = paths
         .iter()
         .map(|path| path.display().to_string())
         .collect::<Vec<_>>()
         .join(", ");
-    let name = match (paths.len(), overrides.values.is_empty()) {
+    let name = match (paths.len(), values.is_empty()) {
         (0, true) => "configuration".into(),
         (0, false) => "configuration with CLI overrides".into(),
         (1, true) => files,

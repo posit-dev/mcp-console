@@ -5,7 +5,12 @@
 \alias{ToolParameterConfig}
 \title{Customize the exposed tool definition}
 \usage{
-ToolParameterConfig(description = NULL, enabled = NULL, parameters = NULL)
+ToolParameterConfig(
+  description = NULL,
+  enabled = NULL,
+  parameters = NULL,
+  schema = NULL
+)
 
 ToolConfig(description = NULL, instructions = NULL, parameters = NULL)
 }
@@ -17,6 +22,10 @@ parameter description.}
 
 \item{parameters}{\code{NULL} or a named list of \code{\link[=ToolParameterConfig]{ToolParameterConfig()}} objects.
 Nest another \code{parameters} list to configure fields inside an object parameter.}
+
+\item{schema}{\code{NULL} or a JSON-ready list of read-only type and constraint
+metadata populated by \code{\link[=resolve_console_config]{resolve_console_config()}}. Native validation rejects
+changes to the parameter's types or constraints.}
 
 \item{instructions}{\code{NULL} or one string replacing MCP initialization
 instructions: server guidance received when the client connects, which some

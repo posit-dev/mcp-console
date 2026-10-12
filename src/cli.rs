@@ -69,6 +69,10 @@ pub struct ConfigOverrides {
     /// Override layered global and project configuration; repeat for ordered dotted KEY=VALUE assignments
     #[arg(short = 'c', long = "config", value_name = "KEY=VALUE")]
     pub values: Vec<String>,
+
+    /// Private R adapter transport: optional files and ordered KEY=VALUE overrides
+    #[arg(long = "config-overrides-file", hide = true)]
+    pub values_file: Option<PathBuf>,
 }
 
 impl ConfigOverrides {
@@ -78,6 +82,12 @@ impl ConfigOverrides {
         }
         if other.config_file.is_some() {
             self.config_file = other.config_file;
+        }
+        if self.values_file.is_some() && other.values_file.is_some() {
+            return Err("--config-overrides-file may be supplied only once".into());
+        }
+        if other.values_file.is_some() {
+            self.values_file = other.values_file;
         }
         self.values.extend(other.values);
         self.no_project_config |= other.no_project_config;

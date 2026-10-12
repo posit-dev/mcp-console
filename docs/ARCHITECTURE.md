@@ -53,6 +53,11 @@ Each producer preserves order, but their observation order does not reconstruct 
 ## Startup and runtime ownership
 
 The server captures configuration once and constructs tool presentation from it.
+The R adapter sends optional configuration source paths and ordered overrides through a private JSON file using `--config-overrides-file`.
+Native capture owns file parsing, layering, full materialization, and pruning; the adapter converts those results through ordinary S7 constructors.
+Optional source paths require automatic discovery to be disabled and retain the same missing-file, regular-file, and deduplication rules as native discovery.
+Overrides apply after the selected files and before ordinary `-c` overrides; explicit permission nodes retain replacement semantics.
+The adapter removes the file after synchronous materialization or the server's initialization handshake, when native capture has finished reading it.
 One connection-owned background task discovers runtimes, prepares defaults, and prelaunches the built-in worker.
 MCP initialization, tool discovery, and pings do not wait.
 Custom workers remain lazy.

@@ -54,9 +54,10 @@ The package reference documents the exact R signature.
 The development interface uses S7 from `RConsortium/S7`, pinned in `DESCRIPTION`.
 Install the declared GitHub dependency with pak/remotes before building the package; `R CMD INSTALL` alone does not process `Remotes`.
 During development, use `path=` to select the current checkout's Console binary.
-Older published binaries may not understand this schema or `--no-config`.
+Use a matching Console executable; older published binaries may not support these configuration operations.
 
-`ConsoleConfig()` combines runtime selection, package preparation, permissions, and configuration discovery.
+`ConsoleConfig()` combines runtime selection, package preparation, permissions, and tool presentation.
+It reads no configuration files.
 The class constructors have explicit named arguments matching the application schema.
 
 ```r
@@ -94,66 +95,206 @@ R also supports `disabled` for preinstalled packages.
 Worker restart retains the captured runtime and configuration.
 See `?RConfig`, `?ExistingPython`, and `?ResolverConfig`.
 
-The common launch choices are short:
+The launch choices make file discovery explicit:
 
 ```r
-console_tool() # Built-in defaults; no config files
-console_tool(config = ConsoleConfig(sandbox = FALSE))
-console_tool(config = ConsoleConfig(discovery = ConfigDiscovery()))
-console_tool(
-  config = ConsoleConfig(
-    discovery = ConfigDiscovery(global = FALSE)
-  ),
-  project = "/path/to/project"
-)
+console_tool() # Discover global and project files, materialize, then launch
+console_tool(config = ConsoleConfig()) # Built-in defaults, no config files
+console_tool(config = ConsoleConfig(sandbox = FALSE)) # Host execution
 ```
 
-Discovery loads global configuration first, then project `.agents/console/config.yaml`, then settings supplied in `ConsoleConfig`.
-No ancestors are searched.
-`ConfigDiscovery(project = FALSE)` uses global configuration alone.
-Setting both discovery flags to `FALSE` reads neither file.
+**Default change:** `console_tool()` now discovers configuration files.
+To retain the previous behavior, pass `config = ConsoleConfig()`.
 Discovery trusts the whole application configuration, including executable selection, environments, and permissions.
 
-`NULL` fields are omitted and inherit selected file settings before native defaults apply.
-An explicit package list replaces the inherited list; `character()` requests no optional startup packages.
-Runtime and environment mappings merge recursively.
-Python selections replace the whole Python node so managed and existing choices cannot mix.
-An explicit `SandboxPolicy()` replaces its entire worker or resolver permission node, removing inherited grants.
-`sandbox = FALSE` clears both permission nodes and disables enforcement while retaining other discovered settings.
-It cannot be combined with an explicit resolver policy.
+## Discover configuration once
 
-`as.list(config)` returns JSON-ready application settings, excluding discovery and the disabled-sandbox launch control.
-Those choices remain available as `config@discovery` and `config@sandbox`.
-The native CLI owns final validation, defaults, supported paths, and platform capabilities.
+Read the global and project files into an R object before inspecting or modifying them:
+
+```r
+config <- discover_console_config(project = "/path/to/project")
+print(prune_console_config(config, project = "/path/to/project"))
+tool <- console_tool(config = config, project = "/path/to/project")
+```
+
+Discovery reads `config.yaml` in `MCP_CONSOLE_HOME` (otherwise `~/.agents/console/config.yaml`), then `.agents/console/config.yaml` in the launch directory.
+It does not search ancestors.
+Both paths are optional: a missing file is skipped, but a malformed or unreadable file fails.
+The result is an ordinary, fully materialized S7 `ConsoleConfig` with file discovery disabled.
+Changing the source files afterward does not change this object or its launch.
+
+Choose the sources directly, or set either to `NULL`:
+
+```r
+config <- discover_console_config(
+  global_file = NULL,
+  project_file = "settings/report.yaml",
+  config = ConsoleConfig(inherit_environment = FALSE),
+  project = "/path/to/project"
+)
+
+# Require one selected file. JSON and YAML use the same configuration schema.
+config <- read_console_config("report.json", project = "/path/to/project")
+```
+
+`read_console_config()` fails if its file is missing and reads no other files.
+Relative paths, including paths inside configuration files, use `project`.
+In either reader, `config` overrides the files: mappings merge recursively, package lists replace inherited lists, and explicit Python selections and sandbox policies replace their entire nodes.
+An empty package vector means no optional startup packages.
+`sandbox = FALSE` clears worker and resolver permissions and disables enforcement; it cannot be combined with an explicit resolver policy.
 
 ## Inspect and edit configuration
 
-Resolve configuration once to inspect the generated tool text and all parameter settings before starting a session:
+Materialization and pruning are two views of the same class:
+
+| Operation                            | Result                                                                       |
+| ------------------------------------ | ---------------------------------------------------------------------------- |
+| `ConsoleConfig(...)`                 | Only the settings supplied in R; no file reads                               |
+| `materialize_console_config(config)` | Settings plus native defaults, complete tool prose, and signature metadata   |
+| `prune_console_config(config)`       | Settings that differ from native defaults, retaining meaningful empty values |
+| `discover_console_config(...)`       | Optional file layers captured and materialized once                          |
+| `read_console_config(file)`          | One required JSON or YAML file, materialized without discovery               |
+
+Omitting `config` from materialization or pruning starts with `ConsoleConfig()` and reads no files.
+The selected executable supplies the defaults and validates the result without starting interpreters or installing packages.
+Pruning is useful for reviewing changes; omissions follow the defaults of the binary used on the next launch.
+Use the same `path` or `version` and `project` when comparing, editing, and launching configurations.
 
 ```r
-config <- resolve_console_config(ConsoleConfig(languages = "r"))
-print(config)
-config$tool$description <- "Run one R cell in a persistent workbench."
-config$tool$parameters$timeout_ms$enabled <- FALSE
-config$tool$parameters$r$description <- "Evaluate a complete R expression."
+config <- materialize_console_config(ConsoleConfig(languages = "r"))
+print(config) # Full contents, including untruncated descriptions
+config@tool@description <- "Run one R cell in a persistent workbench."
+config@tool@parameters$timeout_ms@enabled <- FALSE
+config@tool@parameters$r@description <- "Evaluate a complete R expression."
+print(prune_console_config(config))
 tool <- console_tool(config = config)
 ```
 
-The result is a named list with ordinary `$` editing; `print()` shows its full contents.
-The selected native executable supplies the defaults and schema without starting interpreters or installing packages.
-Pass `path`, `version`, and `project` to `resolve_console_config()` when needed; the result retains those launch choices, and `console_tool(config = config)` does not rediscover global or project configuration.
-File discovery remains opt-in through `ConsoleConfig(discovery = ConfigDiscovery())`.
-
-`schema` records read-only parameter types and constraints, with nested fields under `parameters`.
+Use `@` for S7 properties and `$` for entries in the named `parameters` list.
+The parameter `schema` contains read-only types and constraints; native validation rejects schema edits.
 Use `enabled = FALSE` to hide a field; assigning `NULL` removes an override and restores its default.
-Saved descriptions are literal: changing visibility does not regenerate them.
-Runtime-dependent selections, package defaults, and inherited environment variables remain launch policies.
-`as.list(config)` exposes JSON-ready application settings without the retained executable, project, or sandbox launch flag.
+Materialized descriptions are literal overrides: changing visibility, languages, or permissions does not regenerate saved prose.
+Clear the affected description with `NULL` before materializing again to regenerate it.
 
-`tool$instructions` is server guidance returned during MCP initialization, which some clients use for deferred tool discovery.
-`tool$description` and parameter descriptions arrive through `tools/list`.
+Compare or save the application settings with ordinary R tools:
+
+```r
+edited_config <- config
+edited_config@tool@parameters$timeout_ms@enabled <- TRUE
+before <- prune_console_config(config)
+after <- prune_console_config(edited_config)
+all.equal(as.list(before), as.list(after))
+
+writeLines(
+  as.character(jsonlite::toJSON(
+    as.list(after),
+    auto_unbox = TRUE,
+    pretty = TRUE
+  )),
+  "report.json"
+)
+restored <- read_console_config("report.json")
+```
+
+`as.list()` excludes launch-only controls: legacy `discovery` and `sandbox = FALSE`.
+For host execution, retain the S7 object (for example with `saveRDS()`) or pass `config = ConsoleConfig(sandbox = FALSE)` when reading JSON.
+Runtime-dependent interpreter selection, automatic package lists, and runtime-owned cache paths remain policies.
+Materialization does not lock dependencies or copy inherited environment variables.
+
+`config@tool@instructions` is server guidance returned during MCP initialization, which some clients use for deferred tool discovery.
+`config@tool@description` and parameter descriptions arrive through `tools/list`.
 The ellmer adapter uses the latter tool definition and does not automatically insert server instructions into the chat prompt.
 See [tool presentation and lifecycle](https://t-kalinowski.github.io/mcp-console/CONFIGURATION.html#tool-descriptions-and-parameters).
+
+## Configure a scheduled report
+
+A scheduled agent can declare its runtimes, environment, and permissions in code, then inspect the resulting configuration before launch:
+
+```r
+config <- ConsoleConfig(
+  languages = "r",
+  inherit_environment = FALSE,
+  environment = c(REPORT_API_KEY = Sys.getenv("REPORT_API_KEY")),
+  r = RConfig(
+    executable = file.path(
+      R.home("bin"),
+      if (.Platform$OS.type == "windows") "R.exe" else "R"
+    ),
+    vanilla = TRUE,
+    packages = c("rmarkdown", "httr2"),
+    resolution = "startup_only"
+  ),
+  sandbox = SandboxPolicy(
+    filesystem = SandboxFilesystem(
+      read_only = "./data",
+      read_write = "./reports",
+      deny = path.expand("~/.ssh")
+    ),
+    network = SandboxNetwork(
+      proxy = SandboxProxy(
+        domains = SandboxDomains(allow = "api.mail.example.com")
+      )
+    )
+  )
+)
+
+# Extend the declared grants before generating the tool's permission guidance.
+config@sandbox@filesystem@read_write <- c(
+  config@sandbox@filesystem@read_write,
+  "./figures"
+)
+config@sandbox@network@proxy@domains@allow <- c(
+  config@sandbox@network@proxy@domains@allow,
+  "data.example.com"
+)
+
+config <- materialize_console_config(config, project = "/path/to/report")
+print(prune_console_config(config, project = "/path/to/report"))
+send <- console_tool(config = config, project = "/path/to/report")
+```
+
+Create writable directories before launch.
+Filesystem rules retain the host-read baseline: `read_only = "./data"` does not hide other readable host files; use `deny` for sensitive locations.
+Proxy allow rules are hostnames or IP patterns, not URL paths or email-recipient restrictions.
+Worker and dependency-preparation permissions are separate; configure `ResolverConfig(sandbox = ...)` when preparation needs a different policy.
+Explicit resolver sandbox policies are unsupported on Windows.
+
+`inherit_environment = FALSE` excludes inherited worker and resolver environment variables; Console still supplies its owned runtime variables.
+The launcher still uses its trusted host environment to locate executables and prepare dependencies.
+For reproducible runtime selection, choose an executable or managed version explicitly, and use `vanilla = TRUE` to skip R startup profiles.
+Printing a config also prints its configured environment values, so inspect it before adding credentials if the output will be shared.
+
+## Existing callers
+
+`resolve_console_config()` remains an alias for full materialization.
+Its result now uses S7 properties instead of the earlier list result, and executable/project choices remain explicit arguments:
+
+```r
+config <- materialize_console_config(path = binary, project = project)
+config@tool@description <- "Run a report cell."
+tool <- console_tool(config = config, path = binary, project = project)
+```
+
+`ConsoleConfig(discovery = ConfigDiscovery(...))` remains supported for existing code that explicitly requests discovery at launch.
+For new code, use `discover_console_config(global_file = ..., project_file = ...)` to make that file read visible before launch.
+Explicit `config = NULL` retains its old meaning of `ConsoleConfig()`; omitting `config` uses discovery.
+Constructed, discovered, materialized, and pruned objects share validation and temporary-file transport, so long descriptions and startup programs do not consume command-line space.
+
+Python fallback policies and SQL startup source use the same typed constructors when supplied directly or returned by materialization:
+
+```r
+ConsoleConfig(
+  python = FirstAvailablePython(list(
+    ExistingPython(".venv"),
+    "active_venv",
+    ManagedPython(packages = character())
+  )),
+  startup = StartupConfig(
+    language = "python",
+    code = "import sqlite3; _console.sql_connection(sqlite3.connect(':memory:'))"
+  )
+)
+```
 
 ## Sandbox policies
 

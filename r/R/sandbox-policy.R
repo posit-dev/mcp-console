@@ -55,7 +55,7 @@ config_flag <- function() {
 #' temporary storage, but cannot write to the project or use the network.
 #' Add permissions for the operations your code needs. This default permits
 #' reading sensitive files unless you explicitly deny their paths.
-#' `console_tool()` also skips configuration-file discovery by default.
+#' Passing `ConsoleConfig(sandbox = policy)` skips configuration-file discovery.
 #' An explicit policy replaces permissions from any files you opt into reading.
 #' To disable sandboxing for both workers and preparation, use
 #' `ConsoleConfig(sandbox = FALSE)`.
@@ -443,6 +443,16 @@ config_mapping <- function(fields) {
       fields[[name]] <- json_object(as.list(value))
     } else if (name == "parameters") {
       fields[[name]] <- json_object(lapply(value, as.list))
+    } else if (name == "schema") {
+      fields[[name]] <- json_object(value)
+    } else if (name == "first_available") {
+      fields[[name]] <- unname(lapply(value, function(candidate) {
+        if (S7::S7_inherits(candidate, ConfigNode)) {
+          as.list(candidate)
+        } else {
+          candidate
+        }
+      }))
     } else if (
       name %in%
         arrays &&
@@ -463,5 +473,5 @@ S7::method(as.list, ConfigNode) <- function(x, ...) {
 }
 
 config_override <- function(key, value) {
-  c("-c", paste0(key, "=", jsonlite::toJSON(value, auto_unbox = TRUE)))
+  paste0(key, "=", jsonlite::toJSON(value, auto_unbox = TRUE))
 }

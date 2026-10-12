@@ -2,9 +2,7 @@
 % Please edit documentation in R/resolved-config.R
 \name{resolve_console_config}
 \alias{resolve_console_config}
-\alias{as.list.resolved_console_config}
-\alias{print.resolved_console_config}
-\title{Inspect and edit resolved Console configuration}
+\title{Materialize Console configuration}
 \usage{
 resolve_console_config(
   config = ConsoleConfig(),
@@ -13,13 +11,11 @@ resolve_console_config(
   version = NULL,
   project = getwd()
 )
-
-\method{as.list}{resolved_console_config}(x, ...)
-
-\method{print}{resolved_console_config}(x, ...)
 }
 \arguments{
-\item{config}{A \code{\link[=ConsoleConfig]{ConsoleConfig()}} supplying settings and optional file discovery.}
+\item{config}{A \code{\link[=ConsoleConfig]{ConsoleConfig()}}. In discovery and file reads, its settings
+override the selected files. Explicit permissions replace inherited permission
+nodes. Leave its legacy \code{discovery} property \code{NULL} for these operations.}
 
 \item{...}{Must be empty. Reserved for future use.}
 
@@ -31,41 +27,14 @@ resolve_console_config(
 \item{project}{Existing directory to use as the child process's working
 directory, defaulting to \code{getwd()}. Relative config and runtime paths use
 this directory; the caller's working directory is unchanged.}
-
-\item{x}{A resolved configuration.}
 }
 \value{
-A \code{resolved_console_config} named list. \code{\link[=as.list]{as.list()}} returns its
-JSON-ready settings without the retained launch attributes. \code{\link[=print]{print()}} shows
-all settings and tool metadata without truncating descriptions.
+A \code{\link[=ConsoleConfig]{ConsoleConfig()}} with file discovery disabled.
 }
 \description{
-\code{resolve_console_config()} asks the selected Console executable to capture
-configuration and generate its complete tool presentation. It does not start
-interpreters, install packages, or create a session. The returned named list
-prints in full and supports ordinary \code{$} edits.
-}
-\details{
-Pass the result to \code{\link[=console_tool]{console_tool()}} to use its captured executable, project,
-permissions, and settings without discovering configuration files again.
-Do not also supply \code{path}, \code{version}, or \code{project} to that call.
-
-Tool descriptions and parameter descriptions are literal strings. Setting a
-parameter's \code{enabled} to \code{FALSE} hides it without rewriting the materialized
-text. The parameter's \code{schema} contains read-only types and constraints;
-nested fields live in \code{parameters}. Use \code{enabled = FALSE} to hide a field;
-deleting a setting with \code{NULL} restores that setting's native default.
-
-Runtime-dependent choices remain policies: interpreter discovery, inherited
-process environment, automatic package lists, and runtime-created cache and
-temporary paths are resolved at launch. This object is not a dependency lock.
-}
-\examples{
-\dontrun{
-config <- resolve_console_config(ConsoleConfig(languages = "r"))
-print(config)
-config$tool$description <- "Run one R cell in a persistent workbench."
-config$tool$parameters$timeout_ms$enabled <- FALSE
-send <- console_tool(config = config)
-}
+Compatibility alias for \code{\link[=materialize_console_config]{materialize_console_config()}}. Returns an ordinary
+S7 \code{\link[=ConsoleConfig]{ConsoleConfig()}} with complete defaults and tool presentation.
+Use \code{\link[=discover_console_config]{discover_console_config()}} to explicitly read optional configuration files,
+\code{\link[=read_console_config]{read_console_config()}} for a required file, and \code{\link[=prune_console_config]{prune_console_config()}} for
+a compact view of nondefault settings.
 }

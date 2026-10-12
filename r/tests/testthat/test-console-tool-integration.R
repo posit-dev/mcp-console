@@ -424,23 +424,30 @@ test_that("resolved configurations can be inspected, edited, and launched", {
       ),
       path = binary
     )
-    expect_s3_class(config, "resolved_console_config")
-    expect_identical(config$languages, list("r"))
-    expect_true(config$tool$parameters$timeout_ms$enabled)
+    expect_identical(S7::S7_class(config), ConsoleConfig)
+    expect_null(config@discovery)
+    expect_identical(config@languages, "r")
+    expect_true(config@tool@parameters$timeout_ms@enabled)
     expect_true(
-      "integer" %in% unlist(config$tool$parameters$timeout_ms$schema$type)
+      "integer" %in% unlist(config@tool@parameters$timeout_ms@schema$type)
     )
     printed <- paste(capture.output(print(config)), collapse = "\n")
     expect_match(printed, "Discover this workbench.", fixed = TRUE)
     expect_match(printed, "timeout_ms", fixed = TRUE)
-    config$tool$description <- "Run an evaluation cell."
-    config$tool$parameters$timeout_ms$enabled <- FALSE
-    config$tool$parameters$r$description <- ""
+    config@tool@description <- "Run an evaluation cell."
+    config@tool@parameters$timeout_ms@enabled <- FALSE
+    config@tool@parameters$r@description <- ""
+    reconstructed <- do.call(ConsoleConfig, S7::props(config))
+    expect_identical(as.list(reconstructed), as.list(config))
     writeLines("unknown: must-not-rediscover", ".agents/console/config.yaml")
     dir.create("another-directory")
     project <- getwd()
     setwd("another-directory")
-    tool <- console_tool(config = config)
+    tool <- console_tool(
+      path = binary,
+      config = reconstructed,
+      project = project
+    )
     setwd(project)
     expect_identical(tool@description, "Run an evaluation cell.")
     expect_false("timeout_ms" %in% names(tool@arguments@properties))
@@ -449,5 +456,141 @@ test_that("resolved configurations can be inspected, edited, and launched", {
     expect_identical(tool(r = "cat(basename(getwd()))")@text, basename(project))
     rm(tool)
     invisible(gc())
+  })
+})
+
+test_that("materialization preserves typed policies and startup source", {
+  binary <- real_mcp_console()
+  with_mcp_console_environment(
+    list(environment = NULL, unset = "VIRTUAL_ENV"),
+    with_temp_working_directory({
+      python <- sandbox_test_python()
+      source <- ConsoleConfig(
+        sandbox = FALSE,
+        python = FirstAvailablePython(list(
+          ExistingPython("absent-python"),
+          "active_venv",
+          ExistingPython(python),
+          ManagedPython(packages = character(), resolution = "startup_only")
+        )),
+        startup = StartupConfig(
+          language = "python",
+          code = paste(
+            "import sqlite3",
+            "_console.sql_connection(sqlite3.connect(':memory:'))",
+            sep = "\n"
+          )
+        ),
+        r = RConfig(packages = character(), resolution = "disabled"),
+        languages = c("python", "sql"),
+        environment = c(EMPTY = ""),
+        resolver = ResolverConfig(environment = c(LAYER = "resolver"))
+      )
+      config <- resolve_console_config(source, path = binary)
+      expect_identical(as.list(config@python), as.list(source@python))
+      expect_identical(as.list(config@startup), as.list(source@startup))
+      expect_identical(config@environment, c(EMPTY = ""))
+      expect_identical(
+        config@resolver@environment,
+        c(EMPTY = "", LAYER = "resolver")
+      )
+      expect_identical(config@sandbox, FALSE)
+      expect_identical(config@python@first_available[[4]]@packages, character())
+      config <- resolve_console_config(config, path = binary)
+      tool <- console_tool(config = config, path = binary)
+      expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
+      rm(tool)
+      invisible(gc())
+
+      config@tool@parameters$timeout_ms@schema$type <- list("string")
+      expect_error(resolve_console_config(config, path = binary), "read-only")
+    })
+  )
+})
+
+test_that("sandbox materialization round trips through typed configuration", {
+  binary <- real_mcp_console()
+  with_temp_working_directory({
+    policies <- list(
+      SandboxPolicy(),
+      SandboxPolicy(
+        filesystem = SandboxFilesystem(
+          read_write = character(),
+          deny = "./secrets"
+        ),
+        network = "enabled"
+      )
+    )
+    if (.Platform$OS.type != "windows") {
+      policies[[3]] <- SandboxPolicy(
+        network = SandboxNetwork(
+          proxy = SandboxProxy(
+            mode = "limited",
+            domains = SandboxDomains(allow = "example.com", deny = character())
+          )
+        )
+      )
+    }
+    for (policy in policies) {
+      config <- resolve_console_config(
+        ConsoleConfig(sandbox = policy),
+        path = binary
+      )
+      again <- resolve_console_config(config, path = binary)
+      expect_identical(as.list(again), as.list(config))
+      expect_true(S7::S7_inherits(config@sandbox, SandboxPolicy))
+      expect_identical(config@discovery, NULL)
+    }
+  })
+})
+
+test_that("large constructed and materialized settings use bounded launch arguments", {
+  binary <- real_mcp_console()
+  with_temp_working_directory({
+    description <- paste(rep("Evaluation cell.", 80000), collapse = "\n")
+    startup <- StartupConfig(
+      language = "python",
+      code = paste0(
+        "#",
+        strrep("x", 31000),
+        "\n",
+        "import sqlite3\n",
+        "_console.sql_connection(sqlite3.connect(':memory:'))"
+      )
+    )
+    size <- nchar(
+      jsonlite::toJSON(as.list(startup), auto_unbox = TRUE),
+      type = "bytes"
+    )
+    expect_gt(size, 30000)
+    expect_lt(size, 32 * 1024)
+    source <- ConsoleConfig(
+      discovery = ConfigDiscovery(global = FALSE),
+      sandbox = FALSE,
+      r = RConfig(packages = character(), resolution = "disabled"),
+      python = ExistingPython(sandbox_test_python()),
+      languages = c("python", "sql"),
+      startup = startup,
+      tool = ToolConfig(description = description)
+    )
+    dir.create(".agents/console", recursive = TRUE)
+    writeLines(
+      "environment: {LARGE_CONFIG: discovered}",
+      ".agents/console/config.yaml"
+    )
+    resolved <- resolve_console_config(source, path = binary)
+    expect_identical(resolved@tool@description, description)
+    expect_identical(resolved@startup@code, startup@code)
+    for (config in list(source, resolved)) {
+      tool <- console_tool(config = config, path = binary)
+      expect_identical(tool@description, description)
+      expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
+      expect_identical(
+        tool(python = "import os; print(os.environ['LARGE_CONFIG'])")@text,
+        "discovered\n"
+      )
+      rm(tool)
+      invisible(gc())
+    }
   })
 })

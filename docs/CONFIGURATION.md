@@ -217,8 +217,12 @@ The export does not pin installed dependencies or copy the host environment.
 Exported interpreter paths must be representable as UTF-8; other native paths produce a configuration error.
 Changing `languages` may make saved parameter entries unavailable; resolve the desired language selection before editing the tool.
 
-R provides the same workflow through [`resolve_console_config()`](../r/README.md#inspect-and-edit-configuration).
-It requests `--full`, returns a printable, editable list, and retains the executable, launch directory, and sandbox choice for `console_tool(config = config)`.
+R exposes these operations through [`discover_console_config()`, `materialize_console_config()`, and `prune_console_config()`](../r/README.md#inspect-and-edit-configuration).
+They return ordinary S7 `ConsoleConfig` objects with file discovery disabled.
+`read_console_config()` imports one required JSON or YAML file; `ConsoleConfig(...)` builds settings directly in R.
+Edit properties with `@`; use `$` to select named parameter entries.
+The sandbox choice remains in the configuration, while executable and launch-directory choices remain explicit arguments to each call.
+`console_tool()` discovers optional files by default; pass `config = ConsoleConfig(...)` to skip them.
 
 ## Python environment selection
 

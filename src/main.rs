@@ -175,6 +175,7 @@ fn resolve_configuration(
                 no_project_config: false,
                 config_file: None,
                 values: Vec::new(),
+                values_file: None,
             },
         )?;
         // Compare with the binary's defaults, including when the internal

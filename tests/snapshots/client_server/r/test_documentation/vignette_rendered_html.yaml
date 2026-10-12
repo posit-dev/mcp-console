@@ -92,7 +92,12 @@ send:
         charToRaw(paste(captured, collapse = "\n")),
         charToRaw(paste(text, collapse = "\n"))
       ))
-      library <- rawToChar(charToRaw(enc2utf8("library-café")))
+      library <- enc2utf8("library-café")
+      stopifnot(identical(Encoding(library), "UTF-8"))
+      # Under C, Unix filenames use native bytes; Windows APIs use Unicode.
+      if (.Platform$OS.type == "unix") {
+        Encoding(library) <- "unknown"
+      }
       stopifnot(dir.create(library))
       stopifnot(file.copy(saved$Dir, library, recursive = TRUE))
       native <- utils::vignette(

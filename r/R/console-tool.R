@@ -25,13 +25,14 @@
 #' @param path `NULL`, or a path to an `mcp-console` executable.
 #' @param version `NULL`, or one published `mcp-console` version, such as
 #'   `"0.0.2"`.
-#' @param config `NULL` (equivalent to an empty [ConsoleConfig()]), or a
-#'   `ConsoleConfig()` combining runtimes, package preparation, permissions,
-#'   and optional discovery. The default skips global and project config files
-#'   and uses built-in permissions: host reads, private temporary writes, and
-#'   no worker networking. Resolver defaults remain independent. Alternatively,
-#'   pass the edited result of [resolve_console_config()]; it retains its
-#'   executable and project, so omit `path`, `version`, and `project`.
+#' @param config A [ConsoleConfig()]. By default, [discover_console_config()]
+#'   reads optional global/project files once and materializes their settings.
+#'   Pass `ConsoleConfig()` to skip files and use built-in defaults: host reads,
+#'   private temporary writes, and no worker networking. Resolver defaults are
+#'   independent. A supplied config reads no files unless its legacy `discovery`
+#'   property explicitly requests it. Explicit `NULL` retains the old behavior of
+#'   `ConsoleConfig()`. Use the same `path`, `version`, and `project` when
+#'   inspecting and launching a config.
 #' @param project Existing directory to use as the child process's working
 #'   directory, defaulting to `getwd()`. Relative config and runtime paths use
 #'   this directory; the caller's working directory is unchanged.
@@ -53,7 +54,11 @@ console_tool <- function(
   ...,
   path = NULL,
   version = NULL,
-  config = NULL,
+  config = discover_console_config(
+    path = path,
+    version = version,
+    project = project
+  ),
   project = getwd()
 ) {
   if (...length() != 0L) {
@@ -62,40 +67,10 @@ console_tool <- function(
   if (is.null(config)) {
     config <- ConsoleConfig()
   }
-  resolved <- inherits(config, "resolved_console_config")
-  if (resolved) {
-    if (!is.null(path) || !is.null(version) || !missing(project)) {
-      stop(
-        "A resolved configuration retains its executable and project; omit `path`, `version`, and `project`.",
-        call. = FALSE
-      )
-    }
-    launch <- attr(config, "launch")
-    binary <- launch$path
-    project <- launch$project
-    file <- tempfile("mcp-console-config-", fileext = ".json")
-    on.exit(unlink(file), add = TRUE)
-    writeLines(
-      as.character(jsonlite::toJSON(
-        as.list(config),
-        auto_unbox = TRUE,
-        null = "null",
-        digits = NA
-      )),
-      file,
-      useBytes = TRUE
-    )
-    arguments <- c("--config-file", file, if (launch$no_sandbox) "--no-sandbox")
-  } else {
-    if (!S7::S7_inherits(config, ConsoleConfig)) {
-      stop(
-        "`config` must be NULL, a ConsoleConfig(), or a resolved configuration.",
-        call. = FALSE
-      )
-    }
-    S7::validate(config)
-    arguments <- console_cli_arguments(config)
+  if (!S7::S7_inherits(config, ConsoleConfig)) {
+    stop("`config` must be NULL or a ConsoleConfig() object.", call. = FALSE)
   }
+  S7::validate(config)
   if (
     !is.character(project) ||
       length(project) != 1L ||
@@ -106,13 +81,11 @@ console_tool <- function(
     stop("`project` must identify an existing directory.", call. = FALSE)
   }
   project <- normalizePath(project, mustWork = TRUE)
-  if (!resolved) {
-    binary <- resolve_mcp_console(path, version)
-  }
-
+  file <- tempfile("mcp-console-overrides-", fileext = ".json")
+  on.exit(unlink(file), add = TRUE)
   client <- new_mcp_client(
-    binary,
-    arguments,
+    resolve_mcp_console(path, version),
+    console_cli_arguments(config, file),
     project
   )
   ready <- FALSE

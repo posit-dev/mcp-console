@@ -87,6 +87,8 @@ test_that("configuration classes have matching uppercase CamelCase names", {
     "RConfig",
     "ManagedPython",
     "ExistingPython",
+    "FirstAvailablePython",
+    "StartupConfig",
     "ResolverConfig",
     "SandboxPolicy",
     "SandboxFilesystem",
@@ -98,6 +100,53 @@ test_that("configuration classes have matching uppercase CamelCase names", {
     class <- getExportedValue("mcp.console", name)
     expect_identical(class@name, name)
   }
+})
+
+test_that("printing ConsoleConfig retains complete descriptions and launch controls", {
+  description <- paste(rep("Complete description.", 50), collapse = "\n")
+  config <- ConsoleConfig(
+    sandbox = FALSE,
+    discovery = ConfigDiscovery(project = FALSE),
+    tool = ToolConfig(description = description)
+  )
+  printed <- capture.output(print(config))
+  expect_identical(printed[[1]], "<ConsoleConfig>")
+  document <- jsonlite::fromJSON(paste(printed[-1], collapse = "\n"))
+  expect_identical(document$tool$description, description)
+  expect_identical(document$sandbox, FALSE)
+  expect_identical(document$discovery, list(global = TRUE, project = FALSE))
+})
+
+test_that("new properties preserve existing positional constructor arguments", {
+  nested <- list(r = ToolParameterConfig(description = "R cell."))
+  parameter <- ToolParameterConfig("Requirements.", FALSE, nested)
+  expect_identical(parameter@parameters, nested)
+  expect_null(parameter@schema)
+  resolver <- ResolverConfig(environment = c(INDEX = "local"))
+  config <- ConsoleConfig(NULL, NULL, NULL, resolver, FALSE)
+  expect_identical(config@resolver, resolver)
+  expect_identical(config@sandbox, FALSE)
+  expect_null(config@startup)
+})
+
+test_that("fallback chains reject duplicate selectors and misplaced managed candidates", {
+  expect_error(
+    FirstAvailablePython(list("active_venv", "active_venv")),
+    "at most one active_venv"
+  )
+  expect_error(
+    FirstAvailablePython(list(ManagedPython(), ManagedPython())),
+    "ManagedPython.*last"
+  )
+  expect_error(
+    FirstAvailablePython(list(ManagedPython(), ExistingPython(".venv"))),
+    "ManagedPython.*last"
+  )
+  expect_no_error(S7::validate(FirstAvailablePython(list(
+    "active_venv",
+    ExistingPython(".venv"),
+    ManagedPython()
+  ))))
 })
 
 test_that("tool configuration preserves descriptions and nested parameter mappings", {
@@ -189,7 +238,7 @@ test_that("configuration rejects unsupported choices before launching", {
   expect_error(console_tool(project = "missing", path = "missing"), "project")
 })
 
-test_that("console_tool defaults to no discovery and exposes explicit source choices", {
+test_that("explicit configs preserve legacy source choices", {
   with_console_config_probe(function(path, record) {
     choices <- list(
       NULL,
@@ -212,16 +261,20 @@ test_that("console_tool defaults to no discovery and exposes explicit source cho
       c(
         "serve",
         "--no-config",
-        "--no-sandbox",
-        "-c",
-        "sandbox=null",
-        "-c",
-        "resolver.sandbox=null"
+        "--no-sandbox"
       )
     )
     for (i in seq_along(choices)) {
       tool <- console_tool(path = path, config = choices[[i]])
-      expect_identical(readLines(record, warn = FALSE), expected[[i]])
+      argv <- readLines(record, warn = FALSE)
+      file <- match("--config-overrides-file", argv)
+      expect_false(is.na(file))
+      expect_identical(argv[-c(file, file + 1L)], expected[[i]])
+      expect_false(file.exists(argv[[file + 1L]]))
+      expect_identical(
+        readLines(paste0(record, ".overrides")),
+        if (i == 7L) c("sandbox=null", "resolver.sandbox=null") else character()
+      )
       rm(tool)
       invisible(gc())
     }
@@ -238,24 +291,15 @@ test_that("runtime options layer while explicit permission nodes replace", {
       resolver = ResolverConfig(sandbox = SandboxPolicy())
     )
     tool <- console_tool(path = path, config = config)
-    argv <- readLines(record, warn = FALSE)
     expect_identical(
-      argv,
+      readLines(paste0(record, ".overrides")),
       c(
-        "serve",
-        "-c",
         "sandbox=null",
-        "-c",
         "resolver.sandbox=null",
-        "-c",
         "python=null",
-        "-c",
         "r={\"packages\":[]}",
-        "-c",
         "python={\"managed\":{\"packages\":[]}}",
-        "-c",
         "resolver={\"sandbox\":{}}",
-        "-c",
         "sandbox={}"
       )
     )
@@ -270,7 +314,11 @@ test_that("project selection changes only the child's launch directory", {
       project <- file.path(getwd(), "project with spaces")
       dir.create(project)
       old <- getwd()
-      tool <- console_tool(path = path, project = project)
+      tool <- console_tool(
+        path = path,
+        project = project,
+        config = ConsoleConfig()
+      )
       expect_identical(
         normalizePath(readLines(paste0(record, ".cwd"))),
         normalizePath(project)

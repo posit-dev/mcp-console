@@ -17,7 +17,8 @@ ConsoleConfig(
   cache = NULL,
   environment = NULL,
   inherit_environment = NULL,
-  tool = NULL
+  tool = NULL,
+  startup = NULL
 )
 }
 \arguments{
@@ -28,7 +29,8 @@ Both default to \code{TRUE} when \code{ConfigDiscovery()} is explicitly construc
 
 \item{r}{\code{NULL} or an \code{\link[=RConfig]{RConfig()}}.}
 
-\item{python}{\code{NULL}, an \code{\link[=ExistingPython]{ExistingPython()}}, or a \code{\link[=ManagedPython]{ManagedPython()}}.}
+\item{python}{\code{NULL}, an \code{\link[=ExistingPython]{ExistingPython()}}, a \code{\link[=ManagedPython]{ManagedPython()}}, or a
+\code{\link[=FirstAvailablePython]{FirstAvailablePython()}}.}
 
 \item{resolver}{\code{NULL} or a \code{\link[=ResolverConfig]{ResolverConfig()}}.}
 
@@ -48,6 +50,8 @@ of the trusted launch environment. Console retains its owned assignments.}
 
 \item{tool}{\code{NULL} or a \code{\link[=ToolConfig]{ToolConfig()}} customizing descriptions and parameter
 visibility.}
+
+\item{startup}{\code{NULL} or a \code{\link[=StartupConfig]{StartupConfig()}} selecting a SQL connection.}
 }
 \value{
 An S7 configuration object. The constructor is also its S7 class.
@@ -58,13 +62,19 @@ permissions, resolver settings, and tool presentation for \code{\link[=console_t
 Constructors have the same field names as Console's application configuration.
 }
 \details{
-With no configuration, Console uses its built-in defaults without reading
+An empty \code{ConsoleConfig()} uses built-in defaults without reading
 global or project configuration files. Workers can read host files, write
 private temporary storage, and cannot use the network. Dependency preparation
 retains its independent built-in permissions and may download packages.
 }
 \section{Discovery and layering}{
 
+Prefer \code{\link[=discover_console_config]{discover_console_config()}} to read files once into an inspectable
+object, or \code{\link[=materialize_console_config]{materialize_console_config()}} to fill defaults without file reads.
+\code{\link[=prune_console_config]{prune_console_config()}} produces a compact view of nondefault settings.
+\code{\link[=console_tool]{console_tool()}} discovers files when \code{config} is omitted.
+
+The following launch-time discovery interface is retained for existing callers.
 \code{ConfigDiscovery()} explicitly enables global and project file discovery.
 Disable either source with \code{global = FALSE} or \code{project = FALSE}. Project
 discovery reads \code{.agents/console/config.yaml} in \code{console_tool()}'s launch

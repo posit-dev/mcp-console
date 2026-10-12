@@ -8,7 +8,7 @@ console_tool(
   ...,
   path = NULL,
   version = NULL,
-  config = NULL,
+  config = discover_console_config(path = path, version = version, project = project),
   project = getwd()
 )
 }
@@ -20,13 +20,14 @@ console_tool(
 \item{version}{\code{NULL}, or one published \code{mcp-console} version, such as
 \code{"0.0.2"}.}
 
-\item{config}{\code{NULL} (equivalent to an empty \code{\link[=ConsoleConfig]{ConsoleConfig()}}), or a
-\code{ConsoleConfig()} combining runtimes, package preparation, permissions,
-and optional discovery. The default skips global and project config files
-and uses built-in permissions: host reads, private temporary writes, and
-no worker networking. Resolver defaults remain independent. Alternatively,
-pass the edited result of \code{\link[=resolve_console_config]{resolve_console_config()}}; it retains its
-executable and project, so omit \code{path}, \code{version}, and \code{project}.}
+\item{config}{A \code{\link[=ConsoleConfig]{ConsoleConfig()}}. By default, \code{\link[=discover_console_config]{discover_console_config()}}
+reads optional global/project files once and materializes their settings.
+Pass \code{ConsoleConfig()} to skip files and use built-in defaults: host reads,
+private temporary writes, and no worker networking. Resolver defaults are
+independent. A supplied config reads no files unless its legacy \code{discovery}
+property explicitly requests it. Explicit \code{NULL} retains the old behavior of
+\code{ConsoleConfig()}. Use the same \code{path}, \code{version}, and \code{project} when
+inspecting and launching a config.}
 
 \item{project}{Existing directory to use as the child process's working
 directory, defaulting to \code{getwd()}. Relative config and runtime paths use

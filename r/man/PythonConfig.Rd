@@ -4,11 +4,14 @@
 \alias{PythonConfig}
 \alias{ExistingPython}
 \alias{ManagedPython}
+\alias{FirstAvailablePython}
 \title{Select a Python environment}
 \usage{
 ExistingPython(existing = character(0))
 
 ManagedPython(version = NULL, packages = NULL, resolution = NULL)
+
+FirstAvailablePython(first_available = list())
 }
 \arguments{
 \item{existing}{Path to a Python executable or standard virtual environment,
@@ -23,6 +26,10 @@ optional startup packages. \code{character()} requests no optional packages.}
 
 \item{resolution}{\code{NULL}, \code{"automatic"}, \code{"explicit"}, or \code{"startup_only"}.
 To use preinstalled packages without preparation, choose \code{ExistingPython()}.}
+
+\item{first_available}{A nonempty list of \code{\link[=ExistingPython]{ExistingPython()}} candidates,
+optionally one \code{"active_venv"} and a final \code{\link[=ManagedPython]{ManagedPython()}} candidate.
+Only absent paths are skipped; present but unusable environments fail.}
 }
 \value{
 An S7 configuration object. The constructor is also its S7 class.

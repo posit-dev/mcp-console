@@ -5,14 +5,14 @@ test_that("console_tool transmits the same application policy object", {
       network = "restricted"
     )
     tool <- console_tool(path = path, config = ConsoleConfig(sandbox = policy))
-    argv <- readLines(record, warn = FALSE)
+    overrides <- readLines(paste0(record, ".overrides"))
     expect_identical(
-      argv[1:5],
-      c("serve", "--no-config", "-c", "sandbox=null", "-c")
+      overrides[[1]],
+      "sandbox=null"
     )
     expect_identical(
       jsonlite::fromJSON(
-        substring(argv[[6]], nchar("sandbox=") + 1L),
+        substring(overrides[[2]], nchar("sandbox=") + 1L),
         simplifyVector = FALSE
       ),
       as.list(policy)

@@ -27,6 +27,7 @@ reference:
   - title: Use Console with ellmer
     contents:
     - console_tool
+    - config-workflow
     - resolve_console_config
     - ConsoleConfig
     - ConfigDiscovery
@@ -37,6 +38,8 @@ reference:
     - RConfig
     - ExistingPython
     - ManagedPython
+    - FirstAvailablePython
+    - StartupConfig
     - ResolverConfig
   - title: Sandbox configuration
     contents:

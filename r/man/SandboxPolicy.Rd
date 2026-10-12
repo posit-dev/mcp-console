@@ -96,7 +96,7 @@ With \code{SandboxPolicy()}, workers can read host files and write their private
 temporary storage, but cannot write to the project or use the network.
 Add permissions for the operations your code needs. This default permits
 reading sensitive files unless you explicitly deny their paths.
-\code{console_tool()} also skips configuration-file discovery by default.
+Passing \code{ConsoleConfig(sandbox = policy)} skips configuration-file discovery.
 An explicit policy replaces permissions from any files you opt into reading.
 To disable sandboxing for both workers and preparation, use
 \code{ConsoleConfig(sandbox = FALSE)}.
