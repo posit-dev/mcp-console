@@ -348,11 +348,10 @@ def test_early_set_retains_configured_reset_baseline(
         env.pop("RETICULATE_PYTHON", None)
         with McpClient(binary, execution.serve(), env, root) as client:
             client.initialize_and_list_tools()
-            result = client.send(requirements={"action": "set"})
-            assert not result.get("isError"), result
+            client.expect("[prepared]", requirements={"action": "set"})
             assert inspect(client)["requirements"]["r"] == []
             wait_for_worker_ready(client, "worker after early requirements set")
-            client.send(requirements={"action": "reset"})
+            client.expect("[prepared]", requirements={"action": "reset"})
             startup = inspect(client)
             assert startup["requirements"]["r"] == ["praise"], startup
             assert startup["requirements"]["python"] == [], startup

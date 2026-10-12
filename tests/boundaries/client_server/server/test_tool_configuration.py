@@ -12,9 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.assertions import last_tool_text
 from support.client import McpClient
 from support.execution import DIRECT
+from support.presentation import without_descriptions
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.suites import run_this_suite
-from boundaries.client_server.server.test_presentation import _without_descriptions
 
 
 def _configure(root: Path, tool: dict) -> Path:
@@ -89,7 +89,7 @@ def test_replaces_complete_tool_prose(binary: Path) -> TranscriptWithCompanions:
             assert (
                 client.transcript[0]["result"]["instructions"] == "Evaluation server."
             )
-            assert _without_descriptions(tool) == _without_descriptions(baseline)
+            assert without_descriptions(tool) == without_descriptions(baseline)
             expected = {"description": description}
             for field, settings in parameters.items():
                 prefix = f"inputSchema.properties.{field}"

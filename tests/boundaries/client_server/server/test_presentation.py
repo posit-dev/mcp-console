@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.client import McpClient
 from support.execution import DIRECT
+from support.presentation import assert_tool_guidance, without_descriptions
 from support.records import Transcript
 from support.requirements import SQL
 from support.suites import run_this_suite
@@ -52,6 +53,7 @@ def _configured_language_matrix(binary: Path) -> Transcript:
                 properties = tool["inputSchema"]["properties"]
                 fields = set(properties) & {"r", "python", "sql"}
                 assert fields == set(enabled.split(",")), fields
+                assert_tool_guidance(tool, fields, custom=False)
                 description = tool["description"]
                 instructions = client.transcript[0]["result"]["instructions"]
                 paragraphs = description.split("\n\n")
@@ -97,8 +99,8 @@ def _configured_language_matrix(binary: Path) -> Transcript:
                             "properties": expected,
                         },
                     }
-                    expected_metadata = _without_descriptions(expected_tool)
-                    metadata = _without_descriptions(tool)
+                    expected_metadata = without_descriptions(expected_tool)
+                    metadata = without_descriptions(tool)
                     assert metadata == expected_metadata, "\n".join(
                         difflib.unified_diff(
                             json.dumps(expected_metadata, indent=2).splitlines(),
@@ -128,18 +130,6 @@ def _configured_language_matrix(binary: Path) -> Transcript:
                 if enabled == languages[0]:
                     records[-1].update(preparation_error=result, stderr=stderr)
     return records
-
-
-def _without_descriptions(value: object) -> object:
-    if isinstance(value, dict):
-        return {
-            key: _without_descriptions(item)
-            for key, item in value.items()
-            if key != "description"
-        }
-    if isinstance(value, list):
-        return [_without_descriptions(item) for item in value]
-    return value
 
 
 if __name__ == "__main__":

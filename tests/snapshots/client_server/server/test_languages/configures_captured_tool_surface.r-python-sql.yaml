@@ -1,4 +1,12 @@
 ---
+scenario: >-
+  Discover the configured tool interface, then verify that changing the
+  project file does not change this running server's tools.
+fixture: >-
+  The project file initially enables R, Python, and SQL; a CLI override
+  selects the languages below. The custom worker path is deliberately
+  unused: this case only performs discovery, then rewrites the file to
+  enable R alone and checks that tools/list is unchanged.
 languages:
   - r
   - python

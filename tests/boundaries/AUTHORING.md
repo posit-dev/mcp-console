@@ -3,6 +3,21 @@
 Locate a related case with `scripts/test --locate SELECTOR`, read its contract, and add a public regression before changing behavior.
 Follow the [validation ladder](../../docs/DEVELOPMENT.md#validation-ladder).
 
+## Readable session transcripts
+
+A client/server transcript should read as a plausible client session or a focused behavioral regression, not a second unit-test suite.
+Check schema, guidance, and configuration through public discovery or configuration interfaces.
+Extend existing cases rather than launching duplicate sessions for the same permutations.
+Before deleting a case, identify its surviving coverage and remove its producer and owned snapshots together.
+
+Make each YAML understandable without reading its Python fixture.
+Emit a short `scenario` and `fixture` description before initialization when setup is not evident from the exchanges.
+Identify fake workers, hidden runtimes, injected failures, gates, and host-side actions in one to three sentences; keep the prose in the producer so regeneration preserves it.
+Record one Console invocation per transcript, using companions for genuinely distinct sessions.
+
+Focused interrupt handlers and causal lifecycle fixtures are valid behavioral tests even when their cells contain assertions.
+Preserve real-library sandbox regressions and distinct permission, isolation, cold-cache, and activation paths; do not replace them with trivial programs.
+
 ## Embedded programs
 
 Use short strings for short fixtures and dedented multiline literals for longer programs.
@@ -26,7 +41,8 @@ Run `scripts/format` and inspect every formatter's result and the diff; `--stric
 
 ## Execution modes
 
-For portable cases, use `@executions(DIRECT, SANDBOXED)` and `execution.serve()`; the fixture chooses sandboxing.
+Use one execution mode for ordinary language or representation behavior: `@executions(RUNTIME)` selects the platform's runtime mode.
+Use `@executions(DIRECT, SANDBOXED)` only when the contract differs by mode, and launch through `execution.serve()`.
 Put sandbox-only arguments in explicit sandbox fixtures, for example `SANDBOXED.serve("--writable-root", str(root))`, with the appropriate capability.
 See [modes and requirements](README.md#requirements-and-execution-modes).
 

@@ -17,6 +17,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.installation import installed_console
 from support.linux_sandbox import retain_system_bwrap
 from support.normalization import code
+from support.presentation import assert_tool_guidance, without_descriptions
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.requirements import POSIX, R, SQL, requires
 from support.resolvers import expose_uv
@@ -64,14 +65,26 @@ def test_configures_captured_tool_surface(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
     transcripts = {}
+    context = {
+        "scenario": (
+            "Discover the configured tool interface, then verify that changing "
+            "the project file does not change this running server's tools."
+        ),
+        "fixture": (
+            "The project file initially enables R, Python, and SQL; a CLI override "
+            "selects the languages below. The custom worker path is deliberately "
+            "unused: this case only performs discovery, then rewrites the file "
+            "to enable R alone and checks that tools/list is unchanged."
+        ),
+    }
     for languages in (
+        ["r", "python", "sql"],
         ["sql"],
         ["sql", "python"],
         ["r"],
         ["python"],
         ["r", "sql"],
         ["r", "python"],
-        ["r", "python", "sql"],
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -89,6 +102,15 @@ def test_configures_captured_tool_surface(
             ) as client:
                 client.initialize_and_list_tools()
                 tool = _tool(client)
+                assert_tool_guidance(tool, set(languages), custom=True)
+                schema = without_descriptions(tool)
+                if languages == ["r", "python", "sql"]:
+                    baseline = schema
+                else:
+                    expected = without_descriptions(baseline)
+                    for field in {"r", "python", "sql"} - set(languages):
+                        del expected["inputSchema"]["properties"][field]
+                    assert schema == expected
                 fields = set(tool["inputSchema"]["properties"])
                 assert fields == {
                     *languages,
@@ -119,62 +141,7 @@ def test_configures_captured_tool_surface(
                 assert _tool(client) == tool
                 name = "-".join(languages) + ("-only" if len(languages) == 1 else "")
                 transcripts[f"{name}.yaml"] = McpTranscript(
-                    [{"languages": languages}] + client.finish()[:3]
-                )
-    return TranscriptWithCompanions(
-        transcripts.pop("sql-only.yaml").transcript, transcripts
-    )
-
-
-@requires(SQL)
-@executions(DIRECT)
-def test_builtin_guidance_matches_visible_languages(
-    binary: Path,
-    execution: Execution,
-) -> TranscriptWithCompanions:
-    transcripts = {}
-    for languages in (["sql"], ["sql", "python"], ["r", "sql"]):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            _configure(root, languages)
-            with McpClient(binary, DIRECT.serve(), _environment(root), root) as client:
-                client.initialize_and_list_tools()
-                tool = _tool(client)
-                assert (
-                    "Persistent "
-                    + " and ".join(
-                        name
-                        for name in ("R", "Python", "SQL")
-                        if name.lower() in languages
-                    )
-                    + " REPL"
-                    in tool["description"]
-                )
-                assert "CSV, Parquet, JSON, and JSONL directly" in tool["description"]
-                if "r" not in languages:
-                    assert "`r`" not in tool["description"]
-                properties = tool["inputSchema"]["properties"]
-                sql_guidance = properties["sql"]["description"]
-                assert ("With R-owned managed DuckDB" in sql_guidance) == (
-                    "r" in languages
-                )
-                if "r" not in languages:
-                    assert "from an R cell" not in sql_guidance
-                if "python" in languages:
-                    python_guidance = properties["python"]["description"]
-                    assert "on Python-owned DuckDB" in " ".join(python_guidance.split())
-                    assert "`r.name`" not in python_guidance
-                    assert "R plot rules" not in properties["python"]["description"]
-                else:
-                    assert (
-                        "register(name, frame)" not in properties["sql"]["description"]
-                    )
-                assert {"r", "python", "duckdb"} <= set(
-                    properties["requirements"]["properties"]
-                )
-                name = "-".join(languages) + ("-only" if len(languages) == 1 else "")
-                transcripts[f"{name}.yaml"] = McpTranscript(
-                    [{"languages": languages}] + client.finish()[:3]
+                    [{**context, "languages": languages}] + client.finish()[:3]
                 )
     return TranscriptWithCompanions(
         transcripts.pop("sql-only.yaml").transcript, transcripts
@@ -187,6 +154,19 @@ def test_sql_provider_guidance_is_independent_of_visibility(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
     transcripts = {}
+    context = {
+        "scenario": (
+            "Evaluate SQL with the visible languages below, checking that the "
+            "answer is 42 and that tool guidance stays independent of which "
+            "installed runtime provides SQL."
+        ),
+        "fixture": (
+            "These are real runtimes, not a fake worker. For the Python provider, "
+            "a private PATH exposes uv but hides R, and inherited R-selection "
+            "variables are removed; the R-provider case uses the host R. The "
+            "languages and provider below identify this invocation."
+        ),
+    }
     for languages in (["sql", "python"], ["r", "sql"]):
         advertised = None
         for without_r in (False, True):
@@ -241,7 +221,7 @@ def test_sql_provider_guidance_is_independent_of_visibility(
                     name = "-".join(languages) + f"-{provider.lower()}-provider"
                     session = client.finish()
                     transcripts[f"{name}.yaml"] = McpTranscript(
-                        [{"languages": languages, "provider": provider}]
+                        [{**context, "languages": languages, "provider": provider}]
                         + session[:3]
                         + [entry for entry in session[3:] if "send" in entry]
                     )

@@ -5,6 +5,7 @@ import json
 import signal
 import sys
 import tempfile
+import time
 from contextlib import ExitStack, closing
 from pathlib import Path
 
@@ -617,7 +618,15 @@ def early_requirements_with_pending_poll(
                 release.release()
                 prepared.wait("initial polling does not block candidate preparation")
                 proceed.release()
-                wait_for_path(evaluated, "accepted cell ran", client=client)
+                # Releasing IR permits materialization; the cell marker proves
+                # preparation, startup, and execution finished. Use the client's
+                # preparation deadline, including its case-cleanup reserve.
+                wait_for_path(
+                    evaluated,
+                    "accepted cell ran",
+                    client=client,
+                    timeout=max(0, client.response_deadline() - time.monotonic()),
+                )
                 if expire:
                     journal = next(
                         root.glob(".agents/console/sessions/*/internal/events.jsonl")

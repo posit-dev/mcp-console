@@ -1,4 +1,13 @@
 ---
+scenario: >-
+  Evaluate SQL with the visible languages below, checking that the answer
+  is 42 and that tool guidance stays independent of which installed
+  runtime provides SQL.
+fixture: >-
+  These are real runtimes, not a fake worker. For the Python provider, a
+  private PATH exposes uv but hides R, and inherited R-selection variables
+  are removed; the R-provider case uses the host R. The languages and
+  provider below identify this invocation.
 languages:
   - r
   - sql

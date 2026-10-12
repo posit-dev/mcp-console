@@ -1,6 +1,0 @@
----
-languages:
-  - r
-  - sql
----
-!same-as configured-r-sql MCP initialization for this execution mode

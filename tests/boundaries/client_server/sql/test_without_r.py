@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -89,7 +90,9 @@ def extension_cache(root: Path, execution: Execution) -> Path:
     )
 
 
-@requires(SQL)
+# SANDBOXED selects the shared Seatbelt/bubblewrap fixtures. Native Windows
+# sandbox coverage uses its separate acceptance suite.
+@requires(POSIX, SQL)
 @executions(SANDBOXED)
 def test_prepares_builtin_extensions_without_downloads(
     binary: Path, execution: Execution
@@ -102,8 +105,9 @@ def test_prepares_builtin_extensions_without_downloads(
             MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY=str(root / "extensions"),
         )
         arguments = ("-c", "cache=host")
-        # Prepare the ordinary dependencies before denying downloads. Only
-        # the subsequent built-in extension declaration needs to be offline.
+        # Prepare the ordinary dependencies before denying downloads. Managed
+        # preparation removes UV_OFFLINE, so the fixture supplies --offline
+        # through the real uv command rather than relying on cache freshness.
         with sql_client(binary, execution, env, root, arguments=arguments) as client:
             client.expect(
                 "(42,)\n",
@@ -111,6 +115,15 @@ def test_prepares_builtin_extensions_without_downloads(
             )
             client.finish()
         assert not list((root / "extensions").glob("**/json.duckdb_extension"))
+        assert not list((root / "extensions").glob("**/parquet.duckdb_extension"))
+        uv = root / "uv"
+        real_uv = uv.resolve()
+        uv.unlink()
+        uv.write_text(
+            "#!/bin/sh\nexec " + shlex.quote(str(real_uv)) + ' --offline "$@"\n',
+            encoding="utf-8",
+        )
+        uv.chmod(0o755)
         config = root / ".agents/console/config.yaml"
         config.parent.mkdir(parents=True, exist_ok=True)
         config.write_text(
@@ -118,7 +131,6 @@ def test_prepares_builtin_extensions_without_downloads(
                 {"resolver": {"sandbox": {"network": {"proxy": {"domains": {}}}}}}
             )
         )
-        env["UV_OFFLINE"] = "1"
         with sql_client(binary, execution, env, root, arguments=arguments) as client:
             client.expect(
                 "42\n",
@@ -134,7 +146,21 @@ def test_prepares_builtin_extensions_without_downloads(
                 "('42',)\n",
                 python="_console.sql_connection().execute('SELECT ?::JSON', [retained]).fetchone()",
             )
-            return client.finish()[3:]
+            return [
+                {
+                    "scenario": (
+                        "Prepare a built-in DuckDB extension while downloads are "
+                        "denied, preserving Python state."
+                    ),
+                    "fixture": (
+                        "A private PATH hides R. An earlier session prepares the real "
+                        "Python environment; this session wraps real uv with "
+                        "--offline and denies every resolver proxy domain. The "
+                        "json and parquet extensions are not cached, so success "
+                        "cannot depend on downloading either extension."
+                    ),
+                }
+            ] + client.finish()
 
 
 @requires(POSIX, SQL)

@@ -1,6 +1,0 @@
----
-languages:
-  - sql
-  - python
----
-!same-as sql-python MCP initialization for this execution mode

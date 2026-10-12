@@ -1,4 +1,15 @@
 ---
+scenario: >-
+  Prepare a built-in DuckDB extension while downloads are denied,
+  preserving Python state.
+fixture: >-
+  A private PATH hides R. An earlier session prepares the real Python
+  environment; this session wraps real uv with --offline and denies every
+  resolver proxy domain. The json and parquet extensions are not cached,
+  so success cannot depend on downloading either extension.
+---
+!same-as MCP initialization for this execution mode
+---
 send:
   python: |
     retained = 42

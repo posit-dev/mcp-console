@@ -64,8 +64,7 @@ def test_restart_adds_r_and_duckdb_requirements(
             current_directory=workspace,
         )
         client.initialize_and_list_tools()
-        client.send(r="restart_marker <- 42L")
-        assert last_tool_text(client) == "[done]"
+        client.expect("[done]", r="restart_marker <- 42L")
 
         client.send(
             control="restart",
@@ -144,8 +143,7 @@ def test_prepares_and_loads_duckdb_extensions(
             UNION ALL
             SELECT 7, 'other words'
             """)
-        client.send(sql=sql)
-        assert last_tool_text(client) == "[done]"
+        client.expect("[done]", sql=sql)
 
         client.send(
             requirements={"duckdb": ["json"]},
