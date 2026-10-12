@@ -1,0 +1,266 @@
+---
+scenario: Require a restart after automatic Python activation fails.
+fixture: >-
+  R is available. The uv fixture injects an activation failure after
+  preparation; the existing worker remains usable, but further requirement
+  changes require a restart.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: identity = object(); steps = []
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "arrow",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "arrow",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - arrow
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - arrow
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  python: steps.append('before'); import yaml12
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 128, in _activate
+          File "<string>", line 768, in _mcp_console_raise_setup_error
+          File "<string>", line 781, in _mcp_console_activate_environment
+          File "<frozen runpy>", line 287, in run_path
+          File "<frozen runpy>", line 98, in _run_module_code
+          File "<frozen runpy>", line 88, in _run_code
+          File "<preparation>/archive-v0/<environment>/bin/activate_this.py", line 1, in <module>
+            raise RuntimeError("synthetic activation failure")
+        RuntimeError: synthetic activation failure
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ModuleNotFoundError: No module named 'yaml12'.
+
+        MCP Console inferred the PyPI distribution `py-yaml12` from the import `yaml12`, but automatic package resolution failed:
+
+        Python activation failed; restart required
+
+        Import names and PyPI distribution names can differ. Retry with the correct distribution declared through `requirements.python` in the `send` call, for example:
+
+        requirements: {"python": ["py-yaml12"]}
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "arrow",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "arrow",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - arrow
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - arrow
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: "[restart required]"
+  isError: false
+---
+send:
+  python: assert steps == ['before']; print('worker still running')
+result:
+  content:
+    - type: text
+      text: |
+        worker still running
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: >-
+    assert 'identity' not in globals(); print('restart retained accepted
+    environment')
+result:
+  content:
+    - type: text
+      text: |
+        restart retained accepted environment
+  isError: false

@@ -153,7 +153,9 @@ def preparation_environment(root: Path, *, with_r: bool = False) -> dict[str, st
     return env
 
 
-def preparation_records(records: Transcript, root: Path) -> Transcript:
+def preparation_records(
+    records: Transcript, root: Path, *, include_initialization: bool = False
+) -> Transcript:
     for record in records:
         for content in record.get("result", {}).get("content", []):
             if content.get("type") != "text":
@@ -189,7 +191,7 @@ def preparation_records(records: Transcript, root: Path) -> Transcript:
             ):
                 text = normalize_python_resolution_error(text)
             content["text"] = text
-    return records[3:]
+    return records if include_initialization else records[3:]
 
 
 @requires(POSIX)
@@ -1277,7 +1279,9 @@ def automatic_resolution_failure_and_cancel_keep_accepted_state(
                     "retry resolved import\n",
                     python="import yaml12; print('retry resolved import')",
                 )
-                return preparation_records(client.finish(), root)
+                return preparation_records(
+                    client.finish(), root, include_initialization=with_r
+                )
         finally:
             started.close()
             os.close(alive)
@@ -1335,7 +1339,9 @@ def automatic_activation_failure_requires_restart(
                 "restart retained accepted environment\n",
                 python="assert 'identity' not in globals(); print('restart retained accepted environment')",
             )
-            return preparation_records(client.finish(), root)
+            return preparation_records(
+                client.finish(), root, include_initialization=with_r
+            )
 
 
 @requires(POSIX, SQL)
@@ -1715,7 +1721,9 @@ def live_python_activation_failure_requires_restart(
                 "accepted environment retained\n",
                 python="assert 'identity' not in globals(); print('accepted environment retained')",
             )
-            return preparation_records(client.finish(), root)
+            return preparation_records(
+                client.finish(), root, include_initialization=with_r
+            )
 
 
 @requires(POSIX)

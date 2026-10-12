@@ -1,4 +1,12 @@
 ---
+scenario: Withhold submitted code when live Python activation fails.
+fixture: >-
+  R is available. The uv fixture injects an activation failure while fd 2
+  is redirected to a temporary file. The case checks sideband diagnostic
+  delivery and preservation of accepted requirements.
+---
+!same-as MCP initialization for this execution mode
+---
 send:
   python: |
     import os, tempfile
@@ -22,13 +30,23 @@ result:
       text: |-
         {
           "requirements": {
-            "r": [],
+            "r": [
+              "DBI",
+              "arrow",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
             "python": [
               "numpy",
               "pandas",
               "matplotlib",
-              "plotnine",
-              "duckdb"
+              "plotnine"
             ],
             "duckdb": [
               "icu",
@@ -40,19 +58,38 @@ result:
           },
           "prepared": true,
           "runtime_requirements": {
-            "r": [],
+            "r": [
+              "DBI",
+              "arrow",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
             "python": []
           }
         }
   structuredContent:
     requirements:
-      r: []
+      r:
+        - DBI
+        - arrow
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
       python:
         - numpy
         - pandas
         - matplotlib
         - plotnine
-        - duckdb
       duckdb:
         - icu
         - json
@@ -61,7 +98,16 @@ result:
       exclude_newer: ~
     prepared: true
     runtime_requirements:
-      r: []
+      r:
+        - DBI
+        - arrow
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
       python: []
   isError: false
 ---
@@ -109,13 +155,23 @@ result:
       text: |-
         {
           "requirements": {
-            "r": [],
+            "r": [
+              "DBI",
+              "arrow",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
             "python": [
               "numpy",
               "pandas",
               "matplotlib",
-              "plotnine",
-              "duckdb"
+              "plotnine"
             ],
             "duckdb": [
               "icu",
@@ -127,19 +183,38 @@ result:
           },
           "prepared": true,
           "runtime_requirements": {
-            "r": [],
+            "r": [
+              "DBI",
+              "arrow",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
             "python": []
           }
         }
   structuredContent:
     requirements:
-      r: []
+      r:
+        - DBI
+        - arrow
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
       python:
         - numpy
         - pandas
         - matplotlib
         - plotnine
-        - duckdb
       duckdb:
         - icu
         - json
@@ -148,7 +223,16 @@ result:
       exclude_newer: ~
     prepared: true
     runtime_requirements:
-      r: []
+      r:
+        - DBI
+        - arrow
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
       python: []
   isError: false
 ---

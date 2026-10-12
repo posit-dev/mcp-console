@@ -155,11 +155,11 @@ def test_initializes_and_lists_tools(
             binary, execution, bootstrap_languages="r", writable=True
         )
     baseline = _initializes_and_lists_tools(binary, execution)
-    # Runtime discovery must not change the configured public interface.
+    # Keep every real discovery probe, but compare the complete exchange
+    # instead of storing another byte-identical canonical transcript.
     for name in ("bare.yaml", "python-only.yaml", "python-managed.yaml"):
-        assert (
-            companions[name][2]["result"]["tools"] == baseline[2]["result"]["tools"]
-        ), name
+        assert companions.pop(name) == baseline, name
+    assert companions.pop("r-sql.yaml") == companions["configured-r-sql.yaml"]
     return TranscriptWithCompanions(baseline, companions)
 
 

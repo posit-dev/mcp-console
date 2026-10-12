@@ -18,7 +18,7 @@ from support.requirements import NATIVE_FIXTURES, POSIX, R, SQL, requires
 from support.assertions import last_tool_text, wait_for_evaluation_output
 from support.checkpoints import FifoCheckpoint, wait_for_worker_file
 from support.client import McpClient, stop_client
-from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_test_environment
 from support.native import SHARED_LIBRARY_FLAG, build_interposer
@@ -76,7 +76,7 @@ def test_prepares_builtin_extensions_without_downloads(
 
 
 @requires(R, SQL)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_gets_selects_and_resets_the_active_native_connection(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -377,7 +377,7 @@ def test_routes_sql_cells_to_a_selected_dbi_connection(
 
 
 @requires(R, SQL)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_python_restores_managed_connection_before_r_reads_it(
     binary: Path,
     execution: Execution,
@@ -470,7 +470,7 @@ def test_python_restores_managed_connection_before_r_reads_it(
 
 
 @requires(R, SQL)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_routes_sql_cells_to_a_selected_python_dbapi_connection(
     binary: Path,
     execution: Execution,
@@ -633,7 +633,7 @@ def test_routes_sql_cells_to_a_selected_python_dbapi_connection(
 
 
 @requires(SQL)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_preserves_selected_python_duckdb_connection_state(
     binary: Path,
     execution: Execution,
@@ -675,7 +675,7 @@ def test_preserves_selected_python_duckdb_connection_state(
 
 
 @requires(SQL)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_reports_python_dbapi_cursor_cleanup_failures(
     binary: Path,
     execution: Execution,
@@ -725,7 +725,7 @@ def test_reports_python_dbapi_cursor_cleanup_failures(
 
 
 @requires(SQL)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_recovers_when_python_dbapi_connection_raises_base_exception(
     binary: Path,
     execution: Execution,

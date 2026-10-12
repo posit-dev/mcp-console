@@ -1728,23 +1728,49 @@ def r_startup_with_python(
 @executions(DIRECT, SANDBOXED)
 def test_shared_managed_import_failures(
     binary: Path, execution: Execution
-) -> Transcript:
+) -> TranscriptWithCompanions:
     from boundaries.client_server.python.test_without_r import (
         automatic_activation_failure_requires_restart,
         automatic_resolution_failure_and_cancel_keep_accepted_state,
     )
 
-    records = None
-    for with_r in (False, True):
-        failures = automatic_resolution_failure_and_cancel_keep_accepted_state(
-            binary, execution, with_r=with_r
-        )
-        activation = automatic_activation_failure_requires_restart(
-            binary, execution, with_r=with_r
-        )
-        if records is None:
-            records = failures + activation
-    return records
+    # The owning no-R cases already run these exact helpers with with_r=False.
+    # Keep each R-enabled invocation as its own transcript rather than recording
+    # another no-R copy and discarding the R-enabled evidence.
+    failures = automatic_resolution_failure_and_cancel_keep_accepted_state(
+        binary, execution, with_r=True
+    )
+    activation = automatic_activation_failure_requires_restart(
+        binary, execution, with_r=True
+    )
+    return TranscriptWithCompanions(
+        [
+            {
+                "scenario": "Recover from failed and cancelled automatic Python preparation.",
+                "fixture": (
+                    "R is available. A wrapper around real uv fails one resolution, "
+                    "then blocks another behind FIFOs so the client can interrupt it. "
+                    "The accepted state is checked before a successful retry."
+                ),
+            }
+        ]
+        + failures,
+        {
+            "activation.yaml": McpTranscript(
+                [
+                    {
+                        "scenario": "Require a restart after automatic Python activation fails.",
+                        "fixture": (
+                            "R is available. The uv fixture injects an activation failure "
+                            "after preparation; the existing worker remains usable, but "
+                            "further requirement changes require a restart."
+                        ),
+                    }
+                ]
+                + activation
+            )
+        },
+    )
 
 
 @requires(POSIX)
@@ -1757,11 +1783,17 @@ def test_shared_managed_tool_activation_failure(
         live_python_activation_failure_requires_restart,
     )
 
-    records = None
-    for with_r in (False, True):
-        current = live_python_activation_failure_requires_restart(
-            binary, execution, with_r=with_r
-        )
-        if records is None:
-            records = current
-    return records
+    # The no-R owner runs the same helper without R; do not repeat that session.
+    transcript = live_python_activation_failure_requires_restart(
+        binary, execution, with_r=True
+    )
+    return [
+        {
+            "scenario": "Withhold submitted code when live Python activation fails.",
+            "fixture": (
+                "R is available. The uv fixture injects an activation failure while "
+                "fd 2 is redirected to a temporary file. The case checks sideband "
+                "diagnostic delivery and preservation of accepted requirements."
+            ),
+        }
+    ] + transcript
