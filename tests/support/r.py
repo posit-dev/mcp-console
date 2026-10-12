@@ -17,8 +17,13 @@ from support.execution import Execution
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 # R accepts the Windows code-page suffix and platform-native Unix locale names.
+# macOS accepts bare UTF-8 for LC_CTYPE only; LC_ALL needs a full locale name.
 UTF8_LOCALE = (
-    ".UTF-8" if os.name == "nt" else "C.UTF-8" if sys.platform == "linux" else "UTF-8"
+    ".UTF-8"
+    if os.name == "nt"
+    else "C.UTF-8"
+    if sys.platform == "linux"
+    else "en_US.UTF-8"
 )
 
 
