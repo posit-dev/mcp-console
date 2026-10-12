@@ -10,6 +10,7 @@ on:
       - pyproject.toml
       - great-docs.yml
       - tests/website.py
+      - tests/snapshots/cli/interface/test_help/**
       - .github/workflows/docs.yaml
   push:
     branches: [main]
@@ -21,6 +22,7 @@ on:
       - pyproject.toml
       - great-docs.yml
       - tests/website.py
+      - tests/snapshots/cli/interface/test_help/**
       - .github/workflows/docs.yaml
   workflow_dispatch:
 

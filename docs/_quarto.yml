@@ -6,6 +6,7 @@ project:
   render:
     - index.qmd
     - getting-started.qmd
+    - cli-help.qmd
     - README.md
     - "*.md"
     - benchmarks/*.md
@@ -57,6 +58,7 @@ website:
         - REQUIREMENTS.md
         - SEND_OPERATIONS.md
         - CLI.md
+        - cli-help.qmd
         - ENVIRONMENT.md
         - GLOSSARY.md
         - href: python/reference/index.html

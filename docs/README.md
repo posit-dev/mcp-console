@@ -19,7 +19,7 @@ Host-specific setup is in [Linux compatibility](LINUX_COMPATIBILITY.md) and [Win
 | Interface                          | Reference                                                                               |
 | ---------------------------------- | --------------------------------------------------------------------------------------- |
 | MCP tool                           | [`send` API](API.md)                                                                    |
-| Command line                       | [CLI](CLI.md)                                                                           |
+| Command line                       | [CLI](CLI.md), [help printouts](cli-help.qmd)                                           |
 | Application configuration          | [Configuration](CONFIGURATION.md)                                                       |
 | Worker permissions                 | [Sandbox configuration](SANDBOX_CONFIGURATION.md)                                       |
 | Preparation permissions and caches | [Resolver](RESOLVER.md)                                                                 |

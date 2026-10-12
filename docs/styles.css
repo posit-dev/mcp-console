@@ -17,6 +17,41 @@ code {
   color: inherit;
 }
 
+pre.cli-help {
+  background-color: #f5f8f7;
+  box-shadow: inset 0 0 0 1px var(--bs-border-color);
+  color: var(--bs-body-color);
+  font-family: var(--bs-font-monospace);
+  font-weight: 500;
+  overflow-x: auto;
+  padding: 1rem;
+  white-space: pre;
+}
+
+pre.cli-help code {
+  background-color: transparent;
+  color: inherit;
+  white-space: inherit;
+}
+
+.cli-help-heading {
+  color: #007f3b;
+  font-weight: 700;
+}
+
+.quarto-dark pre.cli-help {
+  background-color: #131c22;
+}
+
+.quarto-dark .cli-help-heading {
+  color: #5fe084;
+}
+
+.cli-help-tabs .nav-link.active {
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
 .home-links {
   margin: 1.5rem 0 2rem;
 }

@@ -120,6 +120,8 @@ python3 tests/website.py
 ```
 
 The website test renders a fresh temporary copy and checks titles, navigation, search, and local links/anchors, including both package references.
+The CLI help page reads the Unix and Windows YAML snapshots from the CLI acceptance tests and presents each successful `--help` command.
+Update those snapshots with `scripts/test --update cli/interface/test_help` on the relevant platform when help changes; the docs build reads them without building or running Console.
 Quarto's post-render scripts build `docs/_site/r/` and `docs/_site/python/`.
 Python reference uses static source analysis, and the R workflow vignette displays its examples without execution, so API credentials and a Console executable are not required for those builds.
 

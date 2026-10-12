@@ -1,6 +1,7 @@
 # Command-line reference
 
 Run `mcp-console --help` or a subcommand's `--help` for the installed build's complete option list.
+The website's [CLI help](cli-help.qmd) shows the printouts checked by the CLI tests.
 Console runs commands on the local host; it does not create remote connections or containers.
 
 ## MCP server

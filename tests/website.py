@@ -13,6 +13,7 @@ from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 
 from bs4 import BeautifulSoup
+from yaml12 import read_yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -73,6 +74,10 @@ class WebsiteTests(unittest.TestCase):
             ignore=shutil.ignore_patterns("docs", "*.Rcheck", "*.tar.gz"),
         )
         shutil.copytree(ROOT / "python", docs.parent / "python")
+        shutil.copytree(
+            ROOT / "tests/snapshots/cli/interface/test_help",
+            docs.parent / "tests/snapshots/cli/interface/test_help",
+        )
         for name in ("pyproject.toml", "great-docs.yml", "LICENSE"):
             shutil.copy2(ROOT / name, docs.parent / name)
         for directory in (docs, docs / "benchmarks"):
@@ -139,6 +144,50 @@ class WebsiteTests(unittest.TestCase):
             "https://t-kalinowski.github.io/mcp-console/r/articles/autonomous-report.html",
             {entry["path"] for entry in search},
         )
+
+    def test_cli_help_matches_tested_transcripts(self) -> None:
+        path = self.site / "cli-help.html"
+        self.assertIn(path, self.pages, "CLI help page is missing")
+        soup = BeautifulSoup(path.read_text(), "html.parser")
+        for platform, filename in (
+            ("unix", "help.yaml"),
+            ("windows", "help.win32.yaml"),
+        ):
+            with self.subTest(platform=platform):
+                entries = read_yaml(
+                    ROOT / "tests/snapshots/cli/interface/test_help" / filename,
+                    multi=True,
+                )
+                expected = [
+                    (entry["command"], entry["stdout"].rstrip("\n"))
+                    for entry in entries
+                    if entry["command"].endswith(" --help")
+                ]
+                panel = soup.find(id=platform)
+                self.assertIsNotNone(panel, "platform panel is missing")
+                actual = [
+                    (pre["data-command"], pre.get_text().rstrip("\n"))
+                    for pre in panel.select("pre.cli-help")
+                ]
+                self.assertEqual(actual, expected)
+                headings = [
+                    heading.get_text().strip() for heading in panel.select("h3")
+                ]
+                self.assertEqual(
+                    headings,
+                    [command.removesuffix(" --help") for command, _ in expected],
+                )
+        search = json.loads((self.site / "search.json").read_text())
+        self.assertIn(
+            "cli-help.html", {urlsplit(entry["href"]).path for entry in search}
+        )
+        guide = self.site / "CLI.html"
+        destinations = {
+            (guide.parent / unquote(urlsplit(link).path)).resolve()
+            for link in self.pages[guide].links
+            if not urlsplit(link).scheme and not urlsplit(link).netloc
+        }
+        self.assertIn(path, destinations)
 
     def test_r_package_subsite(self) -> None:
         home = (self.site / "r/index.html").resolve()
