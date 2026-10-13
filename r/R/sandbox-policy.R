@@ -165,8 +165,10 @@ config_flag <- function() {
 #'
 #' @section Local applications and Unix sockets:
 #' `SandboxNetwork(allow_local_binding = TRUE)` allows local networking needed
-#' by development servers. For workers this defaults to `FALSE`; for dependency
-#' preparation it defaults to `TRUE`. On macOS, enabling it allows loopback
+#' by development servers. The default `"auto"` (also selected by `NULL`)
+#' preserves `FALSE` for Unix workers and `TRUE` for Unix dependency preparation.
+#' Windows MXC proxies require `TRUE`; `"auto"` enables it and explicit `FALSE`
+#' is rejected. On macOS, enabling it allows loopback
 #' listeners and direct connections to host loopback services, including their
 #' HTTP or WebSocket traffic. Those direct connections bypass domain and proxy
 #' method filtering. It also relaxes the proxy's private-address checks.
@@ -378,8 +380,8 @@ SandboxSockets <- S7::new_class(
 #'   mapping. A network mapping always enables a managed proxy. Use a scalar
 #'   network choice in `SandboxPolicy()` for proxy-free networking.
 #' @param sockets `NULL` or a `SandboxSockets()`.
-#' @param allow_local_binding `NULL` (defaults to `FALSE` for workers and `TRUE`
-#'   for resolvers), `TRUE` to permit local networking and relax private-address
+#' @param allow_local_binding `"auto"` (the default) or `NULL` to select the
+#'   platform/context default, `TRUE` to permit local networking and relax private-address
 #'   checks, or `FALSE` to restrict it. On macOS, `TRUE` permits loopback listeners
 #'   and direct host-loopback connections. Linux managed-proxy ports remain
 #'   inside a private network namespace.
@@ -390,7 +392,20 @@ SandboxNetwork <- S7::new_class(
   properties = list(
     proxy = S7::new_property(SandboxProxy, default = quote(SandboxProxy())),
     sockets = NULL | SandboxSockets,
-    allow_local_binding = config_flag()
+    allow_local_binding = S7::new_property(
+      NULL | S7::class_character | S7::class_logical,
+      default = "auto",
+      validator = function(value) {
+        if (
+          !is.null(value) &&
+            (length(value) != 1L ||
+              is.na(value) ||
+              (is.character(value) && value != "auto"))
+        ) {
+          "must be NULL, auto, TRUE, or FALSE"
+        }
+      }
+    )
   )
 )
 
@@ -425,6 +440,15 @@ SandboxPolicy <- S7::new_class(
 # Wire conversion preserves omissions, mappings, and arrays; native validation
 # and defaults remain the CLI's responsibility.
 config_mapping <- function(fields) {
+  # NULL is an explicit reset here, not an omitted property. Keep the auto
+  # selector in layered overrides; native capture owns platform resolution.
+  if (
+    "allow_local_binding" %in%
+      names(fields) &&
+      is.null(fields$allow_local_binding)
+  ) {
+    fields$allow_local_binding <- "auto"
+  }
   fields <- fields[!vapply(fields, is.null, logical(1))]
   arrays <- c(
     "read_only",
