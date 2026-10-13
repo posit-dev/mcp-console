@@ -165,7 +165,7 @@ Use a child-specific environment rather than mutating a multithreaded parent's g
 
 The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/8bcbf394a3a6171d9bb3a566976d456f52bd2aec/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
 Console still enforces its Windows MXC requirement at this boundary and rejects retired Windows controls.
-Complete policies use the native boolean `allow_local_binding` contract; the public `auto` selector belongs to the shared YAML schema above.
+Complete policies use the native boolean `proxy.allowLocalBinding` field; the public `auto` selector belongs to the shared YAML schema above.
 Runnable examples are provided in [shell](../examples/sandbox-config.sh), [Python](../examples/sandbox-config.py), and [R](../examples/sandbox-config.R).
 
 Complete policies can request OS-specific options unavailable in `config.yaml`.

@@ -43,6 +43,11 @@ def test_help(binary: Path) -> Transcript:
     for entry in entries:
         output = entry.get("stdout", "") + entry.get("stderr", "")
         assert all(len(line) <= 80 for line in output.splitlines()), entry
+        # Executable suffixes are presentation, not a different CLI contract.
+        # Assert wrapping above before normalizing the shared transcript.
+        for stream in ("stdout", "stderr"):
+            if stream in entry:
+                entry[stream] = entry[stream].replace("mcp-console.exe", "mcp-console")
     return entries
 
 
