@@ -86,7 +86,7 @@ sandbox:
 ```
 
 Full mode is the default and supports HTTP/HTTPS proxying and the selected SOCKS mode.
-`socks5` accepts `disabled`, `tcp` (default), or `tcp_udp` in the schema; **Console currently rejects `tcp_udp` on macOS and Linux**, as described below.
+`socks5` accepts `disabled`, `tcp` (default), or `tcp_udp` in the schema; **Console currently rejects `tcp_udp` on every platform**, as described below.
 
 Limited mode permits plain HTTP GET, HEAD, and OPTIONS.
 It rejects POST, HTTPS CONNECT, and SOCKS; every explicitly supplied `socks5` field is invalid in limited mode, even `disabled`.
@@ -124,6 +124,7 @@ Native macOS direct-socket grants use subpath matching, so this is not an exact-
 Filesystem permissions still apply.
 
 `allow_local_binding` defaults to false for workers and true for resolvers.
+Windows MXC proxies require an explicit `allow_local_binding: true`; native host-loopback access is bidirectional.
 It affects private-address checks and native local socket access, including macOS loopback traffic and DNS.
 It does not expose a Linux network namespace to a host browser.
 
@@ -132,11 +133,11 @@ Limited mode therefore does not restrict every granted channel to GET/HEAD/OPTIO
 
 ## Native capabilities
 
-| Platform | Important limits                                                                                                                                     |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| macOS    | Managed proxy supported. Console rejects `tcp_udp`; historical evidence records a native reply-routing issue.                                        |
-| Linux    | Managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific.     |
-| Windows  | Managed proxy mappings and explicit `resolver.sandbox` settings are rejected. Resolver environment/cache controls still apply with host permissions. |
+| Platform | Important limits                                                                                                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS    | Managed proxy supported. Console rejects `tcp_udp`; historical evidence records a native reply-routing issue.                                                                        |
+| Linux    | Managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific.                                     |
+| Windows  | MXC supports TCP proxies with `allow_local_binding: true`. UDP, Unix sockets, and explicit `resolver.sandbox` settings are rejected. Legacy backends do not support managed proxies. |
 
 A common schema does not imply equal native capabilities.
 Console rejects unsupported explicit requests rather than silently ignoring them.
@@ -157,7 +158,7 @@ The runner consumes it; stdin belongs to the target.
 This mode rejects `-c`, discovery options, and writable-root composition.
 Use a child-specific environment rather than mutating a multithreaded parent's global environment.
 
-The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/42322a3931c2feeab838351e41d8048b1de8eb62/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) is authoritative; its private protocol is unversioned.
+The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/d77a1b391e88532b955e139192e1041ce1dc9b9c/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) is authoritative; its private protocol is unversioned.
 Runnable examples are provided in [shell](../examples/sandbox-config.sh), [Python](../examples/sandbox-config.py), and [R](../examples/sandbox-config.R).
 
 Complete policies can request OS-specific options unavailable in `config.yaml`.
@@ -184,10 +185,12 @@ Cleanup is not proof of isolation.
 
 ## Windows backend selection
 
-Ordinary application launches use the native elevated backend and default state directory.
-Provision it explicitly with `mcp-console sandbox-setup`.
-A complete policy may select `unelevated`, which requires enabled networking and host reads and rejects read-deny policy.
-It does not silently replace an unavailable elevated sandbox.
+Ordinary application launches use native `auto` selection: compatible hosts and policies use MXC, otherwise the runner selects the elevated backend.
+Existing Console sandbox accounts keep `auto` on elevated because their credential locations are not registered for MXC protection.
+MXC needs no setup; elevated execution requires explicit provisioning with `mcp-console sandbox-setup`.
+A complete policy may set `windows_backend` to `auto`, `mxc`, `elevated`, or `unelevated`.
+Unelevated execution requires enabled networking and host reads and rejects read-deny policy.
+Explicit backend selections fail if unavailable; launch failures never trigger a backend retry.
 See [Windows](WINDOWS.md#native-sandbox).
 
 ## Explicit Linux backend selection

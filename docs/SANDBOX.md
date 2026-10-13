@@ -55,7 +55,8 @@ Fresh procfs is optional; inherited procfs can expose host PIDs and readable met
 A stopped namespace init can exceed cleanup deadlines when emergency termination facilities are unavailable.
 See [Linux compatibility](LINUX_COMPATIBILITY.md).
 
-**Windows x64:** Experimental native execution uses explicitly provisioned sandbox accounts, filesystem ACLs, network rules, and a non-breakaway Job.
+**Windows x64:** Experimental native execution prefers compatible MXC containers; otherwise it uses the elevated backend with explicitly provisioned sandbox accounts, filesystem ACLs, and network rules.
+Existing Console accounts keep automatic selection on the elevated backend.
 The runner confirms Job retirement before successful exit and private-storage removal.
 See [Windows setup](WINDOWS.md#native-sandbox).
 

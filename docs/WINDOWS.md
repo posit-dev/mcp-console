@@ -18,8 +18,6 @@ From PowerShell in the repository root:
 
 ```powershell
 uv tool install --reinstall .
-mcp-console sandbox-setup
-mcp-console sandbox-setup --status
 mcp-console serve
 ```
 
@@ -47,9 +45,15 @@ There is no automatic fallback to host execution when sandbox setup fails.
 
 ## Native sandbox
 
-`mcp-console sandbox-setup` explicitly provisions or refreshes Console's resources through UAC.
-Run it interactively.
-Ordinary launches fail with setup guidance if provisioning is missing or outdated; they do not provision accounts or choose a weaker backend silently.
+Ordinary `config.yaml` launches use native `auto` selection, preferring MXC when the host and policy support it.
+MXC needs no setup.
+Otherwise, `auto` selects the elevated backend, which requires explicitly provisioned Console resources.
+Existing Console sandbox accounts keep `auto` on elevated: their credential locations are not registered for MXC protection.
+Explicit backend selections and launch failures never trigger a retry through another backend.
+
+For elevated execution, `mcp-console sandbox-setup` explicitly provisions or refreshes Console's resources through UAC.
+Run it interactively, then use `mcp-console sandbox-setup --status` to inspect readiness.
+Elevated launches fail with setup guidance if provisioning is missing or outdated; they do not provision accounts automatically.
 
 Setup creates or reuses:
 
@@ -61,15 +65,27 @@ The default state directory is `%LOCALAPPDATA%\mcp-console`.
 Use one stable directory per Windows user; accounts and network policy are machine resources, and ACL entries persist on filesystem objects.
 `--status` reports readiness without provisioning; it is not a fresh firewall audit.
 
-Ordinary `config.yaml` launches use the elevated backend and default state directory.
-It enforces restricted networking and filesystem writes and supplies private `TMPDIR`, `TEMP`, and `TMP`.
+The runner enforces the selected networking and filesystem policy and supplies private `TMPDIR`, `TEMP`, and `TMP`.
 Workspace permissions use the common [sandbox schema](SANDBOX_CONFIGURATION.md).
 
-Complete native policies may choose another state directory or opt into the unelevated backend.
+Complete native policies may set `windows_backend` to `auto`, `mxc`, `elevated`, or `unelevated`, or select another legacy state directory with `windows_state_dir`.
 Unelevated execution requires enabled networking and host reads and rejects read-deny policy.
 Those controls are not fields in the public YAML schema.
 
-Managed proxy mappings and explicit resolver sandbox policies are unsupported and rejected.
+MXC supports managed HTTP/HTTPS and SOCKS5 TCP proxies with explicit local binding permission:
+
+```yaml
+sandbox:
+  network:
+    proxy:
+      domains:
+        allow: [api.example.com]
+    allow_local_binding: true
+```
+
+MXC host-loopback access is bidirectional, so it cannot disable local binding while a proxy is enabled.
+UDP, Unix sockets, and managed proxies on legacy backends are unsupported and rejected.
+Explicit resolver sandbox policies remain unsupported.
 Resolver environment/cache settings remain usable with host permissions.
 
 ## Lifecycle and platform differences
@@ -91,6 +107,9 @@ Direct execution reaps its direct worker but does not guarantee descendant clean
 Use Python 3.13 to match CI.
 Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an explicitly provisioned sandbox.
 Native acceptance does not provision the machine itself.
+CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console and before provisioning legacy sandbox accounts.
+This separate acceptance check requires a successful MXC proxy launch; an unavailable native backend or existing legacy accounts fail the check.
+The remaining native suite runs after provisioning and retains the public proxy configuration checks.
 
 ```powershell
 $env:LC_ALL = 'C'

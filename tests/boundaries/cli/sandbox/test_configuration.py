@@ -603,10 +603,9 @@ def test_rejects_removed_landlock_before_target_execution(binary: Path) -> Trans
         }
         result = invoke(binary, config, "/bin/echo", "must not run")
         assert result.returncode == 1 and result.stdout == "", result
-        assert result.stderr == (
-            "mcp-console-sandbox: linux_backend landlock has been removed; "
-            "omit linux_backend or use bubblewrap\n"
-        ), result
+        # The pinned schema no longer parses the removed enum variant.
+        # Keep its complete parse diagnostic and source location in the snapshot.
+        assert "invalid configuration JSON (Data at line 1," in result.stderr, result
         transcript.append(
             {
                 "filesystem": filesystem["kind"],
@@ -750,7 +749,7 @@ def test_bubblewrap_enforces_root_write_carveouts(binary: Path) -> Transcript:
 def test_linux_backend_is_rejected_on_macos(binary: Path) -> Transcript:
     result = invoke(
         binary,
-        configuration() | {"linux_backend": "landlock"},
+        configuration() | {"linux_backend": "bubblewrap"},
         "/bin/echo",
         "must not run",
     )

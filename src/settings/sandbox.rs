@@ -254,12 +254,12 @@ impl Sandbox {
                 policy.insert("network".into(), "enabled".into());
             }
             Some(Network::Managed(network)) => {
-                if cfg!(windows) {
+                let local = network.allow_local_binding.unwrap_or(resolver);
+                if cfg!(windows) && !local {
                     return Err(format!(
-                        "{prefix}.network.proxy: managed proxies are not supported by the pinned Windows runner"
+                        "{prefix}.network.proxy: Windows MXC requires allow_local_binding: true"
                     ));
                 }
-                let local = network.allow_local_binding.unwrap_or(resolver);
                 let (mode, socks, domains, upstream) = match network.proxy {
                     Proxy::Full {
                         domains,
@@ -271,6 +271,11 @@ impl Sandbox {
                     }
                 };
                 if matches!(socks, Socks::TcpUdp) {
+                    if cfg!(windows) {
+                        return Err(format!(
+                            "{prefix}.network.proxy.socks5: SOCKS5 UDP is not supported on Windows"
+                        ));
+                    }
                     // This pin's Linux bridge is TCP-only. Its native async
                     // UDP inspector also routes received replies back south,
                     // so macOS cannot provide a working request/reply channel.
@@ -301,6 +306,11 @@ impl Sandbox {
                     UnixSockets::Allow(paths) => (paths, false),
                     UnixSockets::All => (Vec::new(), true),
                 };
+                if cfg!(windows) && (all || !sockets.is_empty()) {
+                    return Err(format!(
+                        "{prefix}.network.sockets.unix_sockets: Unix sockets are not supported on Windows"
+                    ));
+                }
                 for (index, path) in sockets.iter().enumerate() {
                     if !std::path::Path::new(path).is_absolute() {
                         return Err(format!(

@@ -1,12 +1,10 @@
 ---
 filesystem: restricted
-stderr: >
-  mcp-console-sandbox: linux_backend landlock has been removed; omit
-  linux_backend or use bubblewrap
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 177)
 exit_code: 1
 ---
 filesystem: unrestricted
-stderr: >
-  mcp-console-sandbox: linux_backend landlock has been removed; omit
-  linux_backend or use bubblewrap
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 90)
 exit_code: 1
