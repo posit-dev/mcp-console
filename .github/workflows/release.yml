@@ -29,7 +29,9 @@ jobs:
   wheels:
     name: pypi-${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    # Cold ARM R preparation can take 30 minutes after native compilation.
+    # Leave the smoke test its full, separately bounded startup allowance.
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
@@ -282,6 +284,17 @@ jobs:
 
       - name: Accept installed Windows wheel
         run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"
+
+      - name: Report Windows sandbox failure
+        if: failure()
+        run: |
+          $logDirectory = "$env:LOCALAPPDATA/mcp-console/.sandbox"
+          if (Test-Path $logDirectory) {
+            Get-ChildItem $logDirectory -Filter 'sandbox.*.log' -File | ForEach-Object {
+              Write-Output $_.FullName
+              Get-Content $_.FullName
+            }
+          }
 
       - name: Upload wheel
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
