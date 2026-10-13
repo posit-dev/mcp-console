@@ -123,8 +123,13 @@ There are no deny lists or globs.
 Native macOS direct-socket grants use subpath matching, so this is not an exact-path firewall across every socket route.
 Filesystem permissions still apply.
 
-`allow_local_binding` defaults to false for workers and true for resolvers.
-Windows MXC proxies require an explicit `allow_local_binding: true`; native host-loopback access is bidirectional.
+`allow_local_binding` accepts `auto` (the default), `null`, `true`, or `false`.
+Omission and explicit `null` select `auto`; a later `null` replaces an earlier boolean.
+Console resolves it after normal file and CLI layering and shows the effective boolean in `config resolve --full`.
+On Unix, `auto` preserves false for workers and true for resolvers, whose installers need coordination and DNS.
+On Windows, `auto` enables local binding for a managed proxy because MXC host-loopback access is bidirectional.
+Explicit `true` permits local binding; explicit `false` prohibits it and is rejected when the selected policy cannot honor it, including Windows managed proxies.
+To keep local binding disabled on Windows, select proxy-free `network: restricted` instead.
 It affects private-address checks and native local socket access, including macOS loopback traffic and DNS.
 It does not expose a Linux network namespace to a host browser.
 

@@ -1,0 +1,5 @@
+---
+omitted_auto_and_null: resolve to the platform/context default
+booleans: honored or explicitly rejected when unsupported
+layering: global, project, then ordered CLI overrides
+invalid_values: rejected before launch
