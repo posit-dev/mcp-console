@@ -49,7 +49,7 @@ sudo apt-get update
 sudo apt-get install -y build-essential git pkg-config libcap-dev libssl-dev libcurl4-openssl-dev binutils
 ```
 
-Windows users should follow [Windows installation](WINDOWS.md#build-and-run).
+Windows users should follow [Windows build instructions](WINDOWS.md#build-from-source).
 Package source builds can require additional system libraries; the [release guide](../RELEASE.md#private-sandbox-executable) covers native build requirements.
 
 Install Console:
