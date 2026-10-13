@@ -23,6 +23,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  UV_VERSION: "0.12.24"
 
 jobs:
   wheels:
@@ -90,7 +91,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: latest
+          version: ${{ env.UV_VERSION }}
           cache-local-path: ${{ runner.temp }}/mcp-console-cache
           cache-suffix: release-v1-${{ steps.cache-epoch.outputs.value }}
 
@@ -286,7 +287,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: latest
+          version: ${{ env.UV_VERSION }}
 
       - name: Publish wheels to PyPI
         run: |
@@ -294,3 +295,149 @@ jobs:
             --trusted-publishing always \
             --check-url https://pypi.org/simple \
             dist/*.whl
+
+  verify-pypi:
+    name: public-pypi-${{ matrix.target }}
+    needs: publish-pypi
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Linux runtime and inspection dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libcap2 libgcc-s1 libstdc++6 binutils
+
+      - name: Download published artifact for hash comparison
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pypi-${{ matrix.target }}
+          path: dist
+
+      - name: Verify fresh public-index installations and Python-only MCP
+        env:
+          UV_NO_CONFIG: "1"
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import sys
+          import tempfile
+          from urllib.request import urlopen
+
+          sys.path.insert(0, str(Path("scripts").resolve()))
+          from release import command_output, package_version, run_command, smoke_mcp
+
+          version = package_version()
+          wheels = list(Path("dist").glob("*.whl"))
+          assert len(wheels) == 1, wheels
+          wheel = wheels[0]
+          digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+          with urlopen(
+              f"https://pypi.org/pypi/mcp-console/{version}/json", timeout=30
+          ) as response:
+              publication = json.load(response)
+          files = publication["urls"]
+          assert len(files) == 4 and all(not item["yanked"] for item in files), files
+          hashes = {item["filename"]: item["digests"]["sha256"] for item in files}
+          assert hashes[wheel.name] == digest, hashes
+
+          options = ["--no-cache", "--no-sources", "--default-index", "https://pypi.org/simple"]
+          with tempfile.TemporaryDirectory(prefix="public-pypi-") as temporary:
+              root = Path(temporary)
+              env = dict(
+                  os.environ,
+                  UV_CACHE_DIR=str(root / "cache"),
+                  UV_TOOL_DIR=str(root / "tools"),
+                  UV_TOOL_BIN_DIR=str(root / "bin"),
+              )
+              expected = f"mcp-console {version}"
+              assert (
+                  command_output(
+                      ["uvx", "--isolated", *options, f"mcp-console@{version}", "--version"], env
+                  )
+                  == expected
+              )
+              run_command(["uv", "tool", "install", *options, f"mcp-console=={version}"], env)
+              installed = root / "bin/mcp-console"
+              assert command_output([str(installed), "--version"], env) == expected
+              run_command([str(installed), "--help"], env)
+              commands = root / "commands"
+              commands.mkdir()
+              (commands / "uv").symlink_to(Path(shutil.which("uv")).resolve())
+              (commands / "python3").symlink_to(Path(sys.executable).resolve())
+              mcp_env = dict(env, PATH=str(commands), MCP_CONSOLE_HOME=str(root / "console"))
+              for name in (
+                  "R_HOME",
+                  "R_LIBS",
+                  "R_LIBS_USER",
+                  "RETICULATE_PYTHON",
+                  "RETICULATE_UV",
+              ):
+                  mcp_env.pop(name, None)
+              workspace = root / "workspace"
+              workspace.mkdir()
+              run_command(
+                  [str(installed), "sandbox", "--", "/usr/bin/true"],
+                  dict(mcp_env, PATH=str(workspace)),
+                  cwd=workspace,
+              )
+              smoke_mcp(installed, version, mcp_env, workspace, 1200, 30, r_available=False)
+              latest_env = dict(
+                  env,
+                  UV_CACHE_DIR=str(root / "latest-cache"),
+                  UV_TOOL_DIR=str(root / "latest-tools"),
+                  UV_TOOL_BIN_DIR=str(root / "latest-bin"),
+              )
+              assert (
+                  command_output(
+                      ["uvx", "--isolated", *options, "mcp-console", "--version"], latest_env
+                  )
+                  == expected
+              )
+              run_command(["uv", "tool", "install", *options, "mcp-console"], latest_env)
+              assert (
+                  command_output([str(root / "latest-bin/mcp-console"), "--version"], latest_env)
+                  == expected
+              )
+          print(
+              json.dumps(
+                  {
+                      "version": version,
+                      "wheel": wheel.name,
+                      "sha256": digest,
+                      "pinned_install": True,
+                      "latest_install": True,
+                      "python_only_mcp": True,
+                  }
+              )
+          )
+          PY
