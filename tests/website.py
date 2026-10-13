@@ -149,10 +149,7 @@ class WebsiteTests(unittest.TestCase):
         path = self.site / "cli-help.html"
         self.assertIn(path, self.pages, "CLI help page is missing")
         soup = BeautifulSoup(path.read_text(), "html.parser")
-        for platform, filename in (
-            ("unix", "help.yaml"),
-            ("windows", "help.win32.yaml"),
-        ):
+        for platform, filename in (("all-platforms", "help.yaml"),):
             with self.subTest(platform=platform):
                 entries = read_yaml(
                     ROOT / "tests/snapshots/cli/interface/test_help" / filename,

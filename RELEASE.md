@@ -40,7 +40,7 @@ Changes to SDKs, compilers, linkers, or system libraries may require cleaning bo
 
 Unix installations contain the public executable, the private runner under `libexec`, and licenses under `share/licenses/mcp-console`.
 Linux additionally bundles bubblewrap and its notices/source metadata.
-Windows contains its native Console executable and three sandbox executables under `libexec`, with an environment-bound Python launcher exposing the public command.
+Windows contains its native Console executable and the single `mcp-console-sandbox.exe` companion under `libexec`, with an environment-bound Python launcher exposing the public command.
 
 Move the complete native bundle when relocating it; a symlink to the native executable is supported.
 Do not split Cargo's shared target/build layout.
@@ -106,7 +106,7 @@ Bump `CI_BUILD_CACHE_VERSION` when changing build flags or native dependencies o
 Keep native artifact verification on cache hits; reuse does not prove external SDK/compiler compatibility.
 
 Do not cache accounts, credentials, ACLs, or provisioning state.
-Windows setup and full acceptance still run after restoring build/staging caches.
+Required MXC and full Windows acceptance still run on a clean host after restoring build/staging caches.
 Exact cache-key and timestamp-restoration mechanics belong in the workflow and staging scripts.
 
 Installation tests need the checkout and temporary directory on the same writable filesystem for rename-based checks.

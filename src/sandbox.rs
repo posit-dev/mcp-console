@@ -201,16 +201,3 @@ pub fn run(
         unsupported::run(command)
     }
 }
-
-#[cfg(windows)]
-pub fn windows_setup(status: bool, state_dir: Option<PathBuf>) -> Result<ExitCode, String> {
-    let mut runner = Command::new(installation::private_runner()?);
-    runner.arg(if status { "status" } else { "setup" });
-    if let Some(state_dir) = state_dir {
-        runner.arg("--state-dir").arg(state_dir);
-    }
-    let status = runner
-        .status()
-        .map_err(|error| format!("failed to launch Windows sandbox setup: {error}"))?;
-    Ok(ExitCode::from(status.code().unwrap_or(1) as u8))
-}

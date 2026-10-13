@@ -50,7 +50,7 @@ if __name__ == "__main__":
             sys.executable,
             ROOT / "tests/windows.py",
             "-v",
-            "WindowsSandbox.test_setup_status_is_read_only",
+            "WindowsMxc.test_proxy_launch",
             "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
             "WindowsSandbox.test_stdio_write_policy_and_exit_status",
             environment=tool_environment

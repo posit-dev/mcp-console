@@ -1,4 +1,4 @@
-"""Public Windows configuration and explicitly provisioned sandbox acceptance."""
+"""Public Windows configuration and required MXC sandbox acceptance."""
 
 import ctypes
 import json
@@ -27,8 +27,8 @@ BINARY = Path(
 
 @contextmanager
 def workspace(parent: Path | None = None):
-    # Inherit the user's ordinary ACLs. Python 3.14's private temp directories
-    # allow only owner/admin/system, which a restricted token cannot traverse.
+    # Use ordinary inherited ACLs so filesystem-policy tests are independent
+    # of Python's version-specific temporary-directory hardening.
     root = (
         parent or Path(tempfile.gettempdir())
     ) / f"console sandbox {uuid.uuid4().hex}"
@@ -51,49 +51,6 @@ def workspace(parent: Path | None = None):
 
 @unittest.skipUnless(os.name == "nt", "native Windows sandbox")
 class WindowsSandbox(unittest.TestCase):
-    def sandbox_state_directory(self):
-        command = [str(BINARY), "sandbox-setup", "--status"]
-        if state := os.environ.get("MCP_CONSOLE_TEST_WINDOWS_STATE_DIR"):
-            command.extend(["--state-dir", state])
-        result = subprocess.run(command, capture_output=True, text=True, timeout=30)
-        self.assertIn(result.returncode, (0, 1), (result.stdout, result.stderr))
-        status = json.loads(result.stdout)
-        self.assertTrue(
-            status["configured"],
-            f"Windows sandbox is not provisioned at {status['state_dir']}; "
-            f'run mcp-console sandbox-setup --state-dir "{status["state_dir"]}"',
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return status["state_dir"]
-
-    def test_unconfigured_acceptance_fails_without_provisioning_opt_in(self):
-        with workspace() as root:
-            environment = dict(
-                os.environ,
-                LOCALAPPDATA=str(root / "local"),
-                MCP_CONSOLE_HOME=str(root / "home"),
-                MCP_CONSOLE_TEST_BINARY=str(BINARY),
-            )
-            environment.pop("MCP_CONSOLE_TEST_WINDOWS_STATE_DIR", None)
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    ROOT / "tests/windows.py",
-                    "-v",
-                    "WindowsSandbox.test_current_setup_reports_resources_without_reprovisioning",
-                ],
-                cwd=ROOT,
-                env=environment,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            self.assertNotEqual(result.returncode, 0, result.stderr)
-            self.assertNotIn("skipped", result.stderr)
-            self.assertIn("Windows sandbox is not provisioned", result.stderr)
-            self.assertIn("mcp-console sandbox-setup", result.stderr)
-            self.assertFalse((root / "local/mcp-console").exists())
-
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
     def test_native_r_startup_is_contained_and_reread_on_restart(self):
         from windows import Session
@@ -182,24 +139,6 @@ class WindowsSandbox(unittest.TestCase):
                     str(root / "uv.exe"),
                 ],
                 check=True,
-            )
-            # Hosted temp directories may exclude the sandbox account. Grant
-            # reads for the selected venv, session cwd, and host-written probe.
-            status = json.loads(
-                subprocess.check_output(
-                    [BINARY, "sandbox-setup", "--status"], text=True
-                )
-            )
-            self.assertTrue(status["configured"], status)
-            subprocess.run(
-                [
-                    "icacls",
-                    str(root),
-                    "/grant",
-                    f"{status['online_account']}:(OI)(CI)RX",
-                ],
-                check=True,
-                capture_output=True,
             )
             local = (
                 root / "account/AppData/Local" if profile_fallback else root / "local"
@@ -346,8 +285,7 @@ class WindowsSandbox(unittest.TestCase):
                 session.close()
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
-    def test_provisioned_input_and_interrupt_with_private_installation(self):
-        state = self.sandbox_state_directory()
+    def test_input_and_interrupt_with_private_installation(self):
         # A private bundle outside the user's profile models hosted CI's
         # nonstandard installation paths, without relying on another drive.
         public = Path(os.environ["PUBLIC"]).resolve()
@@ -378,30 +316,11 @@ class WindowsSandbox(unittest.TestCase):
                 assets = source.resolve().parent.parent / relative
                 if assets.exists():
                     shutil.copytree(assets, prefix / relative)
-            prepared = subprocess.run(
-                [
-                    sys.executable,
-                    ROOT / "scripts/prepare-windows-tests",
-                    "--binary",
-                    binary,
-                    "--state-dir",
-                    state,
-                    "--github-env",
-                    prefix / "github-env",
-                    "--read-root",
-                    prefix,
-                    "--require-configured",
-                ],
-                cwd=ROOT,
-                capture_output=True,
-                timeout=60,
-            )
-            self.assertEqual(prepared.returncode, 0, (prepared.stdout, prepared.stderr))
             result = subprocess.run(
                 [
                     sys.executable,
                     ROOT / "tests/windows.py",
-                    "WindowsSandbox.test_provisioned_network_restricted_input_and_interrupt",
+                    "WindowsSandbox.test_network_restricted_input_and_interrupt",
                 ],
                 cwd=ROOT,
                 env=os.environ
@@ -415,7 +334,7 @@ class WindowsSandbox(unittest.TestCase):
             self.assertEqual(result.returncode, 0, (result.stdout, result.stderr))
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
-    def test_provisioned_network_restricted_input_and_interrupt(self):
+    def test_network_restricted_input_and_interrupt(self):
         from windows import Session, exercise_input_and_interrupt
 
         session = Session(
@@ -502,121 +421,7 @@ class WindowsSandbox(unittest.TestCase):
             finally:
                 session.close()
 
-    def test_setup_help_describes_provisioned_resources(self):
-        for flag in ("--help", "-h"):
-            with self.subTest(flag=flag):
-                result = subprocess.run(
-                    [str(BINARY), "sandbox-setup", flag],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                for detail in (
-                    "McpConsoleSandboxOff",
-                    "McpConsoleSandboxOn",
-                    "ConsoleSandboxUsers",
-                    "Windows Firewall",
-                    "loopback",
-                    ".sandbox-secrets",
-                    ".sandbox-bin",
-                    "UAC",
-                    "reused without changes",
-                    "%LOCALAPPDATA%",
-                ):
-                    self.assertIn(detail, result.stdout)
-
-    def test_current_setup_reports_resources_without_reprovisioning(self):
-        state = self.sandbox_state_directory()
-        command = [str(BINARY), "sandbox-setup", "--state-dir", state]
-        before = subprocess.run(
-            [*command, "--status"], capture_output=True, text=True, timeout=30
-        )
-        self.assertEqual(before.returncode, 0, before.stderr)
-        self.assertTrue(json.loads(before.stdout)["configured"])
-        # Refuse to provision an unconfigured machine in acceptance tests.
-        # A current setup must reuse its records and credentials without UAC.
-        # Runtime logs can append during other sessions; they are not setup records.
-        records = {
-            path: path.read_bytes()
-            for directory in (".sandbox", ".sandbox-secrets")
-            for path in (Path(state) / directory).rglob("*")
-            if path.is_file()
-            and not (directory == ".sandbox" and path.match("sandbox.*.log"))
-        }
-        result = subprocess.run(command, capture_output=True, text=True, timeout=30)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(f"Console sandbox is configured at {state}", result.stdout)
-        for detail in (
-            "McpConsoleSandboxOff",
-            "McpConsoleSandboxOn",
-            "ConsoleSandboxUsers",
-            "Windows Firewall",
-            "loopback",
-            ".sandbox-secrets",
-            ".sandbox-bin",
-            "reused without changes",
-        ):
-            self.assertIn(detail, result.stdout)
-        for path, content in records.items():
-            self.assertEqual(path.read_bytes(), content, str(path))
-        after = subprocess.run(
-            [*command, "--status"], capture_output=True, text=True, timeout=30
-        )
-        self.assertEqual(after.returncode, 0, after.stderr)
-        self.assertEqual(json.loads(after.stdout), json.loads(before.stdout))
-
-    def test_setup_status_is_read_only(self):
-        with workspace() as root:
-            state = root / "state"
-            result = subprocess.run(
-                [str(BINARY), "sandbox-setup", "--status", "--state-dir", str(state)],
-                check=False,
-                capture_output=True,
-                timeout=30,
-            )
-            self.assertEqual(result.returncode, 1, result.stderr)
-            status = json.loads(result.stdout)
-            self.assertFalse(status["configured"])
-            self.assertTrue(status["helpers_available"])
-            self.assertFalse(state.exists())
-
-    def test_unconfigured_elevated_sandbox_requires_explicit_setup(self):
-        with workspace() as root:
-            policy = {
-                "extends": ":read-only",
-                "windows_backend": "elevated",
-                "windows_state_dir": str(root / "state"),
-            }
-            result = subprocess.run(
-                [
-                    str(BINARY),
-                    "sandbox",
-                    "--config-env",
-                    "TEST_POLICY",
-                    "--",
-                    "cmd.exe",
-                    "/d",
-                    "/c",
-                    "echo launched",
-                ],
-                cwd=root,
-                env=dict(
-                    os.environ,
-                    TEST_POLICY=json.dumps(policy),
-                    MCP_CONSOLE_HOME=str(root / "home"),
-                ),
-                check=False,
-                capture_output=True,
-                timeout=30,
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(result.stdout, b"")
-            self.assertIn(b"Windows sandbox setup is required", result.stderr)
-            self.assertIn(b"mcp-console-sandbox setup", result.stderr)
-            self.assertFalse((root / "state").exists())
-
-    def test_modified_helper_is_rejected_before_setup(self):
+    def test_modified_companion_is_rejected_before_execution(self):
         with workspace() as root:
             native = native_console(BINARY)
             source = native.resolve().parent.parent
@@ -625,13 +430,21 @@ class WindowsSandbox(unittest.TestCase):
             for directory in ("libexec", "share"):
                 if (source / directory).exists():
                     shutil.copytree(source / directory, root / directory)
-            helpers = list((root / "libexec").rglob("mcp-console-sandbox-runner.exe"))
+            helpers = list((root / "libexec").rglob("mcp-console-sandbox.exe"))
             self.assertTrue(helpers)
             for helper in helpers:
                 with helper.open("ab") as stream:
                     stream.write(b"modified")
             result = subprocess.run(
-                [str(root / "bin/mcp-console.exe"), "sandbox-setup", "--status"],
+                [
+                    str(root / "bin/mcp-console.exe"),
+                    "sandbox",
+                    "--no-config",
+                    "--",
+                    "cmd.exe",
+                    "/c",
+                    "echo launched",
+                ],
                 check=False,
                 capture_output=True,
                 timeout=30,
@@ -741,15 +554,8 @@ class WindowsSandbox(unittest.TestCase):
                         text=True,
                         timeout=30,
                     )
-                    if isinstance(document["sandbox"].get("network"), dict):
-                        self.assertEqual(result.returncode, 1)
-                        self.assertEqual(result.stdout, "")
-                        self.assertIn(
-                            "requires allow_local_binding: true", result.stderr
-                        )
-                    else:
-                        self.assertEqual(result.returncode, 0, result.stderr)
-                        self.assertEqual(result.stdout.strip(), "launched")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), "launched")
 
     def test_mxc_proxy_configuration_round_trips(self):
         with workspace() as root:
@@ -834,10 +640,9 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertNotIn("secret sentinel", result.stderr)
                     self.assertNotIn("654987123", result.stderr)
             for override, diagnostic in (
-                ("sandbox.network={proxy: {}}", "requires allow_local_binding: true"),
                 (
                     "sandbox.network={proxy: {}, allow_local_binding: false}",
-                    "requires allow_local_binding: true",
+                    "false cannot be enforced",
                 ),
                 (
                     "sandbox.network={proxy: {socks5: tcp_udp}, allow_local_binding: true}",
@@ -898,8 +703,6 @@ class WindowsSandbox(unittest.TestCase):
                     ],
                 },
                 "network": "enabled",
-                "windows_backend": "unelevated",
-                "windows_state_dir": str(root / "state"),
             }
             result = subprocess.run(
                 [

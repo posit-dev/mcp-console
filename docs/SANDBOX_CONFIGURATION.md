@@ -138,11 +138,11 @@ Limited mode therefore does not restrict every granted channel to GET/HEAD/OPTIO
 
 ## Native capabilities
 
-| Platform | Important limits                                                                                                                                                                     |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| macOS    | Managed proxy supported. Console rejects `tcp_udp`; historical evidence records a native reply-routing issue.                                                                        |
-| Linux    | Managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific.                                     |
-| Windows  | MXC supports TCP proxies with `allow_local_binding: true`. UDP, Unix sockets, and explicit `resolver.sandbox` settings are rejected. Legacy backends do not support managed proxies. |
+| Platform | Important limits                                                                                                                                                               |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS    | Managed proxy supported. Console rejects `tcp_udp`; historical evidence records a native reply-routing issue.                                                                  |
+| Linux    | Managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific.                               |
+| Windows  | MXC is required. TCP proxies resolve local binding to true under `auto`; explicit false is rejected. UDP, Unix sockets, and explicit `resolver.sandbox` settings are rejected. |
 
 A common schema does not imply equal native capabilities.
 Console rejects unsupported explicit requests rather than silently ignoring them.
@@ -163,7 +163,9 @@ The runner consumes it; stdin belongs to the target.
 This mode rejects `-c`, discovery options, and writable-root composition.
 Use a child-specific environment rather than mutating a multithreaded parent's global environment.
 
-The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/d77a1b391e88532b955e139192e1041ce1dc9b9c/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) is authoritative; its private protocol is unversioned.
+The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/8bcbf394a3a6171d9bb3a566976d456f52bd2aec/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
+Console still enforces its Windows MXC requirement at this boundary and rejects retired Windows controls.
+Complete policies use the native boolean `allow_local_binding` contract; the public `auto` selector belongs to the shared YAML schema above.
 Runnable examples are provided in [shell](../examples/sandbox-config.sh), [Python](../examples/sandbox-config.py), and [R](../examples/sandbox-config.R).
 
 Complete policies can request OS-specific options unavailable in `config.yaml`.
@@ -181,6 +183,7 @@ These **complete-native-policy** kinds are not `config.yaml` permission groups:
 | `external-sandbox` | Delegate filesystem and networking to an outer boundary. The runner does not create or verify it.        |
 
 In external mode without a proxy, `network: restricted` installs no network restriction.
+Console rejects external mode on Windows, where every sandboxed launch must use MXC.
 Linux then supervises the original group/direct child; the outer boundary must retire escaped descendants.
 A managed proxy can add native networking while filesystem enforcement remains delegated.
 
@@ -188,15 +191,14 @@ Full filesystem writes can influence unsandboxed processes and shared artifacts.
 Restricted-policy isolation guarantees do not extend to hostile unrestricted workloads.
 Cleanup is not proof of isolation.
 
-## Windows backend selection
+## Windows MXC requirement
 
-Ordinary application launches use native `auto` selection: compatible hosts and policies use MXC, otherwise the runner selects the elevated backend.
-Existing Console sandbox accounts keep `auto` on elevated because their credential locations are not registered for MXC protection.
-MXC needs no setup; elevated execution requires explicit provisioning with `mcp-console sandbox-setup`.
-A complete policy may set `windows_backend` to `auto`, `mxc`, `elevated`, or `unelevated`.
-Unelevated execution requires enabled networking and host reads and rejects read-deny policy.
-Explicit backend selections fail if unavailable; launch failures never trigger a backend retry.
-See [Windows](WINDOWS.md#native-sandbox).
+Normal sessions, standalone commands, and complete native policies require MXC.
+The removed `windows_backend`, `windows_sandbox_level`, and `windows_state_dir` controls are rejected, including explicit nulls.
+Unsupported hosts and policies fail before the workload executes; there is no backend or host-execution fallback.
+Existing legacy Console accounts block MXC until an administrator completes the [one-time migration](WINDOWS.md#legacy-installation-cleanup).
+Explicit `serve --no-sandbox` remains available.
+See [Windows](WINDOWS.md#native-sandbox) for host requirements and the separate host-permission dependency-preparation boundary.
 
 ## Explicit Linux backend selection
 

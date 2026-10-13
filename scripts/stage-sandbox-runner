@@ -226,18 +226,6 @@ def stage(args: argparse.Namespace, pin: dict) -> None:
             "mcp-console-sandbox",
             "--bin",
             "mcp-console-sandbox",
-            *(
-                [
-                    "-p",
-                    "mcp-console-sandbox-windows",
-                    "--bin",
-                    "mcp-console-sandbox-setup",
-                    "--bin",
-                    "mcp-console-sandbox-runner",
-                ]
-                if windows
-                else []
-            ),
             "--target",
             target,
         ],
@@ -251,14 +239,14 @@ def stage(args: argparse.Namespace, pin: dict) -> None:
     libexec.mkdir(parents=True, exist_ok=True)
     artifacts = []
     names = (
-        [
-            "mcp-console-sandbox.exe",
-            "mcp-console-sandbox-setup.exe",
-            "mcp-console-sandbox-runner.exe",
-        ]
+        ["mcp-console-sandbox.exe"]
         if windows
         else ["mcp-console-sandbox", *(["bwrap"] if "linux" in target else [])]
     )
+    # Staging can replace an older bundle. Do not leave retired helpers in the
+    # wheel's data directory, which packaging includes independently of Cargo.
+    for retired in ("mcp-console-sandbox-setup.exe", "mcp-console-sandbox-runner.exe"):
+        (libexec / retired).unlink(missing_ok=True)
     for name in names:
         # Strip a temporary copy so unchanged Cargo inputs keep their mtimes.
         staged = libexec / f".{name}"

@@ -55,7 +55,7 @@ fn bind_private_runner() {
     assert_eq!(build["source_revision"], pin["commit"]);
     assert_eq!(build["target"].as_str(), Some(target.as_str()));
     // Windows locks running executables. Keep each complete native bundle at
-    // an immutable path, including helpers an older runner may launch later.
+    // an immutable path so rebuilding cannot replace an active companion.
     // Wheels retain their flat layout, owned by the packaging backend.
     let native_bundle = if target.contains("windows") {
         let digest = Sha256::digest(serde_json::to_vec(&build).unwrap());
@@ -71,17 +71,7 @@ fn bind_private_runner() {
         ("NOTICE", "share/licenses/mcp-console/NOTICE"),
     ];
     if target.contains("windows") {
-        bundle.extend([
-            ("mcp-console-sandbox.exe", "libexec/mcp-console-sandbox.exe"),
-            (
-                "mcp-console-sandbox-setup.exe",
-                "libexec/mcp-console-sandbox-setup.exe",
-            ),
-            (
-                "mcp-console-sandbox-runner.exe",
-                "libexec/mcp-console-sandbox-runner.exe",
-            ),
-        ]);
+        bundle.push(("mcp-console-sandbox.exe", "libexec/mcp-console-sandbox.exe"));
     } else {
         bundle.push(("mcp-console-sandbox", "libexec/mcp-console-sandbox"));
     }
