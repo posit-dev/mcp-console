@@ -25,7 +25,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    version: 0.0.4
+    version: 0.0.5
   instructions: >-
     Persistent custom-worker R and SQL REPL. Reuse objects across calls to
     inspect results, test hypotheses, and compare approaches.
