@@ -108,7 +108,11 @@ Use Python 3.13 to match CI.
 Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an explicitly provisioned sandbox.
 Native acceptance does not provision the machine itself.
 CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console and before provisioning legacy sandbox accounts.
-This separate acceptance check requires a successful MXC proxy launch; an unavailable native backend or existing legacy accounts fail the check.
+This separate acceptance check probes explicit MXC selection through the public sandbox command.
+When MXC is available, it requires a successful proxy launch.
+When the host cannot create its native security environment, it requires both explicit MXC rejection and automatic proxy rejection before workload execution.
+Existing legacy accounts and unexpected launch failures fail the check.
+Hosted Windows CI does not establish successful MXC execution when its native environment is unavailable.
 The remaining native suite runs after provisioning and retains the public proxy configuration checks.
 
 ```powershell

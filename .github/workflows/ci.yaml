@@ -226,7 +226,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ steps.cargo-downloads.outputs.cache-primary-key }}
-      - name: Require MXC proxy launch before legacy account provisioning
+      - name: Verify proxy backend selection before legacy account provisioning
         run: scripts/with-checkout.cmd python tests/windows_mxc.py -v
       - name: Provision native Windows sandbox acceptance
         run: |

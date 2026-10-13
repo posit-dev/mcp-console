@@ -1,5 +1,6 @@
-"""Required MXC acceptance on a native Windows host without legacy accounts."""
+"""Public proxy backend selection before legacy sandbox account provisioning."""
 
+import json
 import os
 import subprocess
 import sys
@@ -11,8 +12,43 @@ from windows_sandbox import BINARY, workspace
 
 @unittest.skipUnless(os.name == "nt", "native Windows MXC")
 class WindowsMxc(unittest.TestCase):
-    def test_proxy_launch(self):
+    def test_proxy_backend_selection(self):
         with workspace() as root:
+            environment = dict(os.environ, MCP_CONSOLE_HOME=str(root / "home"))
+            # A Windows build number does not prove that native PSEC is enabled.
+            # Explicit MXC selection probes the same public launch path and must
+            # never provision or fall back to the legacy backend.
+            probe = subprocess.run(
+                [
+                    str(BINARY),
+                    "sandbox",
+                    "--config-env",
+                    "TEST_MXC_POLICY",
+                    "--",
+                    sys.executable,
+                    "-c",
+                    'print("MXC backend ready")',
+                ],
+                cwd=root,
+                env=dict(
+                    environment,
+                    TEST_MXC_POLICY=json.dumps(
+                        {"extends": ":read-only", "windows_backend": "mxc"}
+                    ),
+                ),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if probe.returncode == 0:
+                self.assertEqual(probe.stdout.strip(), "MXC backend ready")
+            else:
+                self.assertEqual(probe.returncode, 1, probe.stderr)
+                self.assertEqual(probe.stdout, "")
+                self.assertEqual(
+                    probe.stderr.strip(),
+                    "mcp-console-sandbox: MXC is unavailable for this filesystem policy on this executor",
+                )
             result = subprocess.run(
                 [
                     str(BINARY),
@@ -38,13 +74,22 @@ class WindowsMxc(unittest.TestCase):
                         """),
                 ],
                 cwd=root,
-                env=dict(os.environ, MCP_CONSOLE_HOME=str(root / "home")),
+                env=environment,
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), "MXC proxy ready")
+            if probe.returncode == 0:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), "MXC proxy ready")
+            else:
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(
+                    result.stderr.strip(),
+                    "configuration with CLI overrides: sandbox preflight failed (exit code: 1): "
+                    "mcp-console-sandbox: managed proxy configuration is not supported by the legacy Windows sandbox",
+                )
 
 
 if __name__ == "__main__":
