@@ -305,6 +305,7 @@ class WindowsWorkflow(unittest.TestCase):
             "windows_relay.py",
             "windows_cargo.py",
             "windows_resolver.py",
+            "windows_mxc.py",
             "windows_sandbox.py",
         ):
             path = self.root / "tests" / name
@@ -320,6 +321,7 @@ class WindowsWorkflow(unittest.TestCase):
         result = self.run_command("test", "--list")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("WindowsConsole.test_python_without_r", result.stdout)
+        self.assertIn("WindowsMxc.test_proxy_launch", result.stdout)
         result = self.run_command(
             "test", "--locate", "WindowsRelay.test_drains_sideband_after_exit"
         )
