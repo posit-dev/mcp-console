@@ -226,7 +226,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ steps.cargo-downloads.outputs.cache-primary-key }}
-      - name: Require MXC proxy requests on a clean host
+      - name: Probe MXC and run Windows sandbox contracts
         run: scripts/with-checkout.cmd python tests/windows_mxc.py -v
       - name: Select the Windows R runtime
         run: |

@@ -175,7 +175,7 @@ class DevelopmentTests(unittest.TestCase):
             )
             self.assertLess(
                 windows.index(name),
-                windows.index("Require MXC proxy requests on a clean host"),
+                windows.index("Probe MXC and run Windows sandbox contracts"),
             )
         self.assertIn("scripts/check.cmd --full", windows)
         source = step("Prepare native Windows sandbox source archive")

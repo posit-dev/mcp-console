@@ -203,10 +203,15 @@ Direct execution reaps its direct worker but does not guarantee descendant clean
 
 Use Python 3.13 to match CI.
 Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an MXC-capable clean host.
-CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console, then the substantive native suite on the same clean host.
-Required acceptance fails if MXC is unavailable; it never skips MXC or provisions legacy accounts.
+CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console, then the substantive Windows suite on the same clean host.
+Acceptance probes MXC through a real public sandbox launch.
+Only the native unavailable-runtime diagnostic permits skipping MXC execution cases; installation, policy, and legacy-account failures remain failures.
+Hosts without MXC still run configuration, integrity, migration-diagnostic, explicit host-execution, and public fail-closed startup tests.
+As hosted runners gain native MXC support, the existing execution cases run automatically.
+CI never provisions legacy accounts or selects a different sandbox backend.
 Controlled origins verify allowed and denied HTTP, CONNECT, and SOCKS requests through the managed proxy.
-Process-local fault injection checks unavailable MXC and legacy-account diagnostics through sessions, sandbox commands, and complete policies without changing the host's resources.
+Process-local fault injection checks legacy-account diagnostics through sessions, sandbox commands, and complete policies without changing the host's resources.
+The same public routes verify actual unavailable-MXC rejection on unsupported hosts; capable hosts inject that failure.
 CI separately runs the administrator-only `tests/fixtures/windows_migration.ps1` acceptance fixture against the migration script.
 It refuses existing Console WFP state, creates inert persistent filters, and verifies dry-run behavior, removal, idempotence, and preservation of unrelated provider state.
 
@@ -217,9 +222,12 @@ scripts/stage-sandbox-runner.cmd
 scripts/test.cmd --list
 scripts/test.cmd WindowsConsole.test_python_without_r
 scripts/test.cmd client_server/python/test_runtime
+# Require native coverage on a local MXC-capable host:
+$env:MCP_CONSOLE_TEST_REQUIRE_MXC = '1'
 scripts/format.cmd
 scripts/check.cmd
 scripts/check.cmd --full
+Remove-Item Env:MCP_CONSOLE_TEST_REQUIRE_MXC
 ```
 
 Set `R_HOME` to the installed R directory when the complete suite requires it.

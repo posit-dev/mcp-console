@@ -1,4 +1,4 @@
-"""Public Windows configuration and required MXC sandbox acceptance."""
+"""Public Windows configuration and capability-selected MXC acceptance."""
 
 import ctypes
 import json
@@ -18,6 +18,7 @@ from textwrap import dedent
 from support.installation import native_console
 from support.normalization import code
 from support.public_configuration import INVALID_CONFIGURATIONS
+from support.windows_mxc import requires_mxc
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = Path(
@@ -52,6 +53,7 @@ def workspace(parent: Path | None = None):
 @unittest.skipUnless(os.name == "nt", "native Windows sandbox")
 class WindowsSandbox(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
     def test_native_r_startup_is_contained_and_reread_on_restart(self):
         from windows import Session
 
@@ -116,10 +118,12 @@ class WindowsSandbox(unittest.TestCase):
                 session.close()
 
     @unittest.skipUnless(shutil.which("uv"), "requires uv")
+    @requires_mxc(BINARY)
     def test_console_cache_paths_reach_resolver_and_worker(self):
         self.console_cache_paths(profile_fallback=False)
 
     @unittest.skipUnless(shutil.which("uv"), "requires uv")
+    @requires_mxc(BINARY)
     def test_console_cache_falls_back_to_userprofile_after_relative_home(self):
         self.console_cache_paths(profile_fallback=True)
 
@@ -201,6 +205,7 @@ class WindowsSandbox(unittest.TestCase):
             self.assertFalse((root / "host-ir").exists())
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
     def test_network_enabled_sql(self):
         from windows import Session, exercise_r_sql
 
@@ -211,6 +216,7 @@ class WindowsSandbox(unittest.TestCase):
         finally:
             session.close()
 
+    @requires_mxc(BINARY)
     def test_network_enabled_python_sql(self):
         from windows import Session, exercise_sql_interrupt
         from support.resolvers import expose_uv
@@ -251,6 +257,7 @@ class WindowsSandbox(unittest.TestCase):
                 session.close()
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
     def test_network_enabled_input_and_interrupt(self):
         from windows import Session, exercise_input_and_interrupt
 
@@ -268,6 +275,7 @@ class WindowsSandbox(unittest.TestCase):
                 session.close()
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
     def test_network_enabled_idle_later_callbacks(self):
         from windows import Session, exercise_later_callbacks
 
@@ -285,6 +293,7 @@ class WindowsSandbox(unittest.TestCase):
                 session.close()
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
     def test_input_and_interrupt_with_private_installation(self):
         # A private bundle outside the user's profile models hosted CI's
         # nonstandard installation paths, without relying on another drive.
@@ -334,6 +343,7 @@ class WindowsSandbox(unittest.TestCase):
             self.assertEqual(result.returncode, 0, (result.stdout, result.stderr))
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
     def test_network_restricted_input_and_interrupt(self):
         from windows import Session, exercise_input_and_interrupt
 
@@ -349,6 +359,7 @@ class WindowsSandbox(unittest.TestCase):
         finally:
             session.close()
 
+    @requires_mxc(BINARY)
     def test_network_enabled_allows_loopback_exchange(self):
         from windows import Session
 
@@ -393,6 +404,7 @@ class WindowsSandbox(unittest.TestCase):
                 session.close()
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
+    @requires_mxc(BINARY)
     def test_r_uses_private_storage_and_preserves_state(self):
         from windows import Session
 
@@ -455,6 +467,7 @@ class WindowsSandbox(unittest.TestCase):
                 b"private artifact does not match this installation", result.stderr
             )
 
+    @requires_mxc(BINARY)
     def test_python_state_and_restart_with_private_temporary_storage(self):
         from windows import Session
 
@@ -528,6 +541,7 @@ class WindowsSandbox(unittest.TestCase):
             finally:
                 session.close()
 
+    @requires_mxc(BINARY)
     def test_shared_public_policies(self):
         from support.public_configuration import CONFIGURATION_EXAMPLES
 
@@ -683,6 +697,7 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(result.stdout, "")
                     self.assertIn(diagnostic, result.stderr)
 
+    @requires_mxc(BINARY)
     def test_stdio_write_policy_and_exit_status(self):
         with workspace() as root:
             work = root / "work"

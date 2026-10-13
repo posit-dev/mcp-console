@@ -17,7 +17,7 @@ import time
 def run_with_native_fault(
     command, fault, *, cwd, env, input=b"", interaction=None, timeout=40
 ):
-    assert fault in ("mxc_unavailable", "legacy_accounts")
+    assert fault in (None, "mxc_unavailable", "legacy_accounts")
     assert ctypes.sizeof(ctypes.c_void_p) == 8, "native Windows acceptance requires x64"
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     pointer = ctypes.c_void_p
@@ -136,7 +136,7 @@ def run_with_native_fault(
 
     def inject(pid, state):
         handle, image, modules = state
-        if image != "mcp-console-sandbox.exe" or pid in patched:
+        if fault is None or image != "mcp-console-sandbox.exe" or pid in patched:
             return
         library, function = (
             ("processmodel.dll", "CreateProcessSecurityEnvironment")
@@ -254,7 +254,8 @@ def run_with_native_fault(
             event_step(injecting=True)
         if failures:
             raise failures[0]
-        assert patched, "fault did not reach the verified native runner"
+        if fault is not None:
+            assert patched, "fault did not reach the verified native runner"
         return subprocess.CompletedProcess(command, process.returncode, *output[0])
     finally:
         if reader.is_alive() or processes:

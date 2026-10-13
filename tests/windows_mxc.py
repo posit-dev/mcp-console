@@ -1,4 +1,4 @@
-"""Required MXC acceptance on a native Windows host without legacy accounts."""
+"""Windows sandbox contracts, with native execution selected by the MXC probe."""
 
 import json
 import os
@@ -10,6 +10,7 @@ from threading import Thread
 
 from support.normalization import code
 from support.sandbox_configuration import NATIVE_PROXY
+from support.windows_mxc import mxc_requirement, requires_mxc
 from windows_sandbox import BINARY, workspace
 
 
@@ -17,6 +18,8 @@ from windows_sandbox import BINARY, workspace
 class WindowsMxc(unittest.TestCase):
     def test_startup_failures_withhold_code_at_every_public_entry_point(self):
         from support.windows_faults import run_with_native_fault
+
+        native_available = mxc_requirement(BINARY).available
 
         def mcp_probe(process):
             captured = []
@@ -121,7 +124,13 @@ class WindowsMxc(unittest.TestCase):
                     with self.subTest(fault=fault, route=route):
                         result = run_with_native_fault(
                             [str(BINARY), *arguments],
-                            fault,
+                            # Without native MXC, exercise the real startup
+                            # rejection. Capable hosts inject that failure.
+                            fault=(
+                                fault
+                                if fault != "mxc_unavailable" or native_available
+                                else None
+                            ),
                             cwd=root,
                             env=environment,
                             interaction=mcp_probe if route == "session" else None,
@@ -137,6 +146,7 @@ class WindowsMxc(unittest.TestCase):
                             self.assertEqual(result.stdout, b"", output)
                 self.assertFalse((root / "home/.sandbox-secrets").exists())
 
+    @requires_mxc(BINARY)
     def test_proxy_launch(self):
         requests = []
         # fmt: python
