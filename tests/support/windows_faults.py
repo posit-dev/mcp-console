@@ -227,9 +227,6 @@ def run_with_native_fault(
                     )
                 finally:
                     close(info.file)
-                    close(info.thread)
-            elif event.kind == 2:  # CREATE_THREAD_DEBUG_EVENT
-                close(event.data.thread)
             elif event.kind == 6:  # LOAD_DLL_DEBUG_EVENT
                 info = event.data.dll
                 if info.file:
@@ -240,7 +237,10 @@ def run_with_native_fault(
                     finally:
                         close(info.file)
             elif event.kind == 5:  # EXIT_PROCESS_DEBUG_EVENT
-                close(processes.pop(event.pid)[0])
+                processes.pop(event.pid)
+                # ContinueDebugEvent closes the debug-event process/thread
+                # handles on exit. Closing them ourselves can close unrelated
+                # handles recycled by Python's pipe-reader threads.
             elif event.kind == 1 and event.data.exception != 0x80000003:
                 continuation = 0x80010001  # DBG_EXCEPTION_NOT_HANDLED
             if injecting and event.pid in processes:
