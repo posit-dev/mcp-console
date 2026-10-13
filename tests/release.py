@@ -7,6 +7,9 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
 import os
@@ -18,6 +21,7 @@ import sys
 import tarfile
 import tempfile
 import tomllib
+from threading import Thread
 import unittest
 import zipfile
 from pathlib import Path
@@ -2527,6 +2531,189 @@ version = "0.0.0"
 
 
 class PortableReleaseTests(ReleaseFixture):
+    @contextmanager
+    def publication_server(
+        self, responses: dict[str, list[tuple[int, dict[str, object]]]]
+    ) -> Iterator[tuple[str, list[tuple[str, dict[str, object]]]]]:
+        observed: list[tuple[str, dict[str, object]]] = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                sequence = responses[self.path]
+                status, payload = sequence[0]
+                if len(sequence) > 1:
+                    sequence.pop(0)
+                observed.append((self.path, payload))
+                body = json.dumps(payload).encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format: str, *args: object) -> None:
+                pass
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                yield f"http://127.0.0.1:{server.server_port}", observed
+            finally:
+                server.shutdown()
+                thread.join()
+
+    def publication_files(self, root: Path) -> list[dict[str, object]]:
+        (root / "Cargo.toml").write_text('[package]\nversion = "0.0.2"\n')
+        directory = root / "dist"
+        directory.mkdir()
+        files = []
+        for tag in (
+            "macosx_11_0_arm64",
+            "macosx_10_12_x86_64",
+            "manylinux_2_35_aarch64",
+            "manylinux_2_35_x86_64",
+        ):
+            filename = f"mcp_console-0.0.2-py3-none-{tag}.whl"
+            payload = filename.encode()
+            (directory / filename).write_bytes(payload)
+            hashes = {"sha256": hashlib.sha256(payload).hexdigest()}
+            files.append(
+                {
+                    "filename": filename,
+                    "digests": hashes,
+                    "hashes": hashes,
+                    "yanked": False,
+                }
+            )
+        return files
+
+    def test_wait_pypi_waits_for_version_json_and_simple_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = self.publication_files(root)
+            with self.publication_server(
+                {
+                    "/pypi/mcp-console/0.0.2/json": [
+                        (404, {"message": "not visible yet"}),
+                        (200, {"urls": files[:2]}),
+                        (200, {"urls": files}),
+                    ],
+                    "/simple/mcp-console/": [
+                        (200, {"files": files[:3]}),
+                        (200, {"files": files}),
+                    ],
+                }
+            ) as (url, observed):
+                result = self.run_script(
+                    "wait-pypi",
+                    "dist",
+                    "--pypi-url",
+                    url,
+                    "--timeout-seconds",
+                    "5",
+                    "--poll-interval-seconds",
+                    "0.01",
+                    "--report",
+                    "publication.json",
+                    cwd=root,
+                )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(("/simple/mcp-console/", {"files": files}), observed)
+            report = json.loads((root / "publication.json").read_text())
+            self.assertEqual(report["version"], "0.0.2")
+            self.assertEqual(
+                report["wheels"],
+                {item["filename"]: item["digests"]["sha256"] for item in files},
+            )
+
+    def test_wait_pypi_times_out_when_simple_index_remains_incomplete(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = self.publication_files(root)
+            with self.publication_server(
+                {
+                    "/pypi/mcp-console/0.0.2/json": [(200, {"urls": files})],
+                    "/simple/mcp-console/": [(200, {"files": files[:3]})],
+                }
+            ) as (url, observed):
+                result = self.run_script(
+                    "wait-pypi",
+                    "dist",
+                    "--pypi-url",
+                    url,
+                    "--timeout-seconds",
+                    "0.1",
+                    "--poll-interval-seconds",
+                    "0.01",
+                    "--report",
+                    "publication.json",
+                    cwd=root,
+                )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("PyPI wheel set was not visible", result.stderr)
+            self.assertFalse((root / "publication.json").exists())
+            self.assertIn(("/simple/mcp-console/", {"files": files[:3]}), observed)
+
+    def test_wait_pypi_rejects_visible_hash_mismatches_and_yanked_files(self) -> None:
+        for endpoint in ("version", "simple"):
+            for invalid in ("hash", "yanked"):
+                with (
+                    self.subTest(endpoint=endpoint, invalid=invalid),
+                    tempfile.TemporaryDirectory() as temporary,
+                ):
+                    root = Path(temporary)
+                    files = self.publication_files(root)
+                    corrupted = [dict(item) for item in files]
+                    if invalid == "hash":
+                        corrupted[0] = dict(
+                            corrupted[0],
+                            digests={"sha256": "wrong"},
+                            hashes={"sha256": "wrong"},
+                        )
+                    else:
+                        corrupted[0]["yanked"] = True
+                    with self.publication_server(
+                        {
+                            "/pypi/mcp-console/0.0.2/json": [
+                                (
+                                    200,
+                                    {
+                                        "urls": corrupted
+                                        if endpoint == "version"
+                                        else files
+                                    },
+                                )
+                            ],
+                            "/simple/mcp-console/": [
+                                (
+                                    200,
+                                    {
+                                        "files": corrupted
+                                        if endpoint == "simple"
+                                        else files
+                                    },
+                                )
+                            ],
+                        }
+                    ) as (url, _):
+                        result = self.run_script(
+                            "wait-pypi",
+                            "dist",
+                            "--pypi-url",
+                            url,
+                            "--timeout-seconds",
+                            "5",
+                            "--poll-interval-seconds",
+                            "0.01",
+                            cwd=root,
+                        )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(
+                        "yanked" if invalid == "yanked" else "hash differs",
+                        result.stderr,
+                    )
+
     def test_source_timestamp_restore_rejects_invalid_cache_before_mutation(
         self,
     ) -> None:

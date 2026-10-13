@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import itertools
 import json
+import math
 import os
 import posixpath
 import re
@@ -18,6 +19,8 @@ from collections import deque
 from email.parser import BytesParser
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 STABLE_TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+")
 PACKAGE_VERSION = re.compile(r'^version\s*=\s*"([^"]+)"\s*$')
@@ -976,6 +979,83 @@ def verify_wheel_set(args: argparse.Namespace) -> None:
         print(f"  {wheel}")
 
 
+def wait_pypi(args: argparse.Namespace) -> None:
+    wheels = sorted(Path(args.directory).glob("*.whl"))
+    require(len(wheels) == 4, f"expected exactly four wheels, found {len(wheels)}")
+    for value in (args.timeout_seconds, args.poll_interval_seconds):
+        require(
+            math.isfinite(value) and value > 0,
+            "wait budgets must be finite and positive",
+        )
+    expected = {
+        wheel.name: hashlib.sha256(wheel.read_bytes()).hexdigest() for wheel in wheels
+    }
+    version = package_version()
+    base = args.pypi_url.rstrip("/")
+    endpoints = (
+        (
+            f"{base}/pypi/mcp-console/{version}/json",
+            "urls",
+            "digests",
+            "application/json",
+        ),
+        (
+            f"{base}/simple/mcp-console/",
+            "files",
+            "hashes",
+            "application/vnd.pypi.simple.v1+json",
+        ),
+    )
+    deadline = time.monotonic() + args.timeout_seconds
+    timeout_message = (
+        f"PyPI wheel set was not visible within {args.timeout_seconds:g} seconds"
+    )
+    while True:
+        for url, collection, hash_field, accept in endpoints:
+            remaining = deadline - time.monotonic()
+            require(remaining > 0, timeout_message)
+            try:
+                with urlopen(
+                    Request(url, headers={"Accept": accept}), timeout=min(30, remaining)
+                ) as response:
+                    payload = json.load(response)
+            except HTTPError as error:
+                if error.code != 404:
+                    raise
+                error.close()
+                break
+            visible = {item["filename"]: item for item in payload[collection]}
+            if collection == "urls":
+                require(
+                    visible.keys() <= expected.keys(),
+                    "PyPI version contains unexpected files",
+                )
+            for filename in expected.keys() & visible.keys():
+                item = visible[filename]
+                require(
+                    item.get("yanked", False) is False,
+                    f"PyPI wheel is yanked: {filename}",
+                )
+                require(
+                    item[hash_field]["sha256"] == expected[filename],
+                    f"PyPI hash differs: {filename}",
+                )
+            if not expected.keys() <= visible.keys():
+                break
+        else:
+            report = (
+                json.dumps({"version": version, "wheels": expected}, indent=2) + "\n"
+            )
+            if args.report:
+                Path(args.report).write_text(report, encoding="utf-8")
+            else:
+                print(report, end="")
+            return
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, timeout_message)
+        time.sleep(min(args.poll_interval_seconds, remaining))
+
+
 def parser() -> argparse.ArgumentParser:
     argument_parser = argparse.ArgumentParser()
     commands = argument_parser.add_subparsers(required=True)
@@ -1006,6 +1086,14 @@ def parser() -> argparse.ArgumentParser:
     verify = commands.add_parser("verify-wheel-set")
     verify.add_argument("directory")
     verify.set_defaults(function=verify_wheel_set)
+
+    wait = commands.add_parser("wait-pypi")
+    wait.add_argument("directory")
+    wait.add_argument("--pypi-url", default="https://pypi.org")
+    wait.add_argument("--timeout-seconds", type=float, default=120)
+    wait.add_argument("--poll-interval-seconds", type=float, default=2)
+    wait.add_argument("--report")
+    wait.set_defaults(function=wait_pypi)
 
     return argument_parser
 
