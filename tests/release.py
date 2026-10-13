@@ -2533,7 +2533,7 @@ version = "0.0.0"
 class PortableReleaseTests(ReleaseFixture):
     @contextmanager
     def publication_server(
-        self, responses: dict[str, list[tuple[int, dict[str, object]]]]
+        self, responses: dict[str, list[tuple[int | str, dict[str, object]]]]
     ) -> Iterator[tuple[str, list[tuple[str, dict[str, object]]]]]:
         observed: list[tuple[str, dict[str, object]]] = []
 
@@ -2544,6 +2544,9 @@ class PortableReleaseTests(ReleaseFixture):
                 if len(sequence) > 1:
                     sequence.pop(0)
                 observed.append((self.path, payload))
+                if status == "disconnect":
+                    self.connection.close()
+                    return
                 body = json.dumps(payload).encode()
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
@@ -2626,6 +2629,62 @@ class PortableReleaseTests(ReleaseFixture):
                 report["wheels"],
                 {item["filename"]: item["digests"]["sha256"] for item in files},
             )
+
+    def test_wait_pypi_retries_temporary_endpoint_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = self.publication_files(root)
+            with self.publication_server(
+                {
+                    "/pypi/mcp-console/0.0.2/json": [
+                        (429, {"message": "rate limited"}),
+                        (503, {"message": "temporarily unavailable"}),
+                        ("disconnect", {}),
+                        (200, {"urls": files}),
+                    ],
+                    "/simple/mcp-console/": [
+                        (500, {"message": "temporary server failure"}),
+                        ("disconnect", {}),
+                        (200, {"files": files}),
+                    ],
+                }
+            ) as (url, observed):
+                result = self.run_script(
+                    "wait-pypi",
+                    "dist",
+                    "--pypi-url",
+                    url,
+                    "--timeout-seconds",
+                    "5",
+                    "--poll-interval-seconds",
+                    "0.01",
+                    cwd=root,
+                )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(("/simple/mcp-console/", {"files": files}), observed)
+            self.assertEqual(len(json.loads(result.stdout)["wheels"]), 4)
+
+    def test_wait_pypi_rejects_forbidden_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.publication_files(root)
+            with self.publication_server(
+                {"/pypi/mcp-console/0.0.2/json": [(403, {"message": "forbidden"})]}
+            ) as (url, observed):
+                result = self.run_script(
+                    "wait-pypi",
+                    "dist",
+                    "--pypi-url",
+                    url,
+                    "--timeout-seconds",
+                    "5",
+                    "--poll-interval-seconds",
+                    "0.01",
+                    cwd=root,
+                )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("403", result.stderr)
+            self.assertEqual(len(observed), 1)
 
     def test_wait_pypi_times_out_when_simple_index_remains_incomplete(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

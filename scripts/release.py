@@ -17,9 +17,10 @@ import time
 import zipfile
 from collections import deque
 from email.parser import BytesParser
+from http.client import IncompleteRead
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 STABLE_TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+")
@@ -1020,9 +1021,11 @@ def wait_pypi(args: argparse.Namespace) -> None:
                 ) as response:
                     payload = json.load(response)
             except HTTPError as error:
-                if error.code != 404:
+                if error.code not in (404, 429) and not 500 <= error.code < 600:
                     raise
                 error.close()
+                break
+            except (URLError, ConnectionError, TimeoutError, IncompleteRead):
                 break
             visible = {item["filename"]: item for item in payload[collection]}
             if collection == "urls":

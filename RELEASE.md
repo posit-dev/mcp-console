@@ -160,7 +160,7 @@ The tag workflow must verify version, main ancestry, exact-commit push CI, and t
 
 Check PyPI's version JSON: all four wheels must be present, unyanked, and match the tag workflow's artifact SHA-256 digests.
 The tag workflow checks these hashes and fresh pinned/unqualified public-index installations on all four release platforms, including installed sandbox execution and Python-only MCP evaluation.
-It waits up to two minutes for both the version JSON and package index to expose all expected files; a visible hash mismatch or yanked file fails immediately.
+It waits up to two minutes for both the version JSON and package index to expose all expected files, including retries for temporary request failures; a visible hash mismatch, yanked file, or HTTP permission error fails immediately.
 Verify fresh public-index installation on every supported release platform:
 
 ```sh
