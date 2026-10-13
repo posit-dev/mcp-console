@@ -9,7 +9,7 @@ from pathlib import Path
 from support.assertions import last_result_text, wait_for_evaluation_output
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
-from support.execution import Execution
+from support.execution import SANDBOXED, Execution
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
 from support.processes import ProcessIdentity, child_process_identities
@@ -260,6 +260,7 @@ def record_resolved_r_library(environment: dict[str, str], directory: Path) -> N
 
 def resolver_interrupt_permission_environment(
     temporary_path: Path,
+    execution: Execution,
 ) -> tuple[dict[str, str], FifoCheckpoint, FifoCheckpoint, Path, Path, Path]:
     environment, _ = r_test_environment()
     environment["RETICULATE_PYTHON"] = ""
@@ -307,15 +308,18 @@ def resolver_interrupt_permission_environment(
     )
     config = temporary_path / ".agents/console/config.yaml"
     config.parent.mkdir(parents=True)
-    config.write_text(
-        json.dumps(
-            {
-                "resolver": {
-                    "environment": {LOADER_VARIABLE: environment[LOADER_VARIABLE]}
-                }
+    resolver = {"environment": {LOADER_VARIABLE: environment[LOADER_VARIABLE]}}
+    if execution == SANDBOXED:
+        # This resolver is a checkpoint fixture, not an installer. Avoid
+        # mounting shared caches whose Git metadata can change during
+        # concurrent real dependency preparation.
+        resolver["sandbox"] = {
+            "filesystem": {
+                "read_only": ["/"],
+                "read_write": [str(temporary_path)],
             }
-        )
-    )
+        }
+    config.write_text(json.dumps({"resolver": resolver}))
     return (
         environment,
         resolver_started,
