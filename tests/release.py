@@ -21,7 +21,7 @@ import sys
 import tarfile
 import tempfile
 import tomllib
-from threading import Thread
+from threading import Event, Thread
 import unittest
 import zipfile
 from pathlib import Path
@@ -2536,6 +2536,7 @@ class PortableReleaseTests(ReleaseFixture):
         self, responses: dict[str, list[tuple[int | str, dict[str, object]]]]
     ) -> Iterator[tuple[str, list[tuple[str, dict[str, object]]]]]:
         observed: list[tuple[str, dict[str, object]]] = []
+        release_stalled_request = Event()
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self) -> None:
@@ -2544,6 +2545,9 @@ class PortableReleaseTests(ReleaseFixture):
                 if len(sequence) > 1:
                     sequence.pop(0)
                 observed.append((self.path, payload))
+                if status == "stall":
+                    release_stalled_request.wait()
+                    return
                 if status == "disconnect":
                     self.connection.close()
                     return
@@ -2563,6 +2567,7 @@ class PortableReleaseTests(ReleaseFixture):
             try:
                 yield f"http://127.0.0.1:{server.server_port}", observed
             finally:
+                release_stalled_request.set()
                 server.shutdown()
                 thread.join()
 
@@ -2690,9 +2695,14 @@ class PortableReleaseTests(ReleaseFixture):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             files = self.publication_files(root)
+            # Observe the incomplete index before stalling the next request.
+            # The CLI must enforce its deadline even while the server is gated.
             with self.publication_server(
                 {
-                    "/pypi/mcp-console/0.0.2/json": [(200, {"urls": files})],
+                    "/pypi/mcp-console/0.0.2/json": [
+                        (200, {"urls": files}),
+                        ("stall", {}),
+                    ],
                     "/simple/mcp-console/": [(200, {"files": files[:3]})],
                 }
             ) as (url, observed):
@@ -2702,7 +2712,7 @@ class PortableReleaseTests(ReleaseFixture):
                     "--pypi-url",
                     url,
                     "--timeout-seconds",
-                    "0.1",
+                    "5",
                     "--poll-interval-seconds",
                     "0.01",
                     "--report",
