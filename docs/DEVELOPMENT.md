@@ -153,6 +153,19 @@ Retain real-library sandbox regressions, including process creation and activati
 Before a cross-cutting change, identify its observable behavior, owning modules, public tests, expected platform/snapshot changes, and intended PR base.
 Keep task-specific details in the checkpoint rather than permanent docs.
 
+For a bug fix, record a minimal reproduction, expected and actual behavior, and relevant version/platform details before editing.
+Tie the fix to that evidence and the public regression.
+
+Review compatibility at the affected [public interfaces](API.md):
+
+- MCP tool discovery, accepted arguments, result shapes, and error behavior.
+- CLI flags and exit status; configuration discovery, precedence, and defaults.
+- R and Python client signatures, return values, and connection lifetimes.
+
+Check omission, `null`, empty values, and defaults where the affected interface distinguishes them.
+Regenerate affected public discovery/help snapshots and update clients and the owning docs in the same change.
+Keep private protocol evolution within the [documented compatibility boundary](API.md#what-is-not-a-public-compatibility-contract).
+
 ```sh
 scripts/review-diff BASE
 git diff --merge-base BASE

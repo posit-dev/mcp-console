@@ -26,8 +26,20 @@ Keep production R/Python programs under `src/` compile-time embedded, not loaded
 
 Update the owning document when a contract changes.
 Explain decisions and invariants, not line-by-line mechanics.
+Document intentional limitations beside the owning code or contract, with enough detail to distinguish accepted scope from a regression.
 Keep user contracts separate from developer internals.
 Consolidate unfinished work in [TODO](docs/TODO.md); do not silently promote historical proposals into release requirements.
+
+## Implementation
+
+Keep module visibility narrow and reuse existing owners and helpers.
+Prefer named methods or enums when positional booleans or `None` obscure a call.
+Prefer exhaustive matches on Console-owned state enums so adding a state requires an explicit decision.
+
+Keep straightforward, single-use code inline unless a helper names a meaningful responsibility or invariant.
+Document new traits' purpose and the obligations of their implementations.
+When extracting code, keep its invariant comments and module documentation with the implementation.
+Follow nearby conventions and keep unrelated style changes out of behavior changes.
 
 ## Validation
 

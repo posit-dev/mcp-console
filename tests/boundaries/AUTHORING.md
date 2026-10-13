@@ -10,6 +10,10 @@ Check schema, guidance, and configuration through public discovery or configurat
 Extend existing cases rather than launching duplicate sessions for the same permutations.
 Before deleting a case, identify its surviving coverage and remove its producer and owned snapshots together.
 
+Prefer equality assertions on complete structured results when the whole value belongs to the case's contract.
+Reuse shared clients and fixtures; avoid adding production APIs solely to let a test inspect private state.
+Pass fixture environment to child processes explicitly instead of changing the test runner's process environment.
+
 Make each YAML understandable without reading its Python fixture.
 Emit a short `scenario` and `fixture` description before initialization when setup is not evident from the exchanges.
 Identify fake workers, hidden runtimes, injected failures, gates, and host-side actions in one to three sentences; keep the prose in the producer so regeneration preserves it.
