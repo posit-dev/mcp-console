@@ -2581,6 +2581,7 @@ class PortableReleaseTests(ReleaseFixture):
             "macosx_10_12_x86_64",
             "manylinux_2_35_aarch64",
             "manylinux_2_35_x86_64",
+            "win_amd64",
         ):
             filename = f"mcp_console-0.0.2-py3-none-{tag}.whl"
             payload = filename.encode()
@@ -2667,7 +2668,7 @@ class PortableReleaseTests(ReleaseFixture):
                 )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn(("/simple/mcp-console/", {"files": files}), observed)
-            self.assertEqual(len(json.loads(result.stdout)["wheels"]), 4)
+            self.assertEqual(len(json.loads(result.stdout)["wheels"]), 5)
 
     def test_wait_pypi_rejects_forbidden_endpoint(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2972,7 +2973,9 @@ class PortableReleaseTests(ReleaseFixture):
                         + hashlib.sha256(archive.read_bytes()).hexdigest(),
                     )
 
-    def test_verify_wheel_set_requires_macos_and_linux_architectures(self) -> None:
+    def test_verify_wheel_set_requires_macos_linux_and_windows_architectures(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = Path(temporary_directory)
             arm64 = directory / "mcp_console-0.0.2-py3-none-macosx_11_0_arm64.whl"
@@ -2986,12 +2989,25 @@ class PortableReleaseTests(ReleaseFixture):
                 ).touch()
 
             result = self.run_script("verify-wheel-set", str(directory), cwd=ROOT)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("expected exactly five wheels", result.stderr)
+
+            windows = directory / "mcp_console-0.0.2-py3-none-win_amd64.whl"
+            windows.touch()
+            result = self.run_script("verify-wheel-set", str(directory), cwd=ROOT)
             self.assertEqual(result.returncode, 0, result.stderr)
+
+            windows.rename(
+                windows.with_name("mcp_console-0.0.2-py3-none-win_arm64.whl")
+            )
+            result = self.run_script("verify-wheel-set", str(directory), cwd=ROOT)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("expected exactly one x86-64 Windows wheel", result.stderr)
 
             x86_64.unlink()
             result = self.run_script("verify-wheel-set", str(directory), cwd=ROOT)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("expected exactly four wheels", result.stderr)
+            self.assertIn("expected exactly five wheels", result.stderr)
 
 
 @unittest.skipUnless(os.name == "posix", "Unix Rscript executable fixture")

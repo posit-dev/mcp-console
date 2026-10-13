@@ -964,14 +964,16 @@ def verify_wheel_set(args: argparse.Namespace) -> None:
     x86_64 = list(directory.glob("mcp_console-*-macosx_*_x86_64.whl"))
     linux_arm64 = list(directory.glob("mcp_console-*-manylinux_*_aarch64.whl"))
     linux_x86_64 = list(directory.glob("mcp_console-*-manylinux_*_x86_64.whl"))
+    windows_x86_64 = list(directory.glob("mcp_console-*-win_amd64.whl"))
     universal = list(directory.glob("*-none-any.whl"))
     sdists = list(directory.glob("*.tar.gz"))
 
-    require(len(wheels) == 4, f"expected exactly four wheels, found {len(wheels)}")
+    require(len(wheels) == 5, f"expected exactly five wheels, found {len(wheels)}")
     require(len(arm64) == 1, "expected exactly one Apple Silicon wheel")
     require(len(x86_64) == 1, "expected exactly one Intel macOS wheel")
     require(len(linux_arm64) == 1, "expected exactly one ARM64 Linux wheel")
     require(len(linux_x86_64) == 1, "expected exactly one x86-64 Linux wheel")
+    require(len(windows_x86_64) == 1, "expected exactly one x86-64 Windows wheel")
     require(not universal, "a platform-independent wheel must not be published")
     require(not sdists, "a source distribution must not be published")
 
@@ -982,7 +984,7 @@ def verify_wheel_set(args: argparse.Namespace) -> None:
 
 def wait_pypi(args: argparse.Namespace) -> None:
     wheels = sorted(Path(args.directory).glob("*.whl"))
-    require(len(wheels) == 4, f"expected exactly four wheels, found {len(wheels)}")
+    require(len(wheels) == 5, f"expected exactly five wheels, found {len(wheels)}")
     for value in (args.timeout_seconds, args.poll_interval_seconds):
         require(
             math.isfinite(value) and value > 0,

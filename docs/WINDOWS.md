@@ -4,26 +4,21 @@ Native Windows x64 support is experimental.
 Local sandboxed and `--no-sandbox` sessions support R, Python, SQL, persistent state, input, plots, interruption, restart, and recording.
 Either R or Python can run without the other; reticulate bridges them when both are available.
 
-The release workflow does not publish Windows wheels.
-Build and install Console from source.
+PyPI provides a prebuilt Windows x64 wheel.
 Windows dependency preparation uses host permissions; process cleanup through Jobs is not sandboxing.
 
-## Build and run
+## Install and run
 
-Install Python 3.11+, uv, Git, Rust's MSVC toolchain, Visual Studio C++ build tools, the Windows SDK, and CMake.
-R is optional for building and Python-only execution.
+Install Python 3.11+, uv, and the [Microsoft Visual C++ v14 Redistributable for x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
+R is optional for Python-only execution.
 For R, use an x64 installation selected through public `r` configuration, `R_HOME`, or PATH.
 
-From PowerShell in the repository root:
+From PowerShell:
 
 ```powershell
-uv tool install --reinstall .
+uv tool install mcp-console
 mcp-console serve
 ```
-
-Source packaging stages the pinned companion and native helpers.
-Direct Cargo builds need `scripts/stage-sandbox-runner.cmd` first.
-Use `scripts/with-checkout.cmd` for direct mutating build commands.
 
 `serve` waits for MCP traffic; it is not an interactive prompt.
 Configure your client with command `mcp-console` and arguments `["serve"]`.
@@ -42,6 +37,14 @@ Shared [requirements](REQUIREMENTS.md), [configuration](CONFIGURATION.md), and [
 Sandboxed sessions default to Console caches under `%LOCALAPPDATA%/mcp-console/cache/dependencies`, subject to the [documented overrides](RESOLVER.md#cache-locations).
 Redirecting caches does not sandbox preparation.
 There is no automatic fallback to host execution when sandbox setup fails.
+
+### Build from source
+
+Source builds additionally need Git, Rust's MSVC toolchain, Visual Studio C++ build tools, the Windows SDK, and CMake.
+From the repository root, run `uv tool install --reinstall .`.
+Source packaging stages the pinned companion and native helpers.
+Direct Cargo builds need `scripts/stage-sandbox-runner.cmd` first.
+Use `scripts/with-checkout.cmd` for direct mutating build commands.
 
 ## Native sandbox
 

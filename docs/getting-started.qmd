@@ -15,7 +15,8 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then inst
 uv tool install mcp-console
 ```
 
-PyPI provides wheels for macOS and Linux on ARM64 and x86-64.
+PyPI provides wheels for macOS and Linux on ARM64 and x86-64, plus experimental Windows x64 support.
+See [Windows local execution](WINDOWS.md) for native sandbox setup and platform limits.
 Linux wheels require glibc 2.35 or later.
 On Ubuntu, install the runtime libraries:
 

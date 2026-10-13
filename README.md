@@ -25,9 +25,9 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then inst
 uv tool install mcp-console
 ```
 
-PyPI provides wheels for macOS and Linux on ARM64 and x86-64.
+PyPI provides wheels for macOS and Linux on ARM64 and x86-64, plus experimental Windows x64 support.
 Linux wheels require glibc 2.35 or later and the runtime libraries listed in [Get started](docs/getting-started.qmd).
-That guide also covers optional R installation and [building from source](docs/getting-started.qmd#build-from-source), including experimental Windows support.
+That guide also covers optional R installation and [building from source](docs/getting-started.qmd#build-from-source).
 
 Configure your MCP client to launch `mcp-console serve` over stdio, following the [client setup examples](docs/getting-started.qmd#connect-your-client).
 Run the client and Console on the same host, with the client's shell and filesystem tools using the same workspace.
