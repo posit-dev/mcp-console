@@ -184,8 +184,12 @@ config_flag <- function() {
 #' Linux's managed proxy uses a private network namespace. Local binding does
 #' not publish its ports to a host browser. For host-browser Shiny development
 #' on Linux, use `SandboxPolicy(network = "enabled")` with the filesystem grants
-#' you need; this also permits remote networking. Use the same direct-network
-#' choice on Windows, where managed proxy configurations are unsupported.
+#' you need; this also permits remote networking.
+#'
+#' Windows MXC supports managed TCP proxies. Its host-loopback access is
+#' bidirectional, so a managed proxy requires local binding; `"auto"` enables
+#' it and explicit `FALSE` is rejected. UDP and Unix-socket settings remain
+#' unsupported.
 #'
 #' `SandboxSockets(unix_sockets = ...)` permits direct Unix-domain socket
 #' connections, for example to a local service. Use literal absolute paths;
@@ -296,7 +300,7 @@ config_flag <- function() {
 #' send(control = "interrupt")
 #' }
 #'
-#' # Direct networking for host-browser development on Linux or Windows
+#' # Direct networking for host-browser development on Linux
 #' shiny_direct <- SandboxPolicy(
 #'   filesystem = SandboxFilesystem(read_write = "."),
 #'   network = "enabled"
