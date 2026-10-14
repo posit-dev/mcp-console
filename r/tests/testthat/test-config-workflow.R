@@ -126,10 +126,6 @@ test_that("materializing and pruning retain edits and explicit empty values", {
 })
 
 test_that("materializing and pruning retain managed proxy edits", {
-  skip_if(
-    .Platform$OS.type == "windows",
-    "Managed proxies are not supported by the pinned Windows runner"
-  )
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     full <- materialize_console_config(path = binary)

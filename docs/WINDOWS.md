@@ -208,6 +208,7 @@ Acceptance probes MXC through a real public sandbox launch.
 Only the native unavailable-runtime diagnostic permits skipping MXC execution cases; installation, policy, and legacy-account failures remain failures.
 Hosts without MXC still run configuration, integrity, migration-diagnostic, explicit host-execution, and public fail-closed startup tests.
 As hosted runners gain native MXC support, the existing execution cases run automatically.
+The R package's permission tests use the same capability rule; adapter and configuration tests use explicit host execution where enforcement is outside their scope.
 CI never provisions legacy accounts or selects a different sandbox backend.
 Controlled origins verify allowed and denied HTTP, CONNECT, and SOCKS requests through the managed proxy.
 Process-local fault injection checks legacy-account diagnostics through sessions, sandbox commands, and complete policies without changing the host's resources.
