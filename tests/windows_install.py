@@ -60,6 +60,7 @@ if __name__ == "__main__":
             "WindowsSandbox.test_first_python_send_from_short_profile_directory",
             "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
             "WindowsSandbox.test_elevated_cwd_reuses_existing_metadata_access",
+            "WindowsSandbox.test_cwd_alias_does_not_require_parent_enumeration",
             "WindowsSandbox.test_elevated_cwd_rejects_a_blocked_metadata_grant",
             "WindowsSandbox.test_elevated_cwd_rejects_denied_metadata_with_existing_allow",
             "WindowsSandbox.test_elevated_cwd_reuses_null_dacl",
