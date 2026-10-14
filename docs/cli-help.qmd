@@ -10,16 +10,5 @@ Run `mcp-console --help` to see the help for your installed version.
 
 The `worker` command is an internal interface described in [Architecture](ARCHITECTURE.md).
 
-::: {.panel-tabset .cli-help-tabs}
-
-## macOS and Linux
-
-::: {#unix .cli-help-transcript snapshot="help.yaml"}
-:::
-
-## Windows
-
-::: {#windows .cli-help-transcript snapshot="help.win32.yaml"}
-:::
-
+::: {#all-platforms .cli-help-transcript snapshot="help.yaml"}
 :::

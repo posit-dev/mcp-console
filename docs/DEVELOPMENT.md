@@ -31,7 +31,7 @@ Install the formatting tools used by `scripts/format`, including ruff, yamark, a
 
 On native Windows use `.cmd` launchers, such as `scripts/check.cmd`, or `python scripts/check`.
 Stage the companion before native build/test/check commands.
-See [Windows validation](WINDOWS.md#validation) for provisioning and required runtimes.
+See [Windows validation](WINDOWS.md#validation) for MXC host requirements and required runtimes.
 
 ### Windows development through WSL2
 

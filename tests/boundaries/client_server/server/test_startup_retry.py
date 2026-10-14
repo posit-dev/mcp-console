@@ -925,10 +925,16 @@ def cancelled_retry_preparation(
             )
             release.release()
             poll_start = len(client.transcript)
+            cancellation_text = (
+                "[runtime discovery retried]\nrequest cancelled before cell admission; cell was not run"
+                if with_cell
+                else "[runtime discovery retried]\n[request cancelled before stdin admission]"
+            )
 
             def retry_finished() -> Path | None:
-                # Observe the public commit before testing admission release;
-                # do not keep sending while the materializer is still running.
+                # A committed declaration does not mean the cancelled control
+                # owner has published its recovered response. Consume that exact
+                # result before the next cell can capture it as idle output.
                 events = [
                     json.loads(line)
                     for line in journal.read_text().rpartition("\n")[0].splitlines()
@@ -941,18 +947,16 @@ def cancelled_retry_preparation(
                 ):
                     return None
                 result = client.send()
-                if result == {
-                    "content": [
-                        {"type": "text", "text": "[session control is in progress]"}
-                    ],
-                    "isError": True,
-                }:
-                    return None
-                return journal
+                return (
+                    journal
+                    if result.get("isError")
+                    and last_result_text(client) == cancellation_text
+                    else None
+                )
 
             wait_for_checkpoint(
                 retry_finished,
-                "retry preparation settles and releases controlled admission",
+                "retry cancellation result is recovered before further admission",
                 root=journal.parent,
                 client=client,
             )
@@ -985,11 +989,7 @@ def cancelled_retry_preparation(
             )
             client.expect("43\n", python="answer + 1")
             assert retry_result.get("isError"), retry_result
-            assert retry_text == (
-                "[runtime discovery retried]\nrequest cancelled before cell admission; cell was not run"
-                if with_cell
-                else "[runtime discovery retried]\n[request cancelled before stdin admission]"
-            ), retry_text
+            assert retry_text == cancellation_text, retry_text
             return json.loads(
                 json.dumps(client.finish()).replace(str(root), "<workspace>")
             )

@@ -1,0 +1,48 @@
+---
+field: windows_backend
+value: auto
+stderr: >
+  windows_backend has been removed; Windows sandbox execution requires
+  MXC; see docs/WINDOWS.md
+---
+field: windows_backend
+value: mxc
+stderr: >
+  windows_backend has been removed; Windows sandbox execution requires
+  MXC; see docs/WINDOWS.md
+---
+field: windows_backend
+value: elevated
+stderr: >
+  windows_backend has been removed; Windows sandbox execution requires
+  MXC; see docs/WINDOWS.md
+---
+field: windows_backend
+value: unelevated
+stderr: >
+  windows_backend has been removed; Windows sandbox execution requires
+  MXC; see docs/WINDOWS.md
+---
+field: windows_backend
+value: ~
+stderr: >
+  windows_backend has been removed; Windows sandbox execution requires
+  MXC; see docs/WINDOWS.md
+---
+field: windows_sandbox_level
+value: unelevated
+stderr: >
+  windows_sandbox_level has been removed; Windows sandbox execution
+  requires MXC; see docs/WINDOWS.md
+---
+field: windows_state_dir
+value: ~
+stderr: >
+  windows_state_dir has been removed; Windows sandbox execution requires
+  MXC; see docs/WINDOWS.md
+---
+field: windows_state_dir
+value: unused-state
+stderr: >
+  windows_state_dir has been removed; Windows sandbox execution requires
+  MXC; see docs/WINDOWS.md

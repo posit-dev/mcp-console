@@ -40,32 +40,32 @@ if __name__ == "__main__":
         )
         run(binary, "--help")
         assert not (binary.parent / "mcp-console-sandbox.exe").exists()
-        with workspace() as directory:
-            run(
-                binary,
-                "sandbox",
-                "--no-config",
-                "--",
-                Path(os.environ["SystemRoot"]) / "System32/cmd.exe",
-                "/d",
-                "/c",
-                "exit 0",
-                environment=os.environ | {"PATH": str(directory)},
-            )
+        from support.windows_mxc import mxc_requirement
+
+        if mxc_requirement(binary).available:
+            with workspace() as directory:
+                run(
+                    binary,
+                    "sandbox",
+                    "--no-config",
+                    "--",
+                    Path(os.environ["SystemRoot"]) / "System32/cmd.exe",
+                    "/d",
+                    "/c",
+                    "exit 0",
+                    environment=os.environ | {"PATH": str(directory)},
+                )
         run(
             sys.executable,
             ROOT / "tests/windows.py",
             "-v",
-            "WindowsSandbox.test_setup_status_is_read_only",
+            "WindowsMxc.test_proxy_launch",
+            "WindowsMxc.test_startup_failures_withhold_code_at_every_public_entry_point",
+            "WindowsMxc.test_complete_policy_cannot_disable_mxc",
+            "WindowsMxc.test_setup_command_is_removed",
             "WindowsSandbox.test_first_python_send_from_short_profile_directory",
             "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
-            "WindowsSandbox.test_elevated_cwd_reuses_existing_metadata_access",
             "WindowsSandbox.test_cwd_alias_does_not_require_parent_enumeration",
-            "WindowsSandbox.test_elevated_cwd_rejects_a_blocked_metadata_grant",
-            "WindowsSandbox.test_elevated_cwd_rejects_denied_metadata_with_existing_allow",
-            "WindowsSandbox.test_elevated_cwd_reuses_null_dacl",
-            "WindowsSandbox.test_elevated_cwd_rejects_account_metadata_denies",
-            "WindowsSandbox.test_elevated_cwd_preserves_a_contended_read_grant",
             "WindowsSandbox.test_stdio_write_policy_and_exit_status",
             "WindowsConsole.test_python_without_r",
             "WindowsConsole.test_r_initializes_before_python",
@@ -73,8 +73,7 @@ if __name__ == "__main__":
             environment=os.environ | {"MCP_CONSOLE_TEST_BINARY": str(binary)},
         )
         raise SystemExit(0)
-    # Restricted tokens must be able to traverse the installed executable's
-    # directory. Private TemporaryDirectory ACLs only admit owner/admin/system.
+    # Exercise installed commands from a workspace with ordinary inherited ACLs.
     with checkout_owner(ROOT), workspace() as directory:
         wheels = directory / "wheels"
         venv = directory / "venv"
@@ -100,7 +99,7 @@ if __name__ == "__main__":
             sys.executable,
             ROOT / "tests/windows.py",
             "-v",
-            "WindowsSandbox.test_setup_status_is_read_only",
+            "WindowsMxc.test_proxy_launch",
             "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
             "WindowsSandbox.test_stdio_write_policy_and_exit_status",
             environment=tool_environment

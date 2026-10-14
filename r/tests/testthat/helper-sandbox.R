@@ -15,6 +15,65 @@ sandbox_test_r <- function() {
   file.path(R.home("bin"), if (.Platform$OS.type == "windows") "R.exe" else "R")
 }
 
+require_sandbox_execution <- local({
+  results <- new.env(parent = emptyenv())
+  function(binary) {
+    if (.Platform$OS.type != "windows") {
+      return(invisible(NULL))
+    }
+    result <- results[[binary]]
+    if (is.null(result)) {
+      directory <- tempfile("mcp-console-mxc-probe-")
+      stopifnot(dir.create(directory))
+      on.exit(unlink(directory, recursive = TRUE), add = TRUE)
+      result <- processx::run(
+        binary,
+        c(
+          "sandbox",
+          "--no-config",
+          "--",
+          file.path(Sys.getenv("SystemRoot"), "System32", "cmd.exe"),
+          "/d",
+          "/c",
+          "echo MXC probe executed"
+        ),
+        wd = directory,
+        env = c("current", MCP_CONSOLE_HOME = file.path(directory, "home")),
+        error_on_status = FALSE,
+        timeout = 30000
+      )
+      if (result$status == 0L) {
+        stopifnot(
+          trimws(result$stdout) == "MXC probe executed",
+          !nzchar(result$stderr)
+        )
+      } else {
+        # Only unavailable MXC permits skipping; legacy installations and
+        # policy, installation, or workload errors must still fail acceptance.
+        if (
+          result$status != 1L ||
+            nzchar(result$stdout) ||
+            !grepl(
+              "MXC is unavailable for this filesystem policy on this executor;",
+              result$stderr,
+              fixed = TRUE
+            )
+        ) {
+          stop(result$stderr)
+        }
+      }
+      results[[binary]] <- result
+    }
+    if (result$status != 0L) {
+      if (Sys.getenv("MCP_CONSOLE_TEST_REQUIRE_MXC") == "1") {
+        stop(result$stderr)
+      }
+      skip(trimws(result$stderr))
+    }
+    invisible(NULL)
+  }
+})
+
 with_sandbox_directory <- function(code) {
   directory <- tempfile("mcp-console-sandbox-test-")
   stopifnot(dir.create(directory))

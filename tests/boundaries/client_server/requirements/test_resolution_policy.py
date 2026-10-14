@@ -235,16 +235,18 @@ def test_locked_r_admission_and_deferred_interrupt(
             assert accepted["requirements"]["python"] == ["packaging"], accepted
             baseline = (ir_run_records(ir_record), uv_tool_run_requirements(uv_record))
             with closing(FifoCheckpoint.create(root / "active")) as active:
-                # Signal the actual cell boundary; no timing assumption precedes interrupt.
+                # Publish readiness only after the interrupt handler is installed.
                 client.send(
                     # fmt: r
                     r=code(f"""
-                        local({{
-                          checkpoint <- file({json.dumps(str(active.path))}, "wb", raw = TRUE)
-                          on.exit(close(checkpoint))
-                          writeChar("1", checkpoint, eos = NULL)
-                        }})
-                        tryCatch(Sys.sleep(60), interrupt = function(e) cat("active interrupted\\n"))
+                        tryCatch({{
+                          local({{
+                            checkpoint <- file({json.dumps(str(active.path))}, "wb", raw = TRUE)
+                            on.exit(close(checkpoint))
+                            writeChar("1", checkpoint, eos = NULL)
+                          }})
+                          Sys.sleep(60)
+                        }}, interrupt = function(e) cat("active interrupted\\n"))
                         """),
                     timeout_ms=0,
                 )

@@ -16,7 +16,7 @@ test_that("omitted mappings and explicit empties stay distinct", {
   )
   expect_identical(
     policy_json(SandboxPolicy(network = SandboxNetwork())),
-    '{"network":{"proxy":{}}}'
+    '{"network":{"proxy":{},"allow_local_binding":"auto"}}'
   )
   expect_identical(
     policy_json(SandboxProxy(domains = SandboxDomains())),
@@ -26,6 +26,22 @@ test_that("omitted mappings and explicit empties stay distinct", {
     policy_json(SandboxProxy(domains = SandboxDomains(allow = character()))),
     '{"domains":{"allow":[]}}'
   )
+})
+
+test_that("local binding accepts auto, null, and booleans without losing null overrides", {
+  for (value in list("auto", NULL, TRUE, FALSE)) {
+    network <- SandboxNetwork(allow_local_binding = value)
+    expected <- if (is.null(value)) "auto" else value
+    # R's omitted NULL properties normally disappear from overrides. Serialize
+    # this reset as auto so it replaces an earlier boolean during native merge.
+    expect_identical(as.list(network)$allow_local_binding, expected)
+  }
+  for (value in list("true", "false", "AUTO", "", 0, 1, NA, logical())) {
+    expect_error(
+      SandboxNetwork(allow_local_binding = value),
+      "allow_local_binding"
+    )
+  }
 })
 
 test_that("all public fields have the config.yaml wire shape", {

@@ -25,7 +25,7 @@ SandboxSockets(unix_sockets = NULL)
 SandboxNetwork(
   proxy = SandboxProxy(),
   sockets = NULL,
-  allow_local_binding = NULL
+  allow_local_binding = "auto"
 )
 
 SandboxPolicy(filesystem = NULL, network = NULL)
@@ -66,8 +66,8 @@ network choice in \code{SandboxPolicy()} for proxy-free networking.}
 
 \item{sockets}{\code{NULL} or a \code{SandboxSockets()}.}
 
-\item{allow_local_binding}{\code{NULL} (defaults to \code{FALSE} for workers and \code{TRUE}
-for resolvers), \code{TRUE} to permit local networking and relax private-address
+\item{allow_local_binding}{\code{"auto"} (the default) or \code{NULL} to select the
+platform/context default, \code{TRUE} to permit local networking and relax private-address
 checks, or \code{FALSE} to restrict it. On macOS, \code{TRUE} permits loopback listeners
 and direct host-loopback connections. Linux managed-proxy ports remain
 inside a private network namespace.}
@@ -218,8 +218,10 @@ still be reached through the proxy.
 \section{Local applications and Unix sockets}{
 
 \code{SandboxNetwork(allow_local_binding = TRUE)} allows local networking needed
-by development servers. For workers this defaults to \code{FALSE}; for dependency
-preparation it defaults to \code{TRUE}. On macOS, enabling it allows loopback
+by development servers. The default \code{"auto"} (also selected by \code{NULL})
+preserves \code{FALSE} for Unix workers and \code{TRUE} for Unix dependency preparation.
+Windows MXC proxies require \code{TRUE}; \code{"auto"} enables it and explicit \code{FALSE}
+is rejected. On macOS, enabling it allows loopback
 listeners and direct connections to host loopback services, including their
 HTTP or WebSocket traffic. Those direct connections bypass domain and proxy
 method filtering. It also relaxes the proxy's private-address checks.
@@ -235,8 +237,12 @@ later output while startup is still running. See the complete example below.
 Linux's managed proxy uses a private network namespace. Local binding does
 not publish its ports to a host browser. For host-browser Shiny development
 on Linux, use \code{SandboxPolicy(network = "enabled")} with the filesystem grants
-you need; this also permits remote networking. Use the same direct-network
-choice on Windows, where managed proxy configurations are unsupported.
+you need; this also permits remote networking.
+
+Windows MXC supports managed TCP proxies. Its host-loopback access is
+bidirectional, so a managed proxy requires local binding; \code{"auto"} enables
+it and explicit \code{FALSE} is rejected. UDP and Unix-socket settings remain
+unsupported.
 
 \code{SandboxSockets(unix_sockets = ...)} permits direct Unix-domain socket
 connections, for example to a local service. Use literal absolute paths;
@@ -344,7 +350,7 @@ send(
 send(control = "interrupt")
 }
 
-# Direct networking for host-browser development on Linux or Windows
+# Direct networking for host-browser development on Linux
 shiny_direct <- SandboxPolicy(
   filesystem = SandboxFilesystem(read_write = "."),
   network = "enabled"
