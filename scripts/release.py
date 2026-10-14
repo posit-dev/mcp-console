@@ -161,6 +161,46 @@ def package_version() -> str:
     raise ReleaseError("Cargo.toml package version is missing")
 
 
+def linux_processes(root_pid: int) -> list[dict[str, Any]]:
+    """Capture Linux process ancestry and wait state before smoke cleanup."""
+    records = {}
+    for directory in Path("/proc").iterdir():
+        if not directory.name.isdecimal():
+            continue
+        try:
+            status = {
+                line.partition(":")[0]: line.partition(":")[2].strip()
+                for line in (directory / "status")
+                .read_text(errors="replace")
+                .splitlines()
+            }
+        except OSError:
+            # Process exit can remove a proc entry while the snapshot is read.
+            continue
+        records[int(directory.name)] = {
+            "pid": int(directory.name),
+            "ppid": int(status["PPid"]),
+            "name": status["Name"],
+            "state": status["State"],
+        }
+    family = {root_pid}
+    while (
+        children := {pid for pid, row in records.items() if row["ppid"] in family}
+        - family
+    ):
+        family.update(children)
+    rows = [records[pid] for pid in sorted(family & records.keys())]
+    for row in rows:
+        directory = Path("/proc") / str(row["pid"])
+        try:
+            row["wait"] = (directory / "wchan").read_text().strip()
+            row["cwd"] = os.readlink(directory / "cwd")
+        except OSError:
+            # A disappearing descendant still retains its captured identity.
+            pass
+    return rows
+
+
 def terminate(process: subprocess.Popen[bytes]) -> str:
     if process.poll() is None:
         process.kill()
@@ -295,6 +335,11 @@ def smoke_mcp(
                 f"unexpected {language} evaluation response: {json.dumps(evaluation, ensure_ascii=False)}",
             )
     except Exception as error:
+        if sys.platform == "linux":
+            print(
+                "MCP processes at failure: " + json.dumps(linux_processes(process.pid)),
+                file=sys.stderr,
+            )
         standard_error = terminate(process)
         if standard_error:
             raise ReleaseError(f"{error}: {standard_error}") from error

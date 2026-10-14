@@ -508,6 +508,7 @@ class ReleaseScriptTests(ReleaseFixture):
             import os
             import signal
             import shutil
+            import subprocess
             import sys
             from pathlib import Path
 
@@ -576,6 +577,23 @@ class ReleaseScriptTests(ReleaseFixture):
                 assert startup["params"]["arguments"]["timeout_ms"] > 0
                 if os.environ.get("FAKE_MCP_STARTUP_HANG"):
                     signal.pause()
+                if record := os.environ.get("FAKE_MCP_STARTUP_CHILD"):
+                    # Parent death closes the write end and releases the child.
+                    read_gate, _lifetime = os.pipe()
+                    child = subprocess.Popen(
+                        [
+                            sys.executable,
+                            "-c",
+                            "import os, sys; os.read(int(sys.argv[1]), 1)",
+                            str(read_gate),
+                        ],
+                        pass_fds=(read_gate,),
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    os.close(read_gate)
+                    Path(record).write_text(str(child.pid))
                 if failed := os.environ.get("FAKE_MCP_STARTUP_RESULT"):
                     print(
                         json.dumps(
@@ -1848,6 +1866,50 @@ class ReleaseScriptTests(ReleaseFixture):
                 + json.dumps(response, ensure_ascii=False),
                 result.stderr,
             )
+
+    @unittest.skipUnless(
+        sys.platform == "linux", "Linux preparation process diagnostics"
+    )
+    def test_smoke_wheel_reports_startup_processes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            environment, wheel, cargo_bin = self.smoke_environment(directory)
+            child_pid = directory / "child-pid"
+            environment["FAKE_MCP_STARTUP_CHILD"] = str(child_pid)
+            environment["FAKE_MCP_STARTUP_RESULT"] = json.dumps(
+                {
+                    "content": [{"type": "text", "text": "worker starting"}],
+                    "isError": False,
+                }
+            )
+            result = self.run_script(
+                "smoke-wheel",
+                str(wheel),
+                str(cargo_bin),
+                "--startup-timeout-seconds",
+                "1",
+                "--response-timeout-seconds",
+                "1",
+                cwd=directory,
+                env=environment,
+            )
+            self.assertEqual(result.returncode, 1, result.stderr)
+            diagnostic = next(
+                (
+                    line
+                    for line in result.stderr.splitlines()
+                    if line.startswith("MCP processes at failure: ")
+                ),
+                None,
+            )
+            self.assertIsNotNone(diagnostic, result.stderr)
+            processes = json.loads(
+                diagnostic.removeprefix("MCP processes at failure: ")
+            )
+            self.assertIn(
+                int(child_pid.read_text()), [item["pid"] for item in processes]
+            )
+            self.assertIn("unexpected runtime startup response", result.stderr)
 
     def test_smoke_wheel_bounds_runtime_startup_separately(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

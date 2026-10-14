@@ -181,6 +181,27 @@ jobs:
             --without-r
           python3 tests/sandbox_installation.py "$UV_TOOL_BIN_DIR/mcp-console"
 
+      - name: Report Linux preparation failure
+        if: failure() && runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          dependencies = Path(os.environ["RUNNER_TEMP"]) / "mcp-console-xdg-cache/mcp-console/dependencies"
+          for library in sorted((dependencies / "ir/libraries").glob("*")):
+              if library.is_dir():
+                  print(json.dumps({
+                      "library": str(library),
+                      "incomplete": (library / ".ir-incomplete").exists(),
+                      "entries": sorted(entry.name for entry in library.iterdir()),
+                  }))
+          print(json.dumps({
+              "python_installations": sorted(path.name for path in (dependencies / "uv/python").glob("*")),
+          }))
+          PY
+
       - name: Upload Linux compatibility evidence
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
