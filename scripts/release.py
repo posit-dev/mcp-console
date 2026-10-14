@@ -195,6 +195,37 @@ def linux_processes(root_pid: int) -> list[dict[str, Any]]:
         try:
             row["wait"] = (directory / "wchan").read_text().strip()
             row["cwd"] = os.readlink(directory / "cwd")
+            row["executable"] = os.readlink(directory / "exe")
+            # Retain preparation inputs without exposing inherited credentials
+            # or submitted source code from the rest of the process environment.
+            row["environment"] = {
+                name: value
+                for entry in (directory / "environ")
+                .read_text(errors="replace")
+                .split("\0")
+                if (name := entry.partition("=")[0])
+                in {
+                    "IR_CACHE_DIR",
+                    "IR_LIBRARY_ROOT",
+                    "IR_PREFER_BINARIES",
+                    "PKG_PLATFORMS",
+                    "R_HOME",
+                    "R_ENVIRON",
+                    "R_ENVIRON_USER",
+                    "R_PROFILE",
+                    "R_PROFILE_USER",
+                    "R_LIBS",
+                    "R_LIBS_SITE",
+                    "R_LIBS_USER",
+                    "R_MAKEVARS_USER",
+                    "R_USER_CACHE_DIR",
+                    "RENV_PATHS_ROOT",
+                    "RENV_PATHS_CACHE",
+                    "RENV_PATHS_SOURCE",
+                    "RENV_PATHS_BINARY",
+                }
+                for value in [entry.partition("=")[2]]
+            }
         except OSError:
             # A disappearing descendant still retains its captured identity.
             pass

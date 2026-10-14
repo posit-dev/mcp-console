@@ -34,9 +34,17 @@ class FifoCheckpoint:
             descriptor, self.descriptor = self.descriptor, None
             os.close(descriptor)
 
-    def wait(self, description: str | None = None, timeout: float = 10) -> None:
+    def wait(
+        self,
+        description: str | None = None,
+        timeout: float = 10,
+        *,
+        client: McpClient | None = None,
+    ) -> None:
         readable, _, _ = select.select([self.descriptor], [], [], timeout)
-        assert readable, f"checkpoint was not reached: {description or self.path.name}"
+        assert readable, checkpoint_evidence(
+            f"checkpoint was not reached: {description or self.path.name}", client
+        )
         assert os.read(self.descriptor, 1) == b"1"
 
     def release(self) -> None:

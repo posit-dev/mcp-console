@@ -1876,6 +1876,8 @@ class ReleaseScriptTests(ReleaseFixture):
             environment, wheel, cargo_bin = self.smoke_environment(directory)
             child_pid = directory / "child-pid"
             environment["FAKE_MCP_STARTUP_CHILD"] = str(child_pid)
+            environment["IR_CACHE_DIR"] = str(directory / "prepared-ir")
+            environment["FAKE_PRIVATE_VALUE"] = "must-not-appear-in-diagnostics"
             environment["FAKE_MCP_STARTUP_RESULT"] = json.dumps(
                 {
                     "content": [{"type": "text", "text": "worker starting"}],
@@ -1909,6 +1911,14 @@ class ReleaseScriptTests(ReleaseFixture):
             self.assertIn(
                 int(child_pid.read_text()), [item["pid"] for item in processes]
             )
+            child = next(
+                item for item in processes if item["pid"] == int(child_pid.read_text())
+            )
+            self.assertEqual(
+                child["environment"]["IR_CACHE_DIR"], environment["IR_CACHE_DIR"]
+            )
+            self.assertTrue(Path(child["executable"]).is_absolute())
+            self.assertNotIn(environment["FAKE_PRIVATE_VALUE"], result.stderr)
             self.assertIn("unexpected runtime startup response", result.stderr)
 
     def test_smoke_wheel_bounds_runtime_startup_separately(self) -> None:
