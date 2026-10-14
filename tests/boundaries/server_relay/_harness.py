@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from support.assertions import tool_text as _tool_text
 from support.capture import read_jsonl, read_jsonl_path
 from support.client import McpClient, stop_client
-from support.execution import Execution
+from support.execution import SANDBOXED, Execution
 from support.events import Events
 from support.records import ToolResult, Transcript
 
@@ -140,13 +140,28 @@ class ServerRelayClient:
             / "server_relay"
             / "scripted_relay.py"
         )
+        resolver_policy = []
+        if execution == SANDBOXED and (
+            counter := environment.get("MCP_CONSOLE_TEST_IR_COUNTER")
+        ):
+            # Fake IR only writes fixture records and checkpoints. Default
+            # writable tool caches can change while other cases prepare packages.
+            resolver_policy = [
+                "-c",
+                "resolver.sandbox.filesystem="
+                + json.dumps(
+                    {
+                        "read_only": ["/"],
+                        "read_write": [str(Path(counter).parent), str(self.root)],
+                    }
+                ),
+            ]
         self.client = McpClient(
             binary,
-            # Resolver fixtures own temporary records and checkpoint FIFOs.
-            # Preserve their explicit cache grants in these relay scenarios.
             execution.serve(
                 "-c",
                 "cache=host",
+                *resolver_policy,
                 "--worker",
                 str(binary),
                 "--relay",

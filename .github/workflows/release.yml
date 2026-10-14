@@ -288,37 +288,17 @@ jobs:
             any::reticulate
             any::jsonlite
 
-      - name: Prepare Python and sandbox acceptance
+      - name: Prepare Python and select the R runtime
         run: |
           $ciPython = (Get-Command python).Source
           uv pip install --python $ciPython numpy
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $readRoots = @($env:UV_TOOL_DIR)
-          $readRoots += python -c "import sys; print(sys.prefix); print(sys.base_prefix)"
+          $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $readRoots += & (Get-Command Rscript.exe).Source --vanilla -e 'writeLines(c(R.home(), .libPaths()))'
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $prepare = @(
-            "--binary", "$env:UV_TOOL_BIN_DIR/mcp-console.exe",
-            "--state-dir", "$env:LOCALAPPDATA/mcp-console",
-            "--github-env", "$env:GITHUB_ENV"
-          )
-          foreach ($root in $readRoots) { $prepare += @("--read-root", $root) }
-          python scripts/prepare-windows-tests @prepare
+          "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Accept installed Windows wheel
         run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"
-
-      - name: Report Windows sandbox failure
-        if: failure()
-        run: |
-          $logDirectory = "$env:LOCALAPPDATA/mcp-console/.sandbox"
-          if (Test-Path $logDirectory) {
-            Get-ChildItem $logDirectory -Filter 'sandbox.*.log' -File | ForEach-Object {
-              Write-Output $_.FullName
-              Get-Content $_.FullName
-            }
-          }
 
       - name: Upload wheel
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -625,22 +605,13 @@ jobs:
           uv tool install --python (Get-Command python).Source --no-cache --no-sources --default-index https://pypi.org/simple "mcp-console==$version"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-      - name: Prepare Python and installed sandbox acceptance
+      - name: Prepare Python and select the R runtime
         run: |
           uv pip install --python (Get-Command python).Source numpy
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $readRoots = @("$env:RUNNER_TEMP/public-mcp-console")
-          $readRoots += python -c "import sys; print(sys.prefix); print(sys.base_prefix)"
+          $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $readRoots += & (Get-Command Rscript.exe).Source --vanilla -e 'writeLines(c(R.home(), .libPaths()))'
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $prepare = @(
-            "--binary", "$env:UV_TOOL_BIN_DIR/mcp-console.exe",
-            "--state-dir", "$env:LOCALAPPDATA/mcp-console",
-            "--github-env", "$env:GITHUB_ENV"
-          )
-          foreach ($root in $readRoots) { $prepare += @("--read-root", $root) }
-          python scripts/prepare-windows-tests @prepare
+          "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Accept pinned public-index installation
         run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"

@@ -347,7 +347,7 @@ def test_reports_resolver_interrupt_permission_error(
             resolver_group_record,
             denied_interrupt,
             resolver_watches,
-        ) = resolver_interrupt_permission_environment(temporary_path)
+        ) = resolver_interrupt_permission_environment(temporary_path, execution)
 
         client = McpClient(
             binary,
@@ -457,7 +457,7 @@ def test_reports_runtime_r_resolver_interrupt_permission_error(
             resolver_group_record,
             denied_interrupt,
             resolver_watches,
-        ) = resolver_interrupt_permission_environment(temporary_path)
+        ) = resolver_interrupt_permission_environment(temporary_path, execution)
         client = McpClient(
             binary,
             execution.serve("-c", "cache=host", "--worker", str(zod)),

@@ -2,7 +2,7 @@
 
 Run `mcp-console --help` or a subcommand's `--help` for the installed build's complete option list.
 The website's [CLI help](cli-help.qmd) shows the printouts checked by the CLI tests.
-Console runs commands on the local host; it does not create remote connections or containers.
+Console runs commands on the local host; it does not create remote connections.
 
 ## MCP server
 
@@ -88,21 +88,11 @@ YAML is the default output; `--format json` selects JSON.
 For host execution, use `--no-sandbox` during both materialization and launch.
 See [inspect and edit resolved configuration](CONFIGURATION.md#inspect-and-edit-resolved-configuration) for supported edits and runtime-dependent defaults.
 
-## Windows sandbox setup
+## Windows sandbox requirements
 
-On native Windows x64:
-
-```powershell
-mcp-console sandbox-setup
-mcp-console sandbox-setup --status
-```
-
-Setup explicitly provisions or refreshes Console's sandbox accounts, protected state, and network rules.
-It may request administrator approval through UAC.
-`--status` reports readiness without provisioning.
-
-`--state-dir PATH` selects setup storage.
-Ordinary application launches use the default `%LOCALAPPDATA%\mcp-console`; provision that location unless using a complete native policy that selects another location.
+Native Windows sandboxed launches require MXC, including complete native policies.
+Unsupported hosts or policies fail before the workload executes.
+MXC needs no provisioning command; existing legacy installations need the [one-time cleanup](WINDOWS.md#legacy-installation-cleanup).
 See [Windows](WINDOWS.md#native-sandbox).
 
 ## Complete native policy

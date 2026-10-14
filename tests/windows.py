@@ -36,6 +36,7 @@ from windows_resolver import (  # noqa: F401 -- include resolver acceptance
     WindowsResolver,
     WindowsResolverMaterialization,
 )
+from windows_mxc import WindowsMxc  # noqa: F401 -- include MXC contracts and probing
 from windows_sandbox import WindowsSandbox  # noqa: F401 -- include sandbox acceptance
 
 
@@ -245,7 +246,7 @@ class Session:
 
 
 def exercise_input_and_interrupt(session: Session) -> None:
-    """The same public, network-independent scenario for every Windows backend."""
+    """The same public, network-independent scenario for direct execution and Windows MXC."""
     result = session.expect(
         "waiting for stdin",
         # fmt: r

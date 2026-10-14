@@ -28,7 +28,7 @@ class WindowsCargo(unittest.TestCase):
                 "LICENSE": "fixture license\n",
                 "NOTICE": "fixture notice\n",
                 "codex-rs/Cargo.toml": """[workspace]
-members = ["mcp-console-sandbox", "mcp-console-sandbox-windows"]
+members = ["mcp-console-sandbox"]
 resolver = "3"
 """,
                 "codex-rs/mcp-console-sandbox/Cargo.toml": """[package]
@@ -39,19 +39,7 @@ edition = "2024"
 name = "mcp-console-sandbox"
 path = "main.rs"
 """,
-                "codex-rs/mcp-console-sandbox-windows/Cargo.toml": """[package]
-name = "mcp-console-sandbox-windows"
-version = "0.0.0"
-edition = "2024"
-[[bin]]
-name = "mcp-console-sandbox-setup"
-path = "main.rs"
-[[bin]]
-name = "mcp-console-sandbox-runner"
-path = "main.rs"
-""",
                 "codex-rs/mcp-console-sandbox/main.rs": "fn main() {}\n",
-                "codex-rs/mcp-console-sandbox-windows/main.rs": "fn main() {}\n",
             }
             channel = subprocess.check_output(
                 ["rustup", "show", "active-toolchain"], text=True
@@ -115,6 +103,14 @@ path = "main.rs"
                     }
                 )
             )
+            libexec = root / "wheel-data/data/libexec"
+            libexec.mkdir(parents=True)
+            retired = (
+                "mcp-console-sandbox-setup.exe",
+                "mcp-console-sandbox-runner.exe",
+            )
+            for name in retired:
+                (libexec / name).write_bytes(b"obsolete bundle member")
             result = subprocess.run(
                 [
                     sys.executable,
@@ -132,12 +128,9 @@ path = "main.rs"
                 (root / "target/sandbox-runner-build.json").read_text()
             )
             self.assertEqual(manifest["source_revision"], revision)
-            for name in (
-                "mcp-console-sandbox.exe",
-                "mcp-console-sandbox-setup.exe",
-                "mcp-console-sandbox-runner.exe",
-            ):
-                self.assertTrue((root / "wheel-data/data/libexec" / name).is_file())
+            self.assertEqual(
+                {path.name for path in libexec.iterdir()}, {"mcp-console-sandbox.exe"}
+            )
 
             staged = [root / "target/sandbox-runner-build.json"] + [
                 path for path in (root / "wheel-data/data").rglob("*") if path.is_file()
@@ -276,8 +269,6 @@ path = "main.rs"
             ]
             artifacts = {
                 "mcp-console-sandbox.exe": helper.read_bytes(),
-                "mcp-console-sandbox-setup.exe": helper.read_bytes(),
-                "mcp-console-sandbox-runner.exe": helper.read_bytes(),
                 "LICENSE": b"license",
                 "NOTICE": b"notice",
             }
@@ -319,7 +310,7 @@ path = "main.rs"
 
             stage()
             build()
-            name = "mcp-console-sandbox-runner.exe"
+            name = "mcp-console-sandbox.exe"
             installed = list((root / "target" / target).rglob(name))
             self.assertEqual(len(installed), 1, installed)
             previous = installed[0]

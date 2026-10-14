@@ -42,7 +42,7 @@ Changes to SDKs, compilers, linkers, or system libraries may require cleaning bo
 
 Unix installations contain the public executable, the private runner under `libexec`, and licenses under `share/licenses/mcp-console`.
 Linux additionally bundles bubblewrap and its notices/source metadata.
-Windows contains its native Console executable and three sandbox executables under `libexec`, with an environment-bound Python launcher exposing the public command.
+Windows contains its native Console executable and the single `mcp-console-sandbox.exe` companion under `libexec`, with an environment-bound Python launcher exposing the public command.
 
 Move the complete native bundle when relocating it; a symlink to the native executable is supported.
 Do not split Cargo's shared target/build layout.
@@ -70,7 +70,8 @@ Exact loader algorithms and symbol allowlists belong in the release tooling, not
 
 On macOS/Linux use `smoke-wheel WHEEL --installed-only --sandbox-pin PIN_FILE` in a clean runtime without the source checkout/Cargo outputs.
 Windows builds use the PEP 517 backend through `uv build --wheel` so the installed command retains its native bundle.
-Install that wheel, explicitly provision its native sandbox with `scripts/prepare-windows-tests`, and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND`.
+Install that wheel and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND` on a clean host.
+Acceptance probes MXC and runs native execution cases when supported, without provisioning accounts or selecting another backend.
 This checks version/help, empty-PATH bundled sandbox execution, filesystem/exit-status enforcement, Python-only MCP, and the R/Python bridge without rebuilding from source.
 Retain empty-PATH bundled-helper acceptance; a working system bwrap does not validate the relocated bundle.
 An ABI report alone is not runtime or sandbox acceptance.
@@ -111,7 +112,7 @@ Bump `CI_BUILD_CACHE_VERSION` when changing build flags or native dependencies o
 Keep native artifact verification on cache hits; reuse does not prove external SDK/compiler compatibility.
 
 Do not cache accounts, credentials, ACLs, or provisioning state.
-Windows setup and full acceptance still run after restoring build/staging caches.
+MXC capability probing and full Windows acceptance still run on a clean host after restoring build/staging caches; unavailable native execution cases are skipped as documented in [Windows validation](docs/WINDOWS.md#validation).
 Exact cache-key and timestamp-restoration mechanics belong in the workflow and staging scripts.
 
 Installation tests need the checkout and temporary directory on the same writable filesystem for rename-based checks.

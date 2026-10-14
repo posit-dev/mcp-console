@@ -104,8 +104,28 @@ struct ManagedNetwork {
     proxy: Proxy,
     #[serde(default, deserialize_with = "mapping")]
     sockets: Sockets,
-    #[serde(default, deserialize_with = "supplied")]
-    allow_local_binding: Option<bool>,
+    #[serde(default)]
+    allow_local_binding: LocalBinding,
+}
+
+#[derive(Default)]
+enum LocalBinding {
+    #[default]
+    Auto,
+    Allow,
+    Prohibit,
+}
+
+impl<'de> Deserialize<'de> for LocalBinding {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match Value::deserialize(deserializer)? {
+            Value::Null => Ok(Self::Auto),
+            Value::String(value) if value == "auto" => Ok(Self::Auto),
+            Value::Bool(true) => Ok(Self::Allow),
+            Value::Bool(false) => Ok(Self::Prohibit),
+            _ => Err(D::Error::custom("expected auto, null, true, or false")),
+        }
+    }
 }
 
 #[derive(Default, Deserialize)]
@@ -242,7 +262,7 @@ impl Sandbox {
                         socks: Socks::Tcp,
                     },
                     sockets: Sockets::default(),
-                    allow_local_binding: None,
+                    allow_local_binding: LocalBinding::Auto,
                 })
             })
         });
@@ -254,10 +274,17 @@ impl Sandbox {
                 policy.insert("network".into(), "enabled".into());
             }
             Some(Network::Managed(network)) => {
-                let local = network.allow_local_binding.unwrap_or(resolver);
+                // Normalize once, after all configuration layers. Preserve Unix
+                // resolver coordination/DNS and Windows MXC's bidirectional
+                // host-loopback requirement without weakening explicit false.
+                let local = match network.allow_local_binding {
+                    LocalBinding::Auto => resolver || cfg!(windows),
+                    LocalBinding::Allow => true,
+                    LocalBinding::Prohibit => false,
+                };
                 if cfg!(windows) && !local {
                     return Err(format!(
-                        "{prefix}.network.proxy: Windows MXC requires allow_local_binding: true"
+                        "{prefix}.network.allow_local_binding: false cannot be enforced with a Windows MXC managed proxy; use auto or true, or remove the proxy"
                     ));
                 }
                 let (mode, socks, domains, upstream) = match network.proxy {

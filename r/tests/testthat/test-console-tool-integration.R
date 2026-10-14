@@ -292,7 +292,9 @@ test_that("console_tool works when registered with an ellmer chat", {
           {
             chat$register_tool(with_mcp_console_environment(
               fixture,
-              console_tool()
+              # Tool registration and output retention are independent of
+              # native enforcement, covered by the sandbox acceptance cases.
+              console_tool(config = ConsoleConfig(sandbox = FALSE))
             ))
             text <- NULL
             chat$on_tool_result(function(result) text <<- result@value@text)
@@ -519,10 +521,8 @@ test_that("sandbox materialization round trips through typed configuration", {
           deny = "./secrets"
         ),
         network = "enabled"
-      )
-    )
-    if (.Platform$OS.type != "windows") {
-      policies[[3]] <- SandboxPolicy(
+      ),
+      SandboxPolicy(
         network = SandboxNetwork(
           proxy = SandboxProxy(
             mode = "limited",
@@ -530,7 +530,7 @@ test_that("sandbox materialization round trips through typed configuration", {
           )
         )
       )
-    }
+    )
     for (policy in policies) {
       config <- resolve_console_config(
         ConsoleConfig(sandbox = policy),

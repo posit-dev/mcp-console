@@ -25,6 +25,7 @@ test_that("console_tool transmits the same application policy object", {
 test_that("no discovery ignores malformed files and retains restrictive defaults", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
+    require_sandbox_execution(binary)
     dir.create(Sys.getenv("MCP_CONSOLE_HOME"))
     dir.create(".agents/console", recursive = TRUE)
     writeLines(
@@ -98,6 +99,7 @@ test_that("project discovery layers runtime settings and can disable enforcement
 test_that("explicit runtime selections reach native configuration", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
+    require_sandbox_execution(binary)
     python <- sandbox_test_python()
     config <- ConsoleConfig(
       r = RConfig(
@@ -170,6 +172,7 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
 test_that("console_tool replaces ambient grants and retains other settings", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
+    require_sandbox_execution(binary)
     dir.create(Sys.getenv("MCP_CONSOLE_HOME"))
     dir.create("allowed")
     writeLines(

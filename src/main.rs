@@ -83,21 +83,6 @@ fn main() -> ExitCode {
                 Err(error) => exit_with_error(error),
             }
         }
-        #[cfg(windows)]
-        cli::Command::SandboxSetup { status, state_dir } => {
-            match sandbox::windows_setup(status, state_dir) {
-                Ok(exit_code) => {
-                    if !status && exit_code == ExitCode::SUCCESS {
-                        println!("\n{}", cli::SANDBOX_SETUP_DETAILS);
-                    }
-                    exit_code
-                }
-                Err(error) => {
-                    eprintln!("{error}");
-                    ExitCode::FAILURE
-                }
-            }
-        }
         cli::Command::Serve {
             worker,
             relay,

@@ -17,6 +17,41 @@ pub(super) fn run(
     settings_env: Option<&str>,
     mut settings: SandboxSettings,
 ) -> Result<ExitCode, String> {
+    // Complete native policies bypass application defaults, but not Console's
+    // supported backend contract. Reject retired selectors, including null and
+    // the runner's old alias, before either launch path can reach the runner.
+    let mut complete = config_env
+        .and_then(|name| std::env::var(name).ok())
+        .and_then(|value| serde_json::from_str::<SandboxSettings>(&value).ok());
+    let policy = complete.as_mut().unwrap_or(&mut settings);
+    for field in [
+        "windows_backend",
+        "windows_sandbox_level",
+        "windows_state_dir",
+    ] {
+        if policy.contains_key(field) {
+            return Err(format!(
+                "{field} has been removed; Windows sandbox execution requires MXC; see docs/WINDOWS.md"
+            ));
+        }
+    }
+    #[cfg(windows)]
+    {
+        // External policies can suppress native enforcement even with an
+        // explicit backend. The sandbox command always requires MXC on Windows.
+        if policy
+            .get("filesystem")
+            .and_then(|fs| fs.get("kind"))
+            .and_then(crate::settings::native_variant_name)
+            == Some("external-sandbox")
+        {
+            return Err(
+                "Windows sandbox execution requires MXC; external-sandbox policies are unsupported"
+                    .into(),
+            );
+        }
+        policy.insert("windows_backend".into(), "mxc".into());
+    }
     #[cfg(unix)]
     if let Some(pid) = parent
         && unsafe { libc::getppid() } as u32 != pid
@@ -30,10 +65,11 @@ pub(super) fn run(
     let mut runner = Command::new(installation::private_runner()?);
     #[cfg(windows)]
     {
-        // The elevated helper compares cwd with USERPROFILE before granting
-        // profile metadata access. Windows TEMP can use an 8.3 profile alias;
-        // resolve this directory through its handle instead of enumerating
-        // its parents to expand their short names.
+        if let (Some(name), Some(complete)) = (config_env, complete) {
+            runner.env(name, Value::Object(complete).to_string());
+        }
+        // Resolve Windows 8.3 working-directory aliases through the directory
+        // handle without requiring enumeration of its parents.
         let cwd = std::fs::canonicalize(".")
             .map_err(|error| format!("cannot resolve sandbox working directory: {error}"))?;
         runner.current_dir(cwd);
