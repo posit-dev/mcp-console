@@ -562,12 +562,14 @@ result:
 ---
 send:
   r: |
-    local({
-      checkpoint <- file("<fixture>/active", "wb", raw = TRUE)
-      on.exit(close(checkpoint))
-      writeChar("1", checkpoint, eos = NULL)
-    })
-    tryCatch(Sys.sleep(60), interrupt = function(e) cat("active interrupted\n"))
+    tryCatch({
+      local({
+        checkpoint <- file("<fixture>/active", "wb", raw = TRUE)
+        on.exit(close(checkpoint))
+        writeChar("1", checkpoint, eos = NULL)
+      })
+      Sys.sleep(60)
+    }, interrupt = function(e) cat("active interrupted\n"))
   timeout_ms: 0
 result:
   content:
