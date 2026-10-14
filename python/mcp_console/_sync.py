@@ -6,6 +6,11 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 from ._client import AsyncMCPConsole, Requirements
 from ._common import Command, result_text
 
+_CANCELLATION_ERROR = (
+    "Request cancellation cleanup did not finish; "
+    "close and reconnect before reusing this connection"
+)
+
 if TYPE_CHECKING:
     from anyio.from_thread import BlockingPortal
     from mcp.types import CallToolResult, Tool
@@ -63,9 +68,12 @@ class MCPConsole:
         )
         self._stack: ExitStack | None = None
         self._portal: BlockingPortal | None = None
+        self._cancellation_failed = False
 
     def connect(self) -> "Self":
         """Start MCP Console and initialize its MCP client session."""
+        if self._cancellation_failed:
+            raise RuntimeError(_CANCELLATION_ERROR)
         if self._stack is None:
             from anyio.from_thread import start_blocking_portal
 
@@ -83,6 +91,7 @@ class MCPConsole:
         self._stack = self._portal = None
         if stack is not None:
             stack.close()
+            self._cancellation_failed = False
 
     def __enter__(self) -> "Self":
         return self.connect()
@@ -91,6 +100,8 @@ class MCPConsole:
         self.close()
 
     def _call_send(self, arguments: Mapping[str, Any]) -> "CallToolResult":
+        if self._cancellation_failed:
+            raise RuntimeError(_CANCELLATION_ERROR)
         if self._portal is None:
             raise RuntimeError(
                 "MCPConsole is not connected; use `with MCPConsole() as console` "
@@ -109,10 +120,15 @@ class MCPConsole:
             return future.result()
         except KeyboardInterrupt:
             # Let the SDK cancel the request without interrupting the cell.
-            future.cancel()
             # Future cancellation is immediate; the SDK still needs to publish
             # cancellation and retire its waiter before the caller can recover.
-            finished.wait()
+            try:
+                future.cancel()
+                if not finished.wait(timeout=5):
+                    self._cancellation_failed = True
+            except KeyboardInterrupt:
+                self._cancellation_failed = True
+                raise
             raise
 
     def send(
