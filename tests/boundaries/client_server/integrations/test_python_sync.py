@@ -68,7 +68,11 @@ def test_host_interrupt_cancels_wait_and_discards_partial_reply(
                     pass
                 else:
                     raise AssertionError("host interrupt did not reach the caller")
-                assert console.send(python="recovered") == "recovered"
+                recovered = console.send(python="recovered")
+                assert recovered == "recovered", (
+                    recovered,
+                    (root / "requests.jsonl").read_text(encoding="utf-8"),
+                )
                 assert console.send(control="interrupt") == "interrupted"
             requests = [
                 json.loads(line)

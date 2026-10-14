@@ -66,6 +66,7 @@ If [tool configuration](CONFIGURATION.md#tool-descriptions-and-parameters) hides
 Use [Send operations](SEND_OPERATIONS.md) for input, control, and sequencing, and [Recordings](RECORDING.md) for retained output.
 
 If `KeyboardInterrupt` interrupts a synchronous response wait, the client cancels that request and re-raises the exception.
+It waits for the SDK's request cleanup before re-raising so subsequent calls cannot overtake cancellation.
 An admitted cell keeps running.
 Catch the exception inside the connection's context to poll for its output or call `console.send(control="interrupt")` to interrupt execution explicitly.
 Leaving the context closes the session.
