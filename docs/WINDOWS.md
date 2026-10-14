@@ -59,7 +59,9 @@ Run it interactively, then use `mcp-console sandbox-setup --status` to inspect r
 Elevated launches fail with setup guidance if provisioning is missing or outdated; they do not provision accounts automatically.
 Startup also fails during setup if an existing deny ACL prevents granting missing metadata access to the working directory.
 An applicable metadata deny still fails setup when an allow is also present.
+This check includes both sandbox accounts as well as their shared groups.
 Existing sandbox-account read access, including a NULL DACL, avoids an extra metadata grant.
+Missing metadata grants wait for background read preparation and recheck access before updating the ACL.
 
 Setup creates or reuses:
 

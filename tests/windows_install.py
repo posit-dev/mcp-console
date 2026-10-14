@@ -63,6 +63,8 @@ if __name__ == "__main__":
             "WindowsSandbox.test_elevated_cwd_rejects_a_blocked_metadata_grant",
             "WindowsSandbox.test_elevated_cwd_rejects_denied_metadata_with_existing_allow",
             "WindowsSandbox.test_elevated_cwd_reuses_null_dacl",
+            "WindowsSandbox.test_elevated_cwd_rejects_account_metadata_denies",
+            "WindowsSandbox.test_elevated_cwd_preserves_a_contended_read_grant",
             "WindowsSandbox.test_stdio_write_policy_and_exit_status",
             "WindowsConsole.test_python_without_r",
             "WindowsConsole.test_r_initializes_before_python",

@@ -941,7 +941,178 @@ class WindowsSandbox(unittest.TestCase):
         # A NULL DACL already grants access without another metadata grant.
         self.elevated_cwd_acl("D:NO_ACCESS_CONTROL", allowed=True)
 
-    def elevated_cwd_acl(self, descriptor: str, *, allowed: bool):
+    def test_elevated_cwd_rejects_account_metadata_denies(self):
+        for account in ("McpConsoleSandboxOff", "McpConsoleSandboxOn"):
+            with self.subTest(account=account):
+                sid = self.account_sid(account)
+                self.elevated_cwd_acl(
+                    f"D:P(D;;0x80;;;{sid})(A;;GRGX;;;AU)(A;;FA;;;OW)",
+                    allowed=False,
+                )
+
+    def test_elevated_cwd_preserves_a_contended_read_grant(self):
+        self.elevated_cwd_acl("D:P(A;;FA;;;OW)", allowed=True, read_acl_checkpoint=True)
+
+    def account_sid(self, account: str) -> str:
+        security = ctypes.WinDLL("advapi32", use_last_error=True)
+        security.LookupAccountNameW.argtypes = [
+            wintypes.LPCWSTR,
+            wintypes.LPCWSTR,
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.DWORD),
+            wintypes.LPWSTR,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        sid_size, domain_size, kind = (
+            wintypes.DWORD(),
+            wintypes.DWORD(),
+            wintypes.DWORD(),
+        )
+        self.assertFalse(
+            security.LookupAccountNameW(
+                None,
+                account,
+                None,
+                ctypes.byref(sid_size),
+                None,
+                ctypes.byref(domain_size),
+                ctypes.byref(kind),
+            )
+        )
+        self.assertEqual(ctypes.get_last_error(), 122)
+        sid = ctypes.create_string_buffer(sid_size.value)
+        domain = ctypes.create_unicode_buffer(domain_size.value)
+        self.assertTrue(
+            security.LookupAccountNameW(
+                None,
+                account,
+                sid,
+                ctypes.byref(sid_size),
+                domain,
+                ctypes.byref(domain_size),
+                ctypes.byref(kind),
+            ),
+            ctypes.WinError(),
+        )
+        security.ConvertSidToStringSidW.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.LPWSTR),
+        ]
+        text = wintypes.LPWSTR()
+        self.assertTrue(
+            security.ConvertSidToStringSidW(sid, ctypes.byref(text)), ctypes.WinError()
+        )
+        try:
+            return text.value
+        finally:
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.LocalFree.argtypes = [ctypes.c_void_p]
+            kernel.LocalFree(ctypes.cast(text, ctypes.c_void_p))
+
+    def run_with_read_acl_checkpoint(
+        self, command, options, work, handle, state, kernel, security
+    ):
+        pointer = ctypes.c_void_p
+
+        def dacl_bytes():
+            acl, descriptor = pointer(), pointer()
+            status = security.GetSecurityInfo(
+                handle,
+                1,
+                4,
+                None,
+                None,
+                ctypes.byref(acl),
+                None,
+                ctypes.byref(descriptor),
+            )
+            try:
+                self.assertEqual(status, 0, ctypes.WinError(status))
+                size = int.from_bytes(ctypes.string_at(acl, 8)[2:4], "little")
+                return ctypes.string_at(acl, size)
+            finally:
+                kernel.LocalFree(descriptor)
+
+        kernel.CreateMutexW.argtypes = [pointer, wintypes.BOOL, wintypes.LPCWSTR]
+        kernel.CreateMutexW.restype = wintypes.HANDLE
+        kernel.ReleaseMutex.argtypes = [wintypes.HANDLE]
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        mutex = kernel.CreateMutexW(None, False, r"Local\ConsoleSandboxReadAcl")
+        self.assertTrue(mutex, ctypes.WinError())
+        ownership = kernel.WaitForSingleObject(mutex, 30_000)
+        if ownership not in (0, 0x80):
+            kernel.CloseHandle(mutex)
+            self.fail(f"read ACL checkpoint could not acquire the mutex: {ownership}")
+        process, grant = None, pointer()
+        try:
+            before = dacl_bytes()
+            logs = Path(state) / ".sandbox"
+            offsets = {
+                path: len(path.read_bytes()) for path in logs.glob("sandbox*.log")
+            }
+            options = options.copy()
+            options.pop("capture_output")
+            process = subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **options
+            )
+            checkpoint = f"waiting for read ACL updates before granting directory metadata access to {work}"
+            deadline = time.monotonic() + 10
+            while True:
+                activity = b"\n".join(
+                    path.read_bytes()[offsets.get(path, 0) :]
+                    for path in logs.glob("sandbox*.log")
+                )
+                if (
+                    checkpoint.encode() in activity
+                    or b"read ACL helper already running; skipping spawn" in activity
+                ):
+                    break
+                self.assertIsNone(
+                    process.poll(), "launch exited before the ACL checkpoint"
+                )
+                self.assertLess(time.monotonic(), deadline, activity)
+                time.sleep(0.01)
+            self.assertEqual(
+                dacl_bytes(), before, "metadata grant raced the read ACL helper"
+            )
+            # Simulate the preceding helper's full read grant while it owns the
+            # mutex. The waiting launch must re-read it before a metadata write.
+            self.assertTrue(
+                security.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    "D:P(A;;GRGX;;;AU)(A;;FA;;;OW)",
+                    1,
+                    ctypes.byref(grant),
+                    None,
+                ),
+                ctypes.WinError(),
+            )
+            self.assertTrue(
+                security.SetFileSecurityW(str(work), 4, grant), ctypes.WinError()
+            )
+            complete = dacl_bytes()
+            self.assertTrue(kernel.ReleaseMutex(mutex), ctypes.WinError())
+            kernel.CloseHandle(mutex)
+            mutex = None
+            stdout, stderr = process.communicate(timeout=30)
+            self.assertEqual(
+                dacl_bytes(), complete, "metadata setup lost the completed read grant"
+            )
+            return subprocess.CompletedProcess(
+                command, process.returncode, stdout, stderr
+            )
+        finally:
+            if mutex:
+                kernel.ReleaseMutex(mutex)
+                kernel.CloseHandle(mutex)
+            if process is not None and process.poll() is None:
+                process.communicate(timeout=30)
+            if grant.value:
+                kernel.LocalFree(grant)
+
+    def elevated_cwd_acl(
+        self, descriptor: str, *, allowed: bool, read_acl_checkpoint: bool = False
+    ):
         state = self.sandbox_state_directory()
         with workspace() as root:
             work = root / "read-only-cwd"
@@ -1030,18 +1201,18 @@ class WindowsSandbox(unittest.TestCase):
                     security.SetFileSecurityW(str(work), 4, restricted),
                     ctypes.WinError(),
                 )
-                result = subprocess.run(
-                    [
-                        str(BINARY),
-                        "sandbox",
-                        "--config-env",
-                        "TEST_POLICY",
-                        "--",
-                        str(Path(os.environ["SystemRoot"]) / "System32/cmd.exe"),
-                        "/d",
-                        "/c",
-                        "echo existing metadata access",
-                    ],
+                command = [
+                    str(BINARY),
+                    "sandbox",
+                    "--config-env",
+                    "TEST_POLICY",
+                    "--",
+                    str(Path(os.environ["SystemRoot"]) / "System32/cmd.exe"),
+                    "/d",
+                    "/c",
+                    "echo existing metadata access",
+                ]
+                options = dict(
                     cwd=work,
                     env=os.environ
                     | {
@@ -1057,8 +1228,13 @@ class WindowsSandbox(unittest.TestCase):
                     },
                     capture_output=True,
                     text=True,
-                    timeout=30,
                 )
+                if read_acl_checkpoint:
+                    result = self.run_with_read_acl_checkpoint(
+                        command, options, work, handle, state, kernel, security
+                    )
+                else:
+                    result = subprocess.run(command, **options, timeout=30)
                 if allowed:
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stdout.strip(), "existing metadata access")
