@@ -47,7 +47,9 @@ class WindowsMxc(unittest.TestCase):
                 self.assertEqual(probe.stdout, "")
                 self.assertEqual(
                     probe.stderr.strip(),
-                    "mcp-console-sandbox: MXC is unavailable for this filesystem policy on this executor",
+                    "mcp-console-sandbox: MXC is unavailable for this filesystem policy on this executor; "
+                    "update Windows to a build supporting native MXC and the requested filesystem permissions; "
+                    "see https://t-kalinowski.github.io/mcp-console/WINDOWS.html#native-sandbox",
                 )
             result = subprocess.run(
                 [
