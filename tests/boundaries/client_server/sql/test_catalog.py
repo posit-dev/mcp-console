@@ -30,6 +30,10 @@ from support.suites import run_this_suite
 def extension_failure_environment(workspace: Path) -> dict[str, str]:
     environment, real_rscript = r_test_environment()
     environment["RETICULATE_PYTHON"] = ""
+    # Concurrent real-library cases can install or hold locks on extension info.
+    environment["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(
+        workspace / "extensions"
+    )
     selected_home = isolated_r_home(workspace, environment)
     selected_rscript = selected_home / "bin/Rscript"
     selected_rscript.unlink()
@@ -59,7 +63,7 @@ def test_restart_adds_r_and_duckdb_requirements(
         environment["R_LIBS_USER"] = str(ambient_library)
         client = McpClient(
             binary,
-            execution.serve(),
+            execution.serve("-c", "cache=host"),
             environment,
             current_directory=workspace,
         )
@@ -129,7 +133,7 @@ def test_prepares_and_loads_duckdb_extensions(
         environment = extension_failure_environment(workspace)
         client = McpClient(
             binary,
-            execution.serve(),
+            execution.serve("-c", "cache=host"),
             environment,
             current_directory=workspace,
         )
