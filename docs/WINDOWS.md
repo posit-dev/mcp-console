@@ -57,6 +57,8 @@ Explicit backend selections and launch failures never trigger a retry through an
 For elevated execution, `mcp-console sandbox-setup` explicitly provisions or refreshes Console's resources through UAC.
 Run it interactively, then use `mcp-console sandbox-setup --status` to inspect readiness.
 Elevated launches fail with setup guidance if provisioning is missing or outdated; they do not provision accounts automatically.
+Startup also fails during setup if an existing deny ACL prevents granting missing metadata access to the working directory.
+Existing sandbox-account read access does not require changing that ACL.
 
 Setup creates or reuses:
 

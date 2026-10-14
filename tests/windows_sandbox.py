@@ -906,6 +906,20 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertIn(diagnostic, result.stderr)
 
     def test_elevated_cwd_reuses_existing_metadata_access(self):
+        # Authenticated Users can read, while OWNER RIGHTS denies ACL writes.
+        self.elevated_cwd_acl(
+            "D:P(D;;WD;;;OW)(A;;GRGX;;;AU)(A;;RC;;;OW)",
+            allowed=True,
+        )
+
+    def test_elevated_cwd_rejects_a_blocked_metadata_grant(self):
+        # The existing Guests deny must not be overridden by a fresh grant.
+        self.elevated_cwd_acl(
+            "D:P(D;;GR;;;BG)(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)",
+            allowed=False,
+        )
+
+    def elevated_cwd_acl(self, descriptor: str, *, allowed: bool):
         state = self.sandbox_state_directory()
         with workspace() as root:
             work = root / "read-only-cwd"
@@ -981,11 +995,9 @@ class WindowsSandbox(unittest.TestCase):
                     ctypes.byref(original_descriptor),
                 )
                 self.assertEqual(status, 0, ctypes.WinError(status))
-                # Authenticated users can read/execute, while OWNER RIGHTS
-                # prevents the owner's implicit WRITE_DAC grant.
                 self.assertTrue(
                     security.ConvertStringSecurityDescriptorToSecurityDescriptorW(
-                        "D:P(D;;WD;;;OW)(A;;GRGX;;;AU)(A;;RC;;;OW)",
+                        descriptor,
                         1,
                         ctypes.byref(restricted),
                         None,
@@ -1025,8 +1037,20 @@ class WindowsSandbox(unittest.TestCase):
                     text=True,
                     timeout=30,
                 )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stdout.strip(), "existing metadata access")
+                if allowed:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), "existing metadata access")
+                else:
+                    self.assertNotEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn(
+                        "grant command working-directory metadata access",
+                        result.stderr,
+                    )
+                    self.assertIn(
+                        "directory metadata access is blocked by an existing deny ACE",
+                        result.stderr,
+                    )
             finally:
                 if original_descriptor.value:
                     status = security.SetSecurityInfo(
