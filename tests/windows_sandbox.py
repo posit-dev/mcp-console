@@ -666,6 +666,17 @@ class WindowsSandbox(unittest.TestCase):
             result = session.send(python="print(6 * 7)")
             self.assertFalse(result.get("isError"), result)
             self.assertIn("42", json.dumps(result))
+        except Exception:
+            # Keep the failed cold startup's journal before fixture cleanup.
+            recordings = Path(session.directory.name) / ".agents/console/sessions"
+            for recording in sorted(recordings.glob("*")):
+                for relative in ("internal/events.jsonl", "outputs/session.log"):
+                    path = recording / relative
+                    if path.is_file():
+                        sys.stderr.write(
+                            f"\n{path}\n{path.read_text(encoding='utf-8')}\n"
+                        )
+            raise
         finally:
             session.close()
 
