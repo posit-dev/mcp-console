@@ -106,7 +106,7 @@ Bump `CI_BUILD_CACHE_VERSION` when changing build flags or native dependencies o
 Keep native artifact verification on cache hits; reuse does not prove external SDK/compiler compatibility.
 
 Do not cache accounts, credentials, ACLs, or provisioning state.
-Required MXC and full Windows acceptance still run on a clean host after restoring build/staging caches.
+MXC capability probing and full Windows acceptance still run on a clean host after restoring build/staging caches; unavailable native execution cases are skipped as documented in [Windows validation](docs/WINDOWS.md#validation).
 Exact cache-key and timestamp-restoration mechanics belong in the workflow and staging scripts.
 
 Installation tests need the checkout and temporary directory on the same writable filesystem for rename-based checks.

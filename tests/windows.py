@@ -36,7 +36,7 @@ from windows_resolver import (  # noqa: F401 -- include resolver acceptance
     WindowsResolver,
     WindowsResolverMaterialization,
 )
-from windows_mxc import WindowsMxc  # noqa: F401 -- require native MXC
+from windows_mxc import WindowsMxc  # noqa: F401 -- include MXC contracts and probing
 from windows_sandbox import WindowsSandbox  # noqa: F401 -- include sandbox acceptance
 
 
