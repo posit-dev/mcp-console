@@ -1,6 +1,5 @@
 from collections.abc import Mapping, Sequence
 from contextlib import ExitStack
-from threading import Event
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ._client import AsyncMCPConsole, Requirements
@@ -96,23 +95,12 @@ class MCPConsole:
                 "MCPConsole is not connected; use `with MCPConsole() as console` "
                 "or call `console.connect()` first"
             )
-        finished = Event()
-
-        async def send() -> "CallToolResult":
-            try:
-                return await self._async._call_send(arguments)
-            finally:
-                finished.set()
-
-        future = self._portal.start_task_soon(send)
+        future = self._portal.start_task_soon(self._async._call_send, arguments)
         try:
             return future.result()
         except KeyboardInterrupt:
             # Let the SDK cancel the request without interrupting the cell.
             future.cancel()
-            # Future cancellation is immediate; the SDK still needs to publish
-            # cancellation and retire its waiter before the caller can recover.
-            finished.wait()
             raise
 
     def send(
