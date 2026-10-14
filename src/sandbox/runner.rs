@@ -64,8 +64,15 @@ pub(super) fn run(
     // watches both this frontend and the supplied generation owner.
     let mut runner = Command::new(installation::private_runner()?);
     #[cfg(windows)]
-    if let (Some(name), Some(complete)) = (config_env, complete) {
-        runner.env(name, Value::Object(complete).to_string());
+    {
+        if let (Some(name), Some(complete)) = (config_env, complete) {
+            runner.env(name, Value::Object(complete).to_string());
+        }
+        // Resolve Windows 8.3 working-directory aliases through the directory
+        // handle without requiring enumeration of its parents.
+        let cwd = std::fs::canonicalize(".")
+            .map_err(|error| format!("cannot resolve sandbox working directory: {error}"))?;
+        runner.current_dir(cwd);
     }
     if settings.get("inherit_environment") == Some(&Value::Bool(false)) {
         // The native Linux launcher serializes its host environment before
@@ -109,6 +116,21 @@ pub(super) fn run(
         .env_remove("LD_PRELOAD");
     #[cfg(windows)]
     {
+        use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+        use windows_sys::Win32::System::Console::{
+            GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+        };
+
+        // Command duplicates stdio for the runner and also inherits marked
+        // originals. Its setup helpers must not retain those extra frontend
+        // handles after the root exits. Explicit stdio handoffs still duplicate.
+        for selector in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
+            let handle = unsafe { GetStdHandle(selector) };
+            if !handle.is_null() && handle != INVALID_HANDLE_VALUE {
+                crate::windows::inherit(handle, false)
+                    .map_err(|error| format!("cannot isolate sandbox frontend stdio: {error}"))?;
+            }
+        }
         let status = runner
             .status()
             .map_err(|error| format!("failed to launch private sandbox runner: {error}"))?;

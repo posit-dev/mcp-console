@@ -616,7 +616,7 @@ def test_rejects_runtime_r_resolution_during_r_preparation(
                 r="must not execute",
                 requirements={"r": ["explicit-package"]},
             )
-            checkpoint.wait()
+            checkpoint.wait(client=client.client)
             release.release()
             _receive_checkpointed(client.client, evaluation, "the rejected R callback")
             result = evaluation["result"]

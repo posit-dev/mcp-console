@@ -157,6 +157,9 @@ def shutdown_output_checkpoints(context: WorkerContext, source: str) -> None:
 
 
 def complete_before_restart_checkpoint(context: WorkerContext, source: str) -> None:
+    publish_marker(context.root / "zod-completion-started")
+    while not (context.root / "zod-release-completion").exists():
+        time.sleep(0.01)
     send(context.writer, {"kind": "completed"})
     wait_for_server_to_process_sideband(context.reader, context.writer)
     publish_marker(context.root / "zod-completion-processed")

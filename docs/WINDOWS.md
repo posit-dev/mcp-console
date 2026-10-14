@@ -4,26 +4,21 @@ Native Windows x64 support is experimental.
 Local sandboxed and `--no-sandbox` sessions support R, Python, SQL, persistent state, input, plots, interruption, restart, and recording.
 Either R or Python can run without the other; reticulate bridges them when both are available.
 
-The release workflow does not publish Windows wheels.
-Build and install Console from source.
+PyPI provides a prebuilt Windows x64 wheel.
 Windows dependency preparation uses host permissions; process cleanup through Jobs is not sandboxing.
 
-## Build and run
+## Install and run
 
-Install Python 3.11+, uv, Git, Rust's MSVC toolchain, Visual Studio C++ build tools, the Windows SDK, and CMake.
-R is optional for building and Python-only execution.
+Install Python 3.11+, uv, and the [Microsoft Visual C++ v14 Redistributable for x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
+R is optional for Python-only execution.
 For R, use an x64 installation selected through public `r` configuration, `R_HOME`, or PATH.
 
-From PowerShell in the repository root:
+From PowerShell:
 
 ```powershell
-uv tool install --reinstall .
+uv tool install mcp-console
 mcp-console serve
 ```
-
-Source packaging stages the pinned companion.
-Direct Cargo builds need `scripts/stage-sandbox-runner.cmd` first.
-Use `scripts/with-checkout.cmd` for direct mutating build commands.
 
 `serve` waits for MCP traffic; it is not an interactive prompt.
 Configure your client with command `mcp-console` and arguments `["serve"]`.
@@ -43,6 +38,14 @@ Sandboxed sessions default to Console caches under `%LOCALAPPDATA%/mcp-console/c
 Redirecting caches does not sandbox preparation.
 There is no automatic fallback to host execution when MXC is unavailable or rejects the policy.
 
+### Build from source
+
+Source builds additionally need Git, Rust's MSVC toolchain, Visual Studio C++ build tools, the Windows SDK, and CMake.
+From the repository root, run `uv tool install --reinstall .`.
+Source packaging stages the pinned companion.
+Direct Cargo builds need `scripts/stage-sandbox-runner.cmd` first.
+Use `scripts/with-checkout.cmd` for direct mutating build commands.
+
 ## Native sandbox
 
 Sandboxed Windows execution requires MXC, including normal sessions, the public `sandbox` command, and complete native policies.
@@ -57,6 +60,7 @@ Windows complete policies also reject `filesystem.kind: external-sandbox`, which
 Explicit `serve --no-sandbox` remains available.
 
 The runner enforces filesystem/network permissions and supplies private `TMPDIR`, `TEMP`, and `TMP`.
+Working directories can contain Windows 8.3 aliases, including aliases in the system temporary path.
 Workspace permissions use the common [sandbox schema](SANDBOX_CONFIGURATION.md).
 
 MXC supports managed HTTP/HTTPS and SOCKS5 TCP proxies:
@@ -182,7 +186,7 @@ mcp-console sandbox --no-config -- cmd.exe /d /c "echo MXC ready"
 Require exit status zero and `MXC ready`; investigate any MXC support/policy error.
 Do not bypass the guard, recreate the legacy accounts, or use host execution as an automatic workaround.
 
-The procedure's identities and storage/ACL inventory are checked against the pinned runner's [Windows transport](https://github.com/t-kalinowski/cobox/blob/8bcbf394a3a6171d9bb3a566976d456f52bd2aec/codex-rs/mcp-console-sandbox/src/windows_console.rs), [product identities](https://github.com/t-kalinowski/cobox/blob/8bcbf394a3a6171d9bb3a566976d456f52bd2aec/codex-rs/windows-sandbox-rs/src/product.rs), [capability records](https://github.com/t-kalinowski/cobox/blob/8bcbf394a3a6171d9bb3a566976d456f52bd2aec/codex-rs/windows-sandbox-rs/src/cap.rs), and [WFP ownership](https://github.com/t-kalinowski/cobox/blob/8bcbf394a3a6171d9bb3a566976d456f52bd2aec/codex-rs/windows-sandbox-rs/src/wfp.rs).
+The procedure's identities and storage/ACL inventory are checked against the pinned runner's [Windows transport](https://github.com/t-kalinowski/cobox/blob/47221a5dbcac6f793047ce416937f6db2bb2d75f/codex-rs/mcp-console-sandbox/src/windows_console.rs), [product identities](https://github.com/t-kalinowski/cobox/blob/47221a5dbcac6f793047ce416937f6db2bb2d75f/codex-rs/windows-sandbox-rs/src/product.rs), [capability records](https://github.com/t-kalinowski/cobox/blob/47221a5dbcac6f793047ce416937f6db2bb2d75f/codex-rs/windows-sandbox-rs/src/cap.rs), and [WFP ownership](https://github.com/t-kalinowski/cobox/blob/47221a5dbcac6f793047ce416937f6db2bb2d75f/codex-rs/windows-sandbox-rs/src/wfp.rs).
 The startup diagnostic regression injects the legacy-account query result into test children; it does not create host accounts.
 
 ## Lifecycle and platform differences

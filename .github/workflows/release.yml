@@ -1,6 +1,6 @@
 name: Release
 
-# Build native macOS and Linux wheels and publish them to PyPI.
+# Build native macOS, Linux, and Windows x64 wheels and publish them to PyPI.
 #
 # Releases are tag-driven. A manual workflow run builds artifacts for
 # inspection but does not publish.
@@ -23,12 +23,15 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  UV_VERSION: "0.12.24"
 
 jobs:
   wheels:
     name: pypi-${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    # Cold ARM R preparation can take 30 minutes after native compilation.
+    # Leave the smoke test its full, separately bounded startup allowance.
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
@@ -90,7 +93,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: latest
+          version: ${{ env.UV_VERSION }}
           cache-local-path: ${{ runner.temp }}/mcp-console-cache
           cache-suffix: release-v1-${{ steps.cache-epoch.outputs.value }}
 
@@ -124,7 +127,7 @@ jobs:
             --report linux-compatibility/builder-abi.json
 
       # Cold ARM64 R source builds are preparation, not worker startup.
-      # Reuse the floor fixture's recipe and Console's captured cache layout.
+      # Match the full runtime request and R_HOME in ir's resolution-cache key.
       - name: Prepare Linux R smoke environment
         if: runner.os == 'Linux'
         env:
@@ -149,9 +152,12 @@ jobs:
           uv venv "$RUNNER_TEMP/cmake"
           uv pip install --python "$RUNNER_TEMP/cmake/bin/python" cmake
           export PATH="$RUNNER_TEMP/cmake/bin:$PATH"
+          export R_HOME="$(R RHOME)"
           uv tool run --isolated --python 3.13 --from r-lib-ir ir run \
-            --rscript "$(command -v Rscript)" --with tidyverse --with reticulate --with DBI \
-            --with duckdb --with arrow --with nanoarrow --with yyjsonr \
+            --rscript "$R_HOME/bin/Rscript" \
+            --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
+            --with duckdb --with arrow --with nanoarrow --with yyjsonr --with ggplot2 \
+            --with jsonlite --with pillar --with tibble --with utf8 \
             --isolated --vanilla -e 'sessionInfo()'
           uv cache clean cmake
           printf 'XDG_CACHE_HOME=%s\n' "$XDG_CACHE_HOME" >> "$GITHUB_ENV"
@@ -178,6 +184,27 @@ jobs:
             --without-r
           python3 tests/sandbox_installation.py "$UV_TOOL_BIN_DIR/mcp-console"
 
+      - name: Report Linux preparation failure
+        if: failure() && runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          dependencies = Path(os.environ["RUNNER_TEMP"]) / "mcp-console-xdg-cache/mcp-console/dependencies"
+          for library in sorted((dependencies / "ir/libraries").glob("*")):
+              if library.is_dir():
+                  print(json.dumps({
+                      "library": str(library),
+                      "incomplete": (library / ".ir-incomplete").exists(),
+                      "entries": sorted(entry.name for entry in library.iterdir()),
+                  }))
+          print(json.dumps({
+              "python_installations": sorted(path.name for path in (dependencies / "uv/python").glob("*")),
+          }))
+          PY
+
       - name: Upload Linux compatibility evidence
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -191,6 +218,93 @@ jobs:
         with:
           name: pypi-${{ matrix.target }}
           path: dist/*.whl
+          if-no-files-found: error
+
+  windows-wheel:
+    name: pypi-x86_64-pc-windows-msvc
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      MCP_CONSOLE_SANDBOX_SOURCE: ${{ github.workspace }}/.sandbox-runner-source
+      UV_NO_CONFIG: "1"
+      LANGUAGE: en
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Prepare native build tools and read sandbox pin
+        id: sandbox-pin
+        run: |
+          git config --global core.longpaths true
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          rustup update stable --no-self-update
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python scripts/stage-sandbox-runner --github-output "$env:GITHUB_OUTPUT"
+
+      - name: Set release installation directories
+        run: |
+          "UV_TOOL_DIR=$env:RUNNER_TEMP/mcp-console-tools" >> $env:GITHUB_ENV
+          "UV_TOOL_BIN_DIR=$env:RUNNER_TEMP/mcp-console-bin" >> $env:GITHUB_ENV
+          "UV_CACHE_DIR=$env:RUNNER_TEMP/mcp-console-cache" >> $env:GITHUB_ENV
+
+      - name: Check out private sandbox source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.sandbox-pin.outputs.repository }}
+          ref: ${{ steps.sandbox-pin.outputs.commit }}
+          path: .sandbox-runner-source
+          persist-credentials: false
+
+      # Use the PEP 517 backend: it relocates the native command and adds the
+      # environment-bound Windows launcher that direct Maturin builds omit.
+      - name: Build Windows wheel
+        run: scripts/with-checkout.cmd uv build --wheel --out-dir dist
+
+      - name: Install wheel through its public tool command
+        run: |
+          $wheel = (Get-Item dist/*-win_amd64.whl).FullName
+          uv tool install --python (Get-Command python).Source $wheel
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2.12.1
+
+      - name: Install native smoke-test dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
+        with:
+          working-directory: r
+          dependencies: "NA"
+          packages: |
+            any::reticulate
+            any::jsonlite
+
+      - name: Prepare Python and select the R runtime
+        run: |
+          $ciPython = (Get-Command python).Source
+          uv pip install --python $ciPython numpy
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Accept installed Windows wheel
+        run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pypi-x86_64-pc-windows-msvc
+          path: dist/*-win_amd64.whl
           if-no-files-found: error
 
   linux-floor:
@@ -244,7 +358,7 @@ jobs:
 
   publish-pypi:
     name: publish PyPI
-    needs: [wheels, linux-floor]
+    needs: [wheels, windows-wheel, linux-floor]
 
     # Manual dispatch is build-only. Only tag-triggered runs may publish.
     if: ${{ github.event_name == 'push' && github.ref_type == 'tag' }}
@@ -286,7 +400,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
-          version: latest
+          version: ${{ env.UV_VERSION }}
 
       - name: Publish wheels to PyPI
         run: |
@@ -294,3 +408,223 @@ jobs:
             --trusted-publishing always \
             --check-url https://pypi.org/simple \
             dist/*.whl
+
+  verify-pypi:
+    name: public-pypi-${{ matrix.target }}
+    needs: publish-pypi
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Linux runtime and inspection dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libcap2 libgcc-s1 libstdc++6 binutils
+
+      - name: Download published artifacts for hash comparison
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: pypi-*
+          path: dist
+          merge-multiple: true
+
+      - name: Wait for public JSON and package-index visibility
+        run: python3 scripts/release.py wait-pypi dist --report publication.json
+
+      - name: Verify fresh public-index installations and Python-only MCP
+        env:
+          UV_NO_CONFIG: "1"
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import sys
+          import tempfile
+
+          sys.path.insert(0, str(Path("scripts").resolve()))
+          from release import command_output, package_version, run_command, smoke_mcp
+
+          version = package_version()
+          publication = json.loads(Path("publication.json").read_text())
+          assert publication["version"] == version, publication
+
+          options = ["--no-cache", "--no-sources", "--default-index", "https://pypi.org/simple"]
+          with tempfile.TemporaryDirectory(prefix="public-pypi-") as temporary:
+              root = Path(temporary)
+              env = dict(
+                  os.environ,
+                  UV_CACHE_DIR=str(root / "cache"),
+                  UV_TOOL_DIR=str(root / "tools"),
+                  UV_TOOL_BIN_DIR=str(root / "bin"),
+              )
+              expected = f"mcp-console {version}"
+              assert (
+                  command_output(
+                      ["uvx", "--isolated", *options, f"mcp-console@{version}", "--version"], env
+                  )
+                  == expected
+              )
+              run_command(["uv", "tool", "install", *options, f"mcp-console=={version}"], env)
+              installed = root / "bin/mcp-console"
+              assert command_output([str(installed), "--version"], env) == expected
+              run_command([str(installed), "--help"], env)
+              commands = root / "commands"
+              commands.mkdir()
+              (commands / "uv").symlink_to(Path(shutil.which("uv")).resolve())
+              (commands / "python3").symlink_to(Path(sys.executable).resolve())
+              mcp_env = dict(env, PATH=str(commands), MCP_CONSOLE_HOME=str(root / "console"))
+              for name in (
+                  "R_HOME",
+                  "R_LIBS",
+                  "R_LIBS_USER",
+                  "RETICULATE_PYTHON",
+                  "RETICULATE_UV",
+              ):
+                  mcp_env.pop(name, None)
+              workspace = root / "workspace"
+              workspace.mkdir()
+              run_command(
+                  [str(installed), "sandbox", "--", "/usr/bin/true"],
+                  dict(mcp_env, PATH=str(workspace)),
+                  cwd=workspace,
+              )
+              smoke_mcp(installed, version, mcp_env, workspace, 1200, 30, r_available=False)
+              latest_env = dict(
+                  env,
+                  UV_CACHE_DIR=str(root / "latest-cache"),
+                  UV_TOOL_DIR=str(root / "latest-tools"),
+                  UV_TOOL_BIN_DIR=str(root / "latest-bin"),
+              )
+              assert (
+                  command_output(
+                      ["uvx", "--isolated", *options, "mcp-console", "--version"], latest_env
+                  )
+                  == expected
+              )
+              run_command(["uv", "tool", "install", *options, "mcp-console"], latest_env)
+              assert (
+                  command_output([str(root / "latest-bin/mcp-console"), "--version"], latest_env)
+                  == expected
+              )
+          print(
+              json.dumps(
+                  {
+                      "version": version,
+                      "wheels": publication["wheels"],
+                      "pinned_install": True,
+                      "latest_install": True,
+                      "python_only_mcp": True,
+                  }
+              )
+          )
+          PY
+
+  verify-pypi-windows:
+    name: public-pypi-x86_64-pc-windows-msvc
+    needs: publish-pypi
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      UV_NO_CONFIG: "1"
+      LANGUAGE: en
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Set public-index installation directories
+        run: |
+          "UV_TOOL_DIR=$env:RUNNER_TEMP/public-mcp-console/tools" >> $env:GITHUB_ENV
+          "UV_TOOL_BIN_DIR=$env:RUNNER_TEMP/public-mcp-console/bin" >> $env:GITHUB_ENV
+          "UV_CACHE_DIR=$env:RUNNER_TEMP/public-mcp-console/cache" >> $env:GITHUB_ENV
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2.12.1
+
+      - name: Install native smoke-test dependencies
+        uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
+        with:
+          working-directory: r
+          dependencies: "NA"
+          packages: |
+            any::reticulate
+            any::jsonlite
+
+      - name: Download published artifacts for hash comparison
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: pypi-*
+          path: dist
+          merge-multiple: true
+
+      - name: Wait for public JSON and package-index visibility
+        run: python scripts/release.py wait-pypi dist --report publication.json
+
+      - name: Install the pinned release from the public index
+        run: |
+          $version = (Get-Content publication.json | ConvertFrom-Json).version
+          $actual = uvx --isolated --no-cache --no-sources --default-index https://pypi.org/simple "mcp-console@$version" --version
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ($actual -ne "mcp-console $version") { throw "Unexpected pinned uvx version: $actual" }
+          uv tool install --python (Get-Command python).Source --no-cache --no-sources --default-index https://pypi.org/simple "mcp-console==$version"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Prepare Python and select the R runtime
+        run: |
+          uv pip install --python (Get-Command python).Source numpy
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Accept pinned public-index installation
+        run: python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"
+
+      - name: Verify a fresh unqualified public-index installation
+        run: |
+          $env:UV_CACHE_DIR = "$env:RUNNER_TEMP/public-mcp-console/latest-cache"
+          $env:UV_TOOL_DIR = "$env:RUNNER_TEMP/public-mcp-console/latest-tools"
+          $env:UV_TOOL_BIN_DIR = "$env:RUNNER_TEMP/public-mcp-console/latest-bin"
+          $version = (Get-Content publication.json | ConvertFrom-Json).version
+          $actual = uvx --isolated --no-cache --no-sources --default-index https://pypi.org/simple mcp-console --version
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ($actual -ne "mcp-console $version") { throw "Unexpected latest uvx version: $actual" }
+          uv tool install --python (Get-Command python).Source --no-cache --no-sources --default-index https://pypi.org/simple mcp-console
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/windows_install.py --installed-binary "$env:UV_TOOL_BIN_DIR/mcp-console.exe"

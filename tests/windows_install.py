@@ -1,9 +1,11 @@
 """Build and accept a Windows wheel and source install in a private environment."""
 
+import argparse
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tomllib
 
 from windows_sandbox import workspace
 
@@ -20,11 +22,58 @@ def run(*command, environment=None):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--installed-binary",
+        type=Path,
+        help="accept an already installed release wheel without building from source",
+    )
+    options = parser.parse_args()
     if sys.platform != "win32":
         raise SystemExit("native Windows installation checks require Windows")
     os.chdir(ROOT)
-    # Restricted tokens must be able to traverse the installed executable's
-    # directory. Private TemporaryDirectory ACLs only admit owner/admin/system.
+    if options.installed_binary is not None:
+        binary = options.installed_binary.resolve()
+        version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
+        assert subprocess.check_output([binary, "--version"], text=True).strip() == (
+            f"mcp-console {version}"
+        )
+        run(binary, "--help")
+        assert not (binary.parent / "mcp-console-sandbox.exe").exists()
+        from support.windows_mxc import mxc_requirement
+
+        if mxc_requirement(binary).available:
+            with workspace() as directory:
+                run(
+                    binary,
+                    "sandbox",
+                    "--no-config",
+                    "--",
+                    Path(os.environ["SystemRoot"]) / "System32/cmd.exe",
+                    "/d",
+                    "/c",
+                    "exit 0",
+                    environment=os.environ | {"PATH": str(directory)},
+                )
+        run(
+            sys.executable,
+            ROOT / "tests/windows.py",
+            "-v",
+            "WindowsMxc.test_proxy_launch",
+            "WindowsMxc.test_startup_failures_withhold_code_at_every_public_entry_point",
+            "WindowsMxc.test_complete_policy_cannot_disable_mxc",
+            "WindowsMxc.test_setup_command_is_removed",
+            "WindowsSandbox.test_first_python_send_from_short_profile_directory",
+            "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
+            "WindowsSandbox.test_cwd_alias_does_not_require_parent_enumeration",
+            "WindowsSandbox.test_stdio_write_policy_and_exit_status",
+            "WindowsConsole.test_python_without_r",
+            "WindowsConsole.test_r_initializes_before_python",
+            "WindowsConsole.test_python_initializes_before_r",
+            environment=os.environ | {"MCP_CONSOLE_TEST_BINARY": str(binary)},
+        )
+        raise SystemExit(0)
+    # Exercise installed commands from a workspace with ordinary inherited ACLs.
     with checkout_owner(ROOT), workspace() as directory:
         wheels = directory / "wheels"
         venv = directory / "venv"

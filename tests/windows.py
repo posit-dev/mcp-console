@@ -238,6 +238,9 @@ class Session:
             raise
         finally:
             self.process.stdout.close()
+            if sys.exc_info()[0] is not None:
+                self.errors.seek(0)
+                sys.stderr.write(self.errors.read().decode(errors="replace"))
             self.errors.close()
             self.directory.cleanup()
 

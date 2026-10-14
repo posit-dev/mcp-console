@@ -26,7 +26,7 @@ They are mutually exclusive, and `...` must be empty.
 console_tool(path = Sys.which("mcp-console"))
 ```
 
-Native Windows support is experimental and requires a locally installed Console because the release workflow does not publish Windows wheels.
+Starting with Console 0.0.5, published releases include an experimental Windows x64 wheel that `console_tool()` can resolve through `reticulate::uv_run_tool()`.
 See [Windows installation](https://t-kalinowski.github.io/mcp-console/WINDOWS.html).
 
 ## Behavior and safety

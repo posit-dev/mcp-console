@@ -597,7 +597,7 @@ def early_requirements_with_pending_poll(
             root,
             response_timeout=600,
         ) as client:
-            reached.wait("runtime discovery is blocked")
+            reached.wait("runtime discovery is blocked", client=client)
             assert os.read(alive, 1) == b"1"
             client.initialize_and_list_tools()
             pending = client.start_send(timeout_ms=10_000 if expire else 600_000)
