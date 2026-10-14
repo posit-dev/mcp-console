@@ -57,6 +57,7 @@ if __name__ == "__main__":
             ROOT / "tests/windows.py",
             "-v",
             "WindowsSandbox.test_setup_status_is_read_only",
+            "WindowsSandbox.test_first_python_send_from_short_profile_directory",
             "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
             "WindowsSandbox.test_stdio_write_policy_and_exit_status",
             "WindowsConsole.test_python_without_r",

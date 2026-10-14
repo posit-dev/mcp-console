@@ -28,6 +28,40 @@ pub(super) fn run(
     // Unix exec preserves the caller. Windows waits while the native runner
     // watches both this frontend and the supplied generation owner.
     let mut runner = Command::new(installation::private_runner()?);
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::{OsStrExt, OsStringExt};
+        use windows_sys::Win32::Storage::FileSystem::GetLongPathNameW;
+
+        // The elevated helper compares cwd with USERPROFILE before granting
+        // profile metadata access. Windows TEMP can use an 8.3 profile alias;
+        // expand it before handoff so that comparison identifies the profile.
+        let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
+        let cwd = cwd
+            .as_os_str()
+            .encode_wide()
+            .chain(Some(0))
+            .collect::<Vec<_>>();
+        let length = unsafe { GetLongPathNameW(cwd.as_ptr(), std::ptr::null_mut(), 0) };
+        if length == 0 {
+            return Err(format!(
+                "cannot expand sandbox working directory: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let mut expanded = vec![0; length as usize];
+        let written = unsafe { GetLongPathNameW(cwd.as_ptr(), expanded.as_mut_ptr(), length) };
+        if written == 0 {
+            return Err(format!(
+                "cannot expand sandbox working directory: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        if written >= length {
+            return Err("sandbox working directory changed while expanding its short path".into());
+        }
+        runner.current_dir(OsString::from_wide(&expanded[..written as usize]));
+    }
     if settings.get("inherit_environment") == Some(&Value::Bool(false)) {
         // The native Linux launcher serializes its host environment before
         // applying workload controls. Non-inherited bytes are not policy input;

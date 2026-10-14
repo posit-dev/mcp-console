@@ -69,6 +69,7 @@ Use one stable directory per Windows user; accounts and network policy are machi
 `--status` reports readiness without provisioning; it is not a fresh firewall audit.
 
 The runner enforces the selected networking and filesystem policy and supplies private `TMPDIR`, `TEMP`, and `TMP`.
+Working directories can contain Windows 8.3 aliases, including aliases in the system temporary path.
 Workspace permissions use the common [sandbox schema](SANDBOX_CONFIGURATION.md).
 
 Complete native policies may set `windows_backend` to `auto`, `mxc`, `elevated`, or `unelevated`, or select another legacy state directory with `windows_state_dir`.

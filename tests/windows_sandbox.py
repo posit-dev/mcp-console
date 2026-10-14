@@ -642,6 +642,33 @@ class WindowsSandbox(unittest.TestCase):
                 b"private artifact does not match this installation", result.stderr
             )
 
+    def test_first_python_send_from_short_profile_directory(self):
+        from windows import Session
+
+        profile = Path(os.environ["USERPROFILE"])
+        short_name = ctypes.create_unicode_buffer(32768)
+        get_short_name = ctypes.windll.kernel32.GetShortPathNameW
+        get_short_name.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+        get_short_name.restype = wintypes.DWORD
+        length = get_short_name(str(profile), short_name, len(short_name))
+        self.assertGreater(length, 0, ctypes.WinError())
+        self.assertLess(length, len(short_name))
+        if short_name.value.casefold() == str(profile).casefold():
+            self.skipTest("user profile has no 8.3 alias")
+        temporary = Path(short_name.value) / "AppData/Local/Temp"
+        session = Session(
+            sandbox=True,
+            temporary_root=temporary,
+            overrides=["r=null", 'sandbox.network="enabled"'],
+        )
+        try:
+            session.initialize()
+            result = session.send(python="print(6 * 7)")
+            self.assertFalse(result.get("isError"), result)
+            self.assertIn("42", json.dumps(result))
+        finally:
+            session.close()
+
     def test_python_state_and_restart_with_private_temporary_storage(self):
         from windows import Session
 
