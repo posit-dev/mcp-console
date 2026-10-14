@@ -114,6 +114,10 @@ Do not cache accounts, credentials, ACLs, or provisioning state.
 Windows setup and full acceptance still run after restoring build/staging caches.
 Exact cache-key and timestamp-restoration mechanics belong in the workflow and staging scripts.
 
+CI uses CRAN's native Windows/macOS binaries and PPM's portable Linux binaries on both architectures, including the Jammy floor images.
+Configure both R's repository data file and site profile so profile-free preparation and ordinary R sessions select the same repository.
+Packages without compatible binaries still build from source.
+
 Installation tests need the checkout and temporary directory on the same writable filesystem for rename-based checks.
 They run after other checks because installation can change staging/build layout.
 

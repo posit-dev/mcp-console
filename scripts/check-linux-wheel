@@ -51,6 +51,7 @@ def main() -> None:
         for source, destination in (
             (wheel, inputs / wheel.name),
             (ROOT / "scripts/linux-wheel/Dockerfile", inputs / "Dockerfile"),
+            (ROOT / "scripts/configure-ci-r.R", inputs / "configure-ci-r.R"),
             (ROOT / "scripts/release.py", inputs / "release.py"),
             (ROOT / "sandbox-runner.json", inputs / "sandbox-runner.json"),
             (ROOT / "tests/linux_wheel_runtime.py", inputs / "linux_wheel_runtime.py"),

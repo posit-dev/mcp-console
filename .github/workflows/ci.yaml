@@ -47,7 +47,9 @@ jobs:
       - uses: r-lib/actions/setup-r@v2
         id: r
         with:
-          use-public-rspm: always
+          use-public-rspm: false
+      - name: Configure binary R repositories
+        run: Rscript --vanilla scripts/configure-ci-r.R
       - uses: dtolnay/rust-toolchain@stable
         id: rust
         with:
@@ -149,7 +151,7 @@ jobs:
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           working-directory: r
-          cache-version: windows-runtime-v2-${{ steps.epoch.outputs.week }}
+          cache-version: windows-runtime-v3-${{ steps.epoch.outputs.week }}
           upgrade: "FALSE"
           dependencies: "NA"
           packages: |
@@ -371,7 +373,10 @@ jobs:
         id: setup-r
         uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: always
+          use-public-rspm: false
+
+      - name: Configure binary R repositories
+        run: sudo "$(command -v Rscript)" --vanilla scripts/configure-ci-r.R
 
       # The managed R environment can build data.table from source. Its NLS
       # code needs libintl.h in R's /opt/R/<arch> build prefix.
@@ -416,15 +421,13 @@ jobs:
         id: ir-cache
         uses: actions/cache/restore@v6
         with:
-          # v5 includes explicit bridge dependencies in the prewarmed sets below.
-          # Bump it when that contract changes.
+          # v6 resolves against the configured binary repositories; older
+          # resolution markers must not keep source builds or the old mirror.
           path: ${{ runner.temp }}/mcp-console-r-cache
           key: >-
-            ir-v5-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ steps.tools.outputs.ir_version }}-${{ hashFiles('src/worker_client.rs', 'src/resolver/managed_r.rs', 'tests/boundaries/client_server/requirements/test_r_automatic.py', 'tests/boundaries/client_server/requirements/test_r.py') }}
+            ir-v6-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ steps.tools.outputs.ir_version }}-${{ hashFiles('scripts/configure-ci-r.R', 'src/worker_client.rs', 'src/resolver/managed_r.rs', 'tests/boundaries/client_server/requirements/test_r_automatic.py', 'tests/boundaries/client_server/requirements/test_r.py') }}
           restore-keys: |
-            ir-v5-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ steps.tools.outputs.ir_version }}-
-            ir-v4-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ steps.tools.outputs.ir_version }}-
-            ir-v3-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ steps.tools.outputs.ir_version }}-
+            ir-v6-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ steps.tools.outputs.ir_version }}-
 
       - name: Validate restored R library links
         run: python3 scripts/prune-r-cache "$RUNNER_TEMP/mcp-console-r-cache"
@@ -608,7 +611,7 @@ jobs:
           R_LIBS_USER: ${{ runner.temp }}/mcp-console-r-package
         with:
           cache: always
-          cache-version: r-package-v1-${{ steps.cache-epoch.outputs.value }}
+          cache-version: r-package-v2-${{ steps.cache-epoch.outputs.value }}
           working-directory: r
           upgrade: "FALSE"
           packages: |
@@ -628,7 +631,7 @@ jobs:
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
           cache: always
-          cache-version: transcripts-v2-${{ steps.cache-epoch.outputs.value }}
+          cache-version: transcripts-v3-${{ steps.cache-epoch.outputs.value }}
           install-quarto: false
           upgrade: "FALSE"
           dependencies: "NA"
