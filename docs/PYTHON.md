@@ -67,8 +67,11 @@ Use [Send operations](SEND_OPERATIONS.md) for input, control, and sequencing, an
 
 If `KeyboardInterrupt` interrupts a synchronous response wait, the client cancels that request and re-raises the exception.
 It waits for the SDK's request cleanup before re-raising so subsequent calls cannot overtake cancellation.
+Concurrent sends are rejected while cancellation cleanup is in progress; ordinary concurrent control calls remain available when a cell is running.
 Cleanup has a five-second limit; another `KeyboardInterrupt` also ends the wait.
-If cleanup does not finish, the connection rejects further calls until it has been closed and reconnected.
+If cleanup does not finish, the client aborts that request task and rejects further calls until the connection has been closed and reconnected.
+Closing waits at most five seconds for the aborted request to stop before closing the SDK transport and portal.
+If that request still cannot stop, closing raises an error and retains the invalid connection until it stops.
 An admitted cell keeps running.
 Catch the exception inside the connection's context to poll for its output or call `console.send(control="interrupt")` to interrupt execution explicitly.
 Leaving the context closes the session.

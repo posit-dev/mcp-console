@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run --script
 
 from concurrent.futures import ThreadPoolExecutor
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -103,6 +104,7 @@ def test_host_interrupt_cancels_wait_and_discards_partial_reply(
 
 @requires(POSIX)
 def test_stalled_cancellation_invalidates_connection(binary: Path) -> Transcript:
+    before = set(threading.enumerate())
     previous = signal.signal(signal.SIGINT, signal.default_int_handler)
     try:
         with (
@@ -115,29 +117,45 @@ def test_stalled_cancellation_invalidates_connection(binary: Path) -> Transcript
                 cleanup_started = threading.Event()
                 release_cleanup = threading.Event()
                 caller_returned = threading.Event()
+                context_closed = threading.Event()
+                cleanup_finished = threading.Event()
+                loop: asyncio.AbstractEventLoop | None = None
+                cleanup_gate = asyncio.Event()
                 call_tool = Client.call_tool
 
                 async def stalled_cleanup(
                     self: Client, name: str, arguments: dict[str, object]
                 ) -> CallToolResult:
+                    nonlocal loop
                     try:
                         return await call_tool(self, name, arguments)
                     except get_cancelled_exc_class():
                         # Hold the external SDK's cleanup, rather than replacing
                         # Console's implementation or its completion signal.
-                        with CancelScope(shield=True):
-                            cleanup_started.set()
-                            await to_thread.run_sync(release_cleanup.wait)
+                        try:
+                            with CancelScope(shield=True):
+                                loop = asyncio.get_running_loop()
+                                cleanup_started.set()
+                                await cleanup_gate.wait()
+                        finally:
+                            cleanup_finished.set()
                         raise
+
+                def release_stalled_cleanup() -> None:
+                    release_cleanup.set()
+                    assert loop is not None
+                    loop.call_soon_threadsafe(cleanup_gate.set)
 
                 def release_if_caller_stalls() -> None:
                     if cleanup_started.wait(timeout=10):
                         if escape == "interrupt":
                             os.kill(os.getpid(), signal.SIGINT)
-                        if caller_returned.wait(timeout=10):
+                        if caller_returned.wait(timeout=10) and context_closed.wait(
+                            timeout=10
+                        ):
                             return
                     # Bound the failing baseline without a timing assertion.
-                    release_cleanup.set()
+                    release_stalled_cleanup()
 
                 guard = pool.submit(release_if_caller_stalls)
                 with patch.object(Client, "call_tool", stalled_cleanup):
@@ -170,8 +188,12 @@ def test_stalled_cancellation_invalidates_connection(binary: Path) -> Transcript
                                     )
                         finally:
                             caller_returned.set()
-                            release_cleanup.set()
+                    context_closed.set()
                     guard.result(timeout=5)
+                    assert not release_cleanup.is_set(), (
+                        "close waited until stalled SDK cleanup was released"
+                    )
+                    assert cleanup_finished.is_set()
                     assert (root / "closed").exists()
                     requests = (root / "requests.jsonl").read_text(encoding="utf-8")
                     assert '"python": "recovered"' not in requests
@@ -181,7 +203,70 @@ def test_stalled_cancellation_invalidates_connection(binary: Path) -> Transcript
                     assert (root / "closed").exists()
     finally:
         signal.signal(signal.SIGINT, previous)
+    deadline = time.monotonic() + 5
+    for thread in set(threading.enumerate()) - before:
+        thread.join(max(0, deadline - time.monotonic()))
+    assert set(threading.enumerate()) == before, threading.enumerate()
     return [{"deadline": "invalidated", "interrupt": "invalidated", "reconnect": True}]
+
+
+@requires(POSIX)
+def test_concurrent_send_rejected_during_cancellation(binary: Path) -> Transcript:
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cleanup_started = threading.Event()
+            release_cleanup = threading.Event()
+            call_tool = Client.call_tool
+
+            async def stalled_cleanup(
+                self: Client, name: str, arguments: dict[str, object]
+            ) -> CallToolResult:
+                try:
+                    return await call_tool(self, name, arguments)
+                except get_cancelled_exc_class():
+                    with CancelScope(shield=True):
+                        cleanup_started.set()
+                        await to_thread.run_sync(release_cleanup.wait)
+                    raise
+
+            with (
+                patch.object(Client, "call_tool", stalled_cleanup),
+                ThreadPoolExecutor(max_workers=1) as pool,
+                client(root) as console,
+            ):
+
+                def try_concurrent_send() -> None:
+                    try:
+                        assert cleanup_started.wait(timeout=10)
+                        try:
+                            console.send(python="overtaking cancellation")
+                        except RuntimeError as error:
+                            assert str(error) == (
+                                "Request cancellation cleanup is in progress; "
+                                "wait before reusing this connection"
+                            )
+                        else:
+                            raise AssertionError("send overtook cancellation cleanup")
+                    finally:
+                        release_cleanup.set()
+
+                concurrent = pool.submit(try_concurrent_send)
+                try:
+                    console.send(python="cancel wait")
+                except KeyboardInterrupt:
+                    pass
+                else:
+                    raise AssertionError("host interrupt missing")
+                concurrent.result(timeout=5)
+                assert console.send(python="recovered") == "recovered"
+            assert (root / "closed").exists()
+            requests = (root / "requests.jsonl").read_text(encoding="utf-8")
+            assert "overtaking cancellation" not in requests
+    finally:
+        signal.signal(signal.SIGINT, previous)
+    return [{"concurrent_send": "rejected", "recovery": "recovered", "closed": True}]
 
 
 def test_sync_connection_can_interrupt_pending_call(binary: Path) -> Transcript:
