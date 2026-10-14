@@ -905,6 +905,139 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(result.stdout, "")
                     self.assertIn(diagnostic, result.stderr)
 
+    def test_elevated_cwd_reuses_existing_metadata_access(self):
+        state = self.sandbox_state_directory()
+        with workspace() as root:
+            work = root / "read-only-cwd"
+            work.mkdir()
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            security = ctypes.WinDLL("advapi32", use_last_error=True)
+            pointer = ctypes.c_void_p
+            kernel.CreateFileW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                pointer,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                pointer,
+            ]
+            kernel.CreateFileW.restype = wintypes.HANDLE
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel.LocalFree.argtypes = [pointer]
+            kernel.LocalFree.restype = pointer
+            security.GetSecurityInfo.argtypes = [
+                wintypes.HANDLE,
+                ctypes.c_int,
+                wintypes.DWORD,
+                pointer,
+                pointer,
+                ctypes.POINTER(pointer),
+                pointer,
+                ctypes.POINTER(pointer),
+            ]
+            security.GetSecurityInfo.restype = wintypes.DWORD
+            security.SetSecurityInfo.argtypes = [
+                wintypes.HANDLE,
+                ctypes.c_int,
+                wintypes.DWORD,
+                pointer,
+                pointer,
+                pointer,
+                pointer,
+            ]
+            security.SetSecurityInfo.restype = wintypes.DWORD
+            security.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                ctypes.POINTER(pointer),
+                pointer,
+            ]
+            security.SetFileSecurityW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                pointer,
+            ]
+            # Retain WRITE_DAC before restricting the fixture so cleanup does
+            # not need ownership changes or broader machine permissions.
+            handle = kernel.CreateFileW(
+                str(work), 0x60000, 7, None, 3, 0x02000000, None
+            )
+            self.assertNotEqual(handle, pointer(-1).value, ctypes.WinError())
+            original_acl, original_descriptor, restricted = (
+                pointer(),
+                pointer(),
+                pointer(),
+            )
+            try:
+                status = security.GetSecurityInfo(
+                    handle,
+                    1,
+                    4,
+                    None,
+                    None,
+                    ctypes.byref(original_acl),
+                    None,
+                    ctypes.byref(original_descriptor),
+                )
+                self.assertEqual(status, 0, ctypes.WinError(status))
+                # Authenticated users can read/execute, while OWNER RIGHTS
+                # prevents the owner's implicit WRITE_DAC grant.
+                self.assertTrue(
+                    security.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                        "D:P(D;;WD;;;OW)(A;;GRGX;;;AU)(A;;RC;;;OW)",
+                        1,
+                        ctypes.byref(restricted),
+                        None,
+                    ),
+                    ctypes.WinError(),
+                )
+                self.assertTrue(
+                    security.SetFileSecurityW(str(work), 4, restricted),
+                    ctypes.WinError(),
+                )
+                result = subprocess.run(
+                    [
+                        str(BINARY),
+                        "sandbox",
+                        "--config-env",
+                        "TEST_POLICY",
+                        "--",
+                        str(Path(os.environ["SystemRoot"]) / "System32/cmd.exe"),
+                        "/d",
+                        "/c",
+                        "echo existing metadata access",
+                    ],
+                    cwd=work,
+                    env=os.environ
+                    | {
+                        "MCP_CONSOLE_HOME": str(root / "home"),
+                        "TEST_POLICY": json.dumps(
+                            {
+                                "extends": ":read-only",
+                                "network": "enabled",
+                                "windows_backend": "elevated",
+                                "windows_state_dir": state,
+                            }
+                        ),
+                    },
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), "existing metadata access")
+            finally:
+                if original_descriptor.value:
+                    status = security.SetSecurityInfo(
+                        handle, 1, 4 | 0x20000000, None, None, original_acl, None
+                    )
+                    self.assertEqual(status, 0, ctypes.WinError(status))
+                    kernel.LocalFree(original_descriptor)
+                if restricted.value:
+                    kernel.LocalFree(restricted)
+                kernel.CloseHandle(handle)
+
     def test_stdio_write_policy_and_exit_status(self):
         with workspace() as root:
             work = root / "work"

@@ -59,6 +59,7 @@ if __name__ == "__main__":
             "WindowsSandbox.test_setup_status_is_read_only",
             "WindowsSandbox.test_first_python_send_from_short_profile_directory",
             "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
+            "WindowsSandbox.test_elevated_cwd_reuses_existing_metadata_access",
             "WindowsSandbox.test_stdio_write_policy_and_exit_status",
             "WindowsConsole.test_python_without_r",
             "WindowsConsole.test_r_initializes_before_python",
