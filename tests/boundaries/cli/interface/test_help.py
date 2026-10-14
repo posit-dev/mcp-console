@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.records import Transcript, TranscriptEntry
-from support.snapshots import platform_snapshots
 from support.suites import run_this_suite
 
 
@@ -30,7 +29,6 @@ def record(binary: Path, *arguments: str) -> TranscriptEntry:
     return entry
 
 
-@platform_snapshots("win32", reason="Windows exposes sandbox-setup in CLI help")
 def test_help(binary: Path) -> Transcript:
     entries = [
         record(binary),
@@ -45,6 +43,11 @@ def test_help(binary: Path) -> Transcript:
     for entry in entries:
         output = entry.get("stdout", "") + entry.get("stderr", "")
         assert all(len(line) <= 80 for line in output.splitlines()), entry
+        # Executable suffixes are presentation, not a different CLI contract.
+        # Assert wrapping above before normalizing the shared transcript.
+        for stream in ("stdout", "stderr"):
+            if stream in entry:
+                entry[stream] = entry[stream].replace("mcp-console.exe", "mcp-console")
     return entries
 
 

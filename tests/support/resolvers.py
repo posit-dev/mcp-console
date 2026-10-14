@@ -9,7 +9,7 @@ from pathlib import Path
 from support.assertions import last_result_text, wait_for_evaluation_output
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
-from support.execution import Execution
+from support.execution import SANDBOXED, Execution
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
 from support.processes import ProcessIdentity, child_process_identities
@@ -222,9 +222,30 @@ def checkpoint_uv_environment(
     return environment, started, release
 
 
+def _isolate_r_package_cache(environment: dict[str, str], directory: Path) -> None:
+    # A different case must not retire package-cache metadata while the native
+    # runner is protecting a writable cache mount.
+    cache = directory / "r-cache"
+    environment["R_USER_CACHE_DIR"] = str(cache)
+    environment["R_PKG_CACHE_DIR"] = str(cache)
+    environment["PKG_CACHE_DIR"] = str(cache / "R/pkgcache")
+
+
 def record_resolved_r_library(environment: dict[str, str], directory: Path) -> None:
     real_ir = shutil.which("ir", path=environment.get("PATH"))
     assert real_ir is not None, "ir is required"
+    # Keep real IR libraries and their persistent renv link targets. Otherwise
+    # fixture cleanup leaves shared IR libraries pointing into a removed cache.
+    environment["IR_CACHE_DIR"] = ir_cache_directory(environment)
+    r_cache = Path(
+        environment.get("R_USER_CACHE_DIR")
+        or environment.get("XDG_CACHE_HOME")
+        or Path.home()
+        / ("Library/Caches/org.R-project.R" if sys.platform == "darwin" else ".cache")
+    )
+    renv_root = Path(environment.get("RENV_PATHS_ROOT") or r_cache / "R/renv")
+    environment.setdefault("RENV_PATHS_CACHE", str(renv_root / "cache"))
+    _isolate_r_package_cache(environment, directory)
     # Record the result inside an explicitly granted resolver cache.
     environment["UV_TOOL_DIR"] = str(directory)
     identity = directory / "resolved-r-library"
@@ -260,6 +281,7 @@ def record_resolved_r_library(environment: dict[str, str], directory: Path) -> N
 
 def resolver_interrupt_permission_environment(
     temporary_path: Path,
+    execution: Execution,
 ) -> tuple[dict[str, str], FifoCheckpoint, FifoCheckpoint, Path, Path, Path]:
     environment, _ = r_test_environment()
     environment["RETICULATE_PYTHON"] = ""
@@ -307,15 +329,18 @@ def resolver_interrupt_permission_environment(
     )
     config = temporary_path / ".agents/console/config.yaml"
     config.parent.mkdir(parents=True)
-    config.write_text(
-        json.dumps(
-            {
-                "resolver": {
-                    "environment": {LOADER_VARIABLE: environment[LOADER_VARIABLE]}
-                }
+    resolver = {"environment": {LOADER_VARIABLE: environment[LOADER_VARIABLE]}}
+    if execution == SANDBOXED:
+        # This resolver is a checkpoint fixture, not an installer. Avoid
+        # mounting shared caches whose Git metadata can change during
+        # concurrent real dependency preparation.
+        resolver["sandbox"] = {
+            "filesystem": {
+                "read_only": ["/"],
+                "read_write": [str(temporary_path)],
             }
-        )
-    )
+        }
+    config.write_text(json.dumps({"resolver": resolver}))
     return (
         environment,
         resolver_started,
@@ -328,6 +353,8 @@ def resolver_interrupt_permission_environment(
 
 def fake_ir_environment(root: Path, libraries: list[Path]) -> dict[str, str]:
     environment, _ = r_test_environment()
+    _isolate_r_package_cache(environment, root)
+    environment["IR_CACHE_DIR"] = str(root / "ir-cache")
     # Keep fixture records and checkpoints in a granted resolver cache.
     environment["UV_TOOL_DIR"] = str(root)
     fake_bin = root / "bin"

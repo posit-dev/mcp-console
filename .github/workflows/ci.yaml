@@ -199,7 +199,7 @@ jobs:
           (Get-Item target/sandbox-runner-build.json).LastWriteTimeUtc = [DateTime]::UtcNow
           scripts/with-checkout.cmd cargo build --target-dir target
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      # Save only successful, validated builds, before provisioning or tests.
+      # Save only successful, validated builds, before acceptance tests.
       - name: Save native Windows sandbox source timestamps
         if: steps.sandbox-source-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
@@ -228,29 +228,20 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ steps.cargo-downloads.outputs.cache-primary-key }}
-      - name: Verify proxy backend selection before legacy account provisioning
+      - name: Probe MXC and run Windows sandbox contracts
         run: scripts/with-checkout.cmd python tests/windows_mxc.py -v
-      - name: Provision native Windows sandbox acceptance
+      - name: Select the Windows R runtime
         run: |
-          # Hosted runtimes and the checkout live outside the sandbox's
-          # standard read roots. Prepare their read ACLs on the trusted host.
-          $ciReadRoots = @("$env:GITHUB_WORKSPACE/target", $env:UV_CACHE_DIR)
-          $ciReadRoots += python -c "import sys; print(sys.prefix); print(sys.base_prefix)"
+          $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $ciReadRoots += & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home(), .libPaths(), sep="\n")'
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $prepareArguments = @(
-            "--state-dir", "$env:LOCALAPPDATA/mcp-console",
-            "--github-env", "$env:GITHUB_ENV"
-          )
-          foreach ($root in $ciReadRoots) {
-            $prepareArguments += @("--read-root", $root)
-          }
-          python scripts/prepare-windows-tests @prepareArguments
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Run native Windows development and installation checks
         run: |
           scripts/check.cmd --full
+      - name: Verify one-time legacy WFP migration
+        # Administrator-only fixture: refuses existing Console WFP state,
+        # creates inert filters, and confirms unrelated state is preserved.
+        run: tests/fixtures/windows_migration.ps1 -CleanupScript "$PWD/scripts/remove-legacy-console-wfp.ps1"
       - name: Check R package on Windows
         env:
           MCP_CONSOLE_TEST_BINARY: ${{ github.workspace }}/target/release/mcp-console.exe
