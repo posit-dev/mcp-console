@@ -1117,6 +1117,8 @@ class WindowsSandbox(unittest.TestCase):
         with workspace() as root:
             work = root / "read-only-cwd"
             work.mkdir()
+            # The native setup log uses long names even when TEMP has an 8.3 alias.
+            work = work.resolve(strict=True)
             kernel = ctypes.WinDLL("kernel32", use_last_error=True)
             security = ctypes.WinDLL("advapi32", use_last_error=True)
             pointer = ctypes.c_void_p
