@@ -930,6 +930,17 @@ class WindowsSandbox(unittest.TestCase):
             allowed=False,
         )
 
+    def test_elevated_cwd_rejects_denied_metadata_with_existing_allow(self):
+        # Everyone's deny applies despite Authenticated Users' read allow.
+        self.elevated_cwd_acl(
+            "D:P(D;;0x80;;;WD)(A;;GRGX;;;AU)(A;;FA;;;OW)",
+            allowed=False,
+        )
+
+    def test_elevated_cwd_reuses_null_dacl(self):
+        # A NULL DACL already grants access without another metadata grant.
+        self.elevated_cwd_acl("D:NO_ACCESS_CONTROL", allowed=True)
+
     def elevated_cwd_acl(self, descriptor: str, *, allowed: bool):
         state = self.sandbox_state_directory()
         with workspace() as root:

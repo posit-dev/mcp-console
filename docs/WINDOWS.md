@@ -58,7 +58,8 @@ For elevated execution, `mcp-console sandbox-setup` explicitly provisions or ref
 Run it interactively, then use `mcp-console sandbox-setup --status` to inspect readiness.
 Elevated launches fail with setup guidance if provisioning is missing or outdated; they do not provision accounts automatically.
 Startup also fails during setup if an existing deny ACL prevents granting missing metadata access to the working directory.
-Existing sandbox-account read access does not require changing that ACL.
+An applicable metadata deny still fails setup when an allow is also present.
+Existing sandbox-account read access, including a NULL DACL, avoids an extra metadata grant.
 
 Setup creates or reuses:
 
