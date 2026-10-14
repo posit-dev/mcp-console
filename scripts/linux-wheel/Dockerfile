@@ -26,8 +26,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
 FROM base AS r-runtime
 COPY --from=r-repository /etc/apt/trusted.gpg.d/cran.asc /etc/apt/trusted.gpg.d/cran.asc
 COPY --from=r-repository /etc/apt/sources.list.d/cran.list /etc/apt/sources.list.d/cran.list
+# IR expects R's recommended packages, including reticulate's Matrix dependency.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    r-base-core libcurl4 libssl3 libxml2 libcairo2 libfontconfig1 \
+    r-base-core r-recommended libcurl4 libssl3 libxml2 libcairo2 libfontconfig1 \
     libharfbuzz0b libfribidi0 libjpeg-turbo8 libpng16-16 libtiff5 libuv1 libwebp7 libwebpmux3 \
     && rm -rf /var/lib/apt/lists/*
 COPY configure-ci-r.R /tmp/configure-ci-r.R

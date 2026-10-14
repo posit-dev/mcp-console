@@ -88,6 +88,7 @@ Use `aarch64-unknown-linux-gnu` for ARM64.
 Emulation is rejected; `--docker-context` can select an explicit daemon.
 
 The floor fixtures exercise installed wheels without R and with R, with runtime prerequisites separated from build tools.
+The R runtime includes R's recommended packages, which the isolated resolver expects the R installation to provide.
 They refresh R preparation before producing compiler-free runtime images, rather than treating old Docker layers as fresh package resolution.
 Language-package build flags do not change distributed wheel binaries.
 
