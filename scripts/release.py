@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import itertools
 import json
+import math
 import os
 import posixpath
 import re
@@ -16,8 +17,11 @@ import time
 import zipfile
 from collections import deque
 from email.parser import BytesParser
+from http.client import IncompleteRead
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 STABLE_TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+")
 PACKAGE_VERSION = re.compile(r'^version\s*=\s*"([^"]+)"\s*$')
@@ -157,6 +161,77 @@ def package_version() -> str:
     raise ReleaseError("Cargo.toml package version is missing")
 
 
+def linux_processes(root_pid: int) -> list[dict[str, Any]]:
+    """Capture Linux process ancestry and wait state before smoke cleanup."""
+    records = {}
+    for directory in Path("/proc").iterdir():
+        if not directory.name.isdecimal():
+            continue
+        try:
+            status = {
+                line.partition(":")[0]: line.partition(":")[2].strip()
+                for line in (directory / "status")
+                .read_text(errors="replace")
+                .splitlines()
+            }
+        except OSError:
+            # Process exit can remove a proc entry while the snapshot is read.
+            continue
+        records[int(directory.name)] = {
+            "pid": int(directory.name),
+            "ppid": int(status["PPid"]),
+            "name": status["Name"],
+            "state": status["State"],
+        }
+    family = {root_pid}
+    while (
+        children := {pid for pid, row in records.items() if row["ppid"] in family}
+        - family
+    ):
+        family.update(children)
+    rows = [records[pid] for pid in sorted(family & records.keys())]
+    for row in rows:
+        directory = Path("/proc") / str(row["pid"])
+        try:
+            row["wait"] = (directory / "wchan").read_text().strip()
+            row["cwd"] = os.readlink(directory / "cwd")
+            row["executable"] = os.readlink(directory / "exe")
+            # Retain preparation inputs without exposing inherited credentials
+            # or submitted source code from the rest of the process environment.
+            row["environment"] = {
+                name: value
+                for entry in (directory / "environ")
+                .read_text(errors="replace")
+                .split("\0")
+                if (name := entry.partition("=")[0])
+                in {
+                    "IR_CACHE_DIR",
+                    "IR_LIBRARY_ROOT",
+                    "IR_PREFER_BINARIES",
+                    "PKG_PLATFORMS",
+                    "R_HOME",
+                    "R_ENVIRON",
+                    "R_ENVIRON_USER",
+                    "R_PROFILE",
+                    "R_PROFILE_USER",
+                    "R_LIBS",
+                    "R_LIBS_SITE",
+                    "R_LIBS_USER",
+                    "R_MAKEVARS_USER",
+                    "R_USER_CACHE_DIR",
+                    "RENV_PATHS_ROOT",
+                    "RENV_PATHS_CACHE",
+                    "RENV_PATHS_SOURCE",
+                    "RENV_PATHS_BINARY",
+                }
+                for value in [entry.partition("=")[2]]
+            }
+        except OSError:
+            # A disappearing descendant still retains its captured identity.
+            pass
+    return rows
+
+
 def terminate(process: subprocess.Popen[bytes]) -> str:
     if process.poll() is None:
         process.kill()
@@ -291,6 +366,11 @@ def smoke_mcp(
                 f"unexpected {language} evaluation response: {json.dumps(evaluation, ensure_ascii=False)}",
             )
     except Exception as error:
+        if sys.platform == "linux":
+            print(
+                "MCP processes at failure: " + json.dumps(linux_processes(process.pid)),
+                file=sys.stderr,
+            )
         standard_error = terminate(process)
         if standard_error:
             raise ReleaseError(f"{error}: {standard_error}") from error
@@ -960,20 +1040,101 @@ def verify_wheel_set(args: argparse.Namespace) -> None:
     x86_64 = list(directory.glob("mcp_console-*-macosx_*_x86_64.whl"))
     linux_arm64 = list(directory.glob("mcp_console-*-manylinux_*_aarch64.whl"))
     linux_x86_64 = list(directory.glob("mcp_console-*-manylinux_*_x86_64.whl"))
+    windows_x86_64 = list(directory.glob("mcp_console-*-win_amd64.whl"))
     universal = list(directory.glob("*-none-any.whl"))
     sdists = list(directory.glob("*.tar.gz"))
 
-    require(len(wheels) == 4, f"expected exactly four wheels, found {len(wheels)}")
+    require(len(wheels) == 5, f"expected exactly five wheels, found {len(wheels)}")
     require(len(arm64) == 1, "expected exactly one Apple Silicon wheel")
     require(len(x86_64) == 1, "expected exactly one Intel macOS wheel")
     require(len(linux_arm64) == 1, "expected exactly one ARM64 Linux wheel")
     require(len(linux_x86_64) == 1, "expected exactly one x86-64 Linux wheel")
+    require(len(windows_x86_64) == 1, "expected exactly one x86-64 Windows wheel")
     require(not universal, "a platform-independent wheel must not be published")
     require(not sdists, "a source distribution must not be published")
 
     print("Publishing:")
     for wheel in wheels:
         print(f"  {wheel}")
+
+
+def wait_pypi(args: argparse.Namespace) -> None:
+    wheels = sorted(Path(args.directory).glob("*.whl"))
+    require(len(wheels) == 5, f"expected exactly five wheels, found {len(wheels)}")
+    for value in (args.timeout_seconds, args.poll_interval_seconds):
+        require(
+            math.isfinite(value) and value > 0,
+            "wait budgets must be finite and positive",
+        )
+    expected = {
+        wheel.name: hashlib.sha256(wheel.read_bytes()).hexdigest() for wheel in wheels
+    }
+    version = package_version()
+    base = args.pypi_url.rstrip("/")
+    endpoints = (
+        (
+            f"{base}/pypi/mcp-console/{version}/json",
+            "urls",
+            "digests",
+            "application/json",
+        ),
+        (
+            f"{base}/simple/mcp-console/",
+            "files",
+            "hashes",
+            "application/vnd.pypi.simple.v1+json",
+        ),
+    )
+    deadline = time.monotonic() + args.timeout_seconds
+    timeout_message = (
+        f"PyPI wheel set was not visible within {args.timeout_seconds:g} seconds"
+    )
+    while True:
+        for url, collection, hash_field, accept in endpoints:
+            remaining = deadline - time.monotonic()
+            require(remaining > 0, timeout_message)
+            try:
+                with urlopen(
+                    Request(url, headers={"Accept": accept}), timeout=min(30, remaining)
+                ) as response:
+                    payload = json.load(response)
+            except HTTPError as error:
+                if error.code not in (404, 429) and not 500 <= error.code < 600:
+                    raise
+                error.close()
+                break
+            except (URLError, ConnectionError, TimeoutError, IncompleteRead):
+                break
+            visible = {item["filename"]: item for item in payload[collection]}
+            if collection == "urls":
+                require(
+                    visible.keys() <= expected.keys(),
+                    "PyPI version contains unexpected files",
+                )
+            for filename in expected.keys() & visible.keys():
+                item = visible[filename]
+                require(
+                    item.get("yanked", False) is False,
+                    f"PyPI wheel is yanked: {filename}",
+                )
+                require(
+                    item[hash_field]["sha256"] == expected[filename],
+                    f"PyPI hash differs: {filename}",
+                )
+            if not expected.keys() <= visible.keys():
+                break
+        else:
+            report = (
+                json.dumps({"version": version, "wheels": expected}, indent=2) + "\n"
+            )
+            if args.report:
+                Path(args.report).write_text(report, encoding="utf-8")
+            else:
+                print(report, end="")
+            return
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, timeout_message)
+        time.sleep(min(args.poll_interval_seconds, remaining))
 
 
 def parser() -> argparse.ArgumentParser:
@@ -1006,6 +1167,14 @@ def parser() -> argparse.ArgumentParser:
     verify = commands.add_parser("verify-wheel-set")
     verify.add_argument("directory")
     verify.set_defaults(function=verify_wheel_set)
+
+    wait = commands.add_parser("wait-pypi")
+    wait.add_argument("directory")
+    wait.add_argument("--pypi-url", default="https://pypi.org")
+    wait.add_argument("--timeout-seconds", type=float, default=120)
+    wait.add_argument("--poll-interval-seconds", type=float, default=2)
+    wait.add_argument("--report")
+    wait.set_defaults(function=wait_pypi)
 
     return argument_parser
 

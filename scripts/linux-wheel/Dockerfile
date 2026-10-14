@@ -46,6 +46,7 @@ ENV IR_CACHE_DIR=/opt/console-cache/mcp-console/dependencies/ir \
     R_PKG_CACHE_DIR=/opt/console-cache/mcp-console/dependencies \
     UV_CACHE_DIR=/opt/console-cache/mcp-console/dependencies/uv/cache
 ENV LIBARROW_BINARY=true MAKEFLAGS=-j1
+ENV R_HOME=/usr/lib/R
 # Bound DuckDB's source-build memory in the language preparation fixture.
 # These flags affect test dependencies, never the distributed wheel binaries.
 RUN printf '%s\n' 'CXX17FLAGS=-O0 -g0' > /opt/preparation.Makevars
@@ -54,10 +55,13 @@ RUN uv venv /opt/cmake && uv pip install --python /opt/cmake/bin/python cmake
 ENV PATH=/opt/cmake/bin:$PATH
 # Latest-package markers expire even when Docker's parent layers stay cached.
 # Refresh resolution for each driver run, retaining cached system/tool setup.
+# Match Console's complete runtime request and R_HOME cache identity.
 ARG R_PREPARATION_RUN
 RUN test -n "$R_PREPARATION_RUN" && uv tool run --isolated --python 3.13 --from r-lib-ir ir run \
-    --rscript /usr/bin/Rscript --with tidyverse --with reticulate --with DBI \
-    --with duckdb --with arrow --with nanoarrow --with yyjsonr \
+    --rscript "$R_HOME/bin/Rscript" \
+    --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
+    --with duckdb --with arrow --with nanoarrow --with yyjsonr --with ggplot2 \
+    --with jsonlite --with pillar --with tibble --with utf8 \
     --isolated --vanilla -e 'sessionInfo()'
 # Preserve the prepared dependency cache; CMake is only a preparation tool.
 RUN uv cache clean cmake

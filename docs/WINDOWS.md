@@ -4,26 +4,21 @@ Native Windows x64 support is experimental.
 Local sandboxed and `--no-sandbox` sessions support R, Python, SQL, persistent state, input, plots, interruption, restart, and recording.
 Either R or Python can run without the other; reticulate bridges them when both are available.
 
-The release workflow does not publish Windows wheels.
-Build and install Console from source.
+PyPI provides a prebuilt Windows x64 wheel.
 Windows dependency preparation uses host permissions; process cleanup through Jobs is not sandboxing.
 
-## Build and run
+## Install and run
 
-Install Python 3.11+, uv, Git, Rust's MSVC toolchain, Visual Studio C++ build tools, the Windows SDK, and CMake.
-R is optional for building and Python-only execution.
+Install Python 3.11+, uv, and the [Microsoft Visual C++ v14 Redistributable for x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
+R is optional for Python-only execution.
 For R, use an x64 installation selected through public `r` configuration, `R_HOME`, or PATH.
 
-From PowerShell in the repository root:
+From PowerShell:
 
 ```powershell
-uv tool install --reinstall .
+uv tool install mcp-console
 mcp-console serve
 ```
-
-Source packaging stages the pinned companion and native helpers.
-Direct Cargo builds need `scripts/stage-sandbox-runner.cmd` first.
-Use `scripts/with-checkout.cmd` for direct mutating build commands.
 
 `serve` waits for MCP traffic; it is not an interactive prompt.
 Configure your client with command `mcp-console` and arguments `["serve"]`.
@@ -43,6 +38,14 @@ Sandboxed sessions default to Console caches under `%LOCALAPPDATA%/mcp-console/c
 Redirecting caches does not sandbox preparation.
 There is no automatic fallback to host execution when sandbox setup fails.
 
+### Build from source
+
+Source builds additionally need Git, Rust's MSVC toolchain, Visual Studio C++ build tools, the Windows SDK, and CMake.
+From the repository root, run `uv tool install --reinstall .`.
+Source packaging stages the pinned companion and native helpers.
+Direct Cargo builds need `scripts/stage-sandbox-runner.cmd` first.
+Use `scripts/with-checkout.cmd` for direct mutating build commands.
+
 ## Native sandbox
 
 Ordinary `config.yaml` launches use native `auto` selection, preferring MXC when the host and policy support it.
@@ -54,6 +57,11 @@ Explicit backend selections and launch failures never trigger a retry through an
 For elevated execution, `mcp-console sandbox-setup` explicitly provisions or refreshes Console's resources through UAC.
 Run it interactively, then use `mcp-console sandbox-setup --status` to inspect readiness.
 Elevated launches fail with setup guidance if provisioning is missing or outdated; they do not provision accounts automatically.
+Startup also fails during setup if an existing deny ACL prevents granting missing metadata access to the working directory.
+An applicable metadata deny still fails setup when an allow is also present.
+This check includes both sandbox accounts as well as their shared groups.
+Existing sandbox-account read access, including a NULL DACL, avoids an extra metadata grant.
+Missing metadata grants wait for background read preparation and recheck access before updating the ACL.
 
 Setup creates or reuses:
 
@@ -66,6 +74,7 @@ Use one stable directory per Windows user; accounts and network policy are machi
 `--status` reports readiness without provisioning; it is not a fresh firewall audit.
 
 The runner enforces the selected networking and filesystem policy and supplies private `TMPDIR`, `TEMP`, and `TMP`.
+Working directories can contain Windows 8.3 aliases, including aliases in the system temporary path.
 Workspace permissions use the common [sandbox schema](SANDBOX_CONFIGURATION.md).
 
 Complete native policies may set `windows_backend` to `auto`, `mxc`, `elevated`, or `unelevated`, or select another legacy state directory with `windows_state_dir`.
@@ -108,7 +117,11 @@ Use Python 3.13 to match CI.
 Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an explicitly provisioned sandbox.
 Native acceptance does not provision the machine itself.
 CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console and before provisioning legacy sandbox accounts.
-This separate acceptance check requires a successful MXC proxy launch; an unavailable native backend or existing legacy accounts fail the check.
+This separate acceptance check probes explicit MXC selection through the public sandbox command.
+When MXC is available, it requires a successful proxy launch.
+When the host cannot create its native security environment, it requires both explicit MXC rejection and automatic proxy rejection before workload execution.
+Unexpected launch failures fail the check.
+Hosted Windows CI does not establish successful MXC execution when its native environment is unavailable.
 The remaining native suite runs after provisioning and retains the public proxy configuration checks.
 
 ```powershell

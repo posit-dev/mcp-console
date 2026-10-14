@@ -49,6 +49,82 @@ def workspace(parent: Path | None = None):
                 time.sleep(0.05)
 
 
+@contextmanager
+def without_backup_privileges():
+    # Elevated test hosts can otherwise bypass the fixture's directory ACL.
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    security = ctypes.WinDLL("advapi32", use_last_error=True)
+    pointer = ctypes.c_void_p
+
+    class Luid(ctypes.Structure):
+        _fields_ = [("low", wintypes.DWORD), ("high", wintypes.LONG)]
+
+    class Privilege(ctypes.Structure):
+        _fields_ = [("luid", Luid), ("attributes", wintypes.DWORD)]
+
+    class Privileges(ctypes.Structure):
+        _fields_ = [("count", wintypes.DWORD), ("entries", Privilege * 2)]
+
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    security.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    security.GetTokenInformation.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        pointer,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    security.AdjustTokenPrivileges.argtypes = [
+        wintypes.HANDLE,
+        wintypes.BOOL,
+        pointer,
+        wintypes.DWORD,
+        pointer,
+        pointer,
+    ]
+    security.LookupPrivilegeValueW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        ctypes.POINTER(Luid),
+    ]
+    token = wintypes.HANDLE()
+    if not security.OpenProcessToken(
+        kernel.GetCurrentProcess(), 0x28, ctypes.byref(token)
+    ):
+        raise ctypes.WinError()
+    previous = None
+    try:
+        size = wintypes.DWORD()
+        security.GetTokenInformation(token, 3, None, 0, ctypes.byref(size))
+        state = ctypes.create_string_buffer(size.value)
+        if not security.GetTokenInformation(token, 3, state, size, ctypes.byref(size)):
+            raise ctypes.WinError()
+        previous = state
+        requested = Privileges(count=2)
+        for entry, name in zip(
+            requested.entries, ("SeBackupPrivilege", "SeRestorePrivilege")
+        ):
+            if not security.LookupPrivilegeValueW(None, name, ctypes.byref(entry.luid)):
+                raise ctypes.WinError()
+        if not security.AdjustTokenPrivileges(
+            token, False, ctypes.byref(requested), 0, None, None
+        ):
+            raise ctypes.WinError()
+        yield
+    finally:
+        if previous is not None:
+            if not security.AdjustTokenPrivileges(
+                token, False, previous, 0, None, None
+            ):
+                raise ctypes.WinError()
+        kernel.CloseHandle(token)
+
+
 @unittest.skipUnless(os.name == "nt", "native Windows sandbox")
 class WindowsSandbox(unittest.TestCase):
     def sandbox_state_directory(self):
@@ -642,6 +718,44 @@ class WindowsSandbox(unittest.TestCase):
                 b"private artifact does not match this installation", result.stderr
             )
 
+    def test_first_python_send_from_short_profile_directory(self):
+        from windows import Session
+
+        profile = Path(os.environ["USERPROFILE"])
+        short_name = ctypes.create_unicode_buffer(32768)
+        get_short_name = ctypes.windll.kernel32.GetShortPathNameW
+        get_short_name.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+        get_short_name.restype = wintypes.DWORD
+        length = get_short_name(str(profile), short_name, len(short_name))
+        self.assertGreater(length, 0, ctypes.WinError())
+        self.assertLess(length, len(short_name))
+        if short_name.value.casefold() == str(profile).casefold():
+            self.skipTest("user profile has no 8.3 alias")
+        temporary = Path(short_name.value) / "AppData/Local/Temp"
+        session = Session(
+            sandbox=True,
+            temporary_root=temporary,
+            overrides=["r=null", 'sandbox.network="enabled"'],
+        )
+        try:
+            session.initialize()
+            result = session.send(python="print(6 * 7)")
+            self.assertFalse(result.get("isError"), result)
+            self.assertIn("42", json.dumps(result))
+        except Exception:
+            # Keep the failed cold startup's journal before fixture cleanup.
+            recordings = Path(session.directory.name) / ".agents/console/sessions"
+            for recording in sorted(recordings.glob("*")):
+                for relative in ("internal/events.jsonl", "outputs/session.log"):
+                    path = recording / relative
+                    if path.is_file():
+                        sys.stderr.write(
+                            f"\n{path}\n{path.read_text(encoding='utf-8')}\n"
+                        )
+            raise
+        finally:
+            session.close()
+
     def test_python_state_and_restart_with_private_temporary_storage(self):
         from windows import Session
 
@@ -877,6 +991,481 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertEqual(result.stdout, "")
                     self.assertIn(diagnostic, result.stderr)
+
+    def test_elevated_cwd_reuses_existing_metadata_access(self):
+        # Authenticated Users can read, while OWNER RIGHTS denies ACL writes.
+        self.elevated_cwd_acl(
+            "D:P(D;;WD;;;OW)(A;;GRGX;;;AU)(A;;RC;;;OW)",
+            allowed=True,
+        )
+
+    def test_cwd_alias_does_not_require_parent_enumeration(self):
+        with workspace() as root, without_backup_privileges():
+            parent = root / "blocked"
+            work = parent / "long child directory"
+            work.mkdir(parents=True)
+            expected = work.resolve(strict=True)
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            security = ctypes.WinDLL("advapi32", use_last_error=True)
+            pointer = ctypes.c_void_p
+            kernel.CreateFileW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                pointer,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                pointer,
+            ]
+            kernel.CreateFileW.restype = wintypes.HANDLE
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel.LocalFree.argtypes = [pointer]
+            kernel.GetShortPathNameW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.LPWSTR,
+                wintypes.DWORD,
+            ]
+            short_name = ctypes.create_unicode_buffer(32768)
+            length = kernel.GetShortPathNameW(str(work), short_name, len(short_name))
+            self.assertGreater(length, 0, ctypes.WinError())
+            self.assertLess(length, len(short_name))
+            short_work = Path(short_name.value)
+            if short_work.name.casefold() == work.name.casefold():
+                self.skipTest("working-directory filesystem has no 8.3 alias")
+            security.GetSecurityInfo.argtypes = [
+                wintypes.HANDLE,
+                ctypes.c_int,
+                wintypes.DWORD,
+                pointer,
+                pointer,
+                ctypes.POINTER(pointer),
+                pointer,
+                ctypes.POINTER(pointer),
+            ]
+            security.SetSecurityInfo.argtypes = [
+                wintypes.HANDLE,
+                ctypes.c_int,
+                wintypes.DWORD,
+                pointer,
+                pointer,
+                pointer,
+                pointer,
+            ]
+            # Retain ACL access before the parent denies metadata reads.
+            handle = kernel.CreateFileW(
+                str(parent), 0x60000, 7, None, 3, 0x02000000, None
+            )
+            self.assertNotEqual(handle, pointer(-1).value, ctypes.WinError())
+            original_acl, original_descriptor = pointer(), pointer()
+            try:
+                status = security.GetSecurityInfo(
+                    handle,
+                    1,
+                    4,
+                    None,
+                    None,
+                    ctypes.byref(original_acl),
+                    None,
+                    ctypes.byref(original_descriptor),
+                )
+                self.assertEqual(status, 0, ctypes.WinError(status))
+                subprocess.run(
+                    ["icacls", str(parent), "/deny", "*S-1-1-0:(RD,RA)"],
+                    check=True,
+                    capture_output=True,
+                    timeout=30,
+                )
+                kernel.GetLongPathNameW.argtypes = [
+                    wintypes.LPCWSTR,
+                    wintypes.LPWSTR,
+                    wintypes.DWORD,
+                ]
+                self.assertEqual(kernel.GetLongPathNameW(str(short_work), None, 0), 0)
+                self.assertEqual(ctypes.get_last_error(), 5)
+                command = [
+                    str(Path(os.environ["SystemRoot"]) / "System32/cmd.exe"),
+                    "/d",
+                    "/c",
+                    "cd",
+                ]
+                direct = subprocess.run(
+                    command, cwd=short_work, capture_output=True, text=True, timeout=30
+                )
+                self.assertEqual(direct.returncode, 0, direct.stderr)
+                self.assertTrue(direct.stdout.strip(), direct.stdout)
+                result = subprocess.run(
+                    [
+                        str(BINARY),
+                        "sandbox",
+                        "--config-env",
+                        "TEST_POLICY",
+                        "--",
+                        *command,
+                    ],
+                    cwd=short_work,
+                    env=os.environ
+                    | {
+                        "MCP_CONSOLE_HOME": str(root / "home"),
+                        "TEST_POLICY": json.dumps(
+                            {
+                                "filesystem": {"kind": "external-sandbox"},
+                                "network": "enabled",
+                            }
+                        ),
+                    },
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), str(expected))
+            finally:
+                if original_descriptor.value:
+                    status = security.SetSecurityInfo(
+                        handle, 1, 4, None, None, original_acl, None
+                    )
+                    self.assertEqual(status, 0, ctypes.WinError(status))
+                    kernel.LocalFree(original_descriptor)
+                kernel.CloseHandle(handle)
+
+    def test_elevated_cwd_rejects_a_blocked_metadata_grant(self):
+        # The existing Guests deny must not be overridden by a fresh grant.
+        self.elevated_cwd_acl(
+            "D:P(D;;GR;;;BG)(A;;FA;;;OW)(A;;FA;;;SY)(A;;FA;;;BA)",
+            allowed=False,
+        )
+
+    def test_elevated_cwd_rejects_denied_metadata_with_existing_allow(self):
+        # Everyone's deny applies despite Authenticated Users' read allow.
+        self.elevated_cwd_acl(
+            "D:P(D;;0x80;;;WD)(A;;GRGX;;;AU)(A;;FA;;;OW)",
+            allowed=False,
+        )
+
+    def test_elevated_cwd_reuses_null_dacl(self):
+        # A NULL DACL already grants access without another metadata grant.
+        self.elevated_cwd_acl("D:NO_ACCESS_CONTROL", allowed=True)
+
+    def test_elevated_cwd_rejects_account_metadata_denies(self):
+        for account in ("McpConsoleSandboxOff", "McpConsoleSandboxOn"):
+            with self.subTest(account=account):
+                sid = self.account_sid(account)
+                self.elevated_cwd_acl(
+                    f"D:P(D;;0x80;;;{sid})(A;;GRGX;;;AU)(A;;FA;;;OW)",
+                    allowed=False,
+                )
+
+    def test_elevated_cwd_preserves_a_contended_read_grant(self):
+        self.elevated_cwd_acl("D:P(A;;FA;;;OW)", allowed=True, read_acl_checkpoint=True)
+
+    def account_sid(self, account: str) -> str:
+        security = ctypes.WinDLL("advapi32", use_last_error=True)
+        security.LookupAccountNameW.argtypes = [
+            wintypes.LPCWSTR,
+            wintypes.LPCWSTR,
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.DWORD),
+            wintypes.LPWSTR,
+            ctypes.POINTER(wintypes.DWORD),
+            ctypes.POINTER(wintypes.DWORD),
+        ]
+        sid_size, domain_size, kind = (
+            wintypes.DWORD(),
+            wintypes.DWORD(),
+            wintypes.DWORD(),
+        )
+        self.assertFalse(
+            security.LookupAccountNameW(
+                None,
+                account,
+                None,
+                ctypes.byref(sid_size),
+                None,
+                ctypes.byref(domain_size),
+                ctypes.byref(kind),
+            )
+        )
+        self.assertEqual(ctypes.get_last_error(), 122)
+        sid = ctypes.create_string_buffer(sid_size.value)
+        domain = ctypes.create_unicode_buffer(domain_size.value)
+        self.assertTrue(
+            security.LookupAccountNameW(
+                None,
+                account,
+                sid,
+                ctypes.byref(sid_size),
+                domain,
+                ctypes.byref(domain_size),
+                ctypes.byref(kind),
+            ),
+            ctypes.WinError(),
+        )
+        security.ConvertSidToStringSidW.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(wintypes.LPWSTR),
+        ]
+        text = wintypes.LPWSTR()
+        self.assertTrue(
+            security.ConvertSidToStringSidW(sid, ctypes.byref(text)), ctypes.WinError()
+        )
+        try:
+            return text.value
+        finally:
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.LocalFree.argtypes = [ctypes.c_void_p]
+            kernel.LocalFree(ctypes.cast(text, ctypes.c_void_p))
+
+    def run_with_read_acl_checkpoint(
+        self, command, options, work, handle, state, kernel, security
+    ):
+        pointer = ctypes.c_void_p
+
+        def dacl_bytes():
+            acl, descriptor = pointer(), pointer()
+            status = security.GetSecurityInfo(
+                handle,
+                1,
+                4,
+                None,
+                None,
+                ctypes.byref(acl),
+                None,
+                ctypes.byref(descriptor),
+            )
+            try:
+                self.assertEqual(status, 0, ctypes.WinError(status))
+                size = int.from_bytes(ctypes.string_at(acl, 8)[2:4], "little")
+                return ctypes.string_at(acl, size)
+            finally:
+                kernel.LocalFree(descriptor)
+
+        kernel.CreateMutexW.argtypes = [pointer, wintypes.BOOL, wintypes.LPCWSTR]
+        kernel.CreateMutexW.restype = wintypes.HANDLE
+        kernel.ReleaseMutex.argtypes = [wintypes.HANDLE]
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        mutex = kernel.CreateMutexW(None, False, r"Local\ConsoleSandboxReadAcl")
+        self.assertTrue(mutex, ctypes.WinError())
+        ownership = kernel.WaitForSingleObject(mutex, 30_000)
+        if ownership not in (0, 0x80):
+            kernel.CloseHandle(mutex)
+            self.fail(f"read ACL checkpoint could not acquire the mutex: {ownership}")
+        process, grant = None, pointer()
+        try:
+            before = dacl_bytes()
+            logs = Path(state) / ".sandbox"
+            offsets = {
+                path: len(path.read_bytes()) for path in logs.glob("sandbox*.log")
+            }
+            options = options.copy()
+            options.pop("capture_output")
+            process = subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **options
+            )
+            checkpoint = f"waiting for read ACL updates before granting directory metadata access to {work}"
+            deadline = time.monotonic() + 10
+            while True:
+                activity = b"\n".join(
+                    path.read_bytes()[offsets.get(path, 0) :]
+                    for path in logs.glob("sandbox*.log")
+                )
+                if (
+                    checkpoint.encode() in activity
+                    or b"read ACL helper already running; skipping spawn" in activity
+                ):
+                    break
+                self.assertIsNone(
+                    process.poll(), "launch exited before the ACL checkpoint"
+                )
+                self.assertLess(time.monotonic(), deadline, activity)
+                time.sleep(0.01)
+            self.assertEqual(
+                dacl_bytes(), before, "metadata grant raced the read ACL helper"
+            )
+            # Simulate the preceding helper's full read grant while it owns the
+            # mutex. The waiting launch must re-read it before a metadata write.
+            self.assertTrue(
+                security.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    "D:P(A;;GRGX;;;AU)(A;;FA;;;OW)",
+                    1,
+                    ctypes.byref(grant),
+                    None,
+                ),
+                ctypes.WinError(),
+            )
+            self.assertTrue(
+                security.SetFileSecurityW(str(work), 4, grant), ctypes.WinError()
+            )
+            complete = dacl_bytes()
+            self.assertTrue(kernel.ReleaseMutex(mutex), ctypes.WinError())
+            kernel.CloseHandle(mutex)
+            mutex = None
+            stdout, stderr = process.communicate(timeout=30)
+            self.assertEqual(
+                dacl_bytes(), complete, "metadata setup lost the completed read grant"
+            )
+            return subprocess.CompletedProcess(
+                command, process.returncode, stdout, stderr
+            )
+        finally:
+            if mutex:
+                kernel.ReleaseMutex(mutex)
+                kernel.CloseHandle(mutex)
+            if process is not None and process.poll() is None:
+                process.communicate(timeout=30)
+            if grant.value:
+                kernel.LocalFree(grant)
+
+    def elevated_cwd_acl(
+        self, descriptor: str, *, allowed: bool, read_acl_checkpoint: bool = False
+    ):
+        state = self.sandbox_state_directory()
+        with workspace() as root:
+            work = root / "read-only-cwd"
+            work.mkdir()
+            # The native setup log uses long names even when TEMP has an 8.3 alias.
+            work = work.resolve(strict=True)
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            security = ctypes.WinDLL("advapi32", use_last_error=True)
+            pointer = ctypes.c_void_p
+            kernel.CreateFileW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                pointer,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                pointer,
+            ]
+            kernel.CreateFileW.restype = wintypes.HANDLE
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel.LocalFree.argtypes = [pointer]
+            kernel.LocalFree.restype = pointer
+            security.GetSecurityInfo.argtypes = [
+                wintypes.HANDLE,
+                ctypes.c_int,
+                wintypes.DWORD,
+                pointer,
+                pointer,
+                ctypes.POINTER(pointer),
+                pointer,
+                ctypes.POINTER(pointer),
+            ]
+            security.GetSecurityInfo.restype = wintypes.DWORD
+            security.SetSecurityInfo.argtypes = [
+                wintypes.HANDLE,
+                ctypes.c_int,
+                wintypes.DWORD,
+                pointer,
+                pointer,
+                pointer,
+                pointer,
+            ]
+            security.SetSecurityInfo.restype = wintypes.DWORD
+            security.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                ctypes.POINTER(pointer),
+                pointer,
+            ]
+            security.SetFileSecurityW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                pointer,
+            ]
+            # Retain WRITE_DAC before restricting the fixture so cleanup does
+            # not need ownership changes or broader machine permissions.
+            handle = kernel.CreateFileW(
+                str(work), 0x60000, 7, None, 3, 0x02000000, None
+            )
+            self.assertNotEqual(handle, pointer(-1).value, ctypes.WinError())
+            original_acl, original_descriptor, restricted = (
+                pointer(),
+                pointer(),
+                pointer(),
+            )
+            try:
+                status = security.GetSecurityInfo(
+                    handle,
+                    1,
+                    4,
+                    None,
+                    None,
+                    ctypes.byref(original_acl),
+                    None,
+                    ctypes.byref(original_descriptor),
+                )
+                self.assertEqual(status, 0, ctypes.WinError(status))
+                self.assertTrue(
+                    security.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                        descriptor,
+                        1,
+                        ctypes.byref(restricted),
+                        None,
+                    ),
+                    ctypes.WinError(),
+                )
+                self.assertTrue(
+                    security.SetFileSecurityW(str(work), 4, restricted),
+                    ctypes.WinError(),
+                )
+                command = [
+                    str(BINARY),
+                    "sandbox",
+                    "--config-env",
+                    "TEST_POLICY",
+                    "--",
+                    str(Path(os.environ["SystemRoot"]) / "System32/cmd.exe"),
+                    "/d",
+                    "/c",
+                    "echo existing metadata access",
+                ]
+                options = dict(
+                    cwd=work,
+                    env=os.environ
+                    | {
+                        "MCP_CONSOLE_HOME": str(root / "home"),
+                        "TEST_POLICY": json.dumps(
+                            {
+                                "extends": ":read-only",
+                                "network": "enabled",
+                                "windows_backend": "elevated",
+                                "windows_state_dir": state,
+                            }
+                        ),
+                    },
+                    capture_output=True,
+                    text=True,
+                )
+                if read_acl_checkpoint:
+                    result = self.run_with_read_acl_checkpoint(
+                        command, options, work, handle, state, kernel, security
+                    )
+                else:
+                    result = subprocess.run(command, **options, timeout=30)
+                if allowed:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout.strip(), "existing metadata access")
+                else:
+                    self.assertNotEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn(
+                        "grant command working-directory metadata access",
+                        result.stderr,
+                    )
+                    self.assertIn(
+                        "directory metadata access is blocked by an existing deny ACE",
+                        result.stderr,
+                    )
+            finally:
+                if original_descriptor.value:
+                    status = security.SetSecurityInfo(
+                        handle, 1, 4 | 0x20000000, None, None, original_acl, None
+                    )
+                    self.assertEqual(status, 0, ctypes.WinError(status))
+                    kernel.LocalFree(original_descriptor)
+                if restricted.value:
+                    kernel.LocalFree(restricted)
+                kernel.CloseHandle(handle)
 
     def test_stdio_write_policy_and_exit_status(self):
         with workspace() as root:

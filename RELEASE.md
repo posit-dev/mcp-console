@@ -1,8 +1,10 @@
 # Releasing MCP Console
 
-The release workflow publishes four binary-only PyPI wheels: Apple Silicon and Intel macOS, plus ARM64 and x86-64 Linux.
+The release workflow publishes five binary-only PyPI wheels: Apple Silicon and Intel macOS, ARM64 and x86-64 Linux, and Windows x64.
 Linux release validation targets glibc 2.35+ with native Ubuntu 22.04 builds.
-No source distribution, Windows wheel, or GitHub release archive is published by this workflow.
+Windows support remains experimental.
+Its native Console command requires the x64 Visual C++ v14 runtime; see [Windows installation](docs/WINDOWS.md#install-and-run).
+No source distribution or GitHub release archive is published by this workflow.
 
 `Cargo.toml` owns the version; keep its root package entry in `Cargo.lock` synchronized.
 The current workflows and [`scripts/release.py`](scripts/release.py) are authoritative for mechanics.
@@ -66,7 +68,10 @@ Preserve architecture, loader, dependency/path, symbol-version, and metadata che
 `--release` additionally enforces the release floor.
 Exact loader algorithms and symbol allowlists belong in the release tooling, not a second prose specification.
 
-Use `smoke-wheel WHEEL --installed-only --sandbox-pin PIN_FILE` in a clean runtime without the source checkout/Cargo outputs.
+On macOS/Linux use `smoke-wheel WHEEL --installed-only --sandbox-pin PIN_FILE` in a clean runtime without the source checkout/Cargo outputs.
+Windows builds use the PEP 517 backend through `uv build --wheel` so the installed command retains its native bundle.
+Install that wheel, explicitly provision its native sandbox with `scripts/prepare-windows-tests`, and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND`.
+This checks version/help, empty-PATH bundled sandbox execution, filesystem/exit-status enforcement, Python-only MCP, and the R/Python bridge without rebuilding from source.
 Retain empty-PATH bundled-helper acceptance; a working system bwrap does not validate the relocated bundle.
 An ABI report alone is not runtime or sandbox acceptance.
 
@@ -130,7 +135,7 @@ gh workflow run release.yml --ref release/X.Y.Z
 ```
 
 Manual dispatch must skip publication.
-Require all four wheel builds/installed smoke tests and both Linux floor-runtime jobs to pass.
+Require all five wheel builds/installed smoke tests and both Linux floor-runtime jobs to pass.
 Exercise mixed-language and R-free installed wheels; `smoke-wheel --without-r` isolates R discovery.
 Establish readiness before ordinary cell assertions rather than treating asynchronous tool discovery as runtime readiness.
 
@@ -154,11 +159,13 @@ git push origin "refs/tags/v$release_version"
 ```
 
 Use `-F MESSAGE_FILE` for a noninteractive annotation.
-The tag workflow must verify version, main ancestry, exact-commit push CI, and the four install-tested artifacts before Trusted Publishing.
+The tag workflow must verify version, main ancestry, exact-commit push CI, and the five install-tested artifacts before Trusted Publishing.
 
 ## Verify the publication
 
-Check PyPI's version JSON: all four wheels must be present, unyanked, and match the tag workflow's artifact SHA-256 digests.
+Check PyPI's version JSON: all five wheels must be present, unyanked, and match the tag workflow's artifact SHA-256 digests.
+The tag workflow checks these hashes and fresh pinned/unqualified public-index installations on all five release platforms, including installed sandbox execution and Python-only MCP evaluation.
+It waits up to two minutes for both the version JSON and package index to expose all expected files, including retries for temporary request failures; a visible hash mismatch, yanked file, or HTTP permission error fails immediately.
 Verify fresh public-index installation on every supported release platform:
 
 ```sh
@@ -176,6 +183,8 @@ uv tool install --no-cache --no-sources --default-index https://pypi.org/simple 
 
 Through an MCP client, establish readiness for that exact version and verify Python `6 * 7` returns `42`; check R when installed.
 A server waiting for protocol input is normal.
+On Windows use PowerShell environment variables and `mcp-console.exe`; replace `/usr/bin/true` with the absolute `System32/cmd.exe` command and `/d /c "exit 0"`.
+Provision native sandbox setup before testing it; the post-publication Windows job also verifies the R/Python bridge.
 
 Repeat unqualified `uvx mcp-console --version` and `uv tool install mcp-console` with fresh directories and the same isolation/public-index options; confirm they select the new version.
 Leave older releases unchanged.

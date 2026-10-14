@@ -694,11 +694,15 @@ def test_restart_preserves_unpolled_completion(
         client.send(control="restart")
         assert last_tool_text(client) == "[starting new worker]\n[idle]"
 
+        # This generation must be ready before testing its unpolled completion.
+        client.send(requirements={"action": "get"})
         client.send(r="complete before restart checkpoint", timeout_ms=0)
         assert (
             without_elapsed(last_tool_text(client))
             == "\n[running; poll with an empty send]"
-        )
+        ), last_tool_text(client)
+        started = wait_for_marker(temporary_path, "zod-completion-started", client)
+        (started.parent / "zod-release-completion").touch()
         wait_for_marker(
             temporary_path,
             "zod-completion-processed",
