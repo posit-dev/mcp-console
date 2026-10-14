@@ -127,7 +127,7 @@ jobs:
             --report linux-compatibility/builder-abi.json
 
       # Cold ARM64 R source builds are preparation, not worker startup.
-      # Reuse the floor fixture's recipe and Console's captured cache layout.
+      # Match the full runtime request and R_HOME in ir's resolution-cache key.
       - name: Prepare Linux R smoke environment
         if: runner.os == 'Linux'
         env:
@@ -152,9 +152,12 @@ jobs:
           uv venv "$RUNNER_TEMP/cmake"
           uv pip install --python "$RUNNER_TEMP/cmake/bin/python" cmake
           export PATH="$RUNNER_TEMP/cmake/bin:$PATH"
+          export R_HOME="$(R RHOME)"
           uv tool run --isolated --python 3.13 --from r-lib-ir ir run \
-            --rscript "$(command -v Rscript)" --with tidyverse --with reticulate --with DBI \
-            --with duckdb --with arrow --with nanoarrow --with yyjsonr \
+            --rscript "$R_HOME/bin/Rscript" \
+            --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
+            --with duckdb --with arrow --with nanoarrow --with yyjsonr --with ggplot2 \
+            --with jsonlite --with pillar --with tibble --with utf8 \
             --isolated --vanilla -e 'sessionInfo()'
           uv cache clean cmake
           printf 'XDG_CACHE_HOME=%s\n' "$XDG_CACHE_HOME" >> "$GITHUB_ENV"
