@@ -4,6 +4,8 @@ import json
 import os
 import shutil
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -676,11 +678,13 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
         # fmt: python
         probe = code(r"""
             import errno
+            import http.client
             import json
             import os
             from pathlib import Path
             import sys
             import urllib.request
+            from urllib.parse import urlsplit
 
             cache = Path(os.environ["UV_CACHE_DIR"])
             protected = Path(os.environ["RESOLVER_TEST_PROTECTED"])
@@ -707,8 +711,12 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                     assert error.errno in (errno.EPERM, errno.EACCES, errno.EROFS)
                 else:
                     raise AssertionError("explicit entries retained a default cache grant")
-                with urllib.request.urlopen("https://www.python.org", timeout=10) as response:
-                    assert response.status == 200
+                proxy = urlsplit(os.environ["HTTP_PROXY"])
+                connection = http.client.HTTPConnection(proxy.hostname, proxy.port, timeout=10)
+                connection.request("GET", os.environ["RESOLVER_TEST_ALLOWED_URL"])
+                response = connection.getresponse()
+                assert (response.status, response.read()) == (200, b"approved resolver host")
+                connection.close()
             cache.joinpath("probe.json").write_text(json.dumps({
                 "host_read": True, "cache_write": True,
                 "host_write_denied": True, "disallowed_host_denied": True,
@@ -728,6 +736,24 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
         )
         config = root / ".agents/console/config.yaml"
         if tailored:
+
+            class Origin(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    body = b"approved resolver host"
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+
+                def log_message(self, *_):
+                    pass
+
+            origin = stack.enter_context(ThreadingHTTPServer(("127.0.0.1", 0), Origin))
+            thread = threading.Thread(target=origin.serve_forever)
+            thread.start()
+            stack.callback(thread.join)
+            stack.callback(origin.shutdown)
+            env["RESOLVER_TEST_ALLOWED_URL"] = f"http://127.0.0.1:{origin.server_port}/"
             approved = root / "approved"
             approved.mkdir()
             excluded = root / "excluded-cache"
@@ -750,7 +776,7 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                                             "allow": [
                                                 "pypi.org",
                                                 "files.pythonhosted.org",
-                                                "www.python.org",
+                                                "127.0.0.1",
                                             ]
                                         }
                                     }
