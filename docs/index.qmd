@@ -30,8 +30,11 @@ Previews keep long output out of the model's context, while [recordings](RECORDI
 
 ## Use one language or combine them {#one-workspace-three-languages}
 
-The built-in runtimes share one process, so data can move between languages without intermediate files.
-Use the languages your analysis needs; R and Python can each run without the other.
+Console embeds R, Python, and DuckDB in one process.
+[Reticulate](https://rstudio.github.io/reticulate/) connects R and Python, and [DuckDB](https://duckdb.org/) can query in-memory data frames as SQL views.
+The agent can choose the language that fits each step, reusing live data and models without exporting and reloading intermediate files.
+
+R and Python can each run without the other.
 
 See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples, database connections, and plots.
 
