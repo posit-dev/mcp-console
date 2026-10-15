@@ -24,6 +24,7 @@ from support.requirements import (
     NATIVE_FIXTURES,
     POSIX,
     PROCESS_EVENTS,
+    PTHREAD_MUTEX_INTERPOSITION,
     R,
     command,
     requires,
@@ -540,8 +541,24 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
     return early_requirements_with_pending_poll(binary, execution, expire=True)
 
 
+@execution_snapshots
+@executions(DIRECT, SANDBOXED)
+@requires(R, NATIVE_FIXTURES, PROCESS_EVENTS, command("ir"), command("uv"))
+@requires(POSIX, PTHREAD_MUTEX_INTERPOSITION)
+def test_startup_poll_becomes_idle_after_terminal_response_delivery(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return early_requirements_with_pending_poll(
+        binary, execution, expire=False, completed_response=True
+    )
+
+
 def early_requirements_with_pending_poll(
-    binary: Path, execution: Execution, *, expire: bool
+    binary: Path,
+    execution: Execution,
+    *,
+    expire: bool,
+    completed_response: bool = False,
 ) -> Transcript:
     r_environment, _ = r_test_environment()
     with (
@@ -580,12 +597,36 @@ def early_requirements_with_pending_poll(
                 ),
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_REACHED": str(write_reached.path),
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_RELEASE": str(write_release.path),
-                "MCP_CONSOLE_TEST_RESPONSE_WRITE_MATCH": "[running; poll with an empty send]",
+                "MCP_CONSOLE_TEST_RESPONSE_WRITE_MATCH": (
+                    "[1] 42"
+                    if completed_response
+                    else "[running; poll with an empty send]"
+                ),
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_COMPLETE": "1",
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_ARMED": str(root / "write-armed"),
                 "MCP_CONSOLE_TEST_EVALUATED": str(evaluated),
             }
         )
+        if completed_response:
+            request_paused, request_release, request_recorded, request_dispatched = [
+                resources.enter_context(closing(FifoCheckpoint.create(root / name)))
+                for name in (
+                    "request-paused",
+                    "request-release",
+                    "request-recorded",
+                    "request-dispatched",
+                )
+            ]
+            environment[LOADER_VARIABLE] += os.pathsep + str(
+                build_interposer(root, "startup_request_recorded")
+            )
+            environment.update(
+                MCP_CONSOLE_TEST_REQUEST_ARMED=str(root / "request-armed"),
+                MCP_CONSOLE_TEST_REQUEST_PAUSED=str(request_paused.path),
+                MCP_CONSOLE_TEST_REQUEST_RELEASE=str(request_release.path),
+                MCP_CONSOLE_TEST_REQUEST_RECORDED=str(request_recorded.path),
+                MCP_CONSOLE_TEST_REQUEST_DISPATCHED=str(request_dispatched.path),
+            )
         with McpClient(
             binary,
             execution.serve(
@@ -599,25 +640,60 @@ def early_requirements_with_pending_poll(
         ) as client:
             reached.wait("runtime discovery is blocked", client=client)
             assert os.read(alive, 1) == b"1"
+            if completed_response:
+                client.transcript.append(
+                    {
+                        "scenario": "An admitted startup poll follows another call's terminal delivery.",
+                        "fixture": "Pause the earlier poll before execution, let a later cell publish its complete response, then resume the poll while that response's transport write is still held.",
+                    }
+                )
             client.initialize_and_list_tools()
-            pending = client.start_send(timeout_ms=10_000 if expire else 600_000)
+            if completed_response:
+                (root / "request-armed").touch()
+            pending = client.start_send(
+                timeout_ms=10_000 if expire else 600_000,
+                **({"stdin": "retained input\n"} if completed_response else {}),
+            )
+            if completed_response:
+                request_paused.wait("startup poll admitted before its handler resumes")
             client.request("ping")
             (root / "write-armed").touch()
             try:
                 submitted = client.start_send(
                     r='cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L',
                     requirements={"action": "set"},
-                    timeout_ms=0,
+                    timeout_ms=600_000 if completed_response else 0,
                 )
+                if completed_response:
+                    release.release()
+                    prepared.wait(
+                        "initial polling does not block candidate preparation"
+                    )
+                    proceed.release()
                 write_reached.wait(
-                    "running response is visible before its write settles"
+                    "cell response is visible before its write settles",
+                    timeout=(
+                        max(0, client.response_deadline() - time.monotonic())
+                        if completed_response
+                        else 10
+                    ),
                 )
                 client.receive(submitted)
-                assert without_elapsed(last_result_text(client)) == RUNNING
-                assert phase_progress(last_result_text(client)) == "startup"
-                release.release()
-                prepared.wait("initial polling does not block candidate preparation")
-                proceed.release()
+                if completed_response:
+                    assert last_result_text(client) == "[1] 42\n"
+                    request_release.release()
+                    request_recorded.wait("startup poll recording task returned")
+                    request_dispatched.wait(
+                        "startup poll waits for terminal response delivery"
+                    )
+                else:
+                    assert without_elapsed(last_result_text(client)) == RUNNING
+                    assert phase_progress(last_result_text(client)) == "startup"
+                    release.release()
+                    prepared.wait(
+                        "initial polling does not block candidate preparation"
+                    )
+                    proceed.release()
                 # Releasing IR permits materialization; the cell marker proves
                 # preparation, startup, and execution finished. Use the client's
                 # preparation deadline, including its case-cleanup reserve.
@@ -673,6 +749,23 @@ def early_requirements_with_pending_poll(
                         "isError": True,
                     }, pending
                     client.expect("[1] 42\n", timeout_ms=0)
+                elif completed_response:
+                    assert pending["result"] == {
+                        "content": [{"type": "text", "text": "\n[idle]"}],
+                        "isError": False,
+                    }, pending
+                    client.expect(
+                        '[1] "retained input"\n',
+                        # fmt: r
+                        r=code(r"""
+                            local({
+                              connection <- suppressWarnings(file("/dev/stdin"))
+                              on.exit(close(connection))
+                              readLines(connection, n = 1)
+                            })
+                            """),
+                    )
+                    client.expect("[1] 43\n", r="43L")
                 else:
                     assert pending["result"]["content"] == [
                         {"type": "text", "text": "[1] 42\n"}
@@ -683,6 +776,8 @@ def early_requirements_with_pending_poll(
                 )
                 return client.finish()
             finally:
+                if completed_response:
+                    request_release.release()
                 write_release.release()
                 proceed.release()
 

@@ -176,6 +176,15 @@ impl Evaluation {
         if !state.settle_delivery()? {
             return Ok(None);
         }
+        self.claim_wait_locked(&mut state, kind)
+    }
+
+    /// The caller settles delivery while retaining this state lock.
+    fn claim_wait_locked(
+        self: &Arc<Self>,
+        state: &mut EvaluationState,
+        kind: WaitKind,
+    ) -> Result<Option<WaitClaim>, String> {
         if state.completion_collected && state.reclaimed.is_none() {
             if matches!(kind, WaitKind::Interrupt) {
                 return Ok(None);
@@ -599,16 +608,26 @@ impl Evaluation {
     /// A poll already waiting for startup can encounter a later call's reply
     /// before its transport write settles. Retain observation within the call's
     /// deadline; expiry or cancellation leaves the response unclaimed.
+    /// None asks the owner to reap a delivered completion and observe again.
     pub(super) async fn claim_after_delivery(
         self: &Arc<Self>,
         deadline: Instant,
-    ) -> Result<WaitClaim, String> {
+    ) -> Result<Option<WaitClaim>, String> {
         loop {
             let delivered = self.delivery_changed.notified();
             tokio::pin!(delivered);
             delivered.as_mut().enable();
-            if let Some(claim) = self.try_claim_wait(WaitKind::Poll)? {
-                return Ok(claim);
+            {
+                let mut state = self
+                    .state
+                    .lock()
+                    .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
+                if state.settle_delivery()? {
+                    if state.completion_collected && state.reclaimed.is_none() {
+                        return Ok(None);
+                    }
+                    return self.claim_wait_locked(&mut state, WaitKind::Poll);
+                }
             }
             tokio::time::timeout(
                 deadline.saturating_duration_since(Instant::now()),

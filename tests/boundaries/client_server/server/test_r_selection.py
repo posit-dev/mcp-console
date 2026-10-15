@@ -62,7 +62,9 @@ def test_retains_discovered_r_home_across_generations(
         commands = root / "bin"
         commands.mkdir()
         retain_system_bwrap(commands)
-        (commands / "sh").symlink_to(shutil.which("sh"))
+        # R's normal embedded shutdown invokes rm through the workload PATH.
+        for name in ("sh", "rm"):
+            (commands / name).symlink_to(shutil.which(name))
         r = commands / "R"
         r.write_text(
             code(f"""
@@ -85,7 +87,10 @@ def test_retains_discovered_r_home_across_generations(
             )
             for restart in (False, True):
                 if restart:
-                    client.send(control="restart")
+                    client.expect(
+                        "[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]",
+                        control="restart",
+                    )
                 client.send(r="answer <- 41L; answer + 1L")
                 assert last_result_text(client) == "[1] 42\n", last_result_text(client)
             return client.finish()

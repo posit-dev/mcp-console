@@ -170,6 +170,8 @@ Relays forward events; they do not decide MCP response boundaries or candidate a
 
 One recoverable response remains owned until local delivery or cancellation settles it.
 Failed delivery restores the entire claimed region, including output preceding a combined control-and-cell call.
+An admitted poll waits within its existing deadline for pending response delivery before claiming output, including when a later cell began before the poll's handler ran.
+If another call delivered the terminal result, the poll rechecks the active slot and follows the ordinary idle path, including any submitted input.
 This does not guarantee exactly-once observation: cancellation can race with bytes already visible to a client.
 
 The journal records calls and assembled results.

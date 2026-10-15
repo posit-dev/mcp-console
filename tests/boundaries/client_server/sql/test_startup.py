@@ -404,6 +404,9 @@ def test_python_startup_preserves_identity_transactions_and_captured_restart(
             import sqlite3
             import subprocess
 
+            # R's embedded shutdown needs rm even with inheritance disabled.
+            os.environ["PATH"] = os.defpath
+
 
             def assert_startup_transport_consumed() -> None:
                 assert "MCP_CONSOLE_STARTUP_FILE" not in os.environ
@@ -498,7 +501,10 @@ def test_python_startup_preserves_identity_transactions_and_captured_restart(
             }
             config.write_text(json.dumps(changed_settings))
             client.transcript.append({"config_after_launch": changed_settings})
-            client.send(control="restart")
+            client.expect(
+                "[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]",
+                control="restart",
+            )
             client.expect("answer\n------\n42\n", sql="SELECT answer FROM selected")
             client.expect(
                 python="assert_startup_transport_consumed(); assert startup_count == 1 and native.in_transaction"
