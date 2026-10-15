@@ -7,6 +7,8 @@ sandbox:
   profile: workspace
 ```
 
+[Configuration reference](CONFIGURATION_REFERENCE.md#sandbox) lists every sandbox field and its accepted values.
+
 For a narrower grant, use `sandbox.filesystem.read_write: [./output]` and create the directory first.
 To permit a specific API through the managed proxy, configure networking separately:
 

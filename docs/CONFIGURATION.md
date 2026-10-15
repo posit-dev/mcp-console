@@ -20,6 +20,8 @@ Project configuration is trusted input and can widen permissions.
 See [Files and precedence](#files-and-precedence) before loading settings from an unfamiliar project.
 Worker and package-preparation permissions are independent; see [Sandbox configuration](SANDBOX_CONFIGURATION.md) and [Package preparation and caches](RESOLVER.md).
 
+[Configuration reference](CONFIGURATION_REFERENCE.md) lists every public field, its accepted values, and its default behavior.
+
 ## Python environment selection
 
 Select a preinstalled interpreter or standard virtual environment:

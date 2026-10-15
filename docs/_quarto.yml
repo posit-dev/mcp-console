@@ -60,6 +60,7 @@ website:
       - section: Configure Console
         contents:
         - CONFIGURATION.md
+        - CONFIGURATION_REFERENCE.md
         - SANDBOX.md
         - SANDBOX_CONFIGURATION.md
         - RESOLVER.md

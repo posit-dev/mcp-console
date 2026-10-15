@@ -14,6 +14,7 @@ Start with [Get started](getting-started.qmd) to install Console and connect you
 ## Configure a project
 
 Use [Configuration](CONFIGURATION.md) to choose interpreters, startup packages, and environment settings.
+[Configuration reference](CONFIGURATION_REFERENCE.md) lists each field's accepted values and default behavior.
 Read [Sandbox and trust](SANDBOX.md) before granting permissions; [Sandbox configuration](SANDBOX_CONFIGURATION.md) documents the settings.
 
 For command-line options, use [Command-line reference](CLI.md) or [CLI help](cli-help.qmd).
