@@ -423,7 +423,7 @@ def test_empty_protected_directories_cannot_be_removed_or_replaced(
 @requires(POSIX, SANDBOX)
 def test_tempdir_modes_are_independent_of_workspace_profile(binary: Path) -> Transcript:
     transcript = []
-    for profile in (None, "workspace_write"):
+    for profile in (None, "workspace"):
         for mode in ("managed", "read_write", "read_only"):
             with (
                 # Keep the workspace outside the automatic /tmp write grant.

@@ -521,8 +521,8 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
                     == {"read_only": [], "read_write": [], "deny": []}
                     | source["sandbox"]["filesystem"]
                 )
-            if source.get("sandbox", {}).get("profile") == "workspace_write":
-                assert settings["sandbox"]["profile"] == "workspace_write", settings
+            if source.get("sandbox", {}).get("profile") == "workspace":
+                assert settings["sandbox"]["profile"] == "workspace", settings
                 description = settings["tool"]["description"]
                 assert "workspace" in description, description
             assert settings["sandbox"]["tempdir"] == source.get("sandbox", {}).get(

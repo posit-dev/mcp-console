@@ -84,7 +84,7 @@ inside a private network namespace.}
 access without a proxy, permit direct host networking, or enable a managed
 proxy, respectively. Filesystem enforcement remains in place.}
 
-\item{profile}{\code{NULL} to preserve context defaults or \code{"workspace_write"} for
+\item{profile}{\code{NULL} to preserve context defaults or \code{"workspace"} for
 the native workspace profile. Filesystem entries compose with the profile.}
 
 \item{tempdir}{\code{NULL} to preserve context defaults, \code{"managed"} (the default) for private

@@ -3,14 +3,15 @@ policy_json <- function(x) {
 }
 
 test_that("workspace and tempdir selectors preserve their public wire shape", {
-  policy <- SandboxPolicy(profile = "workspace_write", tempdir = "read_write")
+  policy <- SandboxPolicy(profile = "workspace", tempdir = "read_write")
   expect_identical(
     as.list(policy),
-    list(profile = "workspace_write", tempdir = "read_write")
+    list(profile = "workspace", tempdir = "read_write")
   )
   expect_error(SandboxPolicy(tempdir = TRUE), "tempdir")
   expect_error(SandboxPolicy(tempdir = "unmanaged"), "tempdir")
   expect_error(SandboxPolicy(profile = ":workspace"), "profile")
+  expect_error(SandboxPolicy(profile = "workspace_write"), "profile")
 })
 
 test_that("omitted mappings and explicit empties stay distinct", {

@@ -1,6 +1,6 @@
 ---
 sandbox:
-  profile: workspace_write
+  profile: workspace
 ---
 extends: :workspace
 workspace_options:

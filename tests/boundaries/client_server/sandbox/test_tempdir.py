@@ -149,9 +149,7 @@ def test_workspace_profile_retains_managed_temp_cleanup(binary: Path) -> Transcr
         config = workspace / ".agents/console/config.yaml"
         config.parent.mkdir(parents=True)
         config.write_text(
-            json.dumps(
-                {"sandbox": {"profile": "workspace_write"}, "python": sys.executable}
-            )
+            json.dumps({"sandbox": {"profile": "workspace"}, "python": sys.executable})
         )
         with McpClient(binary, ("serve",), environment, workspace) as client:
             client.initialize_and_list_tools()

@@ -27,11 +27,11 @@ Child nodes such as `filesystem` and `network.proxy` still require their documen
 
 ```yaml
 sandbox:
-  profile: workspace_write
+  profile: workspace
   tempdir: managed
 ```
 
-`profile: workspace_write` selects the native `:workspace` profile for the captured launch directory.
+`profile: workspace` selects the native `:workspace` profile for the captured launch directory.
 Omitting `profile` retains the host-read baseline without workspace writes.
 Explicit filesystem entries compose with the profile; network selection remains independent.
 The native profile's temporary-directory options are internal: `tempdir` is the only public selector for automatic temporary-storage grants.

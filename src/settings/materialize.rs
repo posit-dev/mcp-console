@@ -155,7 +155,7 @@ fn permissions(settings: &SandboxSettings) -> Value {
         .get("extends")
         .is_some_and(|profile| profile == ":workspace")
     {
-        result["profile"] = json!("workspace_write");
+        result["profile"] = json!("workspace");
     }
     if let Some(entries) = settings
         .get("filesystem")
