@@ -320,6 +320,26 @@ impl Client {
         PreparedEvaluation::Failed(response)
     }
 
+    async fn claim_current_evaluation(
+        &self,
+        generation: &WorkerGeneration,
+        deadline: Instant,
+    ) -> Result<Option<(Arc<Evaluation>, evaluation::WaitClaim)>, String> {
+        // An accepted early cell may own preparation's write lock. Observe its
+        // delivery without reserving preparation, then recheck the active slot
+        // if another call delivered the terminal result while this poll waited.
+        while let Some(active) = self.current_evaluation()? {
+            self.ensure_ordinary_generation(generation)?;
+            if !active.evaluation.admission.generation.is(generation) {
+                return Err("session restarted before the operation began".into());
+            }
+            if let Some(claim) = active.evaluation.claim_after_delivery(deadline).await? {
+                return Ok(Some((active.evaluation, claim)));
+            }
+        }
+        Ok(None)
+    }
+
     async fn send_inner(
         &self,
         cell: Option<crate::cell::Cell>,
@@ -347,23 +367,12 @@ impl Client {
                     initial_requirements,
                 )?
             }
-            None => match self.current_evaluation()? {
-                Some(active) => {
-                    // An accepted early cell may own preparation's write lock.
-                    // Poll its evaluation without reserving another operation.
-                    self.ensure_ordinary_generation(&generation)?;
-                    if !active.evaluation.admission.generation.is(&generation) {
-                        return Err("session restarted before the operation began"
-                            .to_string()
-                            .into());
-                    }
-                    // An earlier admitted poll can reach this branch after a
-                    // later cell has assembled its still-undelivered reply.
-                    let wait_claim = active.evaluation.claim_after_delivery(deadline).await?;
+            None => match self.claim_current_evaluation(&generation, deadline).await? {
+                Some((evaluation, wait_claim)) => {
                     if let Some(stdin) = stdin {
-                        active.evaluation.submit_stdin(stdin)?;
+                        evaluation.submit_stdin(stdin)?;
                     }
-                    (active.evaluation, wait_claim)
+                    (evaluation, wait_claim)
                 }
                 None => {
                     preparation = Some(self.admit_send()?);
@@ -383,19 +392,13 @@ impl Client {
                         drop(operation.take());
                     }
                     loop {
-                        if let Some(active) = self.current_evaluation()? {
-                            self.ensure_ordinary_generation(&generation)?;
-                            if !active.evaluation.admission.generation.is(&generation) {
-                                return Err("session restarted before the operation began"
-                                    .to_string()
-                                    .into());
-                            }
-                            let claim = active.evaluation.claim_after_delivery(deadline).await?;
+                        if let Some((evaluation, claim)) =
+                            self.claim_current_evaluation(&generation, deadline).await?
+                        {
                             drop(preparation.take());
                             drop(operation.take());
                             return Ok(send_response_from_wait(
-                                active
-                                    .evaluation
+                                evaluation
                                     .wait(claim, deadline.saturating_duration_since(Instant::now()))
                                     .await?,
                             ));
