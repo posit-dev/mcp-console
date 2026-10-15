@@ -305,8 +305,6 @@ def enable_native() -> None:
     _native_enabled = True
     if _os.environ.get("MCP_CONSOLE_MANAGED_TEMPDIR") == "1":
         _native_storage = _Path(_os.environ["TMPDIR"]) / "mcp-console-duckdb"
-    else:
-        _native_storage = _Path(_os.environ["MCP_CONSOLE_SQL_STORAGE_DIRECTORY"])
     _native_extension_directory = _os.environ.get(
         "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY", ""
     )
@@ -328,9 +326,12 @@ def _ensure_managed_connection():
         config = {
             "extension_directory": _native_extension_directory,
             "python_enable_replacements": "false",
-            "secret_directory": str(_native_storage / "stored-secrets"),
-            "temp_directory": str(_native_storage / "spill"),
         }
+        # Only the sandbox's managed mode owns DuckDB temporary storage.
+        # Other modes retain DuckDB's ordinary storage settings and lifetime.
+        if _native_storage is not None:
+            config["secret_directory"] = str(_native_storage / "stored-secrets")
+            config["temp_directory"] = str(_native_storage / "spill")
         connection = duckdb.connect(":memory:", config=config)
         try:
             connection.execute("SET enable_progress_bar = false")

@@ -1,20 +1,17 @@
 """Temporary-storage ownership through the public MCP interface."""
 
 import json
-import os
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.assertions import last_result_text, last_tool_text
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_test_environment
 from support.resolvers import expose_uv
-from support.linux_sandbox import retain_system_bwrap
 from support.records import Transcript
 from support.requirements import POSIX, R, SANDBOX, command, requires
 from support.snapshots import execution_snapshots
@@ -189,10 +186,10 @@ def test_workspace_profile_retains_managed_temp_cleanup(binary: Path) -> Transcr
         return transcript
 
 
-@requires(POSIX, command("uv"))
+@requires(command("uv"))
 @executions(DIRECT, SANDBOXED)
 @execution_snapshots
-def test_python_only_sql_uses_host_temporary_storage(
+def test_python_without_sql_does_not_require_a_writable_tempdir(
     binary: Path, execution: Execution
 ) -> Transcript:
     with TemporaryDirectory() as directory:
@@ -200,22 +197,63 @@ def test_python_only_sql_uses_host_temporary_storage(
         tools = workspace / "tools"
         tools.mkdir()
         expose_uv(tools)
-        retain_system_bwrap(tools)
+        missing = workspace / "absent-temp"
+        settings = {
+            "python": {"managed": {"packages": []}},
+            "languages": ["python"],
+            "environment": {"TMPDIR": str(missing)},
+            "resolver": {"environment": {"TMPDIR": str(workspace)}},
+        }
+        if execution is SANDBOXED:
+            settings["sandbox"] = {"tempdir": "read_only"}
+        config = workspace / ".agents/console/config.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps(settings))
+        with McpClient(
+            binary, execution.serve(), python_only_environment(tools), workspace
+        ) as client:
+            client.initialize_and_list_tools()
+            for restart in (False, True):
+                if restart:
+                    client.expect(
+                        "[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]",
+                        control="restart",
+                    )
+                client.expect(
+                    "42\n",
+                    # fmt: python
+                    python=code(r"""
+                        import os
+                        from pathlib import Path
+
+                        assert Path(os.environ["TMPDIR"]).name == "absent-temp"
+                        print(6 * 7)
+                        """),
+                )
+                assert not missing.exists()
+            transcript = client.finish()
+        assert not missing.exists()
+        return transcript
+
+
+@requires(command("uv"))
+@executions(DIRECT, SANDBOXED)
+@execution_snapshots
+def test_python_only_sql_uses_duckdb_storage_defaults(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with TemporaryDirectory() as directory:
+        workspace = Path(directory).resolve()
+        tools = workspace / "tools"
+        tools.mkdir()
+        expose_uv(tools)
         temporary = workspace / "host-temp"
         temporary.mkdir()
         (temporary / "keep").write_text("caller-owned")
-        environment = dict(os.environ, PATH=str(tools))
-        for name in (
-            "R_HOME",
-            "R_LIBS",
-            "R_LIBS_USER",
-            "RETICULATE_PYTHON",
-            "RETICULATE_UV",
-        ):
-            environment.pop(name, None)
         settings = {
             "python": {"managed": {"packages": ["duckdb"]}},
-            "languages": ["python", "sql"],
+            # Hiding the source field must not disable SQL's Python API.
+            "languages": ["python"],
             "environment": {"TMPDIR": str(temporary)},
         }
         if execution is SANDBOXED:
@@ -223,98 +261,46 @@ def test_python_only_sql_uses_host_temporary_storage(
         config = workspace / ".agents/console/config.yaml"
         config.parent.mkdir(parents=True)
         config.write_text(json.dumps(settings))
-        with McpClient(binary, execution.serve(), environment, workspace) as client:
+        with McpClient(
+            binary, execution.serve(), python_only_environment(tools), workspace
+        ) as client:
             client.initialize_and_list_tools()
             client.expect(
-                "native SQL uses host temporary storage\n",
+                "DuckDB retains native storage defaults with hidden SQL\n",
                 # fmt: python
                 python=code(r"""
                     import os
                     from pathlib import Path
+                    import duckdb
 
+                    assert Path(os.environ["TMPDIR"]).name == "host-temp"
                     connection = _console.sql_connection()
-                    storage = Path(
-                        connection.execute("SELECT current_setting('temp_directory')").fetchone()[0]
-                    )
-                    assert storage.is_relative_to(Path(os.environ["TMPDIR"])), storage
                     assert connection.execute("SELECT 42").fetchone() == (42,)
-                    secrets = Path(
-                        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
-                    )
-                    secrets.mkdir(parents=True, exist_ok=True)
-                    assert secrets.parent.stat().st_mode & 0o777 == 0o700
-                    _ = (secrets / "credential").write_text("test credential")
-                    _ = Path(os.environ["TMPDIR"], "sql-storage.txt").write_text(str(secrets.parent))
-                    _console.sql_connection(None)
-                    print("native SQL uses host temporary storage")
+                    with duckdb.connect() as reference:
+                        for setting in ("temp_directory", "secret_directory"):
+                            query = f"SELECT current_setting('{setting}')"
+                            assert (
+                                connection.execute(query).fetchone() == reference.execute(query).fetchone()
+                            )
+                    print("DuckDB retains native storage defaults with hidden SQL")
                     """),
             )
-            result = client.send(sql="SELECT 42 AS answer")
-            assert not result.get("isError"), result
-            assert "42" in last_tool_text(client)
-            first_storage = Path((temporary / "sql-storage.txt").read_text())
-            assert (first_storage / "stored-secrets/credential").is_file()
-            client.send(control="restart")
-            assert not first_storage.exists(), "retired SQL credential storage remains"
-            client.expect(
-                "SQL storage recorded\n",
-                # fmt: python
-                python=code(r"""
-                    import os
-                    from pathlib import Path
-
-                    connection = _console.sql_connection()
-                    secrets = Path(
-                        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
-                    )
-                    secrets.mkdir(parents=True, exist_ok=True)
-                    _ = (secrets / "credential").write_text("test credential")
-                    _ = Path(os.environ["TMPDIR"], "sql-storage.txt").write_text(str(secrets.parent))
-                    print("SQL storage recorded")
-                    """),
-            )
-            crashed_storage = Path((temporary / "sql-storage.txt").read_text())
-            client.send(python="import os; os._exit(47)")
-            assert "status 47" in last_result_text(client)
-            assert not crashed_storage.exists(), (
-                "crashed SQL credential storage remains"
-            )
-            client.expect(
-                "SQL shutdown storage recorded\n",
-                # fmt: python
-                python=code(r"""
-                    import os
-                    from pathlib import Path
-
-                    connection = _console.sql_connection()
-                    storage = Path(
-                        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
-                    ).parent
-                    (storage / "stored-secrets").mkdir(parents=True, exist_ok=True)
-                    _ = (storage / "stored-secrets/credential").write_text("test credential")
-                    _ = Path(os.environ["TMPDIR"], "sql-storage.txt").write_text(str(storage))
-                    print("SQL shutdown storage recorded")
-                    """),
-            )
-            shutdown_storage = Path((temporary / "sql-storage.txt").read_text())
+            assert not list(temporary.glob("mcp-console-duckdb-*"))
             transcript = client.finish()
-        assert not shutdown_storage.exists(), "shutdown SQL storage remains"
         assert (temporary / "keep").read_text() == "caller-owned"
         return transcript
 
 
 @requires(POSIX, command("uv"))
 @executions(SANDBOXED)
-def test_read_write_sql_uses_platform_temp_without_inheritance(
+def test_read_write_sql_retains_duckdb_defaults_without_inheritance(
     binary: Path, execution: Execution
 ) -> Transcript:
-    # Keep the server's inherited temp location outside the automatic /tmp grant.
     with TemporaryDirectory(dir="/var/tmp") as directory:
         workspace = Path(directory).resolve()
         tools = workspace / "tools"
         tools.mkdir()
         expose_uv(tools)
-        retain_system_bwrap(tools)
         config = workspace / ".agents/console/config.yaml"
         config.parent.mkdir(parents=True)
         config.write_text(
@@ -333,20 +319,21 @@ def test_read_write_sql_uses_platform_temp_without_inheritance(
         ) as client:
             client.initialize_and_list_tools()
             client.expect(
-                "SQL uses platform temp without inherited environment\n",
+                "DuckDB retains native storage defaults without inherited environment\n",
                 # fmt: python
                 python=code(r"""
                     import os
-                    from pathlib import Path
+                    import duckdb
 
                     assert not any(name in os.environ for name in ("TMPDIR", "TEMP", "TMP"))
                     connection = _console.sql_connection()
-                    storage = Path(
-                        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
-                    ).parent
-                    assert storage.parent.samefile("/tmp"), storage
-                    _ = (storage / "probe").write_text("owned")
-                    print("SQL uses platform temp without inherited environment")
+                    with duckdb.connect() as reference:
+                        for setting in ("temp_directory", "secret_directory"):
+                            query = f"SELECT current_setting('{setting}')"
+                            assert (
+                                connection.execute(query).fetchone() == reference.execute(query).fetchone()
+                            )
+                    print("DuckDB retains native storage defaults without inherited environment")
                     """),
             )
             return client.finish()

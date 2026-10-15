@@ -55,6 +55,8 @@ Console guarantees temporary-storage cleanup only with an active sandbox and `te
 In other modes, Console adds no temporary-directory cleanup guarantees.
 R runs its normal best-effort shutdown, including its session `Rtmp` cleanup.
 On Unix that cleanup uses `rm` from the workload's `PATH` and can leave files when that command is unavailable or a subtree is not writable.
+Native Python DuckDB retains its own `temp_directory` and `secret_directory` defaults outside managed mode, including the normal persistence of stored secrets.
+Set those connection settings explicitly when their default locations need different filesystem permissions.
 Caller-owned parent directories and unrelated files remain the caller's responsibility.
 
 ## Filesystem

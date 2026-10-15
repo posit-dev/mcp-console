@@ -15,9 +15,9 @@ result:
     name: mcp-console
     version: 0.0.5
   instructions: >-
-    Persistent Python and SQL REPL for calculations, data exploration and
-    analysis, database queries, debugging, simulations, and plots. Reuse
-    objects across calls to inspect results, test hypotheses, and compare
+    Persistent Python REPL for calculations, data exploration and analysis,
+    database queries, debugging, simulations, and plots. Reuse objects
+    across calls to inspect results, test hypotheses, and compare
     approaches.
 ---
 input:
@@ -29,23 +29,18 @@ result:
   tools:
     - name: send
       description: >-
-        Persistent Python and SQL REPL for calculations, data exploration and
-        analysis, database queries, debugging, simulations, and plots. Reuse
-        objects across calls to inspect results, test hypotheses, and compare
+        Persistent Python REPL for calculations, data exploration and analysis,
+        database queries, debugging, simulations, and plots. Reuse objects
+        across calls to inspect results, test hypotheses, and compare
         approaches.
 
 
-        Send one complete `python` or `sql` cell per call. Results display
-        automatically; supported plots return as images.
+        Send one complete `python` cell per call. Results display automatically;
+        supported plots return as images.
 
 
-        For databases and structured files, consider DuckDB SQL first for
-        inspection, joins, and aggregation. Use Python when its libraries or
-        format-specific parsing simplify the task. Switch languages when useful.
-
-
-        DuckDB can query CSV, Parquet, JSON, and JSONL directly, including
-        nested JSON.
+        Use Python when its libraries or format-specific parsing simplify the
+        task.
 
 
         Run one cell at a time. Wait for its `send` to return before another
@@ -79,31 +74,11 @@ result:
               final visible expression autoprints; leave the primary result last.
               Import packages normally; managed sessions prepare missing PyPI
               distributions on first import. Use `requirements.python` when import and
-              distribution names differ or to prepare before execution. Select a
-              user-owned DB-API connection for SQL cells with
-              `_console.sql_connection(connection)`; restore managed DuckDB with
-              `_console.sql_connection(None)`. `_console.sql_connection()` returns the
-              active native Python connection, or errors if another runtime owns SQL;
-              on Python-owned DuckDB, register frames with
-              `_console.sql_connection().register(name, frame)` (globals are not
-              scanned). `matplotlib.pyplot.show()` returns open figures as PNGs
-              immediately and closes them. At cell end, even after errors, remaining
-              open figures return as PNGs and close; `show()` is optional. Closing an
-              unshown figure suppresses capture.
-            type:
-              - string
-              - "null"
-          sql:
-            description: >-
-              Evaluate one complete SQL cell through the active connection. Managed
-              DuckDB keeps a persistent catalog. Results are bounded table previews
-              that abbreviate long text cells; query focused subsets or aggregates.
-              The selected driver supplies its own SQL dialect and types. Managed
-              conveniences/extensions apply only to DuckDB. Read SQLite with `ATTACH
-              'path' AS name (TYPE sqlite, READ_ONLY)`. With a sandbox, attach
-              existing DuckDB databases outside writable paths using `ATTACH 'path' AS
-              name (READ_ONLY)`. Use `SHOW TABLES`, `DESCRIBE`, `SUMMARIZE`, or
-              `EXPLAIN`; CLI dot commands are not supported.
+              distribution names differ or to prepare before execution.
+              `matplotlib.pyplot.show()` returns open figures as PNGs immediately and
+              closes them. At cell end, even after errors, remaining open figures
+              return as PNGs and close; `show()` is optional. Closing an unshown
+              figure suppresses capture.
             type:
               - string
               - "null"
@@ -226,100 +201,21 @@ send:
   python: |
     import os
     from pathlib import Path
+    import duckdb
 
+    assert Path(os.environ["TMPDIR"]).name == "host-temp"
     connection = _console.sql_connection()
-    storage = Path(
-        connection.execute("SELECT current_setting('temp_directory')").fetchone()[0]
-    )
-    assert storage.is_relative_to(Path(os.environ["TMPDIR"])), storage
     assert connection.execute("SELECT 42").fetchone() == (42,)
-    secrets = Path(
-        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
-    )
-    secrets.mkdir(parents=True, exist_ok=True)
-    assert secrets.parent.stat().st_mode & 0o777 == 0o700
-    _ = (secrets / "credential").write_text("test credential")
-    _ = Path(os.environ["TMPDIR"], "sql-storage.txt").write_text(str(secrets.parent))
-    _console.sql_connection(None)
-    print("native SQL uses host temporary storage")
+    with duckdb.connect() as reference:
+        for setting in ("temp_directory", "secret_directory"):
+            query = f"SELECT current_setting('{setting}')"
+            assert (
+                connection.execute(query).fetchone() == reference.execute(query).fetchone()
+            )
+    print("DuckDB retains native storage defaults with hidden SQL")
 result:
   content:
     - type: text
       text: |
-        native SQL uses host temporary storage
-  isError: false
----
-send:
-  sql: SELECT 42 AS answer
-result:
-  content:
-    - type: text
-      text: |
-        answer
-        ------
-        42
-  isError: false
----
-send:
-  control: restart
-result:
-  content:
-    - type: text
-      text: |-
-        [worker stopped: in-memory state lost]
-        [starting new worker]
-        [idle]
-  isError: false
----
-send:
-  python: |
-    import os
-    from pathlib import Path
-
-    connection = _console.sql_connection()
-    secrets = Path(
-        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
-    )
-    secrets.mkdir(parents=True, exist_ok=True)
-    _ = (secrets / "credential").write_text("test credential")
-    _ = Path(os.environ["TMPDIR"], "sql-storage.txt").write_text(str(secrets.parent))
-    print("SQL storage recorded")
-result:
-  content:
-    - type: text
-      text: |
-        SQL storage recorded
-  isError: false
----
-send:
-  python: import os; os._exit(47)
-result:
-  content:
-    - type: text
-      text: |-
-        [worker sideband read failed: worker sideband closed]
-        [worker exited with status 47]
-        [worker stopped: in-memory state lost]
-        [starting new worker]
-        [idle]
-  isError: true
----
-send:
-  python: |
-    import os
-    from pathlib import Path
-
-    connection = _console.sql_connection()
-    storage = Path(
-        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
-    ).parent
-    (storage / "stored-secrets").mkdir(parents=True, exist_ok=True)
-    _ = (storage / "stored-secrets/credential").write_text("test credential")
-    _ = Path(os.environ["TMPDIR"], "sql-storage.txt").write_text(str(storage))
-    print("SQL shutdown storage recorded")
-result:
-  content:
-    - type: text
-      text: |
-        SQL shutdown storage recorded
+        DuckDB retains native storage defaults with hidden SQL
   isError: false
