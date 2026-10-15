@@ -43,8 +43,10 @@ send:
     private_cache = next(
         path
         for path in Path(os.environ["MPLCONFIGDIR"]).glob("fontlist-v*.json")
-        if path.is_symlink() or sys.platform == "win32" and path.name != "fontlist-v999.json"
+        if path.name != "fontlist-v999.json"
     )
+    if sys.platform != "win32":
+        assert private_cache.is_symlink() is (os.environ["MCP_CONSOLE_TEST_PRIVATE_CACHE"] == "1")
     private_cache_bytes = private_cache.read_bytes()
     private_cache.unlink()
     private_cache.write_bytes(private_cache_bytes)

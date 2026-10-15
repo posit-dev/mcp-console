@@ -79,7 +79,7 @@ An advertised language can fail because the runtime is unavailable; advertising 
 Existing Python, bare runtimes, and custom workers have different preparation support.
 
 Policy text must reflect selected native permissions.
-Name private temporary storage and concrete writable grants, subject to narrower read/deny rules.
+Name the configured temporary and workspace write grants and concrete writable paths, subject to narrower read/deny rules.
 Metadata protection is a default, not a mandatory ceiling.
 A read entry grants reads as well as narrowing writes.
 

@@ -132,7 +132,7 @@ def test_retains_r_absence_across_generations(
             return client.finish()
 
 
-@executions(DIRECT)
+@executions(SANDBOXED)
 def test_removes_managed_sql_storage_on_restart_and_shutdown(
     binary: Path, execution: Execution
 ) -> list:
@@ -157,6 +157,12 @@ def test_removes_managed_sql_storage_on_restart_and_shutdown(
                     ).parent
                     storage.mkdir(parents=True, exist_ok=True)
                     (storage / "cleanup-marker").write_text("owned storage")
+                    secrets = Path(
+                        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
+                    )
+                    assert secrets.parent == storage
+                    secrets.mkdir(parents=True, exist_ok=True)
+                    (secrets / "credential").write_text("fixture secret")
                     print(json.dumps(str(storage)))
                     """)
                 client.send(python=python)

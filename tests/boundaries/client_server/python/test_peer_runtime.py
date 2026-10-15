@@ -174,7 +174,7 @@ def exercise_late_r(client: McpClient, trigger: str = "python-access") -> None:
         _console.sql_connection(connection)
         np.set_printoptions(linewidth=73)
         before = (id(persistent), id(connection), sys.executable, sys.prefix,
-                  os.environ["MPLCONFIGDIR"], os.environ["XDG_CACHE_HOME"])
+                  os.environ.get("MPLCONFIGDIR"), os.environ.get("XDG_CACHE_HOME"))
         print("Python live; R absent")
         original_streams = (sys.stdout, sys.stderr)
         redirected_stdout = io.StringIO()
@@ -209,8 +209,8 @@ def exercise_late_r(client: McpClient, trigger: str = "python-access") -> None:
             id(connection),
             sys.executable,
             sys.prefix,
-            os.environ["MPLCONFIGDIR"],
-            os.environ["XDG_CACHE_HOME"],
+            os.environ.get("MPLCONFIGDIR"),
+            os.environ.get("XDG_CACHE_HOME"),
         )
         assert connection.execute("select value from peer").fetchone() == (42,)
         assert np.get_printoptions()["linewidth"] == 73

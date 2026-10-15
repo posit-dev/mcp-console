@@ -148,11 +148,14 @@ Aborting a partial command ends that transport; no control can be inserted into 
 
 Physical cleanup, protocol settlement, and output delivery are separate results.
 Available output is drained within bounds even when cleanup fails.
-The local launch adapter retains raw exit status, requested termination, and Console-owned storage retirement independently of diagnostic suppression.
+The local launch adapter retains raw exit status and requested termination independently of diagnostic suppression.
+The runner owns managed temporary storage; direct workers have no general-purpose Console-owned temp root.
+Outside managed sandbox storage, native Python SQL uses DuckDB's own storage defaults and lifetime.
+Graceful worker shutdown uses R's normal embedded shutdown sequence, including finalizers, device closure, and best-effort session-tempdir cleanup.
+Only an active sandbox with managed storage adds a temporary-storage cleanup guarantee; the runner owns that retirement, including any files R leaves behind.
 Readiness and the origin of an operation failure affect error reporting, not those observations.
 
-The existing failure-recovery barrier requires direct-launcher reaping, successful Console-owned storage retirement, and settled I/O.
-Storage-removal failure blocks replacement.
+The existing failure-recovery barrier requires direct-launcher reaping and settled I/O.
 Recovery after runner loss can still permit replacement without confirming native descendant or runner-owned storage cleanup.
 A forced launcher kill, pipe EOF, or suppressed status diagnostic cannot prove that cleanup.
 The pinned runner has no separate Unix cleanup receipt; a nonzero status can represent workload failure or a cleanup error.

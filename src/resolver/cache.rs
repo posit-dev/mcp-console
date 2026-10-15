@@ -1,6 +1,6 @@
 //! Cache selection shared by preparation, worker launch, and sandbox grants.
 
-use crate::settings::{Cache, SandboxSettings};
+use crate::settings::{Cache, SandboxSettings, environment_path};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
@@ -129,21 +129,6 @@ fn console_root(settings: &SandboxSettings) -> Result<PathBuf, String> {
     } else {
         ".cache/mcp-console"
     }))
-}
-
-fn environment_path(settings: &SandboxSettings, name: &str) -> Option<PathBuf> {
-    let inherit = settings.get("inherit_environment") != Some(&Value::Bool(false));
-    settings
-        .get("environment")
-        .and_then(|values| values.get(name))
-        .and_then(Value::as_str)
-        .map(PathBuf::from)
-        .or_else(|| {
-            inherit
-                .then(|| std::env::var_os(name).map(PathBuf::from))
-                .flatten()
-        })
-        .filter(|path| !path.as_os_str().is_empty())
 }
 
 pub(crate) fn duckdb_extension_directory(

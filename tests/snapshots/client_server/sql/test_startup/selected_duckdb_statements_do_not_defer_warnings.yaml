@@ -1,0 +1,81 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    previous_warnings <- warnings()
+    options(warn = 2)
+    native <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+    .console$sql_connection(native)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE selected_statements (answer INTEGER)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: INSERT INTO selected_statements VALUES (41)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: UPDATE selected_statements SET answer = answer + 1
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM selected_statements
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false
+---
+send:
+  sql: UPDATE selected_statements SET answer = answer + 1 RETURNING answer
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      43
+  isError: false
+---
+send:
+  r: stopifnot(identical(warnings(), previous_warnings))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false

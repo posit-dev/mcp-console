@@ -263,7 +263,21 @@ mod platform {
     static MATPLOTLIB_DIRECTORY: OnceLock<PathBuf> = OnceLock::new();
     static INHERITED_MATPLOTLIB_DIRECTORY: OnceLock<PathBuf> = OnceLock::new();
 
-    pub(crate) fn configure_worker_environment(temporary_directory: &Path) -> io::Result<()> {
+    pub(crate) fn configure_worker_environment(
+        temporary_directory: Option<&Path>,
+    ) -> io::Result<()> {
+        for (name, value, overwrite) in [
+            (c"COLUMNS", c"200", true),
+            (c"UV_OFFLINE", c"1", true),
+            (c"MPLBACKEND", c"agg", false),
+        ] {
+            set_environment(name, value, overwrite)?;
+        }
+        // Unmanaged modes retain the libraries' normal cache selection; no
+        // fixed shared subdirectory may masquerade as Console-owned scratch.
+        let Some(temporary_directory) = temporary_directory else {
+            return Ok(());
+        };
         let matplotlib_cache_directory = std::env::var_os("MCP_CONSOLE_MATPLOTLIB_CACHE")
             .map(std::path::absolute)
             .transpose()?
@@ -285,14 +299,6 @@ mod platform {
             let _ = INHERITED_MATPLOTLIB_DIRECTORY.set(cache);
         }
         link_matplotlib_caches();
-
-        for (name, value, overwrite) in [
-            (c"COLUMNS", c"200", true),
-            (c"UV_OFFLINE", c"1", true),
-            (c"MPLBACKEND", c"agg", false),
-        ] {
-            set_environment(name, value, overwrite)?;
-        }
 
         for (name, directory) in [
             (c"MPLCONFIGDIR", matplotlib_directory),

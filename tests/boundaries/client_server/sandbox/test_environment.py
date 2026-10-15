@@ -24,6 +24,8 @@ def _managed_environment(binary: Path, inherit: bool) -> Transcript:
         name: environment[name] for name in ("R_HOME", "R_PROFILE_USER", "HOME", "PATH")
     }
     target_environment["MCP_CONSOLE_TEST_PROJECT_ENV"] = "project"
+    target_environment["MCP_CONSOLE_MANAGED_TEMPDIR"] = "0"
+    target_environment["mcp_console_managed_tempdir"] = "project"
     if inherit:
         target_environment.update(
             {
@@ -61,6 +63,8 @@ def _managed_environment(binary: Path, inherit: bool) -> Transcript:
                     r=code(r"""
                         stopifnot(
                           identical(Sys.getenv("MCP_CONSOLE_SANDBOX"), "1"),
+                          identical(Sys.getenv("MCP_CONSOLE_MANAGED_TEMPDIR"), "1"),
+                          identical(Sys.getenv("mcp_console_managed_tempdir"), "project"),
                           identical(Sys.getenv("MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION"), "1"),
                           identical(Sys.getenv("RETICULATE_PYTHON"), "managed"),
                           identical(Sys.getenv("MCP_CONSOLE_TEST_PROJECT_ENV"), "project"),

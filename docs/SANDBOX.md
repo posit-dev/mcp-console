@@ -16,7 +16,8 @@ sandbox:
 ```
 
 Writable workspace paths are persistent user data; Console does not delete them during cleanup.
-Private temporary storage belongs to the worker lifetime.
+With the default `sandbox.tempdir: managed`, private temporary storage belongs to the worker lifetime.
+The `read_write` and `read_only` modes retain normal host temporary-directory selection; see [temporary storage](SANDBOX_CONFIGURATION.md#profiles-and-temporary-storage).
 
 Project configuration is trusted launcher input.
 It can choose executables, supply credentials, and widen permissions; global configuration is not a mandatory ceiling.
@@ -71,6 +72,9 @@ Unconfirmed retirement retains private storage and blocks replacement rather tha
 Closing pipes or reaping the direct worker does not prove native descendant cleanup.
 
 `--no-sandbox` removes native enforcement and native descendant cleanup.
+It also omits general-purpose managed storage and temporary-environment redirection.
+R runs its normal best-effort session-tempdir cleanup on graceful shutdown.
+Native Python DuckDB retains its normal storage defaults and lifetime, including persistent secrets.
 Normal relay shutdown still reaps its direct worker.
 Complete native unrestricted/external modes have different guarantees; see [enforcement modes](SANDBOX_CONFIGURATION.md#filesystem-and-enforcement-modes).
 

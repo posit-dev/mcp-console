@@ -127,6 +127,7 @@ def preserves_matplotlib_cache_across_activation_and_restart(
         environment["XDG_CACHE_HOME"] = str(temporary / "host-cache")
         environment["TMPDIR"] = temporary_directory
         environment["MPLCONFIGDIR"] = str(host_matplotlib)
+        environment["MCP_CONSOLE_TEST_PRIVATE_CACHE"] = str(int(execution is SANDBOXED))
         environment["MCP_CONSOLE_TEST_MATPLOTLIBRC"] = str(host_matplotlibrc)
         environment.pop("MATPLOTLIBRC", None)
         environment["MPL_IGNORE_SYSTEM_FONTS"] = "1"
@@ -167,15 +168,17 @@ def preserves_matplotlib_cache_across_activation_and_restart(
                 )
                 """)
         )
-        # Replacing the private link must not make a later runtime resolution
+        # Replacing the cache link or file must not make a later runtime resolution
         # overwrite user-owned worker state or discard the worker.
         # fmt: python
         python = code("""
             private_cache = next(
                 path
                 for path in Path(os.environ["MPLCONFIGDIR"]).glob("fontlist-v*.json")
-                if path.is_symlink() or sys.platform == "win32" and path.name != "fontlist-v999.json"
+                if path.name != "fontlist-v999.json"
             )
+            if sys.platform != "win32":
+                assert private_cache.is_symlink() is (os.environ["MCP_CONSOLE_TEST_PRIVATE_CACHE"] == "1")
             private_cache_bytes = private_cache.read_bytes()
             private_cache.unlink()
             private_cache.write_bytes(private_cache_bytes)
@@ -225,7 +228,9 @@ def preserves_matplotlib_cache_across_activation_and_restart(
         )
         assert len(persistent_caches) == 1, persistent_caches
         assert persistent_caches[0].read_bytes() == persistent_cache_bytes
-        assert not (persistent_caches[0].parent / "fontlist-v999.json").exists()
+        assert (persistent_caches[0].parent / "fontlist-v999.json").exists() is (
+            execution is DIRECT
+        )
         assert not list(
             (temporary / "host-cache" / "mcp-console" / "matplotlib").glob(
                 "fontlist-v*.json"
@@ -234,7 +239,7 @@ def preserves_matplotlib_cache_across_activation_and_restart(
         return transcript
 
 
-@executions(DIRECT, SANDBOXED)
+@executions(SANDBOXED)
 def test_keeps_python_caches_private_between_workers(
     binary: Path, execution: Execution
 ) -> Transcript:

@@ -155,6 +155,7 @@ def test_replaces_library_prepared_before_r_initialization(
             RETICULATE_PYTHON=sys.executable,
             RETICULATE_PYTHONPATH=str(modules),
             R_PROFILE_USER=str(profile),
+            TMPDIR=str(root),
         )
         with McpClient(
             binary,

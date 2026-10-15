@@ -18,7 +18,7 @@ from support.assertions import (
     wait_for_idle_output,
 )
 from support.checkpoints import wait_for_worker_file
-from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.installation import installed_console
 from support.normalization import code
 from support.progress import without_elapsed_result
@@ -49,6 +49,43 @@ def captured_configuration(config: Path, *, python: str | Path | None = None) ->
         assert settings["python"] == str(python)
         settings["python"] = "<configured Python>"
     return {"config": settings}
+
+
+@requires(R, SQL)
+@executions(RUNTIME)
+def test_selected_duckdb_statements_do_not_defer_warnings(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        workspace = Path(temporary)
+        with McpClient(binary, execution.serve(), os.environ, workspace) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code(r"""
+                    previous_warnings <- warnings()
+                    options(warn = 2)
+                    native <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+                    .console$sql_connection(native)
+                    """),
+            )
+            client.expect(sql="CREATE TABLE selected_statements (answer INTEGER)")
+            client.expect(sql="INSERT INTO selected_statements VALUES (41)")
+            client.expect(sql="UPDATE selected_statements SET answer = answer + 1")
+            client.expect(
+                "# A tibble: 1 × 1\n   answer\n  <int32>\n1      42\n",
+                sql="SELECT answer FROM selected_statements",
+            )
+            client.expect(
+                "# A tibble: 1 × 1\n   answer\n  <int32>\n1      43\n",
+                sql="UPDATE selected_statements SET answer = answer + 1 RETURNING answer",
+            )
+            client.expect(r="stopifnot(identical(warnings(), previous_warnings))")
+            client.expect(
+                "[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]",
+                control="restart",
+            )
+            return client.finish()
 
 
 @requires(POSIX, R, SQL, command("ps"))
@@ -1096,8 +1133,13 @@ def test_incomplete_python_setup_never_retries_startup_source(
                 '[input requested: "Python SQL setup> "]\n[waiting for stdin]',
                 sql="CREATE TABLE never_run AS SELECT 99 AS answer",
             )
-            client.send(control="interrupt", timeout_ms=0)
-            assert "KeyboardInterrupt" in last_tool_text(client)
+            wait_for_evaluation_output(
+                client,
+                lambda output: "KeyboardInterrupt" in output,
+                "Python SQL setup interruption",
+                completion_timeout_seconds=client.response_timeout,
+                control="interrupt",
+            )
             client.expect(
                 "Python setup resumed with same objects\n",
                 python='assert "startup_count" not in globals()',

@@ -36,7 +36,8 @@ Selection uses the resolver's effective environment and is captured for the serv
 `MCP_CONSOLE_HOME` moves configuration and recordings, not these caches.
 
 Console redirects supported package/cache variables beneath that directory.
-Worker plotting and general-purpose caches use private temporary storage, with prepared caches reused where supported.
+With `sandbox.tempdir: managed`, worker plotting and general-purpose caches use private temporary storage, with prepared caches reused where supported.
+Other tempdir modes and `--no-sandbox` retain normal library selection after cache configuration.
 Existing Python preserves its configured user-site package location.
 [Environment variables](ENVIRONMENT.md#cache-and-data-locations) lists the assignments.
 

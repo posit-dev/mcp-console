@@ -5,4 +5,7 @@ native_launches:
   - empty
   - enabled
   - restricted
+  - workspace
+  - workspace_read_write_temp
+  - read_only_temp
   - groups

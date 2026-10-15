@@ -26,6 +26,7 @@ mcp-console serve --no-sandbox
 ```
 
 `--no-sandbox` runs evaluated code and dependency preparation with host permissions and removes native descendant-cleanup guarantees.
+It also disables [managed temporary storage](SANDBOX_CONFIGURATION.md#profiles-and-temporary-storage).
 It conflicts with writable-root options and explicit worker or resolver sandbox settings.
 Host cache mode is used; `cache: console` is rejected.
 

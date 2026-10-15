@@ -23,6 +23,7 @@ from support.linux_sandbox import retain_system_bwrap
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code, normalize_python_resolution_error
 from support.records import Transcript, TranscriptWithCompanions
+from support.snapshots import execution_snapshots
 from support.resolvers import expose_uv, write_python_executable
 
 UV_NAME = "uv.exe" if os.name == "nt" else "uv"
@@ -38,7 +39,9 @@ def environment(path: Path) -> dict[str, str]:
                 str(Path(os.environ["SystemRoot"]) / "System32"),
             ]
         )
-    env = dict(os.environ, PATH=os.pathsep.join(search_path))
+    env = dict(
+        os.environ, PATH=os.pathsep.join(search_path), TMPDIR=str(path.resolve())
+    )
     for name in (
         "R_HOME",
         "R_LIBS",
@@ -320,12 +323,16 @@ def test_invalid_extension_cache_preserves_close_failure(
 @requires(SQL)
 @executions(DIRECT, SANDBOXED)
 @requires(NATIVE_FIXTURES)
+@execution_snapshots
 def test_prepares_extension_before_first_worker_and_loads_from_cache(
     binary: Path, execution: Execution
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         env = managed_environment(root)
+        host_temp = root / "host-temp"
+        host_temp.mkdir()
+        env["TMPDIR"] = str(host_temp)
         cache = extension_cache(root, execution)
         assert not cache.exists()
         shadow = root / "duckdb.py"
@@ -375,7 +382,7 @@ def test_prepares_extension_before_first_worker_and_loads_from_cache(
                 sql="SET autoinstall_known_extensions = false; LOAD fts",
             )
             assert "Error:" not in last_tool_text(client)
-            assert not first_temporary.exists()
+            assert first_temporary.exists() is (execution is DIRECT)
             assert extension.is_file(), "restart removed the shared extension cache"
             client.send(python="import os; print(os.environ['TMPDIR'])")
             second_temporary = Path(last_tool_text(client).strip())
@@ -383,7 +390,7 @@ def test_prepares_extension_before_first_worker_and_loads_from_cache(
             assert "status 47" in last_result_text(client)
             client.send(sql="SET autoinstall_known_extensions = false; LOAD fts")
             assert "Error:" not in last_tool_text(client)
-            assert not second_temporary.exists()
+            assert second_temporary.exists() is (execution is DIRECT)
             assert extension.is_file(), (
                 "crash replacement removed the shared extension cache"
             )
@@ -1056,7 +1063,7 @@ def _replace_paths(records: Transcript, paths: list[Path]) -> Transcript:
 
 
 @requires(SQL)
-@executions(DIRECT, SANDBOXED)
+@executions(SANDBOXED)
 def test_catalog_and_private_storage_follow_worker_lifetime(
     binary: Path, execution: Execution
 ) -> Transcript:
