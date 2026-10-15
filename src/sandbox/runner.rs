@@ -104,16 +104,32 @@ pub(super) fn run(
             crate::settings::Tempdir::ReadWrite => {
                 // Resolve from the workload environment, not the supervisor's
                 // TMPDIR: trusted YAML can select another host temp directory.
+                let workspace = std::env::current_dir().map_err(|error| error.to_string())?;
                 let mut directories: std::collections::BTreeSet<_> = ["TMPDIR", "TEMP", "TMP"]
                     .into_iter()
                     .filter_map(|name| crate::settings::environment_path(&settings, name))
                     .collect();
-                directories.insert(if cfg!(unix) {
+                let default = if cfg!(unix) {
                     "/tmp".into()
                 } else {
                     std::env::temp_dir()
-                });
-                let workspace = std::env::current_dir().map_err(|error| error.to_string())?;
+                };
+                if cfg!(windows) && directories.is_empty() {
+                    // Windows runtimes cannot discover a supervisor-only temp
+                    // selection after environment clearing. Export the same
+                    // default we grant, without creating or owning storage.
+                    let path = super::resolve_writable_root(default.clone(), &workspace)?;
+                    let environment = settings
+                        .entry("environment")
+                        .or_insert_with(|| json!({}))
+                        .as_object_mut()
+                        .expect("captured environment");
+                    for name in ["TMPDIR", "TEMP", "TMP"] {
+                        environment.retain(|key, _| !key.eq_ignore_ascii_case(name));
+                        environment.insert(name.into(), path.clone().into());
+                    }
+                }
+                directories.insert(default);
                 let entries = settings
                     .entry("filesystem")
                     .or_insert_with(|| json!({"kind": "restricted", "entries": []}))

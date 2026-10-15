@@ -45,6 +45,8 @@ The native profile's temporary-directory options are internal: `tempdir` is the 
 All three values are strings.
 `read_write` also grants temporary writes under the base read-only policy.
 On Unix its platform default grant is `/tmp`; configured/inherited `TMPDIR`, `TEMP`, and `TMP` add their named locations.
+On Windows, if all three child variables are unset or empty, Console exports the granted host default as `TMPDIR`, `TEMP`, and `TMP` so runtimes can find it.
+This does not create managed storage or add cleanup guarantees.
 The directories must already exist; Console does not provision caller-owned storage.
 `read_only` omits automatic grants rather than imposing an overriding denial: explicit filesystem permissions, including a workspace root containing a temp path, still apply.
 R needs a writable temporary directory and can fail to initialize in that mode.
