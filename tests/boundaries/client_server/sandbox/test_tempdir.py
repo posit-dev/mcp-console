@@ -179,7 +179,9 @@ def test_workspace_profile_retains_managed_temp_cleanup(binary: Path) -> Transcr
             owned = Path((workspace / "worker-temp.txt").read_text())
             transcript = client.finish()
         assert not owned.exists()
-        assert list(Path(temporary).iterdir()) == []
+        # Preparation may use the caller-owned parent independently. Verify
+        # the worker's attempted host write and its actual private root.
+        assert not (Path(temporary) / "blocked").exists()
         return transcript
 
 

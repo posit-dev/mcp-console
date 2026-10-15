@@ -1133,8 +1133,13 @@ def test_incomplete_python_setup_never_retries_startup_source(
                 '[input requested: "Python SQL setup> "]\n[waiting for stdin]',
                 sql="CREATE TABLE never_run AS SELECT 99 AS answer",
             )
-            client.send(control="interrupt", timeout_ms=0)
-            assert "KeyboardInterrupt" in last_tool_text(client)
+            wait_for_evaluation_output(
+                client,
+                lambda output: "KeyboardInterrupt" in output,
+                "Python SQL setup interruption",
+                completion_timeout_seconds=client.response_timeout,
+                control="interrupt",
+            )
             client.expect(
                 "Python setup resumed with same objects\n",
                 python='assert "startup_count" not in globals()',

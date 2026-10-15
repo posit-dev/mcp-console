@@ -686,6 +686,7 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stdout.strip(), "launched")
 
+    @requires_mxc(BINARY)
     def test_tempdir_modes(self):
         # fmt: python
         program = code(r"""
