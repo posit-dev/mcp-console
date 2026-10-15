@@ -13,7 +13,12 @@ from boundaries.client_server.python.test_startup import selected_python
 from support.python import isolated_python
 from boundaries.client_server.server.test_startup import gated_discovery
 from support.assertions import last_result_text
-from support.checkpoints import FifoCheckpoint, wait_for_path, wait_for_worker_file
+from support.checkpoints import (
+    FifoCheckpoint,
+    checkpoint_evidence,
+    wait_for_path,
+    wait_for_worker_file,
+)
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_python_resolution_error
@@ -374,7 +379,9 @@ def reached_preparation(
         client.initialize_and_list_tools()
         client.send(python="import sys; print(sys.executable)")
         executable = last_result_text(client).strip()
-        assert Path(executable).is_file()
+        assert Path(executable).is_file(), checkpoint_evidence(
+            "Python startup did not return an executable path", client
+        )
         Path(environment["MCP_CONSOLE_TEST_UV_REUSE_PYTHON"]).write_text(executable)
         client.transcript[-1]["result"]["content"][0]["text"] = "<running Python>\n"
         begin = resources.enter_context(
@@ -466,7 +473,9 @@ def test_explicit_preparation_interrupt_keeps_phase_until_completion(
         client.initialize_and_list_tools()
         client.send(python="import sys; marker = 42; print(sys.executable)")
         executable = last_result_text(client).strip()
-        assert Path(executable).is_file()
+        assert Path(executable).is_file(), checkpoint_evidence(
+            "Python startup did not return an executable path", client
+        )
         client.transcript[-1]["result"]["content"][0]["text"] = "<running Python>\n"
         client.send()
         assert last_result_text(client) == "\n[idle]"
