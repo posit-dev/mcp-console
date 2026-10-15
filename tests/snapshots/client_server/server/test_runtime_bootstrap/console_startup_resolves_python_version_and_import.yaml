@@ -1,8 +1,4 @@
 ---
-input:
-  method: ping
-result: {}
----
 send:
   timeout_ms: 0
 result:
@@ -13,6 +9,10 @@ result:
 
         [idle]
   isError: false
+---
+input:
+  method: ping
+result: {}
 ---
 send:
   timeout_ms: 0
