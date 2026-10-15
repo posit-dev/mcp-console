@@ -87,21 +87,35 @@ pub fn preserve_environment<'a>(
             let name = name
                 .to_str()
                 .ok_or_else(|| "worker environment name must be UTF-8".to_string())?;
+            let key = if cfg!(windows) {
+                environment
+                    .keys()
+                    .find(|key| {
+                        // Match the child process's comparison, including
+                        // Unicode, when protecting Console-owned names.
+                        let mut names = std::process::Command::new("");
+                        names.env(key.as_str(), "").env(name, "");
+                        names.get_envs().count() == 1
+                    })
+                    .cloned()
+                    .unwrap_or_else(|| name.to_owned())
+            } else {
+                name.to_owned()
+            };
             // Keep invalid native values for execution-host validation, even
             // when Console owns the assignment or removal of a valid value.
             if environment
-                .get(name)
+                .get(&key)
                 .is_some_and(|value| !value.is_string())
             {
                 continue;
             }
+            environment.remove(&key);
             if !inherit && let Some(value) = value {
                 let value = value.to_str().ok_or_else(|| {
                     format!("worker environment value for '{name}' must be UTF-8")
                 })?;
                 environment.insert(name.into(), value.into());
-            } else {
-                environment.remove(name);
             }
         }
     }
@@ -357,13 +371,15 @@ pub(crate) fn read(
         .map_err(|error| format!("{name}: {error}"))?;
     let mut resolver_environment = project.environment.clone();
     resolver_environment.extend(project.resolver.environment);
-    for (settings, inherit, environment) in [
+    for (scope, settings, inherit, environment) in [
         (
+            "environment",
             &mut policy,
             project.inherit_environment,
             project.environment,
         ),
         (
+            "resolver.environment",
             &mut resolver,
             project
                 .resolver
@@ -372,6 +388,19 @@ pub(crate) fn read(
             resolver_environment,
         ),
     ] {
+        if cfg!(windows) {
+            // Use Command's native key comparison, including Unicode, so
+            // validation and the eventual child environment agree.
+            let mut names = std::process::Command::new("");
+            for (index, key) in environment.keys().enumerate() {
+                names.env(key, "");
+                if names.get_envs().count() != index + 1 {
+                    return Err(format!(
+                        "{name}: {scope}: case-insensitive environment names must be unique on Windows; duplicate {key:?}"
+                    ));
+                }
+            }
+        }
         if !inherit {
             settings.insert("inherit_environment".into(), false.into());
         }

@@ -31,7 +31,10 @@ Shared values, including credentials, also reach preparation.
 
 Console subsequently applies its runtime, cache, temporary-storage, proxy, and transport assignments.
 These win over conflicting inherited/YAML values.
-Temporary-storage assignments apply only with `sandbox.tempdir: managed`; other modes and `--no-sandbox` preserve configured/inherited temp variables.
+On Windows, that precedence also applies to differently cased names.
+Managed temporary-storage assignments apply only with `sandbox.tempdir: managed`.
+On Windows, `read_write` supplies the granted host default as `TMPDIR`, `TEMP`, and `TMP` when all three child values are unset or empty.
+Other configured/inherited temp values are preserved; `--no-sandbox` adds no temporary-environment assignments.
 Worker startup files and cells can change their own environment afterward, but not the separate resolver's captured configuration.
 A new server connection reloads launch settings; worker restart does not.
 It does rerun R's native startup files.

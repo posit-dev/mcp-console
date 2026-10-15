@@ -150,12 +150,12 @@ Physical cleanup, protocol settlement, and output delivery are separate results.
 Available output is drained within bounds even when cleanup fails.
 The local launch adapter retains raw exit status and requested termination independently of diagnostic suppression.
 The runner owns managed temporary storage; direct workers have no general-purpose Console-owned temp root.
-Native Python SQL scratch has a separate launch-owned directory when general-purpose storage is unmanaged; the launcher retains it through reaping without adding filesystem grants.
+Outside managed sandbox storage, native Python SQL uses DuckDB's own storage defaults and lifetime.
 Graceful worker shutdown uses R's normal embedded shutdown sequence, including finalizers, device closure, and best-effort session-tempdir cleanup.
 Only an active sandbox with managed storage adds a temporary-storage cleanup guarantee; the runner owns that retirement, including any files R leaves behind.
 Readiness and the origin of an operation failure affect error reporting, not those observations.
 
-The existing failure-recovery barrier requires direct-launcher reaping, retirement of launch-owned SQL storage, and settled I/O.
+The existing failure-recovery barrier requires direct-launcher reaping and settled I/O.
 Recovery after runner loss can still permit replacement without confirming native descendant or runner-owned storage cleanup.
 A forced launcher kill, pipe EOF, or suppressed status diagnostic cannot prove that cleanup.
 The pinned runner has no separate Unix cleanup receipt; a nonzero status can represent workload failure or a cleanup error.
@@ -260,7 +260,7 @@ Observable text and encoding behavior belongs in [Runtime reference](RUNTIME_REF
 Internal transport/activation names are not supported configuration.
 In particular, do not use the following to choose permissions or runtimes:
 
-`MCP_CONSOLE_LANGUAGES`, `MCP_CONSOLE_SANDBOX`, `MCP_CONSOLE_SANDBOX_SETTINGS`, `MCP_CONSOLE_SANDBOX_CONFIG`, `MCP_CONSOLE_STARTUP_FILE`, `MCP_CONSOLE_LOCAL_RUNTIME`, `MCP_CONSOLE_MANAGED_PYTHON`, `MCP_CONSOLE_R_LIBRARY`, `MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION`, `MCP_CONSOLE_MATPLOTLIB_CACHE`, `MCP_CONSOLE_MANAGED_TEMPDIR`, or `MCP_CONSOLE_SQL_STORAGE_DIRECTORY`.
+`MCP_CONSOLE_LANGUAGES`, `MCP_CONSOLE_SANDBOX`, `MCP_CONSOLE_SANDBOX_SETTINGS`, `MCP_CONSOLE_SANDBOX_CONFIG`, `MCP_CONSOLE_STARTUP_FILE`, `MCP_CONSOLE_LOCAL_RUNTIME`, `MCP_CONSOLE_MANAGED_PYTHON`, `MCP_CONSOLE_R_LIBRARY`, `MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION`, `MCP_CONSOLE_MATPLOTLIB_CACHE`, or `MCP_CONSOLE_MANAGED_TEMPDIR`.
 
 The `MCP_CONSOLE_SIDEBAND_*`, `MCP_CONSOLE_INTERRUPT_HANDLE`, and `MCP_CONSOLE_INPUT_READY_HANDLE` families belong to the [worker protocol](WORKER_PROTOCOL.md).
 A marker does not create a sandbox.

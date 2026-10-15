@@ -201,6 +201,9 @@ Console-owned runtime, cache, storage, proxy, and transport assignments take pre
 False removes inherited workload values but preserves explicit mappings.
 It does not clear the supervisor's environment.
 Values must be strings; empty strings are values, not unsetting instructions.
+On Windows, each effective environment must have unique names under the process environment's case-insensitive comparison, including after file/CLI layering and shared/resolver merging.
+Use the same spelling when overriding a variable; `TEMP` and `temp` cannot both be configured.
+Names remain case-sensitive on Unix.
 
 Shared credentials also reach preparation.
 Environment changes inside cells do not reconfigure the resolver.

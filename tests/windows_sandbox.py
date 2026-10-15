@@ -316,11 +316,34 @@ class WindowsSandbox(unittest.TestCase):
             session = Session(
                 environment,
                 sandbox=True,
-                overrides=['sandbox.network="enabled"'],
+                overrides=[
+                    'sandbox.network="enabled"',
+                    'environment={mcp_console_managed_tempdir: "0", mcp_console_matplotlib_cache: "project"}',
+                ],
             )
             try:
                 session.initialize()
                 session.request("tools/list", {})
+                session.expect(
+                    "managed SQL storage retained",
+                    # fmt: python
+                    python=code("""
+                        import os
+                        from pathlib import Path
+
+                        assert os.environ["MCP_CONSOLE_MANAGED_TEMPDIR"] == "1"
+                        assert "MCP_CONSOLE_MATPLOTLIB_CACHE" not in os.environ
+                        connection = _console.sql_connection()
+                        storage = Path(os.environ["TMPDIR"]) / "mcp-console-duckdb"
+                        for setting, child in (
+                            ("temp_directory", "spill"),
+                            ("secret_directory", "stored-secrets"),
+                        ):
+                            selected = connection.execute(f"SELECT current_setting('{setting}')").fetchone()[0]
+                            assert Path(selected) == storage / child, selected
+                        print("managed SQL storage retained")
+                        """),
+                )
                 session.expect("1234567", sql="SELECT 1234567 AS answer")
                 session.expect(
                     "Count", sql="CREATE TABLE retained AS SELECT 1234567 AS answer"
@@ -742,6 +765,175 @@ class WindowsSandbox(unittest.TestCase):
                 self.assertTrue(temporary.is_dir())
                 if mode == "managed":
                     self.assertFalse(selected.exists())
+
+    @requires_mxc(BINARY)
+    def test_read_write_supplies_tempdir_when_child_has_no_selection(self):
+        from windows import Session
+
+        for inherit in (False, True):
+            with self.subTest(inherit=inherit), workspace() as root:
+                temporary = root / "supervisor-temp"
+                temporary.mkdir()
+                (temporary / "keep").write_text("caller-owned")
+                environment = os.environ | {
+                    "PATH": str(Path(os.environ["SystemRoot"]) / "System32"),
+                    **{name: str(temporary) for name in ("TMPDIR", "TEMP", "TMP")},
+                    "MCP_CONSOLE_HOME": str(root / "home"),
+                }
+                environment.pop("R_HOME", None)
+                settings = {
+                    "sandbox": {"tempdir": "read_write"},
+                    "inherit_environment": inherit,
+                    "resolver": {"inherit_environment": True},
+                    "environment": {
+                        "SystemRoot": os.environ["SystemRoot"],
+                        **({"tmpdir": "", "Temp": "", "tMp": ""} if inherit else {}),
+                    },
+                    "python": sys.executable,
+                    "languages": ["python"],
+                }
+                # fmt: python
+                program = code("""
+                    import os
+                    import tempfile
+                    from pathlib import Path
+
+                    selected = Path(os.environ["TMPDIR"])
+                    assert selected.is_absolute()
+                    for name in ("TEMP", "TMP"):
+                        assert Path(os.environ[name]).samefile(selected), (name, os.environ.get(name))
+                    with tempfile.NamedTemporaryFile() as stream:
+                        assert Path(stream.name).parent.samefile(selected)
+                        _ = stream.write(b"temporary write")
+                        stream.flush()
+                    print("Windows temp fallback is writable")
+                    """)
+                config = root / "config.json"
+                config.write_text(json.dumps(settings))
+                result = subprocess.run(
+                    [
+                        str(BINARY),
+                        "sandbox",
+                        "--config-file",
+                        str(config),
+                        "--",
+                        sys.executable,
+                        "-c",
+                        program,
+                    ],
+                    cwd=root,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    result.stdout.strip(), "Windows temp fallback is writable"
+                )
+                session = Session(
+                    environment,
+                    sandbox=True,
+                    temporary_root=root,
+                    overrides=tuple(
+                        f"{key}={json.dumps(value)}" for key, value in settings.items()
+                    ),
+                )
+                try:
+                    session.initialize()
+                    session.expect("Windows temp fallback is writable", python=program)
+                finally:
+                    session.close()
+                self.assertEqual((temporary / "keep").read_text(), "caller-owned")
+
+    def test_rejects_case_colliding_environment_keys(self):
+        cases = (
+            ({"environment": {"TEMP": "first-value", "temp": "last-value"}}, ()),
+            (
+                {"environment": {"TEMP": "first-value"}},
+                ("environment.temp=last-value",),
+            ),
+            (
+                {
+                    "resolver": {
+                        "environment": {"TEMP": "first-value", "temp": "last-value"}
+                    }
+                },
+                (),
+            ),
+            (
+                {
+                    "environment": {"TEMP": "first-value"},
+                    "resolver": {"environment": {"temp": "last-value"}},
+                },
+                (),
+            ),
+            ({"environment": {"TÉMP": "first-value", "témp": "last-value"}}, ()),
+        )
+        with workspace() as root:
+            config = root / "config.json"
+            for settings, overrides in cases:
+                with self.subTest(settings=settings, overrides=overrides):
+                    config.write_text(json.dumps(settings))
+                    command = [
+                        str(BINARY),
+                        "config",
+                        "resolve",
+                        "--config-file",
+                        str(config),
+                        "--full",
+                        "--format",
+                        "json",
+                    ]
+                    for override in overrides:
+                        command.extend(["-c", override])
+                    result = subprocess.run(
+                        command,
+                        cwd=root,
+                        env=os.environ | {"MCP_CONSOLE_HOME": str(root / "home")},
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn("case-insensitive", result.stderr)
+                    self.assertIn("environment", result.stderr)
+                    self.assertNotIn("first-value", result.stderr)
+                    self.assertNotIn("last-value", result.stderr)
+            config.write_text(
+                json.dumps(
+                    {
+                        "environment": {"TEMP": "first-value"},
+                        "resolver": {"environment": {"TEMP": "resolver-value"}},
+                    }
+                )
+            )
+            result = subprocess.run(
+                [
+                    str(BINARY),
+                    "config",
+                    "resolve",
+                    "--config-file",
+                    str(config),
+                    "--full",
+                    "--format",
+                    "json",
+                    "-c",
+                    "environment.TEMP=last-value",
+                ],
+                cwd=root,
+                env=os.environ | {"MCP_CONSOLE_HOME": str(root / "home")},
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            settings = json.loads(result.stdout)
+            self.assertEqual(settings["environment"], {"TEMP": "last-value"})
+            self.assertEqual(
+                settings["resolver"]["environment"], {"TEMP": "resolver-value"}
+            )
 
     def test_mxc_proxy_configuration_round_trips(self):
         with workspace() as root:

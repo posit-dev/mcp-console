@@ -94,7 +94,12 @@ The native profile's temporary-directory options are internal: `tempdir` is the 
 All three values are strings.
 `read_write` also grants temporary writes under the base read-only policy.
 On Unix its platform default grant is `/tmp`; configured/inherited `TMPDIR`, `TEMP`, and `TMP` add their named locations.
+On Windows, if all three child variables are unset or empty, Console exports the granted host default as `TMPDIR`, `TEMP`, and `TMP` so runtimes can find it.
+This does not create managed storage or add cleanup guarantees.
 The directories must already exist; Console does not provision caller-owned storage.
+Relative temp paths receive write grants relative to the launch working directory; their environment values remain relative.
+Changing directory, including in a subprocess, can make those values refer to an ungranted location.
+Use absolute temp paths when working directories can change.
 `read_only` omits automatic grants rather than imposing an overriding denial: explicit filesystem permissions, including a workspace root containing a temp path, still apply.
 R needs a writable temporary directory and can fail to initialize in that mode.
 
@@ -104,6 +109,8 @@ Console guarantees temporary-storage cleanup only with an active sandbox and `te
 In other modes, Console adds no temporary-directory cleanup guarantees.
 R runs its normal best-effort shutdown, including its session `Rtmp` cleanup.
 On Unix that cleanup uses `rm` from the workload's `PATH` and can leave files when that command is unavailable or a subtree is not writable.
+Native Python DuckDB retains its own `temp_directory` and `secret_directory` defaults outside managed mode, including the normal persistence of stored secrets.
+Set those connection settings explicitly when their default locations need different filesystem permissions.
 Caller-owned parent directories and unrelated files remain the caller's responsibility.
 
 ## Filesystem

@@ -36,7 +36,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 390, in initialize_connection
+          File "<string>", line 391, in initialize_connection
           File "<console startup>", line 15, in <module>
         RuntimeError: startup failed after plotting
         Error: configured startup did not complete; SQL withheld; explicit restart required
