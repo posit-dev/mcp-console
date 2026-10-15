@@ -357,13 +357,15 @@ pub(crate) fn read(
         .map_err(|error| format!("{name}: {error}"))?;
     let mut resolver_environment = project.environment.clone();
     resolver_environment.extend(project.resolver.environment);
-    for (settings, inherit, environment) in [
+    for (scope, settings, inherit, environment) in [
         (
+            "environment",
             &mut policy,
             project.inherit_environment,
             project.environment,
         ),
         (
+            "resolver.environment",
             &mut resolver,
             project
                 .resolver
@@ -372,6 +374,19 @@ pub(crate) fn read(
             resolver_environment,
         ),
     ] {
+        if cfg!(windows) {
+            // Use Command's native key comparison, including Unicode, so
+            // validation and the eventual child environment agree.
+            let mut names = std::process::Command::new("");
+            for (index, key) in environment.keys().enumerate() {
+                names.env(key, "");
+                if names.get_envs().count() != index + 1 {
+                    return Err(format!(
+                        "{name}: {scope}: case-insensitive environment names must be unique on Windows; duplicate {key:?}"
+                    ));
+                }
+            }
+        }
         if !inherit {
             settings.insert("inherit_environment".into(), false.into());
         }

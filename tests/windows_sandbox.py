@@ -743,6 +743,95 @@ class WindowsSandbox(unittest.TestCase):
                 if mode == "managed":
                     self.assertFalse(selected.exists())
 
+    def test_rejects_case_colliding_environment_keys(self):
+        cases = (
+            ({"environment": {"TEMP": "first-value", "temp": "last-value"}}, ()),
+            (
+                {"environment": {"TEMP": "first-value"}},
+                ("environment.temp=last-value",),
+            ),
+            (
+                {
+                    "resolver": {
+                        "environment": {"TEMP": "first-value", "temp": "last-value"}
+                    }
+                },
+                (),
+            ),
+            (
+                {
+                    "environment": {"TEMP": "first-value"},
+                    "resolver": {"environment": {"temp": "last-value"}},
+                },
+                (),
+            ),
+            ({"environment": {"TÉMP": "first-value", "témp": "last-value"}}, ()),
+        )
+        with workspace() as root:
+            config = root / "config.json"
+            for settings, overrides in cases:
+                with self.subTest(settings=settings, overrides=overrides):
+                    config.write_text(json.dumps(settings))
+                    command = [
+                        str(BINARY),
+                        "config",
+                        "resolve",
+                        "--config-file",
+                        str(config),
+                        "--full",
+                        "--format",
+                        "json",
+                    ]
+                    for override in overrides:
+                        command.extend(["-c", override])
+                    result = subprocess.run(
+                        command,
+                        cwd=root,
+                        env=os.environ | {"MCP_CONSOLE_HOME": str(root / "home")},
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertIn("case-insensitive", result.stderr)
+                    self.assertIn("environment", result.stderr)
+                    self.assertNotIn("first-value", result.stderr)
+                    self.assertNotIn("last-value", result.stderr)
+            config.write_text(
+                json.dumps(
+                    {
+                        "environment": {"TEMP": "first-value"},
+                        "resolver": {"environment": {"TEMP": "resolver-value"}},
+                    }
+                )
+            )
+            result = subprocess.run(
+                [
+                    str(BINARY),
+                    "config",
+                    "resolve",
+                    "--config-file",
+                    str(config),
+                    "--full",
+                    "--format",
+                    "json",
+                    "-c",
+                    "environment.TEMP=last-value",
+                ],
+                cwd=root,
+                env=os.environ | {"MCP_CONSOLE_HOME": str(root / "home")},
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            settings = json.loads(result.stdout)
+            self.assertEqual(settings["environment"], {"TEMP": "last-value"})
+            self.assertEqual(
+                settings["resolver"]["environment"], {"TEMP": "resolver-value"}
+            )
+
     def test_mxc_proxy_configuration_round_trips(self):
         with workspace() as root:
             for proxy in ({}, {"socks5": "disabled"}, {"mode": "limited"}):

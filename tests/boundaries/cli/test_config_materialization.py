@@ -495,7 +495,12 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
         selected = root / "selected.json"
         for source in ({}, *CONFIGURATION_EXAMPLES.values()):
             source = source | {
-                "environment": {"UNCHANGED": "", "LAYER": "worker"},
+                "environment": {
+                    "UNCHANGED": "",
+                    "LAYER": "worker",
+                    "case_sensitive": "lower",
+                    "CASE_SENSITIVE": "upper",
+                },
                 "resolver": {"environment": {"LAYER": "resolver"}},
             }
             selected.write_text(json.dumps(source), encoding="utf-8")
@@ -514,6 +519,8 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
             assert settings["resolver"]["environment"] == {
                 "UNCHANGED": "",
                 "LAYER": "resolver",
+                "case_sensitive": "lower",
+                "CASE_SENSITIVE": "upper",
             }
             if "filesystem" in source.get("sandbox", {}):
                 assert (
