@@ -72,8 +72,8 @@ Unconfirmed retirement retains private storage and blocks replacement rather tha
 Closing pipes or reaping the direct worker does not prove native descendant cleanup.
 
 `--no-sandbox` removes native enforcement and native descendant cleanup.
-It also omits Console-owned temporary storage and temporary-environment redirection.
-R retains its session-tempdir cleanup on graceful shutdown.
+It also omits general-purpose managed storage and temporary-environment redirection.
+R retains its session-tempdir cleanup on graceful shutdown; native Python SQL scratch is removed after worker retirement.
 Normal relay shutdown still reaps its direct worker.
 Complete native unrestricted/external modes have different guarantees; see [enforcement modes](SANDBOX_CONFIGURATION.md#filesystem-and-enforcement-modes).
 

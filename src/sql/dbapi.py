@@ -291,8 +291,6 @@ def take_managed_restore_request():
 # their connection setup below the R-present adapter so its traceback lines
 # remain stable in public transcripts.
 import os as _os
-import tempfile as _tempfile
-import uuid as _uuid
 from pathlib import Path as _Path
 
 _native_enabled = False
@@ -307,13 +305,15 @@ def enable_native() -> None:
     _native_enabled = True
     if _os.environ.get("MCP_CONSOLE_MANAGED_TEMPDIR") == "1":
         _native_storage = _Path(_os.environ["TMPDIR"]) / "mcp-console-duckdb"
+    else:
+        _native_storage = _Path(_os.environ["MCP_CONSOLE_SQL_STORAGE_DIRECTORY"])
     _native_extension_directory = _os.environ.get(
         "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY", ""
     )
 
 
 def _ensure_managed_connection():
-    global _managed_connection, _native_storage
+    global _managed_connection
 
     if _managed_connection is None:
         try:
@@ -325,13 +325,6 @@ def _ensure_managed_connection():
                 "or select a DB-API connection with _console.sql_connection(connection)"
             )
             raise RuntimeError(message) from error
-        if _native_storage is None:
-            # Without sandbox-owned storage, use normal runtime temp selection.
-            # DuckDB creates and retires its own spill directory.
-            _native_storage = (
-                _Path(_tempfile.gettempdir())
-                / f"mcp-console-duckdb-{_uuid.uuid4().hex}"
-            )
         config = {
             "extension_directory": _native_extension_directory,
             "python_enable_replacements": "false",

@@ -286,6 +286,14 @@ base::local(
       result <- DBI::dbSendQuery(selected_connection, source)
       tryCatch(
         {
+          # DuckDB exposes a Count column even for non-query statements.
+          # Fetching those results warns instead of returning a query preview.
+          if (
+            inherits(result, "duckdb_result") &&
+              result@stmt_lst$return_type != "QUERY_RESULT"
+          ) {
+            return(NULL)
+          }
           if (nrow(DBI::dbColumnInfo(result)) == 0L) {
             return(NULL)
           }

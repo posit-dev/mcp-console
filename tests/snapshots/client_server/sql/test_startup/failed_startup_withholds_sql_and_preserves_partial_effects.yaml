@@ -15,7 +15,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 397, in initialize_connection
+          File "<string>", line 390, in initialize_connection
           File "<console startup>", line 2, in <module>
         RuntimeError: startup failure
         Error: configured startup did not complete; SQL withheld; explicit restart required
@@ -44,7 +44,7 @@ language: python
 failure: startup failure
 first_sql: |
   Traceback (most recent call last):
-    File "<string>", line 397, in initialize_connection
+    File "<string>", line 390, in initialize_connection
     File "<console startup>", line 2, in <module>
   RuntimeError: startup failure
   Error: configured startup did not complete; SQL withheld; explicit restart required

@@ -71,6 +71,7 @@ struct RelayConnection {
 }
 
 struct RelayProcess {
+    sql_storage: Option<tempfile::TempDir>,
     child: Child,
     retirement_grace: Duration,
     no_sandbox: bool,
@@ -92,6 +93,7 @@ struct LauncherExit {
     status: ExitStatus,
     no_sandbox: bool,
     retirement_requested: bool,
+    sql_retirement: Result<(), String>,
 }
 
 impl LauncherExit {
@@ -273,17 +275,52 @@ impl WorkerRuntime {
             command.arg("--").args(relay_target);
             command
         };
+        let managed_tempdir = !no_sandbox
+            && crate::settings::Tempdir::from_settings(sandbox_settings)
+                == crate::settings::Tempdir::Managed;
         command.env(
             crate::settings::MANAGED_TEMPDIR_ENVIRONMENT,
-            if !no_sandbox
-                && crate::settings::Tempdir::from_settings(sandbox_settings)
-                    == crate::settings::Tempdir::Managed
-            {
-                "1"
-            } else {
-                "0"
-            },
+            if managed_tempdir { "1" } else { "0" },
         );
+        command.env_remove(crate::local_runtime::SQL_STORAGE_DIRECTORY);
+        // Native Python SQL has no R session directory to own spill files and
+        // persistent secrets. Retain only its scratch root through launcher
+        // retirement, without redirecting TMPDIR or adding sandbox grants.
+        let mut sql_storage = if builtin
+            && !managed_tempdir
+            && local_runtime.is_some_and(|runtime| runtime.r_home.is_none())
+        {
+            let parent = ["TMPDIR", "TEMP", "TMP"]
+                .into_iter()
+                .find_map(|name| crate::settings::environment_path(sandbox_settings, name))
+                // Match the automatic grant when the workload inherits no temp
+                // variables; the supervisor's temp environment is independent.
+                .unwrap_or_else(|| {
+                    if cfg!(unix) {
+                        "/tmp".into()
+                    } else {
+                        std::env::temp_dir()
+                    }
+                });
+            let mut builder = tempfile::Builder::new();
+            builder.prefix("mcp-console-duckdb-");
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                builder.permissions(std::fs::Permissions::from_mode(0o700));
+            }
+            let directory = builder
+                .tempdir_in(parent)
+                .map_err(|error| format!("cannot create SQL temporary storage: {error}"))?;
+            command.env(
+                crate::local_runtime::SQL_STORAGE_DIRECTORY,
+                std::path::absolute(directory.path())
+                    .map_err(|error| format!("cannot resolve SQL temporary storage: {error}"))?,
+            );
+            Some(directory)
+        } else {
+            None
+        };
         command.env_remove(crate::settings::startup::ENVIRONMENT);
         // Retain the private file through worker readiness; failures also drop
         // its owner. The worker consumes it before any interpreter can run.
@@ -356,7 +393,14 @@ impl WorkerRuntime {
             LAUNCHER_RETIREMENT_GRACE,
             output_stop.clone(),
         )
-        .map_err(|error| format!("failed to monitor worker relay: {error}"))?;
+        .map_err(|error| {
+            // A failed exit observer cannot confirm that the worker retired.
+            if let Some(directory) = sql_storage.take() {
+                let _ = directory.keep();
+            }
+            format!("failed to monitor worker relay: {error}")
+        })?;
+        child.sql_storage = sql_storage;
         let events = worker_events.clone();
         let transport =
             transport.connect(&mut child.child, output.diagnostics(), move |error| {
@@ -480,6 +524,7 @@ impl RelayProcess {
             }
         };
         Ok(Self {
+            sql_storage: None,
             child,
             retirement_grace,
             no_sandbox,
@@ -614,7 +659,9 @@ impl RelayProcess {
             }
         };
         if let Some(status) = recovered_status {
-            self.finish_reaped_status(status);
+            if let Err(error) = self.finish_reaped_status(status) {
+                errors.push(error);
+            }
         } else if exited {
             if let Err(error) = self.reap() {
                 errors.push(error);
@@ -625,7 +672,11 @@ impl RelayProcess {
                 LAUNCHER_KILL_GRACE.as_millis(),
             ));
             match self.child.try_wait() {
-                Ok(Some(status)) => self.finish_reaped_status(status),
+                Ok(Some(status)) => {
+                    if let Err(error) = self.finish_reaped_status(status) {
+                        errors.push(error);
+                    }
+                }
                 Ok(None) => {}
                 Err(error) => errors.push(format!(
                     "failed to inspect the worker launcher after forced termination: {error}"
@@ -648,17 +699,23 @@ impl RelayProcess {
             .child
             .wait()
             .map_err(|error| format!("failed to reap the worker launcher: {error}"))?;
-        self.finish_reaped_status(status);
-        Ok(())
+        self.finish_reaped_status(status)
     }
 
-    fn finish_reaped_status(&mut self, status: ExitStatus) {
+    fn finish_reaped_status(&mut self, status: ExitStatus) -> Result<(), String> {
         self.exited = true;
+        let sql_retirement = self.sql_storage.take().map_or(Ok(()), |directory| {
+            directory
+                .close()
+                .map_err(|error| format!("cannot remove SQL temporary storage: {error}"))
+        });
         self.launcher_exit = Some(LauncherExit {
             status,
             no_sandbox: self.no_sandbox,
             retirement_requested: self.retirement_requested,
+            sql_retirement: sql_retirement.clone(),
         });
+        sql_retirement
     }
 
     fn has_exited(&mut self) -> Result<bool, String> {
@@ -680,6 +737,11 @@ impl Drop for RelayProcess {
             return;
         }
         let _ = self.retire_launcher(|| Ok(()));
+        if !self.is_reaped()
+            && let Some(directory) = self.sql_storage.take()
+        {
+            let _ = directory.keep();
+        }
     }
 }
 
@@ -891,10 +953,14 @@ impl Worker {
         let shutdown = self.shutdown_handle();
         shutdown.request_shutdown(deadline, retirement_deadline);
         let retirement = shutdown.retire();
-        // Preserve the local replacement barrier: launcher reaping and I/O
-        // settlement. Runner loss still lacks
+        // Preserve the local replacement barrier: launcher reaping, owned SQL
+        // storage retirement, and I/O settlement. Runner loss still lacks
         // a native descendant/storage cleanup guarantee.
-        let can_replace = retirement.io.is_ok() && retirement.launcher_exit.is_some();
+        let can_replace = retirement.io.is_ok()
+            && retirement
+                .launcher_exit
+                .as_ref()
+                .is_some_and(|exit| exit.sql_retirement.is_ok());
         let result = match (retirement.process_result(), retirement.io) {
             (Ok(()), Ok(outcome)) => Ok(outcome),
             (Err(error), Ok(outcome)) => Err(super::WorkerRetirementFailure::new(error, outcome)),
@@ -1485,6 +1551,7 @@ impl WorkerShutdownHandle {
         // the pinned runner contract; retaining the existing suppression when
         // relay exit caused the failure does not confirm native cleanup.
         if let Some(exit) = &child.launcher_exit
+            && exit.sql_retirement.is_ok()
             && child.ready_committed
             && !(relay_exit_caused_failure
                 && (exit.no_sandbox || exit.status.code() == Some(128 + 9)))

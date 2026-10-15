@@ -25,7 +25,6 @@ config:
 overrides:
   - startup.language=python
   - inherit_environment=false
-  - environment.PATH=<host PATH>
   - resolver.inherit_environment=true
 ---
 !same-as MCP initialization for this execution mode

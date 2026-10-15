@@ -227,6 +227,10 @@ send:
     stopifnot(identical(dirname(tempdir()), parent))
     writeLines(tempdir(), file.path(parent, "r-session.txt"))
     writeLines("R-owned", file.path(tempdir(), "probe"))
+    stopifnot(file.symlink(
+      file.path(parent, "keep"),
+      file.path(tempdir(), "external")
+    ))
     cat("R session tempdir created beneath host TMPDIR\n")
 result:
   content:
@@ -250,4 +254,48 @@ result:
     - type: text
       text: |
         host temporary environment and caches retained
+  isError: false
+---
+send:
+  r: |
+    cleanup_probe <- new.env()
+    cleanup_finalizer <- function(x) {
+      writeLines("R finalizer ran", file.path(parent, "r-finalizer.txt"))
+      warning("R finalizer warning")
+    }
+    invisible(reg.finalizer(
+      cleanup_probe,
+      function(x) cleanup_finalizer(x),
+      onexit = TRUE
+    ))
+    Sys.setenv(PATH = "")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        In addition: Warning message:
+        In cleanup_finalizer(x) : R finalizer warning
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    writeLines(tempdir(), file.path(Sys.getenv("TMPDIR"), "r-session.txt"))
+    Sys.setenv(PATH = "")
+    cat("R shutdown tempdir recorded\n")
+result:
+  content:
+    - type: text
+      text: |
+        R shutdown tempdir recorded
   isError: false

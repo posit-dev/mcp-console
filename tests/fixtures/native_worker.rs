@@ -160,7 +160,9 @@ fn spawn_probe_with_configuration(
         command.env("MCP_CONSOLE_NATIVE_PYTHON_CONFIG", configuration);
     }
     if let Some(storage) = storage {
-        command.env("TMPDIR", storage);
+        command
+            .env("TMPDIR", storage)
+            .env(crate::settings::MANAGED_TEMPDIR_ENVIRONMENT, "1");
     }
     if let Some(manifest) = manifest {
         command.env(

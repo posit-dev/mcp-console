@@ -50,8 +50,9 @@ The directories must already exist; Console does not provision caller-owned stor
 R needs a writable temporary directory and can fail to initialize in that mode.
 
 `serve` and ordinary `sandbox` use the same policy and defaults.
-`--no-sandbox` uses normal runtime temporary-directory selection without Console-owned storage or temporary-environment redirection.
-In unmanaged modes, runtimes retain their own cleanup behavior: graceful R shutdown removes its session `Rtmp` directory without deleting the caller-owned parent or unrelated files.
+`--no-sandbox` uses normal runtime temporary-directory selection without general-purpose managed storage or temporary-environment redirection.
+Runtime-specific scratch still has an owner: graceful R shutdown removes its session `Rtmp` directory, and native Python SQL scratch (including persistent secrets) is removed after its worker retires.
+Neither deletes the caller-owned parent or unrelated files.
 
 ## Filesystem
 

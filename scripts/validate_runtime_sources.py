@@ -36,6 +36,7 @@ EXPECTED_SOURCES = {
     "src/sql/dbapi.py",
     "src/worker/embedded_r/documentation.R",
     "src/worker/embedded_r/parse.R",
+    "src/worker/embedded_r/shutdown.R",
 }
 INCLUDE_PATTERN = re.compile(
     r'include_str!\(\s*"([^"\n]+\.(?:R|py))"\s*\)', re.MULTILINE
