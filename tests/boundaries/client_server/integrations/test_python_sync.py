@@ -418,6 +418,87 @@ def test_host_interrupt_while_sdk_loop_is_busy(binary: Path) -> Transcript:
 
 
 @requires(POSIX)
+def test_busy_loop_cancellation_retires_shielded_cleanup(binary: Path) -> Transcript:
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            release_validation = threading.Event()
+            caller_returned = threading.Event()
+            cleanup_finished = threading.Event()
+            cleanup_released = threading.Event()
+            cleanup_gate = asyncio.Event()
+            loop: asyncio.AbstractEventLoop | None = None
+            call_tool = Client.call_tool
+
+            async def busy_validation_and_cleanup(
+                self: Client, name: str, arguments: dict[str, object]
+            ) -> CallToolResult:
+                nonlocal loop
+                result = await call_tool(self, name, arguments)
+                if arguments.get("python") != "busy cleanup":
+                    return result
+                loop = asyncio.get_running_loop()
+                try:
+                    os.kill(os.getpid(), signal.SIGINT)
+                    release_validation.wait()
+                    await asyncio.Event().wait()
+                except get_cancelled_exc_class():
+                    try:
+                        with CancelScope(shield=True):
+                            await cleanup_gate.wait()
+                    finally:
+                        cleanup_finished.set()
+                    raise
+
+            def release_busy_loop() -> None:
+                try:
+                    assert caller_returned.wait(timeout=10)
+                finally:
+                    release_validation.set()
+
+            with (
+                patch.object(Client, "call_tool", busy_validation_and_cleanup),
+                ThreadPoolExecutor(max_workers=1) as pool,
+            ):
+                console = client(root).connect()
+                guard = pool.submit(release_busy_loop)
+                closed = False
+                try:
+                    try:
+                        console.send(python="busy cleanup")
+                    except KeyboardInterrupt:
+                        caller_returned.set()
+                    else:
+                        raise AssertionError("host interrupt missing")
+                    console.close()
+                    closed = True
+                finally:
+                    caller_returned.set()
+                    release_validation.set()
+                    if not closed:
+                        # Clean up a failing baseline without allowing that
+                        # release to serve as successful retirement evidence.
+                        cleanup_released.set()
+                        assert loop is not None
+                        loop.call_soon_threadsafe(cleanup_gate.set)
+                        console.close()
+                guard.result(timeout=5)
+                assert cleanup_finished.is_set()
+                assert not cleanup_released.is_set()
+                assert (root / "closed").exists()
+                (root / "closed").unlink()
+                with console:
+                    assert console.send(python="reconnected") == "reconnected"
+                assert (root / "closed").exists()
+    finally:
+        signal.signal(signal.SIGINT, previous)
+    return [
+        {"loop_busy": True, "cleanup_finished": True, "closed": True, "reconnect": True}
+    ]
+
+
+@requires(POSIX)
 def test_host_interrupt_before_request_starts(binary: Path) -> Transcript:
     previous = signal.signal(signal.SIGINT, signal.default_int_handler)
     try:

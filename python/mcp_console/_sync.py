@@ -92,8 +92,10 @@ class _Request:
             self._task.cancel()
 
     def abort(self) -> None:
-        # A second native cancellation escapes shielded SDK courtesy writes.
-        self._loop.call_soon_threadsafe(self._cancel)
+        # Queue the abort behind the task step awakened by the first cancel,
+        # even when both host callbacks waited for a busy loop. Cancelling
+        # twice before that step coalesces instead of escaping SDK shielding.
+        self._loop.call_soon_threadsafe(self._loop.call_soon, self._cancel)
 
 
 class MCPConsole:
