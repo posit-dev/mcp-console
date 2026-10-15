@@ -16,14 +16,24 @@ Your MCP client normally launches this command.
 It communicates over standard input and output and waits for the client; it is not an interactive terminal.
 See [Connect your client](getting-started.qmd#connect-your-client).
 
-To allow writes in the launch directory for this session:
+For ordinary project writes, create `.agents/console/config.yaml` in the launch directory:
+
+```yaml
+sandbox:
+  profile: workspace
+```
+
+The [workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile) allows project writes while keeping workspace metadata read-only.
+It retains the default private temporary storage and restricted networking.
+
+To add a writable path through the client command instead:
 
 ```sh
 mcp-console serve --writable-root .
 ```
 
 `--writable-root PATH` may be repeated.
-It does not create missing directories, and more specific permission rules still apply.
+It adds filesystem grants without selecting the workspace profile, does not create missing directories, and remains subject to more specific permission rules.
 [Sandbox configuration](SANDBOX_CONFIGURATION.md) documents path rules and protected metadata.
 
 ## Standalone sandbox

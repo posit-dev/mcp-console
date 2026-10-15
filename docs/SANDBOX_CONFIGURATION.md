@@ -32,15 +32,57 @@ Child nodes such as `filesystem` and `network.proxy` still require their documen
 
 ## Profiles and temporary storage
 
+### Workspace profile
+
+The `workspace` profile permits ordinary project writes while keeping workspace metadata read-only:
+
+```yaml
+sandbox:
+  profile: workspace
+```
+
+The workspace is Console's launch directory, captured before evaluated code runs.
+Changing the working directory from R or Python does not move the permission boundary.
+
+| Access             | With `profile: workspace`                                                                                                                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host files         | Read files allowed by the host's own permissions, including readable secrets.                                                                                                                             |
+| Workspace files    | Create, edit, and delete ordinary files throughout the workspace. These files persist after the session ends.                                                                                             |
+| Workspace metadata | Read but do not write `.git`, `.agents`, `.codex`, or `.aws` at the workspace root. Missing metadata paths are protected from creation too. Referenced Git worktree/submodule metadata is also protected. |
+| Temporary storage  | Keep the default private writable storage with `tempdir: managed`; shared host temporary directories receive no automatic write grant.                                                                    |
+| Network            | Keep restricted direct networking unless configured separately.                                                                                                                                           |
+
+For example, an agent can read `data.csv`, update `analysis.py`, and save `plot.png` in the workspace.
+It cannot edit `.agents/console/config.yaml`, delete `.git`, or write ordinary files outside the workspace and private temporary storage without another grant.
+Package preparation retains its [independent policy](RESOLVER.md).
+
+To construct the same permissions without selecting a profile, use:
+
+```yaml
+sandbox:
+  filesystem:
+    read_write: [.]
+    read_only: [.git, .agents, .codex, .aws]
+```
+
+The worker's default host reads, managed temporary storage, and restricted networking supply the rest.
+The explicit read-only entries protect those fixed workspace paths, including absent paths and when a broader write root is added.
+Both forms retain native Git pointer protections for the writable root.
+The profile does not protect `.claude`; add it to `filesystem.read_only` if needed.
+
+Omitting both `profile` and explicit write grants retains the host-read baseline without workspace writes.
+Explicit filesystem entries compose with the profile: narrower rules override ancestors, and at the same path deny wins over write, then read.
+An explicit write at a protected metadata path or beneath it can therefore permit changes there; these defaults are not an unchangeable ceiling.
+Network and temporary-storage selections remain independent.
+
+### Temporary storage
+
 ```yaml
 sandbox:
   profile: workspace
   tempdir: managed
 ```
 
-`profile: workspace` selects the native `:workspace` profile for the captured launch directory.
-Omitting `profile` retains the host-read baseline without workspace writes.
-Explicit filesystem entries compose with the profile; network selection remains independent.
 The native profile's temporary-directory options are internal: `tempdir` is the only public selector for automatic temporary-storage grants.
 
 | `tempdir`           | Behavior                                                                                                                                                                               |

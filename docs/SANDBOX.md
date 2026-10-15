@@ -7,12 +7,11 @@ The sandbox limits that access; it does not make arbitrary projects, dependencie
 
 The worker can read host files, write private temporary storage, and run child processes.
 Workspace writes and direct networking are restricted.
-**Host-file reads include readable secrets.** Add permissions deliberately through [sandbox configuration](SANDBOX_CONFIGURATION.md).
+**Host-file reads include readable secrets.** For ordinary project writes, use the [workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile), which keeps workspace metadata read-only:
 
 ```yaml
 sandbox:
-  filesystem:
-    read_write: [.]
+  profile: workspace
 ```
 
 Writable workspace paths are persistent user data; Console does not delete them during cleanup.
