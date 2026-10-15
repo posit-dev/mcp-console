@@ -68,6 +68,7 @@ Use [Send operations](SEND_OPERATIONS.md) for input, control, and sequencing, an
 If `KeyboardInterrupt` interrupts a synchronous response wait, the client cancels that request and re-raises the exception.
 It waits for the SDK's request cleanup before re-raising so subsequent calls cannot overtake cancellation.
 Concurrent sends are rejected while cancellation cleanup is in progress; ordinary concurrent control calls remain available when a cell is running.
+The interrupted response wait retains admission while publishing cancellation, so a competing send cannot pass between those steps.
 Cleanup has a five-second limit; another `KeyboardInterrupt` also ends the wait.
 Cancellation submission does not wait for the SDK event loop, so this limit also applies while the SDK is busy validating a response.
 Interrupting before a request starts prevents it from being sent and leaves the connection usable.

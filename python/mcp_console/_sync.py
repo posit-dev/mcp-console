@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import Mapping, Sequence
 from concurrent.futures import Future
 from contextlib import ExitStack
-from threading import Event, Lock
+from threading import Condition, Event, Lock
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ._client import AsyncMCPConsole, Requirements
@@ -34,20 +34,22 @@ class _Request:
         loop: asyncio.AbstractEventLoop,
         console: AsyncMCPConsole,
         arguments: Mapping[str, Any],
+        *,
+        admission: Condition,
     ) -> None:
         self.future: Future["CallToolResult"] = Future()
         self.finished = Event()
         self._loop = loop
         self._console = console
         self._arguments = arguments
-        self._lock = Lock()
+        self._admission = admission
         self._task: asyncio.Task["CallToolResult"] | None = None
 
     def start(self) -> None:
         self._loop.call_soon_threadsafe(self._start)
 
     def _start(self) -> None:
-        with self._lock:
+        with self._admission:
             if self.future.cancelled():
                 self.finished.set()
                 return
@@ -60,7 +62,7 @@ class _Request:
         return await self._console._call_send(self._arguments)
 
     def _finish(self, task: asyncio.Task["CallToolResult"]) -> None:
-        with self._lock:
+        with self._admission:
             try:
                 result = task.result()
             except asyncio.CancelledError:
@@ -73,13 +75,14 @@ class _Request:
                     self.future.set_result(result)
             finally:
                 self.finished.set()
+                self._admission.notify_all()
 
     def cancel(self) -> None:
-        with self._lock:
+        with self._admission:
             self.future.cancel()
             if self._task is None:
                 # The queued start must check the same cancelled Future under
-                # this lock, so it cannot create a task after this receipt.
+                # admission, so it cannot create a task after this receipt.
                 self.finished.set()
                 return
         self._loop.call_soon_threadsafe(self._cancel)
@@ -146,7 +149,7 @@ class MCPConsole:
         self._stack: ExitStack | None = None
         self._portal: BlockingPortal | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._admission_lock = Lock()
+        self._admission = Condition(Lock())
         self._cancellation: _Request | None = None
         self._cancellation_failed = False
 
@@ -198,32 +201,39 @@ class MCPConsole:
     def _call_send(self, arguments: Mapping[str, Any]) -> "CallToolResult":
         request: _Request | None = None
         try:
-            # Only admission is serialized. Submission is nonblocking and is
-            # itself inside the interrupt boundary, before the SDK task starts.
-            with self._admission_lock:
-                if self._cancellation_failed:
-                    raise RuntimeError(_CANCELLATION_ERROR)
-                if self._cancellation is not None:
-                    raise RuntimeError(_CANCELLATION_PENDING)
-                if self._loop is None:
-                    raise RuntimeError(
-                        "MCPConsole is not connected; use `with MCPConsole() as console` "
-                        "or call `console.connect()` first"
+            with self._admission:
+                try:
+                    if self._cancellation_failed:
+                        raise RuntimeError(_CANCELLATION_ERROR)
+                    if self._cancellation is not None:
+                        raise RuntimeError(_CANCELLATION_PENDING)
+                    if self._loop is None:
+                        raise RuntimeError(
+                            "MCPConsole is not connected; use `with MCPConsole() as console` "
+                            "or call `console.connect()` first"
+                        )
+                    request = _Request(
+                        self._loop, self._async, arguments, admission=self._admission
                     )
-                request = _Request(self._loop, self._async, arguments)
-                request.start()
-            return request.future.result()
+                    request.start()
+                    # Waiting releases admission for ordinary concurrent calls.
+                    # On interruption it reacquires admission before propagating,
+                    # so cancellation is published before another send can pass.
+                    self._admission.wait_for(request.future.done)
+                    return request.future.result()
+                except KeyboardInterrupt:
+                    if request is not None:
+                        self._cancellation = request
+                    raise
         except KeyboardInterrupt:
             if request is None:
                 raise
-            with self._admission_lock:
-                self._cancellation = request
             completed = False
             try:
                 request.cancel()
                 completed = request.finished.wait(timeout=5)
             finally:
-                with self._admission_lock:
+                with self._admission:
                     if completed:
                         self._cancellation = None
                     else:

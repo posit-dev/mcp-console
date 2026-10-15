@@ -270,6 +270,99 @@ def test_concurrent_send_rejected_during_cancellation(binary: Path) -> Transcrip
 
 
 @requires(POSIX)
+def test_concurrent_send_cannot_overtake_host_interrupt(binary: Path) -> Transcript:
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interrupted = threading.Event()
+            admission_attempted = threading.Event()
+            release_cleanup = threading.Event()
+            sending_thread: int | None = None
+            wait = threading.Condition.wait
+            enter = threading.Condition.__enter__
+            call_tool = Client.call_tool
+
+            async def stalled_cleanup(
+                self: Client, name: str, arguments: dict[str, object]
+            ) -> CallToolResult:
+                result = await call_tool(self, name, arguments)
+                if arguments.get("python") != "interrupted request":
+                    return result
+                try:
+                    os.kill(os.getpid(), signal.SIGINT)
+                    await asyncio.Event().wait()
+                finally:
+                    with CancelScope(shield=True):
+                        await to_thread.run_sync(release_cleanup.wait)
+                raise AssertionError("request was not cancelled")
+
+            def pause_interrupted_wait(
+                self: threading.Condition, timeout: float | None = None
+            ) -> bool:
+                try:
+                    return wait(self, timeout)
+                except KeyboardInterrupt:
+                    # Condition.wait has reacquired its lock. Give a concurrent
+                    # caller admission before propagating the host interrupt.
+                    interrupted.set()
+                    assert admission_attempted.wait(timeout=10)
+                    raise
+
+            def observe_admission(self: threading.Condition) -> bool:
+                nonlocal sending_thread
+                if threading.get_ident() == sending_thread:
+                    sending_thread = None
+                    # With shared admission/response synchronization this is
+                    # before admission; separate locks reach the response wait
+                    # only after the overtaking request has already been queued.
+                    admission_attempted.set()
+                return enter(self)
+
+            with ThreadPoolExecutor(max_workers=1) as pool, client(root) as console:
+
+                def try_concurrent_send() -> str:
+                    nonlocal sending_thread
+                    assert interrupted.wait(timeout=10)
+                    sending_thread = threading.get_ident()
+                    try:
+                        try:
+                            console.send(python="overtaking host interrupt")
+                        except RuntimeError as error:
+                            return str(error)
+                        return "send overtook host interrupt"
+                    finally:
+                        release_cleanup.set()
+
+                with (
+                    patch.object(threading.Condition, "wait", pause_interrupted_wait),
+                    patch.object(threading.Condition, "__enter__", observe_admission),
+                    patch.object(Client, "call_tool", stalled_cleanup),
+                ):
+                    concurrent = pool.submit(try_concurrent_send)
+                    try:
+                        try:
+                            console.send(python="interrupted request")
+                        except KeyboardInterrupt:
+                            pass
+                        else:
+                            raise AssertionError("host interrupt missing")
+                        assert concurrent.result(timeout=5) == (
+                            "Request cancellation cleanup is in progress; "
+                            "wait before reusing this connection"
+                        )
+                    finally:
+                        release_cleanup.set()
+                assert console.send(python="recovered") == "recovered"
+            assert (root / "closed").exists()
+            requests = (root / "requests.jsonl").read_text(encoding="utf-8")
+            assert "overtaking host interrupt" not in requests, requests
+    finally:
+        signal.signal(signal.SIGINT, previous)
+    return [{"concurrent_send": "rejected", "recovery": "recovered", "closed": True}]
+
+
+@requires(POSIX)
 def test_host_interrupt_while_sdk_loop_is_busy(binary: Path) -> Transcript:
     previous = signal.signal(signal.SIGINT, signal.default_int_handler)
     try:
