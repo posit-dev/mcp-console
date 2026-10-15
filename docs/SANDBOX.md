@@ -73,7 +73,8 @@ Closing pipes or reaping the direct worker does not prove native descendant clea
 
 `--no-sandbox` removes native enforcement and native descendant cleanup.
 It also omits general-purpose managed storage and temporary-environment redirection.
-R retains its session-tempdir cleanup on graceful shutdown; native Python SQL scratch is removed after worker retirement.
+R runs its normal best-effort session-tempdir cleanup on graceful shutdown.
+Native Python DuckDB retains its normal storage defaults and lifetime, including persistent secrets.
 Normal relay shutdown still reaps its direct worker.
 Complete native unrestricted/external modes have different guarantees; see [enforcement modes](SANDBOX_CONFIGURATION.md#filesystem-and-enforcement-modes).
 
