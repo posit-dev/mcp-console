@@ -38,6 +38,12 @@ R and Python can each run without the other.
 
 See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples, database connections, and plots.
 
+## Build a SQL chat interface
+
+Expose [only SQL](TOOL_CONFIGURATION.md#model-visible-languages) to the agent and [configure its database connection](CONFIGURATION.md#session-startup-source) for a persistent SQL REPL.
+People can ask questions about a particular dataset while the agent runs queries, inspects results, and refines its next query.
+Use database permissions and [sandbox rules](SANDBOX_CONFIGURATION.md) to restrict the data and operations available to the agent.
+
 ## Choose how packages are prepared {#environment-setup}
 
 By default, Console prepares packages for the session and reuses cached installations.
