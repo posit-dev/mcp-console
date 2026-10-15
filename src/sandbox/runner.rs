@@ -140,6 +140,9 @@ pub(super) fn run(
                     .as_array_mut()
                     .expect("captured filesystem entries");
                 for path in directories {
+                    // Capture grants at launch. Relative environment values
+                    // retain their meaning, but later cwd changes do not move
+                    // these permissions.
                     entries.push(json!({"path": {"type": "path", "path": super::resolve_writable_root(path, &workspace)?}, "access": "write"}));
                 }
             }
