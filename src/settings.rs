@@ -87,21 +87,35 @@ pub fn preserve_environment<'a>(
             let name = name
                 .to_str()
                 .ok_or_else(|| "worker environment name must be UTF-8".to_string())?;
+            let key = if cfg!(windows) {
+                environment
+                    .keys()
+                    .find(|key| {
+                        // Match the child process's comparison, including
+                        // Unicode, when protecting Console-owned names.
+                        let mut names = std::process::Command::new("");
+                        names.env(key.as_str(), "").env(name, "");
+                        names.get_envs().count() == 1
+                    })
+                    .cloned()
+                    .unwrap_or_else(|| name.to_owned())
+            } else {
+                name.to_owned()
+            };
             // Keep invalid native values for execution-host validation, even
             // when Console owns the assignment or removal of a valid value.
             if environment
-                .get(name)
+                .get(&key)
                 .is_some_and(|value| !value.is_string())
             {
                 continue;
             }
+            environment.remove(&key);
             if !inherit && let Some(value) = value {
                 let value = value.to_str().ok_or_else(|| {
                     format!("worker environment value for '{name}' must be UTF-8")
                 })?;
                 environment.insert(name.into(), value.into());
-            } else {
-                environment.remove(name);
             }
         }
     }

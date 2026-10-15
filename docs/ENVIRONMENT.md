@@ -31,6 +31,7 @@ Shared values, including credentials, also reach preparation.
 
 Console subsequently applies its runtime, cache, temporary-storage, proxy, and transport assignments.
 These win over conflicting inherited/YAML values.
+On Windows, that precedence also applies to differently cased names.
 Managed temporary-storage assignments apply only with `sandbox.tempdir: managed`.
 On Windows, `read_write` supplies the granted host default as `TMPDIR`, `TEMP`, and `TMP` when all three child values are unset or empty.
 Other configured/inherited temp values are preserved; `--no-sandbox` adds no temporary-environment assignments.

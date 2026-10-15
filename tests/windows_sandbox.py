@@ -316,11 +316,34 @@ class WindowsSandbox(unittest.TestCase):
             session = Session(
                 environment,
                 sandbox=True,
-                overrides=['sandbox.network="enabled"'],
+                overrides=[
+                    'sandbox.network="enabled"',
+                    'environment={mcp_console_managed_tempdir: "0", mcp_console_matplotlib_cache: "project"}',
+                ],
             )
             try:
                 session.initialize()
                 session.request("tools/list", {})
+                session.expect(
+                    "managed SQL storage retained",
+                    # fmt: python
+                    python=code("""
+                        import os
+                        from pathlib import Path
+
+                        assert os.environ["MCP_CONSOLE_MANAGED_TEMPDIR"] == "1"
+                        assert "MCP_CONSOLE_MATPLOTLIB_CACHE" not in os.environ
+                        connection = _console.sql_connection()
+                        storage = Path(os.environ["TMPDIR"]) / "mcp-console-duckdb"
+                        for setting, child in (
+                            ("temp_directory", "spill"),
+                            ("secret_directory", "stored-secrets"),
+                        ):
+                            selected = connection.execute(f"SELECT current_setting('{setting}')").fetchone()[0]
+                            assert Path(selected) == storage / child, selected
+                        print("managed SQL storage retained")
+                        """),
+                )
                 session.expect("1234567", sql="SELECT 1234567 AS answer")
                 session.expect(
                     "Count", sql="CREATE TABLE retained AS SELECT 1234567 AS answer"
