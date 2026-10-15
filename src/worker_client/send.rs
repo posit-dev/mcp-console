@@ -357,7 +357,9 @@ impl Client {
                             .to_string()
                             .into());
                     }
-                    let wait_claim = active.evaluation.claim()?;
+                    // An earlier admitted poll can reach this branch after a
+                    // later cell has assembled its still-undelivered reply.
+                    let wait_claim = active.evaluation.claim_after_delivery(deadline).await?;
                     if let Some(stdin) = stdin {
                         active.evaluation.submit_stdin(stdin)?;
                     }
