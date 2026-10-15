@@ -1,9 +1,34 @@
 # Linux host compatibility
 
-Console requires glibc 2.35 or newer, the [runtime libraries](getting-started.qmd#install), and a host that permits the sandbox's namespace setup and requested native/seccomp facilities.
-Host and container restrictions can prevent startup even on a supported userspace.
+Use this page to troubleshoot Linux startup failures, including missing libraries and host restrictions.
+For installation and client setup, see [Get started](getting-started.qmd).
+
+## Runtime libraries
+
+Console supports Linux hosts with glibc 2.35 or newer.
+The following runtime libraries may already be installed on your system; the installation commands below are only needed when they are missing.
+They are system dependencies, separate from the Python packages installed by `uv`.
+
+| Ubuntu/Debian package | Shared library   | Needed for                                                       |
+| --------------------- | ---------------- | ---------------------------------------------------------------- |
+| `libcap2`             | `libcap.so.2`    | Linux process capabilities in the bundled Bubblewrap sandbox.    |
+| `libgcc-s1`           | `libgcc_s.so.1`  | GNU runtime support for Console and its sandbox executables.     |
+| `libstdc++6`          | `libstdc++.so.6` | C++ runtime support for native analysis packages such as DuckDB. |
+
+On Ubuntu or Debian, install missing runtime libraries with:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y libcap2 libgcc-s1 libstdc++6
+```
+
+A missing library can appear as `error while loading shared libraries` before Console starts, or as an import error when a native Python extension loads.
+Use the missing `.so` filename in the error to identify the package in the table above.
 
 ## Host and container setup
+
+The host must permit the sandbox's namespace setup and requested native/seccomp facilities.
+Host and container restrictions can prevent startup even when the required libraries are installed.
 
 Ubuntu AppArmor policy can permit system `/usr/bin/bwrap` while denying a relocated bundled helper.
 Check native diagnostics and kernel policy records; a working system helper does not validate the bundle.

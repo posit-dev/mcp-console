@@ -16,15 +16,7 @@ uv tool install mcp-console
 Prebuilt packages are available for macOS and Linux on ARM64 and x86-64, and for experimental Windows x64.
 Windows users should also follow the [Windows setup instructions](WINDOWS.md#install-and-run).
 
-Linux requires glibc 2.35 or later.
-On Ubuntu, install the runtime libraries:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y libcap2 libgcc-s1 libstdc++6
-```
-
-Linux must also permit the sandbox's namespace operations; see [Linux host compatibility](LINUX_COMPATIBILITY.md#host-and-container-setup) if startup fails.
+If Console fails to start on Linux, see [Linux host compatibility](LINUX_COMPATIBILITY.md) for missing libraries or sandbox restrictions.
 
 To use R, install it separately, for example with [rig](https://github.com/r-lib/rig#id-installation) and `rig add release`.
 Python and SQL also work without R.

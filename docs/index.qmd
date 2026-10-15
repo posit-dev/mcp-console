@@ -9,7 +9,8 @@ toc: false
 sidebar: false
 ---
 
-Let your agent run R, Python, and SQL in a persistent session, where it can load data once, inspect results, refine plots, read help, and debug code with objects and models still in memory.
+Your agent runs R, Python, and SQL in a persistent session.
+It can load data once, inspect results, refine plots, read help, and debug code with objects and models still in memory.
 
 Code runs in an [OS-level sandbox](SANDBOX.md) by default.
 Console prepares environments and packages automatically; no Console configuration file is required.
