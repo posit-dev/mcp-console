@@ -62,7 +62,7 @@ pub(super) struct Sandbox {
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum Profile {
-    WorkspaceWrite,
+    Workspace,
 }
 
 #[derive(Clone, Copy, Default, Deserialize, PartialEq)]
@@ -270,7 +270,7 @@ impl Sandbox {
         let mut policy = SandboxSettings::new();
         policy.insert("tempdir".into(), self.tempdir.name().into());
         match self.profile {
-            Some(Profile::WorkspaceWrite) => {
+            Some(Profile::Workspace) => {
                 policy.insert("extends".into(), ":workspace".into());
                 // Temp permissions have one owner, independently of the
                 // native workspace profile's broader temporary defaults.

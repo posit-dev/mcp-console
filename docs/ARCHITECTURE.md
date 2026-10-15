@@ -151,7 +151,8 @@ Available output is drained within bounds even when cleanup fails.
 The local launch adapter retains raw exit status and requested termination independently of diagnostic suppression.
 The runner owns managed temporary storage; direct workers have no general-purpose Console-owned temp root.
 Native Python SQL scratch has a separate launch-owned directory when general-purpose storage is unmanaged; the launcher retains it through reaping without adding filesystem grants.
-Graceful worker shutdown runs R's finalizers, closes devices, and removes its session temporary directory without relying on workload `PATH` or claiming ownership of host temp parents.
+Graceful worker shutdown uses R's normal embedded shutdown sequence, including finalizers, device closure, and best-effort session-tempdir cleanup.
+Only an active sandbox with managed storage adds a temporary-storage cleanup guarantee; the runner owns that retirement, including any files R leaves behind.
 Readiness and the origin of an operation failure affect error reporting, not those observations.
 
 The existing failure-recovery barrier requires direct-launcher reaping, retirement of launch-owned SQL storage, and settled I/O.

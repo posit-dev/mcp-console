@@ -514,7 +514,7 @@ test_that("sandbox materialization round trips through typed configuration", {
   binary <- real_mcp_console()
   with_temp_working_directory({
     policies <- list(
-      SandboxPolicy(profile = "workspace_write", tempdir = "read_write"),
+      SandboxPolicy(profile = "workspace", tempdir = "read_write"),
       SandboxPolicy(tempdir = "read_only"),
       SandboxPolicy(),
       SandboxPolicy(

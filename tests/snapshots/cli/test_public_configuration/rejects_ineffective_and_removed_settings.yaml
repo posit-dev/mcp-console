@@ -2,14 +2,20 @@
 path: sandbox.profile
 stderr: >
   configuration with CLI overrides: sandbox: profile: unknown variant
-  `workspace-write`, expected `workspace_write`; see docs/CONFIGURATION.md
-  for the public format
+  `workspace_write`, expected `workspace`; see docs/CONFIGURATION.md for
+  the public format
 ---
 path: sandbox.profile
 stderr: >
   configuration with CLI overrides: sandbox: profile: unknown variant
-  `:workspace`, expected `workspace_write`; see docs/CONFIGURATION.md for
+  `workspace-write`, expected `workspace`; see docs/CONFIGURATION.md for
   the public format
+---
+path: sandbox.profile
+stderr: >
+  configuration with CLI overrides: sandbox: profile: unknown variant
+  `:workspace`, expected `workspace`; see docs/CONFIGURATION.md for the
+  public format
 ---
 path: sandbox.workspace_options
 stderr: >

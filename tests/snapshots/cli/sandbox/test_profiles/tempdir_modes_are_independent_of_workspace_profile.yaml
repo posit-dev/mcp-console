@@ -17,19 +17,19 @@ stdout: |
   temp selection, host grants and workspace policy match configuration
 stderr: ""
 ---
-profile: workspace_write
+profile: workspace
 tempdir: managed
 stdout: |
   temp selection, host grants and workspace policy match configuration
 stderr: ""
 ---
-profile: workspace_write
+profile: workspace
 tempdir: read_write
 stdout: |
   temp selection, host grants and workspace policy match configuration
 stderr: ""
 ---
-profile: workspace_write
+profile: workspace
 tempdir: read_only
 stdout: |
   temp selection, host grants and workspace policy match configuration

@@ -131,6 +131,7 @@ result:
   content:
     - type: text
       text: |-
+        sh: rm: command not found
         [worker stopped: in-memory state lost]
         [starting new worker]
         [idle]

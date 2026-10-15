@@ -28,10 +28,10 @@ CONFIGURATION_EXAMPLES = {
     },
     "enabled": {"sandbox": {"network": "enabled"}},
     "restricted": {"sandbox": {"network": "restricted"}},
-    "workspace": {"sandbox": {"profile": "workspace_write"}},
+    "workspace": {"sandbox": {"profile": "workspace"}},
     "workspace_read_write_temp": {
         "sandbox": {
-            "profile": "workspace_write",
+            "profile": "workspace",
             "tempdir": "read_write",
             "filesystem": {"read_only": ["./data"], "deny": ["./secrets"]},
             "network": "enabled",
@@ -50,6 +50,7 @@ CONFIGURATION_EXAMPLES = {
 }
 
 INVALID_CONFIGURATIONS = [
+    ("sandbox.profile", "workspace_write"),
     ("sandbox.profile", "workspace-write"),
     ("sandbox.profile", ":workspace"),
     ("sandbox.workspace_options", {}),

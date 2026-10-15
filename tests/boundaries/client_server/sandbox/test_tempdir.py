@@ -101,26 +101,22 @@ def test_host_temp_preserves_environment_and_r_cleans_its_session(
                       function(x) cleanup_finalizer(x),
                       onexit = TRUE
                     ))
-                    Sys.setenv(PATH = "")
                     """),
             )
             client.expect(
-                "In addition: Warning message:\nIn cleanup_finalizer(x) : R finalizer warning\n[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]",
+                "Warning message:\nIn cleanup_finalizer(x) : R finalizer warning\n[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]",
                 control="restart",
             )
             assert (
                 temporary / "r-finalizer.txt"
             ).read_text().strip() == "R finalizer ran"
-            assert not r_temporary.exists(), (
-                "R session tempdir survived restart with empty PATH"
-            )
+            assert not r_temporary.exists(), "R session tempdir survived restart"
             assert (temporary / "keep").stat().st_mode & 0o777 == 0o400
             client.expect(
                 "R shutdown tempdir recorded\n",
                 # fmt: r
                 r=code(r"""
                     writeLines(tempdir(), file.path(Sys.getenv("TMPDIR"), "r-session.txt"))
-                    Sys.setenv(PATH = "")
                     cat("R shutdown tempdir recorded\n")
                     """),
             )
@@ -139,19 +135,20 @@ def test_host_temp_preserves_environment_and_r_cleans_its_session(
         return transcript
 
 
-@requires(SANDBOX, R)
+@requires(POSIX, SANDBOX, R)
 def test_workspace_profile_retains_managed_temp_cleanup(binary: Path) -> Transcript:
     environment, _ = r_test_environment()
     with TemporaryDirectory() as directory, TemporaryDirectory() as temporary:
         workspace = Path(directory).resolve()
         environment["TMPDIR"] = temporary
         environment["TEST_HOST_TEMP"] = temporary
+        caller_owned = Path(temporary) / "keep"
+        caller_owned.write_text("caller-owned")
+        caller_owned.chmod(0o400)
         config = workspace / ".agents/console/config.yaml"
         config.parent.mkdir(parents=True)
         config.write_text(
-            json.dumps(
-                {"sandbox": {"profile": "workspace_write"}, "python": sys.executable}
-            )
+            json.dumps({"sandbox": {"profile": "workspace"}, "python": sys.executable})
         )
         with McpClient(binary, ("serve",), environment, workspace) as client:
             client.initialize_and_list_tools()
@@ -166,6 +163,11 @@ def test_workspace_profile_retains_managed_temp_cleanup(binary: Path) -> Transcr
                     temporary = Path(os.environ["TMPDIR"])
                     assert str(temporary) != os.environ["TEST_HOST_TEMP"]
                     _ = (temporary / "probe").write_text("owned")
+                    locked = temporary / "locked"
+                    locked.mkdir()
+                    _ = (locked / "probe").write_text("owned")
+                    locked.chmod(0o500)
+                    (temporary / "external").symlink_to(Path(os.environ["TEST_HOST_TEMP"]) / "keep")
                     _ = Path("worker-temp.txt").write_text(str(temporary))
                     try:
                         _ = (Path(os.environ["TEST_HOST_TEMP"]) / "blocked").write_text("blocked")
@@ -179,6 +181,8 @@ def test_workspace_profile_retains_managed_temp_cleanup(binary: Path) -> Transcr
             owned = Path((workspace / "worker-temp.txt").read_text())
             transcript = client.finish()
         assert not owned.exists()
+        assert caller_owned.read_text() == "caller-owned"
+        assert caller_owned.stat().st_mode & 0o777 == 0o400
         # Preparation may use the caller-owned parent independently. Verify
         # the worker's attempted host write and its actual private root.
         assert not (Path(temporary) / "blocked").exists()

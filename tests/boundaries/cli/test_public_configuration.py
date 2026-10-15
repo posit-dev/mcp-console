@@ -68,7 +68,7 @@ def test_user_to_native_policies(binary: Path) -> TranscriptWithCompanions:
         for name, document in examples.items():
             native = observe(binary, root, document)
             assert native["filesystem"]["kind"] == "restricted", native
-            if document["sandbox"].get("profile") == "workspace_write":
+            if document["sandbox"].get("profile") == "workspace":
                 assert native["extends"] == ":workspace", native
                 assert native["workspace_options"] == {
                     "exclude_tmpdir_env_var": True,

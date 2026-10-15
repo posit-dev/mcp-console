@@ -81,28 +81,15 @@ pub(super) struct Runtime {
 
 impl Runtime {
     pub(super) fn shutdown(&self) -> Result<(), Box<dyn Error>> {
+        // Use R's normal best-effort cleanup. Only the sandbox's managed
+        // storage has an additional owner that guarantees tempdir retirement.
         #[cfg(unix)]
-        {
-            let library = libloading::os::unix::Library::this();
-            // Unix Rf_endEmbeddedR shells out to rm using the workload PATH.
-            // The worker exits after this call. Preserve R's finalizer, editor,
-            // device, and warning cleanup, using native unlink for its tempdir.
-            for name in [c"R_RunExitFinalizers", c"Rf_CleanEd", c"Rf_KillAllDevices"] {
-                let cleanup = unsafe {
-                    library.get::<unsafe extern "C-unwind" fn()>(name.to_bytes_with_nul())?
-                };
-                unsafe { cleanup() };
-            }
-            harp::parse_eval_base(include_str!("embedded_r/shutdown.R"))?;
-        }
+        let library = libloading::os::unix::Library::this();
         #[cfg(windows)]
-        {
-            // Windows R already removes its tempdir without a shell.
-            let library = libloading::os::windows::Library::open_already_loaded("R.dll")?;
-            let shutdown =
-                unsafe { library.get::<unsafe extern "C-unwind" fn(c_int)>(b"Rf_endEmbeddedR\0")? };
-            unsafe { shutdown(0) };
-        }
+        let library = libloading::os::windows::Library::open_already_loaded("R.dll")?;
+        let shutdown =
+            unsafe { library.get::<unsafe extern "C-unwind" fn(c_int)>(b"Rf_endEmbeddedR\0")? };
+        unsafe { shutdown(0) };
         Ok(())
     }
 

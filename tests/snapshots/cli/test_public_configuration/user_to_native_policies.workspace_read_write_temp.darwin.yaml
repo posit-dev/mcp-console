@@ -1,6 +1,6 @@
 ---
 sandbox:
-  profile: workspace_write
+  profile: workspace
   tempdir: read_write
   filesystem:
     read_only:
