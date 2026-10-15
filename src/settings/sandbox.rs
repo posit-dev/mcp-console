@@ -51,10 +51,43 @@ where
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Sandbox {
+    profile: Option<Profile>,
+    tempdir: Tempdir,
     #[serde(deserialize_with = "supplied_mapping")]
     filesystem: Option<Filesystem>,
     #[serde(deserialize_with = "supplied")]
     network: Option<Network>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Profile {
+    WorkspaceWrite,
+}
+
+#[derive(Clone, Copy, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Tempdir {
+    #[default]
+    Managed,
+    ReadWrite,
+    ReadOnly,
+}
+
+impl Tempdir {
+    pub(crate) fn from_settings(settings: &SandboxSettings) -> Self {
+        settings.get("tempdir").map_or(Self::Managed, |value| {
+            serde_json::from_value(value.clone()).expect("captured tempdir choice")
+        })
+    }
+
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Managed => "managed",
+            Self::ReadWrite => "read_write",
+            Self::ReadOnly => "read_only",
+        }
+    }
 }
 
 #[derive(Default, Deserialize)]
@@ -235,6 +268,21 @@ impl Sandbox {
             "sandbox"
         };
         let mut policy = SandboxSettings::new();
+        policy.insert("tempdir".into(), self.tempdir.name().into());
+        match self.profile {
+            Some(Profile::WorkspaceWrite) => {
+                policy.insert("extends".into(), ":workspace".into());
+                // Temp permissions have one owner, independently of the
+                // native workspace profile's broader temporary defaults.
+                policy.insert(
+                    "workspace_options".into(),
+                    json!({
+                        "exclude_tmpdir_env_var": true, "exclude_slash_tmp": true,
+                    }),
+                );
+            }
+            None => {}
+        }
         if let Some(filesystem) = self.filesystem {
             let entries: Vec<Value> = [
                 (filesystem.read_only, "read"),

@@ -40,7 +40,7 @@ def sql_connection(connection: object = _UNSET) -> object:
 
     if connection is _UNSET:
         if _connection is None:
-            if _native_storage is None:
+            if not _native_enabled:
                 raise RuntimeError(
                     "The active SQL connection belongs to R; use .console$sql_connection() in R"
                 )
@@ -267,10 +267,10 @@ def _dispatch(source):
     if _connection is not None or _select_native_connection():
         _evaluate(source)
         return _PROVIDER_HANDLED
-    if _restore_managed and _native_storage is None:
+    if _restore_managed and not _native_enabled:
         use_r()
         return _PROVIDER_MANAGED
-    return _PROVIDER_HANDLED if _native_storage is not None else _PROVIDER_R
+    return _PROVIDER_HANDLED if _native_enabled else _PROVIDER_R
 
 
 def dispatch(source):
@@ -291,24 +291,29 @@ def take_managed_restore_request():
 # their connection setup below the R-present adapter so its traceback lines
 # remain stable in public transcripts.
 import os as _os
+import tempfile as _tempfile
+import uuid as _uuid
 from pathlib import Path as _Path
 
+_native_enabled = False
 _native_storage = None
 _native_extension_directory = None
 _managed_connection = None
 
 
 def enable_native() -> None:
-    global _native_storage, _native_extension_directory
+    global _native_enabled, _native_storage, _native_extension_directory
 
-    _native_storage = _Path(_os.environ["TMPDIR"]) / "mcp-console-duckdb"
+    _native_enabled = True
+    if _os.environ.get("MCP_CONSOLE_MANAGED_TEMPDIR") == "1":
+        _native_storage = _Path(_os.environ["TMPDIR"]) / "mcp-console-duckdb"
     _native_extension_directory = _os.environ.get(
         "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY", ""
     )
 
 
 def _ensure_managed_connection():
-    global _managed_connection
+    global _managed_connection, _native_storage
 
     if _managed_connection is None:
         try:
@@ -320,11 +325,18 @@ def _ensure_managed_connection():
                 "or select a DB-API connection with _console.sql_connection(connection)"
             )
             raise RuntimeError(message) from error
+        if _native_storage is None:
+            # Without sandbox-owned storage, use normal runtime temp selection.
+            # DuckDB creates and retires its own spill directory.
+            _native_storage = (
+                _Path(_tempfile.gettempdir())
+                / f"mcp-console-duckdb-{_uuid.uuid4().hex}"
+            )
         config = {
             "extension_directory": _native_extension_directory,
+            "python_enable_replacements": "false",
             "secret_directory": str(_native_storage / "stored-secrets"),
             "temp_directory": str(_native_storage / "spill"),
-            "python_enable_replacements": "false",
         }
         connection = duckdb.connect(":memory:", config=config)
         try:
@@ -368,7 +380,7 @@ def initialize_managed_connection() -> None:
 def _select_native_connection():
     global _connection
 
-    if _native_storage is None:
+    if not _native_enabled:
         return False
     try:
         _connection = _ensure_managed_connection()

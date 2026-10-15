@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.normalization import code
 from support.records import Transcript
-from support.requirements import SANDBOX, requires
+from support.requirements import POSIX, SANDBOX, requires
 from support.suites import run_this_suite
 
 CONFIG = ".agents/console/config.yaml"
@@ -416,6 +416,108 @@ def test_empty_protected_directories_cannot_be_removed_or_replaced(
                         assert protected.is_dir()
                     print("empty protected directories resist removal, replacement and rename")
                     """),
+            )
+        ]
+
+
+@requires(POSIX, SANDBOX)
+def test_tempdir_modes_are_independent_of_workspace_profile(binary: Path) -> Transcript:
+    transcript = []
+    for profile in (None, "workspace_write"):
+        for mode in ("managed", "read_write", "read_only"):
+            with (
+                # Keep the workspace outside the automatic /tmp write grant.
+                TemporaryDirectory(dir="/var/tmp") as directory,
+                TemporaryDirectory(dir="/var/tmp") as inherited,
+                TemporaryDirectory(dir="/var/tmp") as configured,
+                TemporaryDirectory(dir="/tmp") as shared,
+            ):
+                host = Path(directory).resolve()
+                (host / ".git").mkdir()
+                (host / ".git/keep").write_text("metadata")
+                policy = {"tempdir": mode}
+                if profile:
+                    policy["profile"] = profile
+                configure(
+                    host,
+                    json.dumps(
+                        {
+                            "sandbox": policy,
+                            "environment": {
+                                name: configured for name in ("TMPDIR", "TEMP", "TMP")
+                            },
+                        }
+                    ),
+                )
+                result = run(
+                    binary,
+                    host,
+                    # fmt: python
+                    code(r"""
+                        import errno
+                        import os
+                        from pathlib import Path
+
+                        mode = os.environ["EXPECTED_MODE"]
+                        temporary = Path(os.environ["TMPDIR"])
+                        configured = Path(os.environ["CONFIGURED_TEMP"])
+                        assert (temporary == configured) is (mode != "managed")
+                        for path, allowed in (
+                            (temporary, mode != "read_only"),
+                            (configured, mode == "read_write"),
+                            (Path(os.environ["INHERITED_TEMP"]), False),
+                            (Path(os.environ["SHARED_TEMP"]), mode == "read_write"),
+                            (Path.cwd(), os.environ["WORKSPACE_WRITE"] == "1"),
+                            (Path(".git"), False),
+                        ):
+                            try:
+                                _ = (path / "probe").write_text("temporary write")
+                            except OSError as error:
+                                assert not allowed and error.errno in (
+                                    errno.EACCES,
+                                    errno.EPERM,
+                                    errno.EROFS,
+                                ), (path, allowed, error)
+                            else:
+                                assert allowed, path
+                        assert Path(".git/keep").read_text() == "metadata"
+                        print("temp selection, host grants and workspace policy match configuration")
+                        """),
+                    environment={
+                        "TMPDIR": inherited,
+                        "INHERITED_TEMP": inherited,
+                        "CONFIGURED_TEMP": configured,
+                        "SHARED_TEMP": shared,
+                        "EXPECTED_MODE": mode,
+                        "WORKSPACE_WRITE": "1" if profile else "0",
+                    },
+                )
+                assert not list(Path(configured).glob("sandbox-*"))
+                transcript.append({"profile": profile, "tempdir": mode, **result})
+    return transcript
+
+
+@requires(SANDBOX)
+def test_read_only_temp_retains_explicit_write_grants(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory, TemporaryDirectory() as temporary:
+        host = Path(directory).resolve()
+        configure(
+            host,
+            json.dumps(
+                {
+                    "sandbox": {
+                        "tempdir": "read_only",
+                        "filesystem": {"read_write": [temporary]},
+                    },
+                    "environment": {"TMPDIR": temporary},
+                }
+            ),
+        )
+        return [
+            run(
+                binary,
+                host,
+                "import os; from pathlib import Path; Path(os.environ['TMPDIR'], 'probe').write_text('explicit'); print('explicit temp grant retained')",
             )
         ]
 

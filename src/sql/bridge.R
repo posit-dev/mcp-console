@@ -25,18 +25,23 @@ base::local(
     )
 
     open_connection <- function() {
-      storage <- file.path(Sys.getenv("TMPDIR"), "mcp-console-duckdb")
+      config <- list(
+        extension_directory = Sys.getenv(
+          "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"
+        )
+      )
+      parent <- if (identical(Sys.getenv("MCP_CONSOLE_MANAGED_TEMPDIR"), "1")) {
+        Sys.getenv("TMPDIR")
+      } else {
+        tempdir()
+      }
+      storage <- file.path(parent, "mcp-console-duckdb")
+      config$secret_directory <- file.path(storage, "stored-secrets")
+      config$temp_directory <- file.path(storage, "spill")
       connection <- DBI::dbConnect(
         duckdb::duckdb(
           dbdir = ":memory:",
-          config = list(
-            # Cache and worker storage remain Console-owned settings.
-            extension_directory = Sys.getenv(
-              "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"
-            ),
-            secret_directory = file.path(storage, "stored-secrets"),
-            temp_directory = file.path(storage, "spill")
-          ),
+          config = config,
           environment_scan = TRUE
         )
       )

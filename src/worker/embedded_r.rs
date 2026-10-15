@@ -80,6 +80,19 @@ pub(super) struct Runtime {
 }
 
 impl Runtime {
+    pub(super) fn shutdown(&self) -> Result<(), Box<dyn Error>> {
+        #[cfg(unix)]
+        let library = libloading::os::unix::Library::this();
+        #[cfg(windows)]
+        let library = libloading::os::windows::Library::open_already_loaded("R.dll")?;
+        // A normal embedded shutdown runs R's finalizers and removes its own
+        // Rtmp directory. The caller-owned parent is never ours to remove.
+        let shutdown =
+            unsafe { library.get::<unsafe extern "C-unwind" fn(c_int)>(b"Rf_endEmbeddedR\0")? };
+        unsafe { shutdown(0) };
+        Ok(())
+    }
+
     pub(super) fn initialize() -> Result<Self, Box<dyn Error>> {
         harp::parse_eval_base(include_str!("embedded_r/documentation.R"))?;
         Ok(Self {

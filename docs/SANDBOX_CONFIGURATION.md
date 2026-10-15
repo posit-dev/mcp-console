@@ -23,6 +23,36 @@ Set either whole permission node to `null` to clear inherited settings and resto
 This does not disable sandboxing; `serve --no-sandbox` disables enforcement after both permission nodes have been omitted or cleared.
 Child nodes such as `filesystem` and `network.proxy` still require their documented types.
 
+## Profiles and temporary storage
+
+```yaml
+sandbox:
+  profile: workspace_write
+  tempdir: managed
+```
+
+`profile: workspace_write` selects the native `:workspace` profile for the captured launch directory.
+Omitting `profile` retains the host-read baseline without workspace writes.
+Explicit filesystem entries compose with the profile; network selection remains independent.
+The native profile's temporary-directory options are internal: `tempdir` is the only public selector for automatic temporary-storage grants.
+
+| `tempdir`           | Behavior                                                                                                                                                                               |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `managed` (default) | Create private storage, grant writes there, redirect temporary environment variables, and remove the storage after retirement.                                                         |
+| `read_write`        | Preserve configured/inherited temporary environment variables and grant writes to their host locations and the platform default temp location. Console does not own those directories. |
+| `read_only`         | Preserve temporary environment variables, create no managed storage, and add no temporary write grants.                                                                                |
+
+All three values are strings.
+`read_write` also grants temporary writes under the base read-only policy.
+On Unix its platform default grant is `/tmp`; configured/inherited `TMPDIR`, `TEMP`, and `TMP` add their named locations.
+The directories must already exist; Console does not provision caller-owned storage.
+`read_only` omits automatic grants rather than imposing an overriding denial: explicit filesystem permissions, including a workspace root containing a temp path, still apply.
+R needs a writable temporary directory and can fail to initialize in that mode.
+
+`serve` and ordinary `sandbox` use the same policy and defaults.
+`--no-sandbox` uses normal runtime temporary-directory selection without Console-owned storage or temporary-environment redirection.
+In unmanaged modes, runtimes retain their own cleanup behavior: graceful R shutdown removes its session `Rtmp` directory without deleting the caller-owned parent or unrelated files.
+
 ## Filesystem
 
 ```yaml
@@ -38,7 +68,7 @@ They resolve against the captured launch directory, not the configuration file.
 They do not expand `~` or variables, create directories, grant parent directories, or erase symlink components.
 
 Worker entries modify the host-read/private-write baseline.
-Omitting `read_write` grants no workspace writes.
+Omitting both `profile` and `read_write` grants no workspace writes.
 An explicit resolver filesystem instead **replaces** its default entries, including host reads and cache writes; see [resolver grants](RESOLVER.md#filesystem-grants).
 
 Narrower native rules take precedence.

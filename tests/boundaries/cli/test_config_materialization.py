@@ -521,6 +521,13 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
                     == {"read_only": [], "read_write": [], "deny": []}
                     | source["sandbox"]["filesystem"]
                 )
+            if source.get("sandbox", {}).get("profile") == "workspace_write":
+                assert settings["sandbox"]["profile"] == "workspace_write", settings
+                description = settings["tool"]["description"]
+                assert "workspace" in description, description
+            assert settings["sandbox"]["tempdir"] == source.get("sandbox", {}).get(
+                "tempdir", "managed"
+            ), settings
             selected.write_text(first.stdout, encoding="utf-8")
             again = resolve(
                 binary,

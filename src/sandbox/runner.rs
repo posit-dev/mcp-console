@@ -92,11 +92,44 @@ pub(super) fn run(
     }
     if config_env.is_none() {
         // This is also the serve path: an ambient value never selects policy.
-        let mut lifecycle = json!({"private_tmp": {"environment": ["TMPDIR"]}});
-        #[cfg(windows)]
-        {
-            lifecycle["private_tmp"]["environment"] = json!(["TMPDIR", "TEMP", "TMP"]);
+        let mut lifecycle = json!({});
+        match crate::settings::Tempdir::from_settings(&settings) {
+            crate::settings::Tempdir::Managed => {
+                lifecycle["private_tmp"] = json!({"environment": if cfg!(windows) {
+                    vec!["TMPDIR", "TEMP", "TMP"]
+                } else {
+                    vec!["TMPDIR"]
+                }});
+            }
+            crate::settings::Tempdir::ReadWrite => {
+                // Resolve from the workload environment, not the supervisor's
+                // TMPDIR: trusted YAML can select another host temp directory.
+                let mut directories: std::collections::BTreeSet<_> = ["TMPDIR", "TEMP", "TMP"]
+                    .into_iter()
+                    .filter_map(|name| crate::settings::environment_path(&settings, name))
+                    .collect();
+                directories.insert(if cfg!(unix) {
+                    "/tmp".into()
+                } else {
+                    std::env::temp_dir()
+                });
+                let workspace = std::env::current_dir().map_err(|error| error.to_string())?;
+                let entries = settings
+                    .entry("filesystem")
+                    .or_insert_with(|| json!({"kind": "restricted", "entries": []}))
+                    .as_object_mut()
+                    .expect("captured filesystem")
+                    .entry("entries")
+                    .or_insert_with(|| json!([]))
+                    .as_array_mut()
+                    .expect("captured filesystem entries");
+                for path in directories {
+                    entries.push(json!({"path": {"type": "path", "path": super::resolve_writable_root(path, &workspace)?}, "access": "write"}));
+                }
+            }
+            crate::settings::Tempdir::ReadOnly => {}
         }
+        settings.retain(|key, _| key != "tempdir");
         if let Some(parent) = parent {
             lifecycle["parent_pid"] = parent.into();
             lifecycle["sigterm"] = "retire".into();

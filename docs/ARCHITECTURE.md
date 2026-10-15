@@ -148,11 +148,12 @@ Aborting a partial command ends that transport; no control can be inserted into 
 
 Physical cleanup, protocol settlement, and output delivery are separate results.
 Available output is drained within bounds even when cleanup fails.
-The local launch adapter retains raw exit status, requested termination, and Console-owned storage retirement independently of diagnostic suppression.
+The local launch adapter retains raw exit status and requested termination independently of diagnostic suppression.
+The runner owns managed temporary storage; direct workers have no Console-owned temp root.
+Graceful worker shutdown invokes embedded R's normal cleanup, including its own session temporary directory, without claiming ownership of host temp parents.
 Readiness and the origin of an operation failure affect error reporting, not those observations.
 
-The existing failure-recovery barrier requires direct-launcher reaping, successful Console-owned storage retirement, and settled I/O.
-Storage-removal failure blocks replacement.
+The existing failure-recovery barrier requires direct-launcher reaping and settled I/O.
 Recovery after runner loss can still permit replacement without confirming native descendant or runner-owned storage cleanup.
 A forced launcher kill, pipe EOF, or suppressed status diagnostic cannot prove that cleanup.
 The pinned runner has no separate Unix cleanup receipt; a nonzero status can represent workload failure or a cleanup error.

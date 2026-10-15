@@ -123,5 +123,5 @@ result:
   content:
     - type: text
       text: |
-        <replacement temporary>
+        <worker temporary>
   isError: false

@@ -10,6 +10,8 @@ pub(crate) mod materialize;
 mod python;
 mod resolution;
 mod sandbox;
+pub(crate) use sandbox::Tempdir;
+pub(crate) const MANAGED_TEMPDIR_ENVIRONMENT: &str = "MCP_CONSOLE_MANAGED_TEMPDIR";
 mod tool;
 pub(crate) use python::Managed as ManagedPythonSettings;
 pub(crate) use python::PythonChoice;
@@ -33,8 +35,34 @@ pub fn configure_environment(command: &mut std::process::Command, settings: &San
     }
 }
 
-/// Native policy values; application additions materialize on the execution host.
+/// Captured native policy and Console tempdir selection. Launch consumes the
+/// selector before forwarding the native policy on the execution host.
 pub type SandboxSettings = Map<String, Value>;
+
+pub(crate) fn environment_path(settings: &SandboxSettings, name: &str) -> Option<PathBuf> {
+    let inherit = settings.get("inherit_environment") != Some(&Value::Bool(false));
+    settings
+        .get("environment")
+        .and_then(|values| {
+            if cfg!(windows) {
+                values
+                    .as_object()?
+                    .iter()
+                    .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                    .map(|(_, value)| value)
+            } else {
+                values.get(name)
+            }
+        })
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| {
+            inherit
+                .then(|| std::env::var_os(name).map(PathBuf::from))
+                .flatten()
+        })
+        .filter(|path| !path.as_os_str().is_empty())
+}
 
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]

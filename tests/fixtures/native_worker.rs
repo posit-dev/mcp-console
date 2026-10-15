@@ -538,9 +538,9 @@ fn native_probe() {
             .expect("inspect initial environment");
         let candidate = crate::python::inspect_native(Path::new(&executables[1]), |_| Ok(()))
             .expect("inspect candidate environment");
-        crate::python::configure_native_worker_environment(Path::new(
+        crate::python::configure_native_worker_environment(Some(Path::new(
             &std::env::var("TMPDIR").expect("native storage"),
-        ))
+        )))
         .expect("configure native worker environment");
         let mut runtime = crate::python::Runtime::new(crate::local_runtime::WorkerSelection {
             r_settings: Default::default(),

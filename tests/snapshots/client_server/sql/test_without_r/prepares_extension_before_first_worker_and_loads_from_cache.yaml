@@ -85,7 +85,7 @@ result:
   content:
     - type: text
       text: |
-        <worker temporary 2>
+        <worker temporary 1>
   isError: false
 ---
 send:

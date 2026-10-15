@@ -62,7 +62,9 @@ def test_retains_discovered_r_home_across_generations(
         commands = root / "bin"
         commands.mkdir()
         retain_system_bwrap(commands)
-        (commands / "sh").symlink_to(shutil.which("sh"))
+        # R's normal session-tempdir cleanup invokes rm through the shell.
+        for name in ("sh", "rm"):
+            (commands / name).symlink_to(shutil.which(name))
         r = commands / "R"
         r.write_text(
             code(f"""
@@ -132,7 +134,7 @@ def test_retains_r_absence_across_generations(
             return client.finish()
 
 
-@executions(DIRECT)
+@executions(SANDBOXED)
 def test_removes_managed_sql_storage_on_restart_and_shutdown(
     binary: Path, execution: Execution
 ) -> list:

@@ -31,6 +31,7 @@ Shared values, including credentials, also reach preparation.
 
 Console subsequently applies its runtime, cache, temporary-storage, proxy, and transport assignments.
 These win over conflicting inherited/YAML values.
+Temporary-storage assignments apply only with `sandbox.tempdir: managed`; other modes and `--no-sandbox` preserve configured/inherited temp variables.
 Worker startup files and cells can change their own environment afterward, but not the separate resolver's captured configuration.
 A new server connection reloads launch settings; worker restart does not.
 It does rerun R's native startup files.
@@ -110,7 +111,7 @@ Let `D` be the selected Console dependency directory.
 | `PYTHONPYCACHEPREFIX`                    | `D/python/bytecode`                                                                   |
 | `PYTHONUSERBASE`                         | `D/python/user`, except existing Python preserves its configured/inherited user base. |
 
-The worker subsequently places `XDG_CACHE_HOME` and `MPLCONFIGDIR` under private `TMPDIR`.
+With `sandbox.tempdir: managed`, the worker subsequently places `XDG_CACHE_HOME` and `MPLCONFIGDIR` under private `TMPDIR`.
 Values observed inside a cell are therefore not necessarily the persistent resolver cache locations.
 
 With `cache: host`, tool variables/defaults select caches and Console generates appropriate resolver grants.
@@ -139,20 +140,21 @@ Managed R preparation also supplies `IR_NO_LOCAL_SOURCES=1` and a package-subpro
 
 ## Temporary storage, plotting, and native loading
 
-| Variable                              | Built-in behavior                                                                                                                                |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `TMPDIR`                              | Private worker temporary storage, also with `--no-sandbox`; managed DuckDB spill files and secrets use it.                                       |
-| `TEMP`, `TMP`                         | Also assigned by Windows sandbox lifecycle. Do not assume that assignment for direct workers.                                                    |
-| `COLUMNS`                             | Initially set to `200`.                                                                                                                          |
-| `MPLBACKEND`                          | Defaults to `agg` only when absent.                                                                                                              |
-| `MPLCONFIGDIR`                        | Redirected to private plotting storage after configuration/cache selection.                                                                      |
-| `MATPLOTLIBRC`                        | Selects a Matplotlib config file or a directory containing `matplotlibrc`; Console retains a discovered config before private-cache redirection. |
-| `XDG_CONFIG_HOME`                     | Participates in Linux Matplotlib config lookup, not Console YAML discovery.                                                                      |
-| `LD_LIBRARY_PATH`                     | Adjusted for selected R/Python libraries on Linux.                                                                                               |
-| `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES` | Removed when launching the native sandbox runner; this is not a blanket guarantee for direct execution.                                          |
-| `PROCESSOR_ARCHITECTURE`              | On Windows x64, absent/empty values default to `AMD64` before runtime loading; supplied nonempty values remain.                                  |
+| Variable                              | Built-in behavior                                                                                                                                                    |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TMPDIR`                              | Redirected to private storage with `sandbox.tempdir: managed`; otherwise retains normal runtime meaning. Managed mode also redirects DuckDB spill files and secrets. |
+| `TEMP`, `TMP`                         | Also redirected by managed Windows sandbox lifecycle; preserved in other modes and direct workers.                                                                   |
+| `COLUMNS`                             | Initially set to `200`.                                                                                                                                              |
+| `MPLBACKEND`                          | Defaults to `agg` only when absent.                                                                                                                                  |
+| `MPLCONFIGDIR`                        | Redirected to private plotting storage in managed mode after configuration/cache selection; otherwise retains normal library behavior.                               |
+| `MATPLOTLIBRC`                        | Selects a Matplotlib config file or a directory containing `matplotlibrc`; Console retains a discovered config before private-cache redirection.                     |
+| `XDG_CONFIG_HOME`                     | Participates in Linux Matplotlib config lookup, not Console YAML discovery.                                                                                          |
+| `LD_LIBRARY_PATH`                     | Adjusted for selected R/Python libraries on Linux.                                                                                                                   |
+| `LD_PRELOAD`, `DYLD_INSERT_LIBRARIES` | Removed when launching the native sandbox runner; this is not a blanket guarantee for direct execution.                                                              |
+| `PROCESSOR_ARCHITECTURE`              | On Windows x64, absent/empty values default to `AMD64` before runtime loading; supplied nonempty values remain.                                                      |
 
-Private plotting/cache initialization still occurs with `cache: host` and `--no-sandbox`.
+Private plotting/cache initialization still occurs with `cache: host` when `sandbox.tempdir: managed` is selected.
+Other tempdir modes and `--no-sandbox` retain normal library cache selection after the configuration/cache assignments above.
 Selecting host caches does not turn the built-in worker into an ordinary unmodified interpreter command.
 
 ## Networking and delegated variables
@@ -174,7 +176,7 @@ Consult the relevant runtime/package documentation for delegated settings.
 Internal transport/activation names are not supported configuration.
 In particular, do not use the following to choose permissions or runtimes:
 
-`MCP_CONSOLE_LANGUAGES`, `MCP_CONSOLE_SANDBOX`, `MCP_CONSOLE_SANDBOX_SETTINGS`, `MCP_CONSOLE_SANDBOX_CONFIG`, `MCP_CONSOLE_STARTUP_FILE`, `MCP_CONSOLE_LOCAL_RUNTIME`, `MCP_CONSOLE_MANAGED_PYTHON`, `MCP_CONSOLE_R_LIBRARY`, `MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION`, or `MCP_CONSOLE_MATPLOTLIB_CACHE`.
+`MCP_CONSOLE_LANGUAGES`, `MCP_CONSOLE_SANDBOX`, `MCP_CONSOLE_SANDBOX_SETTINGS`, `MCP_CONSOLE_SANDBOX_CONFIG`, `MCP_CONSOLE_STARTUP_FILE`, `MCP_CONSOLE_LOCAL_RUNTIME`, `MCP_CONSOLE_MANAGED_PYTHON`, `MCP_CONSOLE_R_LIBRARY`, `MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION`, `MCP_CONSOLE_MATPLOTLIB_CACHE`, or `MCP_CONSOLE_MANAGED_TEMPDIR`.
 
 The `MCP_CONSOLE_SIDEBAND_*`, `MCP_CONSOLE_INTERRUPT_HANDLE`, and `MCP_CONSOLE_INPUT_READY_HANDLE` families belong to the [worker protocol](WORKER_PROTOCOL.md).
 A marker does not create a sandbox.

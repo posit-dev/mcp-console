@@ -402,6 +402,7 @@ def test_python_startup_preserves_identity_transactions_and_captured_restart(
         configuration["overrides"] = [
             "startup.language=python",
             "inherit_environment=false",
+            "environment.PATH=<host PATH>",
             "resolver.inherit_environment=true",
         ]
         with McpClient(
@@ -411,6 +412,10 @@ def test_python_startup_preserves_identity_transactions_and_captured_restart(
                 "startup.language=python",
                 "-c",
                 "inherit_environment=false",
+                "-c",
+                # Keep runtime discovery and R's cleanup tools available while
+                # disabling inheritance of the rest of the host environment.
+                "environment.PATH=" + os.environ["PATH"],
                 "-c",
                 "resolver.inherit_environment=true",
             ),

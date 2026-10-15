@@ -157,29 +157,29 @@ case: owned protocol
 command: serve
 stderr: >
   .agents/console/config.yaml: sandbox: version: unknown field `version`,
-  expected `filesystem` or `network`; see docs/CONFIGURATION.md for the
-  public format
+  expected one of `profile`, `tempdir`, `filesystem`, `network`; see
+  docs/CONFIGURATION.md for the public format
 ---
 case: owned protocol
 command: sandbox
 stderr: >
   .agents/console/config.yaml: sandbox: version: unknown field `version`,
-  expected `filesystem` or `network`; see docs/CONFIGURATION.md for the
-  public format
+  expected one of `profile`, `tempdir`, `filesystem`, `network`; see
+  docs/CONFIGURATION.md for the public format
 ---
 case: owned lifetime
 command: serve
 stderr: >
   .agents/console/config.yaml: sandbox: lifecycle: unknown field
-  `lifecycle`, expected `filesystem` or `network`; see
-  docs/CONFIGURATION.md for the public format
+  `lifecycle`, expected one of `profile`, `tempdir`, `filesystem`,
+  `network`; see docs/CONFIGURATION.md for the public format
 ---
 case: owned lifetime
 command: sandbox
 stderr: >
   .agents/console/config.yaml: sandbox: lifecycle: unknown field
-  `lifecycle`, expected `filesystem` or `network`; see
-  docs/CONFIGURATION.md for the public format
+  `lifecycle`, expected one of `profile`, `tempdir`, `filesystem`,
+  `network`; see docs/CONFIGURATION.md for the public format
 ---
 case: non-string key
 command: serve

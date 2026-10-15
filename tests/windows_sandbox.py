@@ -686,6 +686,62 @@ class WindowsSandbox(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stdout.strip(), "launched")
 
+    def test_tempdir_modes(self):
+        # fmt: python
+        program = code(r"""
+            import errno
+            import json
+            import os
+            from pathlib import Path
+
+            temporary = Path(os.environ["TMPDIR"])
+            mode = os.environ["EXPECTED_MODE"]
+            assert (temporary == Path(os.environ["EXPECTED_TEMP"])) is (mode != "managed")
+            try:
+                _ = (temporary / "probe").write_text("temporary")
+            except OSError as error:
+                assert mode == "read_only" and error.errno in (
+                    errno.EACCES,
+                    errno.EPERM,
+                    errno.EROFS,
+                ), error
+            else:
+                assert mode != "read_only"
+            print(json.dumps({"temporary": str(temporary)}))
+            """)
+        for mode in ("managed", "read_write", "read_only"):
+            with self.subTest(mode=mode), workspace() as root:
+                temporary = root / "host-temp"
+                temporary.mkdir()
+                config = root / ".agents/console/config.yaml"
+                config.parent.mkdir(parents=True)
+                config.write_text(
+                    json.dumps(
+                        {
+                            "sandbox": {"tempdir": mode},
+                            "environment": {"TmpDir": str(temporary)},
+                        }
+                    )
+                )
+                result = subprocess.run(
+                    [str(BINARY), "sandbox", "--", sys.executable, "-c", program],
+                    cwd=root,
+                    env=dict(
+                        os.environ,
+                        MCP_CONSOLE_HOME=str(root / "home"),
+                        EXPECTED_TEMP=str(temporary),
+                        EXPECTED_MODE=mode,
+                    ),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                selected = Path(json.loads(result.stdout)["temporary"])
+                self.assertTrue(temporary.is_dir())
+                if mode == "managed":
+                    self.assertFalse(selected.exists())
+
     def test_mxc_proxy_configuration_round_trips(self):
         with workspace() as root:
             for proxy in ({}, {"socks5": "disabled"}, {"mode": "limited"}):

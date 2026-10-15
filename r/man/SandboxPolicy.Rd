@@ -28,7 +28,12 @@ SandboxNetwork(
   allow_local_binding = "auto"
 )
 
-SandboxPolicy(filesystem = NULL, network = NULL)
+SandboxPolicy(
+  filesystem = NULL,
+  network = NULL,
+  profile = NULL,
+  tempdir = NULL
+)
 }
 \arguments{
 \item{read_only, read_write, deny}{Character vectors of literal filesystem
@@ -78,6 +83,15 @@ inside a private network namespace.}
 \code{SandboxNetwork()}: preserve context defaults, deny ordinary direct network
 access without a proxy, permit direct host networking, or enable a managed
 proxy, respectively. Filesystem enforcement remains in place.}
+
+\item{profile}{\code{NULL} to preserve context defaults or \code{"workspace_write"} for
+the native workspace profile. Filesystem entries compose with the profile.}
+
+\item{tempdir}{\code{NULL} to preserve context defaults, \code{"managed"} (the default) for private
+writable storage owned and cleaned up by Console, \code{"read_write"} for
+automatic write grants to normal host temp locations without Console-owned
+cleanup, or \code{"read_only"} to omit automatic temp grants. Explicit filesystem
+permissions still apply. R retains its own session-tempdir cleanup.}
 }
 \value{
 An S7 configuration object. The constructor is also its S7 class.

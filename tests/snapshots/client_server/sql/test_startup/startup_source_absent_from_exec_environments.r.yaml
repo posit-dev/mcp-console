@@ -40,6 +40,9 @@ result:
   content:
     - type: text
       text: |-
+        Warning message:
+        In DBI::dbFetch(result, n = preview_rows + 1L) :
+          Should not call dbFetch() on results that do not come from SELECT, got CREATE
         [worker stopped: in-memory state lost]
         [starting new worker]
         [idle]

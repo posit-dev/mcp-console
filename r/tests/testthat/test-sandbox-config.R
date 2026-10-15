@@ -2,6 +2,17 @@ policy_json <- function(x) {
   as.character(jsonlite::toJSON(as.list(x), auto_unbox = TRUE))
 }
 
+test_that("workspace and tempdir selectors preserve their public wire shape", {
+  policy <- SandboxPolicy(profile = "workspace_write", tempdir = "read_write")
+  expect_identical(
+    as.list(policy),
+    list(profile = "workspace_write", tempdir = "read_write")
+  )
+  expect_error(SandboxPolicy(tempdir = TRUE), "tempdir")
+  expect_error(SandboxPolicy(tempdir = "unmanaged"), "tempdir")
+  expect_error(SandboxPolicy(profile = ":workspace"), "profile")
+})
+
 test_that("omitted mappings and explicit empties stay distinct", {
   expect_identical(policy_json(SandboxPolicy()), "{}")
   expect_identical(
