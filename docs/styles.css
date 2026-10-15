@@ -15,9 +15,15 @@ main :not(pre) > code {
   white-space: normal;
 }
 
+/* Preserve whole words when sizing columns; wider tables scroll in their region. */
 .table-responsive {
   max-width: 100%;
   min-width: 0;
+  overflow-wrap: normal;
+}
+
+main .table-responsive :not(pre) > code {
+  overflow-wrap: normal;
 }
 
 main {
