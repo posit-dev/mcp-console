@@ -1,0 +1,4 @@
+---
+concurrent_send: rejected
+recovery: recovered
+closed: true

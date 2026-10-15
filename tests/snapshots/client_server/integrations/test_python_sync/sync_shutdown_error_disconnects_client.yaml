@@ -1,0 +1,4 @@
+---
+error: fixture shutdown error
+closed: true
+reconnect: true
