@@ -88,10 +88,12 @@ proxy, respectively. Filesystem enforcement remains in place.}
 the native workspace profile. Filesystem entries compose with the profile.}
 
 \item{tempdir}{\code{NULL} to preserve context defaults, \code{"managed"} (the default) for private
-writable storage owned and cleaned up by Console, \code{"read_write"} for
+writable storage owned and cleaned up by the active sandbox, \code{"read_write"} for
 automatic write grants to normal host temp locations without Console-owned
 cleanup, or \code{"read_only"} to omit automatic temp grants. Explicit filesystem
-permissions still apply. R retains its own session-tempdir cleanup.}
+permissions still apply. Without an active sandbox and managed storage,
+Console adds no temporary-directory cleanup guarantees; R uses its normal
+best-effort session-tempdir cleanup.}
 }
 \value{
 An S7 configuration object. The constructor is also its S7 class.

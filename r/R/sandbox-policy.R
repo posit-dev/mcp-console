@@ -422,10 +422,12 @@ SandboxNetwork <- S7::new_class(
 #' @param profile `NULL` to preserve context defaults or `"workspace"` for
 #'   the native workspace profile. Filesystem entries compose with the profile.
 #' @param tempdir `NULL` to preserve context defaults, `"managed"` (the default) for private
-#'   writable storage owned and cleaned up by Console, `"read_write"` for
+#'   writable storage owned and cleaned up by the active sandbox, `"read_write"` for
 #'   automatic write grants to normal host temp locations without Console-owned
 #'   cleanup, or `"read_only"` to omit automatic temp grants. Explicit filesystem
-#'   permissions still apply. R retains its own session-tempdir cleanup.
+#'   permissions still apply. Without an active sandbox and managed storage,
+#'   Console adds no temporary-directory cleanup guarantees; R uses its normal
+#'   best-effort session-tempdir cleanup.
 #' @export
 SandboxPolicy <- S7::new_class(
   "SandboxPolicy",

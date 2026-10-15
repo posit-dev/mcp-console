@@ -264,6 +264,11 @@ send:
     temporary = Path(os.environ["TMPDIR"])
     assert str(temporary) != os.environ["TEST_HOST_TEMP"]
     _ = (temporary / "probe").write_text("owned")
+    locked = temporary / "locked"
+    locked.mkdir()
+    _ = (locked / "probe").write_text("owned")
+    locked.chmod(0o500)
+    (temporary / "external").symlink_to(Path(os.environ["TEST_HOST_TEMP"]) / "keep")
     _ = Path("worker-temp.txt").write_text(str(temporary))
     try:
         _ = (Path(os.environ["TEST_HOST_TEMP"]) / "blocked").write_text("blocked")

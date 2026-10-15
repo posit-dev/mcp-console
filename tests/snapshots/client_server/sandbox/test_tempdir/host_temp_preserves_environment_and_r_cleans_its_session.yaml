@@ -266,7 +266,6 @@ send:
       function(x) cleanup_finalizer(x),
       onexit = TRUE
     ))
-    Sys.setenv(PATH = "")
 result:
   content:
     - type: text
@@ -279,7 +278,7 @@ result:
   content:
     - type: text
       text: |-
-        In addition: Warning message:
+        Warning message:
         In cleanup_finalizer(x) : R finalizer warning
         [worker stopped: in-memory state lost]
         [starting new worker]
@@ -289,7 +288,6 @@ result:
 send:
   r: |
     writeLines(tempdir(), file.path(Sys.getenv("TMPDIR"), "r-session.txt"))
-    Sys.setenv(PATH = "")
     cat("R shutdown tempdir recorded\n")
 result:
   content:
