@@ -4,71 +4,64 @@ subtitle: Give your agent an interactive workbench for data.
 description: >-
   An interactive, sandboxed workspace for AI agents working with data in
   R, Python, and SQL.
+hide-description: true
 toc: false
 sidebar: false
 ---
 
-MCP Console lets your agent run R, Python, and SQL, inspect live objects, and refine its work after seeing the results.
-Data and models stay in memory between calls, so a follow-up question can use what the agent has already computed.
+Run R, Python, and SQL in a persistent session.
+Load data once, inspect results, refine plots, read help, and debug code with objects and models still in memory.
 
-Code runs in an [OS-level sandbox](SANDBOX.md) by default, with configurable limits on filesystem writes and direct network access.
-By default, Console prepares environments and packages automatically; no Console configuration file is required.
+Code runs in an [OS-level sandbox](SANDBOX.md) by default.
+Console prepares environments and packages automatically; no Console configuration file is required.
 
 ::: {.home-links}
-[Get started](getting-started.qmd){.btn .btn-primary} [Documentation](README.md){.btn .btn-outline-primary}
+[Get started](getting-started.qmd){.btn .btn-primary} [User guides](README.md){.btn .btn-outline-primary}
 :::
 
 ## Work in a persistent session
 
-Console provides a persistent session—a REPL—through one MCP tool, `send`.
+During an analysis, the agent can load a dataset, fit a model, and plot the residuals.
+A follow-up question can use the same data and model rather than repeat the setup.
 
-For example, during exploratory data analysis, the agent can load a dataset, fit a model, and plot the residuals.
-If something looks wrong, it can inspect intermediate results or refine the plot using the data and model already in memory.
+The agent can read help, inspect intermediate results, pause in a debugger, and continue after an interruption.
+Long computations can keep running between calls.
+Previews keep long output out of the model's context, while [recordings](RECORDING.md) retain logs and plots for later inspection.
 
-The agent can also:
+## Use one language or combine them {#one-workspace-three-languages}
 
-- Read help, pause in a debugger, and evaluate code against live objects.
-- Run long computations across calls and collect output as it arrives.
-- Interrupt work and keep the session, or [restart it](SEND_OPERATIONS.md#explicit-restart) to clear live objects and start fresh.
-- Read previews of long output that limit how much text enters the model's context.
-- Revisit logs and plots through [recordings](RECORDING.md).
+The built-in runtimes share one process, so data can move between languages without intermediate files.
+Use the languages your analysis needs; R and Python can each run without the other.
 
-## R, Python, and SQL {#one-workspace-three-languages}
+See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples, database connections, and plots.
 
-The built-in runtimes are embedded in one process, so the agent can pass data between R, Python, and SQL without writing intermediate files.
-It can use one language or combine them in the same session.
-See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md).
+## Choose how packages are prepared {#environment-setup}
 
-## Environment setup
+By default, Console prepares packages for the session and reuses cached installations.
+The agent can request additional packages as it works.
 
-By default, Console prepares packages and extensions for the session:
-
-- **R packages** go into ephemeral, cache-backed libraries layered on top of the host's R libraries.
-- **Python packages** go into an ephemeral, cache-backed Python environment.
-- **DuckDB extensions** are installed in a reusable cache for the session's in-memory database.
-
-Cached installations persist after a session ends and can be reused in later sessions.
-The agent can request additional packages and extensions as it works.
-You can instead [use a preconfigured Python environment](CONFIGURATION.md#python-environment-selection), which disables managed Python preparation, or [disable R package resolution](CONFIGURATION.md#dependency-resolution-policies).
-See [Get started](getting-started.qmd) for installation prerequisites and client setup, or [Requirements and environments](REQUIREMENTS.md) for package preparation.
+You can instead [select an existing Python environment](CONFIGURATION.md#python-environment-selection) or choose when Console may prepare dependencies.
+See [Packages and environments](REQUIREMENTS.md).
 
 Console works with MCP-compatible clients such as Codex and Claude Code and does not depend on a particular model provider.
+To connect from your own application, see [Client integration](CLIENTS.md).
 
 ## Where Console fits
 
-- **Unattended analysis:** run long analyses with limits on where the agent can write files and connect to the network.
+- **Unattended analysis:** run long analyses with limits on filesystem writes and network access.
 - **Model evaluations:** evaluate how an agent explores data, checks its work, and responds to results.
-- **Conversational analysis:** discuss questions and results while the agent runs the analysis in its own session.
+- **Conversational analysis:** discuss questions and results while the agent works in its own session.
 - **Large datasets:** keep data and intermediate results in memory for follow-up questions.
-- **Debugging and package development:** pause execution, inspect live objects, and evaluate code where a failure occurs.
+- **Debugging and package development:** pause execution and inspect live objects where a failure occurs.
 
 ## Status and trust
 
 Console is a **development preview** for macOS, Linux, and [experimental Windows x64](WINDOWS.md).
-Run it alongside the MCP client on the intended execution host.
+Run it on the same host as the MCP client.
 
-The default sandbox permits regular-file writes only in private temporary storage and restricts direct networking, but permits host-file reads.
+The default sandbox restricts workspace writes and direct networking but permits host-file reads.
 **Readable secrets are not protected.** Project configuration is trusted input and may widen permissions.
 Dependency preparation has a separate policy.
+
 Recordings contain input and output without redaction and have no automatic cleanup.
-See [Sandbox and trust](SANDBOX.md) before changing permissions and [Recordings and reports](RECORDING.md) before sharing session files.
+Read [Sandbox and trust](SANDBOX.md) before changing permissions and [Recordings and reports](RECORDING.md) before sharing session files.

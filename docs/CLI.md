@@ -1,34 +1,30 @@
 # Command-line reference
 
-Run `mcp-console --help` or a subcommand's `--help` for the installed build's complete option list.
-The website's [CLI help](cli-help.qmd) shows the printouts checked by the CLI tests.
-Console runs commands on the local host; it does not create remote connections.
+Use `serve` to connect an MCP client, `sandbox` to run one command under a sandbox, and `config resolve` to inspect configuration.
+Console runs on the local host; it does not create remote connections.
+
+The [CLI help page](cli-help.qmd) shows tested public-command help.
+Run `mcp-console --help` for the version installed on your machine.
 
 ## MCP server
 
 ```sh
 mcp-console serve
-mcp-console serve --writable-root .
-mcp-console serve --no-project-config
 ```
 
-`serve` speaks MCP over stdin and stdout.
-It waits for a client; it is not an interactive terminal.
-Keep stdout available for protocol traffic.
+Your MCP client normally launches this command.
+It communicates over standard input and output and waits for the client; it is not an interactive terminal.
+See [Connect your client](getting-started.qmd#connect-your-client).
 
-Sandboxing is enabled by default.
-`--writable-root PATH` adds a writable path for this launch and may be repeated.
-More specific permission rules still apply.
-It does not create missing directories.
+To allow writes in the launch directory for this session:
 
 ```sh
-mcp-console serve --no-sandbox
+mcp-console serve --writable-root .
 ```
 
-`--no-sandbox` runs evaluated code and dependency preparation with host permissions and removes native descendant-cleanup guarantees.
-It also disables [managed temporary storage](SANDBOX_CONFIGURATION.md#profiles-and-temporary-storage).
-It conflicts with writable-root options and explicit worker or resolver sandbox settings.
-Host cache mode is used; `cache: console` is rejected.
+`--writable-root PATH` may be repeated.
+It does not create missing directories, and more specific permission rules still apply.
+[Sandbox configuration](SANDBOX_CONFIGURATION.md) documents path rules and protected metadata.
 
 ## Standalone sandbox
 
@@ -38,12 +34,11 @@ mcp-console sandbox --writable-root . -- python script.py
 mcp-console sandbox -c sandbox.network=enabled -- python download.py
 ```
 
-Arguments after `--` belong to the target command.
-Stdin also belongs to the target.
-This command applies the sandbox and workload environment; it does not provide Console's persistent session, automatic package preparation, plot capture, or recordings.
+Arguments after `--` and standard input belong to the target command.
+This applies the sandbox and workload environment, but does not provide a persistent Console session, automatic package preparation, plot capture, or recordings.
 
-The default permits host reads and private temporary writes, not workspace writes.
-Network access and cleanup limits are described in [Sandbox and trust](SANDBOX.md).
+The default permits host-file reads and private temporary writes, not workspace writes.
+See [Sandbox and trust](SANDBOX.md) for networking and cleanup limits.
 
 ## Configuration options
 
@@ -56,21 +51,24 @@ These options work before or after `serve` and ordinary `sandbox`:
 | `--no-global-config`                 | Project file and CLI overrides.                                 |
 | `--no-config`                        | CLI overrides only.                                             |
 | `--config-file PATH`                 | One explicit YAML or JSON file, then CLI overrides.             |
-| `-c KEY=VALUE`, `--config KEY=VALUE` | Apply one dotted assignment; repeat in the desired order.       |
+| `-c KEY=VALUE`, `--config KEY=VALUE` | One dotted assignment; repeat to apply several in order.        |
 
+An explicit configuration file is required to exist.
 `--config-file` may occur once and cannot be combined with discovery exclusions.
-A missing explicit file is an error.
 `-c` accepts an assignment, not a file path or a complete root document.
 
 ```sh
 mcp-console serve --config-file ./session.yaml
+mcp-console serve --no-project-config
 mcp-console serve -c 'languages=[python,sql]' -c 'python=.venv'
-mcp-console -c 'environment={OMP_NUM_THREADS: "4"}' serve
 ```
 
 Examples use POSIX shell quoting.
 In PowerShell, quote the complete assignment when it contains spaces or structured values.
-[Configuration](CONFIGURATION.md) defines paths, merging, and trust.
+
+Project configuration is trusted input and can widen permissions.
+Use `--no-project-config` for an unfamiliar project until you have reviewed its settings.
+[Configuration](CONFIGURATION.md) defines paths, precedence, and merging.
 
 ## Inspect configuration
 
@@ -80,32 +78,54 @@ mcp-console config resolve --full --no-config --format json
 mcp-console serve --config-file session.yaml
 ```
 
-`config resolve` defaults to `--prune`, printing only settings that differ from the binary's built-in defaults.
-`--full` includes all configuration defaults, generated tool prose, and every parameter setting.
-The two flags are mutually exclusive.
-Neither mode starts runtimes or prepares packages.
+`config resolve` prints settings without starting runtimes or preparing packages.
+By default it uses `--prune`, omitting settings equal to the binary's built-in defaults.
+`--full` includes defaults, tool descriptions, and parameter settings; it cannot be combined with `--prune`.
+
+YAML is the default output.
+Use `--format json` for JSON.
 Configuration selection flags and `-c` work before `config` or after `resolve`.
-YAML is the default output; `--format json` selects JSON.
-For host execution, use `--no-sandbox` during both materialization and launch.
-See [inspect and edit resolved configuration](CONFIGURATION.md#inspect-and-edit-resolved-configuration) for supported edits and runtime-dependent defaults.
+Keep the same launch directory when exporting and using relative paths.
+
+See [Inspect and edit resolved configuration](CONFIGURATION.md#inspect-and-edit-resolved-configuration) for editable fields and runtime-dependent defaults.
 
 ## Windows sandbox requirements
 
 Native Windows sandboxed launches require MXC, including complete native policies.
-Unsupported hosts or policies fail before the workload executes.
-MXC needs no provisioning command; existing legacy installations need the [one-time cleanup](WINDOWS.md#legacy-installation-cleanup).
-See [Windows](WINDOWS.md#native-sandbox).
+Unsupported hosts and policies fail before the workload executes; there is no automatic weaker fallback.
+
+MXC needs no provisioning command.
+Older installations may need the [one-time administrator cleanup](WINDOWS_MIGRATION.md).
+See [Windows setup](WINDOWS.md#native-sandbox).
+
+## Run without sandboxing
+
+```sh
+mcp-console serve --no-sandbox
+```
+
+This runs evaluated code and dependency preparation with host permissions and removes native descendant-cleanup guarantees.
+It also disables [managed temporary storage](SANDBOX_CONFIGURATION.md#profiles-and-temporary-storage).
+It conflicts with writable-root options and explicit analysis or resolver sandbox settings.
+It uses host cache mode and rejects `cache: console`.
+
+For a configuration exported for host execution, pass `--no-sandbox` to both `config resolve` and `serve`; the launch flag is not stored in YAML.
+See [Cache selection](CONFIGURATION.md#cache-selection) for clearing inherited permission settings deliberately.
 
 ## Complete native policy
 
-`mcp-console sandbox --config-env NAME -- COMMAND...` reads a complete native JSON policy from the named launch environment variable.
-It bypasses automatic configuration and Console's generated policy defaults; it does not merge with `-c` or writable-root options.
+Advanced standalone callers can use:
 
-This is an advanced integration interface.
-Use the pinned schema and examples linked from [Explicit complete policy](SANDBOX_CONFIGURATION.md#explicit-complete-policy), rather than adapting a `config.yaml` document into it.
+```sh
+mcp-console sandbox --config-env POLICY_VARIABLE -- COMMAND
+```
 
-## Developer-only commands
+The named launch environment variable holds a complete native JSON policy, not a filename.
+This bypasses automatic application configuration and Console's generated policy defaults; it does not merge with configuration-selection flags, `-c`, or writable-root options.
 
-`worker`, `worker-relay`, and `resolve`, along with `serve --worker`, `serve --relay`, and private handoff options, are not normal user workflows.
-Their contracts live in the [architecture](ARCHITECTURE.md) and protocol guides.
-Do not launch them to bypass the public configuration or sandbox boundary.
+This is a separate advanced interface, not another spelling of `config.yaml`.
+See [Explicit complete policy](SANDBOX_CONFIGURATION.md#explicit-complete-policy) for the pinned schema and runnable examples.
+
+<span id="developer-only-commands"></span>
+
+Contributor-only command contracts are documented in [Architecture](ARCHITECTURE.md) and the internal protocol references.

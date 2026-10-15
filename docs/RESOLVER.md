@@ -1,4 +1,4 @@
-# Dependency resolver configuration
+# Package preparation and caches
 
 The resolver selects environments and prepares packages separately from evaluated code.
 Giving a worker network or filesystem access does not give the resolver the same access, and vice versa.
@@ -10,15 +10,6 @@ Windows preparation uses host permissions and an owned Job for process cleanup; 
 Package builds and interpreter hooks execute code.
 Use trusted requirements, package sources, tools, and configuration.
 See [the trust boundary](#trust-boundary).
-
-## Selecting resolver tools
-
-Without R, managed Python requires `uv` on the launch PATH; there is no managed fallback to a system Python.
-An [existing Python environment](CONFIGURATION.md#python-environment-selection) bypasses managed Python preparation.
-
-With R, preparation prefers PATH `ir` (at least 0.4.0), then `uv tool run --from r-lib-ir ir`, with reticulate bootstrap when available.
-A genuinely unavailable bootstrap can leave a bare R runtime; a selected bootstrap that fails is an error.
-`RETICULATE_UV` affects the R-backed Python preparation path, not R-free preparation.
 
 ## Cache locations
 
@@ -53,6 +44,23 @@ Shared cache writes can affect artifacts later used outside Console.
 
 The companion's source/build cache is separate from dependency caches.
 It is not worker-writable under the default policy.
+
+## Host cache selection
+
+With `cache: host`, explicit tool variables select locations and corresponding default resolver write grants.
+The principal variables are `UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`, `UV_TOOL_DIR`, `IR_CACHE_DIR`, `IR_LIBRARY_ROOT`, `RENV_PATHS_*`, `PKG_CACHE_DIR`, `R_PKG_CACHE_DIR`, and `MPLCONFIGDIR`.
+
+Without overrides, uv uses its cache/data locations under XDG directories or the user's home.
+R-related caches use `R_USER_CACHE_DIR`, then `XDG_CACHE_HOME`, then R's platform cache base.
+Reticulate, ir, renv, and package caches occupy their respective subdirectories.
+Default host-cache grants require an absolute resolver `HOME`.
+
+Use `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` for a custom host extension cache.
+Otherwise managed installation and SQL use `.duckdb/extensions` under the resolver's effective home.
+The location is captured; changing it in a cell does not reconfigure preparation.
+Explicit filesystem policies must grant its writes.
+
+Exact platform fallbacks and generated grants are implemented in [`src/resolver/cache.rs`](../src/resolver/cache.rs).
 
 ## Configuration
 
@@ -121,6 +129,27 @@ Console does not read uv configuration files to infer extra writable paths.
 Expose a custom cache path through the corresponding environment variable or grant it explicitly.
 In Console cache mode, Console's cache assignments take precedence.
 
+## Trust boundary
+
+Preparation can read host files and modify its granted caches.
+Console cache mode separates artifacts from ordinary host caches; it does not make them immutable, inspect package code, or protect readable secrets.
+
+Keep selected resolver executables, wrappers, installation directories, source files, and configuration outside worker-writable paths.
+Captured names and interpreter identity checks do not prevent every concurrent file replacement or changes to dependencies loaded later.
+
+`UV_OFFLINE=1` in a worker is a uv setting, not process-level network enforcement or a description of resolver permissions.
+R discovery/preparation is profile-free.
+See [Requirements](REQUIREMENTS.md#host-resolution-and-trust) for supported request syntax and partial effects.
+
+## Selecting resolver tools
+
+Without R, managed Python requires `uv` on the launch PATH; there is no managed fallback to a system Python.
+An [existing Python environment](CONFIGURATION.md#python-environment-selection) bypasses managed Python preparation.
+
+With R, preparation prefers PATH `ir` (at least 0.4.0), then `uv tool run --from r-lib-ir ir`, with reticulate bootstrap when available.
+A genuinely unavailable bootstrap can leave a bare R runtime; a selected bootstrap that fails is an error.
+`RETICULATE_UV` affects the R-backed Python preparation path, not R-free preparation.
+
 ## Expanded public default
 
 The macOS/Linux download policy is equivalent to the following networking configuration.
@@ -163,36 +192,3 @@ resolver:
 Local binding permits installer coordination.
 On macOS it also permits host loopback access and DNS; Linux uses a private network namespace.
 This is not the Windows resolver policy.
-
-## Host cache selection
-
-With `cache: host`, explicit tool variables select locations and corresponding default resolver write grants.
-The principal variables are `UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`, `UV_TOOL_DIR`, `IR_CACHE_DIR`, `IR_LIBRARY_ROOT`, `RENV_PATHS_*`, `PKG_CACHE_DIR`, `R_PKG_CACHE_DIR`, and `MPLCONFIGDIR`.
-
-Without overrides, uv uses its cache/data locations under XDG directories or the user's home.
-R-related caches use `R_USER_CACHE_DIR`, then `XDG_CACHE_HOME`, then R's platform cache base.
-Reticulate, ir, renv, and package caches occupy their respective subdirectories.
-Default host-cache grants require an absolute resolver `HOME`.
-
-Use `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` for a custom host extension cache.
-Otherwise managed installation and SQL use `.duckdb/extensions` under the resolver's effective home.
-The location is captured; changing it in a cell does not reconfigure preparation.
-Explicit filesystem policies must grant its writes.
-
-Exact platform fallbacks and generated grants are implemented in [`src/resolver/cache.rs`](../src/resolver/cache.rs).
-Do not copy those implementation formulas into other guides.
-
-## Trust boundary
-
-Preparation can read host files and modify its granted caches.
-Console cache mode separates artifacts from ordinary host caches; it does not make them immutable, inspect package code, or protect readable secrets.
-
-Keep selected resolver executables, wrappers, installation directories, source files, and configuration outside worker-writable paths.
-Captured names and interpreter identity checks do not prevent every concurrent file replacement or changes to dependencies loaded later.
-
-`UV_OFFLINE=1` in a worker is a uv setting, not process-level network enforcement or a description of resolver permissions.
-R discovery/preparation is profile-free.
-See [Requirements](REQUIREMENTS.md#host-resolution-and-trust) for supported request syntax and partial effects.
-
-The [release trust audit](RESOLVER_RELEASE_AUDIT.md) is dated evidence, not approval of an arbitrary later commit.
-[TODO](TODO.md) tracks remaining verification and design questions.

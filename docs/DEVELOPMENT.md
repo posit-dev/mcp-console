@@ -31,7 +31,7 @@ Install the formatting tools used by `scripts/format`, including ruff, yamark, a
 
 On native Windows use `.cmd` launchers, such as `scripts/check.cmd`, or `python scripts/check`.
 Stage the companion before native build/test/check commands.
-See [Windows validation](WINDOWS.md#validation) for MXC host requirements and required runtimes.
+See [Windows validation](WINDOWS_DEVELOPMENT.md#validation) for MXC host requirements and required runtimes.
 
 ### Windows development through WSL2
 
@@ -120,8 +120,12 @@ python3 tests/website.py
 ```
 
 The website test renders a fresh temporary copy and checks titles, navigation, search, and local links/anchors, including both package references.
-The CLI help page reads the Unix and Windows YAML snapshots from the CLI acceptance tests and presents each successful `--help` command.
-Update those snapshots with `scripts/test --update cli/interface/test_help` on the relevant platform when help changes; the docs build reads them without building or running Console.
+The CLI help page reads the normalized cross-platform YAML snapshot from CLI acceptance tests.
+It publishes only `mcp-console`, `config`, `config resolve`, `serve`, and `sandbox` help, preserving the exact tested text.
+Internal commands remain covered by acceptance tests.
+To publish another public command, add it to the explicit allowlist in `docs/_filters/cli-help.py` and the independent expected set in `tests/website.py`.
+When CLI help changes, regenerate snapshots with `scripts/test --update cli/interface/test_help`, inspect the diff, and rerun without `--update`.
+Never hand-edit snapshots; website rendering does not build or run Console.
 Quarto's post-render scripts build `docs/_site/r/` and `docs/_site/python/`.
 Python reference uses static source analysis, and the R workflow vignette displays its examples without execution, so API credentials and a Console executable are not required for those builds.
 
@@ -131,7 +135,10 @@ Generated build directories remain ignored.
 
 ### Documentation ownership
 
-Public behavior belongs in the [API map](API.md) and its linked reference pages.
+The website has three reading paths: [User guides](README.md), [Client integration](CLIENTS.md), and Development.
+Ordinary configuration, packages, permissions, languages, and recordings belong in the user guides.
+Exact MCP call, requirement-operation, tool-presentation, and runtime behavior belongs in [MCP send reference](API.md), [Requirements API](REQUIREMENTS_API.md), [Tool configuration](TOOL_CONFIGURATION.md), and [Runtime behavior reference](RUNTIME_REFERENCE.md).
+Keep compatibility anchors when moving public sections and include every new page in the appropriate sidebar and search index.
 Architecture belongs in [Architecture](ARCHITECTURE.md); exact private message schemas belong with their source definitions.
 Prefer a cross-reference over another explanation of restart, preparation, or sandbox trust.
 
@@ -199,3 +206,32 @@ Establish cleanup with its original owner before rerunning.
 
 Report actual validation and hosted CI/review status separately.
 Opening a PR does not imply permission to merge, wait indefinitely for CI, or start a watcher.
+
+## Preparation evidence
+
+Exact cache fallback formulas and generated grants belong in `src/resolver/cache.rs`; do not copy those implementation formulas into other guides.
+The [release trust audit](RESOLVER_RELEASE_AUDIT.md) is dated evidence, not approval of an arbitrary later commit.
+
+## Linux platform validation
+
+```sh
+scripts/test cli/sandbox/test_procfs
+scripts/test cli/sandbox/test_configuration
+python3 tests/sandbox_installation.py target/release/mcp-console
+```
+
+The procfs matrix compares fresh/inherited views with readable/denied sentinel paths and restricted/enabled networking.
+It checks direct policy behavior and attempts through process metadata, descriptors, memory, signals, and namespace entry.
+Host restrictions must not substitute for the sandbox property under test.
+
+Namespace-link access and namespace entry are separate assertions, resolving [SP-5](https://github.com/t-kalinowski/mcp-console/issues/603).
+The trusted fixture driver first proves that it can enter its disposable network namespace, then supplies a validated handle to the sandboxed target.
+The disposable host process drops the driver's capabilities so they cannot conceal a ptrace bypass.
+This keeps namespace entry reachable even when procfs denies access to the host process's namespace link, and retains exact errors for both checks.
+
+These probes establish specific contracts, not proof against all kernel attacks.
+Fixture process-observation requirements are separate from production requirements.
+[Boundary tests](../tests/boundaries/README.md) covers capability skips and safe namespace-PID handling.
+
+Release acceptance additionally checks the installed bundle with an empty PATH and native floor-runtime images.
+See [Release](../RELEASE.md#linux-floor-validation); an ABI report, successful normalization, or skipped native probe is not a sandbox acceptance result.

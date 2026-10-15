@@ -1,73 +1,79 @@
 # Recordings and reports
 
-Recordings live on the Console host and contain source, stdin, requirements, output, and artifacts **without redaction**.
-There is no aggregate quota or automatic cleanup.
-Review files before sharing them and remove old sessions deliberately.
+Console keeps transcripts, text output, and plots on the machine where it runs.
+Ask the agent for the recorded session's path, or use the locations below.
+
+Recordings contain source, input, requirements, output, and artifacts **without redaction**.
+Review them before sharing.
+There is no aggregate quota or automatic cleanup, so remove old sessions deliberately.
 
 ## Location and files
 
 If `.agents/console` already exists in the launch directory, recordings use `.agents/console/sessions/<run-id>/`.
 Otherwise they use `~/.agents/console/sessions/<run-id>/`; `MCP_CONSOLE_HOME` replaces that fallback Console directory.
-Console does not create a project `.agents` directory merely to select project storage.
 
-Recording begins when the first call, startup output, or startup failure needs it.
+Console does not create a project `.agents` directory just to select project storage.
+Recording starts when a call, startup output, or startup failure needs it.
 
-| File                      | Purpose                                                    |
-| ------------------------- | ---------------------------------------------------------- |
-| `transcript.md`           | Chronological call ledger with results and artifact links. |
-| `transcript.qmd`          | Source projection to review and edit into a report.        |
-| `outputs/call-NNNNNN.log` | Raw text for an admitted cell, up to 1 GiB.                |
-| `outputs/session.log`     | Startup and idle text, up to 1 GiB.                        |
-| `artifacts/`              | Retained images.                                           |
-| `internal/events.jsonl`   | Internal append-only journal underlying the projections.   |
+| File                      | Use                                                |
+| ------------------------- | -------------------------------------------------- |
+| `transcript.md`           | Read calls, results, and links to artifacts.       |
+| `transcript.qmd`          | Review submitted source and edit it into a report. |
+| `outputs/call-NNNNNN.log` | Read raw text from a code cell, up to 1 GiB.       |
+| `outputs/session.log`     | Read startup and idle text, up to 1 GiB.           |
+| `artifacts/`              | Find retained images.                              |
 
-Returned paths identify files on the Console host.
-Project paths are normally launch-relative; fallback paths are absolute.
-Long-location notices can instead name an exact path relative to the selected Console directory.
+Returned paths refer to the Console host.
+Project paths are normally relative to the launch directory; fallback paths are absolute.
+A long-location notice may instead name a path relative to the selected Console directory.
 
 ## Retrieve omitted output
 
-Use the client's filesystem tools to read the named raw log.
-Console has no file-read/search tool.
-Reading a file does not move the polling cursor, and resubmitting a cell is not a way to retrieve its output.
+The agent can use its client's filesystem tools to read the named raw log.
+Console does not provide a file-reading tool.
+Rerunning a cell is not a way to retrieve its previous output.
 
-Raw logs receive output before preview truncation and are flushed at response cuts, so they can be read while a cell runs.
-Limits, write failures, or early image rejection can leave only partial retained output; omission notices distinguish that from a complete recording.
+Reading a log does not consume pending Console output.
+Logs receive text before preview truncation and are flushed when Console assembles a response, so they can be read while a cell runs.
+Notices identify output that was omitted from a response and distinguish partial retention from a complete recording.
 
-No log can recover values that a language printer or SQL preview never emitted.
+A log cannot recover values that a language printer or SQL preview never emitted.
 Fetch or save the complete data explicitly when it matters.
 
 ## Render a reviewed copy
 
-`transcript.qmd` is **not a replay or checkpoint**.
-It contains qualifying submitted source, including failed evaluations and rejected calls.
+`transcript.qmd` is a starting point for a report, **not a replay or checkpoint**.
+It can contain failed evaluations and rejected calls.
 It omits interactive input, control operations, output, and recorded images.
-Review a copy before executing it; rendering runs outside the worker sandbox.
 
-From the recording directory:
+Copy it before editing:
 
 ```sh
-uv tool run --from r-lib-ir ir render transcript.qmd
+cp transcript.qmd report.qmd
 ```
 
-With `ir` already on PATH, use `ir render transcript.qmd`.
-Rendering requires R even for a Python-only original session.
+Review the code, inputs, package declarations, and evaluation settings in `report.qmd`.
+Rendering executes code outside the Console sandbox.
+
+After reviewing the copy:
+
+```sh
+uv tool run --from r-lib-ir ir render report.qmd
+```
+
+With `ir` already installed, use `ir render report.qmd`.
+
+Rendering requires R, even when the original session used only Python.
 SQL chunks need a user-supplied DBI connection.
+Package declarations are not a lockfile or a complete history of the environment.
 
-Front matter supplies declarations, not a lockfile or a complete installed-environment inventory.
-It may not reproduce every automatic addition or historical environment.
-Committed `set`/`reset` boundaries disable evaluation because one header cannot represent incompatible environments.
-Review those boundaries and choose the rendering environment explicitly.
-
-When runtime discovery failed or has not supplied metadata, the QMD keeps the environment unknown and evaluation disabled rather than inventing requirements.
+Some recordings disable evaluation because runtime information is unavailable or the session changed between incompatible dependency declarations.
+Review those boundaries and choose the rendering environment explicitly rather than simply enabling every chunk.
 
 ## Recording failures
 
-A journal or artifact failure disables further recording without stopping computation.
-A raw-log failure affects that file.
-Failure of a derived projection disables the projections but can leave the journal and artifacts available.
-Diagnostics and notices report unavailable or partial retention.
+Recording can fail while computation continues.
+A notice identifies files or artifacts that are unavailable or only partially retained; do not assume all output was saved.
 
-Journal events and generated projections are internal formats, not independently versioned public APIs.
-A journaled result records response assembly, not confirmed client receipt.
-See [Architecture](ARCHITECTURE.md#output-and-delivery) for ownership and [Open work](TODO.md) for retention and export gaps.
+The recording journal and generated file formats are not independently versioned APIs.
+Implementation and failure-handling details belong in [Architecture](ARCHITECTURE.md#output-and-delivery).

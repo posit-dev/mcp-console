@@ -173,17 +173,4 @@ Consult the relevant runtime/package documentation for delegated settings.
 
 ## Internal variables: leave unset
 
-Internal transport/activation names are not supported configuration.
-In particular, do not use the following to choose permissions or runtimes:
-
-`MCP_CONSOLE_LANGUAGES`, `MCP_CONSOLE_SANDBOX`, `MCP_CONSOLE_SANDBOX_SETTINGS`, `MCP_CONSOLE_SANDBOX_CONFIG`, `MCP_CONSOLE_STARTUP_FILE`, `MCP_CONSOLE_LOCAL_RUNTIME`, `MCP_CONSOLE_MANAGED_PYTHON`, `MCP_CONSOLE_R_LIBRARY`, `MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION`, `MCP_CONSOLE_MATPLOTLIB_CACHE`, `MCP_CONSOLE_MANAGED_TEMPDIR`, or `MCP_CONSOLE_SQL_STORAGE_DIRECTORY`.
-
-The `MCP_CONSOLE_SIDEBAND_*`, `MCP_CONSOLE_INTERRUPT_HANDLE`, and `MCP_CONSOLE_INPUT_READY_HANDLE` families belong to the [worker protocol](WORKER_PROTOCOL.md).
-A marker does not create a sandbox.
-Use public `languages`, `python`, `r`, `requirements`, and sandbox configuration instead.
-
-Build-time `MCP_CONSOLE_SANDBOX_SOURCE` selects a pinned companion checkout during staging; it does not replace an installed runner.
-Cargo and `MCP_CONSOLE_TEST_*` values belong to build/test workflows, not this runtime interface.
-
-Implementation owners are [`console_paths.rs`](../src/console_paths.rs), [`resolver/cache.rs`](../src/resolver/cache.rs), [`resolver/python_configuration.rs`](../src/resolver/python_configuration.rs), [`python/startup.rs`](../src/python/startup.rs), and [`worker/coordinator.rs`](../src/worker/coordinator.rs).
-Keep detailed compatibility handling there rather than reproducing it across guides.
+Internal handoff variables are not configuration; use the documented application settings and environment variables.

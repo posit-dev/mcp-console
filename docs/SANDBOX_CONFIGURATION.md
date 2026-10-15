@@ -1,20 +1,27 @@
 # Sandbox configuration
 
-The public schema applies to both `sandbox` (evaluated code) and `resolver.sandbox` (dependency preparation).
-Their permissions are independent.
-[Configuration](CONFIGURATION.md) defines discovery and merge rules.
-
-To permit workspace writes and one API host:
+To allow ordinary project writes while protecting workspace metadata:
 
 ```yaml
 sandbox:
-  filesystem:
-    read_write: [.]
+  profile: workspace
+```
+
+For a narrower grant, use `sandbox.filesystem.read_write: [./output]` and create the directory first.
+To permit a specific API through the managed proxy, configure networking separately:
+
+```yaml
+sandbox:
   network:
     proxy:
       domains:
         allow: [api.example.com]
 ```
+
+A proxy allowlist does not permit every direct network channel.
+Package downloads use a separate policy.
+The public schema applies to `sandbox` for evaluated code and `resolver.sandbox` for dependency preparation; their permissions are independent.
+[Configuration](CONFIGURATION.md) defines discovery and merge rules.
 
 Configuration is trusted and can widen permissions.
 Read [Sandbox and trust](SANDBOX.md) before granting access.
@@ -230,7 +237,7 @@ Cleanup is not proof of isolation.
 Normal sessions, standalone commands, and complete native policies require MXC.
 The removed `windows_backend`, `windows_sandbox_level`, and `windows_state_dir` controls are rejected, including explicit nulls.
 Unsupported hosts and policies fail before the workload executes; there is no backend or host-execution fallback.
-Existing legacy Console accounts block MXC until an administrator completes the [one-time migration](WINDOWS.md#legacy-installation-cleanup).
+Existing legacy Console accounts block MXC until an administrator completes the [one-time migration](WINDOWS_MIGRATION.md).
 Explicit `serve --no-sandbox` remains available.
 See [Windows](WINDOWS.md#native-sandbox) for host requirements and the separate host-permission dependency-preparation boundary.
 

@@ -9,6 +9,15 @@ function Pandoc(doc)
   return doc
 end
 
+-- Wide reference tables scroll within the page and remain keyboard-accessible.
+function Table(tbl)
+  return pandoc.Div({tbl}, pandoc.Attr("", {"table-responsive"}, {
+    tabindex = "0",
+    role = "region",
+    ["aria-label"] = "Scrollable table"
+  }))
+end
+
 -- Pandoc make_relative removes a directory prefix; it does not add ".." for siblings.
 local function package_link(path)
   local input_dir = pandoc.path.directory(quarto.doc.input_file)

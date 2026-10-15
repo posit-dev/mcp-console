@@ -1,39 +1,37 @@
-# Documentation
+# User guides
 
-These guides describe the implemented development preview.
-Start with [Get started](getting-started.qmd); use the references when you need an exact argument, setting, or limit.
+Start with [Get started](getting-started.qmd) to install Console and connect your MCP client.
 
-## Use Console
+## Work with Console
 
-[Working with R, Python, and SQL](BUILTIN_RUNTIME.md) explains persistent state, language bridges, database connections, and plots.
-[Calls, input, and control](SEND_OPERATIONS.md) explains polling, interactive input, cancellation, and restart.
+<span id="use-console"></span>
 
-Configure a session with [Configuration](CONFIGURATION.md), manage [Dependencies](REQUIREMENTS.md), and keep results with [Recordings and reports](RECORDING.md).
-Integrate Console into an application with the [Python clients](PYTHON.md) or [R and ellmer](../r/README.md).
+[Working with R, Python, and SQL](BUILTIN_RUNTIME.md) covers persistent state, moving data between languages, database connections, help, and plots.
 
-Before choosing permissions, read [Sandbox and trust](SANDBOX.md).
-Host-specific setup is in [Linux compatibility](LINUX_COMPATIBILITY.md) and [Windows](WINDOWS.md).
+[Packages and environments](REQUIREMENTS.md) explains automatic package preparation and existing environments.
+[Recordings and reports](RECORDING.md) explains retained output and report creation.
 
-## Public reference
+## Configure a project
 
-| Interface                          | Reference                                                                               |
-| ---------------------------------- | --------------------------------------------------------------------------------------- |
-| MCP tool                           | [`send` API](API.md)                                                                    |
-| Command line                       | [CLI](CLI.md), [help printouts](cli-help.qmd)                                           |
-| Application configuration          | [Configuration](CONFIGURATION.md)                                                       |
-| Worker permissions                 | [Sandbox configuration](SANDBOX_CONFIGURATION.md)                                       |
-| Preparation permissions and caches | [Resolver](RESOLVER.md)                                                                 |
-| Environment variables              | [Environment](ENVIRONMENT.md)                                                           |
-| Python package                     | [Generated API](https://t-kalinowski.github.io/mcp-console/python/reference/index.html) |
+Use [Configuration](CONFIGURATION.md) to choose interpreters, startup packages, and environment settings.
+Read [Sandbox and trust](SANDBOX.md) before granting permissions; [Sandbox configuration](SANDBOX_CONFIGURATION.md) documents the settings.
 
-## Develop Console
+For command-line options, use [Command-line reference](CLI.md) or [CLI help](cli-help.qmd).
+[Environment variables](ENVIRONMENT.md) and [Package downloads and caches](RESOLVER.md) cover less common setup needs.
 
-Read [Development](DEVELOPMENT.md) for the local workflow and [Architecture](ARCHITECTURE.md) for state and process ownership.
-[Relay protocol](RELAY_PROTOCOL.md) and [Worker protocol](WORKER_PROTOCOL.md) are internal integration references, not the public MCP API.
+## Platform setup
 
-[Tool descriptions](TOOL_DESCRIPTIONS.md) covers agent-facing prose.
-[Release](../RELEASE.md) covers packaging and publishing.
-[Open work](TODO.md) collects unresolved items without treating every current limitation as a promised feature.
-The [glossary](GLOSSARY.md) defines shared terms.
+See [Windows](WINDOWS.md), [Linux host compatibility](LINUX_COMPATIBILITY.md), or [Build from source](BUILD_FROM_SOURCE.md) for platform-specific instructions.
+The [glossary](GLOSSARY.md) defines terms used in the guides.
 
-Historical proposals in [`design-sketches/`](../design-sketches/) are not current specifications and are not published as website guides.
+## Other documentation
+
+<span id="public-reference"></span>
+
+[Client integration](CLIENTS.md) is for applications that call Console, model-framework adapters, and MCP tool configuration.
+It contains the protocol-level details, including polling and input handling.
+
+<span id="develop-console"></span>
+
+[Development](DEVELOPMENT.md) is for changing Console itself.
+It links to architecture, internal protocols, testing, and release procedures.
