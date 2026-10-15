@@ -269,6 +269,157 @@ def test_concurrent_send_rejected_during_cancellation(binary: Path) -> Transcrip
     return [{"concurrent_send": "rejected", "recovery": "recovered", "closed": True}]
 
 
+@requires(POSIX)
+def test_host_interrupt_while_sdk_loop_is_busy(binary: Path) -> Transcript:
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            validating = threading.Event()
+            release_validation = threading.Event()
+            caller_returned = threading.Event()
+            call_tool = Client.call_tool
+
+            async def busy_validation(
+                self: Client, name: str, arguments: dict[str, object]
+            ) -> CallToolResult:
+                result = await call_tool(self, name, arguments)
+                validating.set()
+                release_validation.wait()
+                return result
+
+            def interrupt_validation() -> None:
+                try:
+                    assert validating.wait(timeout=10)
+                    os.kill(os.getpid(), signal.SIGINT)
+                    if caller_returned.wait(timeout=10):
+                        return
+                finally:
+                    if not caller_returned.is_set():
+                        release_validation.set()
+
+            with (
+                patch.object(Client, "call_tool", busy_validation),
+                ThreadPoolExecutor(max_workers=1) as pool,
+                client(root) as console,
+            ):
+                guard = pool.submit(interrupt_validation)
+                try:
+                    try:
+                        console.send(python="busy validation")
+                    except KeyboardInterrupt:
+                        caller_returned.set()
+                    else:
+                        raise AssertionError("host interrupt missing")
+                    assert not release_validation.is_set(), (
+                        "cancellation submission waited for the busy SDK loop"
+                    )
+                finally:
+                    caller_returned.set()
+                    release_validation.set()
+                guard.result(timeout=5)
+            assert (root / "closed").exists()
+    finally:
+        signal.signal(signal.SIGINT, previous)
+    return [{"host_interrupt": "KeyboardInterrupt", "loop_busy": True, "closed": True}]
+
+
+@requires(POSIX)
+def test_host_interrupt_before_request_starts(binary: Path) -> Transcript:
+    previous = signal.signal(signal.SIGINT, signal.default_int_handler)
+    try:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            validating = threading.Event()
+            release_validation = threading.Event()
+            interrupted = threading.Event()
+            call_tool = Client.call_tool
+            post = asyncio.BaseEventLoop.call_soon_threadsafe
+
+            async def busy_validation(
+                self: Client, name: str, arguments: dict[str, object]
+            ) -> CallToolResult:
+                result = await call_tool(self, name, arguments)
+                if arguments.get("python") == "occupy loop":
+                    validating.set()
+                    release_validation.wait()
+                return result
+
+            def interrupt_submission(
+                self: asyncio.BaseEventLoop, callback, *args, **kwargs
+            ):
+                handle = post(self, callback, *args, **kwargs)
+                if (
+                    threading.current_thread() is threading.main_thread()
+                    and not interrupted.is_set()
+                ):
+                    interrupted.set()
+                    os.kill(os.getpid(), signal.SIGINT)
+                return handle
+
+            with (
+                patch.object(Client, "call_tool", busy_validation),
+                ThreadPoolExecutor(max_workers=1) as pool,
+                client(root) as console,
+            ):
+                pending = pool.submit(console.send, python="occupy loop")
+                assert validating.wait(timeout=10)
+                try:
+                    with patch.object(
+                        asyncio.BaseEventLoop,
+                        "call_soon_threadsafe",
+                        interrupt_submission,
+                    ):
+                        try:
+                            console.send(python="never started")
+                        except KeyboardInterrupt:
+                            pass
+                        else:
+                            raise AssertionError("host interrupt missing")
+                    assert interrupted.is_set()
+                finally:
+                    release_validation.set()
+                assert pending.result(timeout=5) == "occupy loop"
+                assert console.send(python="recovered") == "recovered"
+            requests = (root / "requests.jsonl").read_text(encoding="utf-8")
+            assert "never started" not in requests, requests
+            assert (root / "closed").exists()
+            (root / "closed").unlink()
+            with console:
+                assert console.send(python="reconnected") == "reconnected"
+            assert (root / "closed").exists()
+    finally:
+        signal.signal(signal.SIGINT, previous)
+    return [{"unsent_request": "cancelled", "closed": True, "reconnect": True}]
+
+
+def test_sync_shutdown_error_disconnects_client(binary: Path) -> Transcript:
+    aexit = Client.__aexit__
+
+    async def close_then_fail(self: Client, *args: object) -> None:
+        await aexit(self, *args)
+        raise RuntimeError("fixture shutdown error")
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        console = client(root)
+        with patch.object(Client, "__aexit__", close_then_fail):
+            console.connect()
+            assert console.send(python="hello") == "hello"
+            try:
+                console.close()
+            except RuntimeError as error:
+                assert str(error) == "fixture shutdown error"
+            else:
+                raise AssertionError("shutdown error missing")
+        assert (root / "closed").exists()
+        (root / "closed").unlink()
+        with console:
+            assert console.send(python="reconnected") == "reconnected"
+        assert (root / "closed").exists()
+    return [{"error": "fixture shutdown error", "closed": True, "reconnect": True}]
+
+
 def test_sync_connection_can_interrupt_pending_call(binary: Path) -> Transcript:
     with tempfile.TemporaryDirectory() as directory, socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))

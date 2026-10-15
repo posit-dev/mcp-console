@@ -1,0 +1,4 @@
+---
+host_interrupt: KeyboardInterrupt
+loop_busy: true
+closed: true
