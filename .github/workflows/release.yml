@@ -80,7 +80,12 @@ jobs:
             -print -delete
 
       - name: Set up R
-        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2.12.1
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: false
+
+      - name: Configure binary R repositories
+        run: sudo "$(command -v Rscript)" --vanilla scripts/configure-ci-r.R
 
       # The default R environment may build data.table from source. Its NLS code
       # needs libintl.h in R's /opt/R/<arch> build prefix.
@@ -152,7 +157,8 @@ jobs:
           uv venv "$RUNNER_TEMP/cmake"
           uv pip install --python "$RUNNER_TEMP/cmake/bin/python" cmake
           export PATH="$RUNNER_TEMP/cmake/bin:$PATH"
-          export R_HOME="$(R RHOME)"
+          R_HOME="$(R RHOME)"
+          export R_HOME
           uv tool run --isolated --python 3.13 --from r-lib-ir ir run \
             --rscript "$R_HOME/bin/Rscript" \
             --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
@@ -277,12 +283,19 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Set up R
-        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2.12.1
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: false
+
+      - name: Configure binary R repositories
+        run: Rscript --vanilla scripts/configure-ci-r.R
 
       - name: Install native smoke-test dependencies
         uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
         with:
           working-directory: r
+          upgrade: "FALSE"
+          cache-version: binary-repositories-v1
           dependencies: "NA"
           packages: |
             any::reticulate
@@ -575,12 +588,19 @@ jobs:
           "UV_CACHE_DIR=$env:RUNNER_TEMP/public-mcp-console/cache" >> $env:GITHUB_ENV
 
       - name: Set up R
-        uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2.12.1
+        uses: r-lib/actions/setup-r@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2.14.0
+        with:
+          use-public-rspm: false
+
+      - name: Configure binary R repositories
+        run: Rscript --vanilla scripts/configure-ci-r.R
 
       - name: Install native smoke-test dependencies
         uses: r-lib/actions/setup-r-dependencies@f9a764fea8d5c63df6ef9a5c7795bf7deb5d7e05 # v2
         with:
           working-directory: r
+          upgrade: "FALSE"
+          cache-version: binary-repositories-v1
           dependencies: "NA"
           packages: |
             any::reticulate

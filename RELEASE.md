@@ -89,6 +89,7 @@ Use `aarch64-unknown-linux-gnu` for ARM64.
 Emulation is rejected; `--docker-context` can select an explicit daemon.
 
 The floor fixtures exercise installed wheels without R and with R, with runtime prerequisites separated from build tools.
+The R runtime includes R's recommended packages, which the isolated resolver expects the R installation to provide.
 They refresh R preparation before producing compiler-free runtime images, rather than treating old Docker layers as fresh package resolution.
 Language-package build flags do not change distributed wheel binaries.
 
@@ -114,6 +115,10 @@ Keep native artifact verification on cache hits; reuse does not prove external S
 Do not cache accounts, credentials, ACLs, or provisioning state.
 MXC capability probing and full Windows acceptance still run on a clean host after restoring build/staging caches; unavailable native execution cases are skipped as documented in [Windows validation](docs/WINDOWS.md#validation).
 Exact cache-key and timestamp-restoration mechanics belong in the workflow and staging scripts.
+
+CI uses CRAN's native Windows/macOS binaries and PPM's portable Linux binaries on both architectures, including the Jammy floor images.
+Configure both R's repository data file and site profile so profile-free preparation and ordinary R sessions select the same repository.
+Packages without compatible binaries still build from source.
 
 Installation tests need the checkout and temporary directory on the same writable filesystem for rename-based checks.
 They run after other checks because installation can change staging/build layout.
