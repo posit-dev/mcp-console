@@ -1,0 +1,96 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import importlib.util
+    import statistics
+
+    assert all(
+        importlib.util.find_spec(package) is None
+        for package in ("numpy", "pandas", "matplotlib", "duckdb")
+    )
+    values = [2, 4, 6]
+    statistics.mean(values)
+result:
+  content:
+    - type: text
+      text: |
+        4
+  isError: false
+---
+send:
+  python: values.append(8); statistics.mean(values)
+result:
+  content:
+    - type: text
+      text: |
+        5
+  isError: false
+---
+send:
+  python: |
+    import contextlib
+    import io
+
+    with contextlib.redirect_stdout(io.StringIO()) as documentation:
+        help(statistics.mean)
+    assert "arithmetic mean" in documentation.getvalue()
+    print("standard-library help available")
+result:
+  content:
+    - type: text
+      text: |
+        standard-library help available
+  isError: false
+---
+send:
+  python: answer = input('value> '); answer
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "value> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    hello
+result:
+  content:
+    - type: text
+      text: |
+        'hello'
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+    connection = sqlite3.connect(":memory:")
+    _console.sql_connection(connection)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE answers AS SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM answers
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false

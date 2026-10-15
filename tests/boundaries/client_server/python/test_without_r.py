@@ -2201,6 +2201,74 @@ def test_resolves_default_python_without_r(
 
 
 @executions(DIRECT, SANDBOXED)
+def test_standard_library_environment_supports_python_and_sql(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        venv = root / "environment"
+        subprocess.run(
+            [sys.executable, "-m", "venv", "--without-pip", venv],
+            check=True,
+            capture_output=True,
+        )
+        selected = virtualenv_python(venv)
+        env = selected_environment(selected.parent)
+        config = root / ".agents/console/config.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text("python: environment\n")
+        with McpClient(binary, execution.serve(), env, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "4\n",
+                # fmt: python
+                python=code("""
+                    import importlib.util
+                    import statistics
+
+                    assert all(
+                        importlib.util.find_spec(package) is None
+                        for package in ("numpy", "pandas", "matplotlib", "duckdb")
+                    )
+                    values = [2, 4, 6]
+                    statistics.mean(values)
+                    """),
+            )
+            client.expect("5\n", python="values.append(8); statistics.mean(values)")
+            client.expect(
+                "standard-library help available\n",
+                # fmt: python
+                python=code("""
+                    import contextlib
+                    import io
+
+                    with contextlib.redirect_stdout(io.StringIO()) as documentation:
+                        help(statistics.mean)
+                    assert "arithmetic mean" in documentation.getvalue()
+                    print("standard-library help available")
+                    """),
+            )
+            client.send(python="answer = input('value> '); answer")
+            assert "[waiting for stdin]" in last_result_text(client)
+            wait_for_evaluation_output(
+                client, "'hello'\n", "standard-library input", stdin="hello\n"
+            )
+            client.send(
+                # fmt: python
+                python=code("""
+                    import sqlite3
+
+                    connection = sqlite3.connect(":memory:")
+                    _console.sql_connection(connection)
+                    """),
+            )
+            client.send(sql="CREATE TABLE answers AS SELECT 42 AS answer")
+            client.send(sql="SELECT answer FROM answers")
+            assert "42" in last_result_text(client), last_result_text(client)
+            return client.finish()
+
+
+@executions(DIRECT, SANDBOXED)
 @execution_snapshots
 def test_uses_selected_virtualenv(binary: Path, execution: Execution) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
