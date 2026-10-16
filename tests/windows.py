@@ -533,6 +533,66 @@ class WindowsPackaging(unittest.TestCase):
 
 @unittest.skipUnless(os.name == "nt", "native Windows acceptance")
 class WindowsConsole(unittest.TestCase):
+    def test_tilde_paths_use_profile_and_explicit_home(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            profile = root / "profile"
+            explicit = root / "explicit-home"
+            for home in (profile, explicit):
+                home.mkdir()
+                shutil.copy2(sys.executable, home / "python.exe")
+                (home / "config.yaml").write_text(
+                    json.dumps(
+                        {
+                            "r": "~\\R\\bin\\R.exe",
+                            "python": "~\\python.exe",
+                            "sandbox": {"filesystem": {"deny": ["~\\private"]}},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            environment = os.environ | {
+                "USERPROFILE": str(profile),
+                "R_USER": str(root / "r-user"),
+                "MCP_CONSOLE_HOME": str(root / "console"),
+            }
+            environment.pop("HOME", None)
+            for value in (None, "", str(explicit)):
+                with self.subTest(HOME=value):
+                    env = environment.copy()
+                    if value is not None:
+                        env["HOME"] = value
+                    result = subprocess.run(
+                        [
+                            BINARY,
+                            "config",
+                            "resolve",
+                            "--format",
+                            "json",
+                            "--config-file",
+                            "~\\config.yaml",
+                        ],
+                        cwd=root,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    self.assertEqual(result.returncode, 0, result)
+                    self.assertEqual(result.stderr, "", result)
+                    settings = json.loads(result.stdout)
+                    home = explicit if value else profile
+                    self.assertEqual(
+                        settings["r"], {"executable": str(home / "R/bin/R.exe")}
+                    )
+                    self.assertEqual(
+                        settings["python"], {"existing": str(home / "python.exe")}
+                    )
+                    self.assertEqual(
+                        settings["sandbox"]["filesystem"]["deny"],
+                        [str(home / "private")],
+                    )
+
     def test_native_home_configuration_discovery(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

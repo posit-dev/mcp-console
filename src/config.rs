@@ -26,7 +26,10 @@ pub fn load(
     let mut sources = Vec::new();
     let mut identities = std::collections::HashSet::new();
     for path in paths {
-        let absolute = directory.join(path);
+        let expanded = crate::console_paths::expand_home(path).map_err(|error| {
+            format!("cannot resolve configuration '{}': {error}", path.display())
+        })?;
+        let absolute = directory.join(expanded);
         match std::fs::symlink_metadata(&absolute) {
             Err(error)
                 if !required

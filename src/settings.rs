@@ -297,7 +297,7 @@ pub(crate) fn read(
         (_, true) => format!("configuration from {files}"),
         (_, false) => format!("configuration from {files} with CLI overrides"),
     };
-    let value = value.unwrap_or_else(|| serde_json::json!({}));
+    let mut value = value.unwrap_or_else(|| serde_json::json!({}));
     let mut project: Project =
         serde_path_to_error::deserialize(value.clone()).map_err(|error| {
             format!("{name}: {error}; see docs/CONFIGURATION.md for the public format")
@@ -319,13 +319,8 @@ pub(crate) fn read(
                 "{name}: r.executable must name an R executable or launcher"
             ));
         }
-        if let Ok(relative) = path.strip_prefix("~") {
-            let home = std::env::var_os("HOME")
-                .map(PathBuf::from)
-                .filter(|home| home.is_absolute())
-                .ok_or("r.executable home expansion requires an absolute HOME")?;
-            *path = home.join(relative);
-        }
+        *path = crate::console_paths::expand_home(path)
+            .map_err(|error| format!("{name}: r.executable: {error}"))?;
         *path = std::path::absolute(&*path)
             .map_err(|error| format!("{name}: cannot locate r.executable: {error}"))?;
     }
@@ -422,6 +417,14 @@ pub(crate) fn read(
             );
         }
     }
+    let python = project
+        .python
+        .map(python::Python::capture)
+        .transpose()?
+        .map(|(choice, configuration)| {
+            value["python"] = configuration;
+            choice
+        });
     Ok((
         Captured {
             profile,
@@ -431,7 +434,7 @@ pub(crate) fn read(
             startup: project.startup,
             cache: project.cache,
             languages,
-            python: project.python.map(python::Python::capture).transpose()?,
+            python,
             source: configured.then_some(name),
             policy,
             resolver,

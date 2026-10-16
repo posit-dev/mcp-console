@@ -1,0 +1,28 @@
+---
+arguments:
+  - --no-config
+  - -c
+  - r.executable=~/R
+stderr: |
+  configuration with CLI overrides: r.executable: HOME must be an absolute path
+---
+arguments:
+  - --no-config
+  - -c
+  - python=~/python
+stderr: |
+  configured Python: HOME must be an absolute path
+---
+arguments:
+  - --no-config
+  - -c
+  - sandbox.filesystem.deny=[~/private]
+stderr: >
+  configuration with CLI overrides: sandbox.filesystem: HOME must be an
+  absolute path
+---
+arguments:
+  - --config-file
+  - ~/config.yaml
+stderr: |
+  cannot resolve configuration '~/config.yaml': HOME must be an absolute path

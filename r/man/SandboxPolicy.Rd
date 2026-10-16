@@ -153,11 +153,12 @@ More specific paths take precedence over broader paths. At the same path,
 Adding a \code{read_only} path does not make all other host files unreadable.
 Workers retain their host-read baseline.
 
-Paths are literal, without globs or automatic \code{~} or environment-variable
-expansion. Relative paths use \code{console_tool(project = ...)}. Changing the
-worker's directory later does not move those grants. To deny a home-directory
-path, construct an
-absolute path explicitly, for example \code{file.path(path.expand("~"), ".ssh")}.
+Relative paths use \code{console_tool(project = ...)}. A leading \code{~} uses the
+launch environment's absolute \code{HOME}; on Windows, an absent or empty \code{HOME}
+uses the user profile. This follows Console's convention independently of
+R's \code{path.expand()} and \code{R_USER}. Changing the worker's directory later does
+not move those grants. Globs and environment-variable references are not
+expanded. Other strings, including environment values, remain literal.
 The wrapper does not resolve symlinks or create configured directories.
 Create writable directories before launching; directory roots are the
 portable choice. Linux skips absent write roots and can reject file roots.
@@ -279,7 +280,8 @@ it and explicit \code{FALSE} is rejected. UDP and Unix-socket settings remain
 unsupported.
 
 \code{SandboxSockets(unix_sockets = ...)} permits direct Unix-domain socket
-connections, for example to a local service. Use literal absolute paths;
+connections, for example to a local service. Paths must be absolute after
+leading-\code{~} expansion;
 \code{character()} permits none, and \code{"dangerously_allow_all"} permits all such
 sockets subject to filesystem permissions. These channels can carry arbitrary
 traffic and bypass the proxy's HTTP filter. On macOS, native direct grants

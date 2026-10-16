@@ -213,7 +213,8 @@ sandbox:
 
 Paths are concrete paths, not globs.
 They resolve against the captured launch directory, not the configuration file.
-They do not expand `~` or variables, create directories, grant parent directories, or erase symlink components.
+A leading `~` follows the shared [path rules](CONFIGURATION.md#paths).
+Paths do not expand environment-variable references, create directories, grant parent directories, or erase symlink components.
 
 Worker entries modify the host-read/private-write baseline.
 Omitting both `profile` and `read_write` grants no workspace writes.

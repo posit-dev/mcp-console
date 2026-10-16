@@ -54,7 +54,7 @@ r:
 ```
 
 An explicit executable overrides installation hints and PATH discovery.
-Relative executable paths use the launch directory; a leading `~` uses the server's absolute `HOME`.
+Relative executable paths use the launch directory; a leading `~` follows the shared [path rules](CONFIGURATION.md#paths).
 The selected installation is retained across worker restarts.
 R settings require the built-in worker.
 See [R executable selection](CONFIGURATION.md#r-executable-selection) and [Native R startup](CONFIGURATION.md#native-r-startup).
@@ -262,7 +262,8 @@ Fields under `sandbox.filesystem` or `resolver.sandbox.filesystem`:
 | `sandbox.filesystem.deny`<br>`resolver.sandbox.filesystem.deny`             | List of path strings | Deny reads and writes.                                              |
 
 Each list defaults to `[]` within a supplied mapping.
-Paths are launch-relative concrete paths, without globs, `~`, or variable expansion.
+Paths use the launch directory and support a leading `~`; see [Paths](CONFIGURATION.md#paths).
+Globs and environment-variable references are not expanded.
 They do not create directories; create intended writable directories before Linux launch.
 Narrower rules override ancestors; at the same path deny wins over write, then read.
 
@@ -336,7 +337,7 @@ The `sandbox.network.sockets` and `resolver.sandbox.network.sockets` mappings ea
 | Value of `sandbox.network.sockets.unix_sockets` or `resolver.sandbox.network.sockets.unix_sockets` | Direct Unix-socket access                                                                                |
 | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `[]` (default)                                                                                     | No Unix-socket grants.                                                                                   |
-| List of absolute path strings                                                                      | Grant the named sockets. Currently supported on macOS; nonempty lists are rejected on Linux and Windows. |
+| List of absolute path strings, after leading-`~` expansion                                         | Grant the named sockets. Currently supported on macOS; nonempty lists are rejected on Linux and Windows. |
 | `dangerously_allow_all`                                                                            | Permit all Unix sockets. Supported on macOS/Linux; rejected on Windows.                                  |
 
 | Value of `sandbox.network.allow_local_binding` or `resolver.sandbox.network.allow_local_binding` | Behavior                                                                                      |

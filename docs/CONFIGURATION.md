@@ -95,9 +95,7 @@ Select an installed R executable or ordinary launcher, not a directory, Rscript,
 Explicit selection overrides installation hints and PATH discovery.
 The scalar form expands to `r: {executable: PATH}` before merging.
 
-For both R and Python executable selectors, relative paths use the launch directory and a leading `~` uses the server's absolute `HOME`.
-`~user` and environment-variable references are not expanded.
-This expansion is specific to interpreter selectors, not sandbox paths or `--config-file`.
+R and Python executable selectors follow the shared [path rules](#paths).
 
 Console retains the selected installation across restarts.
 If its captured executable/resources change incompatibly, start a new server connection.
@@ -257,7 +255,26 @@ Use `--no-project-config` when opening an unfamiliar project.
 
 Settings are captured when the server starts.
 Editing YAML requires a new server connection; restarting a worker does not reload it.
-Relative paths are based on the launch directory, including paths written in a global file.
+
+## Paths
+
+Relative paths use the launch directory, including paths written in a global file.
+A leading `~` expands to the launching user's home in interpreter selectors, sandbox and resolver filesystem paths, supported Unix-socket paths, configuration filenames, and `--writable-root`.
+`MCP_CONSOLE_HOME` also accepts a leading `~`.
+
+Expansion uses a nonempty, absolute `HOME` from the launch environment.
+On Windows, an absent or empty `HOME` uses `USERPROFILE` or native user-profile discovery.
+`R_USER`, `MCP_CONSOLE_HOME`, and child `environment` or `resolver.environment` overrides do not redefine that home.
+An invalid home is an error when expansion is needed.
+
+Only `~`, `~/...`, and, on Windows, `~\...` expand.
+Quote a standalone `"~"` in YAML, where an unquoted `~` means `null`.
+Use `./~/...` to name a literal `~` directory.
+`~user`, globs, and environment-variable references are not expanded.
+Expansion preserves symlinks and does not create directories.
+Settings expand after file and CLI layering; configuration filenames expand before reading.
+Materialized settings expose expanded home paths, including paths in Python candidate lists.
+Other strings, including environment values and startup programs, retain their contents.
 
 ## Merge rules
 
@@ -300,9 +317,9 @@ The separate native `sandbox --config-env` interface cannot be combined with app
 
 ## Console home
 
-Set `MCP_CONSOLE_HOME` in the launching environment to an absolute directory to relocate global configuration and fallback session storage.
+Set `MCP_CONSOLE_HOME` in the launching environment to a directory to relocate global configuration and fallback session storage.
 It does not relocate package caches, change `HOME`, or override project-local recording selection.
-Empty or relative values are errors when the directory is needed; `~` is not expanded.
+The directory must be absolute after leading-`~` expansion; empty or relative values are errors when it is needed.
 
 Without it, Console uses an absolute `HOME`.
 On Windows, an absent or empty `HOME` uses `USERPROFILE` or native user-home discovery.

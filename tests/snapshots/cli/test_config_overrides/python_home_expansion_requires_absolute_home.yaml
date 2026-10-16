@@ -1,12 +1,12 @@
 ---
 HOME: ~
 stderr: |
-  configured Python home expansion requires an absolute HOME
+  configured Python: cannot expand '~' without a user home directory
 ---
 HOME: ""
 stderr: |
-  configured Python home expansion requires an absolute HOME
+  configured Python: cannot expand '~' without a user home directory
 ---
 HOME: relative/home
 stderr: |
-  configured Python home expansion requires an absolute HOME
+  configured Python: HOME must be an absolute path

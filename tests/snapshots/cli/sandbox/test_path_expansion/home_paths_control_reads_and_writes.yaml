@@ -1,0 +1,5 @@
+---
+stdout: |
+  private read denied
+  output write allowed
+  cli-output write allowed

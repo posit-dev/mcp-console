@@ -380,11 +380,16 @@ impl Sandbox {
             ]
             .into_iter()
             .flat_map(|(paths, access)| {
-                paths.into_iter().map(
-                    move |path| json!({"path": {"type": "path", "path": path}, "access": access}),
-                )
+                paths.into_iter().map(move |path| {
+                    let path = crate::console_paths::expand_home(std::path::Path::new(&path))
+                        .map_err(|error| format!("{prefix}.filesystem: {error}"))?;
+                    let path = path.to_str().ok_or_else(|| {
+                        format!("{prefix}.filesystem: expanded path must be UTF-8")
+                    })?;
+                    Ok(json!({"path": {"type": "path", "path": path}, "access": access}))
+                })
             })
-            .collect();
+            .collect::<Result<_, String>>()?;
             policy.insert(
                 "filesystem".into(),
                 json!({"kind": "restricted", "entries": entries}),
@@ -465,7 +470,7 @@ impl Sandbox {
                             .map(|host| ((*host).into(), "allow".into())),
                     );
                 }
-                let (sockets, all) = match network.sockets.unix_sockets {
+                let (mut sockets, all) = match network.sockets.unix_sockets {
                     UnixSockets::Empty => (Vec::new(), false),
                     UnixSockets::Allow(paths) => (paths, false),
                     UnixSockets::All => (Vec::new(), true),
@@ -475,7 +480,14 @@ impl Sandbox {
                         "{prefix}.network.sockets.unix_sockets: Unix sockets are not supported on Windows"
                     ));
                 }
-                for (index, path) in sockets.iter().enumerate() {
+                for (index, path) in sockets.iter_mut().enumerate() {
+                    let expanded = crate::console_paths::expand_home(std::path::Path::new(path))
+                        .map_err(|error| {
+                            format!("{prefix}.network.sockets.unix_sockets[{index}]: {error}")
+                        })?;
+                    *path = expanded.into_os_string().into_string().map_err(|_| {
+                        format!("{prefix}.network.sockets.unix_sockets[{index}]: expanded path must be UTF-8")
+                    })?;
                     if !std::path::Path::new(path).is_absolute() {
                         return Err(format!(
                             "{prefix}.network.sockets.unix_sockets[{index}]: socket paths must be literal absolute paths"
@@ -517,7 +529,10 @@ pub(crate) fn materialize_settings(
 ) -> Result<SandboxSettings, String> {
     let writable_roots = roots
         .into_iter()
-        .map(|path| resolve_writable_root(path, workspace))
+        .map(|path| {
+            let path = crate::console_paths::expand_home(&path)?;
+            resolve_writable_root(path, workspace)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     settings.entry("filesystem").or_insert_with(|| json!({}));
     let mut restricted = false;

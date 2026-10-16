@@ -74,6 +74,50 @@ test_that("discovery exposes source paths, layers once, and returns an ordinary 
   })
 })
 
+test_that("home-relative filenames and permissions share native expansion", {
+  with_sandbox_directory({
+    binary <- sandbox_test_binary()
+    home <- file.path(getwd(), "home")
+    dir.create(home)
+    old_home <- Sys.getenv("HOME", unset = NA_character_)
+    on.exit(
+      {
+        if (is.na(old_home)) {
+          Sys.unsetenv("HOME")
+        } else {
+          Sys.setenv(HOME = old_home)
+        }
+      },
+      add = TRUE
+    )
+    Sys.setenv(HOME = home)
+    writeLines("environment: {GLOBAL: global}", file.path(home, "global.yaml"))
+    writeLines(
+      "sandbox: {filesystem: {deny: [~/private]}}",
+      file.path(home, "project.yaml")
+    )
+    config <- discover_console_config(
+      global_file = "~/global.yaml",
+      project_file = "~/project.yaml",
+      path = binary
+    )
+    expect_identical(config@environment, c(GLOBAL = "global"))
+    expect_equal(
+      gsub("\\\\", "/", config@sandbox@filesystem@deny),
+      gsub("\\\\", "/", file.path(home, "private"))
+    )
+    selected <- read_console_config("~/project.yaml", path = binary)
+    expect_identical(
+      selected@sandbox@filesystem@deny,
+      config@sandbox@filesystem@deny
+    )
+    Sys.setenv(MCP_CONSOLE_HOME = "~/console")
+    dir.create(file.path(home, "console"))
+    writeLines("languages: [python]", file.path(home, "console/config.yaml"))
+    expect_identical(discover_console_config(path = binary)@languages, "python")
+  })
+})
+
 test_that("materializing and pruning retain edits and explicit empty values", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()

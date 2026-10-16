@@ -81,11 +81,16 @@ enum Candidate {
 }
 
 impl Python {
-    pub(super) fn capture(self) -> Result<PythonChoice, String> {
+    pub(super) fn capture(mut self) -> Result<(PythonChoice, Value), String> {
+        let choice = self.select()?;
+        Ok((choice, self.0))
+    }
+
+    fn select(&mut self) -> Result<PythonChoice, String> {
         if let Some(path) = self.0.as_str() {
             return existing(&capture_path(Path::new(path))?);
         }
-        match mapping(self.0)? {
+        match mapping(self.0.clone())? {
             Mapping::Existing(path) => existing(&capture_path(&path)?),
             Mapping::Managed(managed) => Ok(PythonChoice {
                 executable: None,
@@ -104,7 +109,16 @@ impl Python {
                         Candidate::ActiveVenv
                     } else {
                         match mapping(value).map_err(|error| format!("python.first_available[{index}]: {error}"))? {
-                            Mapping::Existing(path) => Candidate::Existing(capture_path(&path)?),
+                            Mapping::Existing(path) => {
+                                let path = crate::console_paths::expand_home(&path)?;
+                                // Retain the candidate list as policy while exporting
+                                // home paths captured from this launch environment.
+                                self.0["first_available"][index]["existing"] =
+                                    serde_json::to_value(&path).map_err(|error| {
+                                        format!("cannot export python.first_available[{index}].existing: {error}")
+                                    })?;
+                                Candidate::Existing(capture_path(&path)?)
+                            },
                             Mapping::Managed(managed) if index + 1 == count => Candidate::Managed(managed),
                             _ => return Err("python.first_available permits existing paths, one active_venv, and one optional managed candidate last; nested chains are unsupported".into()),
                         }
@@ -168,15 +182,8 @@ fn capture_path(path: &Path) -> Result<PathBuf, String> {
     if path.as_os_str().is_empty() {
         return Err("python: expected a nonempty path".into());
     }
-    let path = if let Ok(relative) = path.strip_prefix("~") {
-        let home = std::env::var_os("HOME")
-            .map(PathBuf::from)
-            .filter(|home| home.is_absolute())
-            .ok_or("configured Python home expansion requires an absolute HOME")?;
-        home.join(relative)
-    } else {
-        path.to_path_buf()
-    };
+    let path = crate::console_paths::expand_home(path)
+        .map_err(|error| format!("configured Python: {error}"))?;
     std::path::absolute(path).map_err(|error| format!("cannot locate configured Python: {error}"))
 }
 

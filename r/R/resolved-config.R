@@ -35,7 +35,9 @@ resolve_console_config <- function(
 #' `discover_console_config()` reads `global_file`, then `project_file`, then
 #' applies `config`. Missing discovery files are skipped; malformed or unreadable
 #' files fail. Set either file to `NULL` to skip it. Relative paths use `project`,
-#' including paths inside the files. It returns a fully materialized config with
+#' including paths inside the files. A leading `~` in filenames and configured
+#' paths uses Console's launch-home convention, independently of R's
+#' `path.expand()` and `R_USER`. It returns a fully materialized config with
 #' file discovery disabled, so later edits to those files do not affect launch.
 #'
 #' `materialize_console_config()` fills in the settings of a manually constructed
@@ -195,7 +197,13 @@ console_global_config_file <- function() {
     }
     directory <- file.path(directory, ".agents", "console")
   }
-  if (!grepl("^(/|[A-Za-z]:[/\\\\]|\\\\\\\\)", directory)) {
+  # Pass home-relative paths to native capture, which owns Console's home
+  # convention independently of R's path.expand() on Windows.
+  home_relative <- grepl(
+    if (.Platform$OS.type == "windows") "^~([/\\\\]|$)" else "^~(/|$)",
+    directory
+  )
+  if (!home_relative && !grepl("^(/|[A-Za-z]:[/\\\\]|\\\\\\\\)", directory)) {
     stop("Console home must be an absolute path", call. = FALSE)
   }
   file.path(directory, "config.yaml")

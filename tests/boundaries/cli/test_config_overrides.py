@@ -442,6 +442,7 @@ def test_rejects_malformed_overrides(binary: Path) -> Transcript:
     return records
 
 
+@requires(POSIX)
 def test_python_home_expansion_requires_absolute_home(binary: Path) -> Transcript:
     records = []
     with TemporaryDirectory() as temporary:
@@ -463,10 +464,12 @@ def test_python_home_expansion_requires_absolute_home(binary: Path) -> Transcrip
                 timeout=10,
             )
             assert result.returncode == 1 and result.stdout == "", result
-            assert (
-                "configured Python home expansion requires an absolute HOME"
-                in result.stderr
+            expected = (
+                "HOME must be an absolute path"
+                if home
+                else "cannot expand '~' without a user home directory"
             )
+            assert result.stderr == f"configured Python: {expected}\n", result
             records.append({"HOME": home, "stderr": result.stderr})
     return records
 

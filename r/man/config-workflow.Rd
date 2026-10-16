@@ -81,7 +81,9 @@ None starts interpreters, installs packages, or creates a session.
 \code{discover_console_config()} reads \code{global_file}, then \code{project_file}, then
 applies \code{config}. Missing discovery files are skipped; malformed or unreadable
 files fail. Set either file to \code{NULL} to skip it. Relative paths use \code{project},
-including paths inside the files. It returns a fully materialized config with
+including paths inside the files. A leading \code{~} in filenames and configured
+paths uses Console's launch-home convention, independently of R's
+\code{path.expand()} and \code{R_USER}. It returns a fully materialized config with
 file discovery disabled, so later edits to those files do not affect launch.
 
 \code{materialize_console_config()} fills in the settings of a manually constructed
