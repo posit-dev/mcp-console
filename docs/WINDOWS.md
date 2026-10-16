@@ -51,11 +51,10 @@ Use `scripts/with-checkout.cmd` for direct mutating build commands.
 Sandboxed Windows execution requires MXC, including normal sessions, the public `sandbox` command, and complete native policies.
 The host must support native process security environments and the requested filesystem policy; read-deny rules need native deny-path support.
 The runner probes actual creation and closure, not just exported API names.
-Update Windows if that probe fails; there is no elevated, unelevated, AppContainer, or host-execution fallback.
+Update Windows if that probe fails; unsupported hosts and policies fail before the workload executes.
 
-MXC requires no account provisioning, UAC setup, persistent state directory, or legacy helper executables.
-The Console frontend selects MXC at the runner boundary.
-Removed `windows_backend`, `windows_sandbox_level`, and `windows_state_dir` fields are errors, including explicit nulls and complete native policies.
+MXC requires no account provisioning, UAC setup, or persistent state directory.
+Native Windows process creation requires `LOCALAPPDATA` to be defined, even if empty; retain it when disabling environment inheritance.
 Windows complete policies also reject `filesystem.kind: external-sandbox`, which could bypass native enforcement.
 Explicit `serve --no-sandbox` remains available.
 
@@ -83,117 +82,11 @@ UDP and Unix-socket settings remain unsupported.
 Resolver environment/cache settings remain usable, but package downloads, installation hooks, and cache writes are outside MXC.
 Moving that preparation into MXC is separate work.
 
-## Legacy installation cleanup
-
-The pinned runner refuses MXC while either `McpConsoleSandboxOff` or `McpConsoleSandboxOn` exists, even if disabled.
-Old provisioning did not register every credential directory, and MXC uses the host identity, which could read those unknown copies.
-Launch preserves this guard and never deletes machine resources.
-`sandbox-setup` has been removed.
-
-Migration is a one-time administrator operation for the entire machine.
-Coordinate it with every Console user; close Console clients, runners, and any old setup process first.
-Do not run old Console versions again during cleanup.
-Record the two users' and `ConsoleSandboxUsers` group's SIDs **before deleting them**.
-Inventory every old state directory, including custom locations and other Windows users' installations; the former default was `%LOCALAPPDATA%\mcp-console`.
-
-1. In elevated PowerShell, inventory and disable the old accounts:
-
-   ```powershell
-   $legacyNames = @('McpConsoleSandboxOff', 'McpConsoleSandboxOn')
-   $legacyUsers = @(Get-LocalUser | Where-Object Name -In $legacyNames)
-   $legacyGroup = @(Get-LocalGroup | Where-Object Name -EQ 'ConsoleSandboxUsers')
-   $legacyUsers | Select-Object Name, SID, Enabled
-   $legacyGroup | Select-Object Name, SID
-   $legacyUsers | Disable-LocalUser
-   ```
-
-   Save the displayed SIDs in a migration record outside the old state directories.
-   From each state directory also retain the `cap_sid` file: its `workspace`, `readonly`, `workspace_by_cwd`, and `writable_root_by_path` values identify persistent capability ACEs.
-   Older files may contain a single SID instead of JSON.
-   Do not print or copy `.sandbox-secrets/sandbox_users.json` into that record.
-
-2. Reboot before removing protections.
-   Disabling accounts alone does not invalidate existing process or impersonation tokens.
-   After reboot, verify the accounts remain disabled and their SIDs match the record.
-   Stop if identities changed or an old setup/runner has restarted.
-
-3. Back up ACLs on every affected local filesystem before editing them.
-   Include prior workspaces, writable/denied paths, runtime installations, cache directories, and their inherited children.
-   Old setup had no complete grant registry: `cap_sid` path maps and setup logs help locate roots but are not a complete inventory.
-   Scan the relevant local volumes for **each saved account, group, and capability SID**:
-
-   ```powershell
-   # Set these from the reviewed migration record; retain and inspect all output.
-   $aclRoot = 'C:\path\to\reviewed-root'
-   $savedSid = 'S-1-5-21-REPLACE-WITH-RECORDED-SID'
-   icacls $aclRoot /save 'C:\migration\before.acl' /T /C /L
-   icacls $aclRoot /findsid "*$savedSid" /T /C /L
-   icacls $aclRoot /remove "*$savedSid" /T /C /L
-   icacls $aclRoot /findsid "*$savedSid" /T /C /L
-   ```
-
-   Use a separate backup per root.
-   Remove only the recorded SIDs, including allow and deny ACEs, at their inheritance sources.
-   Do not reset whole ACLs, take ownership of an entire volume, remove every unknown SID, or remove Codex/AppContainer principals.
-   Any inaccessible objects or remaining matches require administrator investigation; do not report complete ACL cleanup until resolved.
-   If the original grant inventory cannot be reconstructed, use a known clean host or restore reviewed ACL backups.
-
-4. Remove the disabled accounts, their profiles, and the group using the saved identities.
-   Remove only `Win32_UserProfile` instances whose SID matches one of the two saved account SIDs, using `Remove-CimInstance`; verify they are not loaded first.
-   Use `Remove-LocalUser -Name` for the two fixed names and `Remove-LocalGroup -Name ConsoleSandboxUsers` after checking the current SIDs again.
-   This invalidates copied account credentials, including copies whose locations were never registered.
-   Remove only their two values from `HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList`, if present.
-
-5. Remove Console's five named Windows Firewall rules and persistent WFP state:
-
-   ```powershell
-   $firewall = New-Object -ComObject HNetCfg.FwPolicy2
-   $rules = @(
-     'console_sandbox_offline_block_outbound',
-     'console_sandbox_offline_block_inbound',
-     'console_sandbox_offline_block_loopback_tcp',
-     'console_sandbox_offline_block_loopback_udp',
-     'console_sandbox_offline_allow_loopback_proxy'
-   )
-   foreach ($name in $rules) {
-     if (@($firewall.Rules | Where-Object Name -EQ $name).Count) {
-       $firewall.Rules.Remove($name)
-     }
-   }
-   # From a reviewed Console source checkout:
-   .\scripts\remove-legacy-console-wfp.ps1 -WhatIf
-   .\scripts\remove-legacy-console-wfp.ps1
-   ```
-
-   The migration-only script removes filters belonging to Console's exact WFP provider, then its sublayer/provider, in one transaction.
-   It covers both fixed and dynamically generated loopback filters, verifies no filters remain, and is safe to repeat.
-   It does not remove Codex's distinct WFP namespace.
-   It is never invoked during launch or installation.
-
-6. In each inventoried state directory, delete only `.sandbox`, `.sandbox-secrets`, `.sandbox-bin`, and `cap_sid`.
-   Resolve and inspect these exact paths before recursive removal, including any reparse points.
-   Retain configuration, recordings, dependency caches, and user work.
-   Account/group deletion does not remove these files or persistent ACLs by itself.
-
-Verify that both accounts and the group are absent, the five firewall rules are absent, the WFP script completes on a second run, all recorded SID scans are clean, and the inventoried credential/helper directories are gone.
-Keep the migration/ACL records until this verification is complete.
-Then, as the ordinary user, run:
-
-```powershell
-mcp-console sandbox --no-config -- cmd.exe /d /c "echo MXC ready"
-```
-
-Require exit status zero and `MXC ready`; investigate any MXC support/policy error.
-Do not bypass the guard, recreate the legacy accounts, or use host execution as an automatic workaround.
-
-The procedure's identities and storage/ACL inventory are checked against the pinned runner's [Windows transport](https://github.com/t-kalinowski/cobox/blob/47221a5dbcac6f793047ce416937f6db2bb2d75f/codex-rs/mcp-console-sandbox/src/windows_console.rs), [product identities](https://github.com/t-kalinowski/cobox/blob/47221a5dbcac6f793047ce416937f6db2bb2d75f/codex-rs/windows-sandbox-rs/src/product.rs), [capability records](https://github.com/t-kalinowski/cobox/blob/47221a5dbcac6f793047ce416937f6db2bb2d75f/codex-rs/windows-sandbox-rs/src/cap.rs), and [WFP ownership](https://github.com/t-kalinowski/cobox/blob/47221a5dbcac6f793047ce416937f6db2bb2d75f/codex-rs/windows-sandbox-rs/src/wfp.rs).
-The startup diagnostic regression injects the legacy-account query result into test children; it does not create host accounts.
-
 ## Lifecycle and platform differences
 
 The native runner owns a non-breakaway Job and confirms zero active processes before successful retirement.
 Private-storage removal follows that confirmation; cleanup failure retains storage and blocks replacement.
-Forced frontend exit is not a cleanup receipt, and runner/helper death does not guarantee storage deletion.
+Forced frontend exit is not a cleanup receipt, and runner death does not guarantee storage deletion.
 
 Interruption is cooperative.
 R/Python callbacks can handle it without losing state, but an unresponsive native call may need restart.
@@ -206,19 +99,15 @@ Direct execution reaps its direct worker but does not guarantee descendant clean
 ## Validation
 
 Use Python 3.13 to match CI.
-Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an MXC-capable clean host.
-CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console, then the substantive Windows suite on the same clean host.
+Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an MXC-capable host.
+CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console, then the substantive Windows suite on the same host.
 Acceptance probes MXC through a real public sandbox launch.
-Only the native unavailable-runtime diagnostic permits skipping MXC execution cases; installation, policy, and legacy-account failures remain failures.
-Hosts without MXC still run configuration, integrity, migration-diagnostic, explicit host-execution, and public fail-closed startup tests.
+Only the native unavailable-runtime diagnostic permits skipping MXC execution cases; installation, policy, and workload failures remain failures.
+Hosts without MXC still run configuration, integrity, explicit host-execution, and public fail-closed startup tests.
 As hosted runners gain native MXC support, the existing execution cases run automatically.
 The R package's permission tests use the same capability rule; adapter and configuration tests use explicit host execution where enforcement is outside their scope.
-CI never provisions legacy accounts or selects a different sandbox backend.
 Controlled origins verify allowed and denied HTTP, CONNECT, and SOCKS requests through the managed proxy.
-Process-local fault injection checks legacy-account diagnostics through sessions, sandbox commands, and complete policies without changing the host's resources.
-The same public routes verify actual unavailable-MXC rejection on unsupported hosts; capable hosts inject that failure.
-CI separately runs the administrator-only `tests/fixtures/windows_migration.ps1` acceptance fixture against the migration script.
-It refuses existing Console WFP state, creates inert persistent filters, and verifies dry-run behavior, removal, idempotence, and preservation of unrelated provider state.
+Sessions, sandbox commands, and complete policies verify actual unavailable-MXC rejection on unsupported hosts; capable hosts inject that failure into the native probe.
 
 ```powershell
 $env:LC_ALL = 'C'
@@ -258,12 +147,11 @@ A passing macOS equivalent or skipped Windows case is not Windows validation.
 [TODO](TODO.md#sandbox-and-platforms) collects this fixture debt.
 
 CI installs the trusted runtimes before acceptance.
-MXC runs with the caller's identity and needs no sandbox-account ACL grants, including for installations outside standard roots.
+MXC runs with the caller's identity, including for installations outside standard roots.
 
 ## Troubleshooting
 
 An unavailable-MXC error requires a supported Windows host and policy.
-A legacy-account diagnostic requires the [one-time cleanup](#legacy-installation-cleanup); launch performs no migration.
 
 Windows process-creation error 4551 indicates host application-control policy.
 The host must permit the executable and downloaded interpreter DLLs; this is separate from Console's sandbox settings.

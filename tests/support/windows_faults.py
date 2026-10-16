@@ -1,7 +1,7 @@
-"""Inject native startup failures in debugged test children, without host setup.
+"""Make native MXC unavailable in debugged test children.
 
-Only the verified companion's private process memory is changed. DLLs on disk,
-accounts, credentials, firewall rules, and the parent process remain untouched.
+Only the verified companion's private process memory is changed. DLLs on disk
+and the parent process remain untouched.
 Windows x64 is the supported native acceptance target.
 """
 
@@ -14,10 +14,9 @@ from threading import Thread
 import time
 
 
-def run_with_native_fault(
-    command, fault, *, cwd, env, input=b"", interaction=None, timeout=40
+def run_with_unavailable_mxc(
+    command, *, inject_unavailable, cwd, env, input=b"", interaction=None, timeout=40
 ):
-    assert fault in (None, "mxc_unavailable", "legacy_accounts")
     assert ctypes.sizeof(ctypes.c_void_p) == 8, "native Windows acceptance requires x64"
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     pointer = ctypes.c_void_p
@@ -136,34 +135,21 @@ def run_with_native_fault(
 
     def inject(pid, state):
         handle, image, modules = state
-        if fault is None or image != "mcp-console-sandbox.exe" or pid in patched:
+        if (
+            not inject_unavailable
+            or image != "mcp-console-sandbox.exe"
+            or pid in patched
+        ):
             return
-        library, function = (
-            ("processmodel.dll", "CreateProcessSecurityEnvironment")
-            if fault == "mxc_unavailable"
-            else ("netapi32.dll", "NetUserGetInfo")
-        )
+        library, function = "processmodel.dll", "CreateProcessSecurityEnvironment"
         if library not in modules:
             return
         address = remote_export(modules, library, function)
         if address is None:
             return
-        if fault == "mxc_unavailable":
-            payload = (
-                b"\xb8" + struct.pack("<I", 0x80070032) + b"\xc3"
-            )  # HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED)
-        else:
-            allocate = remote_export(modules, library, "NetApiBufferAllocate")
-            if allocate is None:
-                return
-            # NetUserGetInfo(level=1): allocate a real NetAPI-owned USER_INFO_1
-            # for the native guard, set flags=0, and return success. The guard
-            # reads only flags and frees through NetApiBufferFree as usual.
-            payload = (
-                b"\x53\x48\x83\xec\x20\x4c\x89\xcb\xb9\x38\x00\x00\x00\x4c\x89\xca\x48\xb8"
-                + struct.pack("<Q", allocate)
-                + b"\xff\xd0\x85\xc0\x75\x0a\x48\x8b\x13\xc7\x42\x28\x00\x00\x00\x00\x48\x83\xc4\x20\x5b\xc3"
-            )
+        payload = (
+            b"\xb8" + struct.pack("<I", 0x80070032) + b"\xc3"
+        )  # HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED)
         previous = w.DWORD()
         checked(protect(handle, address, len(payload), 0x40, ctypes.byref(previous)))
         try:
@@ -254,7 +240,7 @@ def run_with_native_fault(
             event_step(injecting=True)
         if failures:
             raise failures[0]
-        if fault is not None:
+        if inject_unavailable:
             assert patched, "fault did not reach the verified native runner"
         return subprocess.CompletedProcess(command, process.returncode, *output[0])
     finally:

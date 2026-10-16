@@ -105,12 +105,6 @@ path = "main.rs"
             )
             libexec = root / "wheel-data/data/libexec"
             libexec.mkdir(parents=True)
-            retired = (
-                "mcp-console-sandbox-setup.exe",
-                "mcp-console-sandbox-runner.exe",
-            )
-            for name in retired:
-                (libexec / name).write_bytes(b"obsolete bundle member")
             result = subprocess.run(
                 [
                     sys.executable,

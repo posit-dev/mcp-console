@@ -1,7 +1,7 @@
 """Probe native MXC through the public launcher before selecting acceptance cases.
 
 Only the runner's explicit unavailable-runtime diagnostic permits a skip.
-Installation, policy, legacy-account, and workload failures remain test failures.
+Installation, policy, and workload failures remain test failures.
 """
 
 from functools import cache, wraps

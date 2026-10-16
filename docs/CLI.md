@@ -92,7 +92,7 @@ See [inspect and edit resolved configuration](CONFIGURATION.md#inspect-and-edit-
 
 Native Windows sandboxed launches require MXC, including complete native policies.
 Unsupported hosts or policies fail before the workload executes.
-MXC needs no provisioning command; existing legacy installations need the [one-time cleanup](WINDOWS.md#legacy-installation-cleanup).
+MXC needs no provisioning command.
 See [Windows](WINDOWS.md#native-sandbox).
 
 ## Complete native policy

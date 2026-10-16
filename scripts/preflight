@@ -58,27 +58,19 @@ def main() -> None:
         }
         if tools[name]["version"] is None and tools[name]["required"]:
             missing.append(name)
-    companion = (
-        {
-            "status": "skip",
-            "reason": "the native sandbox companion is unsupported on Windows",
-        }
-        if WINDOWS
-        else json.loads(
-            probe(
-                sys.executable, str(ROOT / "scripts/stage-sandbox-runner"), "--describe"
-            )
-        )
+    companion = json.loads(
+        probe(sys.executable, str(ROOT / "scripts/stage-sandbox-runner"), "--describe")
     )
     executable = ROOT / (
         "target/debug/mcp-console.exe" if WINDOWS else "target/release/mcp-console"
     )
+    runner_name = "mcp-console-sandbox.exe" if WINDOWS else "mcp-console-sandbox"
     artifacts = {
         str(path): path.is_file()
         for path in (
             executable,
-            ROOT / "wheel-data/data/libexec/mcp-console-sandbox",
-            ROOT / "target/libexec/mcp-console-sandbox",
+            ROOT / "wheel-data/data/libexec" / runner_name,
+            ROOT / "target/libexec" / runner_name,
         )
     }
 
@@ -154,14 +146,11 @@ def main() -> None:
             f"Development executable: {executable} ({'present' if executable.is_file() else 'missing'})"
         )
         print(f"PATH executable: {report['executable']['on_path']}")
-        if WINDOWS:
-            print(f"Companion: skip; {companion['reason']}")
-        else:
-            print(
-                f"Companion pin: {companion['pin']['commit']}\nStaged revision: {companion['staged_revision']}"
-            )
-            print(f"Staged target: {companion['staged_target']}")
-            print(f"Companion toolchain: {companion['source_toolchain']}")
+        print(
+            f"Companion pin: {companion['pin']['commit']}\nStaged revision: {companion['staged_revision']}"
+        )
+        print(f"Staged target: {companion['staged_target']}")
+        print(f"Companion toolchain: {companion['source_toolchain']}")
         for path, present in artifacts.items():
             print(f"Artifact: {path} ({'present' if present else 'missing'})")
         for name, value in report["runtime"].items():

@@ -315,12 +315,7 @@ pub(crate) fn available(handle: RawHandle) -> io::Result<usize> {
 /// Both ends are opened before spawning. No name or listening endpoint remains
 /// available to another process, and only explicitly marked handles inherit.
 pub(crate) fn pipe(read_async: bool, write_async: bool) -> io::Result<(OwnedHandle, OwnedHandle)> {
-    let mut security = pipe_security::PipeSecurity::new()?;
-    let attributes = windows_sys::Win32::Security::SECURITY_ATTRIBUTES {
-        nLength: std::mem::size_of::<windows_sys::Win32::Security::SECURITY_ATTRIBUTES>() as u32,
-        lpSecurityDescriptor: (&raw mut security.descriptor).cast(),
-        bInheritHandle: 0,
-    };
+    // The process default DACL also covers objects created inside MXC.
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
     let name: Vec<u16> = format!(
         r"\\.\pipe\mcp-console-{}-{}",
@@ -341,7 +336,7 @@ pub(crate) fn pipe(read_async: bool, write_async: bool) -> io::Result<(OwnedHand
             65536,
             65536,
             0,
-            &attributes,
+            std::ptr::null(),
         )
     };
     if server == INVALID_HANDLE_VALUE {
@@ -378,5 +373,3 @@ pub(crate) fn inherit(handle: RawHandle, inherit: bool) -> io::Result<()> {
     }
     Ok(())
 }
-
-mod pipe_security;

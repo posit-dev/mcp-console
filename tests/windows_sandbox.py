@@ -243,12 +243,12 @@ class WindowsSandbox(unittest.TestCase):
             ):
                 environment.pop(name, None)
             if profile_fallback:
-                environment.pop("LOCALAPPDATA")
+                # Native process creation requires this variable to exist.
+                # Its empty value still exercises Console's path fallback.
+                environment["LOCALAPPDATA"] = ""
                 environment.update(
                     HOME="relative-home", USERPROFILE=str(root / "account")
                 )
-            # Keep the cwd under the explicit read grant too. The native
-            # runner's background read-ACL traversal can still be in progress.
             session = Session(
                 os.environ,
                 sandbox=True,
@@ -337,7 +337,7 @@ class WindowsSandbox(unittest.TestCase):
     def test_network_enabled_input_and_interrupt(self):
         from windows import Session, exercise_input_and_interrupt
 
-        with workspace() as root:
+        with workspace():
             session = Session(
                 sandbox=True,
                 overrides=[
@@ -355,7 +355,7 @@ class WindowsSandbox(unittest.TestCase):
     def test_network_enabled_idle_later_callbacks(self):
         from windows import Session, exercise_later_callbacks
 
-        with workspace() as root:
+        with workspace():
             session = Session(
                 sandbox=True,
                 overrides=[
@@ -439,7 +439,7 @@ class WindowsSandbox(unittest.TestCase):
     def test_network_enabled_allows_loopback_exchange(self):
         from windows import Session
 
-        with workspace() as root:
+        with workspace():
             session = Session(
                 sandbox=True,
                 overrides=[
@@ -484,7 +484,7 @@ class WindowsSandbox(unittest.TestCase):
     def test_r_uses_private_storage_and_preserves_state(self):
         from windows import Session
 
-        with workspace() as root:
+        with workspace():
             session = Session(
                 sandbox=True,
                 overrides=[
@@ -586,7 +586,7 @@ class WindowsSandbox(unittest.TestCase):
     def test_python_state_and_restart_with_private_temporary_storage(self):
         from windows import Session
 
-        with workspace() as root:
+        with workspace():
             session = Session(
                 sandbox=True,
                 overrides=[
@@ -782,13 +782,16 @@ class WindowsSandbox(unittest.TestCase):
                     "Unix sockets are not supported on Windows",
                 ),
                 (
+                    "sandbox.network={proxy: {}, allow_local_binding: true, sockets: {unix_sockets: [relative.sock]}}",
+                    "Unix sockets are not supported on Windows",
+                ),
+                (
                     "sandbox.network={proxy: {}, allow_local_binding: true, sockets: {unix_sockets: [C:/service.sock]}}",
                     "Unix sockets are not supported on Windows",
                 ),
                 ("resolver.sandbox.network=restricted", "resolver.sandbox"),
                 ("resolver.sandbox.filesystem={}", "resolver.sandbox"),
-                ("sandbox.windows_sandbox_level=unelevated", "windows_sandbox_level"),
-                ("sandbox.windows_state_dir=/tmp/state", "windows_state_dir"),
+                ("sandbox.unsupported=true", "unsupported"),
             ):
                 with self.subTest(override=override):
                     result = subprocess.run(

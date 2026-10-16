@@ -98,7 +98,7 @@ impl Gate {
                 .as_nanos()
         );
         // First instance, duplex/overlapped, reject remote clients. Ordinary
-        // host ACLs; no inheritable handle or grants to sandbox accounts.
+        // host ACLs; neither endpoint is inherited by a child.
         let handle = owned(unsafe {
             CreateNamedPipeW(
                 wide(&name).as_ptr(),

@@ -62,7 +62,6 @@ if __name__ == "__main__":
             "WindowsMxc.test_proxy_launch",
             "WindowsMxc.test_startup_failures_withhold_code_at_every_public_entry_point",
             "WindowsMxc.test_complete_policy_cannot_disable_mxc",
-            "WindowsMxc.test_setup_command_is_removed",
             "WindowsSandbox.test_first_python_send_from_short_profile_directory",
             "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
             "WindowsSandbox.test_cwd_alias_does_not_require_parent_enumeration",

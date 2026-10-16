@@ -168,12 +168,6 @@ stderr: >
 ---
 path: sandbox.network.sockets.unix_sockets
 stderr: >
-  configuration with CLI overrides:
-  sandbox.network.sockets.unix_sockets[0]: socket paths must be literal
-  absolute paths
----
-path: sandbox.network.sockets.unix_sockets
-stderr: >
   configuration with CLI overrides: sandbox: network: sockets:
   unix_sockets: expected an absolute-path list or dangerously_allow_all;
   see docs/CONFIGURATION.md for the public format
@@ -237,11 +231,11 @@ stderr: >
   `inherit_environment`, `environment`, `sandbox`, `resolver`; see
   docs/CONFIGURATION.md for the public format
 ---
-path: sandbox.windows_sandbox_level
+path: sandbox.unsupported
 stderr: >
-  configuration with CLI overrides: sandbox: windows_sandbox_level:
-  unknown field `windows_sandbox_level`, expected `filesystem` or
-  `network`; see docs/CONFIGURATION.md for the public format
+  configuration with CLI overrides: sandbox: unsupported: unknown field
+  `unsupported`, expected `filesystem` or `network`; see
+  docs/CONFIGURATION.md for the public format
 ---
 scope: sandbox
 selector: disabled

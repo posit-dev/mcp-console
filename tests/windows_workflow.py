@@ -26,6 +26,7 @@ class WindowsWorkflow(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         shutil.copytree(ROOT / "scripts", self.root / "scripts")
+        shutil.copy2(ROOT / "sandbox-runner.json", self.root / "sandbox-runner.json")
         (self.root / "tests").mkdir()
         shutil.copy2(
             ROOT / "tests/windows_runner.py", self.root / "tests/windows_runner.py"
@@ -477,7 +478,7 @@ class WindowsWorkflow(unittest.TestCase):
         self.assertIn("air: failed (127)", result.stdout)
         self.assertIn("rustfmt: ok", result.stdout)
 
-    def test_preflight_skips_unimplemented_platform_capabilities(self):
+    def test_preflight_inventories_the_native_companion_without_building(self):
         for name in ("git", "uv", "cargo", "rustup"):
             self.stub(name, f"print('{name} fixture')")
         environment = self.environment | {"PATH": str(self.commands)}
@@ -486,7 +487,14 @@ class WindowsWorkflow(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report["required_missing"], [])
-        self.assertEqual(report["companion"]["status"], "skip")
+        self.assertEqual(
+            report["companion"]["pin"],
+            json.loads((ROOT / "sandbox-runner.json").read_text()),
+        )
+        self.assertIsNone(report["companion"]["staged_revision"])
+        self.assertTrue(
+            all(path.endswith(".exe") for path in report["artifacts"]), report
+        )
         self.assertTrue(report["executable"]["development"].endswith("mcp-console.exe"))
         self.assertNotIn("providers", report)
         self.assertFalse((self.root / "target").exists())
