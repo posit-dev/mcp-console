@@ -1,0 +1,21 @@
+---
+scenario: Resolver relative_cache configuration launched from HOME.
+fixture: >-
+  HOME is isolated. A trusted interposer records the policies passed to
+  the real native resolver runner; the worker uses its default read-only
+  base.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.configured-python.yaml
+---
+send:
+  python: print('ready')
+result:
+  content:
+    - type: text
+      text: |
+        ready
+  isError: false
+---
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root

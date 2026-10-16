@@ -190,7 +190,9 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
         env("IR_CACHE_DIR").unwrap_or_else(|| r_cache.join("R/ir")),
         // tools::R_user_dir appends R/<package> even to R_USER_CACHE_DIR.
         r_cache.join("R/reticulate"),
-        duckdb_extension_directory(settings)?.expect("absolute resolver HOME"),
+        // Keep configured cache roots relative until policy capture checks them.
+        env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY)
+            .unwrap_or_else(|| home.join(".duckdb/extensions")),
         env("MPLCONFIGDIR").unwrap_or_else(|| {
             if cfg!(target_os = "macos") {
                 home.join(".matplotlib")

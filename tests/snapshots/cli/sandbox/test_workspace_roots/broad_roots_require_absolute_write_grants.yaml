@@ -1,0 +1,144 @@
+---
+scenario: relative_root
+source: filesystem.read_write
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: relative_root
+source: --writable-root
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: relative_home
+source: filesystem.read_write
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: relative_home
+source: --writable-root
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: relative_home_parent
+source: filesystem.read_write
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: relative_home_parent
+source: --writable-root
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: relative_parent
+source: filesystem.read_write
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '..'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: relative_parent
+source: --writable-root
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '..'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: relative_missing_parent
+source: filesystem.read_write
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root 'missing/..'; use an absolute
+  path to grant writes to the home directory or filesystem root
+---
+scenario: relative_missing_parent
+source: --writable-root
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root 'missing/..'; use an absolute
+  path to grant writes to the home directory or filesystem root
+---
+scenario: relative_symlink
+source: filesystem.read_write
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root 'home-link'; use an absolute
+  path to grant writes to the home directory or filesystem root
+---
+scenario: relative_symlink
+source: --writable-root
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root 'home-link'; use an absolute
+  path to grant writes to the home directory or filesystem root
+---
+scenario: relative_project
+source: filesystem.read_write
+stdout: |
+  writable
+stderr: ""
+---
+scenario: relative_project
+source: --writable-root
+stdout: |
+  writable
+stderr: ""
+---
+scenario: absolute_root
+source: filesystem.read_write
+stdout: |
+  writable
+stderr: ""
+---
+scenario: absolute_root
+source: --writable-root
+stdout: |
+  writable
+stderr: ""
+---
+scenario: absolute_home
+source: filesystem.read_write
+stdout: |
+  writable
+stderr: ""
+---
+scenario: absolute_home
+source: --writable-root
+stdout: |
+  writable
+stderr: ""
+---
+scenario: absolute_home_parent
+source: filesystem.read_write
+stdout: |
+  writable
+stderr: ""
+---
+scenario: absolute_home_parent
+source: --writable-root
+stdout: |
+  writable
+stderr: ""

@@ -118,6 +118,8 @@ resolver:
 This grants only the selected uv cache; Python installations, R libraries, and DuckDB can need additional writable paths.
 Create custom writable directories before Linux launch.
 Paths are launch-relative and do not expand `~` or environment variables.
+The [same restrictions on broad write grants](SANDBOX_CONFIGURATION.md#filesystem) apply to resolver paths.
+They also apply to relative cache locations such as `UV_CACHE_DIR=.`, before Console resolves or creates cache directories.
 
 To select that cache while retaining generated host-cache grants, omit the filesystem mapping:
 

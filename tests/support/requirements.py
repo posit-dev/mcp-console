@@ -8,6 +8,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TypeVar
 
 from support.linux_sandbox import (
@@ -168,6 +169,17 @@ def command(name: str) -> Requirement:
     return Requirement(
         name, shutil.which(name) is not None, f"{name} is missing from PATH"
     )
+
+
+def case_insensitive_paths() -> Requirement:
+    with TemporaryDirectory() as directory:
+        probe = Path(directory) / "lowercase"
+        probe.mkdir()
+        return Requirement(
+            "case-insensitive paths",
+            probe.with_name("LOWERCASE").is_dir(),
+            "requires a case-insensitive temporary filesystem",
+        )
 
 
 def gnu_tar() -> Requirement:

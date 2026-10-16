@@ -1,0 +1,14 @@
+---
+source: profile
+stdout: |
+  unknown home uses read-only with private temporary writes
+stderr: >
+  Warning: refusing automatic workspace writes to '<workspace>'; falling
+  back to read_only
+---
+source: --writable-root
+stdout: |
+  unknown home uses read-only with private temporary writes
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root

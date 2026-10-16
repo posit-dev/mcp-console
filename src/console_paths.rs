@@ -28,7 +28,7 @@ pub(crate) fn expand_home(path: &Path) -> Result<PathBuf, String> {
     })
 }
 
-fn home_directory() -> Result<Option<PathBuf>, String> {
+pub(crate) fn home_directory() -> Result<Option<PathBuf>, String> {
     let (home, name) = match std::env::var_os("HOME").filter(|value| !value.is_empty()) {
         Some(home) => (PathBuf::from(home), "HOME"),
         None => {

@@ -1,0 +1,6 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+stderr: >
+  Warning: refusing automatic workspace writes to '<home>'; falling back
+  to read_only

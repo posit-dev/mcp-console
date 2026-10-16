@@ -35,6 +35,63 @@ def resolve(
     )
 
 
+def test_broad_workspace_roots_preserve_selection_policy(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        home = root / "home"
+        project = home / "project"
+        project.mkdir(parents=True)
+        environment = os.environ | {"HOME": str(home)}
+        for name, launch in (
+            ("root", Path(home.anchor)),
+            ("home", home),
+            ("home_parent", root),
+            ("project", project),
+        ):
+            for profile in ("workspace", {"inherit_codex": {"fallback": "workspace"}}):
+                for full in (False, True):
+                    result = resolve(
+                        binary,
+                        launch,
+                        "--no-config",
+                        "--format",
+                        "json",
+                        *("--full",) if full else (),
+                        "-c",
+                        "sandbox.profile=" + json.dumps(profile),
+                        "-c",
+                        "sandbox.filesystem.read_write=[.]",
+                        environment=environment,
+                    )
+                    assert result.returncode == 0 and result.stderr == "", result
+                    settings = json.loads(result.stdout)
+                    assert settings["sandbox"]["profile"] == profile, settings
+                    assert settings["sandbox"]["filesystem"]["read_write"] == ["."], (
+                        settings
+                    )
+                    if full:
+                        description = settings["tool"]["description"]
+                        if profile == "workspace":
+                            assert "private `TMPDIR`, workspace," in description, (
+                                description
+                            )
+                            assert json.dumps(str(launch)) in description, description
+                        else:
+                            assert "The sandbox base comes from" in description, (
+                                description
+                            )
+                    records.append(
+                        {
+                            "launch": name,
+                            "profile": profile,
+                            "full": full,
+                            "stderr": result.stderr,
+                        }
+                    )
+    return records
+
+
 def test_client_sandbox_inheritance_materializes_and_prunes(binary: Path) -> Transcript:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()

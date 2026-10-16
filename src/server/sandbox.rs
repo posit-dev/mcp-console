@@ -107,6 +107,7 @@ impl Configuration {
                 self.policy,
                 self.writable_roots.clone(),
                 &self.directory,
+                crate::settings::PolicyContext::Launch,
             )?;
         }
         Ok(self)

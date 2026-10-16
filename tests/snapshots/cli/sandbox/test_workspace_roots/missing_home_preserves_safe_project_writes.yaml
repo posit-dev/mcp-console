@@ -1,0 +1,56 @@
+---
+scenario: missing
+source: profile
+stdout: |
+  writable
+stderr: ""
+---
+scenario: missing
+source: --writable-root
+stdout: |
+  writable
+stderr: ""
+---
+scenario: not_directory
+source: profile
+stdout: |
+  writable
+stderr: ""
+---
+scenario: not_directory
+source: --writable-root
+stdout: |
+  writable
+stderr: ""
+---
+scenario: missing_child
+source: profile
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing automatic workspace writes to '<workspace>'; falling
+  back to read_only
+---
+scenario: missing_child
+source: --writable-root
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root
+---
+scenario: missing_alias_child
+source: profile
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing automatic workspace writes to '<workspace>'; falling
+  back to read_only
+---
+scenario: missing_alias_child
+source: --writable-root
+stdout: |
+  read-only
+stderr: >
+  Warning: refusing relative writable root '.'; use an absolute path to
+  grant writes to the home directory or filesystem root

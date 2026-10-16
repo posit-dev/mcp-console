@@ -1,0 +1,6 @@
+---
+stdout: |
+  home alias remains read-only
+stderr: >
+  Warning: refusing automatic workspace writes to '<home>'; falling back
+  to read_only

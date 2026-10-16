@@ -140,7 +140,27 @@ def test_initializes_and_lists_tools(
     }
     if execution == SANDBOXED:
         companions["client-sandbox.yaml"] = _initializes_and_lists_tools(
-            binary, execution, client_profile=True
+            binary, execution, sandbox_profile="inherit_codex"
+        )
+        companions["configured-python-client-sandbox.yaml"] = (
+            _initializes_and_lists_tools(
+                binary,
+                execution,
+                bootstrap_languages="python",
+                sandbox_profile="inherit_codex",
+            )
+        )
+        companions["configured-python-writable.yaml"] = _initializes_and_lists_tools(
+            binary, execution, bootstrap_languages="python", writable=True
+        )
+        companions["configured-python-workspace-writable.yaml"] = (
+            _initializes_and_lists_tools(
+                binary,
+                execution,
+                bootstrap_languages="python",
+                writable=True,
+                sandbox_profile="workspace",
+            )
         )
         companions["proxy.yaml"] = _initializes_and_lists_tools(
             binary, execution, proxy=True
@@ -177,7 +197,7 @@ def _initializes_and_lists_tools(
     proxy: bool = False,
     workspace_profile: bool = False,
     writable: bool = False,
-    client_profile: bool = False,
+    sandbox_profile: str | None = None,
     bootstrap_languages: str | None = None,
     languages: tuple[str, ...] | None = None,
 ) -> Transcript:
@@ -238,7 +258,9 @@ def _initializes_and_lists_tools(
                 if languages is not None
                 else (),
                 *("--writable-root", str(workspace)) if writable else (),
-                *("-c", "sandbox.profile=inherit_codex") if client_profile else (),
+                *("-c", f"sandbox.profile={sandbox_profile}")
+                if sandbox_profile is not None
+                else (),
             ),
             environment,
             workspace,
@@ -401,7 +423,7 @@ def _initializes_and_lists_tools(
             # Inspection does not wait for preparation; it must leave the
             # configured schema unchanged. Keep the handshake-only snapshot.
             transcript = list(client.transcript)
-            if client_profile:
+            if sandbox_profile == "inherit_codex":
                 prepared = client.request(
                     "tools/call",
                     name="send",

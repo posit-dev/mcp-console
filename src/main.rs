@@ -158,7 +158,12 @@ fn resolve_configuration(
     let policy = if no_sandbox {
         captured.policy.clone()
     } else {
-        settings::materialize_sandbox(captured.policy.clone(), Vec::new(), &directory)?
+        settings::materialize_sandbox(
+            captured.policy.clone(),
+            Vec::new(),
+            &directory,
+            settings::PolicyContext::Configuration,
+        )?
     };
     let mut defaults = if full {
         None

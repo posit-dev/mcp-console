@@ -41,7 +41,12 @@ fn capture_policy(
     roots: Vec<PathBuf>,
     workspace: &std::path::Path,
 ) -> Result<crate::settings::SandboxSettings, String> {
-    let settings = crate::settings::materialize_sandbox(settings, roots, workspace)?;
+    let settings = crate::settings::materialize_sandbox(
+        settings,
+        roots,
+        workspace,
+        crate::settings::PolicyContext::Launch,
+    )?;
     if let Some(source) = source {
         preflight(&settings).map_err(|error| format!("{source}: {error}"))?;
     }

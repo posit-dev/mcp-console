@@ -42,6 +42,7 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
     } else {
         super::cache::writable_roots(&settings)?
     };
+    let create_caches = !caches.is_empty();
     let filesystem = settings.entry("filesystem").or_insert_with(|| json!({}));
     if let Value::Object(filesystem) = filesystem {
         filesystem.entry("kind").or_insert("restricted".into());
@@ -50,28 +51,27 @@ fn materialize(mut settings: SandboxSettings) -> Result<SandboxSettings, String>
                 "path": {"type": "special", "value": {"kind": "root"}}, "access": "read"
             })];
             for path in caches {
-                let path = workspace.join(path);
-                let grant = super::cache::writable_cache_entry(&path)?;
-                // Linux cannot bind an absent writable root. Prepare default
-                // cache directories on the host, including on cold starts.
-                std::fs::create_dir_all(&path).map_err(|error| {
-                    format!("cannot create resolver cache '{}': {error}", path.display())
-                })?;
-                entries.push(grant);
+                // Retain relative spelling until the shared guard has checked it.
+                entries.push(super::cache::writable_cache_entry(&path)?);
             }
             filesystem.insert("entries".into(), entries.into());
         }
-        if let Some(Value::Array(entries)) = filesystem.get_mut("entries") {
-            for entry in entries {
-                if entry.pointer("/path/type").and_then(Value::as_str) == Some("path")
-                    && let Some(Value::String(path)) = entry.pointer_mut("/path/path")
-                {
-                    *path = std::path::absolute(workspace.join(&*path))
-                        .map_err(|error| error.to_string())?
-                        .to_str()
-                        .ok_or("resolver policy paths must be UTF-8")?
-                        .into();
-                }
+    }
+    crate::settings::capture_filesystem_paths(
+        &mut settings,
+        &workspace,
+        crate::settings::PolicyContext::Launch,
+    )?;
+    if create_caches {
+        // Linux cannot bind absent roots. Create only the surviving cache grants.
+        for entry in settings["filesystem"]["entries"]
+            .as_array()
+            .expect("cache entries")
+        {
+            if entry["access"] == "write" {
+                let path = entry["path"]["path"].as_str().expect("captured cache path");
+                std::fs::create_dir_all(path)
+                    .map_err(|error| format!("cannot create resolver cache '{path}': {error}"))?;
             }
         }
     }
