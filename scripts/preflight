@@ -2,6 +2,7 @@
 """Inventory local development prerequisites and existing test capabilities."""
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -65,14 +66,24 @@ def main() -> None:
         "target/debug/mcp-console.exe" if WINDOWS else "target/release/mcp-console"
     )
     runner_name = "mcp-console-sandbox.exe" if WINDOWS else "mcp-console-sandbox"
-    artifacts = {
-        str(path): path.is_file()
-        for path in (
-            executable,
-            ROOT / "wheel-data/data/libexec" / runner_name,
-            ROOT / "target/libexec" / runner_name,
-        )
-    }
+    artifact_paths = [executable, ROOT / "wheel-data/data/libexec" / runner_name]
+    if WINDOWS:
+        build_record = Path(companion["build_record"])
+        if build_record.is_file():
+            # Match build.rs: serde_json serializes the manifest with sorted keys.
+            manifest = json.dumps(
+                json.loads(build_record.read_text(encoding="utf-8")),
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            digest = hashlib.sha256(manifest).hexdigest()
+            artifact_paths.append(
+                ROOT / f"target/libexec/mcp-console-{digest}/libexec" / runner_name
+            )
+    else:
+        artifact_paths.append(ROOT / "target/libexec" / runner_name)
+    artifacts = {str(path): path.is_file() for path in artifact_paths}
 
     if WINDOWS:
         capabilities = {}

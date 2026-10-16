@@ -492,6 +492,10 @@ class WindowsWorkflow(unittest.TestCase):
             json.loads((ROOT / "sandbox-runner.json").read_text()),
         )
         self.assertIsNone(report["companion"]["staged_revision"])
+        self.assertNotIn(
+            str(self.root / "target/libexec/mcp-console-sandbox.exe"),
+            report["artifacts"],
+        )
         self.assertTrue(
             all(path.endswith(".exe") for path in report["artifacts"]), report
         )
@@ -505,6 +509,53 @@ class WindowsWorkflow(unittest.TestCase):
         result = self.run_command("preflight", "--json", environment=environment)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("cargo", json.loads(result.stdout)["required_missing"])
+
+    def test_preflight_reports_only_the_staged_windows_bundle(self):
+        for name in ("git", "uv", "cargo", "rustup"):
+            self.stub(name, f"print('{name} fixture')")
+        environment = self.environment | {"PATH": str(self.commands)}
+        environment.pop("R_HOME", None)
+        runner_name = "mcp-console-sandbox.exe"
+        self.write(f"target/libexec/{runner_name}", "unrelated flat artifact")
+        for runner_digest, bundle_digest in (
+            ("2", "5399d6fa6893217924e90c31f1fc9185ae6d1394059e8746036ddc03c5b663f6"),
+            ("5", "d9c02da03865a4b17e0e2284271266b18cee59388e0194b8036b4de40daa84a7"),
+        ):
+            self.write(
+                "target/sandbox-runner-build.json",
+                json.dumps(
+                    {
+                        "source_revision": "1" * 40,
+                        "target": "x86_64-pc-windows-msvc",
+                        "artifacts": {
+                            runner_name: runner_digest * 64,
+                            "LICENSE": "3" * 64,
+                            "NOTICE": "4" * 64,
+                        },
+                    },
+                    indent=2,
+                ),
+            )
+            runner = f"target/libexec/mcp-console-{bundle_digest}/libexec/{runner_name}"
+            # The second manifest must not count the first one's installed bundle.
+            for built in (False, True):
+                with self.subTest(bundle=bundle_digest, built=built):
+                    if built:
+                        self.write(runner, "fixture companion")
+                    result = self.run_command(
+                        "preflight", "--json", environment=environment
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(
+                        json.loads(result.stdout)["artifacts"],
+                        {
+                            str(self.root / "target/debug/mcp-console.exe"): False,
+                            str(
+                                self.root / f"wheel-data/data/libexec/{runner_name}"
+                            ): False,
+                            str(self.root / runner): built,
+                        },
+                    )
 
     def test_preflight_optional_r_version_errors_do_not_fail(self):
         for name in ("git", "uv", "cargo", "rustup"):
