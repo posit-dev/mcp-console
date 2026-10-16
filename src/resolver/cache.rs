@@ -31,7 +31,7 @@ pub(crate) fn configure(
         },
         |python| python.executable.is_some(),
     );
-    // Host-side companion staging uses the sibling mcp-console/sandbox cache.
+    // Host-side companion staging uses a separate sandbox cache.
     // Grant only dependency storage, never the shared Console cache parent.
     let root = console_root(resolver)?.join("dependencies");
     let path = |relative: &str| -> Result<Value, String> {
@@ -106,6 +106,12 @@ pub(super) fn writable_cache_entry(root: &std::path::Path) -> Result<Value, Stri
 }
 
 fn console_root(settings: &SandboxSettings) -> Result<PathBuf, String> {
+    if let Some(cache) = environment_path(settings, "MCP_CONSOLE_CACHE_DIR") {
+        if !cache.is_absolute() {
+            return Err("MCP_CONSOLE_CACHE_DIR must be an absolute path".into());
+        }
+        return Ok(cache);
+    }
     if let Some(cache) =
         environment_path(settings, "XDG_CACHE_HOME").filter(|path| path.is_absolute())
     {

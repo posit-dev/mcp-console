@@ -57,6 +57,56 @@ def test_absolute_xdg_cache_starts_without_home(binary: Path) -> Transcript:
 
 
 @requires(SANDBOX, command("uv"))
+def test_console_cache_directory_override(binary: Path) -> Transcript:
+    return cache_locations(
+        binary,
+        host=False,
+        sources=("default", "resolver", "isolated", "without_home", "explicit_entries"),
+        cache_override=True,
+    )
+
+
+@requires(SANDBOX, command("uv"))
+def test_empty_console_cache_directory_uses_default(binary: Path) -> Transcript:
+    return cache_locations(binary, host=False, sources=("empty",))
+
+
+@requires(SANDBOX, command("uv"))
+def test_host_cache_ignores_console_cache_directory(binary: Path) -> Transcript:
+    return cache_locations(
+        binary,
+        host=True,
+        sources=("direct", "config", "cli"),
+        cache_override=True,
+    )
+
+
+def test_console_cache_directory_requires_absolute_path(binary: Path) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        result = subprocess.run(
+            [binary, "serve", "--no-config"],
+            cwd=root,
+            env=dict(
+                os.environ,
+                MCP_CONSOLE_CACHE_DIR="relative-cache",
+                MCP_CONSOLE_HOME=str(root / "home"),
+            ),
+            input="",
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 1, result
+        assert result.stderr == "MCP_CONSOLE_CACHE_DIR must be an absolute path\n", (
+            result
+        )
+        assert not result.stdout
+        assert not (root / "relative-cache").exists()
+    return [{"relative_console_cache_directory_rejected": True}]
+
+
+@requires(SANDBOX, command("uv"))
 def test_console_root_is_created_with_explicit_entries(binary: Path) -> Transcript:
     return cache_locations(binary, host=False, sources=("explicit_entries",))
 
@@ -354,6 +404,7 @@ def cache_locations(
     sources: tuple[str, ...],
     metadata: bool = False,
     git_dependency: str | None = None,
+    cache_override: bool = False,
 ) -> Transcript:
     for source in sources:
         # Host cache mode grants Darwin's user temp. Keep protected companion
@@ -371,6 +422,7 @@ def cache_locations(
                 (tools / "uv").symlink_to(shutil.which("uv"))
             python = preseeded_duckdb_python(root)
             env = environment(tools)
+            env.pop("MCP_CONSOLE_CACHE_DIR", None)
             env["XDG_CACHE_HOME"] = str(root / "cache-base")
             env["CACHE_TEST_ROOT"] = str(root)
             for name in CACHE_VARIABLES:
@@ -399,7 +451,6 @@ def cache_locations(
                     if sys.platform == "darwin"
                     else ".cache/mcp-console"
                 )
-            console_root = console_base / "dependencies"
             companion = console_base / "sandbox/fixture/revision/source"
             companion_files = (
                 companion / ".git/config",
@@ -411,12 +462,26 @@ def cache_locations(
             env["CACHE_TEST_COMPANION_FILES"] = json.dumps(
                 [str(file) for file in companion_files]
             )
+            if cache_override:
+                console_base = root / "custom-cache"
+                env["MCP_CONSOLE_CACHE_DIR"] = str(console_base)
+                if source == "resolver":
+                    settings["resolver"] = {
+                        "environment": {"MCP_CONSOLE_CACHE_DIR": str(console_base)}
+                    }
+                    env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
+            elif source == "empty":
+                env["MCP_CONSOLE_CACHE_DIR"] = ""
+            console_root = console_base / "dependencies"
             if source == "config":
                 settings["cache"] = "host"
             if source == "isolated":
                 settings.update(inherit_environment=False, environment=dict(env))
             if source == "xdg_without_home":
                 env.pop("HOME", None)
+            if source == "without_home":
+                for name in ("HOME", "USERPROFILE", "LOCALAPPDATA", "XDG_CACHE_HOME"):
+                    env.pop(name, None)
             if source == "explicit_entries":
                 settings["resolver"] = {
                     "sandbox": {
@@ -565,6 +630,12 @@ def cache_locations(
                 )
             for file in companion_files:
                 assert file.read_text() == "trusted companion cache", file
+            if cache_override:
+                assert not (root / "ignored-cache").exists()
+                if host:
+                    assert not console_base.exists()
+                else:
+                    assert not (root / "cache-base/mcp-console/dependencies").exists()
             if not host:
                 assert not (root / "host").exists()
     return [

@@ -214,6 +214,7 @@ See [Environment variables](ENVIRONMENT.md).
 ## Cache selection
 
 Sandboxed sessions default to Console-specific caches.
+Set `MCP_CONSOLE_CACHE_DIR` to an absolute directory to relocate those caches.
 Set `cache: host` to reuse host cache locations.
 `--no-sandbox` defaults to host caches and rejects `cache: console` and explicit sandbox policies.
 The [`inherit_codex` profile](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex) also selects host caches when the first call requests full access.

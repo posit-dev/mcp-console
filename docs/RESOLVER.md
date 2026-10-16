@@ -23,6 +23,8 @@ Sandboxed sessions default to `cache: console`:
 
 An absolute `XDG_CACHE_HOME` selects `<XDG_CACHE_HOME>/mcp-console/dependencies` on every platform.
 Windows has user-profile/home fallbacks when `LOCALAPPDATA` is unavailable.
+Set `MCP_CONSOLE_CACHE_DIR` to an absolute directory to use `<MCP_CONSOLE_CACHE_DIR>/dependencies` instead.
+It takes precedence over `XDG_CACHE_HOME` and platform defaults; an unset or empty value retains the default selection.
 Selection uses the resolver's effective environment and is captured for the server connection.
 `MCP_CONSOLE_HOME` moves configuration and recordings, not these caches.
 
@@ -39,6 +41,7 @@ cache: host
 ```
 
 This retains resolver sandboxing on macOS/Linux but changes the default cache locations and write grants.
+`MCP_CONSOLE_CACHE_DIR` is ignored with `cache: host`.
 Shared cache writes can affect artifacts later used outside Console.
 `--no-sandbox` defaults to host caches and rejects `cache: console`.
 

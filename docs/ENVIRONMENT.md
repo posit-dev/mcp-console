@@ -94,6 +94,8 @@ See [uv's reference](https://docs.astral.sh/uv/reference/environment/) and [reso
 ## Cache and data locations
 
 [Resolver configuration](RESOLVER.md#cache-locations) owns root selection and host-cache permissions.
+`MCP_CONSOLE_CACHE_DIR` selects an absolute Console cache root, taking precedence over XDG and platform defaults.
+An unset or empty value uses the defaults; `cache: host` ignores it.
 Let `D` be the selected Console dependency directory.
 `cache: console` applies these assignments to preparation and eligible workers:
 
@@ -120,7 +122,7 @@ Values observed inside a cell are therefore not necessarily the persistent resol
 With `cache: host`, tool variables/defaults select caches and Console generates appropriate resolver grants.
 An explicit resolver filesystem replaces those generated entries.
 `MCP_CONSOLE_HOME` does not move caches.
-Windows cache-root selection uses absolute `XDG_CACHE_HOME`, then absolute `LOCALAPPDATA`, then its home/profile fallback.
+Without `MCP_CONSOLE_CACHE_DIR`, Windows cache-root selection uses absolute `XDG_CACHE_HOME`, then absolute `LOCALAPPDATA`, then its home/profile fallback.
 
 Despite its prefix, `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` is a supported user cache setting in host mode.
 A relative nonempty value resolves against the launch directory; otherwise managed extensions use the resolver home's `.duckdb/extensions`.
