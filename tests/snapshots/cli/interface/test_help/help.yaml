@@ -10,8 +10,8 @@ stderr: |
   Commands:
     serve             Run the MCP server over standard input and output
     sandbox           Run a command with the default or an explicit sandbox policy
-    config            Inspect configuration without starting interpreters or
-                      preparing packages
+    config            Create or inspect configuration without starting
+                      interpreters or preparing packages
     configure-client  Configure clients to launch MCP Console and expose its tools
     help              Print this message or the help of the given subcommand(s)
 
@@ -44,8 +44,8 @@ stdout: |
   Commands:
     serve             Run the MCP server over standard input and output
     sandbox           Run a command with the default or an explicit sandbox policy
-    config            Inspect configuration without starting interpreters or
-                      preparing packages
+    config            Create or inspect configuration without starting
+                      interpreters or preparing packages
     configure-client  Configure clients to launch MCP Console and expose its tools
     help              Print this message or the help of the given subcommand(s)
 
@@ -88,16 +88,46 @@ stdout: |
 ---
 command: mcp-console config --help
 stdout: |
-  Inspect configuration without starting interpreters or preparing packages
+  Create or inspect configuration without starting interpreters or preparing
+  packages
 
   Usage: mcp-console config <COMMAND>
 
   Commands:
+    init     Create an annotated Console configuration with workspace permissions
     resolve  Print resolved configuration
     help     Print this message or the help of the given subcommand(s)
 
   Options:
     -h, --help  Print help
+---
+command: mcp-console config init --help
+stdout: |
+  Create an annotated Console configuration with workspace permissions
+
+  Usage: mcp-console config init [OPTIONS]
+
+  Options:
+        --global              Create global configuration in Console home instead
+                              of the project directory
+        --directory <PATH>    Existing project directory; defaults to the current
+                              directory without searching Git parents
+    -c, --config <KEY=VALUE>  Override starter settings; repeat for ordered dotted
+                              KEY=VALUE assignments
+        --dry-run             Print the destination and proposed contents without
+                              creating files or directories
+    -h, --help                Print help
+
+  Starts with workspace permissions and commented examples for common settings.
+  Apply -c settings after the starter permissions; other defaults remain implicit.
+  Existing files are never overwritten. Does not start interpreters or prepare
+  packages.
+
+  Examples:
+    mcp-console config init
+    mcp-console config init --global
+    mcp-console config init --directory /path/to/project
+    mcp-console config init -c r.resolution=disabled -c 'r.packages=[]' --dry-run
 ---
 command: mcp-console config resolve --help
 stdout: |

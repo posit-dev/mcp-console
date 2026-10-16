@@ -37,6 +37,7 @@ def test_help(binary: Path) -> Transcript:
         record(binary),
         record(binary, "--help"),
         record(binary, "config", "--help"),
+        record(binary, "config", "init", "--help"),
         record(binary, "config", "resolve", "--help"),
         record(binary, "configure-client", "--help"),
         record(binary, "serve", "--help"),

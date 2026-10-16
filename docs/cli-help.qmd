@@ -7,7 +7,7 @@ filters:
   - _filters/cli-help.py
 ---
 
-Help for the public commands: `mcp-console`, `serve`, `sandbox`, `config`, `config resolve`, and `configure-client`.
+Help for the public commands: `mcp-console`, `serve`, `sandbox`, `config`, `config init`, `config resolve`, and `configure-client`.
 For examples, see [Command-line reference](CLI.md).
 
 The text comes from the CLI acceptance snapshots.

@@ -1,6 +1,6 @@
 # Command-line reference
 
-Use `serve` to run the MCP server, `sandbox` to run one command under a sandbox, `config resolve` to inspect configuration, and `configure-client` to register Console with a client.
+Use `serve` to run the MCP server, `sandbox` to run one command under a sandbox, `config init` to create shared settings, `config resolve` to inspect configuration, and `configure-client` to register Console with a client.
 Console runs on the local host; it does not create remote connections.
 
 The [CLI help page](cli-help.qmd) shows tested public-command help.
@@ -179,6 +179,28 @@ In PowerShell, quote the complete assignment when it contains spaces or structur
 Project configuration is trusted input and can widen permissions.
 Use `--no-project-config` for an unfamiliar project until you have reviewed its settings.
 [Configuration](CONFIGURATION.md) defines paths, precedence, and merging.
+
+## Initialize configuration
+
+```sh
+mcp-console config init
+mcp-console config init --global
+mcp-console config init --directory /path/to/project
+mcp-console config init -c r.resolution=disabled -c 'r.packages=[]' --dry-run
+```
+
+`config init` creates `.agents/console/config.yaml` in the current directory, without searching Git parents or falling back to global configuration outside Git.
+Use `--directory PATH` for another existing project directory, or `--global` for Console's global configuration location; these options are mutually exclusive.
+The annotated starter grants workspace writes while keeping project metadata read-only.
+It includes commented examples for common settings, using `##` for explanations and `#` for YAML to uncomment.
+Ordered `-c`/`--config` assignments apply after the starter permissions.
+Other defaults remain implicit; initialization does not read discovered files or materialize defaults.
+Existing destinations cause an error and remain unchanged.
+The command prints the path and file contents; `--dry-run` previews them without creating files or directories.
+
+`-c` may appear before `config` or after `init`.
+Configuration-source flags are not accepted by initialization.
+See [Create a configuration file](CONFIGURATION.md#create-a-configuration-file) for paths and behavior.
 
 ## Inspect configuration
 

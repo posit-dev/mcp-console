@@ -1,0 +1,24 @@
+---
+directory: outside-git
+configuration:
+  sandbox:
+    filesystem:
+      read_write:
+        - .
+      read_only:
+        - .git
+        - .agents
+        - .codex
+        - .aws
+---
+directory: repository/nested
+configuration:
+  sandbox:
+    filesystem:
+      read_write:
+        - .
+      read_only:
+        - .git
+        - .agents
+        - .codex
+        - .aws

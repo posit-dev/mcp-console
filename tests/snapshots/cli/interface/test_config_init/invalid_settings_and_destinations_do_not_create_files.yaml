@@ -1,0 +1,23 @@
+---
+rejected: missing assignment
+files_created: false
+---
+rejected: unknown field
+files_created: false
+---
+rejected: environment value type
+files_created: false
+---
+rejected: unknown profile
+files_created: false
+---
+rejected: directory is a file
+files_created: false
+---
+rejected: missing directory
+files_created: false
+---
+rejected: conflicting destinations
+files_created: false
+---
+configuration_source_flags: rejected before writing

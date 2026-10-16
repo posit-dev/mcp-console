@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
 
+pub(crate) mod init;
 mod inline;
 mod yaml;
 

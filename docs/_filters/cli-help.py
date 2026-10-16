@@ -21,6 +21,7 @@ PUBLIC_HELP_COMMANDS = (
     "mcp-console serve --help",
     "mcp-console sandbox --help",
     "mcp-console config --help",
+    "mcp-console config init --help",
     "mcp-console config resolve --help",
     "mcp-console configure-client --help",
 )

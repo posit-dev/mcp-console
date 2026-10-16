@@ -92,9 +92,25 @@ For Codex configured above, Console inherits the client's sandbox permissions.
 Without inheritance or a configured profile, the default sandbox permits host-file reads and private temporary writes, but not ordinary workspace writes or direct network access.
 **It does not protect readable secrets.**
 
-### Use the workspace profile {#allow-project-writes}
+### Allow project writes {#allow-project-writes}
 
-To let the agent save files in the project, create `.agents/console/config.yaml` in the directory where Console will start:
+To let the agent save files in the project, initialize configuration in the directory where Console will start:
+
+```sh
+mcp-console config init
+```
+
+This creates an annotated `.agents/console/config.yaml` with explicit workspace permissions:
+
+```yaml
+sandbox:
+  filesystem:
+    read_write: [.]
+    read_only: [.git, .agents, .codex, .aws]
+```
+
+If the file already exists, edit its permissions instead.
+The `workspace` profile is shorthand for the same permissions:
 
 ```yaml
 sandbox:

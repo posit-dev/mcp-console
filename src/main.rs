@@ -68,6 +68,12 @@ fn main() -> ExitCode {
             Err(error) => exit_with_error(error),
         },
         cli::Command::Config {
+            command: cli::ConfigCommand::Init(options),
+        } => match config::init::run(&options, &overrides) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => exit_with_error(error),
+        },
+        cli::Command::Config {
             command:
                 cli::ConfigCommand::Resolve {
                     overrides: command_overrides,

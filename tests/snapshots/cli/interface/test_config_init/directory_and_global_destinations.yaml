@@ -1,0 +1,36 @@
+---
+destination: relative
+configuration:
+  sandbox:
+    filesystem:
+      read_write:
+        - .
+      read_only:
+        - .git
+        - .agents
+        - .codex
+        - .aws
+---
+destination: absolute
+configuration:
+  sandbox:
+    filesystem:
+      read_write:
+        - .
+      read_only:
+        - .git
+        - .agents
+        - .codex
+        - .aws
+---
+destination: global
+configuration:
+  sandbox:
+    filesystem:
+      read_write:
+        - .
+      read_only:
+        - .git
+        - .agents
+        - .codex
+        - .aws
