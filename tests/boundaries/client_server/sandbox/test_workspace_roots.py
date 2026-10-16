@@ -12,12 +12,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.client import McpClient
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
+from support.public_configuration import MANAGED_TMPDIR_DESCRIPTION
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.requirements import NATIVE_FIXTURES, SANDBOX, requires
+from support.snapshots import platform_snapshots
 from support.suites import run_this_suite
 from boundaries.client_server.python.test_without_r import environment
 
 
+@platform_snapshots(
+    "win32",
+    reason="Windows read-only fallback advertises private TMPDIR, TEMP and TMP; Unix advertises only TMPDIR.",
+)
 def test_workspace_guard_uses_console_home(binary: Path) -> TranscriptWithCompanions:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
@@ -48,7 +54,9 @@ def test_workspace_guard_uses_console_home(binary: Path) -> TranscriptWithCompan
         ) as client:
             client.initialize_and_list_tools()
             description = client.transcript[-1]["result"]["tools"][0]["description"]
-            assert "Writable locations: private `TMPDIR`;" in description, description
+            assert (
+                f"Writable locations: {MANAGED_TMPDIR_DESCRIPTION};" in description
+            ), description
             transcript, stderr = client.finish_with_standard_error()
         assert stderr == (
             f"Warning: refusing automatic workspace writes to '{home}'; falling back to read_only\n"

@@ -72,16 +72,6 @@ stderr: >
   configuration with CLI overrides: resolver: expected a mapping; see
   docs/CONFIGURATION.md for the public format
 ---
-path: resolver.sandbox.profile
-stderr: >
-  configuration with CLI overrides: resolver.sandbox.profile:
-  inherit_codex is a session profile; configure sandbox.profile instead
----
-path: resolver.sandbox.profile
-stderr: >
-  configuration with CLI overrides: resolver.sandbox.profile:
-  inherit_codex is a session profile; configure sandbox.profile instead
----
 path: sandbox.network.proxy
 stderr: >
   configuration with CLI overrides: sandbox: network: proxy: expected a

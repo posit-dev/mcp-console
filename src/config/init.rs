@@ -33,7 +33,10 @@ pub(crate) fn run(options: &ConfigInitOptions, overrides: &ConfigOverrides) -> R
             .ok_or("Cannot determine Console home for global configuration")?
             .join("config.yaml")
     } else {
-        directory.join(".agents/console/config.yaml")
+        directory
+            .join(".agents")
+            .join("console")
+            .join("config.yaml")
     };
     match fs::symlink_metadata(&path) {
         Ok(_) => {

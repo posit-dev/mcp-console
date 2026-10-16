@@ -1,5 +1,13 @@
 """Equivalent user policies shared by Unix and native Windows acceptance."""
 
+import os
+
+MANAGED_TMPDIR_DESCRIPTION = (
+    "private `TMPDIR` (also `TEMP` and `TMP`)"
+    if os.name == "nt"
+    else "private `TMPDIR`"
+)
+
 CONFIGURATION_EXAMPLES = {
     "common": {
         "sandbox": {
@@ -68,9 +76,6 @@ INVALID_CONFIGURATIONS = [
     ("sandbox", []),
     ("sandbox.filesystem", []),
     ("resolver", []),
-    # Windows rejects explicit resolver policies before field validation.
-    ("resolver.sandbox.profile", "inherit_codex"),
-    ("resolver.sandbox.profile", {"inherit_codex": {"fallback": "workspace"}}),
     ("sandbox.network.proxy", []),
     ("sandbox.network.sockets", []),
     ("sandbox.network.proxy.domains", []),

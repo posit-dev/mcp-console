@@ -15,6 +15,7 @@ from support.native import LOADER_VARIABLE, build_interposer
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.records import Transcript, TranscriptWithCompanions
+from support.snapshots import platform_snapshots
 from support.requirements import (
     MACOS_SANDBOX,
     NATIVE_FIXTURES,
@@ -195,6 +196,35 @@ def test_rejects_ineffective_and_removed_settings(binary: Path) -> Transcript:
                 transcript.append(
                     {"scope": scope, "selector": selector, "stderr": result.stderr}
                 )
+    return transcript
+
+
+@platform_snapshots(
+    "win32",
+    reason="Windows rejects explicit resolver permissions before nested profile validation; Unix rejects session profiles in resolver scope.",
+)
+def test_rejects_session_profiles_in_resolver(binary: Path) -> Transcript:
+    transcript = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        for profile in ("inherit_codex", {"inherit_codex": {"fallback": "workspace"}}):
+            result = subprocess.run(
+                [
+                    binary,
+                    "config",
+                    "resolve",
+                    "--no-config",
+                    "-c",
+                    "resolver.sandbox.profile=" + json.dumps(profile),
+                ],
+                cwd=root,
+                env=os.environ | {"MCP_CONSOLE_HOME": str(root / "console")},
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            assert result.returncode == 1 and not result.stdout, result
+            transcript.append({"profile": profile, "stderr": result.stderr})
     return transcript
 
 

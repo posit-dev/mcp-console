@@ -14,7 +14,10 @@ from support.client import McpClient
 from support.normalization import code
 from support.records import Transcript
 from support.requirements import NON_UTF8_FILENAMES, POSIX, requires
-from support.public_configuration import CONFIGURATION_EXAMPLES
+from support.public_configuration import (
+    CONFIGURATION_EXAMPLES,
+    MANAGED_TMPDIR_DESCRIPTION,
+)
 from support.suites import run_this_suite
 
 
@@ -233,9 +236,10 @@ def test_broad_workspace_roots_preserve_selection_policy(binary: Path) -> Transc
                     if full:
                         description = settings["tool"]["description"]
                         if profile == "workspace":
-                            assert "private `TMPDIR`, workspace," in description, (
-                                description
-                            )
+                            assert (
+                                f"{MANAGED_TMPDIR_DESCRIPTION}, workspace,"
+                                in description
+                            ), description
                             assert json.dumps(str(launch)) in description, description
                         else:
                             assert "The sandbox base comes from" in description, (

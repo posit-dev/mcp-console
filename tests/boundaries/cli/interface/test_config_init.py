@@ -60,7 +60,9 @@ def test_defaults_use_cwd_without_git_or_global_inference(binary: Path) -> Trans
             result = invoke(binary, root, directory, "config", "init")
             assert result.returncode == 0 and not result.stderr, result
             path = directory / ".agents/console/config.yaml"
-            assert str(path) in result.stdout, result
+            assert result.stdout.startswith(f"Created configuration: {path}\n\n"), (
+                result
+            )
             assert read_yaml(path) == WORKSPACE_CONFIGURATION
             assert "## Full reference:" in path.read_text(encoding="utf-8")
             assert not (repository / ".agents").exists()
@@ -102,7 +104,9 @@ def test_directory_and_global_destinations(binary: Path) -> Transcript:
                 extra_environment=extra,
             )
             assert result.returncode == 0 and not result.stderr, result
-            assert str(path) in result.stdout, result
+            assert result.stdout.startswith(f"Created configuration: {path}\n\n"), (
+                result
+            )
             assert read_yaml(path) == WORKSPACE_CONFIGURATION
             assert not (caller / ".agents").exists()
             records.append(
@@ -208,11 +212,21 @@ def test_dry_run_previews_the_created_contents(binary: Path) -> Transcript:
         contents = path.read_text(encoding="utf-8")
         assert contents in preview.stdout and contents in result.stdout
         assert read_yaml(path) == WORKSPACE_CONFIGURATION
-        for output in (preview.stdout, result.stdout):
-            assert str(path) in output, output
+        assert preview.stdout.startswith(f"Would create configuration: {path}\n\n"), (
+            preview
+        )
+        assert result.stdout.startswith(f"Created configuration: {path}\n\n"), result
     return [
-        {"preview": preview.stdout.replace(str(root), "<WORKSPACE>")},
-        {"created": result.stdout.replace(str(root), "<WORKSPACE>")},
+        {
+            "preview": preview.stdout.replace(
+                str(path), "<WORKSPACE>/.agents/console/config.yaml"
+            )
+        },
+        {
+            "created": result.stdout.replace(
+                str(path), "<WORKSPACE>/.agents/console/config.yaml"
+            )
+        },
     ]
 
 
@@ -440,9 +454,10 @@ def test_existing_configuration_is_never_replaced(binary: Path) -> Transcript:
         for extra in ((), ("--dry-run",), ("-c", "r.vanilla=true")):
             result = invoke(binary, root, root, "config", "init", *extra)
             assert result.returncode == 1 and not result.stdout, result
-            assert "already exists" in result.stderr and str(path) in result.stderr, (
-                result
-            )
+            assert (
+                result.stderr
+                == f"Configuration already exists at {path}; no files changed\n"
+            ), result
             assert path.read_text(encoding="utf-8") == contents
             assert path.stat().st_ino == identity
     return [
