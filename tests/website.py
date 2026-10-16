@@ -127,6 +127,36 @@ class WebsiteTests(unittest.TestCase):
             self.assertIn((self.site / name).resolve(), self.pages)
         self.assertFalse((self.site / "templates").exists())
 
+    def test_guides_detect_system_color_scheme(self) -> None:
+        for name in (
+            "index.html",
+            "cli-help.html",
+            "benchmarks/transcript-concurrency.html",
+        ):
+            with self.subTest(page=name):
+                soup = BeautifulSoup((self.site / name).read_text(), "html.parser")
+                script = soup.find("script", id="quarto-html-before-body")
+                self.assertIsNotNone(script)
+                self.assertIn("prefers-color-scheme: dark", script.get_text())
+                self.assertIsNotNone(soup.select_one(".quarto-color-scheme-toggle"))
+
+    def test_r_reference_offers_automatic_color_scheme(self) -> None:
+        for name in (
+            "r/index.html",
+            "r/reference/console_tool.html",
+            "r/articles/autonomous-report.html",
+        ):
+            with self.subTest(page=name):
+                path = self.site / name
+                soup = BeautifulSoup(path.read_text(), "html.parser")
+                script = soup.select_one('script[src$="lightswitch.js"]')
+                self.assertIsNotNone(script)
+                self.assertIn(
+                    "prefers-color-scheme: dark",
+                    (path.parent / script["src"]).read_text(),
+                )
+                self.assertIsNotNone(soup.select_one('[data-bs-theme-value="auto"]'))
+
     def test_r_report_vignette_is_discoverable(self) -> None:
         article = self.site / "r/articles/autonomous-report.html"
         self.assertIn(article, self.pages, "autonomous report vignette is missing")

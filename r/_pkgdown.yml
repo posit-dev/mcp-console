@@ -6,6 +6,7 @@ development:
 template:
   bootstrap: 5
   bootswatch: cosmo
+  light-switch: true
 
 repo:
   url:
@@ -17,7 +18,7 @@ repo:
 navbar:
   structure:
     left: [console, reference, articles]
-    right: [search, github]
+    right: [search, github, lightswitch]
   components:
     console:
       text: MCP Console

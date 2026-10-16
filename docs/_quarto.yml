@@ -128,6 +128,7 @@ format:
     theme:
       light: [cosmo, theme.scss]
       dark: [cosmo, theme.scss, dark.scss]
+    respect-user-color-scheme: true
     css: styles.css
     toc: true
     code-copy: true
