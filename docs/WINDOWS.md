@@ -47,11 +47,11 @@ See [Windows build instructions](WINDOWS_DEVELOPMENT.md#build-from-source).
 Sandboxed Windows execution requires MXC, including normal sessions, the public `sandbox` command, and complete native policies.
 The host must support native process security environments and the requested filesystem policy; read-deny rules need native deny-path support.
 The runner probes actual creation and closure, not just exported API names.
-Update Windows if that probe fails; there is no elevated, unelevated, AppContainer, or host-execution fallback.
+Update Windows if that probe fails; unsupported hosts and policies fail before the workload executes.
 
-MXC requires no account provisioning, UAC setup, persistent state directory, or legacy helper executables.
-The Console frontend selects MXC at the runner boundary.
-Removed `windows_backend`, `windows_sandbox_level`, and `windows_state_dir` fields are errors, including explicit nulls and complete native policies.
+MXC requires no account provisioning, UAC setup, or persistent state directory.
+Workload environment settings apply after native setup, so clearing inheritance does not remove the launcher's Windows platform variables.
+Configured temporary-directory values reach the workload unchanged.
 Windows complete policies also reject `filesystem.kind: external-sandbox`, which could bypass native enforcement.
 Explicit `serve --no-sandbox` remains available.
 
@@ -79,16 +79,11 @@ UDP and Unix-socket settings remain unsupported.
 Resolver environment/cache settings remain usable, but package downloads, installation hooks, and cache writes are outside MXC.
 Moving that preparation into MXC is separate work.
 
-## Legacy installation cleanup
-
-If launch reports legacy Console accounts, follow the [administrator migration procedure](WINDOWS_MIGRATION.md).
-New installations do not need it.
-
 ## Lifecycle and platform differences
 
 The native runner owns a non-breakaway Job and confirms zero active processes before successful retirement.
 Private-storage removal follows that confirmation; cleanup failure retains storage and blocks replacement.
-Forced frontend exit is not a cleanup receipt, and runner/helper death does not guarantee storage deletion.
+Forced frontend exit is not a cleanup receipt, and runner death does not guarantee storage deletion.
 
 Interruption is cooperative.
 R/Python callbacks can handle it without losing state, but an unresponsive native call may need restart.
@@ -107,7 +102,6 @@ See [Windows validation](WINDOWS_DEVELOPMENT.md#validation) for contributor chec
 ## Troubleshooting
 
 An unavailable-MXC error requires a supported Windows host and policy.
-A legacy-account diagnostic requires the [one-time cleanup](#legacy-installation-cleanup); launch performs no migration.
 
 Windows process-creation error 4551 indicates host application-control policy.
 The host must permit the executable and downloaded interpreter DLLs; this is separate from Console's sandbox settings.

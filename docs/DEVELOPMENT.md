@@ -18,6 +18,7 @@ scripts/with-checkout cargo build --release --target-dir target
 
 `preflight` inventories tools, runtimes, staging, and caches without installing or building.
 `--json` gives structured output.
+On Windows, the native companion path comes from the staged build manifest and identifies its immutable bundle; older bundles do not count as the current build.
 Optional missing capabilities are reported, not evidence of a successful build.
 
 For a source installation:

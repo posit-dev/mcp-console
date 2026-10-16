@@ -14,19 +14,15 @@ Use `scripts/with-checkout.cmd` for direct mutating build commands.
 ## Validation
 
 Use Python 3.13 to match CI.
-Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an MXC-capable clean host.
-CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console, then the substantive Windows suite on the same clean host.
+Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an MXC-capable host.
+CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console, then the substantive Windows suite on the same host.
 Acceptance probes MXC through a real public sandbox launch.
-Only the native unavailable-runtime diagnostic permits skipping MXC execution cases; installation, policy, and legacy-account failures remain failures.
-Hosts without MXC still run configuration, integrity, migration-diagnostic, explicit host-execution, and public fail-closed startup tests.
+Only the native unavailable-runtime diagnostic permits skipping MXC execution cases; installation, policy, and workload failures remain failures.
+Hosts without MXC still run configuration, integrity, explicit host-execution, and public fail-closed startup tests.
 As hosted runners gain native MXC support, the existing execution cases run automatically.
 The R package's permission tests use the same capability rule; adapter and configuration tests use explicit host execution where enforcement is outside their scope.
-CI never provisions legacy accounts or selects a different sandbox backend.
 Controlled origins verify allowed and denied HTTP, CONNECT, and SOCKS requests through the managed proxy.
-Process-local fault injection checks legacy-account diagnostics through sessions, sandbox commands, and complete policies without changing the host's resources.
-The same public routes verify actual unavailable-MXC rejection on unsupported hosts; capable hosts inject that failure.
-CI separately runs the administrator-only `tests/fixtures/windows_migration.ps1` acceptance fixture against the migration script.
-It refuses existing Console WFP state, creates inert persistent filters, and verifies dry-run behavior, removal, idempotence, and preservation of unrelated provider state.
+Sessions, sandbox commands, and complete policies verify actual unavailable-MXC rejection on unsupported hosts; capable hosts inject that failure into the native probe.
 
 ```powershell
 $env:LC_ALL = 'C'
@@ -66,7 +62,7 @@ A passing macOS equivalent or skipped Windows case is not Windows validation.
 [TODO](TODO.md#sandbox-and-platforms) collects this fixture debt.
 
 CI installs the trusted runtimes before acceptance.
-MXC runs with the caller's identity and needs no sandbox-account ACL grants, including for installations outside standard roots.
+MXC runs with the caller's identity, including for installations outside standard roots.
 
 ## Source and lifecycle implementation
 

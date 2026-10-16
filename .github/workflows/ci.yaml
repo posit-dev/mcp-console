@@ -238,10 +238,6 @@ jobs:
       - name: Run native Windows development and installation checks
         run: |
           scripts/check.cmd --full
-      - name: Verify one-time legacy WFP migration
-        # Administrator-only fixture: refuses existing Console WFP state,
-        # creates inert filters, and confirms unrelated state is preserved.
-        run: tests/fixtures/windows_migration.ps1 -CleanupScript "$PWD/scripts/remove-legacy-console-wfp.ps1"
       - name: Check R package on Windows
         env:
           MCP_CONSOLE_TEST_BINARY: ${{ github.workspace }}/target/release/mcp-console.exe

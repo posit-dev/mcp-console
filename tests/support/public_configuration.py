@@ -84,7 +84,6 @@ INVALID_CONFIGURATIONS = [
     ("sandbox.network.sockets.unix_sockets", True),
     ("sandbox.network.sockets.unix_sockets", "all"),
     ("sandbox.network.sockets.unix_sockets", "*"),
-    ("sandbox.network.sockets.unix_sockets", ["relative.sock"]),
     ("sandbox.network.sockets.unix_sockets", {"deny": ["/tmp/a.sock"]}),
     ("sandbox.network.sockets.deny", ["/tmp/a.sock"]),
     ("sandbox.network.sockets.dangerously_allow_all_unix_sockets", True),
@@ -96,5 +95,5 @@ INVALID_CONFIGURATIONS = [
     ("resolver.environment", "secret sentinel"),
     ("resolver.environment", {"TOKEN": False}),
     ("extends", ":workspace"),
-    ("sandbox.windows_sandbox_level", "unelevated"),
+    ("sandbox.unsupported", True),
 ]

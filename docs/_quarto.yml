@@ -72,7 +72,6 @@ website:
         - WINDOWS.md
         - LINUX_COMPATIBILITY.md
         - BUILD_FROM_SOURCE.md
-        - WINDOWS_MIGRATION.md
       - GLOSSARY.md
     - id: clients
       title: Client integration

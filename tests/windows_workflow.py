@@ -26,6 +26,7 @@ class WindowsWorkflow(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         shutil.copytree(ROOT / "scripts", self.root / "scripts")
+        shutil.copy2(ROOT / "sandbox-runner.json", self.root / "sandbox-runner.json")
         (self.root / "tests").mkdir()
         shutil.copy2(
             ROOT / "tests/windows_runner.py", self.root / "tests/windows_runner.py"
@@ -477,7 +478,7 @@ class WindowsWorkflow(unittest.TestCase):
         self.assertIn("air: failed (127)", result.stdout)
         self.assertIn("rustfmt: ok", result.stdout)
 
-    def test_preflight_skips_unimplemented_platform_capabilities(self):
+    def test_preflight_inventories_the_native_companion_without_building(self):
         for name in ("git", "uv", "cargo", "rustup"):
             self.stub(name, f"print('{name} fixture')")
         environment = self.environment | {"PATH": str(self.commands)}
@@ -486,7 +487,18 @@ class WindowsWorkflow(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         report = json.loads(result.stdout)
         self.assertEqual(report["required_missing"], [])
-        self.assertEqual(report["companion"]["status"], "skip")
+        self.assertEqual(
+            report["companion"]["pin"],
+            json.loads((ROOT / "sandbox-runner.json").read_text()),
+        )
+        self.assertIsNone(report["companion"]["staged_revision"])
+        self.assertNotIn(
+            str(self.root / "target/libexec/mcp-console-sandbox.exe"),
+            report["artifacts"],
+        )
+        self.assertTrue(
+            all(path.endswith(".exe") for path in report["artifacts"]), report
+        )
         self.assertTrue(report["executable"]["development"].endswith("mcp-console.exe"))
         self.assertNotIn("providers", report)
         self.assertFalse((self.root / "target").exists())
@@ -497,6 +509,72 @@ class WindowsWorkflow(unittest.TestCase):
         result = self.run_command("preflight", "--json", environment=environment)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("cargo", json.loads(result.stdout)["required_missing"])
+
+    def test_preflight_reports_only_the_staged_windows_bundle(self):
+        # Preflight resolves its checkout path, including Windows 8.3 aliases.
+        # Exercise an unresolved spelling even on hosts without short names.
+        self.root = self.root / "scripts/.."
+        root = self.root.resolve()
+        for name in ("git", "uv", "cargo", "rustup"):
+            self.stub(name, f"print('{name} fixture')")
+        environment = self.environment | {"PATH": str(self.commands)}
+        environment.pop("R_HOME", None)
+        pin = json.loads((self.root / "sandbox-runner.json").read_text())
+        pin["commit"] = "1" * 40
+        self.write("sandbox-runner.json", json.dumps(pin))
+        runner_name = "mcp-console-sandbox.exe"
+        self.write(f"target/libexec/{runner_name}", "unrelated flat artifact")
+        for runner_digest, bundle_digest in (
+            ("2", "5399d6fa6893217924e90c31f1fc9185ae6d1394059e8746036ddc03c5b663f6"),
+            ("5", "d9c02da03865a4b17e0e2284271266b18cee59388e0194b8036b4de40daa84a7"),
+        ):
+            self.write(
+                "target/sandbox-runner-build.json",
+                json.dumps(
+                    {
+                        "source_revision": "1" * 40,
+                        "target": "x86_64-pc-windows-msvc",
+                        "artifacts": {
+                            runner_name: runner_digest * 64,
+                            "LICENSE": "3" * 64,
+                            "NOTICE": "4" * 64,
+                        },
+                    },
+                    indent=2,
+                ),
+            )
+            runner = f"target/libexec/mcp-console-{bundle_digest}/libexec/{runner_name}"
+            # The second manifest must not count the first one's installed bundle.
+            for built in (False, True):
+                with self.subTest(bundle=bundle_digest, built=built):
+                    if built:
+                        self.write(runner, "fixture companion")
+                    result = self.run_command(
+                        "preflight", "--json", environment=environment
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(
+                        json.loads(result.stdout)["artifacts"],
+                        {
+                            str(root / "target/debug/mcp-console.exe"): False,
+                            str(root / f"wheel-data/data/libexec/{runner_name}"): False,
+                            str(root / runner): built,
+                        },
+                    )
+        pin["commit"] = "6" * 40
+        self.write("sandbox-runner.json", json.dumps(pin))
+        result = self.run_command("preflight", "--json", environment=environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["companion"]["staged_revision"], "1" * 40)
+        self.assertEqual(report["companion"]["pin"]["commit"], "6" * 40)
+        self.assertEqual(
+            report["artifacts"],
+            {
+                str(root / "target/debug/mcp-console.exe"): False,
+                str(root / f"wheel-data/data/libexec/{runner_name}"): False,
+            },
+        )
 
     def test_preflight_optional_r_version_errors_do_not_fail(self):
         for name in ("git", "uv", "cargo", "rustup"):

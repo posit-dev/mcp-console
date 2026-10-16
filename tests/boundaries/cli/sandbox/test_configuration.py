@@ -65,28 +65,21 @@ def invoke(binary: Path, config: dict | str, *command: str, launch_prefix=(), **
     )
 
 
-def test_rejects_retired_windows_controls_before_execution(binary: Path) -> Transcript:
+def test_rejects_unknown_native_policy_fields_before_execution(
+    binary: Path,
+) -> Transcript:
     transcript = []
-    for field, value in (
-        ("windows_backend", "auto"),
-        ("windows_backend", "mxc"),
-        ("windows_backend", "elevated"),
-        ("windows_backend", "unelevated"),
-        ("windows_backend", None),
-        ("windows_sandbox_level", "unelevated"),
-        ("windows_state_dir", None),
-        ("windows_state_dir", "unused-state"),
-    ):
+    for value in (None, True, "unknown"):
         result = invoke(
             binary,
-            configuration() | {field: value},
+            configuration() | {"unsupported": value},
             sys.executable,
             "-c",
             "print('USER CODE RAN')",
         )
         assert result.returncode == 1 and result.stdout == "", result
-        assert f"{field} has been removed" in result.stderr, result
-        transcript.append({"field": field, "value": value, "stderr": result.stderr})
+        assert "invalid configuration JSON" in result.stderr, result
+        transcript.append({"value": value, "stderr": result.stderr})
     return transcript
 
 

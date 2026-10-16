@@ -48,9 +48,8 @@ See [Linux compatibility](LINUX_COMPATIBILITY.md).
 
 **Windows x64:** Experimental native execution requires MXC for every sandboxed launch.
 Unsupported hosts and policies fail before executing the workload.
-Existing legacy Console accounts require the documented one-time migration; launch does not remove them or select another backend.
 The runner confirms Job retirement before successful exit and private-storage removal.
-See [Windows requirements and migration](WINDOWS.md#native-sandbox).
+See [Windows requirements](WINDOWS.md#native-sandbox).
 
 Caller death triggers cleanup while the runner remains alive.
 There is no independent recovery process.

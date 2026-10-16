@@ -132,7 +132,6 @@ def test_layered_variants(binary: Path) -> Transcript:
     return transcript
 
 
-@requires(SANDBOX)
 def test_rejects_ineffective_and_removed_settings(binary: Path) -> Transcript:
     transcript = []
     with TemporaryDirectory() as temporary:
@@ -355,6 +354,31 @@ def test_socket_choices(binary: Path) -> Transcript:
                 {path: "allow" for path in final} if isinstance(final, list) else {}
             )
             transcript.append({"initial": initial, "override": final, "native": proxy})
+        # Windows rejects Unix sockets as a platform capability. Unix validates
+        # individual paths, so keep this assertion with the Unix socket cases.
+        result = subprocess.run(
+            [
+                binary,
+                "sandbox",
+                "--no-config",
+                "-c",
+                "sandbox.network.proxy={}",
+                "-c",
+                'sandbox.network.sockets.unix_sockets=["relative.sock"]',
+                "--",
+                "unused-workload",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 1 and not result.stdout, result
+        assert result.stderr == (
+            "configuration with CLI overrides: "
+            "sandbox.network.sockets.unix_sockets[0]: "
+            "socket paths must be literal absolute paths\n"
+        ), result
     return transcript
 
 

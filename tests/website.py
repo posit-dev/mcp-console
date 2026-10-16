@@ -274,7 +274,6 @@ class WebsiteTests(unittest.TestCase):
                 "custom-workers",
             ),
             "WINDOWS": (
-                "legacy-installation-cleanup",
                 "build-from-source",
                 "validation",
                 "testing-parity-and-remaining-gaps",
@@ -295,7 +294,6 @@ class WebsiteTests(unittest.TestCase):
             "RUNTIME_REFERENCE",
             "REQUIREMENTS_API",
             "TOOL_CONFIGURATION",
-            "WINDOWS_MIGRATION",
             "WINDOWS_DEVELOPMENT",
         ):
             with self.subTest(reference=name):

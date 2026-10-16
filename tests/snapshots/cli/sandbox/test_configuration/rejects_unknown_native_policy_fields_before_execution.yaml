@@ -1,0 +1,12 @@
+---
+value: ~
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 166)
+---
+value: true
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 166)
+---
+value: unknown
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 166)

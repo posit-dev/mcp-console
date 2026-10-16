@@ -105,7 +105,6 @@ Native Windows sandboxed launches require MXC, including complete native policie
 Unsupported hosts and policies fail before the workload executes; there is no automatic weaker fallback.
 
 MXC needs no provisioning command.
-Older installations may need the [one-time administrator cleanup](WINDOWS_MIGRATION.md).
 See [Windows setup](WINDOWS.md#native-sandbox).
 
 ## Run without sandboxing

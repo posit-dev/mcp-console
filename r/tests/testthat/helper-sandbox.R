@@ -48,8 +48,8 @@ require_sandbox_execution <- local({
           !nzchar(result$stderr)
         )
       } else {
-        # Only unavailable MXC permits skipping; legacy installations and
-        # policy, installation, or workload errors must still fail acceptance.
+        # Only unavailable MXC permits skipping; policy, installation, and
+        # workload errors must still fail acceptance.
         if (
           result$status != 1L ||
             nzchar(result$stdout) ||

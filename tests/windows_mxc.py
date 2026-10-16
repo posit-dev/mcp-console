@@ -70,7 +70,7 @@ class WindowsMxc(unittest.TestCase):
         return b"".join(captured) + remainder, stderr
 
     def test_startup_failures_withhold_code_at_every_public_entry_point(self):
-        from support.windows_faults import run_with_native_fault
+        from support.windows_faults import run_with_unavailable_mxc
 
         native_available = mxc_requirement(BINARY).available
 
@@ -79,78 +79,66 @@ class WindowsMxc(unittest.TestCase):
                 "MCP_CONSOLE_HOME": str(root / "home"),
                 "POLICY": json.dumps({"extends": ":read-only"}),
             }
-            for fault, diagnostic in (
-                ("mxc_unavailable", "WINDOWS.html#native-sandbox"),
-                ("legacy_accounts", "WINDOWS.html#legacy-installation-cleanup"),
-            ):
-                for route, arguments in (
-                    (
-                        "session",
-                        [
-                            "serve",
-                            "--no-config",
-                            "-c",
-                            "languages=[python]",
-                            "-c",
-                            "python=" + json.dumps(sys.executable),
-                        ],
-                    ),
-                    (
+            for route, arguments in (
+                (
+                    "session",
+                    [
+                        "serve",
+                        "--no-config",
+                        "-c",
+                        "languages=[python]",
+                        "-c",
+                        "python=" + json.dumps(sys.executable),
+                    ],
+                ),
+                (
+                    "sandbox",
+                    [
                         "sandbox",
-                        [
-                            "sandbox",
-                            "--no-config",
-                            "--",
-                            sys.executable,
-                            "-c",
-                            "print('USER CODE RAN')",
-                        ],
-                    ),
-                    (
-                        "complete",
-                        [
-                            "sandbox",
-                            "--config-env",
-                            "POLICY",
-                            "--",
-                            sys.executable,
-                            "-c",
-                            "print('USER CODE RAN')",
-                        ],
-                    ),
-                ):
-                    with self.subTest(fault=fault, route=route):
-                        result = run_with_native_fault(
-                            [str(BINARY), *arguments],
-                            # Without native MXC, exercise the real startup
-                            # rejection. Capable hosts inject that failure.
-                            fault=(
-                                fault
-                                if fault != "mxc_unavailable" or native_available
-                                else None
-                            ),
-                            cwd=root,
-                            env=environment,
-                            interaction=self._mcp_startup_failure
-                            if route == "session"
-                            else None,
-                        )
-                        output = (result.stdout + result.stderr).decode(
-                            errors="replace"
-                        )
-                        self.assertIn(diagnostic, output)
-                        self.assertNotIn("USER CODE RAN", output)
-                        self.assertNotIn("use elevated mode", output)
-                        if route != "session":
-                            self.assertEqual(result.returncode, 1, output)
-                            self.assertEqual(result.stdout, b"", output)
-                self.assertFalse((root / "home/.sandbox-secrets").exists())
+                        "--no-config",
+                        "--",
+                        sys.executable,
+                        "-c",
+                        "print('USER CODE RAN')",
+                    ],
+                ),
+                (
+                    "complete",
+                    [
+                        "sandbox",
+                        "--config-env",
+                        "POLICY",
+                        "--",
+                        sys.executable,
+                        "-c",
+                        "print('USER CODE RAN')",
+                    ],
+                ),
+            ):
+                with self.subTest(route=route):
+                    result = run_with_unavailable_mxc(
+                        [str(BINARY), *arguments],
+                        # Without native MXC, exercise the real startup
+                        # rejection. Capable hosts inject that failure.
+                        inject_unavailable=native_available,
+                        cwd=root,
+                        env=environment,
+                        interaction=self._mcp_startup_failure
+                        if route == "session"
+                        else None,
+                    )
+                    output = (result.stdout + result.stderr).decode(errors="replace")
+                    self.assertIn("WINDOWS.html#native-sandbox", output)
+                    self.assertNotIn("USER CODE RAN", output)
+                    if route != "session":
+                        self.assertEqual(result.returncode, 1, output)
+                        self.assertEqual(result.stdout, b"", output)
 
     def test_owned_environment_case_variants_reach_native_startup(self):
-        from support.windows_faults import run_with_native_fault
+        from support.windows_faults import run_with_unavailable_mxc
 
         with workspace() as root:
-            result = run_with_native_fault(
+            result = run_with_unavailable_mxc(
                 [
                     str(BINARY),
                     "serve",
@@ -166,13 +154,14 @@ class WindowsMxc(unittest.TestCase):
                     "-c",
                     'environment={mcp_console_managed_tempdir: "0"}',
                 ],
-                fault="legacy_accounts",
+                # Unsupported hosts already exercise the real native failure.
+                inject_unavailable=mxc_requirement(BINARY).available,
                 cwd=root,
                 env=os.environ | {"MCP_CONSOLE_HOME": str(root / "home")},
                 interaction=self._mcp_startup_failure,
             )
             output = (result.stdout + result.stderr).decode(errors="replace")
-            self.assertIn(b"WINDOWS.html#legacy-installation-cleanup", result.stderr)
+            self.assertIn(b"WINDOWS.html#native-sandbox", result.stderr)
             self.assertNotIn("USER CODE RAN", output)
 
     @requires_mxc(BINARY)
@@ -223,16 +212,16 @@ class WindowsMxc(unittest.TestCase):
                     with connection.makefile("rb") as response:
                         connection.sendall(b"\\x05\\x01\\x00")
                         assert response.read(2) == b"\\x05\\x00"
-                        hostname = host.encode()
-                        connection.sendall(
-                            b"\\x05\\x01\\x00\\x03"
-                            + bytes([len(hostname)])
-                            + hostname
-                            + struct.pack("!H", port)
-                        )
+                        # Numeric destinations must not depend on DNS resolution.
+                        if host == "127.0.0.1":
+                            address = b"\\x01" + socket.inet_aton(host)
+                        else:
+                            hostname = host.encode()
+                            address = b"\\x03" + bytes([len(hostname)]) + hostname
+                        connection.sendall(b"\\x05\\x01\\x00" + address + struct.pack("!H", port))
                         reply = response.read(4)
                         assert len(reply) == 4 and reply[0] == 5, reply
-                        assert (reply[1] == 0) is allowed, reply
+                        assert (reply[1] == 0) is allowed, (host, allowed, reply)
                         if allowed:
                             size = {1: 4, 4: 16}.get(reply[3])
                             if size is None:
@@ -335,17 +324,6 @@ class WindowsMxc(unittest.TestCase):
                 self.assertEqual(result.returncode, 1, result)
                 self.assertEqual(result.stdout, "", result)
                 self.assertIn(expected, result.stderr)
-
-    def test_setup_command_is_removed(self):
-        result = subprocess.run(
-            [BINARY, "sandbox-setup", "--status"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        self.assertEqual(result.returncode, 2)
-        self.assertEqual(result.stdout, "")
-        self.assertIn("unrecognized subcommand", result.stderr)
 
 
 if __name__ == "__main__":
