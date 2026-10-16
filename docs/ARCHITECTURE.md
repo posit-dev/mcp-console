@@ -171,6 +171,7 @@ A forced launcher kill, pipe EOF, or suppressed status diagnostic cannot prove t
 The pinned runner has no separate Unix cleanup receipt; a nonzero status can represent workload failure or a cleanup error.
 
 Connection closure cancels startup/preparation, retires execution resources, settles accepted responses, and bounds blocked MCP delivery.
+Physical EOF can precede transport consumption of queued requests; response settlement waits for the transport's input drain within the same delivery deadline.
 Native runner loss retains the [documented lifetime limits](SANDBOX.md#supported-hosts-and-lifetime-limits); Console has no independent recovery daemon.
 
 ## Output and delivery

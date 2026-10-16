@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
+from support.evidence import compact_text
 from support.native import LOADER_VARIABLE, build_interposer
 from support.records import Transcript
 from support.requirements import (
@@ -27,6 +28,91 @@ SETUP_FAILURE = (
     "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when "
     "inherit_environment is false"
 )
+
+
+def test_eof_preserves_queued_first_send_response(binary: Path) -> Transcript:
+    # Argument validation does not need a worker, even if EOF cancels startup.
+    with McpClient(
+        binary,
+        ("serve", "--no-sandbox", "--worker", str(binary), "--relay", str(binary)),
+    ) as client:
+        client.initialize_and_list_tools()
+        source = "1" + " " * 131072
+        call = client.start_send(r=source, python="1")
+        client.stdin.close()
+        client.receive(call)
+        assert call["result"] == {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "only one of `r`, `python`, or `sql` may be supplied",
+                }
+            ],
+            "isError": True,
+        }, call
+        transcript, stderr = client.finish_with_standard_error()
+        assert stderr == "", stderr
+        call["send"]["r"] = compact_text(source, " ")
+        return transcript + [{"exit_status": 0, "stderr": stderr}]
+
+
+@requires(POSIX, NATIVE_FIXTURES, PTHREAD_RUNTIME_PARKING)
+def test_eof_waits_for_input_queued_before_response_admission(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory(dir="/tmp") as directory, ExitStack() as resources:
+        root = Path(directory)
+        selected = root / "stage-python"
+        selected.symlink_to(sys.executable)
+        checkpoints = {
+            name: resources.enter_context(closing(FifoCheckpoint.create(root / name)))
+            for name in ("reached", "release", "eof", "input-reached")
+        }
+        environment = dict(os.environ, PATH=str(root), RETICULATE_PYTHON=selected.name)
+        environment.pop("R_HOME", None)
+        environment.update(
+            {
+                LOADER_VARIABLE: str(
+                    build_interposer(root, "startup_stage_checkpoint")
+                ),
+                "MCP_CONSOLE_TEST_STARTUP_SELECTION": str(selected),
+                "MCP_CONSOLE_TEST_STARTUP_STAGE_REACHED": str(
+                    checkpoints["reached"].path
+                ),
+                "MCP_CONSOLE_TEST_STARTUP_STAGE_RELEASE": str(
+                    checkpoints["release"].path
+                ),
+                "MCP_CONSOLE_TEST_STARTUP_EOF": str(checkpoints["eof"].path),
+                "MCP_CONSOLE_TEST_QUEUED_INPUT_REACHED": str(
+                    checkpoints["input-reached"].path
+                ),
+            }
+        )
+        with McpClient(binary, ("serve", "--no-sandbox"), environment, root) as client:
+            try:
+                client.initialize_and_list_tools()
+                checkpoints["reached"].wait("Python inspection is not registered")
+                call = client.start_send(r="queued-EOF", python="1")
+                checkpoints["input-reached"].wait(
+                    "request read before transport admission"
+                )
+                client.stdin.close()
+                checkpoints["release"].release()
+                client.receive(call)
+                assert call["result"] == {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "only one of `r`, `python`, or `sql` may be supplied",
+                        }
+                    ],
+                    "isError": True,
+                }, call
+                transcript, stderr = client.finish_with_standard_error()
+                assert stderr == "", stderr
+                return transcript + [{"exit_status": 0, "stderr": stderr}]
+            finally:
+                checkpoints["release"].release()
 
 
 @requires(POSIX, NATIVE_FIXTURES, PTHREAD_RUNTIME_PARKING)
