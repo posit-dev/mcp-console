@@ -56,7 +56,8 @@ tool <- console_tool(config = config, project = "/path/to/project")
 Relative paths use that launch directory.
 `ExistingPython(".venv")` selects a preinstalled interpreter or standard virtual environment; it accepts no preparation options.
 `ManagedPython()` prepares a uv-managed environment.
-R and managed Python independently support `automatic`, `explicit`, and `startup_only` resolution.
+R and managed Python independently support `implicit`, `explicit`, and `startup_only` resolution.
+R defaults to `implicit`; managed Python defaults to `explicit`.
 R also supports `disabled` for preinstalled packages.
 Worker restart retains the captured runtime and configuration.
 See `?RConfig`, `?ExistingPython`, and `?ResolverConfig`.

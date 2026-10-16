@@ -59,7 +59,7 @@ impl Client {
         if !environment
             .startup
             .r_resolution
-            .permits_automatic_additions()
+            .permits_implicit_additions()
         {
             return Err(RuntimeRResolutionFailure::Ordinary(
                 environment

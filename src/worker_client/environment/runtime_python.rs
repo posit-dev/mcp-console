@@ -62,7 +62,7 @@ impl Client {
             && !(if deliberate {
                 policy.permits_deliberate_changes()
             } else {
-                policy.permits_automatic_additions()
+                policy.permits_implicit_additions()
             })
         {
             return Err(policy.denial(
@@ -205,7 +205,7 @@ impl Client {
         let mut constraints = request.constraints.clone();
         constraints.sort();
         constraints.dedup();
-        if !policy.permits_automatic_additions()
+        if !policy.permits_implicit_additions()
             && constraints != current.requirements().python_version
         {
             return Err(policy.denial("Python", "runtime version resolution"));

@@ -118,6 +118,27 @@ def test_initializes_and_lists_tools(
         "python-only.yaml": _initializes_and_lists_tools(
             binary, execution, python_only=True
         ),
+        "existing-python.yaml": _initializes_and_lists_tools(
+            binary, execution, python_only=True, bootstrap_languages="python"
+        ),
+        "automatic.yaml": _initializes_and_lists_tools(
+            binary, execution, python_resolution="implicit"
+        ),
+        "configured-python-automatic.yaml": _initializes_and_lists_tools(
+            binary,
+            execution,
+            bootstrap_languages="python",
+            python_resolution="implicit",
+        ),
+        "startup-only.yaml": _initializes_and_lists_tools(
+            binary, execution, python_resolution="startup_only"
+        ),
+        "configured-python-startup-only.yaml": _initializes_and_lists_tools(
+            binary,
+            execution,
+            bootstrap_languages="python",
+            python_resolution="startup_only",
+        ),
         "configured-python.yaml": _initializes_and_lists_tools(
             binary, execution, bootstrap_languages="python"
         ),
@@ -162,6 +183,9 @@ def test_initializes_and_lists_tools(
                 sandbox_profile="workspace",
             )
         )
+        companions["client-sandbox-python-only.yaml"] = _initializes_and_lists_tools(
+            binary, execution, sandbox_profile="inherit_codex", python_only=True
+        )
         companions["proxy.yaml"] = _initializes_and_lists_tools(
             binary, execution, proxy=True
         )
@@ -170,6 +194,12 @@ def test_initializes_and_lists_tools(
         )
         companions["writable.yaml"] = _initializes_and_lists_tools(
             binary, execution, writable=True
+        )
+        companions["python-only-writable.yaml"] = _initializes_and_lists_tools(
+            binary, execution, python_only=True, writable=True
+        )
+        companions["automatic-writable.yaml"] = _initializes_and_lists_tools(
+            binary, execution, python_resolution="implicit", writable=True
         )
         companions["custom-writable.yaml"] = _initializes_and_lists_tools(
             binary, execution, custom=True, writable=True
@@ -180,7 +210,7 @@ def test_initializes_and_lists_tools(
     baseline = _initializes_and_lists_tools(binary, execution)
     # Keep every real discovery probe, but compare the complete exchange
     # instead of storing another byte-identical canonical transcript.
-    for name in ("bare.yaml", "python-only.yaml", "python-managed.yaml"):
+    for name in ("bare.yaml", "python-managed.yaml"):
         assert companions.pop(name) == baseline, name
     assert companions.pop("r-sql.yaml") == companions["configured-r-sql.yaml"]
     return TranscriptWithCompanions(baseline, companions)
@@ -194,6 +224,7 @@ def _initializes_and_lists_tools(
     bare: bool = False,
     python_only: bool = False,
     python_managed: bool = False,
+    python_resolution: str | None = None,
     proxy: bool = False,
     workspace_profile: bool = False,
     writable: bool = False,
@@ -256,6 +287,9 @@ def _initializes_and_lists_tools(
                 else (),
                 *("-c", "languages=" + json.dumps(languages))
                 if languages is not None
+                else (),
+                *("-c", f"python.managed.resolution={python_resolution}")
+                if python_resolution is not None
                 else (),
                 *("--writable-root", str(workspace)) if writable else (),
                 *("-c", f"sandbox.profile={sandbox_profile}")
@@ -328,6 +362,26 @@ def _initializes_and_lists_tools(
                     assert properties[field]["description"].startswith(
                         "Evaluate one complete"
                     )
+            if not custom and "python" in properties:
+                python_guidance = properties["python"]["description"]
+                if python_only and not python_managed:
+                    assert "`requirements.python` is unavailable" in python_guidance
+                elif python_resolution == "implicit":
+                    assert (
+                        "prepare missing PyPI distributions on first import"
+                        in python_guidance
+                    )
+                elif python_resolution == "startup_only":
+                    assert "Only startup dependencies are prepared" in python_guidance
+                else:
+                    assert (
+                        "Declare dependencies with `requirements.python`"
+                        in python_guidance
+                    )
+                assert (
+                    "prepare missing PyPI distributions on first import"
+                    not in python_guidance
+                ) == (python_resolution != "implicit")
             description = send["description"]
             assert ("ir run script.R" in description) == (
                 not custom and "r" in send["inputSchema"]["properties"]
@@ -387,9 +441,12 @@ def _initializes_and_lists_tools(
             else:
                 assert not (workspace / ".agents/console").exists(), workspace
             if python_only:
-                assert {"r", "python", "sql"} <= send["inputSchema"][
-                    "properties"
-                ].keys()
+                expected_languages = (
+                    set(bootstrap_languages.split(","))
+                    if bootstrap_languages is not None
+                    else {"r", "python", "sql"}
+                )
+                assert visible == expected_languages, visible
             send_requirements = send["inputSchema"]["properties"]["requirements"]
             assert send_requirements["type"] == ["object", "null"], send_requirements
             assert send_requirements["additionalProperties"] is False, send_requirements

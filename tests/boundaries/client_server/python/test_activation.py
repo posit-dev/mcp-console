@@ -411,7 +411,12 @@ def test_preserves_r_interrupt_during_python_site_activation(
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         environment = managed_environments(root, interrupt_site=True)
-        with McpClient(binary, execution.serve(), environment, root) as client:
+        with McpClient(
+            binary,
+            execution.serve("-c", "python.managed.resolution=implicit"),
+            environment,
+            root,
+        ) as client:
             initialize_managed_client(client)
             client.send(
                 # fmt: r
@@ -539,7 +544,12 @@ def test_preserves_suspended_r_interrupt_during_publication(
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         environment = managed_environments(root)
-        with McpClient(binary, execution.serve(), environment, root) as client:
+        with McpClient(
+            binary,
+            execution.serve("-c", "python.managed.resolution=implicit"),
+            environment,
+            root,
+        ) as client:
             initialize_managed_client(client)
             client.send(
                 # fmt: python
@@ -715,7 +725,15 @@ def cancelled_candidate_probe(
             # default worker can otherwise retire R during native startup.
             with McpClient(
                 binary,
-                execution.serve("-c", "python.managed.packages=[]"),
+                execution.serve(
+                    "-c",
+                    "python.managed.packages=[]",
+                    *(
+                        ("-c", "python.managed.resolution=implicit")
+                        if r_transition
+                        else ()
+                    ),
+                ),
                 environment,
                 root,
             ) as client:
@@ -871,7 +889,12 @@ def test_retains_previous_candidate_after_lazy_projection_failure(
         # projection failure, after the first R cell has finished bootstrap.
         with McpClient(
             binary,
-            execution.serve("-c", "python.managed.packages=[console-initial-fixture]"),
+            execution.serve(
+                "-c",
+                "python.managed.resolution=implicit",
+                "-c",
+                "python.managed.packages=[console-initial-fixture]",
+            ),
             environment,
             root,
         ) as client:

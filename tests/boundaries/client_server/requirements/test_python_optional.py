@@ -47,7 +47,11 @@ def test_optional_imports_do_not_inspect_unrelated_distribution_files(
         environment["UV_INDEX"] = index.as_uri()
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             client.send(requirements={"action": "set", "python": [package]})
@@ -127,7 +131,11 @@ def test_symlinked_package_origins_keep_optional_imports_on_the_ordinary_path(
         environment["UV_INDEX"] = index.as_uri()
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             client.send(requirements={"action": "set", "python": [package]})
@@ -175,7 +183,11 @@ def test_rply_optional_import_does_not_install_rpython(
         directory = Path(temporary)
         environment, record = managed_environment(directory)
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             client.send(requirements={"action": "set", "python": ["rply==0.7.8"]})
@@ -242,7 +254,9 @@ def test_installed_package_probes_leave_resolution_to_explicit_imports(
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
             binary,
-            execution.serve("-c", "cache=host"),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
             environment,
             current_directory=directory,
         ) as client:
@@ -290,7 +304,9 @@ def test_local_module_shadowing_installed_package_resolves_missing_imports(
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
             binary,
-            execution.serve("-c", "cache=host"),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
             environment,
             current_directory=directory,
         ) as client:
@@ -337,7 +353,9 @@ def test_installed_initializer_leaves_local_module_imports_eligible(
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
             binary,
-            execution.serve("-c", "cache=host"),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
             environment,
             current_directory=directory,
         ) as client:
@@ -377,7 +395,11 @@ def test_installed_extension_optional_import_observes_absence(
         environment["UV_INDEX"] = index.as_uri()
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             client.send(requirements={"action": "set", "python": [package]})
@@ -433,7 +455,9 @@ def test_installed_initializer_leaves_cached_local_callback_eligible(
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
             binary,
-            execution.serve("-c", "cache=host"),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
             environment,
             current_directory=directory,
         ) as client:
@@ -490,7 +514,11 @@ def test_loaded_package_optional_imports_survive_compatible_activation(
         environment["UV_INDEX"] = index.as_uri()
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             client.send(requirements={"action": "set", "python": [package]})
@@ -567,7 +595,11 @@ def test_deferred_lazy_module_imports_remain_eligible(
         environment["UV_INDEX"] = index.as_uri()
         environment["UV_INDEX_STRATEGY"] = "first-index"
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             client.send(requirements={"action": "set", "python": [package]})
@@ -606,7 +638,11 @@ def test_default_package_imports_do_not_prepare_optional_dependencies(
         )
         environment.pop("RETICULATE_PYTHON", None)
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             if with_r:

@@ -1,5 +1,5 @@
 ---
-!same-as writable MCP initialization for this execution mode
+!same-as python-only-writable MCP initialization for this execution mode
 ---
 send:
   sql: SELECT 42

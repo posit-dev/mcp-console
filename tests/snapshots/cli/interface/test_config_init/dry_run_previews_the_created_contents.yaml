@@ -54,7 +54,8 @@ preview: |
     #   allow_local_binding: true
 
   ## Package preparation policies for R and managed Python:
-  ## automatic (default): startup packages, explicit requests, and missing loads/imports.
+  ## R defaults to implicit; managed Python defaults to explicit.
+  ## implicit: startup packages, explicit requests, and missing loads/imports.
   ## explicit: startup packages and explicit requests only.
   ## startup_only: prepare startup packages; reject later package changes.
   ##
@@ -65,7 +66,7 @@ preview: |
   ## To disable R preparation, set resolution: disabled and packages: [].
   ## Required R infrastructure must then already be installed.
   # r:
-  #   resolution: automatic
+  #   resolution: implicit
   #   packages: [dplyr, ggplot2]
 
   ## Let Console manage Python and prepare these initial packages.
@@ -73,7 +74,7 @@ preview: |
   # python:
   #   managed:
   #     version: "3.13"
-  #     resolution: automatic
+  #     resolution: explicit
   #     packages: [numpy, pandas, matplotlib]
 
   ## Alternatively, use an existing Python environment without managing its packages.
@@ -155,7 +156,8 @@ created: |
     #   allow_local_binding: true
 
   ## Package preparation policies for R and managed Python:
-  ## automatic (default): startup packages, explicit requests, and missing loads/imports.
+  ## R defaults to implicit; managed Python defaults to explicit.
+  ## implicit: startup packages, explicit requests, and missing loads/imports.
   ## explicit: startup packages and explicit requests only.
   ## startup_only: prepare startup packages; reject later package changes.
   ##
@@ -166,7 +168,7 @@ created: |
   ## To disable R preparation, set resolution: disabled and packages: [].
   ## Required R infrastructure must then already be installed.
   # r:
-  #   resolution: automatic
+  #   resolution: implicit
   #   packages: [dplyr, ggplot2]
 
   ## Let Console manage Python and prepare these initial packages.
@@ -174,7 +176,7 @@ created: |
   # python:
   #   managed:
   #     version: "3.13"
-  #     resolution: automatic
+  #     resolution: explicit
   #     packages: [numpy, pandas, matplotlib]
 
   ## Alternatively, use an existing Python environment without managing its packages.

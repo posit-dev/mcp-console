@@ -34,7 +34,11 @@ def test_owns_managed_python_transitions(
     binary: Path, execution: Execution
 ) -> Transcript:
     environment = dict(os.environ, MCP_CONSOLE_LANGUAGES="r")
-    with McpClient(binary, execution.serve(), environment) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+        environment,
+    ) as client:
         client.initialize_and_list_tools()
         # Instrument the old planner, then exercise only public declarations,
         # explicit preparation, and automatic imports through the console.
@@ -123,9 +127,18 @@ def test_native_activation_agrees_with_reticulate_and_publishes_after_commit(
         root = Path(directory)
         environment, record = recording_uv_environment(root)
         serve = (
-            execution.serve("-c", "cache=host", "--writable-root", str(root))
+            execution.serve(
+                "-c",
+                "python.managed.resolution=implicit",
+                "-c",
+                "cache=host",
+                "--writable-root",
+                str(root),
+            )
             if execution == SANDBOXED
-            else execution.serve("-c", "cache=host")
+            else execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            )
         )
         with McpClient(binary, serve, environment, root) as client:
             client.initialize_and_list_tools()
@@ -178,7 +191,11 @@ def test_preserves_preparation_restoration_and_live_noops(
         )
         environment["MCP_CONSOLE_LANGUAGES"] = "r"
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             # fmt: r
@@ -284,7 +301,10 @@ def test_preserves_preparation_restoration_and_live_noops(
 def test_uses_inspected_candidate_without_reticulate_rediscovery(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with McpClient(binary, execution.serve()) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    ) as client:
         client.initialize_and_list_tools()
         client.send(
             python="import sys; identity = object(); identity_id = id(identity)"
@@ -324,7 +344,10 @@ def test_uses_inspected_candidate_without_reticulate_rediscovery(
 def test_reports_activation_python_failure_once_and_restores_requirements(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with McpClient(binary, execution.serve()) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    ) as client:
         client.initialize_and_list_tools()
         client.send(python="import runpy; original_run_path = runpy.run_path")
         assert last_tool_text(client) == "[done]", last_tool_text(client)
@@ -362,7 +385,10 @@ def test_reports_activation_python_failure_once_and_restores_requirements(
 def test_preserves_activation_interrupt_conditions(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with McpClient(binary, execution.serve()) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    ) as client:
         client.initialize_and_list_tools()
         client.send(python="None")
         assert last_tool_text(client) == "[done]", last_tool_text(client)
@@ -428,7 +454,14 @@ def test_idle_activation_failure_retains_worker_until_restart(
         cleanup.callback(resolver_started.close)
         cleanup.callback(resolver_release.close)
         client = cleanup.enter_context(
-            McpClient(binary, execution.serve("-c", "cache=host"), environment, root)
+            McpClient(
+                binary,
+                execution.serve(
+                    "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+                ),
+                environment,
+                root,
+            )
         )
         client.initialize_and_list_tools()
         client.send(requirements={"r": ["later"]})

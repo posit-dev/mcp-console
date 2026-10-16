@@ -941,7 +941,7 @@ def test_resolves_reached_import_in_managed_worker(
         uv = expose_uv(root)
         with McpClient(
             installed_console(binary),
-            execution.serve(),
+            execution.serve("-c", "python.managed.resolution=implicit"),
             environment(root),
             current_directory=root,
         ) as client:
@@ -1145,11 +1145,13 @@ def test_retains_automatic_additions_after_import_errors(
         with McpClient(
             installed_console(binary),
             execution.serve(
+                "-c",
+                "python.managed.resolution=implicit",
                 *(
                     ("-c", "resolver.sandbox.network=enabled")
                     if execution == SANDBOXED
                     else ()
-                )
+                ),
             ),
             env,
         ) as client:
@@ -1221,7 +1223,11 @@ def automatic_resolution_failure_and_cancel_keep_accepted_state(
         alive = os.open(root / "alive", os.O_RDONLY | os.O_NONBLOCK)
         try:
             with McpClient(
-                installed_console(binary), execution.serve("-c", "cache=host"), env
+                installed_console(binary),
+                execution.serve(
+                    "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+                ),
+                env,
             ) as client:
                 client.initialize_and_list_tools()
                 client.expect(
@@ -1305,7 +1311,11 @@ def automatic_activation_failure_requires_restart(
         env = preparation_environment(root, with_r=with_r)
         (root / "mode").write_text("activation-failure")
         with McpClient(
-            installed_console(binary), execution.serve("-c", "cache=host"), env
+            installed_console(binary),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            env,
         ) as client:
             client.initialize_and_list_tools()
             client.expect(python="identity = object(); steps = []")
@@ -1354,7 +1364,11 @@ def test_automatic_imports_stay_on_main_worker_thread_and_process(
         env = preparation_environment(root)
         (root / "mode").write_text("success")
         with McpClient(
-            installed_console(binary), execution.serve("-c", "cache=host"), env
+            installed_console(binary),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            env,
         ) as client:
             client.initialize_and_list_tools()
             client.send(python="import os; worker_pid = os.getpid()")

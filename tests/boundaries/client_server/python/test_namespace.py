@@ -313,7 +313,11 @@ def test_activation_error_preserves_r_condition(
         environment = preparation_environment(root, with_r=True)
         (root / "mode").write_text("activation-failure")
         with McpClient(
-            installed_console(binary), execution.serve("-c", "cache=host"), environment
+            installed_console(binary),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             client.expect(

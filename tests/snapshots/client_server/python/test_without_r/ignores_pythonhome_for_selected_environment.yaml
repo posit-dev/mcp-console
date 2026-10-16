@@ -1,5 +1,5 @@
 ---
-!same-as MCP initialization for this execution mode
+!same-as python-only MCP initialization for this execution mode
 ---
 send:
   python: |
@@ -49,7 +49,7 @@ result:
         [done]
   isError: false
 ---
-!same-as MCP initialization for this execution mode
+!same-as python-only MCP initialization for this execution mode
 ---
 send:
   python: |

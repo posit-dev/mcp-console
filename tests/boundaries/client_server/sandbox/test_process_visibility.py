@@ -80,7 +80,7 @@ def _inspects_sandbox_child_processes(
             child.pid in observed,
         )
         """)
-    client.send(python=python)
+    client.send(python=python, requirements={"python": ["psutil"]})
     output = last_result_text(client)
     assert output == "(True, True, True, True, True, True, True)\n", repr(output)
     return client.finish()
@@ -121,7 +121,11 @@ def test_retains_environment_when_optional_psutil_setup_fails(
 ) -> Transcript:
     environment = os.environ.copy()
     environment.pop("RETICULATE_PYTHON", None)
-    client = McpClient(binary, SANDBOXED.serve(), environment)
+    client = McpClient(
+        binary,
+        SANDBOXED.serve("-c", "python.managed.resolution=implicit"),
+        environment,
+    )
     client.initialize_and_list_tools()
     # fmt: python
     python = code("""

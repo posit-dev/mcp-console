@@ -1,0 +1,58 @@
+---
+visibility: visible
+description: ~
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last.
+  Declare dependencies with `requirements.python` before importing them;
+  preparation can accompany the cell. Import names may differ from
+  distribution names. `matplotlib.pyplot.show()` returns open figures as
+  PNGs immediately and closes them. At cell end, even after errors,
+  remaining open figures return as PNGs and close; `show()` is optional.
+  Closing an unshown figure suppresses capture.
+---
+visibility: visible
+description: Custom Python guidance.
+python_guidance: Custom Python guidance.
+---
+visibility: visible
+description: ""
+python_guidance: ""
+---
+visibility: python hidden
+description: ~
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last. Use
+  installed packages in the selected environment; `requirements.python` is
+  unavailable. `matplotlib.pyplot.show()` returns open figures as PNGs
+  immediately and closes them. At cell end, even after errors, remaining
+  open figures return as PNGs and close; `show()` is optional. Closing an
+  unshown figure suppresses capture.
+---
+visibility: python hidden
+description: Custom Python guidance.
+python_guidance: Custom Python guidance.
+---
+visibility: python hidden
+description: ""
+python_guidance: ""
+---
+visibility: requirements hidden
+description: ~
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last. Use
+  installed packages in the selected environment; `requirements.python` is
+  unavailable. `matplotlib.pyplot.show()` returns open figures as PNGs
+  immediately and closes them. At cell end, even after errors, remaining
+  open figures return as PNGs and close; `show()` is optional. Closing an
+  unshown figure suppresses capture.
+---
+visibility: requirements hidden
+description: Custom Python guidance.
+python_guidance: Custom Python guidance.
+---
+visibility: requirements hidden
+description: ""
+python_guidance: ""

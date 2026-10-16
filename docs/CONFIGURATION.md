@@ -168,7 +168,8 @@ See [Dependencies](REQUIREMENTS.md) for default packages, accepted requirement s
 
 ## Dependency-resolution policies
 
-Use `r.resolution` and `python.managed.resolution` to choose `automatic` (the default), `explicit`, or `startup_only`.
+Use `r.resolution` and `python.managed.resolution` to choose `implicit`, `explicit`, or `startup_only`.
+R defaults to `implicit`; managed Python defaults to `explicit`, so the agent declares dependencies through `requirements.python` before importing them.
 R also accepts `disabled`; for preinstalled-only Python, select an existing environment.
 
 ```yaml
@@ -183,6 +184,14 @@ python:
 
 The [policy table](REQUIREMENTS.md#resolution-policy-admission) defines what each mode permits.
 These settings govern Console's preparation, not arbitrary installation code or network access inside cells.
+
+To let missing Python imports request package preparation, opt in through `config.yaml`:
+
+```yaml
+python:
+  managed:
+    resolution: implicit
+```
 
 ## Native R startup
 

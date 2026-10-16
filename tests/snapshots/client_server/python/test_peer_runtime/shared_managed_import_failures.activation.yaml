@@ -5,7 +5,7 @@ fixture: >-
   preparation; the existing worker remains usable, but further requirement
   changes require a restart.
 ---
-!same-as MCP initialization for this execution mode
+!same-as automatic MCP initialization for this execution mode
 ---
 send:
   python: identity = object(); steps = []

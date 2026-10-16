@@ -61,7 +61,9 @@ def test_uses_current_r_library_for_managed_python_resolution(
         environment["MCP_CONSOLE_TEST_R_LIBS_RECORD"] = str(r_libs_record)
         client = McpClient(
             binary,
-            execution.serve("-c", "cache=host"),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
             environment,
             current_directory=temporary,
         )
@@ -156,7 +158,9 @@ def test_validates_registry_only_python_requirements(
         environment["MCP_CONSOLE_TEST_UV_RECORD"] = str(uv_record)
         client = McpClient(
             binary,
-            execution.serve("-c", "cache=host"),
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
             environment,
             current_directory=temporary,
         )
@@ -434,7 +438,13 @@ def test_recovers_from_python_version_resolution_failure(
         environment["MCP_CONSOLE_TEST_UV_FAILURE_MARKER"] = str(failure_marker)
         environment["MCP_CONSOLE_TEST_UV_FAILURE_ARGUMENT"] = "list"
 
-        client = McpClient(binary, execution.serve("-c", "cache=host"), environment)
+        client = McpClient(
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
+        )
         client.initialize_and_list_tools()
         client.send(r="worker_pid <- Sys.getpid()")
         assert last_result_text(client) == "[done]"

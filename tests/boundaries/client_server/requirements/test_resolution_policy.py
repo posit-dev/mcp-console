@@ -82,6 +82,61 @@ def mixed_environment(root: Path) -> tuple[dict[str, str], Path, Path]:
 
 @requires(POSIX, command("uv"))
 @executions(DIRECT)
+def test_requires_explicit_python_requirements_by_default(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        recorded, uv_record = recording_uv_environment(root)
+        tools = root / "tools"
+        tools.mkdir()
+        (tools / "python3").symlink_to(sys.executable)
+        (tools / "uv").symlink_to(recorded["RETICULATE_UV"])
+        env = {**recorded, **environment(tools)}
+        with McpClient(
+            binary, execution.serve("-c", "cache=host"), env, root
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect("Python initialized\n", python="print('Python initialized')")
+            startup = inspect(client)
+            baseline = uv_tool_run_requirements(uv_record)
+            assert baseline, "startup preparation must reach the recording resolver"
+            client.send(python="import yaml12")
+            assert "ModuleNotFoundError" in last_tool_text(client), last_tool_text(
+                client
+            )
+            client.transcript[-1]["result"]["content"][0]["text"] = (
+                normalize_python_traceback_paths(last_tool_text(client))
+            )
+            client.expect(
+                "dynamic imports require declared dependencies\n",
+                # fmt: python
+                python=code("""
+                    import importlib
+
+                    for load in (importlib.import_module, __import__):
+                        try:
+                            load("yaml12")
+                        except ModuleNotFoundError:
+                            pass
+                        else:
+                            raise AssertionError("undeclared import resolved")
+                    print("dynamic imports require declared dependencies")
+                    """),
+            )
+            assert inspect(client) == startup
+            assert uv_tool_run_requirements(uv_record) == baseline
+            client.expect(
+                "declared Python package available\n",
+                requirements={"python": ["py-yaml12"]},
+                python="import yaml12; print('declared Python package available')",
+            )
+            assert "py-yaml12" in inspect(client)["requirements"]["python"]
+            return client.finish()
+
+
+@requires(POSIX, command("uv"))
+@executions(DIRECT)
 def test_locked_python_startup_and_fallback(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -163,7 +218,7 @@ def test_locked_python_startup_and_fallback(
             client.send(requirements={"python": ["packaging"]})
             client.send(requirements={"action": "set", **startup["requirements"]})
             client.send(requirements={"action": "reset"})
-            configure(root, {"managed": {"resolution": "automatic"}})
+            configure(root, {"managed": {"resolution": "implicit"}})
             client.send(control="restart", requirements={"action": "reset"})
             client.expect(
                 "startup available\n",
@@ -285,7 +340,12 @@ def test_explicit_runtime_requests_and_deliberate_additions(
         env, ir_record, uv_record = mixed_environment(root)
         configure(
             root,
-            {"managed": {"packages": [], "resolution": "explicit"}},
+            {
+                "first_available": [
+                    {"existing": "missing"},
+                    {"managed": {"packages": []}},
+                ]
+            },
             cache="host",
             r={"packages": ["mcpfirst"], "resolution": "explicit"},
         )
@@ -712,7 +772,7 @@ def test_failed_initial_preparation_retries_locked_baseline(
             )
             Path(recorded["MCP_CONSOLE_TEST_UV_FAILURE_MARKER"]).unlink()
             configure(
-                root, {"managed": {"packages": ["six"], "resolution": "automatic"}}
+                root, {"managed": {"packages": ["six"], "resolution": "implicit"}}
             )
             result = client.send(
                 control="restart",

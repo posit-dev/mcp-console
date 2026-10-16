@@ -5,6 +5,7 @@ import difflib
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.client import McpClient
-from support.execution import DIRECT
+from support.execution import DIRECT, SANDBOXED
 from support.presentation import assert_tool_guidance, without_descriptions
 from support.records import Transcript
 from support.requirements import SQL
@@ -29,6 +30,192 @@ R_SCRIPT_GUIDANCE = (
     "`#| packages:`/`#| r-version:` metadata for `ir run script.R`, "
     "which starts without live Console objects."
 )
+
+
+def test_python_dependency_guidance_matches_selection(binary: Path) -> Transcript:
+    records: Transcript = []
+    cases = (
+        ("default", None, None, "explicit"),
+        ("launch managed", None, "managed", "explicit"),
+        ("launch empty", None, "", "explicit"),
+        ("launch existing", None, sys.executable, "existing"),
+        ("configured existing", {"existing": sys.executable}, None, "existing"),
+        ("managed explicit", {"managed": {}}, sys.executable, "explicit"),
+        (
+            "managed implicit",
+            {"managed": {"resolution": "implicit"}},
+            sys.executable,
+            "implicit",
+        ),
+        (
+            "managed startup only",
+            {"managed": {"resolution": "startup_only"}},
+            None,
+            "startup_only",
+        ),
+        (
+            "existing fallback",
+            {
+                "first_available": [
+                    {"existing": sys.executable},
+                    {"managed": {"resolution": "implicit"}},
+                ]
+            },
+            None,
+            "existing",
+        ),
+        (
+            "managed fallback",
+            {
+                "first_available": [
+                    {"existing": "missing-python"},
+                    {"managed": {"resolution": "implicit"}},
+                ]
+            },
+            sys.executable,
+            "implicit",
+        ),
+    )
+    for name, selection, launch_python, policy in cases:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / ".agents/console/config.yaml"
+            config.parent.mkdir(parents=True)
+            # Defer startup until send so discovery never depends on runtimes.
+            config.write_text(
+                json.dumps(
+                    {
+                        "languages": ["python"],
+                        "python": selection,
+                        "sandbox": {"profile": "inherit_codex"},
+                    }
+                )
+            )
+            environment = dict(os.environ, PATH="")
+            for variable in ("R_HOME", "RETICULATE_PYTHON", "RETICULATE_UV"):
+                environment.pop(variable, None)
+            if launch_python is not None:
+                environment["RETICULATE_PYTHON"] = launch_python
+            with McpClient(
+                binary, SANDBOXED.serve(), environment, root, record_in_project=False
+            ) as client:
+                client.initialize_and_list_tools()
+                tool = client.transcript[-1]["result"]["tools"][0]
+                guidance = tool["inputSchema"]["properties"]["python"]["description"]
+                assert (
+                    "Declare dependencies with `requirements.python`" in guidance
+                ) == (policy == "explicit"), (name, guidance)
+                assert (
+                    "prepare missing PyPI distributions on first import" in guidance
+                ) == (policy == "implicit"), (name, guidance)
+                assert ("Only startup dependencies are prepared" in guidance) == (
+                    policy == "startup_only"
+                ), (name, guidance)
+                assert (
+                    "Use installed packages in the selected environment" in guidance
+                ) == (policy == "existing"), (name, guidance)
+                assert ("`requirements.python` is unavailable" in guidance) == (
+                    policy == "existing"
+                ), (name, guidance)
+                if name == "default":
+                    baseline = without_descriptions(tool)
+                assert without_descriptions(tool) == baseline, name
+                result = subprocess.run(
+                    [binary, "config", "resolve", "--full", "--format", "json"],
+                    cwd=root,
+                    env=environment | {"MCP_CONSOLE_HOME": str(root / "console-home")},
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                assert result.returncode == 0 and result.stderr == "", result
+                materialized = json.loads(result.stdout)
+                assert (
+                    materialized["tool"]["parameters"]["python"]["description"] is None
+                )
+                config.write_text(json.dumps(materialized))
+                with McpClient(
+                    binary,
+                    SANDBOXED.serve(),
+                    environment,
+                    root,
+                    record_in_project=False,
+                ) as reloaded:
+                    reloaded.initialize_and_list_tools()
+                    assert reloaded.transcript[-1]["result"]["tools"] == [tool], name
+                    reloaded.finish()
+                # An edit affects the next launch, not this captured presentation.
+                config.write_text(json.dumps({"python": {"managed": {}}}))
+                assert client.request("tools/list")["result"]["tools"] == [tool]
+                client.finish()
+                records.append({"selection": name, "python_guidance": guidance})
+    return records
+
+
+def test_python_guidance_respects_requirement_visibility(binary: Path) -> Transcript:
+    records: Transcript = []
+    for visibility in ("visible", "python hidden", "requirements hidden"):
+        for description in (None, "Custom Python guidance.", ""):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config = root / ".agents/console/config.yaml"
+                config.parent.mkdir(parents=True)
+                parameters = {}
+                if visibility == "python hidden":
+                    parameters["requirements"] = {
+                        "parameters": {"python": {"enabled": False}}
+                    }
+                elif visibility == "requirements hidden":
+                    parameters["requirements"] = {"enabled": False}
+                if description is not None:
+                    parameters["python"] = {"description": description}
+                config.write_text(
+                    json.dumps(
+                        {
+                            "languages": ["python"],
+                            "python": {"managed": {}},
+                            "sandbox": {"profile": "inherit_codex"},
+                            "tool": {"parameters": parameters},
+                        }
+                    )
+                )
+                environment = dict(os.environ, PATH="")
+                with McpClient(
+                    binary,
+                    SANDBOXED.serve(),
+                    environment,
+                    root,
+                    record_in_project=False,
+                ) as client:
+                    client.initialize_and_list_tools()
+                    (tool,) = client.transcript[-1]["result"]["tools"]
+                    properties = tool["inputSchema"]["properties"]
+                    requirements = properties.get("requirements", {}).get(
+                        "properties", {}
+                    )
+                    visible = visibility == "visible"
+                    assert ("python" in requirements) == visible, tool
+                    guidance = properties["python"]["description"]
+                    if description is None:
+                        assert (
+                            "Declare dependencies with `requirements.python`"
+                            in guidance
+                        ) == visible, (visibility, guidance)
+                        assert (
+                            "Use installed packages in the selected environment"
+                            in guidance
+                        ) == (not visible), (visibility, guidance)
+                    else:
+                        assert guidance == description, (visibility, guidance)
+                    client.finish()
+                    records.append(
+                        {
+                            "visibility": visibility,
+                            "description": description,
+                            "python_guidance": guidance,
+                        }
+                    )
+    return records
 
 
 def test_builtin_configured_language_matrix(binary: Path) -> Transcript:

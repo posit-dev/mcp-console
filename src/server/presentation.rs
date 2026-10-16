@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use super::ConsoleServer;
 use crate::cell::Languages;
-use crate::settings::SandboxSettings;
+use crate::settings::{PythonChoice, Resolution, SandboxSettings};
 
 /// Requested interface and preparation mode, never discovered runtime availability.
 struct Profile {
@@ -18,11 +18,55 @@ struct Profile {
     builtin: bool,
     timeout: bool,
     uses_client_profile: bool,
+    python: PythonSelection,
+    python_requirements: bool,
+}
+
+enum PythonSelection {
+    Existing,
+    Managed(Resolution),
+}
+
+impl PythonSelection {
+    fn capture(python: Option<&PythonChoice>) -> Self {
+        match python {
+            Some(python) if python.executable.is_some() => Self::Existing,
+            Some(python) => Self::Managed(python.managed.resolution),
+            None => {
+                let existing = std::env::var_os("RETICULATE_PYTHON")
+                    .is_some_and(|python| !python.is_empty() && python != "managed");
+                if existing {
+                    Self::Existing
+                } else {
+                    Self::Managed(crate::settings::ManagedPythonSettings::default().resolution)
+                }
+            }
+        }
+    }
+
+    fn guidance(&self, requirements_visible: bool) -> &'static str {
+        match self {
+            Self::Existing => sections::PYTHON_INSTALLED,
+            Self::Managed(Resolution::Explicit) => {
+                if requirements_visible {
+                    sections::PYTHON_EXPLICIT
+                } else {
+                    sections::PYTHON_INSTALLED
+                }
+            }
+            Self::Managed(Resolution::Implicit) => sections::PYTHON_IMPLICIT,
+            Self::Managed(Resolution::StartupOnly) => sections::PYTHON_STARTUP_ONLY,
+            Self::Managed(Resolution::Disabled) => {
+                unreachable!("managed Python resolution cannot be disabled")
+            }
+        }
+    }
 }
 
 /// Render editable configuration without creating a server or starting runtimes.
 pub(crate) fn materialized_tool(
     languages: Languages,
+    python: Option<&PythonChoice>,
     policy: &SandboxSettings,
     no_sandbox: bool,
     uses_client_profile: bool,
@@ -34,6 +78,8 @@ pub(crate) fn materialized_tool(
         builtin: true,
         timeout: tool.enabled("timeout_ms"),
         uses_client_profile,
+        python: PythonSelection::capture(python),
+        python_requirements: tool.enabled("requirements.python"),
     };
     let mut tool = if apply_overrides {
         tool.clone()
@@ -44,12 +90,19 @@ pub(crate) fn materialized_tool(
     tool.description
         .get_or_insert_with(|| profile.description(&profile.summary(), policy, no_sandbox));
     let mut schema = parameter_schema(languages);
-    profile.configure_fields(
-        schema
-            .get_mut("properties")
-            .and_then(Value::as_object_mut)
-            .expect("schema properties"),
-    );
+    let fields = schema
+        .get_mut("properties")
+        .and_then(Value::as_object_mut)
+        .expect("schema properties");
+    profile.configure_fields(fields);
+    // Saved selections and policies can change on the next launch. Preserve
+    // explicit overrides, but leave generated Python guidance regenerable.
+    if let Some(python) = fields.get_mut("python") {
+        python
+            .as_object_mut()
+            .expect("Python parameter schema")
+            .remove("description");
+    }
     tool.materialize(&schema);
     tool
 }
@@ -58,6 +111,7 @@ impl ConsoleServer {
     pub(super) fn configured_presentation(
         languages: Languages,
         builtin: bool,
+        python: Option<&PythonChoice>,
         policy: &SandboxSettings,
         no_sandbox: bool,
         uses_client_profile: bool,
@@ -68,6 +122,8 @@ impl ConsoleServer {
             builtin,
             timeout: tool.enabled("timeout_ms"),
             uses_client_profile,
+            python: PythonSelection::capture(python),
+            python_requirements: tool.enabled("requirements.python"),
         };
         let instructions = tool
             .instructions
@@ -247,7 +303,10 @@ impl Profile {
         if self.builtin {
             for (field, description) in [
                 ("r", r_description_for(self.languages)),
-                ("python", python_description_for(self.languages)),
+                (
+                    "python",
+                    python_description_for(self.languages, &self.python, self.python_requirements),
+                ),
                 ("sql", sql_description_for(self.languages)),
             ] {
                 if let Some(property) = properties.get_mut(field) {
@@ -296,11 +355,20 @@ fn r_description_for(languages: Languages) -> String {
 }
 
 pub(super) fn python_description() -> String {
-    python_description_for(Languages::all())
+    python_description_for(
+        Languages::all(),
+        &PythonSelection::Managed(crate::settings::ManagedPythonSettings::default().resolution),
+        true,
+    )
 }
 
-fn python_description_for(languages: Languages) -> String {
+fn python_description_for(
+    languages: Languages,
+    python: &PythonSelection,
+    requirements_visible: bool,
+) -> String {
     let mut description = sections::PYTHON_RUNTIME.to_string();
+    description.push_str(python.guidance(requirements_visible));
     if languages.r {
         description.push_str(sections::PYTHON_BRIDGE);
     }

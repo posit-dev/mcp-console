@@ -47,8 +47,18 @@ impl Tool {
         self.configure_schema(&mut crate::server::parameter_schema(languages))
     }
 
-    pub fn enabled(&self, field: &str) -> bool {
-        self.parameters.get(field).is_none_or(|field| field.enabled)
+    pub fn enabled(&self, path: &str) -> bool {
+        let mut parameters = &self.parameters;
+        for field in path.split('.') {
+            let Some(parameter) = parameters.get(field) else {
+                return true;
+            };
+            if !parameter.enabled {
+                return false;
+            }
+            parameters = &parameter.parameters;
+        }
+        true
     }
 
     pub fn configure_schema(&self, schema: &mut Map<String, Value>) -> Result<(), String> {

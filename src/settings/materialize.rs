@@ -45,6 +45,7 @@ pub(crate) fn configuration(
         // the same text. Visibility defaults still remain enabled for pruning.
         defaults["tool"] = serde_json::to_value(crate::server::materialized_tool(
             languages,
+            captured.python.as_ref(),
             policy,
             no_sandbox,
             uses_client_profile,
@@ -55,6 +56,7 @@ pub(crate) fn configuration(
     }
     let tool = crate::server::materialized_tool(
         languages,
+        captured.python.as_ref(),
         policy,
         no_sandbox,
         uses_client_profile,

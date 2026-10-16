@@ -1,5 +1,5 @@
 ---
-!same-as MCP initialization for this execution mode
+!same-as automatic MCP initialization for this execution mode
 ---
 send:
   r: reticulate::py_require("py-yaml12")

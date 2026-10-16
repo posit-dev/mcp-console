@@ -69,7 +69,7 @@ def test_materializes_home_paths_and_preserves_literal_values(
                 {
                     "first_available": [
                         {"existing": str(home / "python")},
-                        {"managed": {}},
+                        {"managed": {"resolution": "explicit"}},
                     ]
                 }
                 if isinstance(python, dict) and "first_available" in python

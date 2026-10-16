@@ -75,7 +75,7 @@ config <- ConsoleConfig(
 Console starts a separate R session.
 Here, `vanilla = TRUE` skips R startup files, and `packages` lists packages to prepare at startup.
 Packages already available in the new session's R libraries can also be used without listing them here.
-The default `resolution = "automatic"` lets Console prepare missing packages as the agent loads them, for example with `library()` or `::`.
+The default `resolution = "implicit"` lets Console prepare missing packages as the agent loads them, for example with `library()` or `::`.
 
 We also set `inherit_environment = FALSE` so the worker and package resolver don't inherit environment variables from the calling process, such as credentials intended for another service.
 The explicit `environment` sets the time zone, and Console supplies its own runtime variables.

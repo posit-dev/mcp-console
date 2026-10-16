@@ -40,7 +40,7 @@ def startup_client(
     binary: Path,
     execution: Execution,
     source: str,
-    *,
+    *arguments: str,
     selected_python: str | None = None,
 ):
     with tempfile.TemporaryDirectory() as temporary:
@@ -52,7 +52,7 @@ def startup_client(
         environment = dict(os.environ, RETICULATE_PYTHONPATH=str(modules))
         if selected_python is not None:
             environment["RETICULATE_PYTHON"] = selected_python
-        with McpClient(binary, execution.serve(), environment) as client:
+        with McpClient(binary, execution.serve(*arguments), environment) as client:
             client.initialize_and_list_tools()
             yield client
 
@@ -1072,7 +1072,10 @@ def test_serializes_selected_python_once_inside_interrupt_boundary(
 def test_activates_without_reticulate_virtualenv_helper(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with McpClient(binary, execution.serve()) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    ) as client:
         client.initialize_and_list_tools()
         # fmt: r
         r = code(r"""
@@ -1142,7 +1145,10 @@ def test_activates_without_reticulate_virtualenv_helper(
 def test_preserves_setup_after_r_initialization(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with McpClient(binary, execution.serve()) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    ) as client:
         client.initialize_and_list_tools()
         client.send(
             # fmt: r
@@ -1219,7 +1225,9 @@ def test_retries_managed_import_setup_after_interrupt(
             return original_get_printoptions()
         np.get_printoptions = configure_thread_checkpoint
         """)
-    with startup_client(binary, execution, source) as client:
+    with startup_client(
+        binary, execution, source, "-c", "python.managed.resolution=implicit"
+    ) as client:
         client.send(python="raise AssertionError('interrupted setup ran the cell')")
         assert last_result_text(client) == (
             '[input requested: "Managed import setup> "]\n[waiting for stdin]'

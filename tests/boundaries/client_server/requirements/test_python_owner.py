@@ -20,7 +20,9 @@ from support.suites import run_this_suite
 def test_prepares_without_reticulate_environment_mutators(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with McpClient(binary, execution.serve()) as client:
+    with McpClient(
+        binary, execution.serve("-c", "python.managed.resolution=implicit")
+    ) as client:
         client.initialize_and_list_tools()
         client.send(r="owner_r_state <- 42L")
         client.send(sql="CREATE TABLE owner_state AS SELECT 42 AS answer")
@@ -100,7 +102,11 @@ def test_initializes_with_lazy_exclusion_date(
     binary: Path, execution: Execution
 ) -> Transcript:
     environment = dict(os.environ, MCP_CONSOLE_LANGUAGES="r")
-    with McpClient(binary, execution.serve(), environment) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+        environment,
+    ) as client:
         client.initialize_and_list_tools()
         client.send(
             # fmt: r
@@ -135,7 +141,10 @@ def test_initializes_with_lazy_exclusion_date(
 def test_preserves_live_reticulate_requirement_rules(
     binary: Path, execution: Execution
 ) -> list:
-    with McpClient(binary, execution.serve()) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    ) as client:
         client.initialize_and_list_tools()
         client.send(
             # fmt: r
@@ -202,7 +211,11 @@ def test_refreshes_numpy_configuration_after_live_preparation(
     binary: Path, execution: Execution
 ) -> Transcript:
     environment = dict(os.environ, MCP_CONSOLE_LANGUAGES="r")
-    with McpClient(binary, execution.serve(), environment) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+        environment,
+    ) as client:
         client.initialize_and_list_tools()
         client.send(
             # fmt: r
@@ -240,7 +253,10 @@ def test_refreshes_numpy_configuration_after_live_preparation(
 def test_matches_live_python_version_constraints_like_the_resolver(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with McpClient(binary, execution.serve()) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    ) as client:
         client.initialize_and_list_tools()
         client.send(
             # fmt: r

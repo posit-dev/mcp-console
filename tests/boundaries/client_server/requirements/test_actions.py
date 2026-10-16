@@ -436,7 +436,11 @@ def test_r_duckdb_replacement_failure_and_reset(
         rscript.chmod(0o755)
         environment["MCP_CONSOLE_TEST_IR_FAIL_REQUIREMENT"] = "missing.fixture"
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
         ) as client:
             client.initialize_and_list_tools()
             startup = inspect(client)

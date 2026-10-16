@@ -35,6 +35,166 @@ def resolve(
     )
 
 
+def test_managed_python_resolution_defaults_to_explicit(binary: Path) -> Transcript:
+    configurations = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        config = root / ".agents/console/config.yaml"
+        config.parent.mkdir(parents=True)
+        for managed in ({}, {"packages": []}, {"resolution": "implicit"}):
+            config.write_text(json.dumps({"python": {"managed": managed}}))
+            result = resolve(
+                binary,
+                root,
+                "--full",
+                "--format",
+                "json",
+            )
+            assert result.returncode == 0 and result.stderr == "", result
+            settings = json.loads(result.stdout)
+            expected = {"resolution": "explicit", **managed}
+            assert settings["python"] == {"managed": expected}, settings["python"]
+            assert settings["r"]["resolution"] == "implicit", settings["r"]
+            configurations.append(settings["python"])
+    return configurations
+
+
+def test_managed_fallback_resolution_is_materialized(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        selected = root / "selected.json"
+        for name, existing in (
+            ("existing", sys.executable),
+            ("managed", str(root / "missing-python")),
+        ):
+            for managed in (
+                {},
+                {"packages": [], "version": ">=3.12,<3.14"},
+                {"resolution": "implicit"},
+                {"resolution": "startup_only"},
+            ):
+                candidates = [{"existing": existing}, {"managed": managed}]
+                selected.write_text(
+                    json.dumps({"python": {"first_available": candidates}}),
+                    encoding="utf-8",
+                )
+                result = resolve(
+                    binary,
+                    root,
+                    "--config-file",
+                    str(selected),
+                    "--full",
+                    "--format",
+                    "json",
+                )
+                assert result.returncode == 0 and not result.stderr, result
+                expected = {"resolution": "explicit", **managed}
+                python = json.loads(result.stdout)["python"]
+                assert python == {
+                    "first_available": [candidates[0], {"managed": expected}]
+                }, python
+                records.append({"selected": name, "managed": expected})
+    return records
+
+
+def test_exports_regenerate_python_guidance_after_reselection(
+    binary: Path,
+) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        executable = root / Path(sys.executable).name
+        selected = root / "selected.json"
+        exported = root / "exported.json"
+        environment = os.environ | {"PATH": ""}
+        environment.pop("RETICULATE_PYTHON", None)
+        for name, starts_existing, next_existing, guidance in (
+            (
+                "environment",
+                True,
+                False,
+                "Declare dependencies with `requirements.python`",
+            ),
+            ("fallback_missing", True, False, "Import packages normally"),
+            ("fallback_present", False, True, "Use installed packages"),
+        ):
+            for full in (False, True):
+                for override, description in (
+                    (None, "generated"),
+                    ("User-supplied Python guidance.", "custom"),
+                    ("", "empty"),
+                ):
+                    source = {
+                        "languages": ["python"],
+                        "sandbox": {"profile": "inherit_codex"},
+                    }
+                    launch_environment = environment.copy()
+                    if name == "environment":
+                        launch_environment["RETICULATE_PYTHON"] = sys.executable
+                    else:
+                        executable.unlink(missing_ok=True)
+                        if starts_existing:
+                            shutil.copy2(sys.executable, executable)
+                        source["python"] = {
+                            "first_available": [
+                                {"existing": str(executable)},
+                                {
+                                    "managed": {
+                                        "resolution": "implicit",
+                                        "packages": [],
+                                    }
+                                },
+                            ]
+                        }
+                    if override is not None:
+                        source["tool"] = {
+                            "parameters": {"python": {"description": override}}
+                        }
+                    selected.write_text(json.dumps(source), encoding="utf-8")
+                    result = resolve(
+                        binary,
+                        root,
+                        "--config-file",
+                        str(selected),
+                        "--full" if full else "--prune",
+                        "--format",
+                        "json",
+                        environment=launch_environment,
+                    )
+                    assert result.returncode == 0 and not result.stderr, result
+                    exported.write_text(result.stdout, encoding="utf-8")
+                    if name != "environment":
+                        executable.unlink(missing_ok=True)
+                        if next_existing:
+                            shutil.copy2(sys.executable, executable)
+                    with McpClient(
+                        binary,
+                        ("serve", "--config-file", str(exported)),
+                        environment | {"MCP_CONSOLE_HOME": str(root / "console-home")},
+                        root,
+                        record_in_project=False,
+                    ) as client:
+                        client.initialize_and_list_tools()
+                        tool = client.transcript[-1]["result"]["tools"][0]
+                        actual = tool["inputSchema"]["properties"]["python"][
+                            "description"
+                        ]
+                        if override is None:
+                            assert guidance in actual, (name, full, actual)
+                        else:
+                            assert actual == override, (name, full, actual)
+                        client.finish()
+                    records.append(
+                        {
+                            "selection": name,
+                            "full": full,
+                            "description": description,
+                        }
+                    )
+    return records
+
+
 def test_broad_workspace_roots_preserve_selection_policy(binary: Path) -> Transcript:
     records = []
     with TemporaryDirectory() as temporary:
@@ -220,7 +380,7 @@ def test_prunes_builtin_defaults_by_default(binary: Path) -> Transcript:
         root = Path(temporary).resolve()
         defaults = {
             "languages": ["r", "python", "sql"],
-            "r": {"vanilla": False, "resolution": "automatic"},
+            "r": {"vanilla": False, "resolution": "implicit"},
             "python": None,
             "startup": None,
             "inherit_environment": True,
@@ -260,7 +420,7 @@ def test_prunes_against_builtin_defaults_after_layering(binary: Path) -> Transcr
         project = root / ".agents" / "console"
         project.mkdir(parents=True)
         (project / "config.yaml").write_text(
-            json.dumps({"r": {"resolution": "automatic"}}), encoding="utf-8"
+            json.dumps({"r": {"resolution": "implicit"}}), encoding="utf-8"
         )
         result = resolve(binary, root, "--format", "json", "-c", "r.packages=[]")
         assert result.returncode == 0 and result.stderr == "", result
@@ -302,7 +462,7 @@ def test_prunes_nested_values_without_losing_empty_overrides(
             "inherit_environment": False,
             "resolver": {"environment": {"EMPTY": ""}, "inherit_environment": True},
             "sandbox": {"filesystem": {"read_only": [], "read_write": [], "deny": []}},
-            "python": {"managed": {"packages": [], "resolution": "automatic"}},
+            "python": {"managed": {"packages": [], "resolution": "explicit"}},
         }, settings
         selected = root / "pruned.json"
         selected.write_text(result.stdout, encoding="utf-8")
@@ -466,7 +626,7 @@ def test_materializes_without_starting_runtimes(binary: Path) -> Transcript:
         assert settings["r"]["executable"] == str(root / "missing-R")
         assert settings["r"]["packages"] == ["must-not-install"]
         assert settings["r"]["vanilla"] is False
-        assert settings["r"]["resolution"] == "automatic"
+        assert settings["r"]["resolution"] == "implicit"
         assert settings["cache"] == "console"
         tool = settings["tool"]
         assert tool["description"] and tool["instructions"]

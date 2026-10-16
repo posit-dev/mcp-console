@@ -15,8 +15,8 @@ Use \code{\link[=current_r]{current_r()}} to select the R installation running t
 \item{packages}{\code{NULL} for bundled defaults, or a character vector replacing
 optional startup packages. \code{character()} requests no optional packages.}
 
-\item{resolution}{\code{NULL}, \code{"automatic"}, \code{"explicit"}, \code{"startup_only"}, or
-\code{"disabled"}. Automatic permits runtime additions; explicit permits later
+\item{resolution}{\code{NULL} (defaulting to \code{"implicit"}), \code{"implicit"}, \code{"explicit"},
+\code{"startup_only"}, or \code{"disabled"}. Implicit permits runtime additions; explicit permits later
 deliberate requirement changes; startup_only prepares once; disabled uses
 preinstalled R packages and requires an empty or omitted package list.}
 

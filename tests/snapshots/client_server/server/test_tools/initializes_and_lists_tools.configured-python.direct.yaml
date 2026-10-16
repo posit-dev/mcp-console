@@ -70,13 +70,12 @@ result:
             description: >-
               Evaluate one complete Python cell in persistent `__main__` state. The
               final visible expression autoprints; leave the primary result last.
-              Import packages normally; managed sessions prepare missing PyPI
-              distributions on first import. Use `requirements.python` when import and
-              distribution names differ or to prepare before execution.
-              `matplotlib.pyplot.show()` returns open figures as PNGs immediately and
-              closes them. At cell end, even after errors, remaining open figures
-              return as PNGs and close; `show()` is optional. Closing an unshown
-              figure suppresses capture.
+              Declare dependencies with `requirements.python` before importing them;
+              preparation can accompany the cell. Import names may differ from
+              distribution names. `matplotlib.pyplot.show()` returns open figures as
+              PNGs immediately and closes them. At cell end, even after errors,
+              remaining open figures return as PNGs and close; `show()` is optional.
+              Closing an unshown figure suppresses capture.
             type:
               - string
               - "null"

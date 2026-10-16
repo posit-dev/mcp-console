@@ -1,5 +1,5 @@
 ---
-!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.automatic.direct.yaml
 ---
 send:
   python: import os

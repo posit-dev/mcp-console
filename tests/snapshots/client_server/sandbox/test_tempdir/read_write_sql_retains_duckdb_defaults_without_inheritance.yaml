@@ -77,11 +77,10 @@ result:
             description: >-
               Evaluate one complete Python cell in persistent `__main__` state. The
               final visible expression autoprints; leave the primary result last.
-              Import packages normally; managed sessions prepare missing PyPI
-              distributions on first import. Use `requirements.python` when import and
-              distribution names differ or to prepare before execution. Select a
-              user-owned DB-API connection for SQL cells with
-              `_console.sql_connection(connection)`; restore managed DuckDB with
+              Declare dependencies with `requirements.python` before importing them;
+              preparation can accompany the cell. Import names may differ from
+              distribution names. Select a user-owned DB-API connection for SQL cells
+              with `_console.sql_connection(connection)`; restore managed DuckDB with
               `_console.sql_connection(None)`. `_console.sql_connection()` returns the
               active native Python connection, or errors if another runtime owns SQL;
               on Python-owned DuckDB, register frames with

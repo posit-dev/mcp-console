@@ -45,7 +45,11 @@ def test_declares_imports_and_uses_python_packages(
 ) -> Transcript:
     environment = os.environ.copy()
     environment.pop("RETICULATE_PYTHON", None)
-    with McpClient(binary, execution.serve(), environment) as client:
+    with McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+        environment,
+    ) as client:
         client.initialize_and_list_tools()
         client.expect(r='reticulate::py_require("py-yaml12")')
         client.expect(r='yaml12 <- reticulate::import("yaml12")')
@@ -142,7 +146,11 @@ def test_preserves_python_requirement_values(
     binary: Path, execution: Execution
 ) -> Transcript:
     environment = dict(os.environ, MCP_CONSOLE_LANGUAGES="r")
-    client = McpClient(binary, execution.serve(), environment)
+    client = McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+        environment,
+    )
     client.initialize_and_list_tools()
     # fmt: r
     r = code(r"""
@@ -304,7 +312,11 @@ def test_materializes_lazy_python_requirements_without_initializing(
     binary: Path, execution: Execution
 ) -> Transcript:
     environment = dict(os.environ, MCP_CONSOLE_LANGUAGES="r")
-    client = McpClient(binary, execution.serve(), environment)
+    client = McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+        environment,
+    )
     client.initialize_and_list_tools()
     # fmt: r
     r = code(r"""
@@ -573,7 +585,13 @@ def restart_discards_pre_marker_activation(
         environment["TMPDIR"] = temporary_directory
         reuse_record = Path(environment["MCP_CONSOLE_TEST_UV_REUSE_RECORD"])
 
-        client = McpClient(binary, execution.serve("-c", "cache=host"), environment)
+        client = McpClient(
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
+        )
         passed = False
         worker_checkpoints: list[FifoCheckpoint] = []
         try:
@@ -812,7 +830,12 @@ def failed_live_python_requirements_do_not_run_cell(
             (commands / "uv").symlink_to(uv)
             (commands / "python3").symlink_to(sys.executable)
         with McpClient(
-            binary, execution.serve("-c", "cache=host"), environment, root
+            binary,
+            execution.serve(
+                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+            ),
+            environment,
+            root,
         ) as client:
             client.initialize_and_list_tools()
             client.expect(
@@ -952,7 +975,10 @@ def failed_live_python_requirements_do_not_run_cell(
 def test_prepares_after_idle_python_resolution(
     binary: Path, execution: Execution
 ) -> Transcript:
-    client = McpClient(binary, execution.serve())
+    client = McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    )
     client.initialize_and_list_tools()
     client.send(requirements={"r": ["later"]})
 
@@ -989,7 +1015,10 @@ def test_retains_idle_python_activation_during_continuous_collection(
     binary: Path,
     execution: Execution,
 ) -> Transcript:
-    client = McpClient(binary, execution.serve())
+    client = McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    )
     client.initialize_and_list_tools()
     client.send(requirements={"r": ["later"]})
     client.expect(r="invisible(reticulate::py_config())")
@@ -1140,7 +1169,11 @@ def test_layers_python_requirements_declared_by_r_packages(
         environment["R_LIBS"] = os.pathsep.join(
             filter(None, (library, environment.get("R_LIBS")))
         )
-        client = McpClient(binary, execution.serve(), environment)
+        client = McpClient(
+            binary,
+            execution.serve("-c", "python.managed.resolution=implicit"),
+            environment,
+        )
         client.initialize_and_list_tools()
         # fmt: python
         python = code("""
@@ -1272,7 +1305,10 @@ def test_retains_python_activation_before_later_cell_failure(
     binary: Path,
     execution: Execution,
 ) -> Transcript:
-    client = McpClient(binary, execution.serve())
+    client = McpClient(
+        binary,
+        execution.serve("-c", "python.managed.resolution=implicit"),
+    )
     client.initialize_and_list_tools()
     # fmt: r
     r = code(r"""

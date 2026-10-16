@@ -1,5 +1,5 @@
 ---
-!same-as configured-python MCP initialization for this execution mode
+!same-as existing-python MCP initialization for this execution mode
 ---
 send:
   python: discarded_cell = True

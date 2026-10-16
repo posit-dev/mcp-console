@@ -13,10 +13,10 @@ stderr: >
 setting: r.resolution=unknown
 stderr: >
   configuration with CLI overrides: r: resolution: unknown resolution
-  policy `unknown`; expected automatic, explicit, startup_only, or
+  policy `unknown`; expected implicit, explicit, startup_only, or
   disabled; see docs/CONFIGURATION.md for the public format
 ---
-setting: "r.resolution={automatic: null}"
+setting: "r.resolution={implicit: null}"
 stderr: >
   configuration with CLI overrides: r: resolution: invalid type: map,
   expected a string; see docs/CONFIGURATION.md for the public format
@@ -37,7 +37,7 @@ stderr: |
 setting: python.managed.resolution=unknown
 stderr: >
   python: managed.resolution: unknown resolution policy `unknown`;
-  expected automatic, explicit, startup_only, or disabled
+  expected implicit, explicit, startup_only, or disabled
 ---
 setting: python.managed.resolution=disabled
 stderr: >
@@ -49,7 +49,7 @@ stderr: >
   python: unknown variant `resolution`, expected one of `existing`,
   `managed`, `first_available`
 ---
-setting: resolution=automatic
+setting: resolution=implicit
 stderr: >
   configuration with CLI overrides: resolution: unknown field
   `resolution`, expected one of `tool`, `startup`, `cache`, `python`, `r`,

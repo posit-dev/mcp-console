@@ -5,6 +5,10 @@ send:
   requirements:
     r:
       - ragnar
+    python:
+      - markitdown[all]
+    python_version:
+      - <3.14
 result:
   content:
     - type: text

@@ -70,6 +70,7 @@ impl ConsoleServer {
         let (tool_router, instructions) = Self::configured_presentation(
             languages,
             worker.is_none(),
+            python.as_ref(),
             &sandbox.policy,
             sandbox.no_sandbox,
             sandbox

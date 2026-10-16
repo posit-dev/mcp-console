@@ -1,0 +1,107 @@
+---
+selection: default
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last.
+  Declare dependencies with `requirements.python` before importing them;
+  preparation can accompany the cell. Import names may differ from
+  distribution names. `matplotlib.pyplot.show()` returns open figures as
+  PNGs immediately and closes them. At cell end, even after errors,
+  remaining open figures return as PNGs and close; `show()` is optional.
+  Closing an unshown figure suppresses capture.
+---
+selection: launch managed
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last.
+  Declare dependencies with `requirements.python` before importing them;
+  preparation can accompany the cell. Import names may differ from
+  distribution names. `matplotlib.pyplot.show()` returns open figures as
+  PNGs immediately and closes them. At cell end, even after errors,
+  remaining open figures return as PNGs and close; `show()` is optional.
+  Closing an unshown figure suppresses capture.
+---
+selection: launch empty
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last.
+  Declare dependencies with `requirements.python` before importing them;
+  preparation can accompany the cell. Import names may differ from
+  distribution names. `matplotlib.pyplot.show()` returns open figures as
+  PNGs immediately and closes them. At cell end, even after errors,
+  remaining open figures return as PNGs and close; `show()` is optional.
+  Closing an unshown figure suppresses capture.
+---
+selection: launch existing
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last. Use
+  installed packages in the selected environment; `requirements.python` is
+  unavailable. `matplotlib.pyplot.show()` returns open figures as PNGs
+  immediately and closes them. At cell end, even after errors, remaining
+  open figures return as PNGs and close; `show()` is optional. Closing an
+  unshown figure suppresses capture.
+---
+selection: configured existing
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last. Use
+  installed packages in the selected environment; `requirements.python` is
+  unavailable. `matplotlib.pyplot.show()` returns open figures as PNGs
+  immediately and closes them. At cell end, even after errors, remaining
+  open figures return as PNGs and close; `show()` is optional. Closing an
+  unshown figure suppresses capture.
+---
+selection: managed explicit
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last.
+  Declare dependencies with `requirements.python` before importing them;
+  preparation can accompany the cell. Import names may differ from
+  distribution names. `matplotlib.pyplot.show()` returns open figures as
+  PNGs immediately and closes them. At cell end, even after errors,
+  remaining open figures return as PNGs and close; `show()` is optional.
+  Closing an unshown figure suppresses capture.
+---
+selection: managed implicit
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last.
+  Import packages normally; managed sessions prepare missing PyPI
+  distributions on first import. Import names may differ from distribution
+  names. `matplotlib.pyplot.show()` returns open figures as PNGs
+  immediately and closes them. At cell end, even after errors, remaining
+  open figures return as PNGs and close; `show()` is optional. Closing an
+  unshown figure suppresses capture.
+---
+selection: managed startup only
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last. Only
+  startup dependencies are prepared; later `requirements.python` changes
+  and automatic import preparation are disabled.
+  `matplotlib.pyplot.show()` returns open figures as PNGs immediately and
+  closes them. At cell end, even after errors, remaining open figures
+  return as PNGs and close; `show()` is optional. Closing an unshown
+  figure suppresses capture.
+---
+selection: existing fallback
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last. Use
+  installed packages in the selected environment; `requirements.python` is
+  unavailable. `matplotlib.pyplot.show()` returns open figures as PNGs
+  immediately and closes them. At cell end, even after errors, remaining
+  open figures return as PNGs and close; `show()` is optional. Closing an
+  unshown figure suppresses capture.
+---
+selection: managed fallback
+python_guidance: >-
+  Evaluate one complete Python cell in persistent `__main__` state. The
+  final visible expression autoprints; leave the primary result last.
+  Import packages normally; managed sessions prepare missing PyPI
+  distributions on first import. Import names may differ from distribution
+  names. `matplotlib.pyplot.show()` returns open figures as PNGs
+  immediately and closes them. At cell end, even after errors, remaining
+  open figures return as PNGs and close; `show()` is optional. Closing an
+  unshown figure suppresses capture.

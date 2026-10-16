@@ -1,0 +1,36 @@
+---
+selected: existing
+managed:
+  resolution: explicit
+---
+selected: existing
+managed:
+  resolution: explicit
+  packages: []
+  version: ">=3.12,<3.14"
+---
+selected: existing
+managed:
+  resolution: implicit
+---
+selected: existing
+managed:
+  resolution: startup_only
+---
+selected: managed
+managed:
+  resolution: explicit
+---
+selected: managed
+managed:
+  resolution: explicit
+  packages: []
+  version: ">=3.12,<3.14"
+---
+selected: managed
+managed:
+  resolution: implicit
+---
+selected: managed
+managed:
+  resolution: startup_only

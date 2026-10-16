@@ -977,7 +977,12 @@ def test_shared_managed_bootstrap_and_replacement(
                 ) if os.name == "nt" else (Path(environment["PATH"]) / "uv").symlink_to(
                     uv
                 )
-            with McpClient(binary, execution.serve(), environment, root) as client:
+            with McpClient(
+                binary,
+                execution.serve("-c", "python.managed.resolution=implicit"),
+                environment,
+                root,
+            ) as client:
                 client.initialize_and_list_tools()
                 defaults = client.send(requirements={"action": "get"})[
                     "structuredContent"
@@ -1587,6 +1592,8 @@ def r_startup_with_python(
             if system_default_packages and execution == SANDBOXED
             else execution.serve()
         )
+        if managed:
+            serve += ("-c", "python.managed.resolution=implicit")
         with McpClient(binary, serve, environment, root) as client:
             client.initialize_and_list_tools()
             if managed:

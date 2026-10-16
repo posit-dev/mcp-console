@@ -251,7 +251,7 @@ def test_configured_mixed_startup_additions_restart_reset_and_recording(
             client.expect(
                 "addition available\n",
                 python="import idna; print('addition available')",
-                requirements={"r": ["zeallot"]},
+                requirements={"r": ["zeallot"], "python": ["idna"]},
             )
             accepted = inspect(client)
             assert accepted["requirements"]["r"] == ["praise", "zeallot"], accepted

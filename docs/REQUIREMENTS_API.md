@@ -51,7 +51,7 @@ During resolution, inspection reports the last commit, not an in-progress candid
 During initial startup it may instead return `[worker starting]`.
 
 Copy and edit the complete `requirements` object, then add `action: "set"` to replace it.
-Removing a declaration neither uninstalls a package nor prohibits its use; automatic resolution can add it again.
+Removing a declaration neither uninstalls a package nor prohibits its use; implicit resolution can add it again.
 
 ## Accepted requirement input
 
@@ -93,7 +93,7 @@ See [operation order](SEND_OPERATIONS.md#operations).
 
 ## Automatic R package resolution
 
-Under `automatic`, a reached missing package load can request preparation through `library()`, `require()`, `requireNamespace()`, `loadNamespace()`, `::`, or `:::`.
+Under `implicit`, a reached missing package load can request preparation through `library()`, `require()`, `requireNamespace()`, `loadNamespace()`, `::`, or `:::`.
 Console does not scan source or rerun the cell.
 
 Automatic requests accept plain package names.
@@ -106,7 +106,8 @@ A successfully accepted library remains available even if the subsequent load or
 
 ## Automatic Python import resolution
 
-A last-chance import finder can prepare a missing distribution under `automatic`.
+Managed Python defaults to `explicit`: declare dependencies through `requirements.python` before importing them.
+Set `python.managed.resolution: implicit` in `config.yaml` to let a last-chance import finder prepare a missing distribution.
 Existing standard-library, installed, local, and loaded modules retain normal lookup.
 Availability checks such as `find_spec()` do not install packages.
 
@@ -165,7 +166,7 @@ Configuration chooses a policy independently for R and managed Python:
 
 | Policy                         | Prepare startup declaration | Explicit MCP changes | Automatic runtime additions |
 | ------------------------------ | --------------------------- | -------------------- | --------------------------- |
-| `automatic`                    | Yes                         | Yes                  | Yes                         |
+| `implicit`                     | Yes                         | Yes                  | Yes                         |
 | `explicit`                     | Yes                         | Yes                  | No                          |
 | `startup_only`                 | Yes                         | No                   | No                          |
 | R `disabled` / existing Python | No                          | No                   | No                          |

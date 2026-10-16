@@ -373,7 +373,13 @@ def reached_preparation(
         resources.callback(started.close)
         resources.callback(release.close)
         client = resources.enter_context(
-            McpClient(binary, execution.serve("-c", "cache=host"), environment)
+            McpClient(
+                binary,
+                execution.serve(
+                    "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+                ),
+                environment,
+            )
         )
         resources.callback(release.release)
         client.initialize_and_list_tools()

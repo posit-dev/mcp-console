@@ -4,7 +4,7 @@
 #[serde(try_from = "String")]
 pub(crate) enum Resolution {
     #[default]
-    Automatic,
+    Implicit,
     Explicit,
     StartupOnly,
     Disabled,
@@ -15,12 +15,12 @@ impl TryFrom<String> for Resolution {
 
     fn try_from(mode: String) -> Result<Self, Self::Error> {
         match mode.as_str() {
-            "automatic" => Ok(Self::Automatic),
+            "implicit" => Ok(Self::Implicit),
             "explicit" => Ok(Self::Explicit),
             "startup_only" => Ok(Self::StartupOnly),
             "disabled" => Ok(Self::Disabled),
             _ => Err(format!(
-                "unknown resolution policy `{mode}`; expected automatic, explicit, startup_only, or disabled"
+                "unknown resolution policy `{mode}`; expected implicit, explicit, startup_only, or disabled"
             )),
         }
     }
@@ -32,16 +32,16 @@ impl Resolution {
     }
 
     pub(crate) fn permits_deliberate_changes(self) -> bool {
-        matches!(self, Self::Automatic | Self::Explicit)
+        matches!(self, Self::Implicit | Self::Explicit)
     }
 
-    pub(crate) fn permits_automatic_additions(self) -> bool {
-        self == Self::Automatic
+    pub(crate) fn permits_implicit_additions(self) -> bool {
+        self == Self::Implicit
     }
 
     pub(crate) fn name(self) -> &'static str {
         match self {
-            Self::Automatic => "automatic",
+            Self::Implicit => "implicit",
             Self::Explicit => "explicit",
             Self::StartupOnly => "startup_only",
             Self::Disabled => "disabled",

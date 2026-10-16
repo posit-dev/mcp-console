@@ -219,7 +219,14 @@ def test_requirements_get_add_set_and_live_activation(
     environment["MCP_CONSOLE_LANGUAGES"] = "r"
     with McpClient(
         binary,
-        execution.serve("-c", "r.packages=[]", "-c", "python.managed.packages=[]"),
+        execution.serve(
+            "-c",
+            "python.managed.resolution=implicit",
+            "-c",
+            "r.packages=[]",
+            "-c",
+            "python.managed.packages=[]",
+        ),
         environment,
     ) as client:
         client.initialize_and_list_tools()

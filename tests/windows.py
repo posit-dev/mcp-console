@@ -1349,7 +1349,13 @@ class WindowsConsole(unittest.TestCase):
             with self.subTest(language=language):
                 description = properties[language]["description"].lower()
                 self.assertIn("sql", description)
-                self.assertIn("managed sessions prepare missing", description)
+        self.assertIn(
+            "managed sessions prepare missing", properties["r"]["description"]
+        )
+        self.assertIn(
+            "Use installed packages in the selected environment; `requirements.python` is unavailable.",
+            properties["python"]["description"],
+        )
         self.assertEqual(
             schema["tools"][0]["inputSchema"]["properties"]["requirements"][
                 "properties"
@@ -1596,6 +1602,16 @@ class WindowsConsole(unittest.TestCase):
         )
         self.assertIn("1.", json.dumps(result))
         result = completed(python="import sniffio; print(sniffio.__version__)")
+        self.assertIn("No module named 'sniffio'", json.dumps(result))
+        self.assertIn("resolution=explicit", json.dumps(result))
+        inspection = session.send(requirements={"action": "get"})
+        self.assertEqual(
+            inspection["structuredContent"]["requirements"]["python"], ["six"]
+        )
+        result = completed(
+            requirements={"python": ["sniffio"]},
+            python="import sniffio; print(sniffio.__version__)",
+        )
         self.assertIn("1.", json.dumps(result))
         inspection = session.send(requirements={"action": "get"})
         self.assertEqual(

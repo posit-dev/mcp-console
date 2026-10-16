@@ -74,6 +74,16 @@ test_that("ConsoleConfig preserves schema shapes and separates launch choices", 
   )
 })
 
+test_that("resolution policies accept implicit and reject automatic", {
+  expect_identical(RConfig(resolution = "implicit")@resolution, "implicit")
+  expect_identical(
+    ManagedPython(resolution = "implicit")@resolution,
+    "implicit"
+  )
+  expect_error(RConfig(resolution = "automatic"), "resolution")
+  expect_error(ManagedPython(resolution = "automatic"), "resolution")
+})
+
 test_that("configuration classes have matching uppercase CamelCase names", {
   expect_false(any(
     c("Filesystem", "Network", "Proxy", "Domains", "Sockets") %in%

@@ -564,7 +564,12 @@ def test_console_startup_resolves_python_version_and_import(
         configuration = root / ".agents/console/config.yaml"
         configuration.parent.mkdir(parents=True)
         configuration.write_text(
-            format_yaml({"startup": {"language": "r", "code": source}})
+            format_yaml(
+                {
+                    "startup": {"language": "r", "code": source},
+                    "python": {"managed": {"resolution": "implicit"}},
+                }
+            )
         )
         environment.update(
             MCP_CONSOLE_LANGUAGES="r",

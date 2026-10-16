@@ -68,6 +68,7 @@ Set `enabled: false` to remove a parameter from the advertised schema and reject
 Omission keeps the parameter's existing runtime default.
 For example, hiding `timeout_ms` makes every call use the existing 60,000 ms wait budget; work continues after that budget expires, and an empty call polls for more output.
 Generated timeout guidance follows this choice.
+Generated Python guidance uses installed packages when `requirements.python` or its parent `requirements` field is hidden under explicit resolution.
 When hiding other parameters, supply matching description overrides if their generated prose refers to the hidden fields.
 
 Parameter settings apply after `languages`; unknown or unavailable names and nested parameters under scalar fields fail launch.
@@ -105,6 +106,8 @@ Use `--full` to include all configuration defaults; it cannot be combined with `
 
 The full output contains captured settings, configuration defaults, generated instructions and descriptions, and every parameter selected by `languages`, including disabled parameters.
 Each parameter has explicit `enabled` and `description` fields, read-only `schema` metadata for its type and constraints, and a `parameters` mapping for nested fields.
+Generated Python parameter descriptions export as `null` so the next launch regenerates guidance for its selected environment and resolution policy.
+An explicit Python description remains verbatim, including an empty string.
 Changes to the `schema` metadata fail validation.
 Use `enabled: false` to hide a parameter while retaining its details for inspection or re-enabling.
 
@@ -119,6 +122,7 @@ The selected configuration file bypasses automatic global/project discovery.
 
 Values determined during runtime preparation remain policies: omitted automatic package lists, `python: null` for normal interpreter selection, inherited environment variables, and runtime-created cache and temporary paths.
 Python `first_available` lists retain their candidates, including `active_venv`; the next launch evaluates them against its own environment and filesystem.
+Managed fallback entries include their effective resolution policy even when an existing candidate is selected.
 The export does not pin installed dependencies or copy the host environment.
 Exported interpreter paths must be representable as UTF-8; other native paths produce a configuration error.
 Changing `languages` may make saved parameter entries unavailable; resolve the desired language selection before editing the tool.

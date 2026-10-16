@@ -13,5 +13,5 @@ sandbox:
     deny: []
 python:
   managed:
-    resolution: automatic
+    resolution: explicit
     packages: []

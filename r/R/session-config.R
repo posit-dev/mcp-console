@@ -62,8 +62,8 @@ ConfigDiscovery <- S7::new_class(
 #'   Use [current_r()] to select the R installation running this code.
 #' @param packages `NULL` for bundled defaults, or a character vector replacing
 #'   optional startup packages. `character()` requests no optional packages.
-#' @param resolution `NULL`, `"automatic"`, `"explicit"`, `"startup_only"`, or
-#'   `"disabled"`. Automatic permits runtime additions; explicit permits later
+#' @param resolution `NULL` (defaulting to `"implicit"`), `"implicit"`, `"explicit"`,
+#'   `"startup_only"`, or `"disabled"`. Implicit permits runtime additions; explicit permits later
 #'   deliberate requirement changes; startup_only prepares once; disabled uses
 #'   preinstalled R packages and requires an empty or omitted package list.
 #' @param vanilla `NULL`, `TRUE`, or `FALSE`; controls native R startup files.
@@ -79,7 +79,7 @@ RConfig <- S7::new_class(
     executable = config_scalar(),
     packages = config_string_list(),
     resolution = config_choice(c(
-      "automatic",
+      "implicit",
       "explicit",
       "startup_only",
       "disabled"
@@ -149,7 +149,8 @@ ExistingPython <- S7::new_class(
 )
 
 #' @rdname PythonConfig
-#' @param resolution `NULL`, `"automatic"`, `"explicit"`, or `"startup_only"`.
+#' @param resolution `NULL` (defaulting to `"explicit"`), `"implicit"`, `"explicit"`,
+#'   or `"startup_only"`.
 #'   To use preinstalled packages without preparation, choose `ExistingPython()`.
 #' @export
 ManagedPython <- S7::new_class(
@@ -158,7 +159,7 @@ ManagedPython <- S7::new_class(
   properties = list(
     version = config_scalar(),
     packages = config_string_list(),
-    resolution = config_choice(c("automatic", "explicit", "startup_only"))
+    resolution = config_choice(c("implicit", "explicit", "startup_only"))
   )
 )
 

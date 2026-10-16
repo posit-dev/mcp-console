@@ -232,6 +232,10 @@ def test_template_examples_can_be_uncommented_and_loaded(binary: Path) -> Transc
             in contents
         )
         assert "## Temporary storage options:" in contents
+        assert (
+            "## R defaults to implicit; managed Python defaults to explicit."
+            in contents
+        )
         assert "#   allow_local_binding: true" in contents
         assert "#     MCP_CONSOLE_CACHE_DIR:" in contents
         output = root / "shared-output"
@@ -250,9 +254,13 @@ def test_template_examples_can_be_uncommented_and_loaded(binary: Path) -> Transc
             ).replace("/absolute/path/to/console-cache", (root / "cache").as_posix())
             lines.append(line)
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        resolved = invoke(binary, root, root, "config", "resolve", "--format", "json")
+        resolved = invoke(
+            binary, root, root, "config", "resolve", "--full", "--format", "json"
+        )
         assert resolved.returncode == 0 and not resolved.stderr, resolved
         value = json.loads(resolved.stdout)
+        assert value["r"]["resolution"] == "implicit"
+        assert value["python"]["managed"]["resolution"] == "explicit"
         assert value["sandbox"]["network"]["allow_local_binding"] is True
         assert value["python"]["managed"]["packages"] == [
             "numpy",

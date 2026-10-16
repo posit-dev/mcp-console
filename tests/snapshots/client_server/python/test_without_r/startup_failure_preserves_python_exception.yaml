@@ -1,5 +1,5 @@
 ---
-!same-as MCP initialization for this execution mode
+!same-as python-only MCP initialization for this execution mode
 ---
 send:
   python: raise AssertionError('failed startup ran cell')

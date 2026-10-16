@@ -107,6 +107,8 @@ send:
   requirements:
     r:
       - zeallot
+    python:
+      - idna
 result:
   content:
     - type: text

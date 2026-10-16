@@ -24,7 +24,8 @@ such as \code{"3.13"} or \code{">=3.12,<3.14"}.}
 \item{packages}{\code{NULL} for bundled defaults, or a character vector replacing
 optional startup packages. \code{character()} requests no optional packages.}
 
-\item{resolution}{\code{NULL}, \code{"automatic"}, \code{"explicit"}, or \code{"startup_only"}.
+\item{resolution}{\code{NULL} (defaulting to \code{"explicit"}), \code{"implicit"}, \code{"explicit"},
+or \code{"startup_only"}.
 To use preinstalled packages without preparation, choose \code{ExistingPython()}.}
 
 \item{first_available}{A nonempty list of \code{\link[=ExistingPython]{ExistingPython()}} candidates,

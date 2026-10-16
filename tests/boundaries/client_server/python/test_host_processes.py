@@ -29,7 +29,11 @@ def test_psutil_sees_host_processes_without_sandbox(binary: Path) -> Transcript:
         environment.pop("RETICULATE_PYTHON", None)
         environment["MCP_CONSOLE_TEST_HOST_PROCESS"] = str(sentinel.pid)
         try:
-            with McpClient(binary, DIRECT.serve(), environment) as client:
+            with McpClient(
+                binary,
+                DIRECT.serve("-c", "python.managed.resolution=implicit"),
+                environment,
+            ) as client:
                 client.initialize_and_list_tools()
                 client.send(python="import os")
                 assert last_tool_text(client) == "[done]"

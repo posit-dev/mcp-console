@@ -6,7 +6,7 @@ fixture: >-
   Write two conflicting sends and cancellation together so all three
   frames are ready before handler dispatch.
 ---
-!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox.yaml
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox-python-only.yaml
 ---
 input:
   method: tools/call

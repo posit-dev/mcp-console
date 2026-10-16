@@ -20,7 +20,7 @@ config:
       _console.sql_connection(native)
   python: <configured Python>
 ---
-!same-as MCP initialization for this execution mode
+!same-as python-only MCP initialization for this execution mode
 ---
 send:
   sql: SELECT answer FROM selected

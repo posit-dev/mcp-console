@@ -66,12 +66,18 @@ def creates_ragnar_store_after_workspace_write_denial(
             current_directory=workspace,
         ) as client:
             client.initialize_and_list_tools()
-            client.send(requirements={"r": ["ragnar"]})
+            requirements = {"r": ["ragnar"]}
+            if languages is None:
+                # Python-enabled launches load ragnar's optional document converters.
+                requirements.update(
+                    python=["markitdown[all]"], python_version=["<3.14"]
+                )
+            client.send(requirements=requirements)
             assert last_tool_text(client) == "[prepared]"
 
             client.send(r=r)
             output = normalize_duckdb_progress(client)
-            assert "knowledge.ragnar.duckdb" in output
+            assert "knowledge.ragnar.duckdb" in output, output
             assert denial in output
             assert not (workspace / "knowledge.ragnar.duckdb").exists()
             denied = client.transcript[-1]

@@ -30,7 +30,7 @@ Console supplies transport, interrupt, graphics, and documentation output integr
 R event handlers, including `later` callbacks, can run while idle and produce output collected by a later call.
 
 Use ordinary package-loading operations.
-In managed automatic mode, reached missing-package loads can prepare dependencies without rerunning the cell.
+In managed implicit mode, reached missing-package loads can prepare dependencies without rerunning the cell.
 A sandboxed R worker also has a temporary writable library; manual installations there last only for that worker and remain subject to permissions.
 
 ### Installed documentation
@@ -82,7 +82,7 @@ Later setup and interrupt recovery preserve those user bindings; restart creates
 
 Startup hooks run before cells, and attaching reticulate later preserves the running interpreter and its objects.
 The working-directory import entry follows `os.chdir()`.
-Managed automatic mode can resolve reached missing imports; existing environments require preinstalled packages.
+Managed implicit mode can resolve reached missing imports; existing environments require preinstalled packages.
 
 Console does not provide a notebook event loop.
 Manage asynchronous work explicitly.
@@ -115,8 +115,9 @@ For help, use `help("import", package = "reticulate")` for `py_import()`.
 The other helpers use their matching reticulate help topics, for example `help("py_run_string", package = "reticulate")`.
 
 `py_require()` without arguments returns the current R-side Python declarations.
-In managed sessions, declarations use Console's existing [requirements and preparation](REQUIREMENTS_API.md#live-preparation) path.
-Pre-initialization declarations are accepted when Python is prepared; MCP requirements inspection returns the last committed declaration.
+Managed Python defaults to `explicit`: prepare additions through `requirements.python` in `send`; R-side declarations do not authorize additional preparation.
+With `python.managed.resolution: implicit`, declarations use Console's existing [requirements and preparation](REQUIREMENTS_API.md#live-preparation) path.
+In that mode, pre-initialization declarations are accepted when Python is prepared; MCP requirements inspection returns the last committed declaration.
 Before Python initializes, `action = "set"` can replace requirements; after initialization, compatible additions preserve live objects.
 Use [restart](REQUIREMENTS_API.md#restarting-with-requirements) for changes that require a fresh environment.
 
