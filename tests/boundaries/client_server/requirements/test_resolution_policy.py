@@ -165,7 +165,7 @@ def test_locked_python_startup_and_fallback(
                         "managed": {
                             "version": "3.13",
                             "packages": ["packaging"],
-                            "resolution": "startup_only",
+                            "resolution": "fixed",
                         }
                     },
                 ]
@@ -181,9 +181,9 @@ def test_locked_python_startup_and_fallback(
                 python="raise AssertionError('must not run')",
                 stdin="withheld\n",
             )
-            assert early.get(
-                "isError"
-            ) and "python.managed.resolution=startup_only" in str(early), early
+            assert early.get("isError") and "python.managed.resolution=fixed" in str(
+                early
+            ), early
             startup = inspect(client)
             assert startup["requirements"]["python_version"] == ["3.13"], startup
             client.expect(
@@ -208,7 +208,7 @@ def test_locked_python_startup_and_fallback(
                 )
                 assert result.get(
                     "isError"
-                ) and "python.managed.resolution=startup_only" in str(result), result
+                ) and "python.managed.resolution=fixed" in str(result), result
                 assert inspect(client) == startup
                 assert uv_tool_run_requirements(uv_record) == baseline
                 client.expect(
@@ -241,14 +241,12 @@ def test_locked_r_admission_and_deferred_interrupt(
             root,
             {"managed": {"version": "3.13", "packages": [], "resolution": "explicit"}},
             cache="host",
-            r={"packages": ["mcpfirst"], "resolution": "startup_only"},
+            r={"packages": ["mcpfirst"], "resolution": "fixed"},
         )
         with McpClient(binary, execution.serve(), env, root) as client:
             client.initialize_and_list_tools()
             early = client.send(requirements={"action": "set"})
-            assert early.get("isError") and "r.resolution=startup_only" in str(early), (
-                early
-            )
+            assert early.get("isError") and "r.resolution=fixed" in str(early), early
             startup = inspect(client)
             client.expect(
                 "startup available\n",
@@ -268,7 +266,7 @@ def test_locked_r_admission_and_deferred_interrupt(
                         r="stop('must not run')",
                         stdin="withheld\n",
                     )
-                    assert result.get("isError") and "r.resolution=startup_only" in str(
+                    assert result.get("isError") and "r.resolution=fixed" in str(
                         result
                     ), result
                     assert inspect(client) == startup
@@ -312,9 +310,9 @@ def test_locked_r_admission_and_deferred_interrupt(
                     r="followup_ran <- TRUE",
                     timeout_ms=10_000,
                 )
-                assert result.get("isError") and "r.resolution=startup_only" in str(
+                assert result.get("isError") and "r.resolution=fixed" in str(result), (
                     result
-                ), result
+                )
                 assert "active interrupted" in str(result), result
             client.expect(
                 "worker retained\n",
@@ -500,7 +498,7 @@ def test_promised_r_startup_requires_tooling(
             R_LIBS_SITE=str(empty),
         )
         env.pop("RETICULATE_UV", None)
-        for mode, packages in (("explicit", None), ("startup_only", [])):
+        for mode, packages in (("explicit", None), ("fixed", [])):
             r = {"resolution": mode}
             if packages is not None:
                 r["packages"] = packages
@@ -534,7 +532,7 @@ def test_unreached_managed_policy_keeps_existing_python(
                     {"existing": str(selected)},
                     {
                         "managed": {
-                            "resolution": "startup_only",
+                            "resolution": "fixed",
                             "packages": ["unavailable-fixture"],
                             "version": "9.99",
                         }
@@ -585,7 +583,7 @@ def test_python_provider_extension_policy(
         }
         configure(
             root,
-            {"managed": {"packages": ["duckdb"], "resolution": "startup_only"}},
+            {"managed": {"packages": ["duckdb"], "resolution": "fixed"}},
             cache="host",
         )
         with McpClient(binary, execution.serve(), env, root) as client:
@@ -597,9 +595,9 @@ def test_python_provider_extension_policy(
             )
             baseline = uv_tool_run_requirements(uv_record)
             result = client.send(requirements={"duckdb": ["fts"]})
-            assert result.get(
-                "isError"
-            ) and "python.managed.resolution=startup_only" in str(result), result
+            assert result.get("isError") and "python.managed.resolution=fixed" in str(
+                result
+            ), result
             assert inspect(client) == startup
             assert uv_tool_run_requirements(uv_record) == baseline
             client.send(sql="SELECT 42 AS answer")
@@ -622,7 +620,7 @@ def test_deferred_runtime_declaration_cannot_piggyback_on_mcp(
             root,
             {"managed": {"packages": [], "resolution": "explicit"}},
             cache="host",
-            r={"packages": [], "resolution": "startup_only"},
+            r={"packages": [], "resolution": "fixed"},
         )
         with McpClient(binary, execution.serve(), env, root) as client:
             client.initialize_and_list_tools()
@@ -693,7 +691,7 @@ def test_early_locked_request_waits_for_configured_startup(
                 "managed": {
                     "version": "3.13",
                     "packages": ["packaging"],
-                    "resolution": "startup_only",
+                    "resolution": "fixed",
                 }
             },
             cache="host",
@@ -715,9 +713,7 @@ def test_early_locked_request_waits_for_configured_startup(
             client.receive(pending)
             assert pending["result"].get(
                 "isError"
-            ) and "python.managed.resolution=startup_only" in str(pending["result"]), (
-                pending
-            )
+            ) and "python.managed.resolution=fixed" in str(pending["result"]), pending
             startup = inspect(client)
             assert startup["requirements"]["python"] == ["packaging"] and startup[
                 "requirements"
@@ -759,7 +755,7 @@ def test_failed_initial_preparation_retries_locked_baseline(
                 "managed": {
                     "version": "3.13",
                     "packages": ["packaging"],
-                    "resolution": "startup_only",
+                    "resolution": "fixed",
                 }
             },
             cache="host",
@@ -779,9 +775,9 @@ def test_failed_initial_preparation_retries_locked_baseline(
                 requirements={"action": "set"},
                 python="raise AssertionError('must not run')",
             )
-            assert result.get(
-                "isError"
-            ) and "python.managed.resolution=startup_only" in str(result), result
+            assert result.get("isError") and "python.managed.resolution=fixed" in str(
+                result
+            ), result
             startup = inspect(client)
             assert startup["requirements"]["python"] == ["packaging"] and startup[
                 "requirements"

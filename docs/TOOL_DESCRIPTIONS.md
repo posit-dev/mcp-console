@@ -13,7 +13,7 @@ Presentation comes from captured configuration, not completed background discove
 It stays stable when startup succeeds or fails.
 Configured languages control visible code fields and relevant examples; actual runtime availability is checked during execution.
 Python dependency guidance follows the captured existing/managed selection and managed resolution policy, including launch-time `RETICULATE_PYTHON` when no Python selection is configured.
-Existing environments use installed packages; managed environments describe explicit declarations, automatic import preparation, or startup-only preparation as selected.
+Existing environments use installed packages; managed environments describe explicit declarations, automatic import preparation, or fixed startup requirements as selected.
 Under explicit resolution, hiding `requirements.python` or its parent switches generated Python guidance to installed packages.
 Configuration exports leave generated Python parameter descriptions as `null` so later launches regenerate them after selection; explicit description overrides are preserved.
 Requirements can remain visible for a hidden SQL provider.

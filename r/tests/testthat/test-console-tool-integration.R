@@ -473,7 +473,7 @@ test_that("materialization preserves typed policies and startup source", {
           ExistingPython("absent-python"),
           "active_venv",
           ExistingPython(python),
-          ManagedPython(packages = character(), resolution = "startup_only")
+          ManagedPython(packages = character(), resolution = "fixed")
         )),
         startup = StartupConfig(
           language = "python",

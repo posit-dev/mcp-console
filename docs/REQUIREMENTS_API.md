@@ -168,7 +168,7 @@ Configuration chooses a policy independently for R and managed Python:
 | ------------------------------ | --------------------------- | -------------------- | --------------------------- |
 | `implicit`                     | Yes                         | Yes                  | Yes                         |
 | `explicit`                     | Yes                         | Yes                  | No                          |
-| `startup_only`                 | Yes                         | No                   | No                          |
+| `fixed`                        | Yes                         | No                   | No                          |
 | R `disabled` / existing Python | No                          | No                   | No                          |
 
 Unchanged declarations remain no-ops.

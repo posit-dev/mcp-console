@@ -35,7 +35,7 @@ result:
     - type: text
       text: |-
         interrupted
-        R requirements cannot change under r.resolution=startup_only (requirements.action=add)
+        R requirements cannot change under r.resolution=fixed (requirements.action=add)
   isError: true
 ---
 send:

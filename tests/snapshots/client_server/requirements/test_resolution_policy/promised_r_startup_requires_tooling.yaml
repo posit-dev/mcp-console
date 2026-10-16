@@ -7,10 +7,10 @@ result:
       text: r.resolution=explicit requires R startup preparation support
   isError: true
 ---
-mode: startup_only
+mode: fixed
 packages: []
 result:
   content:
     - type: text
-      text: r.resolution=startup_only requires R startup preparation support
+      text: r.resolution=fixed requires R startup preparation support
   isError: true

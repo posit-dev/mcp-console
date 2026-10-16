@@ -55,7 +55,7 @@ impl PythonSelection {
                 }
             }
             Self::Managed(Resolution::Implicit) => sections::PYTHON_IMPLICIT,
-            Self::Managed(Resolution::StartupOnly) => sections::PYTHON_STARTUP_ONLY,
+            Self::Managed(Resolution::Fixed) => sections::PYTHON_FIXED,
             Self::Managed(Resolution::Disabled) => {
                 unreachable!("managed Python resolution cannot be disabled")
             }

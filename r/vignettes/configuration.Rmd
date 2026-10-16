@@ -31,7 +31,7 @@ config <- ConsoleConfig(
   r = RConfig(
     executable = "/opt/R/bin/R",
     packages = c("dplyr", "ggplot2"),
-    resolution = "startup_only"
+    resolution = "fixed"
   ),
   python = ManagedPython(
     version = "3.13",
@@ -56,7 +56,7 @@ tool <- console_tool(config = config, project = "/path/to/project")
 Relative paths use that launch directory.
 `ExistingPython(".venv")` selects a preinstalled interpreter or standard virtual environment; it accepts no preparation options.
 `ManagedPython()` prepares a uv-managed environment.
-R and managed Python independently support `implicit`, `explicit`, and `startup_only` resolution.
+R and managed Python independently support `implicit`, `explicit`, and `fixed` resolution.
 R defaults to `implicit`; managed Python defaults to `explicit`.
 R also supports `disabled` for preinstalled packages.
 Worker restart retains the captured runtime and configuration.

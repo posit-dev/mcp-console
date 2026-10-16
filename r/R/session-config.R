@@ -63,13 +63,13 @@ ConfigDiscovery <- S7::new_class(
 #' @param packages `NULL` for bundled defaults, or a character vector replacing
 #'   optional startup packages. `character()` requests no optional packages.
 #' @param resolution `NULL` (defaulting to `"implicit"`), `"implicit"`, `"explicit"`,
-#'   `"startup_only"`, or `"disabled"`. Implicit permits runtime additions; explicit permits later
-#'   deliberate requirement changes; startup_only prepares once; disabled uses
+#'   `"fixed"`, or `"disabled"`. Implicit permits runtime additions; explicit permits
+#'   later deliberate requirement changes; fixed keeps the startup declaration; disabled uses
 #'   preinstalled R packages and requires an empty or omitted package list.
 #' @param vanilla `NULL`, `TRUE`, or `FALSE`; controls native R startup files.
 #' @inherit ConsoleConfig return
 #' @examples
-#' RConfig(packages = "dplyr", resolution = "startup_only")
+#' RConfig(packages = "dplyr", resolution = "fixed")
 #' RConfig(resolution = "disabled")
 #' @export
 RConfig <- S7::new_class(
@@ -81,7 +81,7 @@ RConfig <- S7::new_class(
     resolution = config_choice(c(
       "implicit",
       "explicit",
-      "startup_only",
+      "fixed",
       "disabled"
     )),
     vanilla = config_flag()
@@ -150,7 +150,7 @@ ExistingPython <- S7::new_class(
 
 #' @rdname PythonConfig
 #' @param resolution `NULL` (defaulting to `"explicit"`), `"implicit"`, `"explicit"`,
-#'   or `"startup_only"`.
+#'   or `"fixed"`.
 #'   To use preinstalled packages without preparation, choose `ExistingPython()`.
 #' @export
 ManagedPython <- S7::new_class(
@@ -159,7 +159,7 @@ ManagedPython <- S7::new_class(
   properties = list(
     version = config_scalar(),
     packages = config_string_list(),
-    resolution = config_choice(c("implicit", "explicit", "startup_only"))
+    resolution = config_choice(c("implicit", "explicit", "fixed"))
   )
 )
 
@@ -402,7 +402,7 @@ ToolConfig <- S7::new_class(
 #' ConsoleConfig(sandbox = FALSE)
 #' ConsoleConfig(discovery = ConfigDiscovery(global = FALSE))
 #' config <- ConsoleConfig(
-#'   r = RConfig(packages = c("dplyr", "ggplot2"), resolution = "startup_only"),
+#'   r = RConfig(packages = c("dplyr", "ggplot2"), resolution = "fixed"),
 #'   python = ManagedPython(version = "3.13", packages = "pandas"),
 #'   sandbox = SandboxPolicy(filesystem = SandboxFilesystem(read_write = "./output"))
 #' )

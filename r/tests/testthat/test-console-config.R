@@ -4,7 +4,7 @@ test_that("ConsoleConfig preserves schema shapes and separates launch choices", 
     r = RConfig(
       executable = "/opt/R/bin/R",
       packages = character(),
-      resolution = "startup_only",
+      resolution = "fixed",
       vanilla = TRUE
     ),
     python = ManagedPython(
@@ -28,7 +28,7 @@ test_that("ConsoleConfig preserves schema shapes and separates launch choices", 
     r = list(
       executable = "/opt/R/bin/R",
       packages = list(),
-      resolution = "startup_only",
+      resolution = "fixed",
       vanilla = TRUE
     ),
     python = list(
@@ -82,6 +82,13 @@ test_that("resolution policies accept implicit and reject automatic", {
   )
   expect_error(RConfig(resolution = "automatic"), "resolution")
   expect_error(ManagedPython(resolution = "automatic"), "resolution")
+})
+
+test_that("resolution policies accept fixed and reject the old name", {
+  expect_identical(RConfig(resolution = "fixed")@resolution, "fixed")
+  expect_identical(ManagedPython(resolution = "fixed")@resolution, "fixed")
+  expect_error(RConfig(resolution = "startup_only"), "resolution")
+  expect_error(ManagedPython(resolution = "startup_only"), "resolution")
 })
 
 test_that("configuration classes have matching uppercase CamelCase names", {

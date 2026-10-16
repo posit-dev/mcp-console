@@ -6,7 +6,7 @@ pub(crate) enum Resolution {
     #[default]
     Implicit,
     Explicit,
-    StartupOnly,
+    Fixed,
     Disabled,
 }
 
@@ -17,10 +17,10 @@ impl TryFrom<String> for Resolution {
         match mode.as_str() {
             "implicit" => Ok(Self::Implicit),
             "explicit" => Ok(Self::Explicit),
-            "startup_only" => Ok(Self::StartupOnly),
+            "fixed" => Ok(Self::Fixed),
             "disabled" => Ok(Self::Disabled),
             _ => Err(format!(
-                "unknown resolution policy `{mode}`; expected implicit, explicit, startup_only, or disabled"
+                "unknown resolution policy `{mode}`; expected implicit, explicit, fixed, or disabled"
             )),
         }
     }
@@ -43,7 +43,7 @@ impl Resolution {
         match self {
             Self::Implicit => "implicit",
             Self::Explicit => "explicit",
-            Self::StartupOnly => "startup_only",
+            Self::Fixed => "fixed",
             Self::Disabled => "disabled",
         }
     }
@@ -66,7 +66,7 @@ pub(super) fn managed<'de, D: serde::Deserializer<'de>>(
     let policy = Resolution::deserialize(deserializer)?;
     if policy == Resolution::Disabled {
         return Err(D::Error::custom(
-            "managed Python resolution cannot be disabled; use an existing Python environment or startup_only",
+            "managed Python resolution cannot be disabled; use an existing Python environment or fixed",
         ));
     }
     Ok(policy)

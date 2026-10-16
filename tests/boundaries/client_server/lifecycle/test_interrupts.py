@@ -101,7 +101,7 @@ def test_interrupt_precedes_follow_up_requirement_policy(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
     transcripts = {}
-    for policy in ("startup_only", "disabled"):
+    for policy in ("fixed", "disabled"):
         with McpClient(
             binary,
             execution.serve(
@@ -142,7 +142,7 @@ def test_interrupt_precedes_follow_up_requirement_policy(
             )
             transcripts[policy] = client.finish()
     return TranscriptWithCompanions(
-        transcripts["startup_only"],
+        transcripts["fixed"],
         {"disabled.yaml": McpTranscript(transcripts["disabled"])},
     )
 

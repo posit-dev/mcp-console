@@ -168,7 +168,7 @@ See [Dependencies](REQUIREMENTS.md) for default packages, accepted requirement s
 
 ## Dependency-resolution policies
 
-Use `r.resolution` and `python.managed.resolution` to choose `implicit`, `explicit`, or `startup_only`.
+Use `r.resolution` and `python.managed.resolution` to choose `implicit`, `explicit`, or `fixed`.
 R defaults to `implicit`; managed Python defaults to `explicit`, so the agent declares dependencies through `requirements.python` before importing them.
 R also accepts `disabled`; for preinstalled-only Python, select an existing environment.
 
@@ -179,7 +179,7 @@ r:
 python:
   managed:
     packages: [numpy, pandas]
-    resolution: startup_only
+    resolution: fixed
 ```
 
 The [policy table](REQUIREMENTS.md#resolution-policy-admission) defines what each mode permits.

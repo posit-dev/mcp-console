@@ -143,7 +143,7 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
         python = ManagedPython(
           version = "3.13",
           packages = character(),
-          resolution = "startup_only"
+          resolution = "fixed"
         ),
         sandbox = FALSE
       )
@@ -163,7 +163,7 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
       requirements = list(action = "add", python = "requests"),
       timeout_ms = 60000L
     )
-    expect_match(result@text, "startup_only", fixed = TRUE)
+    expect_match(result@text, "python.managed.resolution=fixed", fixed = TRUE)
     rm(send)
     invisible(gc())
   })

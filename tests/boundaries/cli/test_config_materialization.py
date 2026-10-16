@@ -72,7 +72,7 @@ def test_managed_fallback_resolution_is_materialized(binary: Path) -> Transcript
                 {},
                 {"packages": [], "version": ">=3.12,<3.14"},
                 {"resolution": "implicit"},
-                {"resolution": "startup_only"},
+                {"resolution": "fixed"},
             ):
                 candidates = [{"existing": existing}, {"managed": managed}]
                 selected.write_text(
@@ -414,7 +414,7 @@ def test_prunes_against_builtin_defaults_after_layering(binary: Path) -> Transcr
         home = root / "console-home"
         home.mkdir()
         (home / "config.yaml").write_text(
-            json.dumps({"r": {"vanilla": True, "resolution": "startup_only"}}),
+            json.dumps({"r": {"vanilla": True, "resolution": "fixed"}}),
             encoding="utf-8",
         )
         project = root / ".agents" / "console"
@@ -759,7 +759,7 @@ def test_python_fallback_policies_survive_export(binary: Path) -> Transcript:
             capture_output=True,
         )
         fallback = {"existing": sys.executable}
-        managed = {"managed": {"packages": [], "resolution": "startup_only"}}
+        managed = {"managed": {"packages": [], "resolution": "fixed"}}
         choices = {
             "existing": {
                 "first_available": [{"existing": venv.name}, fallback, managed]

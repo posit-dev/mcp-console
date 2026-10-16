@@ -208,7 +208,7 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
 ## R defaults to implicit; managed Python defaults to explicit.
 ## implicit: startup packages, explicit requests, and missing loads/imports.
 ## explicit: startup packages and explicit requests only.
-## startup_only: prepare startup packages; reject later package changes.
+## fixed: prepare startup packages; reject later package changes.
 ##
 ## Supplied package lists replace the default startup lists.
 ## [] requests no optional startup packages; it does not disable preparation.

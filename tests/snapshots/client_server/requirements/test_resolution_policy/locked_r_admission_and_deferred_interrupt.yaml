@@ -8,7 +8,7 @@ result:
   content:
     - type: text
       text: >-
-        R requirements cannot change under r.resolution=startup_only
+        R requirements cannot change under r.resolution=fixed
         (requirements.action=set)
   isError: true
 ---
@@ -112,7 +112,7 @@ result:
   content:
     - type: text
       text: >-
-        R requirements cannot change under r.resolution=startup_only
+        R requirements cannot change under r.resolution=fixed
         (requirements.action=add)
   isError: true
 ---
@@ -204,7 +204,7 @@ result:
   content:
     - type: text
       text: >-
-        R requirements cannot change under r.resolution=startup_only
+        R requirements cannot change under r.resolution=fixed
         (requirements.action=set)
   isError: true
 ---
@@ -298,7 +298,7 @@ result:
   content:
     - type: text
       text: >-
-        [R requirements cannot change under r.resolution=startup_only
+        [R requirements cannot change under r.resolution=fixed
         (requirements.action=add)]
   isError: true
 ---
@@ -391,7 +391,7 @@ result:
   content:
     - type: text
       text: >-
-        [R requirements cannot change under r.resolution=startup_only
+        [R requirements cannot change under r.resolution=fixed
         (requirements.action=set)]
   isError: true
 ---
@@ -592,7 +592,7 @@ result:
     - type: text
       text: |-
         active interrupted
-        R requirements cannot change under r.resolution=startup_only (requirements.action=add)
+        R requirements cannot change under r.resolution=fixed (requirements.action=add)
   isError: true
 ---
 send:

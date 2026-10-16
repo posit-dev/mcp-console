@@ -2,18 +2,18 @@
 setting: r.resolution=automatic
 stderr: >
   configuration with CLI overrides: r: resolution: unknown resolution
-  policy `automatic`; expected implicit, explicit, startup_only, or
-  disabled; see docs/CONFIGURATION.md for the public format
+  policy `automatic`; expected implicit, explicit, fixed, or disabled; see
+  docs/CONFIGURATION.md for the public format
 ---
 setting: python.managed.resolution=automatic
 stderr: >
   python: managed.resolution: unknown resolution policy `automatic`;
-  expected implicit, explicit, startup_only, or disabled
+  expected implicit, explicit, fixed, or disabled
 ---
 setting: >-
   python.first_available=[{existing: unused}, {managed: {resolution:
   automatic}}]
 stderr: >
   python.first_available[1]: python: managed.resolution: unknown
-  resolution policy `automatic`; expected implicit, explicit,
-  startup_only, or disabled
+  resolution policy `automatic`; expected implicit, explicit, fixed, or
+  disabled

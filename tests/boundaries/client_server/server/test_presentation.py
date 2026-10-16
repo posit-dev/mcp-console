@@ -48,10 +48,10 @@ def test_python_dependency_guidance_matches_selection(binary: Path) -> Transcrip
             "implicit",
         ),
         (
-            "managed startup only",
-            {"managed": {"resolution": "startup_only"}},
+            "managed fixed",
+            {"managed": {"resolution": "fixed"}},
             None,
-            "startup_only",
+            "fixed",
         ),
         (
             "existing fallback",
@@ -109,7 +109,7 @@ def test_python_dependency_guidance_matches_selection(binary: Path) -> Transcrip
                     "prepare missing PyPI distributions on first import" in guidance
                 ) == (policy == "implicit"), (name, guidance)
                 assert ("Only startup dependencies are prepared" in guidance) == (
-                    policy == "startup_only"
+                    policy == "fixed"
                 ), (name, guidance)
                 assert (
                     "Use installed packages in the selected environment" in guidance

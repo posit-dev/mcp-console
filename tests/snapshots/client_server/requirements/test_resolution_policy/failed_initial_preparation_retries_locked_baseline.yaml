@@ -1,5 +1,5 @@
 ---
-!same-as startup-only MCP initialization for this execution mode
+!same-as fixed MCP initialization for this execution mode
 ---
 send:
   requirements:
@@ -32,8 +32,8 @@ result:
   content:
     - type: text
       text: >-
-        [Python requirements cannot change under
-        python.managed.resolution=startup_only (requirements.action=set)]
+        [Python requirements cannot change under python.managed.resolution=fixed
+        (requirements.action=set)]
   isError: true
 ---
 send:

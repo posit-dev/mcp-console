@@ -16,8 +16,8 @@ Use \code{\link[=current_r]{current_r()}} to select the R installation running t
 optional startup packages. \code{character()} requests no optional packages.}
 
 \item{resolution}{\code{NULL} (defaulting to \code{"implicit"}), \code{"implicit"}, \code{"explicit"},
-\code{"startup_only"}, or \code{"disabled"}. Implicit permits runtime additions; explicit permits later
-deliberate requirement changes; startup_only prepares once; disabled uses
+\code{"fixed"}, or \code{"disabled"}. Implicit permits runtime additions; explicit permits
+later deliberate requirement changes; fixed keeps the startup declaration; disabled uses
 preinstalled R packages and requires an empty or omitted package list.}
 
 \item{vanilla}{\code{NULL}, \code{TRUE}, or \code{FALSE}; controls native R startup files.}
@@ -31,6 +31,6 @@ installation and package declaration once per connection. Worker restart
 does not rediscover the installation or reread configuration files.
 }
 \examples{
-RConfig(packages = "dplyr", resolution = "startup_only")
+RConfig(packages = "dplyr", resolution = "fixed")
 RConfig(resolution = "disabled")
 }

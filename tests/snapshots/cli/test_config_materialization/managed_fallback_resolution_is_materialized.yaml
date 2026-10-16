@@ -15,7 +15,7 @@ managed:
 ---
 selected: existing
 managed:
-  resolution: startup_only
+  resolution: fixed
 ---
 selected: managed
 managed:
@@ -33,4 +33,4 @@ managed:
 ---
 selected: managed
 managed:
-  resolution: startup_only
+  resolution: fixed

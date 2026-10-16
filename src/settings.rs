@@ -314,7 +314,7 @@ pub(crate) fn read(
             .map_err(|error| format!("{name}: r.packages: {error}"))?;
         if !packages.is_empty() && project.r.as_ref().unwrap().resolution == Resolution::Disabled {
             return Err(format!(
-                "{name}: r.packages must be empty under r.resolution=disabled; use startup_only to prepare configured packages"
+                "{name}: r.packages must be empty under r.resolution=disabled; use fixed to prepare configured packages"
             ));
         }
     }

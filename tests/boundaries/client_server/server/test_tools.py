@@ -130,14 +130,14 @@ def test_initializes_and_lists_tools(
             bootstrap_languages="python",
             python_resolution="implicit",
         ),
-        "startup-only.yaml": _initializes_and_lists_tools(
-            binary, execution, python_resolution="startup_only"
+        "fixed.yaml": _initializes_and_lists_tools(
+            binary, execution, python_resolution="fixed"
         ),
-        "configured-python-startup-only.yaml": _initializes_and_lists_tools(
+        "configured-python-fixed.yaml": _initializes_and_lists_tools(
             binary,
             execution,
             bootstrap_languages="python",
-            python_resolution="startup_only",
+            python_resolution="fixed",
         ),
         "configured-python.yaml": _initializes_and_lists_tools(
             binary, execution, bootstrap_languages="python"
@@ -371,7 +371,7 @@ def _initializes_and_lists_tools(
                         "prepare missing PyPI distributions on first import"
                         in python_guidance
                     )
-                elif python_resolution == "startup_only":
+                elif python_resolution == "fixed":
                     assert "Only startup dependencies are prepared" in python_guidance
                 else:
                     assert (

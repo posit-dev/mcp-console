@@ -39,12 +39,12 @@ For launch flags, including custom workers and `--no-sandbox`, see [Command-line
 `r: /opt/R/bin/R` is shorthand for `r: {executable: /opt/R/bin/R}`.
 The mapping accepts:
 
-| Node           | Accepted values                                    | Meaning and default                                                                                                                                                                             |
-| -------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `r.executable` | Nonempty path string                               | Installed R executable or launcher. Omission uses installation hints and PATH discovery. Select the launcher, not an R installation directory or Rscript.                                       |
-| `r.packages`   | List of single-line `ir` package references        | Startup packages to prepare. Omission keeps the [default R packages](REQUIREMENTS.md#defaults-and-startup-configuration); `[]` requests no optional packages. Preparation does not attach them. |
-| `r.resolution` | `implicit`, `explicit`, `startup_only`, `disabled` | When Console may prepare packages. Default: `implicit`. See [Resolution policies](#resolution-policies).                                                                                        |
-| `r.vanilla`    | `true` or `false`                                  | Request R's native `--vanilla` startup when true. Default: `false`, retaining normal environment/profile/workspace startup.                                                                     |
+| Node           | Accepted values                             | Meaning and default                                                                                                                                                                             |
+| -------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `r.executable` | Nonempty path string                        | Installed R executable or launcher. Omission uses installation hints and PATH discovery. Select the launcher, not an R installation directory or Rscript.                                       |
+| `r.packages`   | List of single-line `ir` package references | Startup packages to prepare. Omission keeps the [default R packages](REQUIREMENTS.md#defaults-and-startup-configuration); `[]` requests no optional packages. Preparation does not attach them. |
+| `r.resolution` | `implicit`, `explicit`, `fixed`, `disabled` | When Console may prepare packages. Default: `implicit`. See [Resolution policies](#resolution-policies).                                                                                        |
+| `r.vanilla`    | `true` or `false`                           | Request R's native `--vanilla` startup when true. Default: `false`, retaining normal environment/profile/workspace startup.                                                                     |
 
 ```yaml
 r:
@@ -85,14 +85,14 @@ Fields under `python.managed`:
 | --------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `python.managed.version`    | One quoted Python version or constraint string, such as `"3.13"` or `">=3.12,<3.14"` | Restrict the managed CPython version. Omission adds no version constraint; CPython older than 3.10 is always excluded.                                                                               |
 | `python.managed.packages`   | List of named PEP 508 registry requirements                                          | Startup packages to prepare. Omission keeps the [default Python packages](REQUIREMENTS.md#defaults-and-startup-configuration); `[]` requests no optional packages. Preparation does not import them. |
-| `python.managed.resolution` | `implicit`, `explicit`, `startup_only`                                               | When Console may prepare Python packages. Default: `explicit`. Set `implicit` to opt in to preparation on missing imports. For preinstalled-only use, select an existing environment.                |
+| `python.managed.resolution` | `implicit`, `explicit`, `fixed`                                                      | When Console may prepare Python packages. Default: `explicit`. Set `implicit` to opt in to preparation on missing imports. For preinstalled-only use, select an existing environment.                |
 
 ```yaml
 python:
   managed:
     version: ">=3.12,<3.14"
     packages: [numpy, pandas]
-    resolution: startup_only
+    resolution: fixed
 ```
 
 ### First available Python
@@ -131,7 +131,7 @@ R defaults to `implicit`; managed Python defaults to `explicit`.
 | ------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `implicit`          | Startup packages, explicit requirement changes, and reached missing-package loads/imports.                   |
 | `explicit`          | Startup packages and explicit requirement changes. Missing-package loads/imports do not request preparation. |
-| `startup_only`      | Startup packages only. Later requirement changes are rejected.                                               |
+| `fixed`             | Prepare startup packages and keep the declaration fixed for the connection.                                  |
 | `disabled` (R only) | No R package preparation, including Console's R infrastructure. Supplied `r.packages` must be empty.         |
 
 An omitted package list keeps the runtime's default declaration; an explicit list replaces it.

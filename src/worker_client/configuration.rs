@@ -163,7 +163,7 @@ impl ClientConfiguration {
             && !discovery.managed
             && matches!(
                 r_settings.resolution,
-                crate::settings::Resolution::Explicit | crate::settings::Resolution::StartupOnly
+                crate::settings::Resolution::Explicit | crate::settings::Resolution::Fixed
             )
         {
             let error = format!(

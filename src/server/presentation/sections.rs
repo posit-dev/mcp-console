@@ -63,7 +63,7 @@ pub(super) const PYTHON_EXPLICIT: &str = " Declare dependencies with `requiremen
 
 pub(super) const PYTHON_IMPLICIT: &str = " Import packages normally; managed sessions prepare missing PyPI distributions on first import. Import names may differ from distribution names.";
 
-pub(super) const PYTHON_STARTUP_ONLY: &str = " Only startup dependencies are prepared; later `requirements.python` changes and automatic import preparation are disabled.";
+pub(super) const PYTHON_FIXED: &str = " Only startup dependencies are prepared; later `requirements.python` changes and automatic import preparation are disabled.";
 
 pub(super) const PYTHON_INSTALLED: &str =
     " Use installed packages in the selected environment; `requirements.python` is unavailable.";

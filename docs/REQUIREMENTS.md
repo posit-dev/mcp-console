@@ -62,7 +62,7 @@ R defaults to `implicit`; managed Python defaults to `explicit`.
 | -------------------------------- | ---------------------- | ------------------------- | ----------------------------- |
 | `implicit`                       | Prepared               | Allowed                   | May prepare packages          |
 | `explicit`                       | Prepared               | Allowed                   | Do not prepare packages       |
-| `startup_only`                   | Prepared               | Not allowed               | Do not prepare packages       |
+| `fixed`                          | Prepared               | Not allowed               | Do not prepare packages       |
 | R `disabled`, or existing Python | No managed preparation | Not allowed               | Use installed packages        |
 
 For example:
@@ -74,7 +74,7 @@ r:
 python:
   managed:
     packages: [numpy, pandas]
-    resolution: startup_only
+    resolution: fixed
 ```
 
 R's `disabled` policy also skips Console's R infrastructure preparation.
