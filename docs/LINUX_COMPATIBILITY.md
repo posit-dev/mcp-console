@@ -1,7 +1,45 @@
 # Linux host compatibility
 
-Linux compatibility depends on effective permissions and host facilities, not only a kernel version.
-[`sandbox-runner.json`](../sandbox-runner.json) selects the native implementation; [sandbox configuration](SANDBOX_CONFIGURATION.md) selects application policy.
+Use this page to troubleshoot Linux startup failures, including missing libraries and host restrictions.
+For installation and client setup, see [Get started](getting-started.qmd).
+
+## Runtime libraries
+
+Console supports Linux hosts with glibc 2.35 or newer.
+The following runtime libraries may already be installed on your system; the installation commands below are only needed when they are missing.
+They are system dependencies, separate from the Python packages installed by `uv`.
+
+| Ubuntu/Debian package | Shared library   | Needed for                                                       |
+| --------------------- | ---------------- | ---------------------------------------------------------------- |
+| `libcap2`             | `libcap.so.2`    | Linux process capabilities in the bundled Bubblewrap sandbox.    |
+| `libgcc-s1`           | `libgcc_s.so.1`  | GNU runtime support for Console and its sandbox executables.     |
+| `libstdc++6`          | `libstdc++.so.6` | C++ runtime support for native analysis packages such as DuckDB. |
+
+On Ubuntu or Debian, install missing runtime libraries with:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y libcap2 libgcc-s1 libstdc++6
+```
+
+A missing library can appear as `error while loading shared libraries` before Console starts, or as an import error when a native Python extension loads.
+Use the missing `.so` filename in the error to identify the package in the table above.
+
+## Host and container setup
+
+The host must permit the sandbox's namespace setup and requested native/seccomp facilities.
+Host and container restrictions can prevent startup even when the required libraries are installed.
+
+Ubuntu AppArmor policy can permit system `/usr/bin/bwrap` while denying a relocated bundled helper.
+Check native diagnostics and kernel policy records; a working system helper does not validate the bundle.
+
+Ordinary containers may deny nested namespace setup.
+Console adds no privileged flags or implicit policy changes.
+Deliberately selecting external mode delegates enforcement to the container and has different cleanup guarantees.
+
+A trusted host helper can take precedence.
+When the bundled helper is selected, its digest is verified and it is executed through the verified descriptor.
+Test that path in an approved disposable environment; do not weaken a user's host security policy merely to pass a check.
 
 ## Policy and backend contract
 
@@ -31,39 +69,6 @@ Console does not create permanent placeholders, grant parents, or switch backend
 [Sandbox configuration](SANDBOX_CONFIGURATION.md#filesystem) owns path precedence and metadata protection.
 Restricted-policy security results must not be attributed to unrestricted or externally enforced workloads.
 
-## Host and container setup
-
-Ubuntu AppArmor policy can permit system `/usr/bin/bwrap` while denying a relocated bundled helper.
-Check native diagnostics and kernel policy records; a working system helper does not validate the bundle.
-
-Ordinary containers may deny nested namespace setup.
-Console adds no privileged flags or implicit policy changes.
-Deliberately selecting external mode delegates enforcement to the container and has different cleanup guarantees.
-
-A trusted host helper can take precedence.
-When the bundled helper is selected, its digest is verified and it is executed through the verified descriptor.
-Test that path in an approved disposable environment; do not weaken a user's host security policy merely to pass a check.
-
 ## Reproducing the comparisons
 
-```sh
-scripts/test cli/sandbox/test_procfs
-scripts/test cli/sandbox/test_configuration
-python3 tests/sandbox_installation.py target/release/mcp-console
-```
-
-The procfs matrix compares fresh/inherited views with readable/denied sentinel paths and restricted/enabled networking.
-It checks direct policy behavior and attempts through process metadata, descriptors, memory, signals, and namespace entry.
-Host restrictions must not substitute for the sandbox property under test.
-
-Namespace-link access and namespace entry are separate assertions, resolving [SP-5](https://github.com/t-kalinowski/mcp-console/issues/603).
-The trusted fixture driver first proves that it can enter its disposable network namespace, then supplies a validated handle to the sandboxed target.
-The disposable host process drops the driver's capabilities so they cannot conceal a ptrace bypass.
-This keeps namespace entry reachable even when procfs denies access to the host process's namespace link, and retains exact errors for both checks.
-
-These probes establish specific contracts, not proof against all kernel attacks.
-Fixture process-observation requirements are separate from production requirements.
-[Boundary tests](../tests/boundaries/README.md) covers capability skips and safe namespace-PID handling.
-
-Release acceptance additionally checks the installed bundle with an empty PATH and native floor-runtime images.
-See [Release](../RELEASE.md#linux-floor-validation); an ABI report, successful normalization, or skipped native probe is not a sandbox acceptance result.
+See [Linux platform validation](DEVELOPMENT.md#linux-platform-validation) for regression probes and release acceptance.

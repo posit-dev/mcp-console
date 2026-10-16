@@ -212,9 +212,6 @@ impl Preparation {
         let mut command = std::process::Command::new(&executable);
         if no_sandbox {
             crate::settings::configure_environment(&mut command, &settings);
-            // Worker launch also supplies scratch storage independently of
-            // project TMPDIR. Inspection result files own their unique paths.
-            command.env("TMPDIR", std::env::temp_dir());
         } else {
             crate::settings::preserve_environment(
                 &mut settings,

@@ -281,6 +281,8 @@ def test_r_inspection_uses_worker_temporary_storage(
 ) -> Transcript:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
+        host_temp = root / "host-temp"
+        host_temp.mkdir()
         environment, rscript = r_test_environment()
         selected = root / "chosen R"
         selected.write_text(
@@ -297,8 +299,7 @@ def test_r_inspection_uses_worker_temporary_storage(
                 "-c",
                 "r.executable=./chosen R",
                 "-c",
-                "environment.TMPDIR="
-                + str(root / "invalid configured temporary directory"),
+                "environment.TMPDIR=" + str(host_temp),
                 "-c",
                 "resolver.environment.TMPDIR=" + gettempdir(),
             ),

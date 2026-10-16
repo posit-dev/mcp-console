@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import NATIVE_FIXTURES, POSIX, SQL, UNPRIVILEGED, requires
+from support.requirements import NATIVE_FIXTURES, POSIX, SQL, requires
 from support.assertions import (
     assert_exact_interleaving,
     assert_result_content,
@@ -2201,6 +2201,75 @@ def test_resolves_default_python_without_r(
 
 
 @executions(DIRECT, SANDBOXED)
+def test_standard_library_environment_supports_python_and_sql(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        venv = root / "environment"
+        subprocess.run(
+            [sys.executable, "-m", "venv", "--without-pip", venv],
+            check=True,
+            capture_output=True,
+        )
+        selected = virtualenv_python(venv)
+        env = selected_environment(selected.parent)
+        config = root / ".agents/console/config.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text("python: environment\n")
+        with McpClient(binary, execution.serve(), env, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "4\n",
+                # fmt: python
+                python=code("""
+                    import importlib.util
+                    import statistics
+
+                    assert all(
+                        importlib.util.find_spec(package) is None
+                        for package in ("numpy", "pandas", "matplotlib", "duckdb")
+                    )
+                    values = [2, 4, 6]
+                    statistics.mean(values)
+                    """),
+            )
+            client.expect("5\n", python="values.append(8); statistics.mean(values)")
+            client.expect(
+                "standard-library help available\n",
+                # fmt: python
+                python=code("""
+                    import contextlib
+                    import io
+
+                    with contextlib.redirect_stdout(io.StringIO()) as documentation:
+                        help(statistics.mean)
+                    assert "arithmetic mean" in documentation.getvalue()
+                    print("standard-library help available")
+                    """),
+            )
+            client.send(python="answer = input('value> '); answer")
+            assert "[waiting for stdin]" in last_result_text(client)
+            wait_for_evaluation_output(
+                client, "'hello'\n", "standard-library input", stdin="hello\n"
+            )
+            client.send(
+                # fmt: python
+                python=code("""
+                    import sqlite3
+
+                    connection = sqlite3.connect(":memory:")
+                    _console.sql_connection(connection)
+                    """),
+            )
+            client.send(sql="CREATE TABLE answers AS SELECT 42 AS answer")
+            client.send(sql="SELECT answer FROM answers")
+            assert "42" in last_result_text(client), last_result_text(client)
+            return client.finish()
+
+
+@executions(DIRECT, SANDBOXED)
+@execution_snapshots
 def test_uses_selected_virtualenv(binary: Path, execution: Execution) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
@@ -2218,6 +2287,9 @@ def test_uses_selected_virtualenv(binary: Path, execution: Execution) -> Transcr
         )
         env = selected_environment(selected.parent)
         env["MPLCONFIGDIR"] = str(root / "matplotlib")
+        host_temp = root / "host-temp"
+        host_temp.mkdir()
+        env["TMPDIR"] = str(host_temp)
         # Prepare this fixture's fonts before interpreting its path-only output.
         subprocess.run(
             [selected, "-I", "-c", "import matplotlib.font_manager"],
@@ -2280,12 +2352,15 @@ def test_uses_selected_virtualenv(binary: Path, execution: Execution) -> Transcr
 False
 [done]"""
             ), client.transcript[-1]
-            assert not temporary.exists(), "retired worker storage remains"
+            assert temporary.exists() is (execution is DIRECT)
             client.send(python="import tempfile; print(tempfile.gettempdir())")
             replacement = Path(last_result_text(client).strip())
-            assert replacement.is_dir() and replacement != temporary
+            assert replacement.is_dir()
+            assert (replacement == temporary) is (execution is DIRECT)
             records = client.finish()
-            assert not replacement.exists(), "shutdown worker storage remains"
+            assert replacement.exists() is (execution is DIRECT)
+            if execution is DIRECT:
+                assert (temporary / "owned.txt").read_text() == "owned"
             assert selected.exists(), "retirement deleted the selected environment"
             for record in records:
                 if "result" in record:
@@ -2367,11 +2442,11 @@ def test_rejects_broken_r_instead_of_selecting_python(
 
 @execution_snapshots
 @executions(DIRECT, SANDBOXED)
-def test_cleans_temporary_storage_after_startup_failure(
+def test_startup_failure_respects_temporary_storage_ownership(
     binary: Path, execution: Execution
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
+        root = Path(directory).resolve()
         venv = root / "environment"
         subprocess.run(
             [sys.executable, "-m", "venv", "--without-pip", venv],
@@ -2411,6 +2486,9 @@ def test_cleans_temporary_storage_after_startup_failure(
         )
         env = selected_environment(virtualenv_python(venv).parent)
         env["RETICULATE_PYTHON"] = str(selected)
+        host_temp = root / "host-temp"
+        host_temp.mkdir()
+        env["TMPDIR"] = str(host_temp)
         with McpClient(binary, arguments, env, current_directory=root) as client:
             client.initialize_and_list_tools()
             result = client.send(
@@ -2418,7 +2496,14 @@ def test_cleans_temporary_storage_after_startup_failure(
             )
             assert result["isError"] and "status 47" in last_result_text(client), result
             temporary = Path((root / "startup-temporary").read_text())
-            assert not temporary.exists(), f"failed worker storage remains: {temporary}"
+            if execution is SANDBOXED:
+                assert temporary.is_relative_to(host_temp)
+                assert not temporary.exists(), (
+                    f"failed worker storage remains: {temporary}"
+                )
+            else:
+                assert temporary == host_temp
+                assert (temporary / "owned-before-failure").exists()
             assert selected.exists(), "startup failure deleted the environment"
             client.expect(
                 "replacement initializes successfully\n",
@@ -2537,7 +2622,11 @@ def test_interrupts_python_and_replaces_a_failed_worker(
         path = Path(directory)
         if os.name != "nt":
             (path / "python3").symlink_to(sys.executable)
-        with McpClient(binary, execution.serve(), selected_environment(path)) as client:
+        env = selected_environment(path)
+        host_temp = path / "host-temp"
+        host_temp.mkdir()
+        env["TMPDIR"] = str(host_temp)
+        with McpClient(binary, execution.serve(), env) as client:
             client.initialize_and_list_tools()
             client.send(python="retained = 41")
             wait_for_evaluation_output(
@@ -2562,7 +2651,7 @@ def test_interrupts_python_and_replaces_a_failed_worker(
             client.send(python="import os; os._exit(23)")
             assert "status 23" in last_result_text(client), client.transcript[-1]
             client.expect("42\n", python="assert 'retained' not in globals(); 42")
-            assert not temporary.exists(), "failed worker storage remains"
+            assert temporary.exists() is (execution is DIRECT)
             records = client.finish()
             for record in records:
                 for content in record.get("result", {}).get("content", []):
@@ -2698,6 +2787,9 @@ def failed_native_startup(binary: Path, execution: Execution) -> Transcript:
         )
         env = selected_environment(virtualenv_python(venv).parent)
         env["RETICULATE_PYTHON"] = str(selected)
+        host_temp = workspace / "host-temp"
+        host_temp.mkdir()
+        env["TMPDIR"] = str(host_temp)
         with McpClient(binary, arguments, env, workspace) as client:
             client.initialize_and_list_tools()
             result = client.send(
@@ -2706,7 +2798,7 @@ def failed_native_startup(binary: Path, execution: Execution) -> Transcript:
             assert result["isError"], result
             records = client.finish()
             temporary = Path((workspace / "startup-temporary").read_text())
-            assert not temporary.exists(), "failed worker storage remains"
+            assert temporary.exists() is (execution is DIRECT)
             assert selected.exists(), "failed startup removed selected environment"
             content = records[-1]["result"]["content"][0]
             diagnostic = (
@@ -3113,131 +3205,3 @@ def test_records_managed_python_defaults(
                 )
             },
         )
-
-
-@requires(NATIVE_FIXTURES, UNPRIVILEGED)
-@executions(DIRECT)
-def test_reports_direct_storage_retirement_failure(
-    binary: Path, execution: Execution
-) -> Transcript:
-    records = []
-    for stage in ("restart", "shutdown", "startup failure"):
-        with tempfile.TemporaryDirectory() as directory:
-            workspace = Path(directory)
-            temporary_parent = workspace / "temporary-parent"
-            temporary_parent.mkdir()
-            venv = workspace / "environment"
-            subprocess.run(
-                [sys.executable, "-m", "venv", "--without-pip", venv],
-                check=True,
-                capture_output=True,
-            )
-            site = Path(
-                subprocess.check_output(
-                    [
-                        virtualenv_python(venv),
-                        "-I",
-                        "-c",
-                        "import sysconfig; print(sysconfig.get_path('purelib'))",
-                    ],
-                    text=True,
-                ).strip()
-            )
-            # fmt: python
-            restrict = code("""
-                import os
-                from pathlib import Path
-
-                temporary = Path(os.environ["TMPDIR"])
-                Path("worker-temporary").write_text(str(temporary))
-                restricted = temporary / "restricted"
-                restricted.mkdir()
-                (restricted / "retained.txt").write_text("private contents")
-                restricted.chmod(0)
-                """)
-            if stage == "startup failure":
-                # fmt: python
-                hook = code("""
-                    import os
-                    from pathlib import Path
-
-                    if "MCP_CONSOLE_LOCAL_RUNTIME" in os.environ:
-                        temporary = Path(os.environ["TMPDIR"])
-                        Path("worker-temporary").write_text(str(temporary))
-                        restricted = temporary / "restricted"
-                        restricted.mkdir()
-                        (restricted / "retained.txt").write_text("private contents")
-                        restricted.chmod(0)
-                        temporary.parent.chmod(0o500)
-                        os._exit(47)
-                    """)
-                (site / "sitecustomize.py").write_text(hook)
-            try:
-                environment = selected_environment(virtualenv_python(venv).parent)
-                environment["TMPDIR"] = str(temporary_parent)
-                environment[LOADER_VARIABLE] = str(
-                    build_interposer(workspace, "temporary_directory_failure")
-                )
-                with McpClient(
-                    binary,
-                    execution.serve(),
-                    environment,
-                    workspace,
-                ) as client:
-                    client.initialize_and_list_tools()
-                    client.send(python=restrict if stage != "startup failure" else "42")
-                    # Retirement restores owned directory permissions, but may
-                    # not grant write access to the fixture-owned parent.
-                    temporary_parent.chmod(0o500)
-                    if stage == "restart":
-                        client.send(python="temporary.chmod(0)")
-                        client.send(
-                            control="restart", python="print('replacement ran')"
-                        )
-                    if stage != "shutdown":
-                        assert client.transcript[-1]["result"]["isError"], (
-                            client.transcript[-1]
-                        )
-                        assert (
-                            "cannot remove worker temporary directory"
-                            in last_result_text(client)
-                        ), client.transcript[-1]
-                        assert "replacement ran\n" not in last_result_text(client)
-                    client.stdin.close()
-                    client.process.wait(timeout=15)
-                    stderr = client.stderr.read()
-                    # Even startup hooks now execute after worker readiness.
-                    # Unconfirmed retirement remains a server shutdown failure.
-                    assert client.process.returncode != 0, (stage, stderr)
-                    assert "cannot remove worker temporary directory" in stderr, stderr
-                    temporary = Path((workspace / "worker-temporary").read_text())
-                    assert temporary.parent == temporary_parent
-                    assert temporary.exists()
-                    assert temporary_parent.stat().st_mode & 0o777 == 0o500
-                    assert (virtualenv_python(venv)).exists()
-                    records.append({"stage": stage})
-                    records.extend(client.transcript)
-                    records.append({"stderr": stderr})
-                    # Normalize only this owned, run-specific path.
-                    for record in records:
-                        for content in record.get("result", {}).get("content", []):
-                            if content["type"] == "text":
-                                content["text"] = content["text"].replace(
-                                    str(temporary), "<worker temporary>"
-                                )
-                        if "stderr" in record:
-                            record["stderr"] = record["stderr"].replace(
-                                str(temporary), "<worker temporary>"
-                            )
-            finally:
-                temporary_parent.chmod(0o700)
-                marker = workspace / "worker-temporary"
-                if marker.exists():
-                    temporary = Path(marker.read_text())
-                    if temporary.exists():
-                        temporary.chmod(0o700)
-                        restricted = temporary / "restricted"
-                        if restricted.exists():
-                            restricted.chmod(0o700)
-                        shutil.rmtree(temporary)
-    return records

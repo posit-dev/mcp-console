@@ -33,6 +33,13 @@ pub(crate) fn initialized() -> bool {
     runtime().is_some()
 }
 
+pub(super) fn shutdown() -> Result<(), String> {
+    if let Some(runtime) = runtime() {
+        runtime.shutdown().map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
 pub(crate) fn available() -> bool {
     R_INSTALLATION.get().is_some_and(Option::is_some)
 }

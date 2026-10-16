@@ -1,5 +1,8 @@
 # Calls, input, and control
 
+For client authors handling calls and session lifetime.
+To connect an existing MCP client, start with [Get started](getting-started.qmd).
+
 `send` operates on one session and accepts at most one complete `r`, `python`, or `sql` cell.
 Submit cells sequentially and collect unfinished results before sending another cell.
 See the [API reference](API.md) for argument types and limits.
@@ -105,7 +108,7 @@ Python-only sessions reject interrupt-plus-requirements entirely.
 
 Changed `set`/`reset` normally needs explicit restart after user execution.
 A still-unused prewarmed worker has a limited replacement exception; configured session startup or nonempty user input ends it.
-See [Requirements actions](REQUIREMENTS.md#inspecting-and-replacing-requirements).
+See [Requirements actions](REQUIREMENTS_API.md#inspecting-and-replacing-requirements).
 
 ## Wait timing and cancellation
 
@@ -122,3 +125,24 @@ Outputs are bounded and consumed by polling.
 Recovery after cancellation is not exactly-once client delivery: bytes can reach a client before cancellation settles.
 A recorded result proves assembly, not receipt.
 Developer details belong to [Architecture](ARCHITECTURE.md#output-and-delivery).
+
+## Python client cancellation
+
+If `KeyboardInterrupt` interrupts a synchronous response wait, the client cancels that request and re-raises the exception.
+It waits for the SDK's request cleanup before re-raising so subsequent calls cannot overtake cancellation.
+Concurrent sends are rejected while cancellation cleanup is in progress; ordinary concurrent control calls remain available when a cell is running.
+The interrupted response wait retains admission while publishing cancellation, so a competing send cannot pass between those steps.
+Cleanup has a five-second limit; another `KeyboardInterrupt` also ends the wait.
+Cancellation submission does not wait for the SDK event loop, so this limit also applies while the SDK is busy validating a response.
+Interrupting before a request starts prevents it from being sent and leaves the connection usable.
+If cleanup does not finish, the client aborts that request task and rejects further calls until the connection has been closed and reconnected.
+Closing waits at most five seconds for the aborted request to stop before closing the SDK transport and portal.
+If that request still cannot stop, closing raises an error and retains the invalid connection until it stops.
+An admitted cell keeps running.
+Catch the exception inside the connection's context to poll for its output or call `console.send(control="interrupt")` to interrupt execution explicitly.
+Leaving the context closes the session.
+If SDK teardown raises after consuming its cleanup callbacks, the client records a disconnected state; reconnecting starts a fresh session.
+
+A journaled result records response assembly, not confirmed client receipt.
+Cancellation can race with delivery.
+See the generated [Python client API](https://t-kalinowski.github.io/mcp-console/python/reference/MCPConsole.html) for signatures and connection lifetime.

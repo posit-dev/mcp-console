@@ -105,6 +105,11 @@ PTHREAD_RUNTIME_PARKING = Requirement(
     sys.platform == "darwin",
     "requires macOS pthread condition-variable runtime parking",
 )
+PTHREAD_MUTEX_INTERPOSITION = Requirement(
+    "pthread mutex interposition",
+    sys.platform == "darwin",
+    "requires macOS pthread mutex recording checkpoints",
+)
 # XNU's bsd/dev/arm/unix_signal.c reports SEGV_ACCERR for every SIGSEGV,
 # including null access. Keep these real kernel diagnostics in separate cases.
 NULL_FAULT_ACCERR = Requirement(

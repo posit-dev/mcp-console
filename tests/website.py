@@ -89,7 +89,8 @@ class WebsiteTests(unittest.TestCase):
                 "[Python reference](https://t-kalinowski.github.io/mcp-console/"
                 "python/reference/MCPConsole.html?view=full#"
                 "mcp_console.MCPConsole.send)\n\n"
-                f"[R overview]({r_readme})\n"
+                f"[R overview]({r_readme})\n\n"
+                f"[R configuration]({r_readme}#inspect-and-edit-configuration)\n"
             )
         result = subprocess.run(
             ["quarto", "render", str(docs), "--to", "html"],
@@ -149,6 +150,13 @@ class WebsiteTests(unittest.TestCase):
         path = self.site / "cli-help.html"
         self.assertIn(path, self.pages, "CLI help page is missing")
         soup = BeautifulSoup(path.read_text(), "html.parser")
+        public_commands = {
+            "mcp-console --help",
+            "mcp-console config --help",
+            "mcp-console config resolve --help",
+            "mcp-console serve --help",
+            "mcp-console sandbox --help",
+        }
         for platform, filename in (("all-platforms", "help.yaml"),):
             with self.subTest(platform=platform):
                 entries = read_yaml(
@@ -158,8 +166,10 @@ class WebsiteTests(unittest.TestCase):
                 expected = [
                     (entry["command"], entry["stdout"].rstrip("\n"))
                     for entry in entries
-                    if entry["command"].endswith(" --help")
+                    if entry["command"] in public_commands
                 ]
+                self.assertEqual({command for command, _ in expected}, public_commands)
+                self.assertEqual(len(expected), len(public_commands))
                 panel = soup.find(id=platform)
                 self.assertIsNotNone(panel, "platform panel is missing")
                 actual = [
@@ -167,6 +177,15 @@ class WebsiteTests(unittest.TestCase):
                     for pre in panel.select("pre.cli-help")
                 ]
                 self.assertEqual(actual, expected)
+                for pre in panel.select("pre.cli-help"):
+                    self.assertEqual(pre.get("tabindex"), "0")
+                    self.assertEqual(pre.get("role"), "region")
+                    label = soup.find(id=pre.get("aria-labelledby"))
+                    self.assertIsNotNone(label)
+                    self.assertEqual(
+                        label.get_text().strip(),
+                        pre["data-command"].removesuffix(" --help"),
+                    )
                 headings = [
                     heading.get_text().strip() for heading in panel.select("h3")
                 ]
@@ -185,6 +204,127 @@ class WebsiteTests(unittest.TestCase):
             if not urlsplit(link).scheme and not urlsplit(link).netloc
         }
         self.assertIn(path, destinations)
+
+    def test_reading_paths_have_their_own_navigation(self) -> None:
+        paths = (
+            ("CONFIGURATION.html", "REQUIREMENTS.html", "SEND_OPERATIONS.html"),
+            ("API.html", "REQUIREMENTS_API.html", "SANDBOX_CONFIGURATION.html"),
+            ("ARCHITECTURE.html", "WINDOWS_DEVELOPMENT.html", "REQUIREMENTS.html"),
+        )
+        for name, included, excluded in paths:
+            with self.subTest(page=name):
+                soup = BeautifulSoup((self.site / name).read_text(), "html.parser")
+                sidebar = soup.find(id="quarto-sidebar")
+                self.assertIsNotNone(sidebar)
+                links = {
+                    urlsplit(link["href"]).path.removeprefix("./")
+                    for link in sidebar.select("a[href]")
+                }
+                self.assertIn(included, links)
+                self.assertNotIn(excluded, links)
+                navbar = soup.select_one(".navbar")
+                for label in (
+                    "User guides",
+                    "Client integration",
+                    "Development",
+                    "Packages",
+                ):
+                    self.assertIn(label, navbar.get_text(" ", strip=True))
+
+    def test_home_title_has_one_introduction_and_description_metadata(self) -> None:
+        soup = BeautifulSoup((self.site / "index.html").read_text(), "html.parser")
+        title = soup.select_one("#title-block-header")
+        self.assertIsNotNone(title.select_one(".subtitle"))
+        self.assertIsNone(title.select_one(".description"))
+        description = soup.find("meta", attrs={"name": "description"})
+        self.assertIsNotNone(description)
+        self.assertIn("data", description["content"])
+
+    def test_moved_reference_pages_and_historical_fragments(self) -> None:
+        fragments = {
+            "CONFIGURATION": (
+                "model-visible-languages",
+                "tool-descriptions-and-parameters",
+                "inspect-and-edit-resolved-configuration",
+            ),
+            "BUILTIN_RUNTIME": (
+                "runtime-selection",
+                "r",
+                "python",
+                "r-and-python-interoperability",
+                "sql-and-duckdb",
+                "plots-and-images",
+                "output-and-notices",
+                "current-limitations",
+                "installed-documentation",
+                "select-a-native-connection",
+                "result-previews",
+            ),
+            "REQUIREMENTS": (
+                "inspecting-and-replacing-requirements",
+                "accepted-requirement-input",
+                "requirements-for-a-cell",
+                "automatic-r-package-resolution",
+                "automatic-python-import-resolution",
+                "live-preparation",
+                "live-r-preparation",
+                "live-python-preparation",
+                "duckdb-extension-preparation",
+                "restarting-with-requirements",
+                "custom-workers",
+            ),
+            "WINDOWS": (
+                "build-from-source",
+                "validation",
+                "testing-parity-and-remaining-gaps",
+            ),
+            "SANDBOX": (
+                "application-policy-and-launch",
+                "policy-extensions-and-compatibility",
+            ),
+            "LINUX_COMPATIBILITY": ("reproducing-the-comparisons",),
+            "SEND_OPERATIONS": ("python-client-cancellation",),
+        }
+        for name, identifiers in fragments.items():
+            with self.subTest(page=name):
+                self.assertLessEqual(
+                    set(identifiers), self.pages[self.site / f"{name}.html"].ids
+                )
+        for name in (
+            "RUNTIME_REFERENCE",
+            "REQUIREMENTS_API",
+            "TOOL_CONFIGURATION",
+            "WINDOWS_DEVELOPMENT",
+        ):
+            with self.subTest(reference=name):
+                soup = BeautifulSoup(
+                    (self.site / f"{name}.html").read_text(), "html.parser"
+                )
+                self.assertGreater(len(soup.select_one("main").get_text()), 1000)
+
+    def test_workspace_profile_is_available_in_setup_guides(self) -> None:
+        for name in ("getting-started", "CONFIGURATION", "SANDBOX_CONFIGURATION"):
+            with self.subTest(page=name):
+                self.assertTrue(
+                    any(
+                        line.strip() == "profile: workspace"
+                        for code in self.pages[self.site / f"{name}.html"].code_blocks
+                        for line in code.splitlines()
+                    )
+                )
+
+    def test_reference_tables_have_keyboard_accessible_scroll_regions(self) -> None:
+        for name in ("CONFIGURATION.html", "REQUIREMENTS.html", "python/index.html"):
+            with self.subTest(page=name):
+                soup = BeautifulSoup((self.site / name).read_text(), "html.parser")
+                tables = soup.select("main table")
+                self.assertTrue(tables)
+                for table in tables:
+                    region = table.find_parent("div", class_="table-responsive")
+                    self.assertIsNotNone(region)
+                    self.assertEqual(region.get("tabindex"), "0")
+                    self.assertEqual(region.get("role"), "region")
+                    self.assertTrue(region.get("aria-label"))
 
     def test_r_package_subsite(self) -> None:
         home = (self.site / "r/index.html").resolve()
@@ -382,6 +522,7 @@ class WebsiteTests(unittest.TestCase):
                     "python/reference/MCPConsole.html?view=full#"
                     "mcp_console.MCPConsole.send",
                     "r/index.html",
+                    "r/index.html#inspect-and-edit-configuration",
                 ):
                     self.assertIn(prefix + target, page.links)
 

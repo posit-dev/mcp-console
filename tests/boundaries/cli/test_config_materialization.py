@@ -495,7 +495,12 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
         selected = root / "selected.json"
         for source in ({}, *CONFIGURATION_EXAMPLES.values()):
             source = source | {
-                "environment": {"UNCHANGED": "", "LAYER": "worker"},
+                "environment": {
+                    "UNCHANGED": "",
+                    "LAYER": "worker",
+                    "case_sensitive": "lower",
+                    "CASE_SENSITIVE": "upper",
+                },
                 "resolver": {"environment": {"LAYER": "resolver"}},
             }
             selected.write_text(json.dumps(source), encoding="utf-8")
@@ -514,6 +519,8 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
             assert settings["resolver"]["environment"] == {
                 "UNCHANGED": "",
                 "LAYER": "resolver",
+                "case_sensitive": "lower",
+                "CASE_SENSITIVE": "upper",
             }
             if "filesystem" in source.get("sandbox", {}):
                 assert (
@@ -521,6 +528,13 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
                     == {"read_only": [], "read_write": [], "deny": []}
                     | source["sandbox"]["filesystem"]
                 )
+            if source.get("sandbox", {}).get("profile") == "workspace":
+                assert settings["sandbox"]["profile"] == "workspace", settings
+                description = settings["tool"]["description"]
+                assert "workspace" in description, description
+            assert settings["sandbox"]["tempdir"] == source.get("sandbox", {}).get(
+                "tempdir", "managed"
+            ), settings
             selected.write_text(first.stdout, encoding="utf-8")
             again = resolve(
                 binary,

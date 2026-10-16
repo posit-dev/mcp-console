@@ -357,11 +357,21 @@ fn description_for_launch(policy: &SandboxSettings, no_sandbox: bool) -> String 
             _ => unreachable!("normalized worker network choice"),
         }
     };
-    let mut writable = vec![if cfg!(windows) {
-        "private `TMPDIR` (also `TEMP` and `TMP`)".to_string()
-    } else {
-        "private `TMPDIR`".to_string()
-    }];
+    let mut writable = match crate::settings::Tempdir::from_settings(policy) {
+        crate::settings::Tempdir::Managed => vec![if cfg!(windows) {
+            "private `TMPDIR` (also `TEMP` and `TMP`)".to_string()
+        } else {
+            "private `TMPDIR`".to_string()
+        }],
+        crate::settings::Tempdir::ReadWrite => vec!["host temporary directories".to_string()],
+        crate::settings::Tempdir::ReadOnly => Vec::new(),
+    };
+    if policy
+        .get("extends")
+        .is_some_and(|profile| profile == ":workspace")
+    {
+        writable.push("workspace".to_string());
+    }
     if let Some(entries) = policy
         .get("filesystem")
         .and_then(|filesystem| filesystem.get("entries"))
@@ -377,7 +387,11 @@ fn description_for_launch(policy: &SandboxSettings, no_sandbox: bool) -> String 
     }
     let writable = format!(
         "Writable locations: {}; subject to more specific read/deny rules",
-        writable.join(", ")
+        if writable.is_empty() {
+            "none".to_string()
+        } else {
+            writable.join(", ")
+        }
     );
     format!(
         "Evaluated code can read host files subject to configured restrictions and {network_access}. {writable}. Package preparation may execute installation or build code with separate filesystem and network permissions; use only trusted dependencies."

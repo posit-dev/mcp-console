@@ -14,7 +14,7 @@ It stays stable when startup succeeds or fails.
 Configured languages control visible code fields and relevant examples; actual runtime availability is checked during execution.
 Requirements can remain visible for a hidden SQL provider.
 
-Launcher [tool configuration](CONFIGURATION.md#tool-descriptions-and-parameters) applies after generated presentation.
+Launcher [tool configuration](TOOL_CONFIGURATION.md#tool-descriptions-and-parameters) applies after generated presentation.
 It can replace tool prose, initialization instructions, and nested parameter descriptions verbatim, or hide parameters while preserving their omission defaults.
 The editorial guidance below governs generated text; explicit replacements are owned by the launcher.
 
@@ -79,7 +79,7 @@ An advertised language can fail because the runtime is unavailable; advertising 
 Existing Python, bare runtimes, and custom workers have different preparation support.
 
 Policy text must reflect selected native permissions.
-Name private temporary storage and concrete writable grants, subject to narrower read/deny rules.
+Name the configured temporary and workspace write grants and concrete writable paths, subject to narrower read/deny rules.
 Metadata protection is a default, not a mandatory ceiling.
 A read entry grants reads as well as narrowing writes.
 

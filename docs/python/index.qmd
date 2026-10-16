@@ -4,7 +4,8 @@ description: Python clients and adapters for persistent R, Python, and SQL sessi
 ---
 
 `mcp_console` connects Python applications and model frameworks to Console's persistent workbench.
-Use this site for exact signatures and complete integration examples; use the [guides](https://t-kalinowski.github.io/mcp-console/README.html) for runtime behavior and configuration.
+This package connects your application to Console; it is separate from the Python environment used by the agent's analysis.
+Use this site for exact signatures and complete integration examples; use the [guides](https://t-kalinowski.github.io/mcp-console/CLIENTS.html) for runtime behavior and configuration.
 
 ## Start without a model
 
@@ -31,6 +32,8 @@ Reconnect starts a new session.
 Install the matching extra instead of `client`.
 Reference examples describe provider credentials, model selection, and cleanup.
 
+::: {.table-responsive tabindex="0" role="region" aria-label="Framework integrations"}
+
 | Framework                    | Extra           | Existing Console connection                           | Framework-managed connection                                 |
 | ---------------------------- | --------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
 | chatlas                      | `chatlas`       | [tool](reference/chatlas.tool.qmd)                    | [register](reference/chatlas.register.qmd)                   |
@@ -38,6 +41,8 @@ Reference examples describe provider credentials, model selection, and cleanup.
 | `openai-agents` — Agents SDK | `openai-agents` | [agents_tool](reference/openai.agents_tool.qmd)       | [agents_server](reference/openai.agents_server.qmd)          |
 | `openai-codex` — Codex SDK   | `codex`         | —                                                     | [server](reference/codex.server.qmd) supplies configuration. |
 | Anthropic                    | `anthropic`     | [tool](reference/anthropic.tool.qmd)                  | [tools](reference/anthropic.tools.qmd)                       |
+
+:::
 
 Responses and native MCP integrations preserve images.
 Text-tool adapters return MIME placeholders for images.

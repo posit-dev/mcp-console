@@ -22,6 +22,7 @@ seo:
 
 site:
   theme: cosmo
+  css: docs/python/styles.css
 
 reference:
   title: Python API reference

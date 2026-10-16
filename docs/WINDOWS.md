@@ -30,7 +30,7 @@ python: C:/project/.venv
 ```
 
 Use a real interpreter/venv, not a Windows App Execution Alias.
-Its packages must already be installed.
+Install any third-party packages your analysis needs; standard-library Python needs no additional packages.
 Without an explicit selection, PATH uv prepares managed Python.
 Shared [requirements](REQUIREMENTS.md), [configuration](CONFIGURATION.md), and [recording](RECORDING.md) rules apply.
 
@@ -40,11 +40,7 @@ There is no automatic fallback to host execution when MXC is unavailable or reje
 
 ### Build from source
 
-Source builds additionally need Git, Rust's MSVC toolchain, Visual Studio C++ build tools, the Windows SDK, and CMake.
-From the repository root, run `uv tool install --reinstall .`.
-Source packaging stages the pinned companion.
-Direct Cargo builds need `scripts/stage-sandbox-runner.cmd` first.
-Use `scripts/with-checkout.cmd` for direct mutating build commands.
+See [Windows build instructions](WINDOWS_DEVELOPMENT.md#build-from-source).
 
 ## Native sandbox
 
@@ -58,7 +54,7 @@ Native Windows process creation requires `LOCALAPPDATA` to be defined, even if e
 Windows complete policies also reject `filesystem.kind: external-sandbox`, which could bypass native enforcement.
 Explicit `serve --no-sandbox` remains available.
 
-The runner enforces filesystem/network permissions and supplies private `TMPDIR`, `TEMP`, and `TMP`.
+The runner enforces filesystem/network permissions and supplies private `TMPDIR`, `TEMP`, and `TMP` in the default [managed temporary-storage mode](SANDBOX_CONFIGURATION.md#profiles-and-temporary-storage).
 Working directories can contain Windows 8.3 aliases, including aliases in the system temporary path.
 Workspace permissions use the common [sandbox schema](SANDBOX_CONFIGURATION.md).
 
@@ -92,62 +88,15 @@ Interruption is cooperative.
 R/Python callbacks can handle it without losing state, but an unresponsive native call may need restart.
 R-owned DuckDB supports native query interruption; long native Python-owned DuckDB queries can require restart on Windows.
 
-Windows uses native pipes, events, and process handles rather than Unix signals/descriptors.
-Those implementation choices do not create different public MCP message shapes.
 Direct execution reaps its direct worker but does not guarantee descendant cleanup.
 
 ## Validation
 
-Use Python 3.13 to match CI.
-Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an MXC-capable host.
-CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console, then the substantive Windows suite on the same host.
-Acceptance probes MXC through a real public sandbox launch.
-Only the native unavailable-runtime diagnostic permits skipping MXC execution cases; installation, policy, and workload failures remain failures.
-Hosts without MXC still run configuration, integrity, explicit host-execution, and public fail-closed startup tests.
-As hosted runners gain native MXC support, the existing execution cases run automatically.
-The R package's permission tests use the same capability rule; adapter and configuration tests use explicit host execution where enforcement is outside their scope.
-Controlled origins verify allowed and denied HTTP, CONNECT, and SOCKS requests through the managed proxy.
-Sessions, sandbox commands, and complete policies verify actual unavailable-MXC rejection on unsupported hosts; capable hosts inject that failure into the native probe.
+See [Windows validation](WINDOWS_DEVELOPMENT.md#validation) for contributor checks.
 
-```powershell
-$env:LC_ALL = 'C'
-scripts/preflight.cmd
-scripts/stage-sandbox-runner.cmd
-scripts/test.cmd --list
-scripts/test.cmd WindowsConsole.test_python_without_r
-scripts/test.cmd client_server/python/test_runtime
-# Require native coverage on a local MXC-capable host:
-$env:MCP_CONSOLE_TEST_REQUIRE_MXC = '1'
-scripts/format.cmd
-scripts/check.cmd
-scripts/check.cmd --full
-Remove-Item Env:MCP_CONSOLE_TEST_REQUIRE_MXC
-```
+<span id="testing-parity-and-remaining-gaps"></span>
 
-Set `R_HOME` to the installed R directory when the complete suite requires it.
-`preflight` is read-only; successful inventory is not build or sandbox acceptance.
-Packaging stages its companion automatically, while direct checks need explicit staging.
-
-The ordinary gate runs native Windows acceptance.
-The full gate adds applicable shared boundary cases, tooling, wheel, and source-install checks.
-Shared selectors and snapshot rules are documented in [Development](DEVELOPMENT.md#validation-ladder) and [Boundary tests](../tests/boundaries/README.md).
-
-For installed acceptance, `MCP_CONSOLE_TEST_BINARY` selects the installed public command.
-A copied uv launcher also needs `MCP_CONSOLE_TEST_NATIVE_BINARY` for fixtures requiring the actual native executable or bundle relocation.
-
-### Testing parity and remaining gaps
-
-The shared suite runs portable R/Python/SQL behavior in addition to Windows-specific tests.
-Unix namespace, signal, PTY, ELF, and procfs tests remain platform-specific.
-Some shell/FIFO/layout fixtures still exclude Windows even when the underlying behavior is supported; native counterparts do not replace every skipped scenario.
-Port those fixtures before removing capability restrictions.
-
-Use `scripts/test.cmd --full --list` and skip diagnostics to inspect coverage.
-A passing macOS equivalent or skipped Windows case is not Windows validation.
-[TODO](TODO.md#sandbox-and-platforms) collects this fixture debt.
-
-CI installs the trusted runtimes before acceptance.
-MXC runs with the caller's identity, including for installations outside standard roots.
+[Testing parity and remaining gaps](WINDOWS_DEVELOPMENT.md#testing-parity-and-remaining-gaps) tracks platform coverage.
 
 ## Troubleshooting
 
@@ -155,6 +104,3 @@ An unavailable-MXC error requires a supported Windows host and policy.
 
 Windows process-creation error 4551 indicates host application-control policy.
 The host must permit the executable and downloaded interpreter DLLs; this is separate from Console's sandbox settings.
-
-Keep embedded R sources in LF form as specified by `.gitattributes`.
-For Linux workflows under WSL, use an independent Linux checkout and follow [WSL development](DEVELOPMENT.md#windows-development-through-wsl2).

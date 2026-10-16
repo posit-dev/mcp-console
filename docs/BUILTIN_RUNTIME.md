@@ -1,179 +1,139 @@
 # Working with R, Python, and SQL
 
-One connection owns one persistent session.
-Globals, imports, options, database state, and unread input survive between cells.
-Cells are not transactions: an error can leave earlier changes in place.
-Restart or worker loss discards all live language state.
+Console keeps data, imports, models, and database state in memory while the agent works.
+A follow-up can inspect or modify what is already there instead of repeating the setup.
 
-Submit one complete R, Python, or SQL cell, inspect its result, and then submit the next.
-[Calls, input, and control](SEND_OPERATIONS.md) covers polling, interactive input, interruption, and restart; [`send` API](API.md) lists the arguments.
+An error does not undo earlier changes.
+Restarting clears live objects and database state; reconnecting starts a new session.
+[Recordings](RECORDING.md) preserve a record of the work, not a saved copy of the running session.
 
-## Runtime selection
+## Choose the languages you need {#runtime-selection}
 
-R is optional.
-Without it, Python and SQL can use managed Python through `uv` or an explicitly selected existing environment.
-Existing Python requires CPython 3.10 or newer with a usable shared embedding library; packages must already be installed.
-The separate Python client package requires Python 3.11 or newer.
+R and Python can each run without the other.
+SQL uses a database connection supplied by one of them.
+By default, Console prepares a Python environment and uses an in-memory DuckDB database for SQL; install R separately to use it.
 
-A missing optional runtime is different from a broken selected installation: an invalid explicit selection fails rather than silently choosing another.
-See [Configuration](CONFIGURATION.md#python-environment-selection) for selection and [Dependencies](REQUIREMENTS.md#defaults-and-startup-configuration) for managed defaults.
+You can [select an existing Python environment](CONFIGURATION.md#python-environment-selection) or an [R installation](CONFIGURATION.md#r-executable-selection).
+An existing Python environment needs a supported, embeddable CPython installation, but no third-party packages are needed for standard-library Python code.
+Install packages for the features you use, such as Matplotlib for plots or DuckDB for the default Python-owned SQL connection.
 
-Tool discovery does not wait for runtime startup.
-Enabled built-in runtimes initialize in the background; early cells wait behind that work.
-The public `languages` setting only hides source fields, so a SQL-only interface can still use R or Python internally.
+The Python client package is separate from the interpreter used for analysis.
+See [Client integration](CLIENTS.md) when connecting from application code.
 
 ## R
 
-R cells run in persistent global state with native console behavior.
-Every visible top-level expression can autoprint.
-The whole cell is parsed before evaluation, so a parse error runs none of it.
-Evaluation or print errors preserve earlier effects and normally leave the worker usable.
+Use R expressions and packages as you would in an interactive R session.
+Visible top-level results are printed, and objects remain available to later code.
 
-R owns its normal startup files and workspace restoration; see [Native R startup](CONFIGURATION.md#native-r-startup).
-Console supplies transport, interrupt, graphics, and documentation output integration.
-R event handlers, including `later` callbacks, can run while idle and produce output collected by a later call.
+```r
+measurements <- data.frame(value = c(2, 4, 6))
+mean(measurements$value)
+```
 
-Use ordinary package-loading operations.
-In managed automatic mode, reached missing-package loads can prepare dependencies without rerunning the cell.
-A sandboxed R worker also has a temporary writable library; manual installations there last only for that worker and remain subject to permissions.
+In a later cell:
 
-### Installed documentation
+```r
+measurements$centered <- measurements$value - mean(measurements$value)
+measurements
+```
 
-Use ordinary R help calls such as `?stats::lm`, `help("lm", package = "stats")`, `??lm`, or `help.search("linear models")`.
-Help pages, search results, package indexes, and vignette listings print through Console's text output.
-R retains its lookup and ambiguous-topic selection behavior; answer a selection prompt through `stdin`.
+R reads its normal startup files by default.
+See [R startup settings](CONFIGURATION.md#native-r-startup) to change that behavior.
 
-Capture a long page and print the lines you need:
+### Read installed documentation {#installed-documentation}
+
+The agent can use ordinary help calls such as `?stats::lm`, `help("lm", package = "stats")`, and `help.search("linear models")`.
+Help pages and search results appear as text.
+
+Installed HTML vignettes can also be read as text, including their evaluated results:
+
+```r
+vignette("topic", package = "package_name")
+```
+
+Replace the topic and package name with an installed vignette.
+Figures are represented by captions and available alternative text, not image pixels.
+PDF-only and source-only vignettes show their installed source instead.
+See [documentation behavior](RUNTIME_REFERENCE.md#installed-documentation) for details and ways to inspect the original files.
+
+Long help output can be captured and inspected in smaller pieces:
 
 ```r
 text <- capture.output(print(?stats::lm))
 writeLines(text[80:120])
 ```
 
-`vignette()` prints readable text from an installed HTML vignette, including its evaluated results.
-The vignette object's rendered-artifact metadata selects the file; Console does not execute its source or render it again.
-Headings, paragraphs, lists, code indentation, simple tables, link destinations, captions, and available image alt text appear as text.
-Scripts, styles, and embedded image payloads are omitted; linked assets are not fetched.
-Figures appear only through their captions and alt text, and JavaScript-dependent content is unavailable.
-The text does not expose image paths or a request mechanism for figure pixels.
-To inspect an original figure, locate the installed HTML with `file.path(x$Dir, "doc", x$PDF)` from the retained vignette object and inspect its image references.
-Images may be separate local files, embedded data, or remote URLs.
-A client can use its own image tools or display a locally decoded figure through [ordinary plot capture](#plots-and-images).
-Assignment stays quiet, so you can retain the ordinary vignette object and print it later.
-Use `capture.output(print(vignette("topic", package = "pkg")))` to capture its text and print selected line ranges with `writeLines()`.
-
-PDF-only, source-only, and other non-HTML vignettes retain the installed source view, labeled `Vignette source:`.
-That view omits evaluated results and figures; source must be installed as UTF-8 or ASCII.
-HTML contents must be UTF-8; conversion failures and missing source are errors.
-R opens the installed file using its native filename handling and passes its bytes to a native callback using Rust's `html2text` crate, without Pandoc, knitr, rmarkdown, or a browser.
-
-Console installs text help and pager defaults after native R startup, once per worker.
-Later changes to R options or print methods remain in effect until restart.
-Custom pagers receive converted HTML through `file.show()` with its standard encoding behavior and `delete.file = TRUE`.
-A pager that returns before reading the file must remove it after use.
-Console removes the temporary file if a function pager raises an error.
-
 ## Python
 
-Python cells execute in persistent `__main__.__dict__`; the final expression is displayed.
-The whole cell is compiled before execution.
-Ordinary exceptions print a traceback and leave the worker usable.
-An uncaught main-thread `SystemExit` terminates the worker.
+Python code runs in a persistent workspace.
+Imports and assignments remain available, and the final expression in a cell is displayed.
 
-Console supplies `r` and `_console.sql_connection()` through Python's builtins; attaching reticulate may also bind `r` in `__main__`.
-Alongside Python's standard workspace metadata and builtins, these are the intentional conveniences available without imports.
-Console's internal imports, setup state, and exception helpers remain private.
-Modules such as `os`, `sys`, and `tempfile` enter the workspace only when user code or startup hooks bind them.
-Later setup and interrupt recovery preserve those user bindings; restart creates a fresh workspace.
+```python
+import statistics
 
-Console owns Python initialization.
-Startup hooks run before cells, and attaching reticulate later preserves the running interpreter and its objects.
-The working-directory import entry follows `os.chdir()`.
-Managed automatic mode can resolve reached missing imports; existing environments require preinstalled packages.
-
-Console does not provide a notebook event loop.
-Manage asynchronous work explicitly.
-Background threads and subprocesses can produce raw output, but managed dependency resolution is restricted to the owning interpreter thread.
-Prepare packages before starting such work.
-
-## R and Python interoperability
-
-Reticulate supplies the bridge:
-
-```r
-measurements <- data.frame(value = c(2, 4, 6))
+values = [2, 4, 6]
+statistics.mean(values)
 ```
 
-A later Python cell can read it:
+A later cell can use `values` without defining it again.
+Ordinary exceptions print a traceback; earlier changes remain in place.
+An uncaught main-thread `SystemExit` ends the runtime.
+
+Console can prepare missing packages in a managed environment.
+An existing environment uses its installed packages.
+See [Packages and environments](REQUIREMENTS.md).
+
+## Move data between R and Python {#r-and-python-interoperability}
+
+The languages share one process, and reticulate supplies the bridge.
+From Python, `r.name` accesses an R object.
+For example, after the R example above:
 
 ```python
 r.measurements
 ```
 
-Python globals are available from R through `py$name`.
-Attribute access attaches the bridge on demand; loading reticulate or reading its `py` proxy alone need not initialize it.
-Conversion follows reticulate's rules.
-Objects and proxies do not survive worker replacement.
+From R, `py$name` accesses a Python object:
 
-Console attaches four R helpers in `tools:mcp-console`:
-
-| Helper            | Reticulate function           | Purpose                                 |
-| ----------------- | ----------------------------- | --------------------------------------- |
-| `py_import()`     | `reticulate::import()`        | Import a Python module.                 |
-| `py_eval()`       | `reticulate::py_eval()`       | Evaluate a Python expression.           |
-| `py_run_string()` | `reticulate::py_run_string()` | Run Python statements.                  |
-| `py_require()`    | `reticulate::py_require()`    | Inspect or declare Python requirements. |
-
-These aliases preserve reticulate's arguments, return values, and conversion rules.
-Import, evaluation, and execution use Console's shared Python interpreter and state.
-Installing or inspecting the helpers does not initialize Python, and ordinary R definitions can mask them.
-
-For help, use `help("import", package = "reticulate")` for `py_import()`.
-The other helpers use their matching reticulate help topics, for example `help("py_run_string", package = "reticulate")`.
-
-`py_require()` without arguments returns the current R-side Python declarations.
-In managed sessions, declarations use Console's existing [requirements and preparation](REQUIREMENTS.md#live-preparation) path.
-Pre-initialization declarations are accepted when Python is prepared; MCP requirements inspection returns the last committed declaration.
-Before Python initializes, `action = "set"` can replace requirements; after initialization, compatible additions preserve live objects.
-Use [restart](REQUIREMENTS.md#restarting-with-requirements) for changes that require a fresh environment.
-
-Ordinary Python does not need to attach reticulate, and R can run without Python.
-Both interpreters and reentrant bridge calls use the worker's owning thread.
-
-## SQL and DuckDB
-
-Managed SQL uses one in-memory DuckDB connection and persistent catalog.
-R owns the default through DBI when available; otherwise Python owns it through DB-API.
-No setup cell is required.
-Missing optional providers can be prepared on demand in managed sessions.
-A user-selected connection can provide SQL without DuckDB.
-
-With R-owned DuckDB, unqualified names can refer to R global data frames; a table or view with the same name takes precedence.
-Views can observe later rebinding of an R name.
-To query a Python frame through this provider, first assign it to an R global.
-
-With Python-owned DuckDB, register frames explicitly:
-
-```python
-_console.sql_connection().register("measurements", frame)
+```r
+py$values
 ```
 
-Here `frame` is an existing Python data frame.
-Python globals are not automatically scanned into the SQL catalog.
-DuckDB CLI dot commands are not supported.
-Use read-only attachment for databases outside writable sandbox paths.
+Conversions follow reticulate's rules; some conversions need additional Python packages.
+You do not need to use the bridge for an analysis in one language.
+[Runtime reference](RUNTIME_REFERENCE.md#r-and-python-interoperability) documents the helper functions and conversion behavior.
 
-### Select a native connection
+## SQL and DuckDB {#sql-and-duckdb}
 
-R exposes `.console$sql_connection()` and Python exposes `_console.sql_connection()`:
+SQL normally uses one in-memory DuckDB connection.
+Tables and views remain available for later queries.
 
-| Argument                | Result                                     |
-| ----------------------- | ------------------------------------------ |
-| Omitted                 | Return the exact active native connection. |
-| DBI / DB-API connection | Select it for later SQL cells.             |
-| `NULL` / `None`         | Restore the session's managed default.     |
+```sql
+CREATE TABLE measurements_sql AS
+SELECT * FROM (VALUES (2), (4), (6)) AS t(value);
+```
 
-Select SQLite from Python:
+```sql
+SELECT avg(value) AS mean_value FROM measurements_sql;
+```
+
+When R owns the managed connection, SQL can refer to R global data frames by name.
+With a Python-owned connection, register a data frame first:
+
+```python
+import pandas as pd
+
+frame = pd.DataFrame({"value": [2, 4, 6]})
+_console.sql_connection().register("measurements_python", frame)
+```
+
+The registered name can then be used in SQL.
+A database table or view takes precedence over an R data frame with the same name.
+
+### Use another database {#select-a-native-connection}
+
+Select a native DBI connection from R or a DB-API connection from Python.
+For example, Python's standard-library SQLite module provides SQL without installing DuckDB:
 
 ```python
 import sqlite3
@@ -182,90 +142,57 @@ connection = sqlite3.connect(":memory:")
 _console.sql_connection(connection)
 ```
 
-Or from R:
+Later SQL cells use that connection.
+From R, the corresponding helper is `.console$sql_connection(connection)`.
 
-```r
-connection <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
-.console$sql_connection(connection)
-```
+Calling the helper without an argument returns the current connection owned by that language.
+Passing `None` in Python or `NULL` in R restores the managed default.
+Restoring the default does not close your connection or commit its transactions; you remain responsible for it.
 
-The latest selection controls SQL.
-The getter only returns a connection owned by its own runtime; it reports the other runtime's helper when necessary.
-Console does not provide interchangeable wrappers.
-
-User connections remain user-owned.
-Reset does not close them, commit their transactions, or discard the managed catalog.
-Do not disconnect Console's managed connection.
-A closed selected connection remains selected and reports its driver's errors until reset or reselection.
-
-The driver owns SQL dialect, transaction behavior, and type mappings.
-Console submits the complete source without retrying through another execution method.
-Use DBI's statement interface directly from R when the driver requires it.
-
-[Session startup source](CONFIGURATION.md#session-startup-source) can select a connection before cells run.
-Reset does not rerun that source; restart does and may repeat its side effects.
+See [SQL connections](RUNTIME_REFERENCE.md#sql-and-duckdb) for driver behavior, connection ownership, and startup configuration.
 
 ### Result previews
 
-SQL previews show at most 20 rows and 12 columns, with long values shortened.
-They do not count the complete result.
-The whole-response text budget can shorten them further.
-A preview is not a data export: fetch and save results explicitly when you need the complete dataset.
+SQL previews show at most 20 rows and 12 columns, and long values may be shortened.
+They are not complete exports.
+Fetch and save the full result explicitly when you need the whole dataset.
 
 ## Plots and images
 
-R's managed device returns PNG pages and finalizes open pages at cell end, including after language errors.
-A later cell cannot add layers to a finalized plot.
-Defaults are 800 × 600 pixels at 96 DPI.
-Set persistent dimensions in inches and resolution:
+R plots are captured as PNG images at the end of a cell.
+The default size is 800 × 600 pixels at 96 DPI.
+Set dimensions in inches and resolution for later plots:
 
 ```r
 options(
-  console.plot.width_in = 16,
-  console.plot.height_in = 10.5,
+  console.plot.width_in = 10,
+  console.plot.height_in = 6,
   console.plot.dpi = 100
 )
 ```
 
-Explicit user devices are neither closed nor captured.
-This includes devices that reuse a closed managed device's number and filename template.
-Native R startup happens before the managed device attaches, so its plots use R's native device.
+A finished plot cannot be extended from a later cell.
+Explicit user-created graphics devices are not automatically captured.
 
-Python captures open pyplot figures at cell end, including after an exception, and then closes them.
-`plt.show()` captures immediately and closes figures; calling it is optional.
-`plt.pause()` captures frames while keeping figures open.
-`savefig()` does not suppress capture, but closing an unshown figure does.
-Figures outside pyplot are not captured.
+Python captures open Matplotlib pyplot figures at cell end and then closes them.
+`plt.show()` captures immediately; calling it is optional.
+A figure closed before it is shown is not captured, and figures outside pyplot are not captured automatically.
 
-An inherited `MPLBACKEND` is respected; otherwise Console uses Agg.
-Matplotlib configuration can be read from the host while cache writes use private storage.
-These plot rules also apply across the reticulate bridge.
+[Runtime reference](RUNTIME_REFERENCE.md#plots-and-images) covers device behavior and capture during errors or across the language bridge.
 
-## Output and notices
+## Read results and keep the work {#output-and-notices}
 
-Language warnings and errors are ordinary console output.
-Preparation, transport, and protocol failures are MCP tool errors.
-Bracketed status notices describe Console's state, not language output.
+Long output is shown as a preview with its beginning and recent end.
+The agent can use the client's filesystem tools to inspect retained logs rather than repeat the calculation.
+Output that was never printed, such as rows omitted by a database preview, is not present in those logs.
 
-An established worker failure ends the cell and can trigger one replacement attempt, without replaying code or input.
-The failing call remains a tool error even when replacement succeeds.
-Poll a replacement that reports `[worker starting]`; discovery failures require a new server connection.
-
-Long output retains a beginning and recent tail; progress redraws and terminal controls are reduced to a plain-text preview.
-Text and images have separate [response limits](API.md#output-limits).
-Polling consumes the observed interval, including omitted text.
-
-Read retained raw logs through the client's filesystem tools rather than rerunning code.
-[Recordings](RECORDING.md) explains retention, privacy, and retrieval.
+See [Recordings and reports](RECORDING.md) for file locations, retention limits, and report preparation.
 
 ## Current limitations
 
-There are no named sessions or parallel cells.
-Recordings are not checkpoints and Console provides no file-read/search tool.
-No aggregate retention quota or automatic cleanup is implemented.
+There is one session and one active cell per connection, not parallel cells or named sessions.
+Restart discards live language state.
+Recordings are not checkpoints, and Console does not provide a file-reading or search tool.
 
-Initialize R before starting background threads that access the native process environment: R startup can mutate it, and the interpreter thread or GIL cannot serialize arbitrary native threads.
-Partial runtime initialization can require restart.
-
-Platform enforcement and descendant cleanup have explicit [sandbox limits](SANDBOX.md#supported-hosts-and-lifetime-limits).
-[Open work](TODO.md) distinguishes unresolved engineering items from deliberately unsupported features.
+[Runtime reference](RUNTIME_REFERENCE.md) records detailed language behavior.
+Client authors should also read [Calls, input, and control](SEND_OPERATIONS.md); ordinary setup does not require learning the MCP call protocol.

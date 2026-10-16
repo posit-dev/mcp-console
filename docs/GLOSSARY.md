@@ -1,55 +1,45 @@
 # Glossary
 
-## User terms
+<span id="user-terms"></span>
 
-**Session:** The persistent workspace owned by one MCP connection.
-It can outlive several workers; there is no named-session API.
+**Agent:** The model-driven program that submits code and uses its results.
 
-**Cell:** One complete R, Python, or SQL submission.
-Source and interactive input are separate.
+**Client:** The application that connects to Console, such as a coding assistant or a program using a Console adapter.
 
-**Poll:** A `send` call without code that waits for new output or completion.
-It does not rerun the prior cell.
+**MCP:** Model Context Protocol, the interface through which the client discovers and calls Console's tool.
 
-**Requirements / declaration / manifest:** The accepted dependency request, not an installed-package inventory or lockfile.
-It survives worker restart, not a new server connection.
+**Session:** The persistent workspace associated with one client connection.
+Objects remain available between calls; restarting clears live objects, and reconnecting starts a new session.
+
+**Cell:** One complete block of R, Python, or SQL code submitted for execution.
+Interactive input is supplied separately.
+
+**REPL:** Read–evaluate–print loop: run code, inspect the result, and continue in the same session.
+
+**Execution host:** The machine or environment where Console runs and stores its files.
+Console and the client's shell and filesystem tools should use the same host and project.
+
+**Managed environment:** An environment whose packages Console prepares for the session.
+
+**Existing environment:** A Python installation or virtual environment selected by the user.
+Console uses its installed packages rather than preparing them.
 
 **Preparation:** Making dependencies available.
-It does not import, attach, or load them for the user.
+Code still needs to import a Python module, attach an R package, or load an extension when appropriate.
 
-**Recording:** Files containing calls, source, input, output, and artifacts.
+**Requirements:** The requested dependencies.
+They are not an inventory of installed packages or a lockfile.
+Accepted requirements survive restart within the same connection.
+
+**Recording:** Local files containing calls, source, input, output, and artifacts.
 They are unredacted records, not live-state checkpoints.
 
-## Developer terms
+**Sandbox:** Operating-system restrictions on the code Console runs.
+Default permissions restrict writes and direct networking but allow host-file reads, including readable secrets.
 
-**Server / controller:** The process speaking MCP.
-It owns admission, retained declarations, bounded responses, and recording.
+For polling and other client operations, see [Calls, input, and control](SEND_OPERATIONS.md).
+Internal terms such as worker, relay, generation, and retirement are defined in [Architecture](ARCHITECTURE.md).
 
-**Worker:** The process holding interpreter and database state.
-The built-in worker coordinates R, Python, and SQL on one execution thread.
+<span id="developer-terms"></span>
 
-**Generation:** One worker lifetime and all work tied to it.
-Old input, callbacks, evaluations, and candidate commits must not reach its replacement.
-
-**Relay:** The process translating worker sideband and standard streams, delivering interruption, and reaping the direct worker.
-It is not the native sandbox supervisor.
-
-**Sideband:** Private JSONL commands and semantic events, separate from stdin/stdout/stderr.
-
-**Native runner:** The verified private executable owning native policy enforcement, temporary storage, and its descendant-cleanup contract.
-
-**Preparation owner:** The machinery owning discovery/materializer processes and their cleanup.
-The server, not this owner, accepts declarations.
-
-**Candidate / activation:** A proposed environment and the step making it usable by a worker.
-Materialization, activation, and server acceptance are distinct.
-
-**Retirement / cleanup receipt:** Stopping an owned resource and obtaining confirmation that its owner's cleanup contract completed.
-Stream closure alone is not that confirmation.
-
-**Output cut:** A finite boundary selected for one response.
-It does not establish chronology across independent streams.
-
-**Execution host:** The machine or environment where the client, Console, and its files/processes run.
-
-See [Architecture](ARCHITECTURE.md) for relationships between these components.
+Contributor vocabulary is in [Architecture](ARCHITECTURE.md#developer-terms).

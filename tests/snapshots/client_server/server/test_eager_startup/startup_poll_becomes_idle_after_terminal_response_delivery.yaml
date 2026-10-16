@@ -1,0 +1,59 @@
+---
+scenario: An admitted startup poll follows another call's terminal delivery.
+fixture: >-
+  Pause the earlier poll before execution, let a later cell publish its
+  complete response, then resume the poll while that response's transport
+  write is still held.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  timeout_ms: 600000
+  stdin: |
+    retained input
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L
+  requirements:
+    action: set
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: |
+    local({
+      connection <- suppressWarnings(file("/dev/stdin"))
+      on.exit(close(connection))
+      readLines(connection, n = 1)
+    })
+result:
+  content:
+    - type: text
+      text: |
+        [1] "retained input"
+  isError: false
+---
+send:
+  r: 43L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 43
+  isError: false

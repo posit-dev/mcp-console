@@ -35,6 +35,8 @@ def configure(root: Path, document: dict) -> None:
 
 def observe(binary: Path, root: Path, document: dict, overrides=()) -> dict:
     configure(root, document)
+    temporary = root / "host-temp"
+    temporary.mkdir(exist_ok=True)
     capture = root / "policies.jsonl"
     capture.unlink(missing_ok=True)
     result = subprocess.run(
@@ -42,6 +44,7 @@ def observe(binary: Path, root: Path, document: dict, overrides=()) -> dict:
         cwd=root,
         env={
             **os.environ,
+            **{name: str(temporary) for name in ("TMPDIR", "TEMP", "TMP")},
             LOADER_VARIABLE: str(build_interposer(root, "runner_configuration")),
             "MCP_CONSOLE_TEST_RUNNER_CONFIGURATION": str(capture),
         },
@@ -65,6 +68,15 @@ def test_user_to_native_policies(binary: Path) -> TranscriptWithCompanions:
         for name, document in examples.items():
             native = observe(binary, root, document)
             assert native["filesystem"]["kind"] == "restricted", native
+            if document["sandbox"].get("profile") == "workspace":
+                assert native["extends"] == ":workspace", native
+                assert native["workspace_options"] == {
+                    "exclude_tmpdir_env_var": True,
+                    "exclude_slash_tmp": True,
+                }, native
+            managed = document["sandbox"].get("tempdir", "managed") == "managed"
+            assert ("private_tmp" in native["lifecycle"]) is managed, native
+            assert "tempdir" not in native, native
             if isinstance(document["sandbox"].get("network"), dict):
                 proxy = native["proxy"]
                 assert native["network"] == "restricted" and proxy["enabled"]
@@ -511,7 +523,9 @@ if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
                 "XDG_CACHE_HOME": str(root / "cache"),
                 "UV_CACHE_DIR": str(root / "host-cache"),
                 "MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION": "project",
-                "TMPDIR": "/invalid/configured-temp",
+                "TMPDIR": str(root)
+                if execution is DIRECT
+                else "/invalid/configured-temp",
             }
             configure(
                 root,
@@ -550,10 +564,10 @@ if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
                         python="import os; print(os.environ['ROLE'], os.environ['SHARED'], os.environ.get('INHERITED', 'absent'))",
                     )
                     client.expect(
-                        "owned\n",
+                        "temporary storage selected\n",
                         python="from pathlib import Path; assert os.environ['MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION'] == '0'; "
                         + f"assert (os.environ['UV_CACHE_DIR'] == {common['UV_CACHE_DIR']!r}) is {execution is DIRECT!r}; "
-                        + "assert os.environ['TMPDIR'] != '/invalid/configured-temp'; Path(os.environ['TMPDIR'], 'probe').write_text('private'); print('owned')",
+                        + f"assert (os.environ['TMPDIR'] == {common['TMPDIR']!r}) is {execution is DIRECT!r}; Path(os.environ['TMPDIR'], 'probe').write_text('temporary'); print('temporary storage selected')",
                     )
                     client.send(
                         python="os.environ['ROLE'] = 'mutated'; os.environ['SHARED'] = 'mutated'"

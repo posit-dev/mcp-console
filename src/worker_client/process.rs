@@ -71,7 +71,6 @@ struct RelayConnection {
 }
 
 struct RelayProcess {
-    temporary: Option<crate::local_runtime::TemporaryDirectory>,
     child: Child,
     retirement_grace: Duration,
     no_sandbox: bool,
@@ -93,7 +92,6 @@ struct LauncherExit {
     status: ExitStatus,
     no_sandbox: bool,
     retirement_requested: bool,
-    temporary_retirement: Result<(), String>,
 }
 
 impl LauncherExit {
@@ -275,14 +273,17 @@ impl WorkerRuntime {
             command.arg("--").args(relay_target);
             command
         };
-        let temporary = if no_sandbox && local_runtime.is_some() {
-            Some(crate::local_runtime::TemporaryDirectory::create()?)
-        } else {
-            None
-        };
-        if let Some(temporary) = &temporary {
-            command.env("TMPDIR", temporary.path());
-        }
+        command.env(
+            crate::settings::MANAGED_TEMPDIR_ENVIRONMENT,
+            if !no_sandbox
+                && crate::settings::Tempdir::from_settings(sandbox_settings)
+                    == crate::settings::Tempdir::Managed
+            {
+                "1"
+            } else {
+                "0"
+            },
+        );
         command.env_remove(crate::settings::startup::ENVIRONMENT);
         // Retain the private file through worker readiness; failures also drop
         // its owner. The worker consumes it before any interpreter can run.
@@ -356,7 +357,6 @@ impl WorkerRuntime {
             output_stop.clone(),
         )
         .map_err(|error| format!("failed to monitor worker relay: {error}"))?;
-        child.temporary = temporary;
         let events = worker_events.clone();
         let transport =
             transport.connect(&mut child.child, output.diagnostics(), move |error| {
@@ -480,7 +480,6 @@ impl RelayProcess {
             }
         };
         Ok(Self {
-            temporary: None,
             child,
             retirement_grace,
             no_sandbox,
@@ -615,9 +614,7 @@ impl RelayProcess {
             }
         };
         if let Some(status) = recovered_status {
-            if let Err(error) = self.finish_reaped_status(status) {
-                errors.push(error);
-            }
+            self.finish_reaped_status(status);
         } else if exited {
             if let Err(error) = self.reap() {
                 errors.push(error);
@@ -628,11 +625,7 @@ impl RelayProcess {
                 LAUNCHER_KILL_GRACE.as_millis(),
             ));
             match self.child.try_wait() {
-                Ok(Some(status)) => {
-                    if let Err(error) = self.finish_reaped_status(status) {
-                        errors.push(error);
-                    }
-                }
+                Ok(Some(status)) => self.finish_reaped_status(status),
                 Ok(None) => {}
                 Err(error) => errors.push(format!(
                     "failed to inspect the worker launcher after forced termination: {error}"
@@ -655,22 +648,17 @@ impl RelayProcess {
             .child
             .wait()
             .map_err(|error| format!("failed to reap the worker launcher: {error}"))?;
-        self.finish_reaped_status(status)
+        self.finish_reaped_status(status);
+        Ok(())
     }
 
-    fn finish_reaped_status(&mut self, status: ExitStatus) -> Result<(), String> {
+    fn finish_reaped_status(&mut self, status: ExitStatus) {
         self.exited = true;
-        let temporary_retirement = match self.temporary.take() {
-            Some(mut temporary) => temporary.retire(),
-            None => Ok(()),
-        };
         self.launcher_exit = Some(LauncherExit {
             status,
             no_sandbox: self.no_sandbox,
             retirement_requested: self.retirement_requested,
-            temporary_retirement: temporary_retirement.clone(),
         });
-        temporary_retirement
     }
 
     fn has_exited(&mut self) -> Result<bool, String> {
@@ -903,14 +891,10 @@ impl Worker {
         let shutdown = self.shutdown_handle();
         shutdown.request_shutdown(deadline, retirement_deadline);
         let retirement = shutdown.retire();
-        // Preserve the local replacement barrier: launcher reaping, Console's
-        // own storage retirement, and I/O settlement. Runner loss still lacks
+        // Preserve the local replacement barrier: launcher reaping and I/O
+        // settlement. Runner loss still lacks
         // a native descendant/storage cleanup guarantee.
-        let can_replace = retirement.io.is_ok()
-            && retirement
-                .launcher_exit
-                .as_ref()
-                .is_some_and(|exit| exit.temporary_retirement.is_ok());
+        let can_replace = retirement.io.is_ok() && retirement.launcher_exit.is_some();
         let result = match (retirement.process_result(), retirement.io) {
             (Ok(()), Ok(outcome)) => Ok(outcome),
             (Err(error), Ok(outcome)) => Err(super::WorkerRetirementFailure::new(error, outcome)),
@@ -1500,9 +1484,7 @@ impl WorkerShutdownHandle {
         // Suppression controls only diagnostics. Status 137 is ambiguous in
         // the pinned runner contract; retaining the existing suppression when
         // relay exit caused the failure does not confirm native cleanup.
-        // Storage failure keeps its existing precedence over status reporting.
         if let Some(exit) = &child.launcher_exit
-            && exit.temporary_retirement.is_ok()
             && child.ready_committed
             && !(relay_exit_caused_failure
                 && (exit.no_sandbox || exit.status.code() == Some(128 + 9)))

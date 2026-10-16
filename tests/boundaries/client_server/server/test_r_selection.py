@@ -62,7 +62,9 @@ def test_retains_discovered_r_home_across_generations(
         commands = root / "bin"
         commands.mkdir()
         retain_system_bwrap(commands)
-        (commands / "sh").symlink_to(shutil.which("sh"))
+        # R's normal embedded shutdown invokes rm through the workload PATH.
+        for name in ("sh", "rm"):
+            (commands / name).symlink_to(shutil.which(name))
         r = commands / "R"
         r.write_text(
             code(f"""
@@ -85,7 +87,10 @@ def test_retains_discovered_r_home_across_generations(
             )
             for restart in (False, True):
                 if restart:
-                    client.send(control="restart")
+                    client.expect(
+                        "[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]",
+                        control="restart",
+                    )
                 client.send(r="answer <- 41L; answer + 1L")
                 assert last_result_text(client) == "[1] 42\n", last_result_text(client)
             return client.finish()
@@ -132,7 +137,7 @@ def test_retains_r_absence_across_generations(
             return client.finish()
 
 
-@executions(DIRECT)
+@executions(SANDBOXED)
 def test_removes_managed_sql_storage_on_restart_and_shutdown(
     binary: Path, execution: Execution
 ) -> list:
@@ -157,6 +162,12 @@ def test_removes_managed_sql_storage_on_restart_and_shutdown(
                     ).parent
                     storage.mkdir(parents=True, exist_ok=True)
                     (storage / "cleanup-marker").write_text("owned storage")
+                    secrets = Path(
+                        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
+                    )
+                    assert secrets.parent == storage
+                    secrets.mkdir(parents=True, exist_ok=True)
+                    (secrets / "credential").write_text("fixture secret")
                     print(json.dumps(str(storage)))
                     """)
                 client.send(python=python)

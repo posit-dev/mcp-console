@@ -1,4 +1,45 @@
 ---
+path: sandbox.profile
+stderr: >
+  configuration with CLI overrides: sandbox: profile: unknown variant
+  `workspace_write`, expected `workspace`; see docs/CONFIGURATION.md for
+  the public format
+---
+path: sandbox.profile
+stderr: >
+  configuration with CLI overrides: sandbox: profile: unknown variant
+  `workspace-write`, expected `workspace`; see docs/CONFIGURATION.md for
+  the public format
+---
+path: sandbox.profile
+stderr: >
+  configuration with CLI overrides: sandbox: profile: unknown variant
+  `:workspace`, expected `workspace`; see docs/CONFIGURATION.md for the
+  public format
+---
+path: sandbox.workspace_options
+stderr: >
+  configuration with CLI overrides: sandbox: workspace_options: unknown
+  field `workspace_options`, expected one of `profile`, `tempdir`,
+  `filesystem`, `network`; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.tempdir
+stderr: >
+  configuration with CLI overrides: sandbox: tempdir: invalid type:
+  boolean `true`, expected string or map; see docs/CONFIGURATION.md for
+  the public format
+---
+path: sandbox.tempdir
+stderr: >
+  configuration with CLI overrides: sandbox: tempdir: invalid type: null,
+  expected string or map; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.tempdir
+stderr: >
+  configuration with CLI overrides: sandbox: tempdir: unknown variant
+  `unmanaged`, expected one of `managed`, `read_write`, `read_only`; see
+  docs/CONFIGURATION.md for the public format
+---
 path: sandbox.network
 stderr: >
   configuration with CLI overrides: sandbox: network: unknown variant
@@ -200,8 +241,8 @@ stderr: >
 path: sandbox.environment
 stderr: >
   configuration with CLI overrides: sandbox: environment: unknown field
-  `environment`, expected `filesystem` or `network`; see
-  docs/CONFIGURATION.md for the public format
+  `environment`, expected one of `profile`, `tempdir`, `filesystem`,
+  `network`; see docs/CONFIGURATION.md for the public format
 ---
 path: environment
 stderr: >
@@ -234,8 +275,8 @@ stderr: >
 path: sandbox.unsupported
 stderr: >
   configuration with CLI overrides: sandbox: unsupported: unknown field
-  `unsupported`, expected `filesystem` or `network`; see
-  docs/CONFIGURATION.md for the public format
+  `unsupported`, expected one of `profile`, `tempdir`, `filesystem`,
+  `network`; see docs/CONFIGURATION.md for the public format
 ---
 scope: sandbox
 selector: disabled

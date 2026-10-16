@@ -1,20 +1,29 @@
 # Sandbox configuration
 
-The public schema applies to both `sandbox` (evaluated code) and `resolver.sandbox` (dependency preparation).
-Their permissions are independent.
-[Configuration](CONFIGURATION.md) defines discovery and merge rules.
-
-To permit workspace writes and one API host:
+To allow ordinary project writes while protecting workspace metadata:
 
 ```yaml
 sandbox:
-  filesystem:
-    read_write: [.]
+  profile: workspace
+```
+
+[Configuration reference](CONFIGURATION_REFERENCE.md#sandbox) lists every sandbox field and its accepted values.
+
+For a narrower grant, use `sandbox.filesystem.read_write: [./output]` and create the directory first.
+To permit a specific API through the managed proxy, configure networking separately:
+
+```yaml
+sandbox:
   network:
     proxy:
       domains:
         allow: [api.example.com]
 ```
+
+A proxy allowlist does not permit every direct network channel.
+Package downloads use a separate policy.
+The public schema applies to `sandbox` for evaluated code and `resolver.sandbox` for dependency preparation; their permissions are independent.
+[Configuration](CONFIGURATION.md) defines discovery and merge rules.
 
 Configuration is trusted and can widen permissions.
 Read [Sandbox and trust](SANDBOX.md) before granting access.
@@ -22,6 +31,89 @@ Read [Sandbox and trust](SANDBOX.md) before granting access.
 Set either whole permission node to `null` to clear inherited settings and restore that context's built-in defaults.
 This does not disable sandboxing; `serve --no-sandbox` disables enforcement after both permission nodes have been omitted or cleared.
 Child nodes such as `filesystem` and `network.proxy` still require their documented types.
+
+## Profiles and temporary storage
+
+### Workspace profile
+
+The `workspace` profile permits ordinary project writes while keeping workspace metadata read-only:
+
+```yaml
+sandbox:
+  profile: workspace
+```
+
+The workspace is Console's launch directory, captured before evaluated code runs.
+Changing the working directory from R or Python does not move the permission boundary.
+
+| Access             | With `profile: workspace`                                                                                                                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host files         | Read files allowed by the host's own permissions, including readable secrets.                                                                                                                             |
+| Workspace files    | Create, edit, and delete ordinary files throughout the workspace. These files persist after the session ends.                                                                                             |
+| Workspace metadata | Read but do not write `.git`, `.agents`, `.codex`, or `.aws` at the workspace root. Missing metadata paths are protected from creation too. Referenced Git worktree/submodule metadata is also protected. |
+| Temporary storage  | Keep the default private writable storage with `tempdir: managed`; shared host temporary directories receive no automatic write grant.                                                                    |
+| Network            | Keep restricted direct networking unless configured separately.                                                                                                                                           |
+
+For example, an agent can read `data.csv`, update `analysis.py`, and save `plot.png` in the workspace.
+It cannot edit `.agents/console/config.yaml`, delete `.git`, or write ordinary files outside the workspace and private temporary storage without another grant.
+Package preparation retains its [independent policy](RESOLVER.md).
+
+To construct the same permissions without selecting a profile, use:
+
+```yaml
+sandbox:
+  filesystem:
+    read_write: [.]
+    read_only: [.git, .agents, .codex, .aws]
+```
+
+The worker's default host reads, managed temporary storage, and restricted networking supply the rest.
+The explicit read-only entries protect those fixed workspace paths, including absent paths and when a broader write root is added.
+Both forms retain native Git pointer protections for the writable root.
+The profile does not protect `.claude`; add it to `filesystem.read_only` if needed.
+
+Omitting both `profile` and explicit write grants retains the host-read baseline without workspace writes.
+Explicit filesystem entries compose with the profile: narrower rules override ancestors, and at the same path deny wins over write, then read.
+An explicit write at a protected metadata path or beneath it can therefore permit changes there; these defaults are not an unchangeable ceiling.
+Network and temporary-storage selections remain independent.
+
+### Temporary storage
+
+```yaml
+sandbox:
+  profile: workspace
+  tempdir: managed
+```
+
+The native profile's temporary-directory options are internal: `tempdir` is the only public selector for automatic temporary-storage grants.
+
+| `tempdir`           | Behavior                                                                                                                                                                               |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `managed` (default) | Create private storage, grant writes there, redirect temporary environment variables, and remove the storage after retirement.                                                         |
+| `read_write`        | Preserve configured/inherited temporary environment variables and grant writes to their host locations and the platform default temp location. Console does not own those directories. |
+| `read_only`         | Preserve temporary environment variables, create no managed storage, and add no temporary write grants.                                                                                |
+
+All three values are strings.
+`read_write` also grants temporary writes under the base read-only policy.
+On Unix its platform default grant is `/tmp`; configured/inherited `TMPDIR`, `TEMP`, and `TMP` add their named locations.
+On Windows, if all three child variables are unset or empty, Console exports the granted host default as `TMPDIR`, `TEMP`, and `TMP` so runtimes can find it.
+This does not create managed storage or add cleanup guarantees.
+The directories must already exist; Console does not provision caller-owned storage.
+Relative temp paths receive write grants relative to the launch working directory; their environment values remain relative.
+Changing directory, including in a subprocess, can make those values refer to an ungranted location.
+Use absolute temp paths when working directories can change.
+`read_only` omits automatic grants rather than imposing an overriding denial: explicit filesystem permissions, including a workspace root containing a temp path, still apply.
+R needs a writable temporary directory and can fail to initialize in that mode.
+
+`serve` and ordinary `sandbox` use the same policy and defaults.
+`--no-sandbox` uses normal runtime temporary-directory selection without general-purpose managed storage or temporary-environment redirection.
+Console guarantees temporary-storage cleanup only with an active sandbox and `tempdir: managed`; the native runner retires that storage after the workload exits.
+In other modes, Console adds no temporary-directory cleanup guarantees.
+R runs its normal best-effort shutdown, including its session `Rtmp` cleanup.
+On Unix that cleanup uses `rm` from the workload's `PATH` and can leave files when that command is unavailable or a subtree is not writable.
+Native Python DuckDB retains its own `temp_directory` and `secret_directory` defaults outside managed mode, including the normal persistence of stored secrets.
+Set those connection settings explicitly when their default locations need different filesystem permissions.
+Caller-owned parent directories and unrelated files remain the caller's responsibility.
 
 ## Filesystem
 
@@ -38,7 +130,7 @@ They resolve against the captured launch directory, not the configuration file.
 They do not expand `~` or variables, create directories, grant parent directories, or erase symlink components.
 
 Worker entries modify the host-read/private-write baseline.
-Omitting `read_write` grants no workspace writes.
+Omitting both `profile` and `read_write` grants no workspace writes.
 An explicit resolver filesystem instead **replaces** its default entries, including host reads and cache writes; see [resolver grants](RESOLVER.md#filesystem-grants).
 
 Narrower native rules take precedence.

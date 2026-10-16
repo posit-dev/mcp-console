@@ -23,6 +23,7 @@ pub(crate) fn run(bootstrap_runtimes: bool) -> Result<(), Box<dyn Error>> {
     // Every return, including startup and readiness failures, must restore
     // Python's initial thread before extension-library process destructors.
     crate::python::prepare_process_exit()?;
+    super::r_integration::shutdown()?;
     result
 }
 
@@ -58,11 +59,18 @@ fn run_session(bootstrap_runtimes: bool) -> Result<(), Box<dyn Error>> {
         startup_path.as_deref(),
     )?;
     let startup = crate::settings::startup::Startup::from_file(startup_path.as_deref())?;
-    // The launcher owns this directory through confirmed worker retirement.
-    // R's session tempdir is a child, never the owner of Python/SQL storage.
     let temporary =
-        std::env::var_os("TMPDIR").ok_or("worker launch did not supply temporary storage")?;
-    crate::python::configure_native_worker_environment(std::path::Path::new(&temporary))?;
+        if std::env::var(crate::settings::MANAGED_TEMPDIR_ENVIRONMENT).as_deref() == Ok("1") {
+            Some(
+                std::env::var_os("TMPDIR")
+                    .ok_or("managed worker launch did not supply temporary storage")?,
+            )
+        } else {
+            None
+        };
+    crate::python::configure_native_worker_environment(
+        temporary.as_deref().map(std::path::Path::new),
+    )?;
     core::initialize(reader, writer.clone())?;
     let r = Integration::new(r_installation, selection.r_settings.clone())?;
     let python = crate::python::Runtime::new(selection)?;

@@ -80,8 +80,7 @@ def test_builtin_worker_runs_directly_with_host_access(binary: Path) -> Transcri
                     from pathlib import Path
 
                     storage = Path(os.environ["TMPDIR"])
-                    assert storage.is_dir() and not storage.samefile(Path.cwd())
-                    assert storage.stat().st_mode & 0o777 == 0o700
+                    assert storage.is_dir() and storage.samefile(Path.cwd())
                     _ = Path("worker-storage").write_text(str(storage))
                     output = Path("host-output")
                     output.write_text("host write succeeded", encoding="utf-8")
@@ -96,11 +95,13 @@ def test_builtin_worker_runs_directly_with_host_access(binary: Path) -> Transcri
                 python='print("output" in globals())',
             )
             assert "False\n" in last_tool_text(client), client.transcript[-1]
-            assert not storage.exists(), "retired worker storage survived restart"
+            assert storage.is_dir(), "restart removed caller-owned temporary storage"
+            assert (storage / "host-output").read_text() == "host write succeeded"
             assert live_processes(identities) == []
             identities.extend(_direct_generation(client, binary, resolver=True))
             client.finish()
             assert live_processes(identities) == []
+            assert storage.is_dir(), "shutdown removed caller-owned temporary storage"
             return client.transcript
         finally:
             stop_client(client)

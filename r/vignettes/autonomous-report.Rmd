@@ -44,7 +44,8 @@ For an unattended job, it's useful to state the configuration in the script so y
 Let's use the R installation running this script, selected by `current_r()`, and prepare `rmarkdown` and `httr2` for the agent.
 The initial sandbox policy lets it write reports and contact an API.
 Replace `api.example.com` with the service your report needs.
-The managed proxy in this example requires macOS or Linux.
+On Windows, a managed proxy also permits local binding because MXC's host-loopback access is bidirectional.
+Explicitly disabling local binding with a managed proxy is unsupported there; see [Windows networking](https://t-kalinowski.github.io/mcp-console/WINDOWS.html#native-sandbox).
 
 ```{r config}
 config <- ConsoleConfig(

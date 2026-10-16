@@ -1,13 +1,101 @@
+import asyncio
 from collections.abc import Mapping, Sequence
+from concurrent.futures import Future
 from contextlib import ExitStack
+from threading import Condition, Event, Lock
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ._client import AsyncMCPConsole, Requirements
 from ._common import Command, result_text
 
+_CANCELLATION_ERROR = (
+    "Request cancellation cleanup did not finish; "
+    "close and reconnect before reusing this connection"
+)
+_CANCELLATION_PENDING = (
+    "Request cancellation cleanup is in progress; wait before reusing this connection"
+)
+
 if TYPE_CHECKING:
     from anyio.from_thread import BlockingPortal
     from mcp.types import CallToolResult, Tool
+
+
+class _Request:
+    """Own one SDK call from queued admission through confirmed task retirement.
+
+    The host owns the response Future, so cancelling it never waits for the
+    event loop. SDK cancellation runs on the loop; the task's done callback
+    confirms retirement even if cancellation prevents its coroutine starting.
+    """
+
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        console: AsyncMCPConsole,
+        arguments: Mapping[str, Any],
+        *,
+        admission: Condition,
+    ) -> None:
+        self.future: Future["CallToolResult"] = Future()
+        self.finished = Event()
+        self._loop = loop
+        self._console = console
+        self._arguments = arguments
+        self._admission = admission
+        self._task: asyncio.Task["CallToolResult"] | None = None
+
+    def start(self) -> None:
+        self._loop.call_soon_threadsafe(self._start)
+
+    def _start(self) -> None:
+        with self._admission:
+            if self.future.cancelled():
+                self.finished.set()
+                return
+            self._task = self._loop.create_task(self._run())
+            self._task.add_done_callback(self._finish)
+
+    async def _run(self) -> "CallToolResult":
+        if self.future.cancelled():
+            raise asyncio.CancelledError
+        return await self._console._call_send(self._arguments)
+
+    def _finish(self, task: asyncio.Task["CallToolResult"]) -> None:
+        with self._admission:
+            try:
+                result = task.result()
+            except asyncio.CancelledError:
+                self.future.cancel()
+            except BaseException as error:
+                if not self.future.cancelled():
+                    self.future.set_exception(error)
+            else:
+                if not self.future.cancelled():
+                    self.future.set_result(result)
+            finally:
+                self.finished.set()
+                self._admission.notify_all()
+
+    def cancel(self) -> None:
+        with self._admission:
+            self.future.cancel()
+            if self._task is None:
+                # The queued start must check the same cancelled Future under
+                # admission, so it cannot create a task after this receipt.
+                self.finished.set()
+                return
+        self._loop.call_soon_threadsafe(self._cancel)
+
+    def _cancel(self) -> None:
+        if self._task is not None:
+            self._task.cancel()
+
+    def abort(self) -> None:
+        # Queue the abort behind the task step awakened by the first cancel,
+        # even when both host callbacks waited for a busy loop. Cancelling
+        # twice before that step coalesces instead of escaping SDK shielding.
+        self._loop.call_soon_threadsafe(self._loop.call_soon, self._cancel)
 
 
 class MCPConsole:
@@ -62,9 +150,17 @@ class MCPConsole:
         )
         self._stack: ExitStack | None = None
         self._portal: BlockingPortal | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._admission = Condition(Lock())
+        self._cancellation: _Request | None = None
+        self._cancellation_failed = False
 
     def connect(self) -> "Self":
         """Start MCP Console and initialize its MCP client session."""
+        if self._cancellation_failed:
+            raise RuntimeError(_CANCELLATION_ERROR)
+        if self._cancellation is not None:
+            raise RuntimeError(_CANCELLATION_PENDING)
         if self._stack is None:
             from anyio.from_thread import start_blocking_portal
 
@@ -73,15 +169,30 @@ class MCPConsole:
                 # The MCP transport must enter and exit in the same async task.
                 stack.enter_context(portal.wrap_async_context_manager(self._async))
                 self._portal = portal
+                self._loop = portal.call(asyncio.get_running_loop)
                 self._stack = stack.pop_all()
         return self
 
     def close(self) -> None:
         """Close the MCP session, subprocess, and portal thread."""
         stack = self._stack
-        self._stack = self._portal = None
         if stack is not None:
-            stack.close()
+            if self._cancellation is not None and not self._cancellation.finished.wait(
+                timeout=5
+            ):
+                # Retain ownership rather than joining a request that still
+                # suppresses native cancellation or permitting a replacement.
+                raise RuntimeError(
+                    "Cancelled request did not stop; connection remains invalid"
+                )
+            try:
+                stack.close()
+            finally:
+                # ExitStack consumes all its callbacks even when teardown
+                # raises; the old portal must never look connected afterward.
+                self._stack = self._portal = self._loop = None
+                self._cancellation = None
+                self._cancellation_failed = False
 
     def __enter__(self) -> "Self":
         return self.connect()
@@ -90,17 +201,46 @@ class MCPConsole:
         self.close()
 
     def _call_send(self, arguments: Mapping[str, Any]) -> "CallToolResult":
-        if self._portal is None:
-            raise RuntimeError(
-                "MCPConsole is not connected; use `with MCPConsole() as console` "
-                "or call `console.connect()` first"
-            )
-        future = self._portal.start_task_soon(self._async._call_send, arguments)
+        request: _Request | None = None
         try:
-            return future.result()
+            with self._admission:
+                try:
+                    if self._cancellation_failed:
+                        raise RuntimeError(_CANCELLATION_ERROR)
+                    if self._cancellation is not None:
+                        raise RuntimeError(_CANCELLATION_PENDING)
+                    if self._loop is None:
+                        raise RuntimeError(
+                            "MCPConsole is not connected; use `with MCPConsole() as console` "
+                            "or call `console.connect()` first"
+                        )
+                    request = _Request(
+                        self._loop, self._async, arguments, admission=self._admission
+                    )
+                    request.start()
+                    # Waiting releases admission for ordinary concurrent calls.
+                    # On interruption it reacquires admission before propagating,
+                    # so cancellation is published before another send can pass.
+                    self._admission.wait_for(request.future.done)
+                    return request.future.result()
+                except KeyboardInterrupt:
+                    if request is not None:
+                        self._cancellation = request
+                    raise
         except KeyboardInterrupt:
-            # Let the SDK cancel the request without interrupting the cell.
-            future.cancel()
+            if request is None:
+                raise
+            completed = False
+            try:
+                request.cancel()
+                completed = request.finished.wait(timeout=5)
+            finally:
+                with self._admission:
+                    if completed:
+                        self._cancellation = None
+                    else:
+                        self._cancellation_failed = True
+                        request.abort()
             raise
 
     def send(

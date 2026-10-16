@@ -10,6 +10,8 @@ pub(crate) mod materialize;
 mod python;
 mod resolution;
 mod sandbox;
+pub(crate) use sandbox::Tempdir;
+pub(crate) const MANAGED_TEMPDIR_ENVIRONMENT: &str = "MCP_CONSOLE_MANAGED_TEMPDIR";
 mod tool;
 pub(crate) use python::Managed as ManagedPythonSettings;
 pub(crate) use python::PythonChoice;
@@ -33,8 +35,34 @@ pub fn configure_environment(command: &mut std::process::Command, settings: &San
     }
 }
 
-/// Native policy values; application additions materialize on the execution host.
+/// Captured native policy and Console tempdir selection. Launch consumes the
+/// selector before forwarding the native policy on the execution host.
 pub type SandboxSettings = Map<String, Value>;
+
+pub(crate) fn environment_path(settings: &SandboxSettings, name: &str) -> Option<PathBuf> {
+    let inherit = settings.get("inherit_environment") != Some(&Value::Bool(false));
+    settings
+        .get("environment")
+        .and_then(|values| {
+            if cfg!(windows) {
+                values
+                    .as_object()?
+                    .iter()
+                    .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                    .map(|(_, value)| value)
+            } else {
+                values.get(name)
+            }
+        })
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .or_else(|| {
+            inherit
+                .then(|| std::env::var_os(name).map(PathBuf::from))
+                .flatten()
+        })
+        .filter(|path| !path.as_os_str().is_empty())
+}
 
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -59,21 +87,35 @@ pub fn preserve_environment<'a>(
             let name = name
                 .to_str()
                 .ok_or_else(|| "worker environment name must be UTF-8".to_string())?;
+            let key = if cfg!(windows) {
+                environment
+                    .keys()
+                    .find(|key| {
+                        // Match the child process's comparison, including
+                        // Unicode, when protecting Console-owned names.
+                        let mut names = std::process::Command::new("");
+                        names.env(key.as_str(), "").env(name, "");
+                        names.get_envs().count() == 1
+                    })
+                    .cloned()
+                    .unwrap_or_else(|| name.to_owned())
+            } else {
+                name.to_owned()
+            };
             // Keep invalid native values for execution-host validation, even
             // when Console owns the assignment or removal of a valid value.
             if environment
-                .get(name)
+                .get(&key)
                 .is_some_and(|value| !value.is_string())
             {
                 continue;
             }
+            environment.remove(&key);
             if !inherit && let Some(value) = value {
                 let value = value.to_str().ok_or_else(|| {
                     format!("worker environment value for '{name}' must be UTF-8")
                 })?;
                 environment.insert(name.into(), value.into());
-            } else {
-                environment.remove(name);
             }
         }
     }
@@ -329,13 +371,15 @@ pub(crate) fn read(
         .map_err(|error| format!("{name}: {error}"))?;
     let mut resolver_environment = project.environment.clone();
     resolver_environment.extend(project.resolver.environment);
-    for (settings, inherit, environment) in [
+    for (scope, settings, inherit, environment) in [
         (
+            "environment",
             &mut policy,
             project.inherit_environment,
             project.environment,
         ),
         (
+            "resolver.environment",
             &mut resolver,
             project
                 .resolver
@@ -344,6 +388,19 @@ pub(crate) fn read(
             resolver_environment,
         ),
     ] {
+        if cfg!(windows) {
+            // Use Command's native key comparison, including Unicode, so
+            // validation and the eventual child environment agree.
+            let mut names = std::process::Command::new("");
+            for (index, key) in environment.keys().enumerate() {
+                names.env(key, "");
+                if names.get_envs().count() != index + 1 {
+                    return Err(format!(
+                        "{name}: {scope}: case-insensitive environment names must be unique on Windows; duplicate {key:?}"
+                    ));
+                }
+            }
+        }
         if !inherit {
             settings.insert("inherit_environment".into(), false.into());
         }

@@ -1,0 +1,4 @@
+/* Sidebar labels must fit their column when text is enlarged. */
+aside {
+  overflow-wrap: anywhere;
+}

@@ -28,56 +28,83 @@ website:
       - href: getting-started.qmd
         text: Get started
       - href: README.md
-        text: Documentation
-      - href: python/index.html
-        text: Python package
-      - href: r/index.html
-        text: R package
+        text: User guides
+      - href: CLIENTS.md
+        text: Client integration
+      - href: DEVELOPMENT.md
+        text: Development
     right:
+      - text: Packages
+        menu:
+        - href: python/index.html
+          text: Python package
+        - href: r/index.html
+          text: R package
       - icon: github
         href: https://github.com/t-kalinowski/mcp-console
         aria-label: GitHub repository
   sidebar:
-    style: docked
-    collapse-level: 1
-    contents:
+    - id: guides
+      title: User guides
+      style: docked
+      collapse-level: 1
+      contents:
       - href: README.md
-        text: Reading guide
-      - section: Use Console
+        text: Overview
+      - getting-started.qmd
+      - section: Work with Console
         contents:
-        - getting-started.qmd
         - BUILTIN_RUNTIME.md
-        - RECORDING.md
-        - PYTHON.md
-        - href: r/index.html
-          text: R and ellmer
-      - section: Public reference
-        contents:
-        - API.md
-        - CONFIGURATION.md
         - REQUIREMENTS.md
-        - SEND_OPERATIONS.md
-        - CLI.md
-        - cli-help.qmd
-        - ENVIRONMENT.md
-        - GLOSSARY.md
-        - href: python/reference/index.html
-          text: Python API
-      - section: Security and platforms
+        - RECORDING.md
+      - section: Configure Console
         contents:
+        - CONFIGURATION.md
+        - CONFIGURATION_REFERENCE.md
         - SANDBOX.md
         - SANDBOX_CONFIGURATION.md
         - RESOLVER.md
+        - ENVIRONMENT.md
+        - CLI.md
+        - cli-help.qmd
+      - section: Platforms and installation
+        contents:
         - WINDOWS.md
         - LINUX_COMPATIBILITY.md
-      - section: Develop Console
+        - BUILD_FROM_SOURCE.md
+      - GLOSSARY.md
+    - id: clients
+      title: Client integration
+      style: docked
+      collapse-level: 1
+      contents:
+      - CLIENTS.md
+      - PYTHON.md
+      - href: r/index.html
+        text: R and ellmer
+      - section: MCP reference
         contents:
-        - DEVELOPMENT.md
-        - ARCHITECTURE.md
-        - RELAY_PROTOCOL.md
-        - WORKER_PROTOCOL.md
-        - TOOL_DESCRIPTIONS.md
-        - TODO.md
+        - API.md
+        - SEND_OPERATIONS.md
+        - REQUIREMENTS_API.md
+        - TOOL_CONFIGURATION.md
+        - RUNTIME_REFERENCE.md
+      - href: python/reference/index.html
+        text: Python API
+      - href: r/reference/index.html
+        text: R API
+    - id: development
+      title: Development
+      style: docked
+      collapse-level: 1
+      contents:
+      - DEVELOPMENT.md
+      - ARCHITECTURE.md
+      - RELAY_PROTOCOL.md
+      - WORKER_PROTOCOL.md
+      - TOOL_DESCRIPTIONS.md
+      - WINDOWS_DEVELOPMENT.md
+      - TODO.md
       - section: Evidence and release
         contents:
         - RESOLVER_RELEASE_AUDIT.md

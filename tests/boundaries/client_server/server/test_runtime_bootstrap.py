@@ -523,6 +523,9 @@ def test_console_startup_resolves_python_version_and_import(
         complete = resources.enter_context(
             closing(FifoCheckpoint.create(root / "complete"))
         )
+        import_release = resources.enter_context(
+            closing(FifoCheckpoint.create(root / "import-release"))
+        )
         environment, resolving, resolved = checkpoint_uv_environment(root, "py-yaml12")
         resources.callback(resolving.close)
         resources.callback(resolved.close)
@@ -534,7 +537,15 @@ def test_console_startup_resolves_python_version_and_import(
         source = code("""
             version <- reticulate:::resolve_python_version(">=3.13")
             stopifnot(grepl("^[0-9]+[.][0-9]+[.][0-9]+$", version))
+            invisible(reticulate::py_config())
             cat("Python version resolved\\n")
+            importing <- fifo(
+              Sys.getenv("MCP_CONSOLE_TEST_BOOTSTRAP_IMPORT_RELEASE"),
+              "rb",
+              blocking = TRUE
+            )
+            stopifnot(identical(readBin(importing, "raw", 1L), charToRaw("1")))
+            close(importing)
             module <- reticulate::import("yaml12", convert = FALSE)
             stopifnot(identical(reticulate::py_to_r(module$`__name__`), "yaml12"))
             cat("Python import resolved\\n")
@@ -560,6 +571,7 @@ def test_console_startup_resolves_python_version_and_import(
             MCP_CONSOLE_TEST_BOOTSTRAP_REACHED=str(reached.path),
             MCP_CONSOLE_TEST_BOOTSTRAP_RELEASE=str(release.path),
             MCP_CONSOLE_TEST_BOOTSTRAP_COMPLETE=str(complete.path),
+            MCP_CONSOLE_TEST_BOOTSTRAP_IMPORT_RELEASE=str(import_release.path),
         )
         with McpClient(
             binary,
@@ -578,9 +590,14 @@ def test_console_startup_resolves_python_version_and_import(
                 )
                 client.initialize_and_list_tools()
                 release.release()
-                resolving.wait("bootstrap automatic import reaches host resolver")
-                client.request("ping")
+                # Finish version discovery and native Python setup before
+                # starting the bounded automatic-import checkpoint wait.
                 bootstrap_output(client, "Python version resolved\n", timeout_ms=0)
+                import_release.release()
+                resolving.wait(
+                    "bootstrap automatic import reaches host resolver", client=client
+                )
+                client.request("ping")
                 resolved.release()
                 complete.wait("bootstrap import finished", timeout=600)
                 bootstrap_output(
@@ -600,6 +617,7 @@ def test_console_startup_resolves_python_version_and_import(
                 return client.finish()[3:]
             finally:
                 release.release()
+                import_release.release()
                 resolved.release()
 
 
