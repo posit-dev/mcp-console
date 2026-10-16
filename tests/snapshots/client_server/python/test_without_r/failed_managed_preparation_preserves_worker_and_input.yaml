@@ -29,7 +29,7 @@ result:
         [managed Python resolution failed:
         resolver input:
         {
-          "python": "3.12.XX (reticulate default)",
+          "python": "3.13.XX (reticulate default)",
           "packages": [
             "numpy",
             "pandas",
@@ -98,7 +98,7 @@ result:
         [managed Python resolution failed:
         resolver input:
         {
-          "python": "3.12.XX (reticulate default)",
+          "python": "3.13.XX (reticulate default)",
           "packages": [
             "numpy",
             "pandas",

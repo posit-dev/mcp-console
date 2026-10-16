@@ -53,8 +53,8 @@ Keep genuinely OS-specific contracts on their owning platform.
 Native Windows acceptance does not cover every skipped shared case.
 Audit through full-suite capability diagnostics; see [Windows parity](WINDOWS.md#testing-parity-and-remaining-gaps).
 
-**SP-4 — Recheck development-Python compatibility.** The development guide records isolated `sitecustomize` fixture incompatibility with Python 3.14.
-Reproduce against current tooling before removing the tested Python 3.13 recommendation.
+**SP-4 — Move development and CI to Python 3.15 when DuckDB wheels are available.** DuckDB 1.5.6 has no CPython 3.15 wheels.
+The complete test suite uses Python 3.14 so SQL fixtures can install their native provider without building it from source.
 This concerns the test runner, not a blanket claim that Console cannot embed later Python versions.
 
 ## Documentation and agent usability

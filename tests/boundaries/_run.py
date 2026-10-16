@@ -4,13 +4,13 @@
 #     "py-yaml12>=0.2.0",
 #     "joblib",
 #     "numpy",
-#     "anyio>=4.9",
-#     "mcp==2.*,>=2.2.0",
-#     "anthropic[mcp]>=1.4.0",
+#     "anyio>=4.15.1",
+#     "mcp==2.*,>=2.3.0",
+#     "anthropic[mcp]>=1.15.0",
 #     "chatlas[mcp]>=0.23.0",
-#     "openai>=3.11.0",
-#     "openai-agents>=0.22.2",
-#     "openai-codex>=0.147.0",
+#     "openai>=3.31.0",
+#     "openai-agents>=0.24.0",
+#     "openai-codex>=0.163.0",
 # ]
 # ///
 

@@ -7,7 +7,8 @@ Read [AGENTS.md](../AGENTS.md) for change and publishing rules, [Architecture](A
 
 Install Python 3.11+, Git, rustup, and platform build tools.
 Use a Rust version satisfying `Cargo.toml`; the companion has its own pinned toolchain.
-Python 3.13 matches the development-script CI environment.
+Python 3.14 matches the development-script CI environment.
+Python 3.15 is awaiting DuckDB wheels; use 3.14 for the complete test suite.
 [Release/build setup](../RELEASE.md#private-sandbox-executable) lists native prerequisites.
 
 ```sh
@@ -42,8 +43,8 @@ Separate distro clones test different userspaces but still share the WSL kernel.
 
 Install Linux toolchains and the system libraries required by the selected R packages.
 Prepare cold dependency caches serially before concurrent transcript runs.
-Python 3.14 was not compatible with the existing isolated `sitecustomize` fixtures in the recorded setup; use the tested development Python until that fixture coverage is resolved.
-See [TODO](TODO.md#sandbox-and-platforms).
+Use the same development Python as CI.
+The isolated `sitecustomize` fixtures are covered by the shared boundary tests.
 
 ## Validation ladder
 

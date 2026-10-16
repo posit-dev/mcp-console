@@ -23,7 +23,7 @@ env:
   CI_BUILD_CACHE_VERSION: "3"
   IR_LATEST_RESOLUTION_MAX_AGE_SECONDS: "604800"
   # The Python inventory determines defaults recorded in transcript snapshots.
-  UV_VERSION: "0.12.24"
+  UV_VERSION: "0.13.1"
 
 jobs:
   windows:
@@ -43,7 +43,7 @@ jobs:
           "R_LIBS_USER=$env:RUNNER_TEMP/console-windows-r" >> $env:GITHUB_ENV
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - uses: r-lib/actions/setup-r@v2
         id: r
         with:
@@ -54,7 +54,7 @@ jobs:
         id: rust
         with:
           components: clippy, rustfmt
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           enable-cache: false
@@ -127,13 +127,13 @@ jobs:
       - name: Install Windows runtime packages
         run: |
           # Keep the transcript interpreter available alongside development and rejection fixtures.
-          uv python install 3.13 3.12 3.9
+          uv python install 3.14 3.13 3.12 3.9
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $oldPython = uv python find 3.9 --python-preference only-managed
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           "MCP_CONSOLE_TEST_OLD_PYTHON=$oldPython" >> $env:GITHUB_ENV
           $consolePython = Join-Path $env:LOCALAPPDATA "mcp-console/cache/dependencies/uv/python"
-          uv python install 3.13 3.12 --install-dir $consolePython
+          uv python install 3.14 3.13 3.12 --install-dir $consolePython
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $ciPython = (Get-Command python).Source
           uv pip install --python $ciPython packaging matplotlib
@@ -287,7 +287,7 @@ jobs:
         id: python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Read private sandbox source pin
         id: sandbox-pin
@@ -328,7 +328,7 @@ jobs:
           key: ${{ steps.sandbox-source-cache.outputs.cache-primary-key }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v10.3.0
         with:
           version: ${{ env.UV_VERSION }}
           cache-local-path: ${{ runner.temp }}/mcp-console-cache

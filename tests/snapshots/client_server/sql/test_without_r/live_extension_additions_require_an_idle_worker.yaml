@@ -70,8 +70,7 @@ result:
   content:
     - type: text
       text: |-
-        --Return--
-        > <mcp-console:python:e3>(1)<module>()->None
+        > <mcp-console:python:e3>(1)<module>()
         [input requested: "(Pdb) "]
         [waiting for stdin]
   isError: false

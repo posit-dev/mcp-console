@@ -1,7 +1,7 @@
 ---
 stderr: >
-  expect initialized request, but received: Some(Request(JsonRpcRequest {
-  jsonrpc: JsonRpcVersion2_0, id: Number(1), request:
-  ListToolsRequest(RequestOptionalParam { method: ListToolsRequestMethod,
-  params: None, extensions: Extensions }) }))
+  expect initialized request, but received:
+  Some(Notification(JsonRpcNotification { jsonrpc: JsonRpcVersion2_0,
+  notification: InitializedNotification(NotificationNoParam { method:
+  InitializedNotificationMethod, extensions: Extensions }) }))
 input_remained_open: true

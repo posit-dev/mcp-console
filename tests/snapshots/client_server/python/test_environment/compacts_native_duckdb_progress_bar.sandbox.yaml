@@ -5,7 +5,7 @@ send:
   python: pass
   requirements:
     python:
-      - duckdb==1.5.5
+      - duckdb==1.5.6
   timeout_ms: 600000
 result:
   content:
@@ -31,7 +31,7 @@ send:
     connection.execute("SET progress_bar_time = 1000000")
     connection.execute("SET threads = 1")
     row_count = 15_000_000
-    # DuckDB 1.5.5 emits at least 100 native progress redraws while
+    # DuckDB 1.5.6 emits at least 100 native progress redraws while
     # processing this single-threaded physical table scan.
     connection.execute(
         "CREATE TABLE progress_rows AS "

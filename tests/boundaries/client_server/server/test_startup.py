@@ -102,17 +102,11 @@ def gated_discovery(
             yield client, release
 
 
-@requires(POSIX)
-def test_closed_input_cancels_discovery_with_blocked_stdout(binary: Path) -> Transcript:
+def closed_input_with_blocked_stdout(
+    binary: Path, *, discover_first: bool
+) -> Transcript:
     with discovery_environment() as (environment, reached, release, alive):
         read_output, write_output = os.pipe()
-        os.set_blocking(write_output, False)
-        try:
-            while True:
-                os.write(write_output, b"x" * 4096)
-        except BlockingIOError:
-            pass
-        os.set_blocking(write_output, True)
         try:
             with tempfile.TemporaryDirectory() as directory:
                 environment["MCP_CONSOLE_HOME"] = directory
@@ -128,6 +122,46 @@ def test_closed_input_cancels_discovery_with_blocked_stdout(binary: Path) -> Tra
                 try:
                     reached.wait("runtime discovery is blocked")
                     assert os.read(alive, 1) == b"1"
+                    if discover_first:
+                        process.stdin.write(
+                            json.dumps(
+                                {
+                                    "jsonrpc": "2.0",
+                                    "id": 0,
+                                    "method": "server/discover",
+                                    "params": {
+                                        "_meta": {
+                                            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                                            "io.modelcontextprotocol/clientInfo": {
+                                                "name": "startup-test",
+                                                "version": "1",
+                                            },
+                                            "io.modelcontextprotocol/clientCapabilities": {},
+                                        }
+                                    },
+                                }
+                            ).encode()
+                            + b"\n"
+                        )
+                        process.stdin.flush()
+                        response = b""
+                        while not response.endswith(b"\n"):
+                            assert select.select([read_output], [], [], 5)[0], (
+                                "bootstrap discovery did not respond"
+                            )
+                            chunk = os.read(read_output, 4096)
+                            assert chunk, "bootstrap discovery closed its output"
+                            response += chunk
+                        assert (
+                            json.loads(response)["result"]["resultType"] == "complete"
+                        )
+                    os.set_blocking(write_output, False)
+                    try:
+                        while True:
+                            os.write(write_output, b"x" * 4096)
+                    except BlockingIOError:
+                        pass
+                    os.set_blocking(write_output, True)
                     process.stdin.write(
                         json.dumps(
                             {
@@ -162,6 +196,18 @@ def test_closed_input_cancels_discovery_with_blocked_stdout(binary: Path) -> Tra
             os.close(write_output)
             os.close(read_output)
     return [{"closed_input_retired_discovery_with_blocked_stdout": True}]
+
+
+@requires(POSIX)
+def test_closed_input_cancels_discovery_with_blocked_stdout(binary: Path) -> Transcript:
+    return closed_input_with_blocked_stdout(binary, discover_first=False)
+
+
+@requires(POSIX)
+def test_completed_discovery_does_not_hide_cancelled_initialization(
+    binary: Path,
+) -> Transcript:
+    return closed_input_with_blocked_stdout(binary, discover_first=True)
 
 
 @requires(POSIX)
@@ -272,7 +318,9 @@ def standalone_requirements_during_discovery(
 @requires(POSIX)
 def test_failed_handshake_cancels_discovery_with_input_open(binary: Path) -> Transcript:
     with gated_discovery(binary) as (client, _):
-        client.start_request("tools/list")
+        # Requests without inline metadata now receive recoverable errors.
+        # An initialized notification before initialize is a fatal handshake error.
+        client.notify("notifications/initialized")
         assert client.process.wait(timeout=5) != 0
         errors = client.stderr.read()
         assert errors, "invalid handshake must report its failure"

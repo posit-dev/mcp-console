@@ -39,7 +39,7 @@ def main() -> None:
     assert daemon_architecture == architecture, (
         "floor validation requires a matching native Docker host"
     )
-    for image in ("ubuntu:22.04", "ghcr.io/astral-sh/uv:0.12.22"):
+    for image in ("ubuntu:22.04", "ghcr.io/astral-sh/uv:0.13.1"):
         subprocess.run([*docker, "pull", image], check=True)
 
     # Keep bind inputs beside evidence, on the filesystem shared with the daemon.
@@ -90,7 +90,7 @@ def main() -> None:
                     "image",
                     "inspect",
                     "ubuntu:22.04",
-                    "ghcr.io/astral-sh/uv:0.12.22",
+                    "ghcr.io/astral-sh/uv:0.13.1",
                     image,
                 ],
                 text=True,

@@ -14,7 +14,7 @@ result:
   content:
     - type: text
       text: |-
-        > <mcp-console:python:e1>(5)<module>()
+        > <mcp-console:python:e1>(4)<module>()
         [input requested: "(Pdb) "]
         41
         [input requested: "(Pdb) "]

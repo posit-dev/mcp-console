@@ -21,7 +21,7 @@ use rmcp::{
     },
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorCode,
-        Implementation, ServerCapabilities, ServerInfo,
+        Implementation, ServerCapabilities, ServerConfig,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -364,7 +364,7 @@ fn response_to_tool_result(
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for ConsoleServer {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder().enable_tools().build();
         if self.inheritance.enabled() {
             capabilities.experimental = Some(std::collections::BTreeMap::from_iter([
@@ -375,7 +375,7 @@ impl ServerHandler for ConsoleServer {
                 ),
             ]));
         }
-        ServerInfo::new(capabilities)
+        ServerConfig::new(capabilities)
             .with_server_info(Implementation::new(
                 "mcp-console",
                 env!("CARGO_PKG_VERSION"),
@@ -579,6 +579,7 @@ pub async fn run(
         let inherited = inheritance.capture(call.extensions.get_or_insert_default());
         call.extensions.insert(sandbox::CaptureResult(inherited));
     });
+    let startup_responses = deliveries.clone();
     let shutdown = async move {
         let shutdown_started = wait_for_input_close
             .await
@@ -612,6 +613,11 @@ pub async fn run(
             Ok(service) => service,
             Err(error) => {
                 shutdown.await.map_err(std::io::Error::other)?;
+                if matches!(&error, rmcp::service::ServerInitializeError::ConnectionClosed(_))
+                    && startup_responses.bootstrap_complete()
+                {
+                    return Ok(());
+                }
                 return Err(match error {
                     rmcp::service::ServerInitializeError::ConnectionClosed(_) =>
                         std::io::Error::other(CLOSED_BEFORE_INITIALIZATION).into(),
@@ -621,6 +627,9 @@ pub async fn run(
         },
         result = &mut shutdown => {
             result.map_err(std::io::Error::other)?;
+            if startup_responses.bootstrap_complete() {
+                return Ok(());
+            }
             return Err(std::io::Error::other(CLOSED_BEFORE_INITIALIZATION).into());
         }
     };

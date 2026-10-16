@@ -13,7 +13,7 @@ Use `scripts/with-checkout.cmd` for direct mutating build commands.
 
 ## Validation
 
-Use Python 3.13 to match CI.
+Use Python 3.14 to match CI.
 Full coverage needs R/Python, PATH uv/ir, package repository access, prepared dependencies, and an MXC-capable host.
 CI runs `scripts/with-checkout.cmd python tests/windows_mxc.py -v` after building Console, then the substantive Windows suite on the same host.
 Acceptance probes MXC through a real public sandbox launch.

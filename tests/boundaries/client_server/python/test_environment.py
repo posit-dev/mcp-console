@@ -390,7 +390,7 @@ def test_compacts_native_duckdb_progress_bar(
         connection.execute("SET progress_bar_time = 1000000")
         connection.execute("SET threads = 1")
         row_count = 15_000_000
-        # DuckDB 1.5.5 emits at least 100 native progress redraws while
+        # DuckDB 1.5.6 emits at least 100 native progress redraws while
         # processing this single-threaded physical table scan.
         connection.execute(
             "CREATE TABLE progress_rows AS "
@@ -444,7 +444,7 @@ def test_compacts_native_duckdb_progress_bar(
             # Finish startup and preparation before observing native progress.
             client.send(
                 python="pass",
-                requirements={"python": ["duckdb==1.5.5"]},
+                requirements={"python": ["duckdb==1.5.6"]},
                 timeout_ms=600_000,
             )
             assert last_result_text(client) == "[done]"

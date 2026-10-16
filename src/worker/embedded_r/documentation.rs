@@ -18,11 +18,11 @@ pub extern "C-unwind" fn mcp_console_documentation_html(html: SEXP) -> harp::Res
             let mut lifted = Vec::new();
             for child in children.drain(..) {
                 if matches!(&child.data, html2text::Element { name, .. }
-                    if name.local.as_ref() == "table")
+                    if &*name.local == "table")
                 {
                     lifted.extend(child.children.borrow_mut().extract_if(.., |caption| {
                         matches!(&caption.data, html2text::Element { name, .. }
-                            if name.local.as_ref() == "caption")
+                            if &*name.local == "caption")
                     }));
                 }
                 lifted.push(child);

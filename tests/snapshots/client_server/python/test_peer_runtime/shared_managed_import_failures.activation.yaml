@@ -115,7 +115,7 @@ result:
           File "<string>", line 128, in _activate
           File "<string>", line 768, in _mcp_console_raise_setup_error
           File "<string>", line 781, in _mcp_console_activate_environment
-          File "<frozen runpy>", line 287, in run_path
+          File "<frozen runpy>", line 294, in run_path
           File "<frozen runpy>", line 98, in _run_module_code
           File "<frozen runpy>", line 88, in _run_code
           File "<preparation>/archive-v0/<environment>/bin/activate_this.py", line 1, in <module>

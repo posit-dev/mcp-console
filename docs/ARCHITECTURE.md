@@ -172,6 +172,7 @@ The pinned runner has no separate Unix cleanup receipt; a nonzero status can rep
 
 Connection closure cancels startup/preparation, retires execution resources, settles accepted responses, and bounds blocked MCP delivery.
 Physical EOF can precede transport consumption of queued requests; response settlement waits for the transport's input drain within the same delivery deadline.
+Before session initialization, EOF succeeds after a complete bootstrap response and transport input drain; receiving another message clears that completion.
 Native runner loss retains the [documented lifetime limits](SANDBOX.md#supported-hosts-and-lifetime-limits); Console has no independent recovery daemon.
 
 ## Output and delivery

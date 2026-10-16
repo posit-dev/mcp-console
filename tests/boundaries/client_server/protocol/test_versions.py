@@ -16,6 +16,8 @@ def request_lifecycle(
 ) -> Transcript:
     client = McpClient(binary, execution.serve())
     client.request(method, **params)
+    # Deliberately omit notifications/initialized: rmcp's initialize response
+    # already completes SDK startup; discovery remains a stateless exchange.
     return client.finish()
 
 

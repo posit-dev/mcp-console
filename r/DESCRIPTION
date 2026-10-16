@@ -13,20 +13,20 @@ BugReports: https://github.com/t-kalinowski/mcp-console/issues
 Depends:
     R (>= 4.2.0)
 Imports:
-    ellmer (>= 0.4.2),
+    ellmer (>= 0.5.0),
     jsonlite,
     processx,
     ps,
-    reticulate (>= 1.41.0),
+    reticulate (>= 1.47.0),
     S7 (>= 0.2.2.9000),
     utils
 Suggests:
     httr2,
     knitr,
     rmarkdown,
-    testthat (>= 3.2.0)
+    testthat (>= 3.3.2)
 Remotes:
-    RConsortium/S7@4bd824639a4ad45bb9b618a55bb33687637e5581
+    RConsortium/S7@a84a3542074c1be05f6aee4abdc42e2e874f2f65
 Config/testthat/edition: 3
 Encoding: UTF-8
 VignetteBuilder: knitr

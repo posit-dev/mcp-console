@@ -31,7 +31,7 @@ def test_shows_table_repr_and_sandbox_save_error(
         environment.pop("PYTHONPATH", None)
         environment.pop("RETICULATE_PYTHONPATH", None)
         subprocess.run(
-            ["uv", "venv", "--python", "3.13", str(selected)],
+            ["uv", "venv", "--python", "3.14", str(selected)],
             env=environment,
             check=True,
             capture_output=True,
@@ -44,9 +44,9 @@ def test_shows_table_repr_and_sandbox_save_error(
                 "install",
                 "--python",
                 str(python),
-                "great-tables==0.21.0",
-                "pandas==2.2.3",
-                "selenium==4.33.0",
+                "great-tables==1.1.0",
+                "pandas==3.0.6",
+                "selenium==4.51.0",
             ],
             env=environment,
             check=True,
@@ -80,13 +80,18 @@ def test_shows_table_repr_and_sandbox_save_error(
                 r" at 0x[0-9a-f]+>", " at <address>>", content[0]["text"]
             )
 
+            # Keep the legacy export path to exercise Selenium's socket permissions.
             client.send(python='table.save("quarterly-sales.png")', timeout_ms=600_000)
             content = client.transcript[-1]["result"]["content"]
             assert len(content) == 1 and content[0]["type"] == "text", content
             output = content[0]["text"]
             assert 'free_socket.bind(("127.0.0.1", 0))' in output, output
+            assert 'free_socket.bind(("::1", 0))' in output, output
+            assert (
+                output.count("PermissionError: [Errno 1] Operation not permitted") == 2
+            ), output
             assert output.endswith(
-                "PermissionError: [Errno 1] Operation not permitted\n"
+                "RuntimeError: Can't find free port (Unable to bind to IPv4 or IPv6)\n"
             ), output
             content[0]["text"] = output.replace(str(selected), "<selected Python>")
             normalize_preview_paths(client)

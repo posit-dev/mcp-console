@@ -3,7 +3,7 @@ send:
   requirements:
     action: set
     python:
-      - duckdb==1.5.5
+      - duckdb==1.5.6
     duckdb:
       - fts
 result:
@@ -75,6 +75,8 @@ result:
       text: |-
         DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
           File "<string>", line 49, in <module>
+            connection.install_extension(extension)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
         _duckdb.HTTPException: HTTP Error: Failed to download extension "not_a_real_duckdb_extension" at URL "<DuckDB extension URL>" (HTTP 404)
 
         Candidate extensions: "motherduck", "odbc", "unity_catalog", "delta", "lance"
@@ -92,7 +94,7 @@ result:
           "requirements": {
             "r": [],
             "python": [
-              "duckdb==1.5.5"
+              "duckdb==1.5.6"
             ],
             "duckdb": [
               "fts"
@@ -110,7 +112,7 @@ result:
     requirements:
       r: []
       python:
-        - duckdb==1.5.5
+        - duckdb==1.5.6
       duckdb:
         - fts
       python_version: []
@@ -215,7 +217,7 @@ result:
           "python": "<selected Python>",
           "packages": [
             "absent-fixture-distribution",
-            "duckdb==1.5.5"
+            "duckdb==1.5.6"
           ]
         }
         uv output:
@@ -256,7 +258,7 @@ send:
   requirements:
     action: set
     python:
-      - duckdb==1.5.5
+      - duckdb==1.5.6
     duckdb:
       - fts
       - json
@@ -292,7 +294,7 @@ result:
           "requirements": {
             "r": [],
             "python": [
-              "duckdb==1.5.5"
+              "duckdb==1.5.6"
             ],
             "duckdb": [
               "fts"
@@ -310,7 +312,7 @@ result:
     requirements:
       r: []
       python:
-        - duckdb==1.5.5
+        - duckdb==1.5.6
       duckdb:
         - fts
       python_version: []
@@ -334,7 +336,7 @@ send:
   requirements:
     action: set
     python:
-      - duckdb==1.5.5
+      - duckdb==1.5.6
     duckdb:
       - fts
 result:

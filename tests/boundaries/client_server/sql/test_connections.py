@@ -652,7 +652,7 @@ def test_preserves_selected_python_duckdb_connection_state(
         """)
     client.expect(
         python=python,
-        requirements={"python": ["duckdb==1.5.5"]},
+        requirements={"python": ["duckdb==1.5.6"]},
     )
 
     client.send(sql="SELECT value + 1 AS answer FROM before_selection")

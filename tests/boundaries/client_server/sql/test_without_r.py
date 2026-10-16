@@ -529,7 +529,7 @@ def test_combines_python_and_extension_candidates_across_duckdb_versions(
                 control="restart",
                 requirements={
                     "action": "set",
-                    "python": ["duckdb==1.5.5", "six"],
+                    "python": ["duckdb==1.5.6", "six"],
                     "duckdb": ["fts"],
                 },
                 sql="SET autoinstall_known_extensions = false; LOAD fts",
@@ -537,9 +537,9 @@ def test_combines_python_and_extension_candidates_across_duckdb_versions(
             )
             assert not second.get("isError"), second
             assert "Error:" not in last_tool_text(client)
-            assert len(list(cache.glob("v1.5.5/**/fts.duckdb_extension"))) == 1
+            assert len(list(cache.glob("v1.5.6/**/fts.duckdb_extension"))) == 1
             client.send(python="import duckdb, six; print(duckdb.__version__)")
-            assert last_tool_text(client) == "1.5.5\n"
+            assert last_tool_text(client) == "1.5.6\n"
             inspected = client.send(requirements={"action": "get"})
             assert inspected["structuredContent"]["requirements"]["duckdb"] == ["fts"]
             client.send(
@@ -549,7 +549,7 @@ def test_combines_python_and_extension_candidates_across_duckdb_versions(
                 timeout_ms=int(client.response_timeout * 1_000),
             )
             added = client.send(
-                requirements={"python": ["duckdb==1.5.5"], "duckdb": ["fts"]},
+                requirements={"python": ["duckdb==1.5.6"], "duckdb": ["fts"]},
                 sql="SET autoinstall_known_extensions = false; LOAD fts",
                 timeout_ms=int(client.response_timeout * 1_000),
             )
@@ -672,7 +672,7 @@ def test_failed_and_live_extension_changes_preserve_worker_and_selected_connecti
             client.send(
                 requirements={
                     "action": "set",
-                    "python": ["duckdb==1.5.5"],
+                    "python": ["duckdb==1.5.6"],
                     "duckdb": ["fts"],
                 }
             )
@@ -759,7 +759,7 @@ def test_failed_and_live_extension_changes_preserve_worker_and_selected_connecti
                 {"duckdb": ["json"], "exclude_newer": "2026-01-01"},
                 {
                     "action": "set",
-                    "python": ["duckdb==1.5.5"],
+                    "python": ["duckdb==1.5.6"],
                     "duckdb": ["fts", "json"],
                 },
                 {"action": "reset"},
@@ -776,7 +776,7 @@ def test_failed_and_live_extension_changes_preserve_worker_and_selected_connecti
             unchanged = client.send(
                 requirements={
                     "action": "set",
-                    "python": ["duckdb==1.5.5"],
+                    "python": ["duckdb==1.5.6"],
                     "duckdb": ["fts"],
                 }
             )

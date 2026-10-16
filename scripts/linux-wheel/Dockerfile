@@ -1,5 +1,5 @@
 # Native wheel validation on the supported userspace; no checkout enters here.
-FROM ghcr.io/astral-sh/uv:0.12.22 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.1 AS uv
 FROM ubuntu:22.04 AS base
 ENV DEBIAN_FRONTEND=noninteractive UV_NO_CONFIG=1 \
     UV_PYTHON_INSTALL_DIR=/opt/console-cache/mcp-console/dependencies/uv/python
@@ -7,8 +7,8 @@ COPY --from=uv /uv /usr/local/bin/uv
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libcap2 libgcc-s1 libstdc++6 binutils \
     && rm -rf /var/lib/apt/lists/*
-RUN uv python install 3.13 \
-    && ln -s "$(uv python find --managed-python 3.13)" /usr/local/bin/python3
+RUN uv python install 3.14 \
+    && ln -s "$(uv python find --managed-python 3.14)" /usr/local/bin/python3
 ENV UV_PYTHON_DOWNLOADS=never UV_TOOL_DIR=/tmp/tools UV_TOOL_BIN_DIR=/tmp/bin UV_CACHE_DIR=/tmp/uv-cache
 ENV XDG_CACHE_HOME=/opt/console-cache
 WORKDIR /empty-workspace
@@ -60,7 +60,7 @@ ENV PATH=/opt/cmake/bin:$PATH
 # Refresh resolution for each driver run, retaining cached system/tool setup.
 # Match Console's complete runtime request and R_HOME cache identity.
 ARG R_PREPARATION_RUN
-RUN test -n "$R_PREPARATION_RUN" && uv tool run --isolated --python 3.13 --from r-lib-ir ir run \
+RUN test -n "$R_PREPARATION_RUN" && uv tool run --isolated --python 3.14 --from r-lib-ir ir run \
     --rscript "$R_HOME/bin/Rscript" \
     --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
     --with duckdb --with arrow --with nanoarrow --with yyjsonr --with ggplot2 \

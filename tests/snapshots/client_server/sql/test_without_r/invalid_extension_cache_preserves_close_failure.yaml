@@ -8,6 +8,8 @@ result:
       text: |-
         DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
           File "<string>", line 49, in <module>
+            connection.install_extension(extension)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
         _duckdb.IOException: IO Error: Failed to create directory "<temporary>/invalid-cache": path exists but is not a directory!; resolver input closed; local resolver sandbox exited with exit status: 47
   isError: true
 ---
@@ -20,6 +22,8 @@ result:
       text: |-
         DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
           File "<string>", line 49, in <module>
+            connection.install_extension(extension)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
         _duckdb.IOException: IO Error: Failed to create directory "<temporary>/invalid-cache": path exists but is not a directory!; resolver input closed; local resolver sandbox exited with exit status: 47
   isError: true
 ---
@@ -30,4 +34,6 @@ result: {}
 stderr: |
   DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
     File "<string>", line 49, in <module>
+      connection.install_extension(extension)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
   _duckdb.IOException: IO Error: Failed to create directory "<temporary>/invalid-cache": path exists but is not a directory!; resolver input closed; local resolver sandbox exited with exit status: 47
