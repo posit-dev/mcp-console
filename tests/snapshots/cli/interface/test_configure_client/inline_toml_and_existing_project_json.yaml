@@ -1,0 +1,23 @@
+---
+client: codex
+console:
+  command: uvx
+  env:
+    KEEP: value
+  args:
+    - mcp-console
+    - serve
+  enabled: true
+  omit_tools_from:
+    - deferred
+---
+client: claude
+console:
+  command: uvx
+  env:
+    KEEP: value
+  type: stdio
+  args:
+    - mcp-console
+    - serve
+  alwaysLoad: true

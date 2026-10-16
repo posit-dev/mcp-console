@@ -1,0 +1,17 @@
+---
+fixture: >-
+  Local binary-only Console wheel, real uv, isolated tools and cache, no
+  registry access
+temporary_run: promoted to a persistent executable
+persistent_tools: >-
+  index and direct-source installations beneath a tagged parent retain
+  their executable paths without uv
+cache_layouts: custom cache and --no-cache environments are promoted
+source_identity: >-
+  selected wheel retained despite an index wheel with the same version
+index_source: >-
+  unrecorded resolver options rejected before installation or
+  configuration writes
+credentials: used for installation and omitted from both output streams
+dry_run: no install or configuration writes
+installation_failure: no configuration writes

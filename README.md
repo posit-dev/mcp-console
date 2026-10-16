@@ -23,7 +23,19 @@ uv tool install mcp-console
 [Get started](docs/getting-started.qmd) covers platform prerequisites, optional R installation, and client setup.
 [Build from source](docs/BUILD_FROM_SOURCE.md) covers the development version.
 
-Configure your MCP client to launch `mcp-console serve`.
+Register Console with your client:
+
+```sh
+mcp-console configure-client codex
+# Or: mcp-console configure-client claude
+```
+
+This configures the client to launch `uvx mcp-console serve` and load Console tools up front.
+Use `--dry-run` to preview the settings or `--no-auto-load` to keep the client's default tool discovery.
+You can also start with `uvx mcp-console configure-client codex claude` to configure both clients without first installing Console.
+Use `--pin-version VERSION` to select the Console version resolved by uvx, or `--no-uvx` to configure an absolute executable path.
+`--pin-version current` pins the version running setup.
+See [client setup](docs/getting-started.qmd#connect-your-client) for project/global scope and other clients.
 Run the client and Console on the same host, with the client's shell and filesystem tools using the same workspace.
 
 Ask your agent:

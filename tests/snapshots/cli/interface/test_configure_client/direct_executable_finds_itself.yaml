@@ -1,0 +1,3 @@
+---
+launch: absolute path to the running executable
+clients: 2

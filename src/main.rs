@@ -8,6 +8,7 @@ mod windows;
 mod cell;
 mod cli;
 mod config;
+mod configure_client;
 mod console_paths;
 #[cfg(unix)]
 mod input_watch;
@@ -62,6 +63,10 @@ fn main() -> ExitCode {
     let cli = cli::Cli::parse();
     let mut overrides = cli.overrides;
     match cli.command {
+        cli::Command::ConfigureClient(options) => match configure_client::run(&options) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => exit_with_error(error),
+        },
         cli::Command::Config {
             command:
                 cli::ConfigCommand::Resolve {

@@ -1,0 +1,8 @@
+---
+client: codex
+automatic: Git root or global
+overrides: true
+---
+client: claude
+automatic: Git root or global
+overrides: true

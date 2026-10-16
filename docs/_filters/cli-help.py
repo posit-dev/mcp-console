@@ -15,14 +15,14 @@ SNAPSHOTS = (
 
 # Acceptance also exercises internal entry points. They do not belong in the
 # public command reference; add new public commands here deliberately.
-PUBLIC_HELP_COMMANDS = frozenset(
-    {
-        "mcp-console --help",
-        "mcp-console config --help",
-        "mcp-console config resolve --help",
-        "mcp-console serve --help",
-        "mcp-console sandbox --help",
-    }
+# Display order is independent of transcript recording order.
+PUBLIC_HELP_COMMANDS = (
+    "mcp-console --help",
+    "mcp-console serve --help",
+    "mcp-console sandbox --help",
+    "mcp-console config --help",
+    "mcp-console config resolve --help",
+    "mcp-console configure-client --help",
 )
 
 
@@ -34,12 +34,13 @@ def cli_help(
     assert format == "html", "CLI help presentation requires HTML"
     attributes, _ = value
     platform, _, options = attributes
-    entries = read_yaml(SNAPSHOTS / dict(options)["snapshot"], multi=True)
+    entries = {
+        entry["command"]: entry
+        for entry in read_yaml(SNAPSHOTS / dict(options)["snapshot"], multi=True)
+    }
     blocks = []
-    for entry in entries:
-        command = entry["command"]
-        if command not in PUBLIC_HELP_COMMANDS:
-            continue
+    for command in PUBLIC_HELP_COMMANDS:
+        entry = entries[command]
         assert entry.get("exit_code", 0) == 0 and entry["stdout"], command
         assert not entry.get("stderr"), command
         name = command.removesuffix(" --help")

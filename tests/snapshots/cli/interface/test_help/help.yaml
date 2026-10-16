@@ -8,11 +8,12 @@ stderr: |
   Usage: mcp-console [OPTIONS] <COMMAND>
 
   Commands:
-    config   Inspect configuration without starting interpreters or preparing
-             packages
-    serve    Run the MCP server over standard input and output
-    sandbox  Run a command with the default or an explicit sandbox policy
-    help     Print this message or the help of the given subcommand(s)
+    serve             Run the MCP server over standard input and output
+    sandbox           Run a command with the default or an explicit sandbox policy
+    config            Inspect configuration without starting interpreters or
+                      preparing packages
+    configure-client  Configure clients to launch MCP Console and expose its tools
+    help              Print this message or the help of the given subcommand(s)
 
   Options:
         --no-project-config   Skip trusted launch-directory project configuration;
@@ -32,6 +33,7 @@ stderr: |
   Examples:
     mcp-console serve
     mcp-console sandbox -- python -c 'print("hello")'
+    mcp-console configure-client codex claude
 ---
 command: mcp-console --help
 stdout: |
@@ -40,11 +42,12 @@ stdout: |
   Usage: mcp-console [OPTIONS] <COMMAND>
 
   Commands:
-    config   Inspect configuration without starting interpreters or preparing
-             packages
-    serve    Run the MCP server over standard input and output
-    sandbox  Run a command with the default or an explicit sandbox policy
-    help     Print this message or the help of the given subcommand(s)
+    serve             Run the MCP server over standard input and output
+    sandbox           Run a command with the default or an explicit sandbox policy
+    config            Inspect configuration without starting interpreters or
+                      preparing packages
+    configure-client  Configure clients to launch MCP Console and expose its tools
+    help              Print this message or the help of the given subcommand(s)
 
   Options:
         --no-project-config
@@ -81,6 +84,7 @@ stdout: |
   Examples:
     mcp-console serve
     mcp-console sandbox -- python -c 'print("hello")'
+    mcp-console configure-client codex claude
 ---
 command: mcp-console config --help
 stdout: |
@@ -145,6 +149,46 @@ stdout: |
 
     -h, --help
             Print help (see a summary with '-h')
+---
+command: mcp-console configure-client --help
+stdout: |
+  Configure clients to launch MCP Console and expose its tools
+
+  Usage: mcp-console configure-client [OPTIONS] <CLIENT>... [-- <SERVE_ARGS>...]
+
+  Arguments:
+    <CLIENT>...      One or more clients to configure [possible values: codex,
+                     claude]
+    [SERVE_ARGS]...  Additional arguments passed to mcp-console serve, after --
+
+  Options:
+        --scope <SCOPE>          Configuration scope: auto uses the nearest Git
+                                 project, otherwise global; project uses the Git
+                                 root or current directory [default: auto]
+                                 [possible values: auto, project, global]
+        --no-uvx                 Configure an absolute executable path; temporary
+                                 uvx runs install recorded direct sources with uv.
+                                 Index installs must be persistent first.
+                                 Conflicts with --pin-version
+        --pin-version <VERSION>  Console version to resolve with uvx: exact
+                                 version, current, or latest; unpinned by default.
+                                 Conflicts with --no-uvx
+        --name <NAME>            Server name in the client's configuration
+                                 [default: console]
+        --no-auto-load           Keep the client's default tool discovery instead
+                                 of loading Console tools up front
+        --dry-run                Print proposed settings and any installation
+                                 command without writing files or installing
+    -h, --help                   Print help
+
+  Prints each configuration file and setting changed. Unrelated settings are
+  preserved. Use --dry-run to preview or apply the changes manually.
+
+  Examples:
+    uvx mcp-console configure-client codex claude
+    mcp-console configure-client codex --pin-version current
+    mcp-console configure-client codex --pin-version v0.0.5
+    mcp-console configure-client claude --no-uvx --dry-run
 ---
 command: mcp-console serve --help
 stdout: |

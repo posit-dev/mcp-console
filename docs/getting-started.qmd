@@ -31,17 +31,27 @@ To install the development version, follow [Build from source](BUILD_FROM_SOURCE
 Console runs on the same host as the client.
 Start both in the project where the agent will work, so their shell and filesystem tools refer to the same files.
 
-For Codex:
+Register Console with Codex or Claude Code:
 
 ```sh
-codex mcp add console -- mcp-console serve
+uvx mcp-console configure-client codex
+uvx mcp-console configure-client claude
 ```
 
-For Claude Code:
+Choose the client you use, or pass both names to configure both clients in one command.
+Inside a Git repository, it writes project configuration at the repository root; elsewhere, it writes global configuration.
+Use `--scope project` or `--scope global` to choose explicitly.
+The command prints the settings it writes, and `--dry-run` previews them without changing files.
+By default, it also configures Console tools to load up front; `--no-auto-load` keeps the client's default discovery.
+Restart the client and approve project configuration if prompted.
 
-```sh
-claude mcp add --transport stdio console -- mcp-console serve
-```
+The default launch command is `uvx mcp-console serve`, with no version constraint.
+Use `--pin-version v0.0.5` to select an exact version or `--pin-version latest` to request the latest release at launch.
+Use `--pin-version current` to pin the version running setup.
+Use `--no-uvx` to configure an absolute executable path; a temporary uvx run can first install a recorded direct wheel, archive, or Git source persistently with uv.
+For index or `--find-links` installations, run `uv tool install` with the same resolver options first, then invoke the installed executable with `--no-uvx`.
+When reviewing a source installation, run that installation's `mcp-console configure-client CLIENT --no-uvx` to save its absolute executable path.
+See [client configuration](CLI.md#configure-a-client) for paths and visibility settings.
 
 For another MCP client, configure a stdio server with command `mcp-console` and arguments `["serve"]`.
 Clients using an `mcpServers` mapping can use:

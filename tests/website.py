@@ -150,33 +150,36 @@ class WebsiteTests(unittest.TestCase):
         path = self.site / "cli-help.html"
         self.assertIn(path, self.pages, "CLI help page is missing")
         soup = BeautifulSoup(path.read_text(), "html.parser")
-        public_commands = {
+        public_commands = [
             "mcp-console --help",
-            "mcp-console config --help",
-            "mcp-console config resolve --help",
             "mcp-console serve --help",
             "mcp-console sandbox --help",
-        }
+            "mcp-console config --help",
+            "mcp-console config resolve --help",
+            "mcp-console configure-client --help",
+        ]
         for platform, filename in (("all-platforms", "help.yaml"),):
             with self.subTest(platform=platform):
                 entries = read_yaml(
                     ROOT / "tests/snapshots/cli/interface/test_help" / filename,
                     multi=True,
                 )
-                expected = [
-                    (entry["command"], entry["stdout"].rstrip("\n"))
+                expected = {
+                    entry["command"]: entry["stdout"].rstrip("\n")
                     for entry in entries
                     if entry["command"] in public_commands
-                ]
-                self.assertEqual({command for command, _ in expected}, public_commands)
-                self.assertEqual(len(expected), len(public_commands))
+                }
+                self.assertEqual(set(expected), set(public_commands))
                 panel = soup.find(id=platform)
                 self.assertIsNotNone(panel, "platform panel is missing")
                 actual = [
                     (pre["data-command"], pre.get_text().rstrip("\n"))
                     for pre in panel.select("pre.cli-help")
                 ]
-                self.assertEqual(actual, expected)
+                self.assertEqual(
+                    actual,
+                    [(command, expected[command]) for command in public_commands],
+                )
                 for pre in panel.select("pre.cli-help"):
                     self.assertEqual(pre.get("tabindex"), "0")
                     self.assertEqual(pre.get("role"), "region")
@@ -191,7 +194,7 @@ class WebsiteTests(unittest.TestCase):
                 ]
                 self.assertEqual(
                     headings,
-                    [command.removesuffix(" --help") for command, _ in expected],
+                    [command.removesuffix(" --help") for command in public_commands],
                 )
         search = json.loads((self.site / "search.json").read_text())
         self.assertIn(

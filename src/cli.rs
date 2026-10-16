@@ -11,16 +11,28 @@ Global settings supply defaults, not a mandatory security ceiling; projects may 
 const ROOT_EXAMPLES: &str = "\
 Examples:
   mcp-console serve
-  mcp-console sandbox -- python -c 'print(\"hello\")'";
+  mcp-console sandbox -- python -c 'print(\"hello\")'
+  mcp-console configure-client codex claude";
 
 const SANDBOX_EXAMPLES: &str = "\
 Examples:
   mcp-console sandbox -- Rscript analysis.R
   mcp-console sandbox -- python script.py";
 
+const CONFIGURE_CLIENT_EXAMPLES: &str = "\
+Prints each configuration file and setting changed. Unrelated settings are
+preserved. Use --dry-run to preview or apply the changes manually.
+
+Examples:
+  uvx mcp-console configure-client codex claude
+  mcp-console configure-client codex --pin-version current
+  mcp-console configure-client codex --pin-version v0.0.5
+  mcp-console configure-client claude --no-uvx --dry-run";
+
 #[derive(Debug, Parser)]
 #[command(
     name = "mcp-console",
+    bin_name = "mcp-console",
     version,
     about = env!("CARGO_PKG_DESCRIPTION"),
     after_help = ROOT_EXAMPLES
@@ -84,12 +96,18 @@ impl ConfigOverrides {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Configure clients to launch MCP Console and expose its tools
+    #[command(after_help = CONFIGURE_CLIENT_EXAMPLES, display_order = 4)]
+    ConfigureClient(ConfigureClientOptions),
+
     /// Inspect configuration without starting interpreters or preparing packages
+    #[command(display_order = 3)]
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
     },
     /// Run the MCP server over standard input and output
+    #[command(display_order = 1)]
     Serve {
         #[command(flatten)]
         overrides: ConfigOverrides,
@@ -138,7 +156,7 @@ pub enum Command {
     },
 
     /// Run a command with the default or an explicit sandbox policy
-    #[command(after_help = SANDBOX_EXAMPLES)]
+    #[command(after_help = SANDBOX_EXAMPLES, display_order = 2)]
     Sandbox {
         #[command(flatten)]
         overrides: ConfigOverrides,
@@ -195,4 +213,67 @@ pub enum ConfigCommand {
 pub enum ConfigFormat {
     Yaml,
     Json,
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigureClientOptions {
+    /// One or more clients to configure
+    #[arg(value_enum, required = true, num_args = 1.., value_name = "CLIENT")]
+    pub clients: Vec<ConfigureClient>,
+
+    /// Configuration scope: auto uses the nearest Git project, otherwise global; project uses the Git root or current directory
+    #[arg(long, value_enum, default_value = "auto")]
+    pub scope: ConfigureClientScope,
+
+    /// Configure an absolute executable path; temporary uvx runs install recorded direct sources with uv. Index installs must be persistent first. Conflicts with --pin-version
+    #[arg(long, conflicts_with = "pin_version")]
+    pub no_uvx: bool,
+
+    /// Console version to resolve with uvx: exact version, current, or latest; unpinned by default. Conflicts with --no-uvx
+    #[arg(long, value_name = "VERSION", value_parser = parse_pin_version)]
+    pub pin_version: Option<String>,
+
+    /// Server name in the client's configuration
+    #[arg(long, default_value = "console", value_parser = clap::builder::NonEmptyStringValueParser::new())]
+    pub name: String,
+
+    /// Keep the client's default tool discovery instead of loading Console tools up front
+    #[arg(long)]
+    pub no_auto_load: bool,
+
+    /// Print proposed settings and any installation command without writing files or installing
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// Additional arguments passed to mcp-console serve, after --
+    #[arg(last = true, value_name = "SERVE_ARGS")]
+    pub serve_args: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum ConfigureClient {
+    Codex,
+    Claude,
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum ConfigureClientScope {
+    Auto,
+    Project,
+    Global,
+}
+
+fn parse_pin_version(input: &str) -> Result<String, String> {
+    let version = if input == "current" {
+        env!("CARGO_PKG_VERSION")
+    } else {
+        input
+    };
+    // Validate syntax here; uv checks package availability when launched.
+    if version != "latest" {
+        version.parse::<pep440_rs::Version>().map_err(|error| {
+            format!("expected an exact PEP 440 version, current, or latest: {error}")
+        })?;
+    }
+    Ok(version.to_owned())
 }

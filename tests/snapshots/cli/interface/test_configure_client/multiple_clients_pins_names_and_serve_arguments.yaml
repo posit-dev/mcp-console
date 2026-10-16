@@ -1,0 +1,36 @@
+---
+version_suffix: ~
+clients: 2
+args:
+  - mcp-console
+  - serve
+  - --no-project-config
+  - --writable-root
+  - a path
+---
+version_suffix: latest
+clients: 2
+args:
+  - mcp-console@latest
+  - serve
+  - --no-project-config
+  - --writable-root
+  - a path
+---
+version_suffix: 0.0.5
+clients: 2
+args:
+  - mcp-console@0.0.5
+  - serve
+  - --no-project-config
+  - --writable-root
+  - a path
+---
+version_suffix: v0.0.5
+clients: 2
+args:
+  - mcp-console@v0.0.5
+  - serve
+  - --no-project-config
+  - --writable-root
+  - a path

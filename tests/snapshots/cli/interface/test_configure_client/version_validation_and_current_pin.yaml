@@ -1,0 +1,4 @@
+---
+invalid_suffixes: rejected before writes
+current: expanded to the running version
+exact_versions: PEP 440 syntax

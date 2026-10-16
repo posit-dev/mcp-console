@@ -122,9 +122,9 @@ python3 tests/website.py
 
 The website test renders a fresh temporary copy and checks titles, navigation, search, and local links/anchors, including both package references.
 The CLI help page reads the normalized cross-platform YAML snapshot from CLI acceptance tests.
-It publishes only `mcp-console`, `config`, `config resolve`, `serve`, and `sandbox` help, preserving the exact tested text.
+It publishes only `mcp-console`, `serve`, `sandbox`, `config`, `config resolve`, and `configure-client` help, preserving the exact tested text.
 Internal commands remain covered by acceptance tests.
-To publish another public command, add it to the explicit allowlist in `docs/_filters/cli-help.py` and the independent expected set in `tests/website.py`.
+To publish another public command, add it to the explicit allowlist in `docs/_filters/cli-help.py` and the independent expected command list in `tests/website.py`.
 When CLI help changes, regenerate snapshots with `scripts/test --update cli/interface/test_help`, inspect the diff, and rerun without `--update`.
 Never hand-edit snapshots; website rendering does not build or run Console.
 Quarto's post-render scripts build `docs/_site/r/` and `docs/_site/python/`.
