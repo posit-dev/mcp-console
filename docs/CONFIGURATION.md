@@ -39,8 +39,8 @@ The two options are mutually exclusive.
 These files are shared by clients that launch Console with the same configuration locations.
 Client registration remains a separate operation; see [Connect your client](getting-started.qmd#connect-your-client).
 
-The starter allows ordinary workspace writes and makes the project's `.git`, `.agents`, `.codex`, and `.aws` paths read-only.
-It spells out these filesystem permissions rather than selecting a profile; other readable host files remain readable.
+The starter selects `sandbox.profile: workspace`, with comments explaining that it allows ordinary workspace writes and makes the project's `.git`, `.agents`, `.codex`, and `.aws` paths read-only.
+Other readable host files remain readable.
 Annotated examples cover temporary storage, network access and localhost services, package preparation, Python environments, environment variables, and cache locations.
 Lines beginning with `##` are explanations; lines beginning with `#` are YAML examples to uncomment.
 The header links to the full configuration reference.
@@ -48,15 +48,19 @@ The header links to the full configuration reference.
 Use repeated `-c` or `--config` assignments to override the starter settings, with the same ordering and merge rules as launch overrides.
 Assignments may appear before `config` or after `init`.
 Supplied sections show active YAML with their guidance; unconfigured sections retain commented examples.
-To start with read-only permissions instead, clear the starter sandbox before selecting a profile:
+To start with read-only permissions instead, replace the starter profile:
 
 ```sh
-mcp-console config init -c sandbox=null -c sandbox.profile=read_only
+mcp-console config init -c sandbox.profile=read_only
 ```
+
+Later profile overrides replace the starter profile without retaining explicit workspace write grants.
+Filesystem settings add exceptions to the selected profile; to restrict writes to selected directories, choose `read_only` and supply those directories in `sandbox.filesystem.read_write`.
 
 Only the starter permissions and supplied settings are saved: initialization does not copy discovered global or project configuration or expand built-in defaults.
 Explicit values are retained even when they equal built-in defaults, so a new project layer can override different global values.
 Configuration-source flags such as `--config-file` and `--no-config` are not accepted.
+`--default-config` is a launch setting and is not accepted by initialization; use `-c` for settings to save in the new file.
 
 The command validates settings without starting interpreters or preparing packages, creates the configuration directory if needed, and reports the file path and contents.
 An existing destination causes an error and is left untouched, including with `--dry-run` or `-c`.
@@ -268,15 +272,17 @@ mcp-console serve --no-sandbox -c sandbox=null -c resolver.sandbox=null
 
 `serve` and ordinary `sandbox` launches read, in order:
 
-1. Global `$MCP_CONSOLE_HOME/config.yaml`, or `~/.agents/console/config.yaml` when the variable is unset.
-2. Project `.agents/console/config.yaml` in the launch directory.
+1. Each `--default-config KEY=VALUE` assignment, in argument order.
+2. Global `$MCP_CONSOLE_HOME/config.yaml`, or `~/.agents/console/config.yaml` when the variable is unset.
+3. Project `.agents/console/config.yaml` in the launch directory.
    No ancestor search is performed.
-3. Each `-c KEY=VALUE` override, in command-line order.
+4. Each `-c KEY=VALUE` override, in argument order.
 
 Missing automatic files are normal.
 Selected files must be readable YAML mappings; invalid files fail launch.
 `--config-file PATH` instead selects one required YAML or JSON mapping and skips both automatic locations.
-CLI overrides still apply afterward.
+Launch defaults still apply beneath the selected file, and CLI overrides apply afterward.
+Discovery exclusions skip files, not `--default-config` or `-c` assignments.
 
 | Option                | Automatic files read |
 | --------------------- | -------------------- |
@@ -341,6 +347,18 @@ mcp-console serve -c 'sandbox.filesystem.read_write=[.]'
 mcp-console serve --no-project-config -c 'python=.venv'
 mcp-console serve --config-file ./session.yaml
 ```
+
+Use `--default-config KEY=VALUE` to supply a preference that configuration files can override:
+
+```sh
+mcp-console serve --default-config sandbox.profile=inherit_codex
+mcp-console config resolve --default-config sandbox.profile=inherit_codex
+```
+
+Both assignment options accept the same dotted keys and YAML values.
+Repeated assignments preserve order within their layer, including assignments before and after the subcommand.
+Files always take precedence over `--default-config`, and `-c` always takes precedence over files, regardless of argument placement.
+Explicit `null` and empty lists retain their normal replacement semantics; they are not treated as missing values.
 
 Dotted keys address mappings, not list indexes.
 Values accept YAML strings, booleans, finite numbers, lists, objects, and `null`.

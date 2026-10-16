@@ -22,8 +22,8 @@ Examples:
 const CONFIGURE_CLIENT_EXAMPLES: &str = "\
 Prints each configuration file and setting changed. Unrelated settings are
 preserved. Use --dry-run to preview or apply the changes manually.
-Codex launches use the client's sandbox permissions. Arguments after --
-override the generated serve settings.
+Codex launches default to the client's sandbox permissions; configuration files
+can select another profile. Arguments after -- customize the serve settings.
 
 Examples:
   uvx mcp-console configure-client codex claude
@@ -69,13 +69,17 @@ pub struct ConfigOverrides {
     #[arg(long)]
     pub no_global_config: bool,
 
-    /// Skip global and project configuration; apply only -c overrides
+    /// Skip global and project configuration; still apply --default-config and -c settings
     #[arg(long)]
     pub no_config: bool,
 
     /// Use only this YAML or JSON configuration file, then apply -c overrides
     #[arg(long, value_name = "PATH")]
     pub config_file: Option<PathBuf>,
+
+    /// Supply defaults below configuration files; repeat for ordered dotted KEY=VALUE assignments
+    #[arg(long = "default-config", value_name = "KEY=VALUE")]
+    pub default_values: Vec<String>,
 
     /// Override layered global and project configuration; repeat for ordered dotted KEY=VALUE assignments
     #[arg(short = 'c', long = "config", value_name = "KEY=VALUE")]
@@ -100,6 +104,7 @@ impl ConfigOverrides {
         if other.values_file.is_some() {
             self.values_file = other.values_file;
         }
+        self.default_values.extend(other.default_values);
         self.values.extend(other.values);
         self.no_project_config |= other.no_project_config;
         self.no_global_config |= other.no_global_config;

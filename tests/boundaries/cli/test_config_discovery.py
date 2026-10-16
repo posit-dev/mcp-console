@@ -104,6 +104,25 @@ def test_layers_global_project_and_cli_in_both_commands(binary: Path) -> Transcr
             cases = (
                 ("default", (command,), "project|home|project"),
                 (
+                    "client default below files",
+                    (
+                        "--default-config",
+                        "environment={MCP_CONSOLE_TEST_DISCOVERY: client, KEEP: client}",
+                        command,
+                    ),
+                    "project|home|project",
+                ),
+                (
+                    "client default without files",
+                    (
+                        command,
+                        "--no-config",
+                        "--default-config",
+                        "environment={MCP_CONSOLE_TEST_DISCOVERY: client, KEEP: client}",
+                    ),
+                    "client|client|unset",
+                ),
+                (
                     "ordered overrides",
                     (
                         "-c",
@@ -407,6 +426,7 @@ def test_rejects_discovery_control_with_captured_settings(binary: Path) -> Trans
                     ("--no-global-config",),
                     ("--no-config",),
                     ("--config-file", "selected.yaml"),
+                    ("--default-config", "sandbox.profile=workspace"),
                 ):
                     flag = flags[0]
                     for placement in ("before", "after"):

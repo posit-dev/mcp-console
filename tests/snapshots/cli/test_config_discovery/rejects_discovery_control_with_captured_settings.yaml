@@ -56,6 +56,20 @@ stderr: |
   --config-file cannot be combined with --config-env or --settings-env
 ---
 selector: --config-env
+flag: --default-config
+placement: before
+payload: ~
+stderr: |
+  --default-config cannot be combined with --config-env or --settings-env
+---
+selector: --config-env
+flag: --default-config
+placement: after
+payload: ~
+stderr: |
+  --default-config cannot be combined with --config-env or --settings-env
+---
+selector: --config-env
 flag: --no-project-config
 placement: before
 payload: not JSON
@@ -111,6 +125,20 @@ payload: not JSON
 stderr: |
   --config-file cannot be combined with --config-env or --settings-env
 ---
+selector: --config-env
+flag: --default-config
+placement: before
+payload: not JSON
+stderr: |
+  --default-config cannot be combined with --config-env or --settings-env
+---
+selector: --config-env
+flag: --default-config
+placement: after
+payload: not JSON
+stderr: |
+  --default-config cannot be combined with --config-env or --settings-env
+---
 selector: --settings-env
 flag: --no-project-config
 placement: before
@@ -168,6 +196,20 @@ stderr: |
   --config-file cannot be combined with --config-env or --settings-env
 ---
 selector: --settings-env
+flag: --default-config
+placement: before
+payload: ~
+stderr: |
+  --default-config cannot be combined with --config-env or --settings-env
+---
+selector: --settings-env
+flag: --default-config
+placement: after
+payload: ~
+stderr: |
+  --default-config cannot be combined with --config-env or --settings-env
+---
+selector: --settings-env
 flag: --no-project-config
 placement: before
 payload: not JSON
@@ -222,3 +264,17 @@ placement: after
 payload: not JSON
 stderr: |
   --config-file cannot be combined with --config-env or --settings-env
+---
+selector: --settings-env
+flag: --default-config
+placement: before
+payload: not JSON
+stderr: |
+  --default-config cannot be combined with --config-env or --settings-env
+---
+selector: --settings-env
+flag: --default-config
+placement: after
+payload: not JSON
+stderr: |
+  --default-config cannot be combined with --config-env or --settings-env

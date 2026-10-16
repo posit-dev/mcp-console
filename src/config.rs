@@ -13,17 +13,20 @@ pub struct Loaded {
     pub paths: Vec<PathBuf>,
 }
 
-/// Read optional mappings in source order, then apply overrides in argument order.
+/// Apply defaults, read optional mappings, then apply command-line overrides.
+/// Assignments within each CLI layer retain their argument order.
 /// Absence is distinct from an explicitly supplied empty configuration.
 /// Relative source paths use the captured launch directory.
 /// Explicitly selected files are required; discovered files may be absent.
 pub fn load(
     directory: &Path,
     paths: &[PathBuf],
+    defaults: &[String],
     overrides: &[String],
     required: bool,
 ) -> Result<Loaded, String> {
     let mut value = None;
+    apply_values(&mut value, defaults, "default")?;
     let mut sources = Vec::new();
     let mut identities = std::collections::HashSet::new();
     for path in paths {
@@ -71,12 +74,20 @@ pub fn load(
             }
         }
     }
-    for argument in overrides {
+    apply_values(&mut value, overrides, "override")?;
+    Ok(Loaded {
+        value,
+        paths: sources,
+    })
+}
+
+fn apply_values(value: &mut Option<Value>, arguments: &[String], kind: &str) -> Result<(), String> {
+    for argument in arguments {
         let (key, source) = argument
             .split_once('=')
-            .ok_or_else(|| "invalid configuration override: expected KEY=VALUE".to_string())?;
+            .ok_or_else(|| format!("invalid configuration {kind}: expected KEY=VALUE"))?;
         let key = key.trim();
-        let context = |error| format!("invalid configuration override '{key}': {error}");
+        let context = |error| format!("invalid configuration {kind} '{key}': {error}");
         let keys: Vec<_> = key.split('.').map(str::trim).collect();
         if keys.iter().any(|key| key.is_empty()) {
             return Err(context("expected a nonempty dotted key".into()));
@@ -91,10 +102,7 @@ pub fn load(
             overlay,
         );
     }
-    Ok(Loaded {
-        value,
-        paths: sources,
-    })
+    Ok(())
 }
 
 // Expand the R path at each input boundary so later options merge with it.
@@ -129,11 +137,11 @@ mod tests {
     fn absent_and_empty_sources_remain_distinct() {
         let directory = tempfile::tempdir().unwrap();
         let paths = [PathBuf::from("global.yaml"), PathBuf::from("project.yaml")];
-        let absent = load(directory.path(), &paths, &[], false).unwrap();
+        let absent = load(directory.path(), &paths, &[], &[], false).unwrap();
         assert_eq!(absent.value, None);
         assert!(absent.paths.is_empty());
         std::fs::write(directory.path().join(&paths[0]), "{}").unwrap();
-        let empty = load(directory.path(), &paths, &[], false).unwrap();
+        let empty = load(directory.path(), &paths, &[], &[], false).unwrap();
         assert_eq!(empty.value, Some(json!({})));
         assert_eq!(empty.paths, paths[..1]);
     }
@@ -160,7 +168,7 @@ reset: null
 "#,
         )
         .unwrap();
-        let layered = load(directory.path(), &paths, &[], false).unwrap();
+        let layered = load(directory.path(), &paths, &[], &[], false).unwrap();
         assert_eq!(layered.paths, paths);
         assert_eq!(
             layered.value,
@@ -176,14 +184,14 @@ reset: null
             "environment.CHANGE=last",
         ]
         .map(String::from);
-        let overridden = load(directory.path(), &paths, &arguments, false).unwrap();
+        let overridden = load(directory.path(), &paths, &[], &arguments, false).unwrap();
         let mut expected = layered.value.unwrap();
         expected["environment"]["CHANGE"] = json!("last");
         expected["reset"] = json!({"new": true});
         assert_eq!(overridden.value, Some(expected));
         std::fs::write(directory.path().join(&paths[1]), "{}").unwrap();
-        let empty_project = load(directory.path(), &paths, &[], false).unwrap();
-        let global_only = load(directory.path(), &paths[..1], &[], false).unwrap();
+        let empty_project = load(directory.path(), &paths, &[], &[], false).unwrap();
+        let global_only = load(directory.path(), &paths[..1], &[], &[], false).unwrap();
         assert_eq!(empty_project.value, global_only.value);
     }
 
@@ -194,7 +202,7 @@ reset: null
         std::fs::write(directory.path().join(&paths[1]), "{}").unwrap();
         for source in ["sandbox: [", "[]", "null", "---\n{}\n---\n{}", ""] {
             std::fs::write(directory.path().join(&paths[0]), source).unwrap();
-            let error = load(directory.path(), &paths, &["sandbox={}".into()], false)
+            let error = load(directory.path(), &paths, &[], &["sandbox={}".into()], false)
                 .err()
                 .unwrap();
             assert!(error.contains("global.yaml"), "{error}");
@@ -207,16 +215,23 @@ reset: null
         let path = PathBuf::from("config.yaml");
         std::fs::create_dir(directory.path().join(&path)).unwrap();
         assert!(
-            load(directory.path(), std::slice::from_ref(&path), &[], false)
-                .err()
-                .unwrap()
-                .contains("must be a regular file")
+            load(
+                directory.path(),
+                std::slice::from_ref(&path),
+                &[],
+                &[],
+                false
+            )
+            .err()
+            .unwrap()
+            .contains("must be a regular file")
         );
         std::fs::remove_dir(directory.path().join(&path)).unwrap();
         std::fs::write(directory.path().join(&path), "{}").unwrap();
         let loaded = load(
             directory.path(),
             &[directory.path().join(&path), path],
+            &[],
             &[],
             false,
         )
@@ -238,12 +253,13 @@ reset: null
             directory.path(),
             &[global.clone(), project.clone()],
             &[],
+            &[],
             false,
         )
         .unwrap();
         assert_eq!(loaded.paths.as_slice(), std::slice::from_ref(&global));
         std::fs::remove_file(&target).unwrap();
-        let error = load(directory.path(), &[project], &[], false)
+        let error = load(directory.path(), &[project], &[], &[], false)
             .err()
             .unwrap();
         assert!(
@@ -253,7 +269,9 @@ reset: null
         let target_c = std::ffi::CString::new(target.as_os_str().as_encoded_bytes()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(target_c.as_ptr(), 0o600) }, 0);
         for path in [global, PathBuf::from("/dev/null")] {
-            let error = load(directory.path(), &[path], &[], false).err().unwrap();
+            let error = load(directory.path(), &[path], &[], &[], false)
+                .err()
+                .unwrap();
             assert!(error.contains("must be a regular file"), "{error}");
         }
     }

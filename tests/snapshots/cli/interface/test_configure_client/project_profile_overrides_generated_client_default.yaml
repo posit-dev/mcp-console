@@ -1,0 +1,24 @@
+---
+launcher: uvx
+project_profile: ~
+selected_profile: inherit_codex
+---
+launcher: uvx
+project_profile: workspace
+selected_profile: workspace
+---
+launcher: uvx
+project_profile: read_only
+selected_profile: read_only
+---
+launcher: direct
+project_profile: ~
+selected_profile: inherit_codex
+---
+launcher: direct
+project_profile: workspace
+selected_profile: workspace
+---
+launcher: direct
+project_profile: read_only
+selected_profile: read_only

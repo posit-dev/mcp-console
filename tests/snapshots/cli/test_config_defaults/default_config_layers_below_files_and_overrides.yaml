@@ -1,0 +1,46 @@
+---
+source: defaults
+profile: inherit_codex
+environment:
+  CHANGE: last
+  KEEP: default
+packages:
+  - stats
+---
+source: global
+profile: workspace
+environment:
+  CHANGE: global
+  KEEP: default
+packages:
+  - stats
+---
+source: project
+profile: read_only
+environment:
+  CHANGE: project
+  KEEP: default
+packages: []
+---
+source: override
+profile: workspace
+environment:
+  CHANGE: last
+  KEEP: default
+packages:
+  - stats
+---
+source: no config
+profile: inherit_codex
+environment:
+  CHANGE: last
+  KEEP: default
+packages:
+  - stats
+---
+source: selected file
+profile: ~
+environment:
+  CHANGE: last
+  KEEP: default
+packages: []

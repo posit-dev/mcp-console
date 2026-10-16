@@ -3,6 +3,7 @@
 use serde_json::{Map, Value, json};
 
 use crate::cli::ConfigFormat;
+use crate::settings::{Profile, ProfileSelection};
 
 const HEADER: &str = "\
 ## MCP Console configuration, shared across clients.
@@ -55,7 +56,45 @@ impl Field {
     }
 }
 
-pub(super) fn render(value: Value) -> Result<String, String> {
+pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result<String, String> {
+    let profile_help = match profile {
+        Some(ProfileSelection::Named(Profile::Workspace)) => {
+            "\
+## The workspace profile allows creating, editing, and deleting project files.
+## The workspace is Console's launch directory.
+## Changing the working directory later does not change the workspace.
+## .git, .agents, .codex, and .aws stay read-only, even when absent.
+## .agents includes this configuration file; referenced Git metadata is protected too.
+## Other host files remain readable when permitted by the OS.
+## Network access and temporary storage are configured separately below.
+## Use read_only instead to omit the profile's workspace write grants.
+"
+        }
+        Some(ProfileSelection::Named(Profile::ReadOnly)) => {
+            "\
+## The read_only profile does not grant writes to project files.
+## Host files remain readable when permitted by the OS.
+## Temporary storage and explicit filesystem settings can grant writes separately.
+"
+        }
+        Some(
+            ProfileSelection::Named(Profile::InheritCodex) | ProfileSelection::InheritCodex { .. },
+        ) => {
+            "\
+## The inherit_codex profile uses permissions supplied by the client.
+## Without usable metadata, it uses the configured fallback (default: read_only).
+## Explicit filesystem and network settings modify the selected policy.
+## Inherited full access disables sandboxing, including local restrictions.
+"
+        }
+        None => {
+            "\
+## Without a named profile, the base policy grants no project writes.
+## Host files remain readable when permitted by the OS.
+## Temporary storage and explicit filesystem settings can grant writes separately.
+"
+        }
+    };
     let python_help = match value.get("python") {
         Some(python) if python.is_string() || python.get("existing").is_some() => {
             "\
@@ -78,12 +117,25 @@ pub(super) fn render(value: Value) -> Result<String, String> {
     };
     let fields = vec![
         Field::new("sandbox", "", "").children(vec![
-            Field::new("filesystem", "", "").children(vec![
+            Field::new("profile", profile_help, "# profile: workspace\n"),
+            Field::new(
+                "filesystem",
+                "\
+## Add exceptions to the selected profile's filesystem permissions.
+## To grant writes only to selected directories, use profile: read_only first.
+",
+                "\
+# filesystem:
+#   read_write: [/absolute/path/to/shared-output]
+#   read_only: [.claude]
+#   deny: [./.env, ./secrets]
+",
+            )
+            .children(vec![
                 Field::new(
                     "read_write",
                     "\
-## Allow creating, editing, and deleting project files.
-## Other host files remain readable when permitted by the OS.
+## Allow creating, editing, and deleting files in these directories.
 ## Add existing directories to allow writes outside the project.
 ",
                     "# read_write: [.]\n",

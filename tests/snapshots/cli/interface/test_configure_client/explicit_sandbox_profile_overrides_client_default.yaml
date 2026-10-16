@@ -4,7 +4,7 @@ client: codex
 args:
   - mcp-console
   - serve
-  - -c
+  - --default-config
   - sandbox.profile=inherit_codex
   - -c
   - sandbox.profile=workspace
@@ -27,7 +27,7 @@ launcher: direct
 client: codex
 args:
   - serve
-  - -c
+  - --default-config
   - sandbox.profile=inherit_codex
   - -c
   - sandbox.profile=workspace

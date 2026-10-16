@@ -7,7 +7,7 @@ console:
   args:
     - mcp-console
     - serve
-    - -c
+    - --default-config
     - sandbox.profile=inherit_codex
   enabled: true
   omit_tools_from:

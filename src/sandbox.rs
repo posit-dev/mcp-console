@@ -109,6 +109,8 @@ pub fn run(
             Some("--no-global-config")
         } else if overrides.config_file.is_some() {
             Some("--config-file")
+        } else if !overrides.default_values.is_empty() {
+            Some("--default-config")
         } else {
             None
         };

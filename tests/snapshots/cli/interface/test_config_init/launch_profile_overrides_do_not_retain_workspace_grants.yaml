@@ -1,0 +1,6 @@
+---
+launch_profile: read_only
+workspace_grants: []
+---
+launch_profile: inherit_codex
+workspace_grants: []

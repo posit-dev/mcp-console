@@ -5,7 +5,7 @@ args:
   codex:
     - mcp-console
     - serve
-    - -c
+    - --default-config
     - sandbox.profile=inherit_codex
     - --no-project-config
     - --writable-root
@@ -23,7 +23,7 @@ args:
   codex:
     - mcp-console@latest
     - serve
-    - -c
+    - --default-config
     - sandbox.profile=inherit_codex
     - --no-project-config
     - --writable-root
@@ -41,7 +41,7 @@ args:
   codex:
     - mcp-console@0.0.5
     - serve
-    - -c
+    - --default-config
     - sandbox.profile=inherit_codex
     - --no-project-config
     - --writable-root
@@ -59,7 +59,7 @@ args:
   codex:
     - mcp-console@v0.0.5
     - serve
-    - -c
+    - --default-config
     - sandbox.profile=inherit_codex
     - --no-project-config
     - --writable-root

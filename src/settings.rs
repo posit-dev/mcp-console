@@ -284,8 +284,13 @@ pub(crate) fn read(
             paths.push(PathBuf::from(".agents/console/config.yaml"));
         }
     }
-    let crate::config::Loaded { value, paths } =
-        crate::config::load(directory, &paths, &values, overrides.config_file.is_some())?;
+    let crate::config::Loaded { value, paths } = crate::config::load(
+        directory,
+        &paths,
+        &overrides.default_values,
+        &values,
+        overrides.config_file.is_some(),
+    )?;
     let configured = value.is_some();
     let files = paths
         .iter()

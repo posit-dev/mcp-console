@@ -16,14 +16,7 @@ from support.records import Transcript
 from support.suites import run_this_suite
 
 
-WORKSPACE_CONFIGURATION = {
-    "sandbox": {
-        "filesystem": {
-            "read_write": ["."],
-            "read_only": [".git", ".agents", ".codex", ".aws"],
-        }
-    }
-}
+WORKSPACE_CONFIGURATION = {"sandbox": {"profile": "workspace"}}
 
 
 def invoke(
@@ -230,6 +223,14 @@ def test_template_examples_can_be_uncommented_and_loaded(binary: Path) -> Transc
         assert result.returncode == 0 and not result.stderr, result
         path = root / ".agents/console/config.yaml"
         contents = path.read_text(encoding="utf-8")
+        assert (
+            "## The workspace profile allows creating, editing, and deleting project files."
+            in contents
+        )
+        assert (
+            "## .git, .agents, .codex, and .aws stay read-only, even when absent."
+            in contents
+        )
         assert "## Temporary storage options:" in contents
         assert "#   allow_local_binding: true" in contents
         assert "#     MCP_CONSOLE_CACHE_DIR:" in contents
@@ -281,8 +282,13 @@ def test_settings_override_the_starter_permissions(binary: Path) -> Transcript:
             ),
             (
                 "read-only sandbox",
-                ("sandbox=null", "sandbox.profile=read_only"),
+                ("sandbox.profile=read_only",),
                 {"sandbox": {"profile": "read_only"}},
+            ),
+            (
+                "inherited client sandbox",
+                ("sandbox.profile=inherit_codex",),
+                {"sandbox": {"profile": "inherit_codex"}},
             ),
             (
                 "empty sandbox mapping",
@@ -296,8 +302,8 @@ def test_settings_override_the_starter_permissions(binary: Path) -> Transcript:
                     "sandbox": {
                         "filesystem": {
                             "read_write": [],
-                            "read_only": [".git", ".agents", ".codex", ".aws"],
-                        }
+                        },
+                        "profile": "workspace",
                     }
                 },
             ),
@@ -332,6 +338,86 @@ def test_settings_override_the_starter_permissions(binary: Path) -> Transcript:
             path = directory / ".agents/console/config.yaml"
             assert read_yaml(path) == expected
             records.append({"scenario": scenario, "configuration": expected})
+    return records
+
+
+def test_launch_profile_overrides_do_not_retain_workspace_grants(
+    binary: Path,
+) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        result = invoke(binary, root, root, "config", "init")
+        assert result.returncode == 0 and not result.stderr, result
+        for profile in ("read_only", "inherit_codex"):
+            resolved = invoke(
+                binary,
+                root,
+                root,
+                "config",
+                "resolve",
+                "--full",
+                "--format",
+                "json",
+                "-c",
+                f"sandbox.profile={profile}",
+            )
+            assert resolved.returncode == 0 and not resolved.stderr, resolved
+            sandbox = json.loads(resolved.stdout)["sandbox"]
+            assert sandbox["profile"] == profile, sandbox
+            assert not sandbox.get("filesystem", {}).get("read_write"), sandbox
+            records.append({"launch_profile": profile, "workspace_grants": []})
+    return records
+
+
+def test_profile_guidance_matches_the_selected_policy(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        for name, assignment, guidance in (
+            (
+                "read_only",
+                "read_only",
+                "The read_only profile does not grant writes to project files.",
+            ),
+            (
+                "inherit_codex",
+                "inherit_codex",
+                "The inherit_codex profile uses permissions supplied by the client.",
+            ),
+            (
+                "inherit with fallback",
+                "{inherit_codex: {fallback: workspace}}",
+                "The inherit_codex profile uses permissions supplied by the client.",
+            ),
+            (
+                "no profile",
+                "null",
+                "Without a named profile, the base policy grants no project writes.",
+            ),
+        ):
+            directory = root / name
+            directory.mkdir()
+            result = invoke(
+                binary,
+                root,
+                directory,
+                "config",
+                "init",
+                "-c",
+                f"sandbox.profile={assignment}",
+            )
+            assert result.returncode == 0 and not result.stderr, result
+            contents = (directory / ".agents/console/config.yaml").read_text(
+                encoding="utf-8"
+            )
+            assert guidance in contents, contents
+            assert (
+                "profile allows creating, editing, and deleting project files"
+                not in contents
+            )
+            assert ".git, .agents, .codex, and .aws stay read-only" not in contents
+            records.append({"profile": name, "guidance": guidance})
     return records
 
 
@@ -406,6 +492,18 @@ def test_invalid_settings_and_destinations_do_not_create_files(
         )
         assert result.returncode == 1 and not result.stdout, result
         assert "--config-file" in result.stderr, result
+        assert not (root / ".agents").exists()
+        result = invoke(
+            binary,
+            root,
+            root,
+            "--default-config",
+            "sandbox.profile=inherit_codex",
+            "config",
+            "init",
+        )
+        assert result.returncode == 1 and not result.stdout, result
+        assert "--default-config" in result.stderr, result
         assert not (root / ".agents").exists()
     return records + [{"configuration_source_flags": "rejected before writing"}]
 

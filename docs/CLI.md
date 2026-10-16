@@ -29,10 +29,10 @@ When Claude Code is selected, its reserved names (`workspace`, `claude-in-chrome
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) so `uvx` is on the client's `PATH`.
 The client itself does not need to be installed when writing its configuration.
 
-Codex launches include `-c sandbox.profile=inherit_codex` to [inherit the client's sandbox permissions](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex).
+Codex launches include `--default-config sandbox.profile=inherit_codex` to [inherit the client's sandbox permissions](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex) when configuration files do not select a profile.
 This applies to uvx and `--no-uvx` launches.
-This overrides profiles in configuration files.
-Arguments after `--` follow this default and can override it, for example:
+Global and project configuration take precedence over this client default.
+Arguments after `--` customize the launch; use `-c` to override configuration files too, for example:
 
 ```sh
 mcp-console configure-client codex -- -c sandbox.profile=workspace
@@ -45,7 +45,7 @@ The default uvx command has no version suffix.
 `--pin-version current` saves the concrete version running setup, so later launches stay on that version.
 Exact versions use PEP 440 syntax and are validated before configuration changes; `latest` and `current` are also accepted, while version ranges and invalid suffixes are rejected.
 Package availability is checked by uv when the client launches the server.
-For Codex, pinned versions must support `sandbox.profile=inherit_codex`.
+For Codex, pinned versions must support `--default-config` and `sandbox.profile=inherit_codex`.
 An unqualified uvx command may reuse an installed or cached version; `latest` requests the latest available release at launch.
 
 `--no-uvx` configures an absolute path to the running executable instead.
@@ -191,7 +191,7 @@ mcp-console config init -c r.resolution=disabled -c 'r.packages=[]' --dry-run
 
 `config init` creates `.agents/console/config.yaml` in the current directory, without searching Git parents or falling back to global configuration outside Git.
 Use `--directory PATH` for another existing project directory, or `--global` for Console's global configuration location; these options are mutually exclusive.
-The annotated starter grants workspace writes while keeping project metadata read-only.
+The annotated starter selects `sandbox.profile: workspace`, with comments explaining workspace writes and read-only project metadata.
 It includes commented examples for common settings, using `##` for explanations and `#` for YAML to uncomment.
 Ordered `-c`/`--config` assignments apply after the starter permissions.
 Other defaults remain implicit; initialization does not read discovered files or materialize defaults.
@@ -199,7 +199,7 @@ Existing destinations cause an error and remain unchanged.
 The command prints the path and file contents; `--dry-run` previews them without creating files or directories.
 
 `-c` may appear before `config` or after `init`.
-Configuration-source flags are not accepted by initialization.
+Configuration-source flags and `--default-config` are not accepted by initialization.
 See [Create a configuration file](CONFIGURATION.md#create-a-configuration-file) for paths and behavior.
 
 ## Inspect configuration

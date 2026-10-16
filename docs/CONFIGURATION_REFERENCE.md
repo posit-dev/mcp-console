@@ -427,6 +427,7 @@ See [Tool configuration](TOOL_CONFIGURATION.md) for complete text overrides and 
 | `""`          | An actual empty string. Valid for environment values and tool prose; not a way to unset a variable.                                                |
 
 Mappings merge recursively; lists, scalars, and `null` replace earlier values.
+Launch `--default-config KEY=VALUE` assignments apply below configuration files; `-c KEY=VALUE` overrides apply above them.
 The final merged settings must be valid: for example, `sandbox.filesystem`, `sandbox.network.proxy`, `environment`, and `resolver` require mappings rather than `null`.
 To replace an inherited mapping, clear it with one override and supply the replacement with a later override.
 See [Merge rules](CONFIGURATION.md#merge-rules) for examples.

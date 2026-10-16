@@ -4,6 +4,14 @@ flag: default
 selected: project|home|project
 ---
 command: serve
+flag: client default below files
+selected: project|home|project
+---
+command: serve
+flag: client default without files
+selected: client|client|unset
+---
+command: serve
 flag: ordered overrides
 selected: last|home|project
 ---
@@ -64,6 +72,14 @@ selected: unset|unset|cli
 command: sandbox
 flag: default
 selected: project|home|project
+---
+command: sandbox
+flag: client default below files
+selected: project|home|project
+---
+command: sandbox
+flag: client default without files
+selected: client|client|unset
 ---
 command: sandbox
 flag: ordered overrides

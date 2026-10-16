@@ -175,6 +175,7 @@ fn resolve_configuration(
                 no_global_config: false,
                 no_project_config: false,
                 config_file: None,
+                default_values: Vec::new(),
                 values: Vec::new(),
                 values_file: None,
             },

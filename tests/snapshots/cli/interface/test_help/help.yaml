@@ -16,19 +16,27 @@ stderr: |
     help              Print this message or the help of the given subcommand(s)
 
   Options:
-        --no-project-config   Skip trusted launch-directory project configuration;
-                              still load global configuration and apply -c
-                              overrides
-        --no-global-config    Skip global configuration; still load project
-                              configuration and apply -c overrides
-        --no-config           Skip global and project configuration; apply only -c
-                              overrides
-        --config-file <PATH>  Use only this YAML or JSON configuration file, then
-                              apply -c overrides
-    -c, --config <KEY=VALUE>  Override layered global and project configuration;
-                              repeat for ordered dotted KEY=VALUE assignments
-    -h, --help                Print help (see more with '--help')
-    -V, --version             Print version
+        --no-project-config
+            Skip trusted launch-directory project configuration; still load global
+            configuration and apply -c overrides
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+    -h, --help
+            Print help (see more with '--help')
+    -V, --version
+            Print version
 
   Examples:
     mcp-console serve
@@ -66,10 +74,15 @@ stdout: |
             -c overrides
 
         --no-config
-            Skip global and project configuration; apply only -c overrides
+            Skip global and project configuration; still apply --default-config
+            and -c settings
 
         --config-file <PATH>
             Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
 
     -c, --config <KEY=VALUE>
             Override layered global and project configuration; repeat for ordered
@@ -152,10 +165,15 @@ stdout: |
             -c overrides
 
         --no-config
-            Skip global and project configuration; apply only -c overrides
+            Skip global and project configuration; still apply --default-config
+            and -c settings
 
         --config-file <PATH>
             Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
 
     -c, --config <KEY=VALUE>
             Override layered global and project configuration; repeat for ordered
@@ -213,8 +231,8 @@ stdout: |
 
   Prints each configuration file and setting changed. Unrelated settings are
   preserved. Use --dry-run to preview or apply the changes manually.
-  Codex launches use the client's sandbox permissions. Arguments after --
-  override the generated serve settings.
+  Codex launches default to the client's sandbox permissions; configuration files
+  can select another profile. Arguments after -- customize the serve settings.
 
   Examples:
     uvx mcp-console configure-client codex claude
@@ -245,10 +263,15 @@ stdout: |
             -c overrides
 
         --no-config
-            Skip global and project configuration; apply only -c overrides
+            Skip global and project configuration; still apply --default-config
+            and -c settings
 
         --config-file <PATH>
             Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
 
     -c, --config <KEY=VALUE>
             Override layered global and project configuration; repeat for ordered
@@ -310,10 +333,15 @@ stdout: |
             -c overrides
 
         --no-config
-            Skip global and project configuration; apply only -c overrides
+            Skip global and project configuration; still apply --default-config
+            and -c settings
 
         --config-file <PATH>
             Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
 
     -c, --config <KEY=VALUE>
             Override layered global and project configuration; repeat for ordered
