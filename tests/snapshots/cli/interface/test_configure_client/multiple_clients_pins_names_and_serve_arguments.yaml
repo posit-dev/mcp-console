@@ -2,35 +2,71 @@
 version_suffix: ~
 clients: 2
 args:
-  - mcp-console
-  - serve
-  - --no-project-config
-  - --writable-root
-  - a path
+  codex:
+    - mcp-console
+    - serve
+    - -c
+    - sandbox.profile=inherit_codex
+    - --no-project-config
+    - --writable-root
+    - a path
+  claude:
+    - mcp-console
+    - serve
+    - --no-project-config
+    - --writable-root
+    - a path
 ---
 version_suffix: latest
 clients: 2
 args:
-  - mcp-console@latest
-  - serve
-  - --no-project-config
-  - --writable-root
-  - a path
+  codex:
+    - mcp-console@latest
+    - serve
+    - -c
+    - sandbox.profile=inherit_codex
+    - --no-project-config
+    - --writable-root
+    - a path
+  claude:
+    - mcp-console@latest
+    - serve
+    - --no-project-config
+    - --writable-root
+    - a path
 ---
 version_suffix: 0.0.5
 clients: 2
 args:
-  - mcp-console@0.0.5
-  - serve
-  - --no-project-config
-  - --writable-root
-  - a path
+  codex:
+    - mcp-console@0.0.5
+    - serve
+    - -c
+    - sandbox.profile=inherit_codex
+    - --no-project-config
+    - --writable-root
+    - a path
+  claude:
+    - mcp-console@0.0.5
+    - serve
+    - --no-project-config
+    - --writable-root
+    - a path
 ---
 version_suffix: v0.0.5
 clients: 2
 args:
-  - mcp-console@v0.0.5
-  - serve
-  - --no-project-config
-  - --writable-root
-  - a path
+  codex:
+    - mcp-console@v0.0.5
+    - serve
+    - -c
+    - sandbox.profile=inherit_codex
+    - --no-project-config
+    - --writable-root
+    - a path
+  claude:
+    - mcp-console@v0.0.5
+    - serve
+    - --no-project-config
+    - --writable-root
+    - a path

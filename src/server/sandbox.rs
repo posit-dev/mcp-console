@@ -129,7 +129,7 @@ impl Inheritance {
     pub fn enabled(&self) -> bool {
         self.profile
             .as_ref()
-            .is_some_and(ProfileSelection::uses_codex)
+            .is_some_and(ProfileSelection::inherits_codex)
     }
 
     pub fn capture(&self, metadata: &RequestMetaObject) -> Result<(), String> {

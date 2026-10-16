@@ -27,7 +27,7 @@ pub fn capture_settings(
             crate::settings::Profile::Workspace => {
                 crate::settings::apply_workspace_profile(&mut settings)
             }
-            crate::settings::Profile::Codex => {
+            crate::settings::Profile::InheritCodex => {
                 unreachable!("standalone sandbox has no client metadata")
             }
         }

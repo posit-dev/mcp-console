@@ -46,6 +46,7 @@ By default, it also configures Console tools to load up front; `--no-auto-load` 
 Restart the client and approve project configuration if prompted.
 
 The default launch command is `uvx mcp-console serve`, with no version constraint.
+Codex configuration adds `-c sandbox.profile=inherit_codex` to [inherit the client's sandbox permissions](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex).
 Use `--pin-version v0.0.5` to select an exact version or `--pin-version latest` to request the latest release at launch.
 Use `--pin-version current` to pin the version running setup.
 Use `--no-uvx` to configure an absolute executable path; a temporary uvx run can first install a recorded direct wheel, archive, or Git source persistently with uv.
@@ -87,7 +88,8 @@ See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples.
 
 ## Choose permissions and an environment
 
-The default sandbox permits host-file reads and private temporary writes, but not ordinary workspace writes or direct network access.
+For Codex configured above, Console inherits the client's sandbox permissions.
+Without inheritance or a configured profile, the default sandbox permits host-file reads and private temporary writes, but not ordinary workspace writes or direct network access.
 **It does not protect readable secrets.**
 
 ### Use the workspace profile {#allow-project-writes}
@@ -98,6 +100,8 @@ To let the agent save files in the project, create `.agents/console/config.yaml`
 sandbox:
   profile: workspace
 ```
+
+For Codex configured above, select this profile with `mcp-console configure-client codex -- -c sandbox.profile=workspace`; its generated command takes precedence over configuration files.
 
 The `workspace` profile uses Console's launch directory as the workspace, even if evaluated code later changes its working directory.
 It permits the agent to create, edit, and delete ordinary files there, while keeping the workspace's `.git`, `.agents`, `.codex`, and `.aws` paths read-only, including when they do not yet exist.

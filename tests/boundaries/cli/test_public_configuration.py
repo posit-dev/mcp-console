@@ -71,7 +71,7 @@ def test_user_to_native_policies(binary: Path) -> TranscriptWithCompanions:
             profile = document["sandbox"].get("profile")
             workspace = profile == "workspace" or (
                 isinstance(profile, dict)
-                and profile["codex"].get("fallback", "read_only") == "workspace"
+                and profile["inherit_codex"].get("fallback", "read_only") == "workspace"
             )
             if workspace:
                 assert native["extends"] == ":workspace", native

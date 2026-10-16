@@ -43,10 +43,10 @@ def test_client_sandbox_inheritance_materializes_and_prunes(binary: Path) -> Tra
         assert "inherit_from_codex" not in json.loads(result.stdout)["sandbox"]
         selected = root / "config.json"
         profiles = (
-            "codex",
-            {"codex": {}},
-            {"codex": {"fallback": "read_only"}},
-            {"codex": {"fallback": "workspace"}},
+            "inherit_codex",
+            {"inherit_codex": {}},
+            {"inherit_codex": {"fallback": "read_only"}},
+            {"inherit_codex": {"fallback": "workspace"}},
         )
         for profile in profiles:
             result = resolve(
@@ -115,19 +115,26 @@ def test_client_sandbox_inheritance_materializes_and_prunes(binary: Path) -> Tra
                 "cache": "console",
             }, result
         for profile in (
+            "codex",
+            {"codex": {}},
+            {"codex": {"fallback": "workspace"}},
             True,
             [],
             {},
-            {"first_available": ["codex", "workspace"]},
-            {"first_available": ["codex", "workspace"], "extra": True},
+            {"first_available": ["inherit_codex", "workspace"]},
+            {"first_available": ["inherit_codex", "workspace"], "extra": True},
             {"workspace": {}},
-            {"codex": True},
-            {"codex": []},
-            {"codex": {"fallback": "future"}},
-            {"codex": {"fallback": "codex"}},
-            {"codex": {"fallback": {"codex": {"fallback": "workspace"}}}},
-            {"codex": {"fallback": "workspace", "extra": True}},
-            {"codex": {"fallback": "workspace"}, "extra": True},
+            {"inherit_codex": True},
+            {"inherit_codex": []},
+            {"inherit_codex": {"fallback": "future"}},
+            {"inherit_codex": {"fallback": "inherit_codex"}},
+            {
+                "inherit_codex": {
+                    "fallback": {"inherit_codex": {"fallback": "workspace"}}
+                }
+            },
+            {"inherit_codex": {"fallback": "workspace", "extra": True}},
+            {"inherit_codex": {"fallback": "workspace"}, "extra": True},
         ):
             result = resolve(
                 binary,

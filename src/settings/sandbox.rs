@@ -66,7 +66,7 @@ pub(super) struct Sandbox {
 pub(crate) enum Profile {
     ReadOnly,
     Workspace,
-    Codex,
+    InheritCodex,
 }
 
 impl Profile {
@@ -74,7 +74,7 @@ impl Profile {
         match self {
             Self::ReadOnly => "read_only",
             Self::Workspace => "workspace",
-            Self::Codex => "codex",
+            Self::InheritCodex => "inherit_codex",
         }
     }
 }
@@ -83,12 +83,12 @@ impl Profile {
 #[serde(untagged)]
 pub(crate) enum ProfileSelection {
     Named(Profile),
-    Codex { codex: CodexProfile },
+    InheritCodex { inherit_codex: InheritCodexProfile },
 }
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct CodexProfile {
+pub(crate) struct InheritCodexProfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     fallback: Option<FallbackProfile>,
 }
@@ -105,7 +105,7 @@ impl<'de> Deserialize<'de> for ProfileSelection {
         #[derive(Deserialize)]
         #[serde(rename_all = "snake_case")]
         enum Mapping {
-            Codex(CodexProfile),
+            InheritCodex(InheritCodexProfile),
         }
         let value = Value::deserialize(deserializer)?;
         if value.is_string() {
@@ -113,16 +113,17 @@ impl<'de> Deserialize<'de> for ProfileSelection {
                 .map(Self::Named)
                 .map_err(D::Error::custom);
         }
-        let Mapping::Codex(codex) = serde_json::from_value(value).map_err(D::Error::custom)?;
-        Ok(Self::Codex { codex })
+        let Mapping::InheritCodex(inherit_codex) =
+            serde_json::from_value(value).map_err(D::Error::custom)?;
+        Ok(Self::InheritCodex { inherit_codex })
     }
 }
 
 impl ProfileSelection {
-    pub(crate) fn uses_codex(&self) -> bool {
+    pub(crate) fn inherits_codex(&self) -> bool {
         match self {
             Self::Named(Profile::ReadOnly | Profile::Workspace) => false,
-            Self::Named(Profile::Codex) | Self::Codex { .. } => true,
+            Self::Named(Profile::InheritCodex) | Self::InheritCodex { .. } => true,
         }
     }
 
@@ -130,11 +131,13 @@ impl ProfileSelection {
         let fallback = match self {
             Self::Named(Profile::ReadOnly) => return Profile::ReadOnly,
             Self::Named(Profile::Workspace) => return Profile::Workspace,
-            Self::Named(Profile::Codex) => FallbackProfile::ReadOnly,
-            Self::Codex { codex } => codex.fallback.unwrap_or(FallbackProfile::ReadOnly),
+            Self::Named(Profile::InheritCodex) => FallbackProfile::ReadOnly,
+            Self::InheritCodex { inherit_codex } => {
+                inherit_codex.fallback.unwrap_or(FallbackProfile::ReadOnly)
+            }
         };
         match (client_available, fallback) {
-            (true, _) => Profile::Codex,
+            (true, _) => Profile::InheritCodex,
             (false, FallbackProfile::ReadOnly) => Profile::ReadOnly,
             (false, FallbackProfile::Workspace) => Profile::Workspace,
         }
@@ -352,9 +355,9 @@ impl Sandbox {
             && self
                 .profile
                 .as_ref()
-                .is_some_and(ProfileSelection::uses_codex)
+                .is_some_and(ProfileSelection::inherits_codex)
         {
-            return Err("resolver.sandbox.profile: codex is a session profile; configure sandbox.profile instead".into());
+            return Err("resolver.sandbox.profile: inherit_codex is a session profile; configure sandbox.profile instead".into());
         }
         let prefix = if resolver {
             "resolver.sandbox"

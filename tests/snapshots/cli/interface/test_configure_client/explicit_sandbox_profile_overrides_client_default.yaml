@@ -1,0 +1,46 @@
+---
+launcher: uvx
+client: codex
+args:
+  - mcp-console
+  - serve
+  - -c
+  - sandbox.profile=inherit_codex
+  - -c
+  - sandbox.profile=workspace
+resolved:
+  sandbox:
+    profile: workspace
+---
+launcher: uvx
+client: claude
+args:
+  - mcp-console
+  - serve
+  - -c
+  - sandbox.profile=workspace
+resolved:
+  sandbox:
+    profile: workspace
+---
+launcher: direct
+client: codex
+args:
+  - serve
+  - -c
+  - sandbox.profile=inherit_codex
+  - -c
+  - sandbox.profile=workspace
+resolved:
+  sandbox:
+    profile: workspace
+---
+launcher: direct
+client: claude
+args:
+  - serve
+  - -c
+  - sandbox.profile=workspace
+resolved:
+  sandbox:
+    profile: workspace

@@ -23,7 +23,7 @@ sandbox:
 A proxy allowlist does not permit every direct network channel.
 Package downloads use a separate policy.
 The public schema applies to `sandbox` for evaluated code and `resolver.sandbox` for dependency preparation; their permissions are independent.
-`codex` is a session profile and is not accepted under `resolver.sandbox.profile`.
+`inherit_codex` is a session profile and is not accepted under `resolver.sandbox.profile`.
 [Configuration](CONFIGURATION.md) defines discovery and merge rules.
 
 Configuration is trusted and can widen permissions.
@@ -37,10 +37,10 @@ Child nodes such as `filesystem` and `network.proxy` still require their documen
 
 ```yaml
 sandbox:
-  profile: codex
+  profile: inherit_codex
 ```
 
-The `codex` profile inherits usable sandbox metadata from the first `send` call.
+The `inherit_codex` profile inherits usable sandbox metadata from the first `send` call.
 If inheritance is unavailable, it uses the built-in `read_only` profile: host reads, private temporary writes, and restricted networking before explicit local settings are applied.
 Missing metadata selects this fallback silently.
 Malformed or unsupported metadata emits a warning on the server's standard error stream and selects the fallback.
@@ -52,30 +52,30 @@ For one configuration shared by Codex and Claude, or another client without this
 ```yaml
 sandbox:
   profile:
-    codex:
+    inherit_codex:
       fallback: workspace
   filesystem:
     read_write: [./output]
 ```
 
 Each connection selects one base profile on its first `send`.
-Usable Codex metadata selects `codex`; otherwise the configured `workspace` fallback permits ordinary project writes with metadata protections.
+Usable Codex metadata selects `inherit_codex`; otherwise the configured `workspace` fallback permits ordinary project writes with metadata protections.
 The configured fallback applies to both missing and malformed metadata; malformed metadata warns which profile was selected.
-The fallback's workspace grants are not added when Codex is selected.
+The fallback's workspace grants are not added when `inherit_codex` is selected.
 Explicit filesystem entries compose with the selected base using the ordinary specificity and conflict rules.
 Explicit network and temporary-storage settings apply to the selected base; without a network override, the Codex network mode applies.
 Create writable directories such as `./output` before launch.
 
-The Codex mapping accepts `fallback: read_only` or `fallback: workspace`.
-Omitting `fallback`, including with `profile: codex` or `profile: {codex: {}}`, selects `read_only` when inheritance is unavailable.
+The `inherit_codex` mapping accepts `fallback: read_only` or `fallback: workspace`.
+Omitting `fallback`, including with `profile: inherit_codex` or `profile: {inherit_codex: {}}`, selects `read_only` when inheritance is unavailable.
 Unknown profiles, unknown options, and nested fallbacks are errors.
 A failure to prepare runtimes or start the selected sandbox is an error; it does not select the fallback.
 The standalone `sandbox` command has no client metadata, so it silently uses the configured fallback, defaulting to `read_only`.
 `config resolve` preserves the selection policy and automatic cache choice without selecting a runtime profile or preparing interpreters.
 
-In R, use `SandboxPolicy(profile = "codex")` or `SandboxPolicy(profile = CodexSandboxProfile(fallback = "workspace"))`.
+In R, use `SandboxPolicy(profile = "inherit_codex")` or `SandboxPolicy(profile = InheritCodexSandboxProfile(fallback = "workspace"))`.
 
-When the `codex` profile is configured, Console advertises the experimental `codex/sandbox-state` capability and its older `codex/sandbox-state-meta` alias.
+When the `inherit_codex` profile is configured, Console advertises the experimental `codex/sandbox-state` capability and its older `codex/sandbox-state-meta` alias.
 It reads that key from the first `send` call's `_meta`, before runtime discovery, dependency preparation, or worker startup.
 Initialization, tool discovery, and pings remain available while waiting for that call.
 Metadata belongs to the MCP request, outside the tool's `arguments`.
@@ -105,7 +105,7 @@ Dependency preparation retains its separate resolver policy unless inherited ful
 Full access defaults to host caches; explicit `cache: console` remains invalid without sandboxing.
 Inherited full access disables enforcement of local filesystem and network restrictions too.
 
-Missing metadata, an unsupported client profile, an invalid profile shape, or a malformed or unsupported filesystem entry makes the whole Codex profile unavailable.
+Missing metadata, an unsupported client profile, an invalid profile shape, or a malformed or unsupported filesystem entry makes the whole `inherit_codex` profile unavailable.
 Console does not drop permission entries individually: omitting a denial could widen access.
 Unknown additional fields and client backend or launcher selections are ignored.
 Console always uses its own pinned runner; metadata cannot select an executable or change its backend.

@@ -1,6 +1,6 @@
 ---
 sandbox:
-  profile: codex
+  profile: inherit_codex
 ---
 network: restricted
 filesystem:

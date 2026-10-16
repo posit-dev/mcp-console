@@ -7,7 +7,7 @@
 \alias{SandboxProxy}
 \alias{SandboxSockets}
 \alias{SandboxNetwork}
-\alias{CodexSandboxProfile}
+\alias{InheritCodexSandboxProfile}
 \title{Configure sandbox filesystem and network access}
 \usage{
 SandboxFilesystem(read_only = NULL, read_write = NULL, deny = NULL)
@@ -29,7 +29,7 @@ SandboxNetwork(
   allow_local_binding = "auto"
 )
 
-CodexSandboxProfile(fallback = NULL)
+InheritCodexSandboxProfile(fallback = NULL)
 
 SandboxPolicy(
   filesystem = NULL,
@@ -95,15 +95,15 @@ proxy, respectively. Filesystem enforcement remains in place.}
 
 \item{profile}{\code{NULL} to preserve context defaults, \code{"read_only"} for the
 base with host reads and private temporary writes, \code{"workspace"} for workspace writes,
-\code{"codex"} to inherit supported sandbox metadata from the first MCP \code{send}
-with a read-only fallback, or a \code{CodexSandboxProfile()} for explicit
+\code{"inherit_codex"} to inherit supported sandbox metadata from the first MCP \code{send}
+with a read-only fallback, or an \code{InheritCodexSandboxProfile()} for explicit
 fallback selection. For shared clients, use
-\code{CodexSandboxProfile(fallback = "workspace")}.
+\code{InheritCodexSandboxProfile(fallback = "workspace")}.
 Filesystem entries compose with the selected base; explicit network and
 temporary-storage settings apply afterward. Inherited full access disables
 worker and preparation sandboxing, so local restrictions are not enforced.
 Client permissions are retained across worker restarts; changed permissions
-require reconnecting. The Codex profile is not accepted for resolver policies.}
+require reconnecting. The \code{inherit_codex} profile is not accepted for resolver policies.}
 
 \item{tempdir}{\code{NULL} to preserve context defaults, \code{"managed"} (the default) for private
 writable storage owned and cleaned up by the active sandbox, \code{"read_write"} for

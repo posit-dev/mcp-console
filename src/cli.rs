@@ -22,6 +22,8 @@ Examples:
 const CONFIGURE_CLIENT_EXAMPLES: &str = "\
 Prints each configuration file and setting changed. Unrelated settings are
 preserved. Use --dry-run to preview or apply the changes manually.
+Codex launches use the client's sandbox permissions. Arguments after --
+override the generated serve settings.
 
 Examples:
   uvx mcp-console configure-client codex claude

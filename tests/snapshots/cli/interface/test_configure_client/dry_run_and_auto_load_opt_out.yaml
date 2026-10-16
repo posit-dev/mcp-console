@@ -5,6 +5,8 @@ console:
   args:
     - mcp-console
     - serve
+    - -c
+    - sandbox.profile=inherit_codex
   enabled: true
   omit_tools_from: []
 dry_run: |
@@ -14,7 +16,7 @@ dry_run: |
   Set these fields:
   [mcp_servers.console]
   command = "uvx"
-  args = ["mcp-console", "serve"]
+  args = ["mcp-console", "serve", "-c", "sandbox.profile=inherit_codex"]
   enabled = true
   omit_tools_from = ["deferred"]
 
@@ -27,7 +29,7 @@ opt_out: |
   Set these fields:
   [mcp_servers.console]
   command = "uvx"
-  args = ["mcp-console", "serve"]
+  args = ["mcp-console", "serve", "-c", "sandbox.profile=inherit_codex"]
   enabled = true
   omit_tools_from = []
 

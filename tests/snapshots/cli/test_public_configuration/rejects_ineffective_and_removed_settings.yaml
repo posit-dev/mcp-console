@@ -2,20 +2,20 @@
 path: sandbox.profile
 stderr: >
   configuration with CLI overrides: sandbox: profile: unknown variant
-  `workspace_write`, expected one of `read_only`, `workspace`, `codex`;
-  see docs/CONFIGURATION.md for the public format
+  `workspace_write`, expected one of `read_only`, `workspace`,
+  `inherit_codex`; see docs/CONFIGURATION.md for the public format
 ---
 path: sandbox.profile
 stderr: >
   configuration with CLI overrides: sandbox: profile: unknown variant
-  `workspace-write`, expected one of `read_only`, `workspace`, `codex`;
-  see docs/CONFIGURATION.md for the public format
+  `workspace-write`, expected one of `read_only`, `workspace`,
+  `inherit_codex`; see docs/CONFIGURATION.md for the public format
 ---
 path: sandbox.profile
 stderr: >
   configuration with CLI overrides: sandbox: profile: unknown variant
-  `:workspace`, expected one of `read_only`, `workspace`, `codex`; see
-  docs/CONFIGURATION.md for the public format
+  `:workspace`, expected one of `read_only`, `workspace`, `inherit_codex`;
+  see docs/CONFIGURATION.md for the public format
 ---
 path: sandbox.workspace_options
 stderr: >
@@ -74,13 +74,13 @@ stderr: >
 ---
 path: resolver.sandbox.profile
 stderr: >
-  configuration with CLI overrides: resolver.sandbox.profile: codex is a
-  session profile; configure sandbox.profile instead
+  configuration with CLI overrides: resolver.sandbox.profile:
+  inherit_codex is a session profile; configure sandbox.profile instead
 ---
 path: resolver.sandbox.profile
 stderr: >
-  configuration with CLI overrides: resolver.sandbox.profile: codex is a
-  session profile; configure sandbox.profile instead
+  configuration with CLI overrides: resolver.sandbox.profile:
+  inherit_codex is a session profile; configure sandbox.profile instead
 ---
 path: sandbox.network.proxy
 stderr: >

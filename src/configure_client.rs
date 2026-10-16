@@ -201,7 +201,13 @@ fn edit_codex(
     desired.insert("command", value(launch.command.as_str()));
     desired.insert(
         "args",
-        value(launch.args.iter().map(String::as_str).collect::<Array>()),
+        value(
+            launch
+                .arguments(ConfigureClient::Codex, &options.serve_args)
+                .iter()
+                .map(String::as_str)
+                .collect::<Array>(),
+        ),
     );
     desired.insert("enabled", value(true));
     // This per-server policy keeps tools directly exposed without disabling
@@ -267,7 +273,7 @@ fn edit_claude(
     let desired = json!({
         "type": "stdio",
         "command": launch.command,
-        "args": launch.args,
+        "args": launch.arguments(ConfigureClient::Claude, &options.serve_args),
         "alwaysLoad": !options.no_auto_load,
     });
     console.extend(desired.as_object().unwrap().clone());

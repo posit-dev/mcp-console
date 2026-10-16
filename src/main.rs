@@ -234,7 +234,7 @@ fn run_server(
     let sandbox = if sandbox
         .profile
         .as_ref()
-        .is_some_and(settings::ProfileSelection::uses_codex)
+        .is_some_and(settings::ProfileSelection::inherits_codex)
     {
         sandbox
     } else {

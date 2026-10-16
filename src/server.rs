@@ -75,7 +75,7 @@ impl ConsoleServer {
             sandbox
                 .profile
                 .as_ref()
-                .is_some_and(crate::settings::ProfileSelection::uses_codex),
+                .is_some_and(crate::settings::ProfileSelection::inherits_codex),
             &tool_settings,
         )?;
         let runtime = Arc::new(startup::Runtime {
@@ -91,7 +91,7 @@ impl ConsoleServer {
         let uses_client_profile = sandbox
             .profile
             .as_ref()
-            .is_some_and(crate::settings::ProfileSelection::uses_codex);
+            .is_some_and(crate::settings::ProfileSelection::inherits_codex);
         let inheritance = Arc::new(sandbox::Inheritance::new(sandbox.profile.clone()));
         let startup_inheritance = inheritance.clone();
         let startup = startup::Startup::new(

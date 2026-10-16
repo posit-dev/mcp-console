@@ -420,8 +420,8 @@ SandboxNetwork <- S7::new_class(
 #'   malformed metadata emits a warning on the server's standard error stream.
 #'   A failure to start the selected sandbox does not select the fallback.
 #' @export
-CodexSandboxProfile <- S7::new_class(
-  "CodexSandboxProfile",
+InheritCodexSandboxProfile <- S7::new_class(
+  "InheritCodexSandboxProfile",
   parent = ConfigNode,
   properties = list(
     fallback = config_choice(c("read_only", "workspace"))
@@ -436,15 +436,15 @@ CodexSandboxProfile <- S7::new_class(
 #'   proxy, respectively. Filesystem enforcement remains in place.
 #' @param profile `NULL` to preserve context defaults, `"read_only"` for the
 #'   base with host reads and private temporary writes, `"workspace"` for workspace writes,
-#'   `"codex"` to inherit supported sandbox metadata from the first MCP `send`
-#'   with a read-only fallback, or a `CodexSandboxProfile()` for explicit
+#'   `"inherit_codex"` to inherit supported sandbox metadata from the first MCP `send`
+#'   with a read-only fallback, or an `InheritCodexSandboxProfile()` for explicit
 #'   fallback selection. For shared clients, use
-#'   `CodexSandboxProfile(fallback = "workspace")`.
+#'   `InheritCodexSandboxProfile(fallback = "workspace")`.
 #'   Filesystem entries compose with the selected base; explicit network and
 #'   temporary-storage settings apply afterward. Inherited full access disables
 #'   worker and preparation sandboxing, so local restrictions are not enforced.
 #'   Client permissions are retained across worker restarts; changed permissions
-#'   require reconnecting. The Codex profile is not accepted for resolver policies.
+#'   require reconnecting. The `inherit_codex` profile is not accepted for resolver policies.
 #' @param tempdir `NULL` to preserve context defaults, `"managed"` (the default) for private
 #'   writable storage owned and cleaned up by the active sandbox, `"read_write"` for
 #'   automatic write grants to normal host temp locations without Console-owned
@@ -472,15 +472,15 @@ SandboxPolicy <- S7::new_class(
       }
     ),
     profile = S7::new_property(
-      NULL | S7::class_character | CodexSandboxProfile,
+      NULL | S7::class_character | InheritCodexSandboxProfile,
       validator = function(value) {
         if (
           is.character(value) &&
             (length(value) != 1L ||
               is.na(value) ||
-              !value %in% c("read_only", "workspace", "codex"))
+              !value %in% c("read_only", "workspace", "inherit_codex"))
         ) {
-          "must be NULL, read_only, workspace, codex, or a CodexSandboxProfile()"
+          "must be NULL, read_only, workspace, inherit_codex, or an InheritCodexSandboxProfile()"
         }
       }
     ),
@@ -547,9 +547,9 @@ S7::method(as.list, ConfigNode) <- function(x, ...) {
   config_mapping(S7::props(x))
 }
 
-S7::method(as.list, CodexSandboxProfile) <- function(x, ...) {
+S7::method(as.list, InheritCodexSandboxProfile) <- function(x, ...) {
   S7::validate(x)
-  json_object(list(codex = config_mapping(S7::props(x))))
+  json_object(list(inherit_codex = config_mapping(S7::props(x))))
 }
 
 config_override <- function(key, value) {

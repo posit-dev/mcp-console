@@ -317,7 +317,10 @@ config_from_json <- function(settings) {
           if (is.null(fields) || is.character(fields)) {
             return(fields)
           }
-          config_node_from_json(CodexSandboxProfile, fields$codex)
+          config_node_from_json(
+            InheritCodexSandboxProfile,
+            fields$inherit_codex
+          )
         },
         filesystem = function(fields) {
           config_node_from_json(SandboxFilesystem, fields)

@@ -5,11 +5,11 @@ use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use crate::cli::ConfigureClientOptions;
+use crate::cli::{ConfigureClient, ConfigureClientOptions};
 
 pub(super) struct Launch {
     pub(super) command: String,
-    pub(super) args: Vec<String>,
+    args: Vec<String>,
     install: Option<String>,
 }
 
@@ -64,8 +64,20 @@ impl Launch {
             launch.args.clear();
         }
         launch.args.push("serve".into());
-        launch.args.extend(options.serve_args.iter().cloned());
         Ok(launch)
+    }
+
+    pub(super) fn arguments(&self, client: ConfigureClient, serve_args: &[String]) -> Vec<String> {
+        let mut args = self.args.clone();
+        match client {
+            ConfigureClient::Codex => {
+                args.extend(["-c".into(), "sandbox.profile=inherit_codex".into()])
+            }
+            ConfigureClient::Claude => {}
+        }
+        // Explicit serve arguments take precedence over client defaults.
+        args.extend_from_slice(serve_args);
+        args
     }
 
     pub(super) fn prepare(&self, dry_run: bool) -> Result<(), String> {

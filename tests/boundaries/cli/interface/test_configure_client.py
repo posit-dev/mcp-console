@@ -116,13 +116,19 @@ def test_multiple_clients_pins_names_and_serve_arguments(binary: Path) -> Transc
             )
             assert result.returncode == 0 and result.stderr == "", result
             assert result.stdout.count("Configuration:") == 2, result
-            expected = [
+            prefix = [
                 "mcp-console" + (f"@{pin}" if pin else ""),
                 "serve",
+            ]
+            serve_args = [
                 "--no-project-config",
                 "--writable-root",
                 "a path",
             ]
+            expected = {
+                "codex": [*prefix, "-c", "sandbox.profile=inherit_codex", *serve_args],
+                "claude": [*prefix, *serve_args],
+            }
             for client, path in (
                 ("codex", root / "codex-home/config.toml"),
                 ("claude", root / "claude-home/.claude.json"),
@@ -131,8 +137,76 @@ def test_multiple_clients_pins_names_and_serve_arguments(binary: Path) -> Transc
                 mapping = config["mcp_servers" if client == "codex" else "mcpServers"]
                 assert list(mapping) == [name], config
                 assert mapping[name]["command"] == "uvx"
-                assert mapping[name]["args"] == expected
+                assert mapping[name]["args"] == expected[client], mapping[name]
             records.append({"version_suffix": pin, "clients": 2, "args": expected})
+    return records
+
+
+def test_explicit_sandbox_profile_overrides_client_default(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        for no_uvx in (False, True):
+            result = configure(
+                binary,
+                root,
+                root,
+                "codex",
+                "claude",
+                "--scope",
+                "global",
+                *(["--no-uvx"] if no_uvx else []),
+                "--",
+                "-c",
+                "sandbox.profile=workspace",
+            )
+            assert result.returncode == 0 and not result.stderr, result
+            for client, path in (
+                ("codex", root / "codex-home/config.toml"),
+                ("claude", root / "claude-home/.claude.json"),
+            ):
+                entry = server(read_config(path, client), client)
+                expected = [
+                    "serve",
+                    *(
+                        ["-c", "sandbox.profile=inherit_codex"]
+                        if client == "codex"
+                        else []
+                    ),
+                    "-c",
+                    "sandbox.profile=workspace",
+                ]
+                assert entry["args"] == (
+                    expected if no_uvx else ["mcp-console", *expected]
+                ), entry
+                serve_index = entry["args"].index("serve")
+                result = subprocess.run(
+                    [
+                        binary,
+                        "config",
+                        "resolve",
+                        "--no-config",
+                        "--format",
+                        "json",
+                        *entry["args"][serve_index + 1 :],
+                    ],
+                    cwd=root,
+                    env=environment(root),
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                assert result.returncode == 0 and not result.stderr, result
+                resolved = json.loads(result.stdout)
+                assert resolved == {"sandbox": {"profile": "workspace"}}, resolved
+                records.append(
+                    {
+                        "launcher": "direct" if no_uvx else "uvx",
+                        "client": client,
+                        "args": entry["args"],
+                        "resolved": resolved,
+                    }
+                )
     return records
 
 
@@ -220,6 +294,11 @@ def test_version_validation_and_current_pin(binary: Path) -> Transcript:
                 assert server(read_config(path, client), client)["args"] == [
                     f"mcp-console@{expected}",
                     "serve",
+                    *(
+                        ["-c", "sandbox.profile=inherit_codex"]
+                        if client == "codex"
+                        else []
+                    ),
                 ]
     return [
         {
@@ -389,6 +468,8 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
         assert server(read_config(path, "codex"), "codex")["args"] == [
             "mcp-console",
             "serve",
+            "-c",
+            "sandbox.profile=inherit_codex",
         ]
         result = configure(binary, root, root, "codex", "--scope", "global")
         assert result.returncode == 0 and path.read_text(encoding="utf-8") == updated, (
@@ -428,7 +509,10 @@ def test_direct_executable_finds_itself(binary: Path) -> Transcript:
             entry = server(read_config(path, client), client)
             assert Path(entry["command"]).is_absolute()
             assert Path(entry["command"]).samefile(executable)
-            assert entry["args"] == ["serve"]
+            assert entry["args"] == [
+                "serve",
+                *(["-c", "sandbox.profile=inherit_codex"] if client == "codex" else []),
+            ]
     return [{"launch": "absolute path to the running executable", "clients": 2}]
 
 
@@ -546,7 +630,14 @@ def test_ephemeral_uvx_installs_persistent_executable(binary: Path) -> Transcrip
             ):
                 entry = server(read_config(path, client), client)
                 assert Path(entry["command"]).samefile(executable), entry
-                assert entry["args"] == ["serve"], entry
+                assert entry["args"] == [
+                    "serve",
+                    *(
+                        ["-c", "sandbox.profile=inherit_codex"]
+                        if client == "codex"
+                        else []
+                    ),
+                ], entry
         command = [
             uv,
             "tool",
@@ -658,7 +749,10 @@ def test_ephemeral_uvx_installs_persistent_executable(binary: Path) -> Transcrip
             entry = server(read_config(path, client), client)
             installed = Path(extra["UV_TOOL_BIN_DIR"]) / native_console(binary).name
             assert Path(entry["command"]) == installed and installed.is_file(), entry
-            assert entry["args"] == ["serve"]
+            assert entry["args"] == [
+                "serve",
+                *(["-c", "sandbox.profile=inherit_codex"] if client == "codex" else []),
+            ]
             assert (
                 subprocess.check_output([installed, "--version"], text=True).split()[1]
                 == version
@@ -738,7 +832,14 @@ def test_shared_cache_marker_keeps_direct_executables(binary: Path) -> Transcrip
                 entry = server(read_config(path, client), client)
                 assert Path(entry["command"]).is_absolute()
                 assert Path(entry["command"]).samefile(executable)
-                assert entry["args"] == ["serve"]
+                assert entry["args"] == [
+                    "serve",
+                    *(
+                        ["-c", "sandbox.profile=inherit_codex"]
+                        if client == "codex"
+                        else []
+                    ),
+                ]
     return [
         {
             "shared_cache_marker": "Cargo and non-uv virtualenvs retain their executable paths"
@@ -800,6 +901,7 @@ def test_global_install_preserves_configuration_and_is_repeatable(
             assert entry["command"] == "uvx" and entry["args"] == [
                 "mcp-console",
                 "serve",
+                *(["-c", "sandbox.profile=inherit_codex"] if client == "codex" else []),
             ]
             assert entry["env"] == {"KEEP": "value"}
             if client == "codex":
@@ -960,6 +1062,7 @@ def test_inline_toml_and_existing_project_json(binary: Path) -> Transcript:
             assert entry["command"] == "uvx" and entry["args"] == [
                 "mcp-console",
                 "serve",
+                *(["-c", "sandbox.profile=inherit_codex"] if client == "codex" else []),
             ]
             assert entry["env"] == {"KEEP": "value"}
             mapping = config["mcp_servers" if client == "codex" else "mcpServers"]
@@ -1054,6 +1157,8 @@ def test_linked_configuration_preserves_target_and_permissions(
         assert server(read_config(first, "codex"), "codex")["args"] == [
             "mcp-console@latest",
             "serve",
+            "-c",
+            "sandbox.profile=inherit_codex",
         ]
         assert path.is_symlink() and not target.exists()
         records.append({"later_write_failure": "earlier change remains reported"})

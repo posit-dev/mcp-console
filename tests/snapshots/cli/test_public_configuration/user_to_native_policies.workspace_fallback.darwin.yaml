@@ -1,7 +1,7 @@
 ---
 sandbox:
   profile:
-    codex:
+    inherit_codex:
       fallback: workspace
 ---
 network: restricted

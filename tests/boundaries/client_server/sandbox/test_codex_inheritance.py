@@ -114,7 +114,7 @@ def test_profile_fallback_selects_one_base_before_local_overrides(
             json.dumps(
                 {
                     "sandbox": {
-                        "profile": {"codex": {"fallback": "workspace"}},
+                        "profile": {"inherit_codex": {"fallback": "workspace"}},
                         "filesystem": {"read_write": ["output"], "deny": ["private"]},
                         "network": "restricted",
                         "tempdir": "read_write",
@@ -224,7 +224,7 @@ def test_missing_metadata_silently_uses_default_read_only(
             (
                 "serve",
                 "-c",
-                "sandbox.profile={codex: {}}",
+                "sandbox.profile={inherit_codex: {}}",
                 "-c",
                 "cache=host",
                 "-c",
@@ -344,7 +344,7 @@ def test_malformed_metadata_warns_and_uses_default_read_only(
                 (
                     "serve",
                     "-c",
-                    "sandbox.profile=codex",
+                    "sandbox.profile=inherit_codex",
                     "-c",
                     "cache=host",
                     "-c",
@@ -405,7 +405,7 @@ def test_first_received_send_selects_authority_before_cancelled_handler(
             (
                 "serve",
                 "-c",
-                "sandbox.profile=codex",
+                "sandbox.profile=inherit_codex",
                 "-c",
                 "cache=host",
                 "-c",
@@ -530,7 +530,7 @@ def test_inherits_filesystem_and_network_before_first_worker(
             (
                 "serve",
                 "-c",
-                "sandbox.profile=codex",
+                "sandbox.profile=inherit_codex",
                 "-c",
                 "sandbox.filesystem.read_write=[local]",
                 "-c",
@@ -717,7 +717,7 @@ def test_full_access_uses_host_permissions_and_caches(binary: Path) -> Transcrip
                 "--format",
                 "json",
                 "-c",
-                "sandbox.profile=codex",
+                "sandbox.profile=inherit_codex",
                 "-c",
                 "sandbox.filesystem.deny=[outside]",
                 "-c",
@@ -782,7 +782,7 @@ def test_missing_and_unsupported_metadata_retain_local_policy(
             (
                 "serve",
                 "-c",
-                "sandbox.profile={codex: {fallback: workspace}}",
+                "sandbox.profile={inherit_codex: {fallback: workspace}}",
                 "-c",
                 "cache=host",
                 "-c",
@@ -848,7 +848,7 @@ def test_discovery_and_eof_do_not_prepare_runtimes_when_inheriting(
             (
                 "serve",
                 "-c",
-                "sandbox.profile=codex",
+                "sandbox.profile=inherit_codex",
                 "-c",
                 "sandbox.filesystem.read_write=[.]",
                 "-c",
@@ -879,7 +879,7 @@ def test_unrestricted_filesystem_retains_network_enforcement(
             (
                 "serve",
                 "-c",
-                "sandbox.profile=codex",
+                "sandbox.profile=inherit_codex",
                 "-c",
                 "sandbox.filesystem.deny=[secret]",
                 "-c",
@@ -955,7 +955,7 @@ def test_inheritance_preserves_explicit_console_proxy(binary: Path) -> Transcrip
             (
                 "serve",
                 "-c",
-                "sandbox.profile=codex",
+                "sandbox.profile=inherit_codex",
                 "-c",
                 "sandbox.network={proxy: {mode: limited, allow_upstream_proxy: true}}",
                 "-c",

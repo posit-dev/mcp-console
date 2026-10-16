@@ -238,7 +238,7 @@ def _initializes_and_lists_tools(
                 if languages is not None
                 else (),
                 *("--writable-root", str(workspace)) if writable else (),
-                *("-c", "sandbox.profile=codex") if client_profile else (),
+                *("-c", "sandbox.profile=inherit_codex") if client_profile else (),
             ),
             environment,
             workspace,

@@ -18,7 +18,7 @@ pub(crate) fn configuration(
     let uses_client_profile = captured
         .profile
         .as_ref()
-        .is_some_and(super::ProfileSelection::uses_codex);
+        .is_some_and(super::ProfileSelection::inherits_codex);
     let cache = captured.cache.unwrap_or(if no_sandbox {
         Cache::Host
     } else {
@@ -123,7 +123,7 @@ pub(crate) fn configuration(
             permissions["profile"] = serde_json::to_value(profile).expect("captured profile");
             // An inherited network mode is a runtime policy, not the local
             // default. Exporting restricted here would create an override.
-            if profile.uses_codex() && !captured.network_explicit {
+            if profile.inherits_codex() && !captured.network_explicit {
                 permissions
                     .as_object_mut()
                     .expect("permissions mapping")
