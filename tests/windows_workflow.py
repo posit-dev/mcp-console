@@ -511,10 +511,17 @@ class WindowsWorkflow(unittest.TestCase):
         self.assertIn("cargo", json.loads(result.stdout)["required_missing"])
 
     def test_preflight_reports_only_the_staged_windows_bundle(self):
+        # Preflight resolves its checkout path, including Windows 8.3 aliases.
+        # Exercise an unresolved spelling even on hosts without short names.
+        self.root = self.root / "scripts/.."
+        root = self.root.resolve()
         for name in ("git", "uv", "cargo", "rustup"):
             self.stub(name, f"print('{name} fixture')")
         environment = self.environment | {"PATH": str(self.commands)}
         environment.pop("R_HOME", None)
+        pin = json.loads((self.root / "sandbox-runner.json").read_text())
+        pin["commit"] = "1" * 40
+        self.write("sandbox-runner.json", json.dumps(pin))
         runner_name = "mcp-console-sandbox.exe"
         self.write(f"target/libexec/{runner_name}", "unrelated flat artifact")
         for runner_digest, bundle_digest in (
@@ -549,13 +556,25 @@ class WindowsWorkflow(unittest.TestCase):
                     self.assertEqual(
                         json.loads(result.stdout)["artifacts"],
                         {
-                            str(self.root / "target/debug/mcp-console.exe"): False,
-                            str(
-                                self.root / f"wheel-data/data/libexec/{runner_name}"
-                            ): False,
-                            str(self.root / runner): built,
+                            str(root / "target/debug/mcp-console.exe"): False,
+                            str(root / f"wheel-data/data/libexec/{runner_name}"): False,
+                            str(root / runner): built,
                         },
                     )
+        pin["commit"] = "6" * 40
+        self.write("sandbox-runner.json", json.dumps(pin))
+        result = self.run_command("preflight", "--json", environment=environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["companion"]["staged_revision"], "1" * 40)
+        self.assertEqual(report["companion"]["pin"]["commit"], "6" * 40)
+        self.assertEqual(
+            report["artifacts"],
+            {
+                str(root / "target/debug/mcp-console.exe"): False,
+                str(root / f"wheel-data/data/libexec/{runner_name}"): False,
+            },
+        )
 
     def test_preflight_optional_r_version_errors_do_not_fail(self):
         for name in ("git", "uv", "cargo", "rustup"):

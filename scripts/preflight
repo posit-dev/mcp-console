@@ -69,10 +69,15 @@ def main() -> None:
     artifact_paths = [executable, ROOT / "wheel-data/data/libexec" / runner_name]
     if WINDOWS:
         build_record = Path(companion["build_record"])
-        if build_record.is_file():
+        build = (
+            json.loads(build_record.read_text(encoding="utf-8"))
+            if build_record.is_file()
+            else {}
+        )
+        if build.get("source_revision") == companion["pin"]["commit"]:
             # Match build.rs: serde_json serializes the manifest with sorted keys.
             manifest = json.dumps(
-                json.loads(build_record.read_text(encoding="utf-8")),
+                build,
                 sort_keys=True,
                 ensure_ascii=False,
                 separators=(",", ":"),
