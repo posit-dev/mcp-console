@@ -1,11 +1,9 @@
 ---
 title: Get started
-description: Install Console, connect an MCP client, and run an analysis.
 ---
 
-Console runs on the same host as your MCP client.
-For remote work, run both on the remote host, alongside the client's shell and filesystem tools.
-Console does not manage remote connections or containers.
+Install Console, connect it to your MCP client, and try an analysis.
+No Console configuration file is required.
 
 ## Install
 
@@ -15,66 +13,23 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then inst
 uv tool install mcp-console
 ```
 
-PyPI provides wheels for macOS and Linux on ARM64 and x86-64, plus experimental Windows x64 support.
-See [Windows local execution](WINDOWS.md) for native sandbox setup and platform limits.
-Linux wheels require glibc 2.35 or later.
-On Ubuntu, install the runtime libraries:
+Prebuilt packages are available for macOS and Linux on ARM64 and x86-64, and for experimental Windows x64.
+Windows users should also follow the [Windows setup instructions](WINDOWS.md#install-and-run).
 
-```sh
-sudo apt-get update
-sudo apt-get install -y libcap2 libgcc-s1 libstdc++6
-```
+If Console fails to start on Linux, see [Linux host compatibility](LINUX_COMPATIBILITY.md) for missing libraries or sandbox restrictions.
 
-Linux hosts must permit the namespace operations used by the native sandbox; see [Linux host compatibility](LINUX_COMPATIBILITY.md#host-and-container-setup).
-On first startup, Console may download Python, packages, and DuckDB extensions.
 To use R, install it separately, for example with [rig](https://github.com/r-lib/rig#id-installation) and `rig add release`.
 Python and SQL also work without R.
+The first session may download Python and packages.
 
 ### Build from source
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), Git, and [Rust through rustup](https://rustup.rs/).
-The Rust compiler must meet the version requirement in [`Cargo.toml`](../Cargo.toml).
-Console builds from source, so it also needs platform build tools.
-
-On macOS, install the Xcode Command Line Tools:
-
-```sh
-xcode-select --install
-```
-
-On Ubuntu, install the build tools and system libraries:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y build-essential git pkg-config libcap-dev libssl-dev libcurl4-openssl-dev binutils
-```
-
-Windows users should follow [Windows build instructions](WINDOWS.md#build-from-source).
-Package source builds can require additional system libraries; the [release guide](../RELEASE.md#private-sandbox-executable) covers native build requirements.
-
-Install Console:
-
-```sh
-uv tool install git+https://github.com/t-kalinowski/mcp-console
-```
-
-This command builds Console and its sandbox runner from source.
+To install the development version, follow [Build from source](BUILD_FROM_SOURCE.md).
 
 ## Connect your client
 
-Configure a stdio MCP server with command `mcp-console` and arguments `["serve"]`.
-For clients using an `mcpServers` mapping:
-
-```json
-{
-  "mcpServers": {
-    "console": {
-      "command": "mcp-console",
-      "args": ["serve"]
-    }
-  }
-}
-```
+Console runs on the same host as the client.
+Start both in the project where the agent will work, so their shell and filesystem tools refer to the same files.
 
 For Codex:
 
@@ -88,12 +43,22 @@ For Claude Code:
 claude mcp add --transport stdio console -- mcp-console serve
 ```
 
-A launcher that uses `uvx mcp-console serve` may run a published version rather than your source installation.
-Use the installed command above when reviewing current development behavior.
+For another MCP client, configure a stdio server with command `mcp-console` and arguments `["serve"]`.
+Clients using an `mcpServers` mapping can use:
 
-Confirm that the client exposes `send`.
-Tool discovery can finish before runtime preparation; the first call may report that work is still running.
-Let the agent collect that result rather than submit the code again.
+```json
+{
+  "mcpServers": {
+    "console": {
+      "command": "mcp-console",
+      "args": ["serve"]
+    }
+  }
+}
+```
+
+For remote work, run both Console and the client on the remote host.
+Console does not manage remote connections or containers.
 
 ## Try an analysis
 
@@ -108,34 +73,75 @@ Then ask:
 > Show a plot and the path to the recorded session.
 
 With R installed, try the Palmer Penguins data from `palmerpenguins`, summarize it with SQL, and plot it from Python.
-The [runtime guide](BUILTIN_RUNTIME.md) explains the language bridges.
+See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples.
 
 ## Choose permissions and an environment
 
-No configuration file is required.
-The default sandbox allows host reads, but not ordinary workspace writes or direct network access.
-It does not protect readable secrets.
+The default sandbox permits host-file reads and private temporary writes, but not ordinary workspace writes or direct network access.
+**It does not protect readable secrets.**
 
-For workspace writes, create `.agents/console/config.yaml` in the launch directory:
+### Use the workspace profile {#allow-project-writes}
+
+To let the agent save files in the project, create `.agents/console/config.yaml` in the directory where Console will start:
+
+```yaml
+sandbox:
+  profile: workspace
+```
+
+The `workspace` profile uses Console's launch directory as the workspace, even if evaluated code later changes its working directory.
+It permits the agent to create, edit, and delete ordinary files there, while keeping the workspace's `.git`, `.agents`, `.codex`, and `.aws` paths read-only, including when they do not yet exist.
+Git metadata referenced by a worktree's or submodule's `.git` file is also protected.
+For example, the agent can read `data.csv`, edit `analysis.py`, and save `plot.png`, but cannot change `.agents/console/config.yaml` or Git metadata.
+
+Host-file reads remain allowed, private temporary storage remains writable, and direct network access remains restricted.
+The profile does not change the separate permissions used for package preparation.
+
+Without a profile, you can construct the same filesystem permissions explicitly:
 
 ```yaml
 sandbox:
   filesystem:
     read_write: [.]
+    read_only: [.git, .agents, .codex, .aws]
 ```
 
-To use an existing project Python environment rather than a Console-managed one, add:
+Here `.` and the metadata paths are relative to Console's launch directory.
+This retains the same default host reads, private temporary storage, and restricted networking.
+Additional filesystem settings can narrow or widen access; see [the workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile) for rule precedence and protecting other paths such as `.claude`.
+
+For a write grant supplied by the client command instead of project configuration, add `--writable-root .`:
+
+```sh
+mcp-console serve --writable-root .
+```
+
+For a client using the JSON configuration above, the arguments become `["serve", "--writable-root", "."]`.
+The flag adds a writable path; it does not select the workspace profile.
+[Sandbox configuration](SANDBOX_CONFIGURATION.md#filesystem) describes metadata defaults and narrower grants.
+
+Project configuration can select executables and widen permissions.
+Review it before opening an unfamiliar project; `--no-project-config` skips that layer.
+
+### Use an existing Python environment
+
+To use a project's environment instead of a Console-managed one, add this to the configuration:
 
 ```yaml
 python: .venv
 ```
 
-That environment must already contain the required packages.
-See [Configuration](CONFIGURATION.md) for global/project layering and runtime selection, and [Sandbox configuration](SANDBOX_CONFIGURATION.md) for permissions.
-Do not load configuration from an unfamiliar project without reviewing it; `--no-project-config` skips that layer.
+The environment must already exist.
+Ordinary Python and standard-library code do not require pandas, NumPy, or other optional data packages.
+Install any third-party packages your analysis uses before starting the session; Console does not manage Python package installation for an environment selected this way.
+
+Plotting and the default Python-owned DuckDB connection need their corresponding packages.
+See [Python environment selection](CONFIGURATION.md#python-environment-selection) for interpreter requirements and [Packages and environments](REQUIREMENTS.md) for the distinction between managed and existing environments.
 
 ## Keep the session
 
 Console records transcripts and artifacts locally.
-Read [Recordings and reports](RECORDING.md) for their location and how to turn a reviewed copy into a report.
-Recordings are not checkpoints, contain input and output without redaction, and are not automatically deleted.
+[Recordings and reports](RECORDING.md) explains where to find them and how to turn a reviewed copy into a report.
+
+Recordings are not checkpoints.
+They contain input and output without redaction and are not automatically deleted.

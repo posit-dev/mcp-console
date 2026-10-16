@@ -221,3 +221,100 @@ Any replacement must preserve these boundaries and the [existing plot contract](
 
 Follow these owners into their modules instead of maintaining an exhaustive file inventory.
 [Boundary tests](../tests/boundaries/README.md) provide observable evidence; implementation comments hold local algorithms and exceptional cases.
+
+## Application policy and launch
+
+Console selects policy and verifies its installed, pinned native runner.
+The runner owns OS enforcement, private storage, signals/terminals, and descendant retirement.
+The relay owns only its direct worker, not a second process-tree supervisor.
+
+```text
+MCP server → sandbox frontend → native runner → relay → worker
+                                              or standalone command
+```
+
+There is no runtime runner download or automatic retry with weaker enforcement.
+[Ownership](#ownership) describes component responsibilities; [Release](../RELEASE.md#private-sandbox-executable) describes bundle verification.
+
+## Policy extensions and compatibility
+
+The macOS extension in [`src/sandbox/policy_extensions.sbpl`](../src/sandbox/policy_extensions.sbpl) contains Console-specific allowances and their evidence.
+Host terminal reads and mutating terminal ioctls remain denied, while sandbox-created PTYs support interactive children.
+
+For maintenance, distinguish a rule duplicated by the pinned runner from one genuinely unnecessary for the workload.
+Removing an allowance needs evidence from the actual sandboxed workflow and relevant platform/runtime versions.
+Passing host-resolver tests is not worker-sandbox evidence.
+Historical observations and uncertain callers belong beside the rule in source, not as asserted public guarantees.
+
+The remaining exception-evidence review is listed in [TODO](TODO.md#sandbox-and-platforms).
+
+## Runtime integration details
+
+R and Python initialization and reentrant bridge calls use the worker's owning thread.
+R startup can mutate the native process environment; neither that thread nor the GIL serializes arbitrary native threads accessing it.
+
+R opens installed vignette files using native filename handling and passes their bytes to a callback using Rust's `html2text` crate, without Pandoc, knitr, rmarkdown, or a browser.
+Console removes the temporary converted file if a function pager raises an error.
+Observable text and encoding behavior belongs in [Runtime reference](RUNTIME_REFERENCE.md#installed-documentation).
+
+## Internal variables: leave unset
+
+Internal transport/activation names are not supported configuration.
+In particular, do not use the following to choose permissions or runtimes:
+
+`MCP_CONSOLE_LANGUAGES`, `MCP_CONSOLE_SANDBOX`, `MCP_CONSOLE_SANDBOX_SETTINGS`, `MCP_CONSOLE_SANDBOX_CONFIG`, `MCP_CONSOLE_STARTUP_FILE`, `MCP_CONSOLE_LOCAL_RUNTIME`, `MCP_CONSOLE_MANAGED_PYTHON`, `MCP_CONSOLE_R_LIBRARY`, `MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION`, `MCP_CONSOLE_MATPLOTLIB_CACHE`, or `MCP_CONSOLE_MANAGED_TEMPDIR`.
+
+The `MCP_CONSOLE_SIDEBAND_*`, `MCP_CONSOLE_INTERRUPT_HANDLE`, and `MCP_CONSOLE_INPUT_READY_HANDLE` families belong to the [worker protocol](WORKER_PROTOCOL.md).
+A marker does not create a sandbox.
+Use public `languages`, `python`, `r`, `requirements`, and sandbox configuration instead.
+
+Build-time `MCP_CONSOLE_SANDBOX_SOURCE` selects a pinned companion checkout during staging; it does not replace an installed runner.
+Cargo and `MCP_CONSOLE_TEST_*` values belong to build/test workflows, not this runtime interface.
+
+Implementation owners are [`console_paths.rs`](../src/console_paths.rs), [`resolver/cache.rs`](../src/resolver/cache.rs), [`resolver/python_configuration.rs`](../src/resolver/python_configuration.rs), [`python/startup.rs`](../src/python/startup.rs), and [`worker/coordinator.rs`](../src/worker/coordinator.rs).
+Keep detailed compatibility handling there rather than reproducing it across guides.
+
+## Recording ownership and failures
+
+`internal/events.jsonl` is the append-only journal underlying the Markdown and QMD projections.
+
+A journal or artifact failure disables further recording without stopping computation.
+A raw-log failure affects that file.
+Failure of a derived projection disables the projections but can leave the journal and artifacts available.
+Diagnostics and notices report unavailable or partial retention.
+
+Journal events and generated projections are internal formats, not independently versioned public APIs.
+A journaled result records response assembly, not confirmed client receipt.
+See [Output and delivery](#output-and-delivery) for ownership and [Open work](TODO.md) for retention and export gaps.
+
+## Developer terms
+
+**Server / controller:** The process speaking MCP.
+It owns admission, retained declarations, bounded responses, and recording.
+
+**Worker:** The process holding interpreter and database state.
+The built-in worker coordinates R, Python, and SQL on one execution thread.
+
+**Generation:** One worker lifetime and all work tied to it.
+Old input, callbacks, evaluations, and candidate commits must not reach its replacement.
+
+**Relay:** The process translating worker sideband and standard streams, delivering interruption, and reaping the direct worker.
+It is not the native sandbox supervisor.
+
+**Sideband:** Private JSONL commands and semantic events, separate from stdin/stdout/stderr.
+
+**Native runner:** The verified private executable owning native policy enforcement, temporary storage, and its descendant-cleanup contract.
+
+**Preparation owner:** The machinery owning discovery/materializer processes and their cleanup.
+The server, not this owner, accepts declarations.
+
+**Candidate / activation:** A proposed environment and the step making it usable by a worker.
+Materialization, activation, and server acceptance are distinct.
+
+**Retirement / cleanup receipt:** Stopping an owned resource and obtaining confirmation that its owner's cleanup contract completed.
+Stream closure alone is not that confirmation.
+
+**Output cut:** A finite boundary selected for one response.
+It does not establish chronology across independent streams.
+
+**Execution host:** The machine or environment where the client, Console, and its files/processes run.

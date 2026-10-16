@@ -1,18 +1,17 @@
 # Sandbox and trust
 
-Console evaluates code with shell-class capability.
-Native sandboxing narrows that capability; it does not make arbitrary projects, dependencies, or recorded output safe.
+The code an agent runs can read files and launch programs.
+The sandbox limits that access; it does not make arbitrary projects, dependencies, or recorded output safe.
 
 ## Default permissions
 
 The worker can read host files, write private temporary storage, and run child processes.
 Workspace writes and direct networking are restricted.
-**Host-file reads include readable secrets.** Add permissions deliberately through [sandbox configuration](SANDBOX_CONFIGURATION.md).
+**Host-file reads include readable secrets.** For ordinary project writes, use the [workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile), which keeps workspace metadata read-only:
 
 ```yaml
 sandbox:
-  filesystem:
-    read_write: [.]
+  profile: workspace
 ```
 
 Writable workspace paths are persistent user data; Console does not delete them during cleanup.
@@ -31,17 +30,8 @@ See [Resolver configuration](RESOLVER.md).
 
 ## Application policy and launch
 
-Console selects policy and verifies its installed, pinned native runner.
-The runner owns OS enforcement, private storage, signals/terminals, and descendant retirement.
-The relay owns only its direct worker, not a second process-tree supervisor.
-
-```text
-MCP server → sandbox frontend → native runner → relay → worker
-                                              or standalone command
-```
-
-There is no runtime runner download or automatic retry with weaker enforcement.
-[Architecture](ARCHITECTURE.md) describes component ownership; [Release](../RELEASE.md#private-sandbox-executable) describes bundle verification.
+Setup failures do not trigger an automatic retry with weaker enforcement or without a sandbox.
+See [Architecture](ARCHITECTURE.md#application-policy-and-launch) for launch and verification ownership.
 
 ## Supported hosts and lifetime limits
 
@@ -73,19 +63,12 @@ Closing pipes or reaping the direct worker does not prove native descendant clea
 
 `--no-sandbox` removes native enforcement and native descendant cleanup.
 It also omits general-purpose managed storage and temporary-environment redirection.
-R runs its normal best-effort session-tempdir cleanup on graceful shutdown.
+Console guarantees temporary-storage cleanup only with an active sandbox and managed storage.
+Other modes use normal runtime cleanup without an added Console guarantee; R performs best-effort session-tempdir cleanup.
 Native Python DuckDB retains its normal storage defaults and lifetime, including persistent secrets.
 Normal relay shutdown still reaps its direct worker.
 Complete native unrestricted/external modes have different guarantees; see [enforcement modes](SANDBOX_CONFIGURATION.md#filesystem-and-enforcement-modes).
 
 ## Policy extensions and compatibility
 
-The macOS extension in [`src/sandbox/policy_extensions.sbpl`](../src/sandbox/policy_extensions.sbpl) contains Console-specific allowances and their evidence.
-Host terminal reads and mutating terminal ioctls remain denied, while sandbox-created PTYs support interactive children.
-
-For maintenance, distinguish a rule duplicated by the pinned runner from one genuinely unnecessary for the workload.
-Removing an allowance needs evidence from the actual sandboxed workflow and relevant platform/runtime versions.
-Passing host-resolver tests is not worker-sandbox evidence.
-Historical observations and uncertain callers belong beside the rule in source, not as asserted public guarantees.
-
-The remaining exception-evidence review is listed in [TODO](TODO.md#sandbox-and-platforms).
+See [Architecture](ARCHITECTURE.md#policy-extensions-and-compatibility) for maintenance and evidence requirements.

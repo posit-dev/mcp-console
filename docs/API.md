@@ -1,8 +1,8 @@
-# Public interfaces
+# MCP send reference
 
-Console's public interfaces are the MCP `send` tool, command-line configuration, and the R and Python client packages.
-This page maps those contracts.
-The project is a development preview; “public” identifies an interface users should be able to rely on and maintainers must document when changing, not a promise that it is frozen.
+For clients that call Console or expose its tool to a model.
+To configure an existing MCP client, start with [Get started](getting-started.qmd).
+The project is a development preview; public interfaces can change, with their changes documented.
 
 ## MCP: `send`
 
@@ -16,7 +16,7 @@ Collect its result before submitting another cell.
 | `timeout_ms`         | Nonnegative integer; maximum observation wait, normally 60,000 milliseconds. It does not cancel execution.                  |
 | `stdin`              | Optional string of exact input bytes encoded as UTF-8. No newline is added.                                                 |
 | `control`            | `interrupt` or `restart`.                                                                                                   |
-| `requirements`       | Dependency declaration or inspection action; see [Requirements](REQUIREMENTS.md).                                           |
+| `requirements`       | Dependency declaration or inspection action; see [Requirements API](REQUIREMENTS_API.md).                                   |
 
 Unknown fields and incorrect types are errors.
 Omit unused arguments.
@@ -53,7 +53,7 @@ Requirements inspection can read the last committed declaration without consumin
 These exceptions do not enable parallel evaluation.
 
 [Calls, input, and control](SEND_OPERATIONS.md) defines admission, timing, and partial effects.
-[R, Python, and SQL](BUILTIN_RUNTIME.md) defines language behavior and connection helpers.
+[Runtime behavior reference](RUNTIME_REFERENCE.md) defines language behavior and connection helpers.
 
 ## Results
 
@@ -108,23 +108,13 @@ These helpers do not make R and Python connection objects interchangeable.
 
 ## CLI and configuration
 
-The [CLI reference](CLI.md) covers `serve` and `sandbox`.
-[Configuration](CONFIGURATION.md) owns discovery, merge rules, interpreter selection, startup settings, and tool description/parameter overrides.
-[Sandbox configuration](SANDBOX_CONFIGURATION.md) owns the public permission schema.
-
-The low-level `sandbox --config-env NAME` interface explicitly selects the separately pinned native runner's complete JSON policy.
-It is not another spelling of `config.yaml`.
+See [Command-line reference](CLI.md), [Configuration](CONFIGURATION.md), and [Tool configuration](TOOL_CONFIGURATION.md).
+The complete native-policy interface remains separate from application YAML; see [Sandbox configuration](SANDBOX_CONFIGURATION.md#explicit-complete-policy).
 
 ## Client packages
 
-Use [Python clients and adapters](PYTHON.md) or [R and ellmer](../r/README.md) to connect from application code.
-Generated references document their exact signatures and connection lifetimes:
-
-- [Python API](https://t-kalinowski.github.io/mcp-console/python/reference/index.html)
-- [R API](https://t-kalinowski.github.io/mcp-console/r/reference/console_tool.html)
-
-Register tools through the supplied adapters so the model receives the connected server's schema.
-Inferring a schema from the Python `send` method's annotations loses configured capabilities.
+[Client integration](CLIENTS.md) links the Python and R packages and their generated references.
+Register tools through the supplied adapters so the model receives the connected server's schema; inferring it from Python method annotations loses configured capabilities.
 
 ## What is not a public compatibility contract
 

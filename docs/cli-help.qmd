@@ -1,14 +1,18 @@
 ---
 title: CLI help
+page-layout: full
+toc: false
+body-classes: cli-help-page
 filters:
   - _filters/cli-help.py
 ---
 
-This page shows `mcp-console --help` and subcommand help for macOS, Linux, and Windows.
-For usage examples, see the [command-line reference](CLI.md).
-Run `mcp-console --help` to see the help for your installed version.
+Help for the public commands: `mcp-console`, `serve`, `sandbox`, `config`, and `config resolve`.
+For examples, see [Command-line reference](CLI.md).
 
-The `worker` command is an internal interface described in [Architecture](ARCHITECTURE.md).
+The text comes from the CLI acceptance snapshots.
+Run `mcp-console --help` to see the help for your installed version.
+On narrow screens, scroll within a help block to see the complete line.
 
 ::: {#all-platforms .cli-help-transcript snapshot="help.yaml"}
 :::

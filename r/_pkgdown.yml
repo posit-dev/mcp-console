@@ -22,17 +22,28 @@ navbar:
     console:
       text: MCP Console
       href: ../index.html
+    articles:
+      text: Guides
+      menu:
+        - text: Giving an agent an R session
+          href: articles/autonomous-report.html
+        - text: Configure a Console session
+          href: articles/configuration.html
+
+articles:
+  - title: Guides
+    contents:
+    - autonomous-report
+    - configuration
 
 reference:
   - title: Use Console with ellmer
     contents:
     - console_tool
+  - title: Configure sessions
+    contents:
     - config-workflow
-    - resolve_console_config
     - ConsoleConfig
-    - ConfigDiscovery
-    - ToolConfig
-    - ToolParameterConfig
   - title: Runtime selection and dependency preparation
     contents:
     - RConfig
@@ -42,7 +53,7 @@ reference:
     - FirstAvailablePython
     - StartupConfig
     - ResolverConfig
-  - title: Sandbox configuration
+  - title: Permissions
     contents:
     - SandboxPolicy
     - SandboxFilesystem
@@ -50,3 +61,11 @@ reference:
     - SandboxProxy
     - SandboxSockets
     - SandboxNetwork
+  - title: Tool presentation
+    contents:
+    - ToolConfig
+    - ToolParameterConfig
+  - title: Compatibility
+    contents:
+    - resolve_console_config
+    - ConfigDiscovery
