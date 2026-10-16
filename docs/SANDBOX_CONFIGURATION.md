@@ -341,7 +341,7 @@ The runner consumes it; stdin belongs to the target.
 This mode rejects `-c`, discovery options, and writable-root composition.
 Use a child-specific environment rather than mutating a multithreaded parent's global environment.
 
-The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/c32634c488a856c400e4118a2fc19821d9c0223a/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
+The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/90a6c52c3183830fd99f2977a6155958c1c24a5b/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
 The native runner enforces the Windows MXC requirement at this boundary.
 Complete policies use the native boolean `proxy.allowLocalBinding` field; the public `auto` selector belongs to the shared YAML schema above.
 Runnable examples are provided in [shell](../examples/sandbox-config.sh), [Python](../examples/sandbox-config.py), and [R](../examples/sandbox-config.R).

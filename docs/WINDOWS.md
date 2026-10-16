@@ -50,6 +50,11 @@ The runner probes actual creation and closure, not just exported API names.
 Update Windows if that probe fails; unsupported hosts and policies fail before the workload executes.
 
 MXC requires no account provisioning, UAC setup, or persistent state directory.
+Only fresh hosts are supported.
+Previously provisioned hosts require independent removal of legacy Console sandbox accounts, stored account credentials, and persistent firewall rules before use.
+MXC runs as the host identity, so a workload can decrypt readable DPAPI-protected legacy passwords.
+The runner does not detect or clean up legacy state.
+
 Workload environment settings apply after native setup, so clearing inheritance does not remove the launcher's Windows platform variables.
 Configured temporary-directory values reach the workload unchanged.
 Windows complete policies also reject `filesystem.kind: external-sandbox`, which could bypass native enforcement.

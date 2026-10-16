@@ -32,7 +32,10 @@ require_sandbox_execution <- local({
           "sandbox",
           "--no-config",
           "--",
-          file.path(Sys.getenv("SystemRoot"), "System32", "cmd.exe"),
+          normalizePath(
+            file.path(Sys.getenv("SystemRoot"), "System32", "cmd.exe"),
+            mustWork = TRUE
+          ),
           "/d",
           "/c",
           "echo MXC probe executed"
@@ -54,7 +57,7 @@ require_sandbox_execution <- local({
           result$status != 1L ||
             nzchar(result$stdout) ||
             !grepl(
-              "MXC is unavailable for this filesystem policy on this executor;",
+              "MXC is unavailable on this executor;",
               result$stderr,
               fixed = TRUE
             )

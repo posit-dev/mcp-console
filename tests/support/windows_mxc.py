@@ -41,7 +41,7 @@ def mxc_requirement(binary: Path) -> Requirement:
             result
         )
         return Requirement("native Windows MXC", True, "")
-    unavailable = "MXC is unavailable for this filesystem policy on this executor;"
+    unavailable = "MXC is unavailable on this executor;"
     assert (
         result.returncode == 1 and not result.stdout and unavailable in result.stderr
     ), result
