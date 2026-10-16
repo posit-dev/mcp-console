@@ -2,7 +2,9 @@ mod arguments;
 #[cfg(windows)]
 mod input_windows;
 mod presentation;
+mod sandbox;
 pub(crate) use presentation::{materialized_tool, parameter_schema};
+pub(crate) use sandbox::Configuration as SandboxConfiguration;
 mod startup;
 use std::error::Error;
 use std::path::PathBuf;
@@ -40,6 +42,7 @@ struct ConsoleServer {
     tool_router: ToolRouter<Self>,
     instructions: String,
     tool_settings: Arc<crate::settings::Tool>,
+    inheritance: Arc<sandbox::Inheritance>,
 }
 
 impl ConsoleServer {
@@ -48,11 +51,9 @@ impl ConsoleServer {
         input_closed: InputClosed,
         worker: Option<PathBuf>,
         relay: Option<PathBuf>,
-        no_sandbox: bool,
-        sandbox_settings: crate::settings::SandboxSettings,
+        sandbox: SandboxConfiguration,
         python: Option<crate::settings::PythonChoice>,
         r: crate::settings::R,
-        resolver: crate::settings::SandboxSettings,
         startup: Option<crate::settings::startup::Startup>,
         visibility: Option<Languages>,
         tool_settings: crate::settings::Tool,
@@ -69,8 +70,12 @@ impl ConsoleServer {
         let (tool_router, instructions) = Self::configured_presentation(
             languages,
             worker.is_none(),
-            &sandbox_settings,
-            no_sandbox,
+            &sandbox.policy,
+            sandbox.no_sandbox,
+            sandbox
+                .profile
+                .as_ref()
+                .is_some_and(crate::settings::ProfileSelection::uses_codex),
             &tool_settings,
         )?;
         let runtime = Arc::new(startup::Runtime {
@@ -83,26 +88,39 @@ impl ConsoleServer {
             ),
         });
         let prelaunch = worker.is_none();
+        let uses_client_profile = sandbox
+            .profile
+            .as_ref()
+            .is_some_and(crate::settings::ProfileSelection::uses_codex);
+        let inheritance = Arc::new(sandbox::Inheritance::new(sandbox.profile.clone()));
+        let startup_inheritance = inheritance.clone();
         let startup = startup::Startup::new(
             input_closed,
             runtime,
             prelaunch,
             move |started, diagnostics| {
+                let sandbox = if uses_client_profile {
+                    sandbox
+                        .clone()
+                        .configure(startup_inheritance.policy(), python.as_ref())?
+                } else {
+                    sandbox.clone()
+                };
                 let configuration = if let Some(program) = worker.clone() {
                     crate::worker_client::ClientConfiguration::new(
                         program,
                         relay.clone(),
-                        no_sandbox,
-                        sandbox_settings.clone(),
+                        sandbox.no_sandbox,
+                        sandbox.policy,
                     )
-                    .with_resolver_settings(resolver.clone())?
+                    .with_resolver_settings(sandbox.resolver)?
                 } else {
                     crate::worker_client::ClientConfiguration::builtin(
-                        no_sandbox,
-                        sandbox_settings.clone(),
+                        sandbox.no_sandbox,
+                        sandbox.policy,
                         python.clone(),
                         r.clone(),
-                        resolver.clone(),
+                        sandbox.resolver,
                         diagnostics,
                         started,
                     )?
@@ -124,6 +142,9 @@ impl ConsoleServer {
                 })
             },
         );
+        if !uses_client_profile {
+            startup.start();
+        }
         Ok(Self {
             startup,
             deliveries: crate::server_transport::ResponseDeliveries::default(),
@@ -132,6 +153,7 @@ impl ConsoleServer {
             tool_router,
             instructions,
             tool_settings: Arc::new(tool_settings),
+            inheritance,
         })
     }
 }
@@ -342,7 +364,17 @@ fn response_to_tool_result(
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for ConsoleServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        let mut capabilities = ServerCapabilities::builder().enable_tools().build();
+        if self.inheritance.enabled() {
+            capabilities.experimental = Some(std::collections::BTreeMap::from_iter([
+                (sandbox::CAPABILITY.to_string(), serde_json::Map::new()),
+                (
+                    sandbox::LEGACY_CAPABILITY.to_string(),
+                    serde_json::Map::new(),
+                ),
+            ]));
+        }
+        ServerInfo::new(capabilities)
             .with_server_info(Implementation::new(
                 "mcp-console",
                 env!("CARGO_PKG_VERSION"),
@@ -395,6 +427,13 @@ impl ServerHandler for ConsoleServer {
                 }
             }
         };
+        let sandbox::CaptureResult(inherited) = context
+            .extensions
+            .remove::<sandbox::CaptureResult>()
+            .expect("console operations must carry transport sandbox capture");
+        if self.inheritance.enabled() && inherited.is_ok() {
+            self.startup.start();
+        }
         context.extensions.insert(delivery.clone());
         let runtime = self.startup.runtime();
         // A restart can reset completed failed readiness later in this call.
@@ -429,15 +468,18 @@ impl ServerHandler for ConsoleServer {
             .get("send")
             .expect("send tool must be registered");
         let cancellation = context.ct.clone();
-        let validation = SendArguments::validate_fields(
-            request.arguments.as_ref(),
-            self.languages,
-            self.language_setting,
-        )
-        .and_then(|()| {
-            self.tool_settings
-                .validate_arguments(request.arguments.as_ref())
-        });
+        let validation = inherited
+            .and_then(|()| {
+                SendArguments::validate_fields(
+                    request.arguments.as_ref(),
+                    self.languages,
+                    self.language_setting,
+                )
+            })
+            .and_then(|()| {
+                self.tool_settings
+                    .validate_arguments(request.arguments.as_ref())
+            });
         let call_future = async {
             validation.map_err(|message| ErrorData::invalid_params(message, None))?;
             (send.call)(ToolCallContext::new(self, request, context)).await
@@ -485,11 +527,9 @@ impl ServerHandler for ConsoleServer {
 pub async fn run(
     worker: Option<PathBuf>,
     relay: Option<PathBuf>,
-    no_sandbox: bool,
-    sandbox_settings: crate::settings::SandboxSettings,
+    sandbox: SandboxConfiguration,
     python: Option<crate::settings::PythonChoice>,
     r: crate::settings::R,
-    resolver: crate::settings::SandboxSettings,
     startup: Option<crate::settings::startup::Startup>,
     visibility: Option<Languages>,
     tool_settings: crate::settings::Tool,
@@ -502,11 +542,9 @@ pub async fn run(
         input_closed.clone(),
         worker,
         relay,
-        no_sandbox,
-        sandbox_settings,
+        sandbox,
         python,
         r,
-        resolver,
         startup,
         visibility,
         tool_settings,
@@ -528,11 +566,18 @@ pub async fn run(
         })?
     };
     let input = ShutdownReader::new(input, input_closed);
+    let inheritance = server.inheritance.clone();
     let transport = crate::server_transport::ServerTransport::new(
         input,
         tokio::io::stdout(),
         server.deliveries.clone(),
-    );
+    )
+    .with_send_observer(move |call| {
+        // Pending response reservations do not order runnable handlers. Capture
+        // before dispatch so cancellation or scheduling cannot select a later policy.
+        let inherited = inheritance.capture(call.extensions.get_or_insert_default());
+        call.extensions.insert(sandbox::CaptureResult(inherited));
+    });
     let shutdown = async move {
         let shutdown_started = wait_for_input_close
             .await

@@ -1,0 +1,38 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: |
+        import http.client
+        import os
+        from urllib.parse import urlsplit
+
+        assert os.environ["CODEX_NETWORK_PROXY_ACTIVE"] == "1"
+        proxy = urlsplit(os.environ["HTTP_PROXY"])
+        connection = http.client.HTTPConnection(proxy.hostname, proxy.port, timeout=5)
+        connection.request("GET", "http://blocked.invalid/")
+        response = connection.getresponse()
+        assert response.status == 403, response.status
+        _ = response.read()
+        connection.close()
+        assert os.environ["ALL_PROXY"].startswith("http:")
+        print("configured limited proxy and destination restrictions retained")
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: restricted
+            entries: []
+          network: enabled
+result:
+  content:
+    - type: text
+      text: |
+        configured limited proxy and destination restrictions retained
+  isError: false

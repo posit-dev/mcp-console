@@ -23,3 +23,29 @@ test_that("resolving configuration retains the complete editable defaults", {
     "integer" %in% unlist(config@tool@parameters$timeout_ms@schema$type)
   )
 })
+
+test_that("materialization and pruning retain client sandbox inheritance", {
+  binary <- Sys.getenv("MCP_CONSOLE_TEST_BINARY")
+  skip_if(!nzchar(binary), "Set MCP_CONSOLE_TEST_BINARY to the checkout binary")
+  project <- tempfile("console-config-")
+  dir.create(project)
+  on.exit(unlink(project, recursive = TRUE), add = TRUE)
+
+  for (profile in list(
+    "codex",
+    CodexSandboxProfile(),
+    CodexSandboxProfile(fallback = "read_only"),
+    CodexSandboxProfile(fallback = "workspace")
+  )) {
+    requested <- SandboxPolicy(profile = profile)
+    config <- materialize_console_config(
+      ConsoleConfig(sandbox = requested),
+      path = binary,
+      project = project
+    )
+    expect_identical(config@sandbox@profile, profile)
+    expect_null(config@cache)
+    pruned <- prune_console_config(config, path = binary, project = project)
+    expect_identical(as.list(pruned)$sandbox, as.list(requested))
+  }
+})

@@ -15,6 +15,10 @@ pub(crate) fn configuration(
     if no_sandbox && (captured.sandbox_requested || captured.resolver_sandbox_requested) {
         return Err("explicit sandbox or resolver.sandbox permissions require sandboxing; remove them when using --no-sandbox".into());
     }
+    let uses_client_profile = captured
+        .profile
+        .as_ref()
+        .is_some_and(super::ProfileSelection::uses_codex);
     let cache = captured.cache.unwrap_or(if no_sandbox {
         Cache::Host
     } else {
@@ -28,19 +32,35 @@ pub(crate) fn configuration(
         .map(Ok)
         .unwrap_or_else(crate::cell::Languages::from_environment)?;
     if let Some(defaults) = defaults {
+        if uses_client_profile {
+            defaults["cache"] = Value::Null;
+            // The selected client supplies the network default. Even an
+            // explicit restricted mode must survive pruning as an override.
+            defaults["sandbox"]
+                .as_object_mut()
+                .expect("sandbox defaults")
+                .remove("network");
+        }
         // Removing explicit prose is safe only when this launch would regenerate
         // the same text. Visibility defaults still remain enabled for pruning.
         defaults["tool"] = serde_json::to_value(crate::server::materialized_tool(
             languages,
             policy,
             no_sandbox,
+            uses_client_profile,
             &captured.tool,
             false,
         ))
         .expect("tool defaults");
     }
-    let tool =
-        crate::server::materialized_tool(languages, policy, no_sandbox, &captured.tool, true);
+    let tool = crate::server::materialized_tool(
+        languages,
+        policy,
+        no_sandbox,
+        uses_client_profile,
+        &captured.tool,
+        true,
+    );
     value["tool"] = serde_json::to_value(tool).expect("tool configuration");
     value
         .as_object_mut()
@@ -48,10 +68,14 @@ pub(crate) fn configuration(
         .entry("startup")
         .or_insert(Value::Null);
     value["languages"] = json!(languages.fields());
-    value["cache"] = json!(match cache {
-        Cache::Console => "console",
-        Cache::Host => "host",
-    });
+    value["cache"] = if uses_client_profile && captured.cache.is_none() {
+        Value::Null
+    } else {
+        json!(match cache {
+            Cache::Console => "console",
+            Cache::Host => "host",
+        })
+    };
     value["inherit_environment"] =
         json!(captured.policy.get("inherit_environment") != Some(&Value::Bool(false)));
     value["environment"] = captured
@@ -94,7 +118,19 @@ pub(crate) fn configuration(
     value["sandbox"] = if no_sandbox {
         Value::Null
     } else {
-        permissions(&captured.policy)
+        let mut permissions = permissions(&captured.policy);
+        if let Some(profile) = &captured.profile {
+            permissions["profile"] = serde_json::to_value(profile).expect("captured profile");
+            // An inherited network mode is a runtime policy, not the local
+            // default. Exporting restricted here would create an override.
+            if profile.uses_codex() && !captured.network_explicit {
+                permissions
+                    .as_object_mut()
+                    .expect("permissions mapping")
+                    .remove("network");
+            }
+        }
+        permissions
     };
     value["resolver"] = json!({
         "inherit_environment": captured.resolver.get("inherit_environment") != Some(&Value::Bool(false)),

@@ -231,36 +231,45 @@ class McpClient:
         self.close()
 
     def send_message(self, message: dict[str, Any]) -> TranscriptEntry:
-        recorded_message = message.copy()
-        assert recorded_message.pop("jsonrpc", None) == "2.0", message
+        return self.send_messages([message])[0]
 
-        entry = {}
-        if "id" in recorded_message:
-            request_id = recorded_message.pop("id")
-            assert isinstance(request_id, int), message
-            assert request_id not in self._issued_request_ids, (
-                f"JSON-RPC request ID was reused: {request_id}"
-            )
-            self._issued_request_ids.add(request_id)
-            entry["id"] = request_id
-        params = recorded_message.get("params")
-        if (
-            recorded_message.keys() == {"method", "params"}
-            and recorded_message["method"] == "tools/call"
-            and isinstance(params, dict)
-            and params.keys() == {"name", "arguments"}
-            and params["name"] == "send"
-            and isinstance(params["arguments"], dict)
-        ):
-            entry[params["name"]] = params["arguments"]
-        else:
-            entry["input"] = recorded_message
-        self.transcript.append(entry)
-        serialized_message = json.dumps(message, ensure_ascii=False)
-        self._last_serialized_message = serialized_message
-        self.stdin.write(serialized_message + "\n")
+    def send_messages(self, messages: list[dict[str, Any]]) -> list[TranscriptEntry]:
+        """Record and write multiple complete frames together before any response."""
+        assert messages
+        entries = []
+        serialized = []
+        for message in messages:
+            recorded_message = message.copy()
+            assert recorded_message.pop("jsonrpc", None) == "2.0", message
+
+            entry = {}
+            if "id" in recorded_message:
+                request_id = recorded_message.pop("id")
+                assert isinstance(request_id, int), message
+                assert request_id not in self._issued_request_ids, (
+                    f"JSON-RPC request ID was reused: {request_id}"
+                )
+                self._issued_request_ids.add(request_id)
+                entry["id"] = request_id
+            params = recorded_message.get("params")
+            if (
+                recorded_message.keys() == {"method", "params"}
+                and recorded_message["method"] == "tools/call"
+                and isinstance(params, dict)
+                and params.keys() == {"name", "arguments"}
+                and params["name"] == "send"
+                and isinstance(params["arguments"], dict)
+            ):
+                entry[params["name"]] = params["arguments"]
+            else:
+                entry["input"] = recorded_message
+            self.transcript.append(entry)
+            entries.append(entry)
+            serialized.append(json.dumps(message, ensure_ascii=False))
+        self._last_serialized_message = serialized[-1]
+        self.stdin.write("\n".join(serialized) + "\n")
         self.stdin.flush()
-        return entry
+        return entries
 
     def response_deadline(self) -> float:
         """Bound response and fixture waits while reserving case cleanup time."""

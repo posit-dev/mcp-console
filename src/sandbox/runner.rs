@@ -1,6 +1,7 @@
 //! Apply launch requirements and hand off to the verified native runner.
 
-use super::{MARKER, installation};
+use super::installation;
+use crate::settings::SANDBOX_MARKER as MARKER;
 use crate::settings::SandboxSettings;
 use serde_json::{Value, json};
 use std::ffi::OsString;
@@ -80,7 +81,7 @@ pub(super) fn run(
                     // Windows runtimes cannot discover a supervisor-only temp
                     // selection after environment clearing. Export the same
                     // default we grant, without creating or owning storage.
-                    let path = super::resolve_writable_root(default.clone(), &workspace)?;
+                    let path = crate::settings::resolve_writable_root(default.clone(), &workspace)?;
                     let environment = settings
                         .entry("environment")
                         .or_insert_with(|| json!({}))
@@ -105,7 +106,7 @@ pub(super) fn run(
                     // Capture grants at launch. Relative environment values
                     // retain their meaning, but later cwd changes do not move
                     // these permissions.
-                    entries.push(json!({"path": {"type": "path", "path": super::resolve_writable_root(path, &workspace)?}, "access": "write"}));
+                    entries.push(json!({"path": {"type": "path", "path": crate::settings::resolve_writable_root(path, &workspace)?}, "access": "write"}));
                 }
             }
             crate::settings::Tempdir::ReadOnly => {}

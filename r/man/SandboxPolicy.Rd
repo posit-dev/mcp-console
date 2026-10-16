@@ -7,6 +7,7 @@
 \alias{SandboxProxy}
 \alias{SandboxSockets}
 \alias{SandboxNetwork}
+\alias{CodexSandboxProfile}
 \title{Configure sandbox filesystem and network access}
 \usage{
 SandboxFilesystem(read_only = NULL, read_write = NULL, deny = NULL)
@@ -27,6 +28,8 @@ SandboxNetwork(
   sockets = NULL,
   allow_local_binding = "auto"
 )
+
+CodexSandboxProfile(fallback = NULL)
 
 SandboxPolicy(
   filesystem = NULL,
@@ -77,6 +80,12 @@ checks, or \code{FALSE} to restrict it. On macOS, \code{TRUE} permits loopback l
 and direct host-loopback connections. Linux managed-proxy ports remain
 inside a private network namespace.}
 
+\item{fallback}{\code{NULL} or \code{"read_only"} for the default profile with host reads
+and private temporary writes, or \code{"workspace"} for project writes with metadata protections
+when client metadata is missing or malformed. Missing metadata is silent;
+malformed metadata emits a warning on the server's standard error stream.
+A failure to start the selected sandbox does not select the fallback.}
+
 \item{filesystem}{\code{NULL} or a \code{SandboxFilesystem()}.}
 
 \item{network}{\code{NULL}, \code{"restricted"}, \code{"enabled"}, or a
@@ -84,8 +93,17 @@ inside a private network namespace.}
 access without a proxy, permit direct host networking, or enable a managed
 proxy, respectively. Filesystem enforcement remains in place.}
 
-\item{profile}{\code{NULL} to preserve context defaults or \code{"workspace"} for
-the native workspace profile. Filesystem entries compose with the profile.}
+\item{profile}{\code{NULL} to preserve context defaults, \code{"read_only"} for the
+base with host reads and private temporary writes, \code{"workspace"} for workspace writes,
+\code{"codex"} to inherit supported sandbox metadata from the first MCP \code{send}
+with a read-only fallback, or a \code{CodexSandboxProfile()} for explicit
+fallback selection. For shared clients, use
+\code{CodexSandboxProfile(fallback = "workspace")}.
+Filesystem entries compose with the selected base; explicit network and
+temporary-storage settings apply afterward. Inherited full access disables
+worker and preparation sandboxing, so local restrictions are not enforced.
+Client permissions are retained across worker restarts; changed permissions
+require reconnecting. The Codex profile is not accepted for resolver policies.}
 
 \item{tempdir}{\code{NULL} to preserve context defaults, \code{"managed"} (the default) for private
 writable storage owned and cleaned up by the active sandbox, \code{"read_write"} for

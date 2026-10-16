@@ -28,7 +28,12 @@ CONFIGURATION_EXAMPLES = {
     },
     "enabled": {"sandbox": {"network": "enabled"}},
     "restricted": {"sandbox": {"network": "restricted"}},
+    "read_only": {"sandbox": {"profile": "read_only"}},
+    "client_default": {"sandbox": {"profile": "codex"}},
     "workspace": {"sandbox": {"profile": "workspace"}},
+    "workspace_fallback": {
+        "sandbox": {"profile": {"codex": {"fallback": "workspace"}}}
+    },
     "workspace_read_write_temp": {
         "sandbox": {
             "profile": "workspace",
@@ -63,6 +68,9 @@ INVALID_CONFIGURATIONS = [
     ("sandbox", []),
     ("sandbox.filesystem", []),
     ("resolver", []),
+    # Windows rejects explicit resolver policies before field validation.
+    ("resolver.sandbox.profile", "codex"),
+    ("resolver.sandbox.profile", {"codex": {"fallback": "workspace"}}),
     ("sandbox.network.proxy", []),
     ("sandbox.network.sockets", []),
     ("sandbox.network.proxy.domains", []),

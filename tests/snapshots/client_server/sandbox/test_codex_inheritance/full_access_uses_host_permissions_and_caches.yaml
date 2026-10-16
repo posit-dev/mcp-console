@@ -1,0 +1,32 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: |
+        import os
+        import socket
+        from pathlib import Path
+
+        assert "MCP_CONSOLE_SANDBOX" not in os.environ
+        assert Path(os.environ["XDG_CACHE_HOME"]) == Path.cwd() / "host-cache"
+        _ = Path("outside").write_text("full access")
+        with socket.create_connection(
+            ("127.0.0.1", int(os.environ["MCP_CONSOLE_TEST_PORT"])), timeout=2
+        ):
+            pass
+        print("full access with host caches")
+    _meta:
+      codex/sandbox-state-meta:
+        permissionProfile:
+          type: disabled
+result:
+  content:
+    - type: text
+      text: |
+        full access with host caches
+  isError: false

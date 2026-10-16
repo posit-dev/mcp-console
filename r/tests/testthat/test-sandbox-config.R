@@ -2,6 +2,43 @@ policy_json <- function(x) {
   as.character(jsonlite::toJSON(as.list(x), auto_unbox = TRUE))
 }
 
+test_that("client sandbox profiles preserve explicit fallback selection", {
+  expect_identical(
+    as.list(SandboxPolicy(profile = "codex")),
+    list(profile = "codex")
+  )
+  profile <- CodexSandboxProfile(fallback = "workspace")
+  expect_identical(
+    as.list(SandboxPolicy(profile = profile)),
+    list(profile = list(codex = list(fallback = "workspace")))
+  )
+  expect_identical(
+    policy_json(SandboxPolicy(profile = CodexSandboxProfile())),
+    '{"profile":{"codex":{}}}'
+  )
+  expect_identical(
+    as.list(SandboxPolicy(profile = "read_only")),
+    list(profile = "read_only")
+  )
+  expect_identical(
+    as.list(SandboxPolicy(
+      profile = CodexSandboxProfile(fallback = "read_only")
+    )),
+    list(profile = list(codex = list(fallback = "read_only")))
+  )
+  expect_null(SandboxPolicy()@profile)
+  for (fallback in list(
+    "codex",
+    "future",
+    c("workspace", "workspace"),
+    NA_character_,
+    TRUE
+  )) {
+    expect_error(CodexSandboxProfile(fallback = fallback), "fallback")
+  }
+  expect_error(SandboxPolicy(inherit_from_codex = TRUE), "unused argument")
+})
+
 test_that("workspace and tempdir selectors preserve their public wire shape", {
   policy <- SandboxPolicy(profile = "workspace", tempdir = "read_write")
   expect_identical(

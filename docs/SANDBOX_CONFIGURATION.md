@@ -23,6 +23,7 @@ sandbox:
 A proxy allowlist does not permit every direct network channel.
 Package downloads use a separate policy.
 The public schema applies to `sandbox` for evaluated code and `resolver.sandbox` for dependency preparation; their permissions are independent.
+`codex` is a session profile and is not accepted under `resolver.sandbox.profile`.
 [Configuration](CONFIGURATION.md) defines discovery and merge rules.
 
 Configuration is trusted and can widen permissions.
@@ -31,6 +32,91 @@ Read [Sandbox and trust](SANDBOX.md) before granting access.
 Set either whole permission node to `null` to clear inherited settings and restore that context's built-in defaults.
 This does not disable sandboxing; `serve --no-sandbox` disables enforcement after both permission nodes have been omitted or cleared.
 Child nodes such as `filesystem` and `network.proxy` still require their documented types.
+
+## Inherit permissions from Codex
+
+```yaml
+sandbox:
+  profile: codex
+```
+
+The `codex` profile inherits usable sandbox metadata from the first `send` call.
+If inheritance is unavailable, it uses the built-in `read_only` profile: host reads, private temporary writes, and restricted networking before explicit local settings are applied.
+Missing metadata selects this fallback silently.
+Malformed or unsupported metadata emits a warning on the server's standard error stream and selects the fallback.
+Select this profile only when the MCP client is trusted to configure Console's sandbox, including disabling it.
+Omitting `profile` or selecting `workspace` keeps existing behavior: client sandbox metadata has no effect.
+
+For one configuration shared by Codex and Claude, or another client without this metadata, configure the default permissions for that client with `fallback`:
+
+```yaml
+sandbox:
+  profile:
+    codex:
+      fallback: workspace
+  filesystem:
+    read_write: [./output]
+```
+
+Each connection selects one base profile on its first `send`.
+Usable Codex metadata selects `codex`; otherwise the configured `workspace` fallback permits ordinary project writes with metadata protections.
+The configured fallback applies to both missing and malformed metadata; malformed metadata warns which profile was selected.
+The fallback's workspace grants are not added when Codex is selected.
+Explicit filesystem entries compose with the selected base using the ordinary specificity and conflict rules.
+Explicit network and temporary-storage settings apply to the selected base; without a network override, the Codex network mode applies.
+Create writable directories such as `./output` before launch.
+
+The Codex mapping accepts `fallback: read_only` or `fallback: workspace`.
+Omitting `fallback`, including with `profile: codex` or `profile: {codex: {}}`, selects `read_only` when inheritance is unavailable.
+Unknown profiles, unknown options, and nested fallbacks are errors.
+A failure to prepare runtimes or start the selected sandbox is an error; it does not select the fallback.
+The standalone `sandbox` command has no client metadata, so it silently uses the configured fallback, defaulting to `read_only`.
+`config resolve` preserves the selection policy and automatic cache choice without selecting a runtime profile or preparing interpreters.
+
+In R, use `SandboxPolicy(profile = "codex")` or `SandboxPolicy(profile = CodexSandboxProfile(fallback = "workspace"))`.
+
+When the `codex` profile is configured, Console advertises the experimental `codex/sandbox-state` capability and its older `codex/sandbox-state-meta` alias.
+It reads that key from the first `send` call's `_meta`, before runtime discovery, dependency preparation, or worker startup.
+Initialization, tool discovery, and pings remain available while waiting for that call.
+Metadata belongs to the MCP request, outside the tool's `arguments`.
+
+Console translates the current `permissionProfile` and uses `sandboxCwd` to resolve symbolic project roots:
+
+| Client permissions                 | Console behavior                                                                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Managed, restricted filesystem     | Use recognized read, write, and deny entries as the base, including additional writable roots.                                                  |
+| Managed, unrestricted filesystem   | Permit host filesystem access, composing explicit local filesystem rules, while retaining Console's native supervision and selected networking. |
+| External filesystem enforcement    | Use unrestricted filesystem access within Console's runner; Console does not verify the external boundary.                                      |
+| Disabled enforcement (full access) | Disable Console's worker and preparation sandboxes, as with `--no-sandbox`.                                                                     |
+| Restricted or enabled network      | Apply that worker network mode unless `sandbox.network` is explicitly configured.                                                               |
+
+Concrete paths accept absolute native paths or local `file:` URIs.
+Symbolic project roots use the client's sandbox working directory, which can differ from Console's launch directory; inheritance does not change the worker's working directory.
+Symbolic subpaths must be relative and cannot contain parent-directory components, drive prefixes, or NUL characters.
+Root, minimal, and temporary-path entries use Console's corresponding native permissions.
+Existing local grants and denials retain their normal specificity and conflict precedence.
+Console's host-read baseline and temporary-storage setting remain in effect for restricted profiles.
+This translates permissions rather than reproducing every Codex restriction.
+
+The current Codex metadata does not contain proxy endpoints, destination rules, credentials, or proxy approval settings.
+Console retains an explicitly configured managed proxy, including its destination rules and `allow_upstream_proxy` choice.
+Proxy environment variables passed to the server follow the ordinary environment-inheritance rules; metadata alone cannot reconstruct the client's proxy.
+Dependency preparation retains its separate resolver policy unless inherited full access disables sandboxing.
+Full access defaults to host caches; explicit `cache: console` remains invalid without sandboxing.
+Inherited full access disables enforcement of local filesystem and network restrictions too.
+
+Missing metadata, an unsupported client profile, an invalid profile shape, or a malformed or unsupported filesystem entry makes the whole Codex profile unavailable.
+Console does not drop permission entries individually: omitting a denial could widen access.
+Unknown additional fields and client backend or launcher selections are ignored.
+Console always uses its own pinned runner; metadata cannot select an executable or change its backend.
+Supported translated permissions still undergo ordinary native validation.
+
+The first received `send` captures the translated policy or fallback for the connection, even if that call is cancelled before execution.
+Workers and explicit restarts retain that policy.
+Later calls without metadata keep it; later calls with different permissions fail before submitting code, with a request to reconnect.
+When a usable client policy was captured, later malformed metadata rejects the call and warns that reconnecting is needed to apply the fallback.
+If the fallback is already active, later malformed metadata warns and the call continues under that same fallback.
+Reconnect after changing the client's permissions so Console can prepare its runtimes under the new policy.
 
 ## Profiles and temporary storage
 

@@ -1,0 +1,268 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: |
+        import errno
+        import json
+        import os
+        import socket
+        from pathlib import Path
+
+        root = Path(os.environ["MCP_CONSOLE_TEST_ROOT"])
+        assert Path.cwd() == root
+        assert os.environ["MCP_CONSOLE_SANDBOX"] == "1"
+        for name in ("project café 雪", "project café 雪/nested", "additional", "local"):
+            _ = (root / name / "created").write_text("allowed")
+        for path, operation in (
+            (root / "neighbor/created", lambda path: path.write_text("denied")),
+            (root / "additional/private/secret", lambda path: path.read_text()),
+        ):
+            try:
+                operation(path)
+            except OSError as error:
+                assert error.errno in (errno.EPERM, errno.EACCES, errno.EROFS)
+            else:
+                raise AssertionError(path)
+        with socket.create_connection(
+            ("127.0.0.1", json.loads(os.environ["MCP_CONSOLE_TEST_PORTS"])[0]), timeout=2
+        ):
+            pass
+        retained = 41
+        print("inherited grants and network; local grants retained")
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: restricted
+            entries:
+              - path:
+                  type: special
+                  value:
+                    kind: root
+                access: read
+              - path:
+                  type: special
+                  value:
+                    kind: project_roots
+                access: write
+              - path:
+                  type: path
+                  path: <workspace>/additional
+                access: write
+              - path:
+                  type: path
+                  path: file:///<workspace>/additional/private
+                access: deny
+              - path:
+                  type: special
+                  value:
+                    kind: current_working_directory
+                    subpath: nested
+                access: write
+          network: enabled
+        sandboxCwd: file:///<workspace>/project%20caf%C3%A9%20%E9%9B%AA
+        codexLinuxSandboxExe: /must-not-be-executed
+        useLegacyLandlock: true
+        useMxc: false
+        unknownFutureField: true
+result:
+  content:
+    - type: text
+      text: |
+        inherited grants and network; local grants retained
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      python: retained + 1
+    _meta:
+      codex/sandbox-state-meta:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: restricted
+            entries:
+              - path:
+                  type: special
+                  value:
+                    kind: current_working_directory
+                    subpath: nested
+                access: write
+              - path:
+                  type: path
+                  path: file:///<workspace>/additional/private
+                access: deny
+              - path:
+                  type: path
+                  path: <workspace>/additional
+                access: write
+              - path:
+                  type: special
+                  value:
+                    kind: project_roots
+                access: write
+              - path:
+                  type: special
+                  value:
+                    kind: root
+                access: read
+              - path:
+                  type: special
+                  value:
+                    kind: root
+                access: read
+          network: enabled
+        sandboxCwd: file:///<workspace>/project%20caf%C3%A9%20%E9%9B%AA
+        codexLinuxSandboxExe: /must-not-be-executed
+        useLegacyLandlock: true
+        useMxc: false
+        unknownFutureField: true
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: retained = -1
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: restricted
+            entries:
+              - path:
+                  type: special
+                  value:
+                    kind: root
+                access: read
+              - path:
+                  type: special
+                  value:
+                    kind: project_roots
+                access: write
+              - path:
+                  type: path
+                  path: <workspace>/additional
+                access: write
+              - path:
+                  type: path
+                  path: file:///<workspace>/additional/private
+                access: deny
+          network: restricted
+        sandboxCwd: file:///<workspace>/project%20caf%C3%A9%20%E9%9B%AA
+        codexLinuxSandboxExe: /must-not-be-executed
+        useLegacyLandlock: true
+        useMxc: false
+        unknownFutureField: true
+result:
+  content:
+    - type: text
+      text: >-
+        client sandbox permissions changed; reconnect to apply them before
+        sending more code
+  isError: true
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: retained = -2
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: future
+result:
+  content:
+    - type: text
+      text: >-
+        client sandbox permissions changed; reconnect to apply them before
+        sending more code
+  isError: true
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        41
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      control: restart
+      python: "'retained' in globals()"
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: restricted
+            entries:
+              - path:
+                  type: special
+                  value:
+                    kind: root
+                access: read
+              - path:
+                  type: special
+                  value:
+                    kind: project_roots
+                access: write
+              - path:
+                  type: path
+                  path: <workspace>/additional
+                access: write
+              - path:
+                  type: path
+                  path: file:///<workspace>/additional/private
+                access: deny
+              - path:
+                  type: special
+                  value:
+                    kind: current_working_directory
+                    subpath: nested
+                access: write
+          network: enabled
+        sandboxCwd: file:///<workspace>/project%20caf%C3%A9%20%E9%9B%AA
+        codexLinuxSandboxExe: /must-not-be-executed
+        useLegacyLandlock: true
+        useMxc: false
+        unknownFutureField: true
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        False
+        [done]
+  isError: false
+---
+stderr: >
+  Warning: could not parse Codex sandbox settings; reconnect to apply the
+  read_only fallback

@@ -17,6 +17,7 @@ struct Profile {
     languages: Languages,
     builtin: bool,
     timeout: bool,
+    uses_client_profile: bool,
 }
 
 /// Render editable configuration without creating a server or starting runtimes.
@@ -24,6 +25,7 @@ pub(crate) fn materialized_tool(
     languages: Languages,
     policy: &SandboxSettings,
     no_sandbox: bool,
+    uses_client_profile: bool,
     tool: &crate::settings::Tool,
     apply_overrides: bool,
 ) -> crate::settings::Tool {
@@ -31,6 +33,7 @@ pub(crate) fn materialized_tool(
         languages,
         builtin: true,
         timeout: tool.enabled("timeout_ms"),
+        uses_client_profile,
     };
     let mut tool = if apply_overrides {
         tool.clone()
@@ -57,12 +60,14 @@ impl ConsoleServer {
         builtin: bool,
         policy: &SandboxSettings,
         no_sandbox: bool,
+        uses_client_profile: bool,
         tool: &crate::settings::Tool,
     ) -> Result<(ToolRouter<Self>, String), String> {
         let profile = Profile {
             languages,
             builtin,
             timeout: tool.enabled("timeout_ms"),
+            uses_client_profile,
         };
         let instructions = tool
             .instructions
@@ -206,7 +211,11 @@ impl Profile {
         description.push_str("\n\n");
         description.push_str(sections::OUTPUT);
         description.push_str("\n\n");
-        description.push_str(&description_for_launch(policy, no_sandbox));
+        description.push_str(&description_for_launch(
+            policy,
+            no_sandbox,
+            self.uses_client_profile,
+        ));
         description
     }
 
@@ -344,7 +353,14 @@ fn control_description_for(full: bool) -> String {
     )
 }
 
-fn description_for_launch(policy: &SandboxSettings, no_sandbox: bool) -> String {
+fn description_for_launch(
+    policy: &SandboxSettings,
+    no_sandbox: bool,
+    uses_client_profile: bool,
+) -> String {
+    if uses_client_profile {
+        return "The sandbox base comes from Codex metadata on the first send, or the configured fallback (default: read_only). Missing metadata is silent; malformed metadata warns on server stderr. Explicit Console permissions apply to the selected base. Full access disables Console's sandbox. Reconnect to change client permissions. Package preparation has separate permissions unless sandboxing is disabled; use only trusted dependencies.".into();
+    }
     if no_sandbox {
         return "Evaluated code runs without a sandbox, with the server's permissions, including filesystem and network access. Package preparation may execute installation or build code; use only trusted dependencies.".into();
     }

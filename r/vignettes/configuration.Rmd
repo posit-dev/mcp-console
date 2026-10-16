@@ -210,6 +210,19 @@ A `SandboxPolicy()` can configure worker or resolver permissions.
 Its nested classes are `SandboxFilesystem`, `SandboxNetwork`, `SandboxProxy`, `SandboxDomains`, and `SandboxSockets`.
 An empty worker policy grants no workspace writes or networking.
 Use `SandboxPolicy(profile = "workspace")` to allow project writes with the native workspace metadata protections; network access remains independent.
+For configuration shared by Codex and Claude, or another client without sandbox metadata, configure that client's default permissions with a fallback:
+
+```{r}
+SandboxPolicy(
+  profile = CodexSandboxProfile(fallback = "workspace"),
+  filesystem = SandboxFilesystem(read_write = "./output")
+)
+```
+
+The first MCP `send` selects the translated client profile when usable metadata is present, or the workspace profile otherwise.
+Explicit permission settings compose with that selected base; fallback workspace grants are not added to the client profile.
+Use `profile = "codex"` for the default `"read_only"` fallback, or set `CodexSandboxProfile(fallback = "read_only")` explicitly.
+Missing metadata selects the configured fallback silently; malformed metadata emits a warning on server stderr and selects the same fallback.
 `tempdir` selects `"managed"`, `"read_write"`, or `"read_only"` as described in [temporary storage](https://t-kalinowski.github.io/mcp-console/SANDBOX_CONFIGURATION.html#profiles-and-temporary-storage).
 This is a host-read/private-write baseline, not filesystem secrecy: sensitive readable locations need explicit denial.
 Create required output directories on the host before granting them; R does not create or normalize configured paths.

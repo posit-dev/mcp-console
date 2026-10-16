@@ -2,16 +2,12 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode, Stdio};
 
-use serde_json::{Value, json};
-
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
 mod installation;
 #[cfg(any(target_os = "macos", target_os = "linux", windows))]
 mod runner;
 #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 mod unsupported;
-
-const MARKER: &str = "MCP_CONSOLE_SANDBOX";
 
 pub fn capture_settings(
     roots: Vec<PathBuf>,
@@ -21,9 +17,21 @@ pub fn capture_settings(
         .map_err(|error| format!("cannot find launch workspace: {error}"))?;
     let crate::settings::Captured {
         source,
-        policy: settings,
+        profile,
+        policy: mut settings,
         ..
     } = crate::settings::discover(&workspace, overrides)?;
+    if let Some(profile) = profile {
+        match profile.select(false) {
+            crate::settings::Profile::ReadOnly => {}
+            crate::settings::Profile::Workspace => {
+                crate::settings::apply_workspace_profile(&mut settings)
+            }
+            crate::settings::Profile::Codex => {
+                unreachable!("standalone sandbox has no client metadata")
+            }
+        }
+    }
     capture_policy(source.as_deref(), settings, roots, &workspace)
 }
 
@@ -33,68 +41,10 @@ fn capture_policy(
     roots: Vec<PathBuf>,
     workspace: &std::path::Path,
 ) -> Result<crate::settings::SandboxSettings, String> {
-    let settings = materialize_settings(settings, roots, workspace)?;
+    let settings = crate::settings::materialize_sandbox(settings, roots, workspace)?;
     if let Some(source) = source {
         preflight(&settings).map_err(|error| format!("{source}: {error}"))?;
     }
-    Ok(settings)
-}
-
-/// Apply execution-host additions to an explicitly selected policy. No discovery.
-pub fn materialize_settings(
-    mut settings: crate::settings::SandboxSettings,
-    roots: Vec<PathBuf>,
-    workspace: &std::path::Path,
-) -> Result<crate::settings::SandboxSettings, String> {
-    let writable_roots = roots
-        .into_iter()
-        .map(|path| resolve_writable_root(path, workspace))
-        .collect::<Result<Vec<_>, _>>()?;
-    settings.entry("filesystem").or_insert_with(|| json!({}));
-    let mut restricted = false;
-    if let Some(Value::Object(filesystem)) = settings.get_mut("filesystem") {
-        restricted = crate::settings::native_variant_name(
-            filesystem
-                .entry("kind")
-                .or_insert_with(|| "restricted".into()),
-        ) == Some("restricted");
-        if restricted || !writable_roots.is_empty() {
-            filesystem.entry("entries").or_insert_with(|| json!([]));
-        }
-        if let Some(Value::Array(entries)) = filesystem.get_mut("entries") {
-            for entry in entries.iter_mut() {
-                if entry.pointer("/path/type").and_then(Value::as_str) == Some("path")
-                    && let Some(Value::String(path)) = entry.pointer_mut("/path/path")
-                {
-                    *path = resolve_writable_root(PathBuf::from(&*path), workspace)?;
-                }
-            }
-            if restricted {
-                entries.insert(
-                    0,
-                    json!({
-                        "path": {"type": "special", "value": {"kind": "root"}},
-                        "access": "read",
-                    }),
-                );
-            }
-            entries.extend(writable_roots.into_iter().map(|root| {
-                json!({
-                    "path": {"type": "path", "path": root},
-                    "access": "write",
-                })
-            }));
-        }
-    }
-    settings
-        .entry("network")
-        .or_insert_with(|| "restricted".into());
-    if cfg!(target_os = "macos") && restricted {
-        settings
-            .entry("macos_seatbelt_profile_extension")
-            .or_insert_with(|| include_str!("sandbox/policy_extensions.sbpl").into());
-    }
-    crate::settings::preserve_environment(&mut settings, [(MARKER.as_ref(), Some("1".as_ref()))])?;
     Ok(settings)
 }
 
@@ -135,16 +85,6 @@ fn preflight(settings: &crate::settings::SandboxSettings) -> Result<(), String> 
         ));
     }
     Ok(())
-}
-
-/// Capture launch-relative paths without hiding symlinks from runner validation.
-fn resolve_writable_root(path: PathBuf, workspace: &std::path::Path) -> Result<String, String> {
-    let root = std::path::absolute(workspace.join(&path))
-        .map_err(|error| format!("cannot resolve writable root '{}': {error}", path.display()))?;
-    // The runner configuration carries paths as JSON strings.
-    root.into_os_string()
-        .into_string()
-        .map_err(|_| format!("writable root '{}' is not valid UTF-8", path.display()))
 }
 
 pub fn run(

@@ -863,6 +863,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml_edit",
+ "url",
  "windows-sys 0.61.2",
 ]
 

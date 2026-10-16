@@ -152,7 +152,7 @@ fn resolve_configuration(
     let policy = if no_sandbox {
         captured.policy.clone()
     } else {
-        sandbox::materialize_settings(captured.policy.clone(), Vec::new(), &directory)?
+        settings::materialize_sandbox(captured.policy.clone(), Vec::new(), &directory)?
     };
     let mut defaults = if full {
         None
@@ -195,6 +195,8 @@ fn run_server(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let directory = std::env::current_dir()?;
     let settings::Captured {
+        profile,
+        network_explicit,
         tool,
         startup,
         cache,
@@ -202,21 +204,14 @@ fn run_server(
         r,
         languages,
         source: _,
-        mut policy,
-        mut resolver,
+        policy,
+        resolver,
         sandbox_requested,
         resolver_sandbox_requested,
     } = settings::discover(&directory, overrides)?;
     if no_sandbox && (sandbox_requested || resolver_sandbox_requested) {
         return Err("explicit sandbox or resolver.sandbox permissions require sandboxing; remove them when using --no-sandbox".into());
     }
-    resolver::cache::configure(
-        cache,
-        no_sandbox,
-        python.as_ref(),
-        &mut resolver,
-        &mut policy,
-    )?;
     if startup.is_some() && (worker.is_some() || relay.is_some()) {
         return Err("startup requires the built-in worker and relay".into());
     }
@@ -226,12 +221,24 @@ fn run_server(
     if r.is_some() && (worker.is_some() || relay.is_some()) {
         return Err("r settings require the built-in worker and relay".into());
     }
-    let settings = if no_sandbox {
-        policy
+    let sandbox = server::SandboxConfiguration {
+        no_sandbox,
+        profile,
+        network_explicit,
+        policy,
+        resolver,
+        cache,
+        writable_roots,
+        directory,
+    };
+    let sandbox = if sandbox
+        .profile
+        .as_ref()
+        .is_some_and(settings::ProfileSelection::uses_codex)
+    {
+        sandbox
     } else {
-        // Native validation belongs to the owned background launch. Running a
-        // preflight child here would precede MCP serving and EOF ownership.
-        sandbox::materialize_settings(policy, writable_roots, &directory)?
+        sandbox.configure(None, python.as_ref())?
     };
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -239,11 +246,9 @@ fn run_server(
     let result = runtime.block_on(server::run(
         worker,
         relay,
-        no_sandbox,
-        settings,
+        sandbox,
         python,
         r.unwrap_or_default(),
-        resolver,
         startup,
         languages,
         tool,

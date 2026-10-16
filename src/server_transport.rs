@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use rmcp::RoleServer;
-use rmcp::model::{ClientNotification, ClientRequest, JsonRpcMessage, RequestId, ServerResult};
+use rmcp::model::{
+    CallToolRequest, ClientNotification, ClientRequest, JsonRpcMessage, RequestId, ServerResult,
+};
 use rmcp::service::{RxJsonRpcMessage, TxJsonRpcMessage};
 use rmcp::transport::{Transport, async_rw::AsyncRwTransport};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -740,9 +742,12 @@ impl Drop for ResponseDeliveryWrite {
     }
 }
 
+type SendObserver = dyn Fn(&mut CallToolRequest) + Send;
+
 pub(crate) struct ServerTransport<R: AsyncRead, W: AsyncWrite> {
     inner: AsyncRwTransport<RoleServer, R, W>,
     deliveries: ResponseDeliveries,
+    send_observer: Option<Box<SendObserver>>,
 }
 
 impl<R, W> ServerTransport<R, W>
@@ -754,7 +759,17 @@ where
         Self {
             inner: AsyncRwTransport::new_server(read, write),
             deliveries,
+            send_observer: None,
         }
+    }
+
+    /// Observe accepted sends in wire order, before asynchronous handler dispatch.
+    pub(crate) fn with_send_observer(
+        mut self,
+        observer: impl Fn(&mut CallToolRequest) + Send + 'static,
+    ) -> Self {
+        self.send_observer = Some(Box::new(observer));
+        self
     }
 }
 
@@ -822,6 +837,9 @@ where
                         return None;
                     };
                     call.extensions.insert(admission);
+                    if let Some(observer) = &self.send_observer {
+                        observer(call);
+                    }
                 }
             }
             Some(JsonRpcMessage::Notification(notification)) => {

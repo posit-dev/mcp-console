@@ -139,6 +139,9 @@ def test_initializes_and_lists_tools(
         ),
     }
     if execution == SANDBOXED:
+        companions["client-sandbox.yaml"] = _initializes_and_lists_tools(
+            binary, execution, client_profile=True
+        )
         companions["proxy.yaml"] = _initializes_and_lists_tools(
             binary, execution, proxy=True
         )
@@ -174,6 +177,7 @@ def _initializes_and_lists_tools(
     proxy: bool = False,
     workspace_profile: bool = False,
     writable: bool = False,
+    client_profile: bool = False,
     bootstrap_languages: str | None = None,
     languages: tuple[str, ...] | None = None,
 ) -> Transcript:
@@ -234,6 +238,7 @@ def _initializes_and_lists_tools(
                 if languages is not None
                 else (),
                 *("--writable-root", str(workspace)) if writable else (),
+                *("-c", "sandbox.profile=codex") if client_profile else (),
             ),
             environment,
             workspace,
@@ -396,7 +401,23 @@ def _initializes_and_lists_tools(
             # Inspection does not wait for preparation; it must leave the
             # configured schema unchanged. Keep the handshake-only snapshot.
             transcript = list(client.transcript)
-            prepared = client.send(requirements={"action": "get"})
+            if client_profile:
+                prepared = client.request(
+                    "tools/call",
+                    name="send",
+                    arguments={"requirements": {"action": "get"}},
+                    _meta={
+                        "codex/sandbox-state": {
+                            "permissionProfile": {
+                                "type": "managed",
+                                "file_system": {"type": "restricted", "entries": []},
+                                "network": "restricted",
+                            }
+                        }
+                    },
+                )["result"]
+            else:
+                prepared = client.send(requirements={"action": "get"})
             assert not prepared.get("isError", False), prepared
             assert client.request("tools/list")["result"] == transcript[2]["result"]
             client.finish()

@@ -37,6 +37,7 @@ type Initializer = dyn Fn(
 
 #[derive(Default)]
 struct Cancellation {
+    started: bool,
     closed: bool,
     admission_cancelled: bool,
     registration_closed: bool,
@@ -58,18 +59,23 @@ impl Startup {
         + 'static,
     ) -> Self {
         runtime.worker.record_with(runtime.transcript.clone());
-        let startup = Self {
+        Self {
             runtime,
             cancellation: Arc::new(Mutex::new(Cancellation::default())),
             input_closed,
             prelaunch,
             initialize: Arc::new(initialize),
-        };
-        startup.start();
-        startup
+        }
     }
 
-    fn start(&self) {
+    pub fn start(&self) {
+        {
+            let mut control = self.cancellation.lock().expect("startup cancellation lock");
+            if control.started || control.closed {
+                return;
+            }
+            control.started = true;
+        }
         let control = self.cancellation.clone();
         let completion = control.clone();
         let worker = self.runtime.worker.clone();
@@ -163,6 +169,8 @@ impl Startup {
         control.admission_cancelled = false;
         control.registration_closed = false;
         control.retrying = true;
+        control.started = false;
+        drop(control);
         self.start();
         Ok(true)
     }
@@ -180,6 +188,13 @@ impl Startup {
         {
             let mut control = self.cancellation.lock().expect("startup cancellation lock");
             control.closed = true;
+            if !control.started {
+                control.admission_cancelled = true;
+                self.runtime
+                    .worker
+                    .finish_startup(Err(REGISTRATION_CLOSED.into()));
+                return Ok(());
+            }
             if self.runtime.worker.startup_finished() {
                 return Ok(());
             }

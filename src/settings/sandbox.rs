@@ -1,6 +1,8 @@
-//! Human-facing permissions, compiled once after generic configuration layering.
+//! Human-facing permissions and execution-host additions after configuration layering.
 
-use serde::{Deserialize, Deserializer, de::Error as _};
+use std::path::PathBuf;
+
+use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::{Value, json};
 
 use super::SandboxSettings;
@@ -51,7 +53,7 @@ where
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Sandbox {
-    profile: Option<Profile>,
+    pub(super) profile: Option<ProfileSelection>,
     tempdir: Tempdir,
     #[serde(deserialize_with = "supplied_mapping")]
     filesystem: Option<Filesystem>,
@@ -59,10 +61,94 @@ pub(super) struct Sandbox {
     network: Option<Network>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Copy, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum Profile {
+pub(crate) enum Profile {
+    ReadOnly,
     Workspace,
+    Codex,
+}
+
+impl Profile {
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::ReadOnly => "read_only",
+            Self::Workspace => "workspace",
+            Self::Codex => "codex",
+        }
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(untagged)]
+pub(crate) enum ProfileSelection {
+    Named(Profile),
+    Codex { codex: CodexProfile },
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CodexProfile {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fallback: Option<FallbackProfile>,
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum FallbackProfile {
+    ReadOnly,
+    Workspace,
+}
+
+impl<'de> Deserialize<'de> for ProfileSelection {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "snake_case")]
+        enum Mapping {
+            Codex(CodexProfile),
+        }
+        let value = Value::deserialize(deserializer)?;
+        if value.is_string() {
+            return serde_json::from_value(value)
+                .map(Self::Named)
+                .map_err(D::Error::custom);
+        }
+        let Mapping::Codex(codex) = serde_json::from_value(value).map_err(D::Error::custom)?;
+        Ok(Self::Codex { codex })
+    }
+}
+
+impl ProfileSelection {
+    pub(crate) fn uses_codex(&self) -> bool {
+        match self {
+            Self::Named(Profile::ReadOnly | Profile::Workspace) => false,
+            Self::Named(Profile::Codex) | Self::Codex { .. } => true,
+        }
+    }
+
+    pub(crate) fn select(&self, client_available: bool) -> Profile {
+        let fallback = match self {
+            Self::Named(Profile::ReadOnly) => return Profile::ReadOnly,
+            Self::Named(Profile::Workspace) => return Profile::Workspace,
+            Self::Named(Profile::Codex) => FallbackProfile::ReadOnly,
+            Self::Codex { codex } => codex.fallback.unwrap_or(FallbackProfile::ReadOnly),
+        };
+        match (client_available, fallback) {
+            (true, _) => Profile::Codex,
+            (false, FallbackProfile::ReadOnly) => Profile::ReadOnly,
+            (false, FallbackProfile::Workspace) => Profile::Workspace,
+        }
+    }
+}
+
+pub(crate) fn apply_workspace_profile(policy: &mut SandboxSettings) {
+    policy.insert("extends".into(), ":workspace".into());
+    // Temp permissions have one owner, independently of the
+    // native workspace profile's broader temporary defaults.
+    policy.insert(
+        "workspace_options".into(),
+        json!({"exclude_tmpdir_env_var": true, "exclude_slash_tmp": true}),
+    );
 }
 
 #[derive(Clone, Copy, Default, Deserialize, PartialEq)]
@@ -262,6 +348,14 @@ impl<'de> Deserialize<'de> for UnixSockets {
 
 impl Sandbox {
     pub(super) fn compile(self, resolver: bool) -> Result<SandboxSettings, String> {
+        if resolver
+            && self
+                .profile
+                .as_ref()
+                .is_some_and(ProfileSelection::uses_codex)
+        {
+            return Err("resolver.sandbox.profile: codex is a session profile; configure sandbox.profile instead".into());
+        }
         let prefix = if resolver {
             "resolver.sandbox"
         } else {
@@ -269,19 +363,11 @@ impl Sandbox {
         };
         let mut policy = SandboxSettings::new();
         policy.insert("tempdir".into(), self.tempdir.name().into());
-        match self.profile {
-            Some(Profile::Workspace) => {
-                policy.insert("extends".into(), ":workspace".into());
-                // Temp permissions have one owner, independently of the
-                // native workspace profile's broader temporary defaults.
-                policy.insert(
-                    "workspace_options".into(),
-                    json!({
-                        "exclude_tmpdir_env_var": true, "exclude_slash_tmp": true,
-                    }),
-                );
-            }
-            None => {}
+        if matches!(
+            self.profile,
+            Some(ProfileSelection::Named(Profile::Workspace))
+        ) {
+            apply_workspace_profile(&mut policy);
         }
         if let Some(filesystem) = self.filesystem {
             let entries: Vec<Value> = [
@@ -418,6 +504,80 @@ impl Sandbox {
         }
         Ok(policy)
     }
+}
+
+/// Apply execution-host additions to an explicitly selected policy. No discovery.
+pub(crate) fn materialize_settings(
+    mut settings: SandboxSettings,
+    roots: Vec<PathBuf>,
+    workspace: &std::path::Path,
+) -> Result<SandboxSettings, String> {
+    let writable_roots = roots
+        .into_iter()
+        .map(|path| resolve_writable_root(path, workspace))
+        .collect::<Result<Vec<_>, _>>()?;
+    settings.entry("filesystem").or_insert_with(|| json!({}));
+    let mut restricted = false;
+    if let Some(Value::Object(filesystem)) = settings.get_mut("filesystem") {
+        restricted = crate::settings::native_variant_name(
+            filesystem
+                .entry("kind")
+                .or_insert_with(|| "restricted".into()),
+        ) == Some("restricted");
+        if restricted || !writable_roots.is_empty() {
+            filesystem.entry("entries").or_insert_with(|| json!([]));
+        }
+        if let Some(Value::Array(entries)) = filesystem.get_mut("entries") {
+            for entry in entries.iter_mut() {
+                if entry.pointer("/path/type").and_then(Value::as_str) == Some("path")
+                    && let Some(Value::String(path)) = entry.pointer_mut("/path/path")
+                {
+                    *path = resolve_writable_root(PathBuf::from(&*path), workspace)?;
+                }
+            }
+            if restricted {
+                entries.insert(
+                    0,
+                    json!({
+                        "path": {"type": "special", "value": {"kind": "root"}},
+                        "access": "read",
+                    }),
+                );
+            }
+            entries.extend(writable_roots.into_iter().map(|root| {
+                json!({
+                    "path": {"type": "path", "path": root},
+                    "access": "write",
+                })
+            }));
+        }
+    }
+    settings
+        .entry("network")
+        .or_insert_with(|| "restricted".into());
+    if cfg!(target_os = "macos") && restricted {
+        settings
+            .entry("macos_seatbelt_profile_extension")
+            .or_insert_with(|| include_str!("../sandbox/policy_extensions.sbpl").into());
+    }
+    super::preserve_environment(
+        &mut settings,
+        [(super::SANDBOX_MARKER.as_ref(), Some("1".as_ref()))],
+    )?;
+    Ok(settings)
+}
+
+/// Capture launch-relative paths without hiding symlinks from runner validation.
+pub(crate) fn resolve_writable_root(
+    path: PathBuf,
+    workspace: &std::path::Path,
+) -> Result<String, String> {
+    let root = std::path::absolute(workspace.join(&path))
+        .map_err(|error| format!("cannot resolve writable root '{}': {error}", path.display()))?;
+    // The runner configuration carries paths as JSON strings.
+    root.into_os_string()
+        .into_string()
+        .map_err(|_| format!("writable root '{}' is not valid UTF-8", path.display()))
 }
 
 fn validate_domain(host: &str) -> Result<(), &'static str> {
