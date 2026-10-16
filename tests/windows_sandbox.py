@@ -243,9 +243,7 @@ class WindowsSandbox(unittest.TestCase):
             ):
                 environment.pop(name, None)
             if profile_fallback:
-                # Native process creation requires this variable to exist.
-                # Its empty value still exercises Console's path fallback.
-                environment["LOCALAPPDATA"] = ""
+                environment.pop("LOCALAPPDATA")
                 environment.update(
                     HOME="relative-home", USERPROFILE=str(root / "account")
                 )

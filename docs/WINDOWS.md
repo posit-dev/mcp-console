@@ -50,7 +50,8 @@ The runner probes actual creation and closure, not just exported API names.
 Update Windows if that probe fails; unsupported hosts and policies fail before the workload executes.
 
 MXC requires no account provisioning, UAC setup, or persistent state directory.
-Native Windows process creation requires `LOCALAPPDATA` to be defined, even if empty; retain it when disabling environment inheritance.
+Workload environment settings apply after native setup, so clearing inheritance does not remove the launcher's Windows platform variables.
+Configured temporary-directory values reach the workload unchanged.
 Windows complete policies also reject `filesystem.kind: external-sandbox`, which could bypass native enforcement.
 Explicit `serve --no-sandbox` remains available.
 

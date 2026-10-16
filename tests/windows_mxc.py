@@ -154,7 +154,8 @@ class WindowsMxc(unittest.TestCase):
                     "-c",
                     'environment={mcp_console_managed_tempdir: "0"}',
                 ],
-                inject_unavailable=True,
+                # Unsupported hosts already exercise the real native failure.
+                inject_unavailable=mxc_requirement(BINARY).available,
                 cwd=root,
                 env=os.environ | {"MCP_CONSOLE_HOME": str(root / "home")},
                 interaction=self._mcp_startup_failure,
