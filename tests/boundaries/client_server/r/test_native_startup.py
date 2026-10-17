@@ -47,7 +47,10 @@ def startup_environment(root: Path, *, managed: bool = False) -> dict[str, str]:
     )
     for name in ("R_ENVIRON_USER", "R_PROFILE_USER", "R_DEFAULT_PACKAGES"):
         environment.pop(name, None)
-    if not managed:
+    if managed:
+        # These fixtures manage R packages, not Python's default package set.
+        environment["RETICULATE_PYTHON"] = sys.executable
+    else:
         library = root / "library"
         library.mkdir()
         environment = bare_runtime_environment(environment, library)
