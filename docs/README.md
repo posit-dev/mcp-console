@@ -22,7 +22,8 @@ For command-line options, use [Command-line reference](CLI.md) or [CLI help](cli
 
 ## Platform setup
 
-See [Windows](WINDOWS.md), [Linux host compatibility](LINUX_COMPATIBILITY.md), or [Build from source](BUILD_FROM_SOURCE.md) for platform-specific instructions.
+The shared [installation instructions](getting-started.qmd#install) cover macOS, Linux, and Windows.
+See [Linux host compatibility](LINUX_COMPATIBILITY.md) or [Build from source](BUILD_FROM_SOURCE.md) for additional setup.
 The [glossary](GLOSSARY.md) defines terms used in the guides.
 
 ## Other documentation

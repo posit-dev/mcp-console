@@ -2,8 +2,7 @@
 
 The release workflow publishes five binary-only PyPI wheels: Apple Silicon and Intel macOS, ARM64 and x86-64 Linux, and Windows x64.
 Linux release validation targets glibc 2.35+ with native Ubuntu 22.04 builds.
-Windows support remains experimental.
-Its native Console command requires the x64 Visual C++ v14 runtime; see [Windows installation](docs/WINDOWS.md#install-and-run).
+The Windows Console command requires the x64 Visual C++ v14 runtime; see [installation requirements](docs/getting-started.qmd#install).
 No source distribution or GitHub release archive is published by this workflow.
 
 `Cargo.toml` owns the version; keep its root package entry in `Cargo.lock` synchronized.
@@ -20,7 +19,7 @@ R and its packages are not build or Python-only execution prerequisites.
 On macOS install Xcode Command Line Tools.
 Ubuntu builds need a C toolchain, pkg-config, libcap/OpenSSL development files, libcurl development files for R preparation, and binutils.
 Packages can require more system libraries.
-Windows source builds need MSVC, the Windows SDK, and CMake; see [Windows](docs/WINDOWS.md).
+Windows source builds need MSVC, the Windows SDK, and CMake; see [Windows build instructions](docs/WINDOWS_DEVELOPMENT.md#build-from-source).
 
 ```sh
 scripts/with-checkout uv tool install --reinstall .
@@ -113,7 +112,7 @@ Bump `CI_BUILD_CACHE_VERSION` when changing build flags or native dependencies o
 Keep native artifact verification on cache hits; reuse does not prove external SDK/compiler compatibility.
 
 Do not cache accounts, credentials, ACLs, or provisioning state.
-MXC capability probing and full Windows acceptance still run on a clean host after restoring build/staging caches; unavailable native execution cases are skipped as documented in [Windows validation](docs/WINDOWS.md#validation).
+MXC capability probing and full Windows acceptance still run on a clean host after restoring build/staging caches; unavailable native execution cases are skipped as documented in [Windows validation](docs/WINDOWS_DEVELOPMENT.md#validation).
 Exact cache-key and timestamp-restoration mechanics belong in the workflow and staging scripts.
 
 CI uses CRAN's native Windows/macOS binaries and PPM's portable Linux binaries on both architectures, including the Jammy floor images.

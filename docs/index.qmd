@@ -9,7 +9,7 @@ toc: false
 sidebar: false
 ---
 
-Your agent runs R, Python, and SQL in a persistent session.
+MCP Console lets your agent run R, Python, and SQL in a persistent session.
 It can load data once, inspect results, refine plots, read help, and debug code with objects and models still in memory.
 
 Code runs in an [OS-level sandbox](SANDBOX.md) by default.
@@ -19,7 +19,10 @@ Console prepares environments and packages automatically; no Console configurati
 [Get started](getting-started.qmd){.btn .btn-primary} [User guides](README.md){.btn .btn-outline-primary}
 :::
 
-## Work in a persistent session
+## An interactive workbench for agents
+
+REPLs let people explore a question one step at a time: run code, inspect the result, and decide what to try next.
+Console gives agents those same interactive affordances in an environment tailored to how they work.
 
 During an analysis, the agent can load a dataset, fit a model, and plot the residuals.
 A follow-up question can use the same data and model rather than repeat the setup.
@@ -67,7 +70,7 @@ See [Packages and environments](REQUIREMENTS.md).
 
 ## Status and trust
 
-Console is a **development preview** for macOS, Linux, and [experimental Windows x64](WINDOWS.md).
+Console is a **development preview** for macOS, Linux, and Windows x64.
 Run it on the same host as the MCP client.
 
 The default sandbox restricts workspace writes and direct networking but permits host-file reads.

@@ -115,8 +115,11 @@ class WebsiteTests(unittest.TestCase):
             with self.subTest(page=str(relative)):
                 page = self.pages[(self.site / relative).resolve()]
                 heading = (
-                    source.read_text()
-                    .splitlines()[0]
+                    next(
+                        line
+                        for line in source.read_text().splitlines()
+                        if line.startswith("# ")
+                    )
                     .removeprefix("# ")
                     .replace("`", "")
                 )
@@ -274,6 +277,43 @@ class WebsiteTests(unittest.TestCase):
         self.assertIsNotNone(description)
         self.assertIn("data", description["content"])
 
+    def test_get_started_belongs_to_the_guides_navigation(self) -> None:
+        soup = BeautifulSoup(
+            (self.site / "getting-started.html").read_text(), "html.parser"
+        )
+        navbar = soup.select_one(".navbar")
+        sidebar = soup.find(id="quarto-sidebar")
+        for element, included, excluded in (
+            (navbar, "README.html", "getting-started.html"),
+            (sidebar, "getting-started.html", "WINDOWS.html"),
+        ):
+            links = {
+                urlsplit(link["href"]).path.removeprefix("./")
+                for link in element.select("a[href]")
+            }
+            self.assertIn(included, links)
+            self.assertNotIn(excluded, links)
+
+    def test_get_started_client_setup_uses_uvx_and_global_scope(self) -> None:
+        commands = [
+            line.strip()
+            for code in self.pages[self.site / "getting-started.html"].code_blocks
+            for line in code.splitlines()
+            if "configure-client" in line
+        ]
+        for client in ("codex", "claude"):
+            self.assertIn(f"uvx mcp-console configure-client {client}", commands)
+
+    def test_other_client_configuration_uses_uvx(self) -> None:
+        configuration = next(
+            json.loads(code)
+            for code in self.pages[self.site / "CLI.html"].code_blocks
+            if '"mcpServers"' in code
+        )
+        server = configuration["mcpServers"]["console"]
+        self.assertEqual(server["command"], "uvx")
+        self.assertEqual(server["args"], ["mcp-console", "serve"])
+
     def test_moved_reference_pages_and_historical_fragments(self) -> None:
         fragments = {
             "CONFIGURATION": (
@@ -308,9 +348,13 @@ class WebsiteTests(unittest.TestCase):
                 "custom-workers",
             ),
             "WINDOWS": (
+                "install-and-run",
+                "native-sandbox",
                 "build-from-source",
+                "lifecycle-and-platform-differences",
                 "validation",
                 "testing-parity-and-remaining-gaps",
+                "troubleshooting",
             ),
             "SANDBOX": (
                 "application-policy-and-launch",
@@ -337,7 +381,17 @@ class WebsiteTests(unittest.TestCase):
                 self.assertGreater(len(soup.select_one("main").get_text()), 1000)
 
     def test_workspace_profile_is_available_in_setup_guides(self) -> None:
-        for name in ("getting-started", "CONFIGURATION", "SANDBOX_CONFIGURATION"):
+        commands = [
+            line.strip()
+            for code in self.pages[self.site / "getting-started.html"].code_blocks
+            for line in code.splitlines()
+        ]
+        self.assertIn("uvx mcp-console config init", commands)
+        for command in commands:
+            if "configure-client" in command:
+                self.assertNotIn("sandbox.profile=workspace", command)
+                self.assertNotIn("--writable-root", command)
+        for name in ("CONFIGURATION", "SANDBOX_CONFIGURATION"):
             with self.subTest(page=name):
                 self.assertTrue(
                     any(
@@ -346,6 +400,47 @@ class WebsiteTests(unittest.TestCase):
                         for line in code.splitlines()
                     )
                 )
+
+    def test_permission_examples_distinguish_global_and_project_scope(self) -> None:
+        soup = BeautifulSoup((self.site / "CLI.html").read_text(), "html.parser")
+        examples = (
+            ("allow-workspace-writes-across-projects", "global"),
+            ("grant-writes-to-one-directory", "project"),
+        )
+        identifiers = [identifier for identifier, _ in examples]
+        self.assertEqual(
+            [section["id"] for section in soup.find_all("section", id=identifiers)],
+            identifiers,
+        )
+        for identifier, scope in examples:
+            with self.subTest(scope=scope):
+                section = soup.find(id=identifier)
+                commands = [
+                    line.strip()
+                    for code in section.select("pre code")
+                    for line in code.get_text().splitlines()
+                ]
+                command = next(
+                    command for command in commands if "configure-client" in command
+                )
+                arguments = command.split()
+                self.assertEqual(
+                    arguments[:3], ["uvx", "mcp-console", "configure-client"]
+                )
+                self.assertIn(arguments[3], ("codex", "claude"))
+                self.assertNotIn("--scope", arguments)
+                if scope == "project":
+                    directory_option = arguments.index("--directory")
+                    self.assertEqual(arguments[directory_option + 1], ".")
+                    self.assertLess(directory_option, arguments.index("--"))
+                    self.assertIn("sandbox.profile=read_only", arguments)
+                    self.assertIn("--writable-root", arguments)
+                    self.assertLess(
+                        commands.index("mkdir output"), commands.index(command)
+                    )
+                else:
+                    self.assertNotIn("--directory", arguments)
+                    self.assertIn("sandbox.profile=workspace", arguments)
 
     def test_reference_tables_have_keyboard_accessible_scroll_regions(self) -> None:
         for name in ("CONFIGURATION.html", "REQUIREMENTS.html", "python/index.html"):

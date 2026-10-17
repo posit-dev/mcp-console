@@ -79,6 +79,7 @@ Standard-library code needs no third-party packages.
 
 The equivalent mapping is `python: {existing: .venv}`.
 A venv directory needs `pyvenv.cfg` and its ordinary `bin/python` or Windows `Scripts/python.exe`.
+On Windows, select a real interpreter or virtual environment, not a Windows App Execution Alias.
 Executable paths preserve venv identity and symlinks.
 Recognized Conda installations are unsupported.
 
@@ -305,8 +306,9 @@ Options may appear before or after the subcommand.
 They do not edit files or change recording-location selection.
 
 **Project configuration is trusted launcher input.** It can select executables, supply credentials, and widen sandbox permissions.
-Global settings are defaults, not a security ceiling.
-Use `--no-project-config` when opening an unfamiliar project.
+Console loads this layer automatically without a separate approval step, whether or not the directory is in Git and including with global client registration.
+Review and authorize these settings before launching Console; `--no-project-config` skips the project layer for unfamiliar projects.
+Global settings and launch defaults, including inherited client permissions, are not an enforcement ceiling: project settings can replace the selected profile or add permissions.
 
 Settings are captured when the server starts.
 Editing YAML requires a new server connection; restarting a worker does not reload it.

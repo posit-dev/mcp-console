@@ -263,11 +263,7 @@ pub struct ConfigureClientOptions {
     #[arg(value_enum, required = true, num_args = 1.., value_name = "CLIENT")]
     pub clients: Vec<ConfigureClient>,
 
-    /// Configuration scope: global by default; project uses the current directory; auto selects the nearest Git root or global scope outside Git
-    #[arg(long, value_enum, default_value = "global")]
-    pub scope: ConfigureClientScope,
-
-    /// Existing project directory for --scope project; relative paths start at the current directory
+    /// Write project configuration in PATH; defaults to global registration when omitted
     #[arg(long, value_name = "PATH")]
     pub directory: Option<PathBuf>,
 
@@ -300,13 +296,6 @@ pub struct ConfigureClientOptions {
 pub enum ConfigureClient {
     Codex,
     Claude,
-}
-
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
-pub enum ConfigureClientScope {
-    Auto,
-    Project,
-    Global,
 }
 
 fn parse_pin_version(input: &str) -> Result<String, String> {

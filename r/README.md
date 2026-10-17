@@ -31,8 +31,8 @@ They are mutually exclusive, and `...` must be empty.
 console_tool(path = Sys.which("mcp-console"))
 ```
 
-Starting with Console 0.0.5, published releases include an experimental Windows x64 wheel that `console_tool()` can resolve through `reticulate::uv_run_tool()`.
-See [Windows installation](https://t-kalinowski.github.io/mcp-console/WINDOWS.html).
+Starting with Console 0.0.5, published releases include a Windows x64 wheel that `console_tool()` can resolve through `reticulate::uv_run_tool()`.
+See [installation requirements](https://t-kalinowski.github.io/mcp-console/getting-started.html#install).
 
 ## Session configuration
 

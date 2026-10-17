@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use serde_json::json;
 use toml_edit::{Array, DocumentMut, Item, Table, value};
 
-use crate::cli::{ConfigureClient, ConfigureClientOptions, ConfigureClientScope};
+use crate::cli::{ConfigureClient, ConfigureClientOptions};
 use launch::Launch;
 
 struct Configuration {
@@ -53,9 +53,6 @@ pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
         ));
     }
     let directory = std::env::current_dir().map_err(|error| error.to_string())?;
-    if options.directory.is_some() && !matches!(options.scope, ConfigureClientScope::Project) {
-        return Err("--directory requires --scope project".into());
-    }
     let project_directory = options.directory.as_ref().map(|path| directory.join(path));
     if let Some(path) = &project_directory
         && !path.is_dir()
@@ -65,13 +62,7 @@ pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
             path.display()
         ));
     }
-    let project = match options.scope {
-        ConfigureClientScope::Auto => directory
-            .ancestors()
-            .find(|ancestor| ancestor.join(".git").exists()),
-        ConfigureClientScope::Project => Some(project_directory.as_deref().unwrap_or(&directory)),
-        ConfigureClientScope::Global => None,
-    };
+    let project = project_directory.as_deref();
     let scope = if project.is_some() {
         "project"
     } else {

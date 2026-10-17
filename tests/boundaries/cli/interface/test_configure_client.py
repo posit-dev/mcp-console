@@ -104,8 +104,6 @@ def test_multiple_clients_pins_names_and_serve_arguments(binary: Path) -> Transc
                 "codex",
                 "claude",
                 "codex",
-                "--scope",
-                "global",
                 "--name",
                 name,
                 *arguments,
@@ -158,8 +156,6 @@ def test_explicit_sandbox_profile_overrides_client_default(binary: Path) -> Tran
                 root,
                 "codex",
                 "claude",
-                "--scope",
-                "global",
                 *(["--no-uvx"] if no_uvx else []),
                 "--",
                 "-c",
@@ -225,8 +221,6 @@ def test_project_profile_overrides_generated_client_default(binary: Path) -> Tra
                 root,
                 root,
                 "codex",
-                "--scope",
-                "global",
                 *(["--no-uvx"] if no_uvx else []),
             )
             assert result.returncode == 0 and not result.stderr, result
@@ -271,7 +265,7 @@ def test_all_clients_are_validated_before_changes(binary: Path) -> Transcript:
         path = root / "claude-home/.claude.json"
         path.parent.mkdir()
         path.write_text("[]", encoding="utf-8")
-        result = configure(binary, root, root, "codex", "claude", "--scope", "global")
+        result = configure(binary, root, root, "codex", "claude")
         assert result.returncode == 1 and not result.stdout, result
         assert str(path) in result.stderr, result
         assert not (root / "codex-home").exists()
@@ -296,8 +290,6 @@ def test_version_validation_and_current_pin(binary: Path) -> Transcript:
                 root,
                 "codex",
                 "claude",
-                "--scope",
-                "global",
                 "--pin-version",
                 suffix,
             )
@@ -317,8 +309,6 @@ def test_version_validation_and_current_pin(binary: Path) -> Transcript:
                 case,
                 "codex",
                 "claude",
-                "--scope",
-                "global",
                 "--pin-version",
                 suffix,
                 "--dry-run",
@@ -336,8 +326,6 @@ def test_version_validation_and_current_pin(binary: Path) -> Transcript:
                 case,
                 "codex",
                 "claude",
-                "--scope",
-                "global",
                 "--pin-version",
                 suffix,
             )
@@ -376,9 +364,7 @@ def test_reserved_names_are_client_specific(binary: Path) -> Transcript:
         root = Path(temporary).resolve()
         for name in names:
             for clients in (("claude",), ("codex", "claude")):
-                result = configure(
-                    binary, root, root, *clients, "--scope", "global", "--name", name
-                )
+                result = configure(binary, root, root, *clients, "--name", name)
                 assert result.returncode == 1 and not result.stdout, result
                 assert name in result.stderr and "reserved" in result.stderr, result
                 assert (
@@ -391,8 +377,6 @@ def test_reserved_names_are_client_specific(binary: Path) -> Transcript:
                 root,
                 root,
                 *clients,
-                "--scope",
-                "global",
                 "--name",
                 "codex_apps",
             )
@@ -400,17 +384,13 @@ def test_reserved_names_are_client_specific(binary: Path) -> Transcript:
             assert "codex_apps" in result.stderr and "reserved" in result.stderr, result
             assert not (root / "codex-home").exists()
             assert not (root / "claude-home").exists()
-        result = configure(
-            binary, root, root, "claude", "--scope", "global", "--name", "codex_apps"
-        )
+        result = configure(binary, root, root, "claude", "--name", "codex_apps")
         assert result.returncode == 0 and not result.stderr, result
         assert (
             "codex_apps"
             in read_config(root / "claude-home/.claude.json", "claude")["mcpServers"]
         )
-        result = configure(
-            binary, root, root, "codex", "--scope", "global", "--name", "workspace"
-        )
+        result = configure(binary, root, root, "codex", "--name", "workspace")
         assert result.returncode == 0, result
         assert (
             "workspace"
@@ -432,18 +412,14 @@ def test_server_name_patterns_are_client_specific(binary: Path) -> Transcript:
         root = Path(temporary).resolve()
         for name in names:
             for clients in (("codex",), ("claude", "codex")):
-                result = configure(
-                    binary, root, root, *clients, "--scope", "global", "--name", name
-                )
+                result = configure(binary, root, root, *clients, "--name", name)
                 assert result.returncode == 1 and not result.stdout, result
                 assert "^[a-zA-Z0-9_:@/.-]+$" in result.stderr, result
                 assert (
                     not (root / "codex-home").exists()
                     and not (root / "claude-home").exists()
                 )
-            result = configure(
-                binary, root, root, "claude", "--scope", "global", "--name", name
-            )
+            result = configure(binary, root, root, "claude", "--name", name)
             assert result.returncode == 0 and not result.stderr, result
             config = read_config(root / "claude-home/.claude.json", "claude")
             assert name in config["mcpServers"], config
@@ -476,7 +452,7 @@ def test_existing_files_retain_identity_and_security_metadata(
             alias = root / f"{client}-managed-file"
             os.link(path, alias)
             before = path.stat()
-            result = configure(binary, root, root, client, "--scope", "global")
+            result = configure(binary, root, root, client)
             assert result.returncode == 0 and not result.stderr, result
             assert path.samefile(alias), "The managed file was replaced"
             assert (
@@ -509,7 +485,7 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
             "omit_tools_from = [] # discovery annotation\n"
         )
         path.write_text(source, encoding="utf-8")
-        result = configure(binary, root, root, "codex", "--scope", "global")
+        result = configure(binary, root, root, "codex")
         assert result.returncode == 0, result
         updated = path.read_text(encoding="utf-8")
         for comment in (
@@ -526,7 +502,7 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
             "--default-config",
             "sandbox.profile=inherit_codex",
         ]
-        result = configure(binary, root, root, "codex", "--scope", "global")
+        result = configure(binary, root, root, "codex")
         assert result.returncode == 0 and path.read_text(encoding="utf-8") == updated, (
             result
         )
@@ -551,8 +527,6 @@ def test_direct_executable_finds_itself(binary: Path) -> Transcript:
             root,
             "codex",
             "claude",
-            "--scope",
-            "global",
             "--no-uvx",
             extra_environment={"PATH": str(root / "empty-path")},
         )
@@ -676,8 +650,6 @@ def test_ephemeral_uvx_installs_persistent_executable(binary: Path) -> Transcrip
                 case,
                 "codex",
                 "claude",
-                "--scope",
-                "global",
                 "--no-uvx",
                 extra_environment=extra | {"PATH": str(root / "empty-path")},
             )
@@ -709,8 +681,6 @@ def test_ephemeral_uvx_installs_persistent_executable(binary: Path) -> Transcrip
             "configure-client",
             "codex",
             "claude",
-            "--scope",
-            "global",
             "--no-uvx",
         ]
 
@@ -835,8 +805,6 @@ def test_ephemeral_uvx_installs_persistent_executable(binary: Path) -> Transcrip
             root,
             root,
             "codex",
-            "--scope",
-            "global",
             "--no-uvx",
             extra_environment=extra,
         )
@@ -881,8 +849,6 @@ def test_shared_cache_marker_keeps_direct_executables(binary: Path) -> Transcrip
                 case,
                 "codex",
                 "claude",
-                "--scope",
-                "global",
                 "--no-uvx",
                 extra_environment={"PATH": str(root / "empty-path")},
             )
@@ -956,7 +922,7 @@ def test_global_install_preserves_configuration_and_is_repeatable(
                 )
             path.write_text(source, encoding="utf-8")
             before = read_config(path, client)
-            result = configure(binary, root, root, client, "--scope", "global")
+            result = configure(binary, root, root, client)
             assert result.returncode == 0 and result.stderr == "", result
             assert str(path) in result.stdout and "uvx" in result.stdout, result
             config = read_config(path, client)
@@ -989,7 +955,7 @@ def test_global_install_preserves_configuration_and_is_repeatable(
                 before["mcpServers"]["console"] = entry
             assert config == before
             written = path.read_bytes()
-            again = configure(binary, root, root, client, "--scope", "global")
+            again = configure(binary, root, root, client)
             assert again.returncode == 0 and again.stderr == "", again
             assert path.read_bytes() == written
             records.append(
@@ -1027,24 +993,15 @@ def test_scope_defaults_and_explicit_overrides(binary: Path) -> Transcript:
             assert (
                 server(read_config(global_config, client), client)["command"] == "uvx"
             )
-            result = configure(binary, root, nested, client, "--scope", "project")
+            result = configure(binary, root, nested, client, "--directory", ".")
             assert result.returncode == 0 and result.stderr == "", result
-            assert str(nested / relative) in result.stdout, result
+            assert os.path.join(nested, ".", str(Path(relative))) in result.stdout, (
+                result
+            )
             assert not project_config.exists()
             assert (
                 server(read_config(nested / relative, client), client)["command"]
                 == "uvx"
-            )
-            result = configure(binary, root, nested, client, "--scope", "auto")
-            assert result.returncode == 0 and str(project_config) in result.stdout, (
-                result
-            )
-            assert (
-                server(read_config(project_config, client), client)["command"] == "uvx"
-            )
-            result = configure(binary, root, nested, client, "--scope", "global")
-            assert result.returncode == 0 and str(global_config) in result.stdout, (
-                result
             )
             outside = root / f"outside-{client}"
             outside.mkdir()
@@ -1053,13 +1010,10 @@ def test_scope_defaults_and_explicit_overrides(binary: Path) -> Transcript:
                 result
             )
             assert not (outside / relative).exists()
-            result = configure(binary, root, outside, client, "--scope", "auto")
-            assert result.returncode == 0 and str(global_config) in result.stdout, (
-                result
-            )
-            result = configure(binary, root, outside, client, "--scope", "project")
+            result = configure(binary, root, outside, client, "--directory", ".")
             assert (
-                result.returncode == 0 and str(outside / relative) in result.stdout
+                result.returncode == 0
+                and os.path.join(outside, ".", str(Path(relative))) in result.stdout
             ), result
             assert (
                 server(read_config(outside / relative, client), client)["command"]
@@ -1070,7 +1024,6 @@ def test_scope_defaults_and_explicit_overrides(binary: Path) -> Transcript:
                     "client": client,
                     "default": "global",
                     "project": "current directory",
-                    "auto": "Git root, otherwise global",
                 }
             )
     return records
@@ -1090,8 +1043,6 @@ def test_project_directory_destinations(binary: Path) -> Transcript:
             arguments = (
                 "codex",
                 "claude",
-                "--scope",
-                "project",
                 "--directory",
                 selector,
             )
@@ -1122,29 +1073,38 @@ def test_project_directory_rejects_invalid_targets_and_scopes(
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         (root / ".git").mkdir()
-        target = root / "project"
-        target.mkdir()
         file = root / "file"
         file.write_text("not a directory", encoding="utf-8")
         cases = [
             (
-                f"{scope} scope",
-                () if scope == "default" else ("--scope", scope),
-                target,
-                "--directory requires --scope project",
+                f"removed {scope} scope",
+                ("--scope", scope),
+                2,
+                "unexpected argument '--scope' found",
             )
-            for scope in ("default", "global", "auto")
+            for scope in ("global", "project", "auto")
         ] + [
             (
-                name,
-                ("--scope", "project"),
-                path,
-                "Project directory does not exist or is not a directory",
-            )
-            for name, path in (("missing directory", root / "missing"), ("file", file))
+                "unsupported global flag",
+                ("--global",),
+                2,
+                "unexpected argument '--global' found",
+            ),
+            *[
+                (
+                    name,
+                    ("--directory", str(path)),
+                    1,
+                    "Project directory does not exist or is not a directory",
+                )
+                for name, path in (
+                    ("missing directory", root / "missing"),
+                    ("file", file),
+                )
+            ],
         ]
         before = set(root.rglob("*"))
-        for name, scope, path, message in cases:
+        for name, arguments, exit_code, message in cases:
             for dry_run in (False, True):
                 result = configure(
                     binary,
@@ -1152,21 +1112,22 @@ def test_project_directory_rejects_invalid_targets_and_scopes(
                     root,
                     "codex",
                     "claude",
-                    *scope,
-                    "--directory",
-                    str(path),
+                    *arguments,
                     *(("--dry-run",) if dry_run else ()),
                 )
-                assert result.returncode == 1 and result.stdout == "", result
+                assert result.returncode == exit_code and result.stdout == "", result
                 assert message in result.stderr, result
                 assert set(root.rglob("*")) == before
                 assert file.read_text(encoding="utf-8") == "not a directory"
+                stderr = result.stderr
+                if arguments[0] == "--directory":
+                    stderr = stderr.replace(arguments[1], "<DIRECTORY>")
                 records.append(
                     {
                         "case": name,
                         "dry_run": dry_run,
                         "exit_code": result.returncode,
-                        "stderr": result.stderr.replace(str(path), "<DIRECTORY>"),
+                        "stderr": stderr,
                     }
                 )
     return records
@@ -1189,7 +1150,9 @@ def test_global_registration_warns_about_legacy_project_entries(
                 else:
                     (project / ".git").write_text("gitdir: fixture\n")
                 relative = ".codex/config.toml" if client == "codex" else ".mcp.json"
-                legacy = configure(binary, root, workspace, client, "--scope", "auto")
+                legacy = configure(
+                    binary, root, workspace, client, "--directory", str(project)
+                )
                 assert legacy.returncode == 0 and legacy.stderr == "", legacy
                 project_path = project / relative
                 previous = project_path.read_bytes()
@@ -1394,7 +1357,7 @@ def test_global_path_aliases_are_not_project_overrides(binary: Path) -> Transcri
             assert repeated.returncode == 0 and repeated.stderr == "", repeated
             assert server(read_config(path, "codex"), "codex")["omit_tools_from"] == []
             project_entry = configure(
-                binary, root, workspace, "codex", "--scope", "project"
+                binary, root, workspace, "codex", "--directory", "."
             )
             assert project_entry.returncode == 0 and project_entry.stderr == "", (
                 project_entry
@@ -1437,7 +1400,7 @@ def test_global_symlink_aliases_are_not_project_overrides(binary: Path) -> Trans
             workspace = project / "child"
             workspace.mkdir(parents=True)
             (project / ".git").write_text("gitdir: fixture\n")
-            first = configure(binary, root, project, client, "--scope", "project")
+            first = configure(binary, root, project, client, "--directory", ".")
             assert first.returncode == 0 and first.stderr == "", first
             path = project / (
                 ".codex/config.toml" if client == "codex" else ".mcp.json"
@@ -1508,9 +1471,7 @@ def test_global_registration_rejects_malformed_project_configuration(
             before = {
                 file: file.read_bytes() for file in root.rglob("*") if file.is_file()
             }
-            result = configure(
-                binary, root, workspace, "codex", "claude", "--scope", "global"
-            )
+            result = configure(binary, root, workspace, "codex", "claude")
             assert result.returncode == 1 and result.stdout == "", result
             assert str(path) in result.stderr, result
             assert "Cannot inspect project configuration" in result.stderr, result
@@ -1538,14 +1499,12 @@ def test_dry_run_and_auto_load_opt_out(binary: Path) -> Transcript:
                 / f"{client}-home"
                 / ("config.toml" if client == "codex" else ".claude.json")
             )
-            result = configure(
-                binary, root, root, client, "--scope", "global", "--dry-run"
-            )
+            result = configure(binary, root, root, client, "--dry-run")
             assert result.returncode == 0 and result.stderr == "", result
             assert str(path) in result.stdout and "uvx" in result.stdout, result
             assert not path.parent.exists()
             preview = result.stdout.replace(str(path), "<CONFIG>")
-            result = configure(binary, root, root, client, "--scope", "global")
+            result = configure(binary, root, root, client)
             assert result.returncode == 0, result
             written = path.read_bytes()
             result = configure(
@@ -1553,15 +1512,11 @@ def test_dry_run_and_auto_load_opt_out(binary: Path) -> Transcript:
                 root,
                 root,
                 client,
-                "--scope",
-                "global",
                 "--no-auto-load",
                 "--dry-run",
             )
             assert result.returncode == 0 and path.read_bytes() == written, result
-            result = configure(
-                binary, root, root, client, "--scope", "global", "--no-auto-load"
-            )
+            result = configure(binary, root, root, client, "--no-auto-load")
             assert result.returncode == 0 and result.stderr == "", result
             entry = server(read_config(path, client), client)
             if client == "codex":
@@ -1598,7 +1553,7 @@ def test_inline_toml_and_existing_project_json(binary: Path) -> Transcript:
             path = root / (".codex/config.toml" if client == "codex" else ".mcp.json")
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(source, encoding="utf-8")
-            result = configure(binary, root, root, client, "--scope", "project")
+            result = configure(binary, root, root, client, "--directory", ".")
             assert result.returncode == 0 and result.stderr == "", result
             config = read_config(path, client)
             entry = server(config, client)
@@ -1648,7 +1603,7 @@ def test_invalid_configuration_is_not_overwritten(binary: Path) -> Transcript:
             path = home / ("config.toml" if client == "codex" else ".claude.json")
             for source in invalid:
                 path.write_text(source, encoding="utf-8")
-                result = configure(binary, root, root, client, "--scope", "global")
+                result = configure(binary, root, root, client)
                 assert result.returncode == 1 and result.stdout == "", result
                 assert str(path) in result.stderr, result
                 assert path.read_text(encoding="utf-8") == source
@@ -1676,7 +1631,7 @@ def test_linked_configuration_preserves_target_and_permissions(
             target.write_text(source, encoding="utf-8")
             target.chmod(0o640)
             path.symlink_to(target)
-            result = configure(binary, root, root, client, "--scope", "global")
+            result = configure(binary, root, root, client)
             assert result.returncode == 0 and result.stderr == "", result
             assert path.is_symlink() and path.resolve() == target
             assert target.stat().st_mode & 0o777 == 0o640
@@ -1693,8 +1648,6 @@ def test_linked_configuration_preserves_target_and_permissions(
             root,
             "codex",
             "claude",
-            "--scope",
-            "global",
             "--pin-version",
             "latest",
         )

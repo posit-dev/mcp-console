@@ -2,19 +2,17 @@
 title: Get started
 ---
 
-Install Console, connect it to your MCP client, and try an analysis.
+Install uv, connect Console to your MCP client, and try an analysis.
 No Console configuration file is required.
 
 ## Install
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then install Console:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
+The examples below use `uvx` to run Console without a separate installation.
 
-```sh
-uv tool install mcp-console
-```
-
-Prebuilt packages are available for macOS and Linux on ARM64 and x86-64, and for experimental Windows x64.
-Windows users should also follow the [Windows setup instructions](WINDOWS.md#install-and-run).
+Prebuilt packages are available for macOS and Linux on ARM64 and x86-64, and for Windows x64.
+On Windows, also install the [Microsoft Visual C++ v14 Redistributable for x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
+Sandboxed Windows sessions require a host that supports [MXC](SANDBOX_CONFIGURATION.md#windows-mxc-requirement).
 
 If Console fails to start on Linux, see [Linux host compatibility](LINUX_COMPATIBILITY.md) for missing libraries or sandbox restrictions.
 
@@ -28,48 +26,19 @@ To install the development version, follow [Build from source](BUILD_FROM_SOURCE
 
 ## Connect your client
 
-Console runs on the same host as the client.
-Start both in the project where the agent will work, so their shell and filesystem tools refer to the same files.
-
-Register Console with Codex or Claude Code:
+Register Console with the client you use:
 
 ```sh
 uvx mcp-console configure-client codex
 uvx mcp-console configure-client claude
 ```
 
-Choose the client you use, or pass both names to configure both clients in one command.
-Inside a Git repository, it writes project configuration at the repository root; elsewhere, it writes global configuration.
-Use `--scope project` or `--scope global` to choose explicitly.
-The command prints the settings it writes, and `--dry-run` previews them without changing files.
-By default, it also configures Console tools to load up front; `--no-auto-load` keeps the client's default discovery.
-Restart the client and approve project configuration if prompted.
+This registers Console globally, so it is available across projects, and loads its tools up front.
+Restart the client after setup.
+Your client launches Console on the same host, usually in the workspace where the agent is working.
 
-The default launch command is `uvx mcp-console serve`, with no version constraint.
-Codex configuration adds `--default-config sandbox.profile=inherit_codex` to [inherit the client's sandbox permissions](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex) unless configuration files select another profile.
-Use `--pin-version v0.0.5` to select an exact version or `--pin-version latest` to request the latest release at launch.
-Use `--pin-version current` to pin the version running setup.
-Use `--no-uvx` to configure an absolute executable path; a temporary uvx run can first install a recorded direct wheel, archive, or Git source persistently with uv.
-For index or `--find-links` installations, run `uv tool install` with the same resolver options first, then invoke the installed executable with `--no-uvx`.
-When reviewing a source installation, run that installation's `mcp-console configure-client CLIENT --no-uvx` to save its absolute executable path.
-See [client configuration](CLI.md#configure-a-client) for paths and visibility settings.
-
-For another MCP client, configure a stdio server with command `mcp-console` and arguments `["serve"]`.
-Clients using an `mcpServers` mapping can use:
-
-```json
-{
-  "mcpServers": {
-    "console": {
-      "command": "mcp-console",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-For remote work, run both Console and the client on the remote host.
-Console does not manage remote connections or containers.
+To register it for the current directory, add `--directory .`.
+See [client configuration](CLI.md#configure-a-client) for updating earlier project registrations, other MCP clients, version pinning, and launch options.
 
 ## Try an analysis
 
@@ -86,7 +55,7 @@ Then ask:
 With R installed, try the Palmer Penguins data from `palmerpenguins`, summarize it with SQL, and plot it from Python.
 See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples.
 
-## Choose permissions and an environment
+## Choose permissions
 
 For Codex configured above, Console defaults to the client's sandbox permissions; configuration files can select another profile.
 Without inheritance or a configured profile, the default sandbox permits host-file reads and private temporary writes, but not ordinary workspace writes or direct network access.
@@ -94,70 +63,26 @@ Without inheritance or a configured profile, the default sandbox permits host-fi
 
 ### Allow project writes {#allow-project-writes}
 
-To let the agent save files in the project, initialize configuration in the directory where Console will start:
+To let the agent save files in one project, create Console configuration in the directory where the client launches it:
 
 ```sh
-mcp-console config init
+uvx mcp-console config init
 ```
 
-This creates an annotated `.agents/console/config.yaml` selecting the workspace profile, with comments explaining its permissions:
+This creates `.agents/console/config.yaml` selecting the workspace profile, including outside Git.
+If the file already exists, edit it instead.
+Restart the client to load the settings.
+The profile permits ordinary writes in Console's launch directory while protecting workspace metadata such as `.git` and `.agents`.
+Host-file reads remain allowed and direct network access remains restricted.
 
-```yaml
-sandbox:
-  profile: workspace
-```
+The command-line reference covers [workspace writes across projects](CLI.md#allow-workspace-writes-across-projects) and [grants for individual directories](CLI.md#grant-writes-to-one-directory).
+See [Sandbox configuration](SANDBOX_CONFIGURATION.md) for the permission rules.
 
-If the file already exists, edit its permissions instead.
-For Codex configured above, this project setting takes precedence over the client's inheritance default.
+Console loads project configuration automatically, and it can select executables or widen permissions.
+Review and authorize it before launching Console in an unfamiliar project; `--no-project-config` skips that layer.
+Being inside Git does not establish trust.
 
-The `workspace` profile uses Console's launch directory as the workspace, even if evaluated code later changes its working directory.
-It permits the agent to create, edit, and delete ordinary files there, while keeping the workspace's `.git`, `.agents`, `.codex`, and `.aws` paths read-only, including when they do not yet exist.
-Git metadata referenced by a worktree's or submodule's `.git` file is also protected.
-For example, the agent can read `data.csv`, edit `analysis.py`, and save `plot.png`, but cannot change `.agents/console/config.yaml` or Git metadata.
-
-Host-file reads remain allowed, private temporary storage remains writable, and direct network access remains restricted.
-The profile does not change the separate permissions used for package preparation.
-
-Without a profile, you can construct the same filesystem permissions explicitly:
-
-```yaml
-sandbox:
-  filesystem:
-    read_write: [.]
-    read_only: [.git, .agents, .codex, .aws]
-```
-
-Here `.` and the metadata paths are relative to Console's launch directory.
-This retains the same default host reads, private temporary storage, and restricted networking.
-Additional filesystem settings can narrow or widen access; see [the workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile) for rule precedence and protecting other paths such as `.claude`.
-
-For a write grant supplied by the client command instead of project configuration, add `--writable-root .`:
-
-```sh
-mcp-console serve --writable-root .
-```
-
-For a client using the JSON configuration above, the arguments become `["serve", "--writable-root", "."]`.
-The flag adds a writable path; it does not select the workspace profile.
-[Sandbox configuration](SANDBOX_CONFIGURATION.md#filesystem) describes metadata defaults and narrower grants.
-
-Project configuration can select executables and widen permissions.
-Review it before opening an unfamiliar project; `--no-project-config` skips that layer.
-
-### Use an existing Python environment
-
-To use a project's environment instead of a Console-managed one, add this to the configuration:
-
-```yaml
-python: .venv
-```
-
-The environment must already exist.
-Ordinary Python and standard-library code do not require pandas, NumPy, or other optional data packages.
-Install any third-party packages your analysis uses before starting the session; Console does not manage Python package installation for an environment selected this way.
-
-Plotting and the default Python-owned DuckDB connection need their corresponding packages.
-See [Python environment selection](CONFIGURATION.md#python-environment-selection) for interpreter requirements and [Packages and environments](REQUIREMENTS.md) for the distinction between managed and existing environments.
+For interpreter selection and package setup, see [Configuration](CONFIGURATION.md) and [Packages and environments](REQUIREMENTS.md).
 
 ## Keep the session
 

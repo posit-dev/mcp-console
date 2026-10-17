@@ -46,10 +46,10 @@ Fresh procfs is optional; inherited procfs can expose host PIDs and readable met
 A stopped namespace init can exceed cleanup deadlines when emergency termination facilities are unavailable.
 See [Linux compatibility](LINUX_COMPATIBILITY.md).
 
-**Windows x64:** Experimental native execution requires MXC for every sandboxed launch.
+**Windows x64:** Native execution requires MXC for every sandboxed launch.
 Unsupported hosts and policies fail before executing the workload.
 The runner confirms Job retirement before successful exit and private-storage removal.
-See [Windows requirements](WINDOWS.md#native-sandbox).
+See [Windows requirements](SANDBOX_CONFIGURATION.md#windows-mxc-requirement).
 
 Caller death triggers cleanup while the runner remains alive.
 There is no independent recovery process.

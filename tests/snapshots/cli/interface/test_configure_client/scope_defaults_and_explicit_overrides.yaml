@@ -2,9 +2,7 @@
 client: codex
 default: global
 project: current directory
-auto: Git root, otherwise global
 ---
 client: claude
 default: global
 project: current directory
-auto: Git root, otherwise global

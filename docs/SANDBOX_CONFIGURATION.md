@@ -392,7 +392,31 @@ Cleanup is not proof of isolation.
 Normal sessions, standalone commands, and complete native policies require MXC.
 Unsupported hosts and policies fail before the workload executes; there is no backend or host-execution fallback.
 Explicit `serve --no-sandbox` remains available.
-See [Windows](WINDOWS.md#native-sandbox) for host requirements and the separate host-permission dependency-preparation boundary.
+
+The host must support native process security environments and the requested filesystem policy; read-deny rules need native deny-path support.
+The runner probes actual creation and closure, not just exported API names.
+Update Windows if that probe fails.
+
+MXC requires no account provisioning, UAC setup, or persistent state directory.
+Only fresh hosts are supported.
+Previously provisioned hosts require independent removal of legacy Console sandbox accounts, stored account credentials, and persistent firewall rules before use.
+MXC runs as the host identity, so a workload can decrypt readable DPAPI-protected legacy passwords.
+The runner does not detect or clean up legacy state.
+
+Workload environment settings apply after native setup, so clearing inheritance does not remove the launcher's Windows platform variables.
+Configured temporary-directory values reach the workload unchanged.
+Working directories can contain Windows 8.3 aliases, including aliases in the system temporary path.
+
+The native runner owns a non-breakaway Job and confirms zero active processes before successful retirement.
+Private-storage removal follows that confirmation; cleanup failure retains storage and blocks replacement.
+Forced frontend exit is not a cleanup receipt, and runner death does not guarantee storage deletion.
+
+**Dependency preparation runs with host permissions.** Explicit `resolver.sandbox` policies remain rejected on Windows.
+Resolver environment/cache settings remain usable, but package downloads, installation hooks, and cache writes are outside MXC.
+See [Package downloads and caches](RESOLVER.md).
+
+Windows process-creation error 4551 indicates host application-control policy.
+The host must permit the executable and downloaded interpreter DLLs; this is separate from Console's sandbox settings.
 
 ## Explicit Linux backend selection
 
