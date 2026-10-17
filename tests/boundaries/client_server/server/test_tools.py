@@ -171,6 +171,15 @@ def test_initializes_and_lists_tools(
                 sandbox_profile="inherit_codex",
             )
         )
+        companions["existing-python-client-sandbox.yaml"] = (
+            _initializes_and_lists_tools(
+                binary,
+                execution,
+                python_only=True,
+                bootstrap_languages="python",
+                sandbox_profile="inherit_codex",
+            )
+        )
         companions["configured-python-writable.yaml"] = _initializes_and_lists_tools(
             binary, execution, bootstrap_languages="python", writable=True
         )
@@ -178,6 +187,23 @@ def test_initializes_and_lists_tools(
             _initializes_and_lists_tools(
                 binary,
                 execution,
+                bootstrap_languages="python",
+                writable=True,
+                sandbox_profile="workspace",
+            )
+        )
+        companions["existing-python-writable.yaml"] = _initializes_and_lists_tools(
+            binary,
+            execution,
+            python_only=True,
+            bootstrap_languages="python",
+            writable=True,
+        )
+        companions["existing-python-workspace-writable.yaml"] = (
+            _initializes_and_lists_tools(
+                binary,
+                execution,
+                python_only=True,
                 bootstrap_languages="python",
                 writable=True,
                 sandbox_profile="workspace",

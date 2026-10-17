@@ -359,10 +359,9 @@ def test_retargeted_relative_grant_stays_read_only_after_restart(
                     print("relative grant used")
                     """),
             )
-            # The host changes the path while the worker is idle. macOS forbids
-            # deleting a granted root from inside the worker; Linux permits the
-            # original symlink form. Both must inspect the next launch's target.
-            grant.rmdir()
+            # Keep the old root available until its running worker has retired.
+            # The next launch must inspect the replacement symlink's target.
+            grant.rename(project / "original-grant")
             grant.symlink_to(home, target_is_directory=True)
             client.send(control="restart")
             result = client.send(

@@ -15,15 +15,13 @@ base::local({
   )
 
   storage <- base::tempfile("mcp-console-duckdb-resolver-")
+  extension_directory <- Sys.getenv("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY")
   connection <- DBI::dbConnect(
     duckdb::duckdb(
       dbdir = ":memory:",
       config = list(
-        # Local preparation and workers share one captured extension cache.
-        # An unset directory retains DuckDB core's native default.
-        extension_directory = Sys.getenv(
-          "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"
-        ),
+        # Discover built-ins without reading another installer's metadata.
+        extension_directory = base::file.path(storage, "builtin-extensions"),
         secret_directory = base::file.path(storage, "stored-secrets"),
         temp_directory = base::file.path(storage, "spill")
       )
@@ -49,6 +47,15 @@ base::local({
       "WHERE install_path = '(BUILT-IN)'"
     )
   )$name
+  # Installation uses the captured shared cache, including DuckDB's native
+  # default when no explicit extension directory was selected.
+  DBI::dbExecute(
+    connection,
+    base::paste(
+      "SET extension_directory =",
+      DBI::dbQuoteString(connection, extension_directory)
+    )
+  )
   for (extension in base::setdiff(extensions, builtin_extensions)) {
     identifier <- DBI::dbQuoteIdentifier(connection, extension)
     DBI::dbExecute(

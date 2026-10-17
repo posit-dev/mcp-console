@@ -1,0 +1,43 @@
+---
+scenario: Prepare an extension through the r provider.
+fixture: >-
+  An unrelated installer metadata file remains unreadable while
+  preparation runs.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    con <- .console$sql_connection()
+    result <- DBI::dbGetQuery(con, "SELECT 42 AS answer")
+    stopifnot(result$answer == 42L)
+    cat("connection retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        connection retained
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - core_functions
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    con <- .console$sql_connection()
+    result <- DBI::dbGetQuery(con, "SELECT 42 AS answer")
+    stopifnot(result$answer == 42L)
+    cat("connection retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        connection retained
+  isError: false

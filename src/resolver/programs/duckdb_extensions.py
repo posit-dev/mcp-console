@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+from tempfile import TemporaryDirectory
 
 request = json.load(sys.stdin)
 if request.get("check_available"):
@@ -27,25 +28,31 @@ except ImportError as error:
         "candidate Python environment; include duckdb in requirements.python"
     ) from error
 
-config = {"extension_directory": request["extension_directory"]}
-if os.environ.get("CODEX_NETWORK_PROXY_ACTIVE") == "1":
-    # Extension INSTALL does not consume the proxy environment itself.
-    config["http_proxy"] = os.environ["HTTP_PROXY"]
-connection = duckdb.connect(
-    ":memory:",
-    config=config,
-)
-connection.execute("SET enable_progress_bar = false")
-try:
-    builtin_extensions = {
-        name
-        for (name,) in connection.execute(
-            "SELECT unnest(aliases || [extension_name]) FROM duckdb_extensions() "
-            "WHERE install_path = '(BUILT-IN)'"
-        ).fetchall()
-    }
-    for extension in extensions:
-        if extension not in builtin_extensions:
-            connection.install_extension(extension)
-finally:
-    connection.close()
+with TemporaryDirectory(prefix="mcp-console-duckdb-builtins-") as builtin_directory:
+    # Discover built-ins without reading another installer's metadata.
+    config = {"extension_directory": builtin_directory}
+    if os.environ.get("CODEX_NETWORK_PROXY_ACTIVE") == "1":
+        # Extension INSTALL does not consume the proxy environment itself.
+        config["http_proxy"] = os.environ["HTTP_PROXY"]
+    connection = duckdb.connect(
+        ":memory:",
+        config=config,
+    )
+    connection.execute("SET enable_progress_bar = false")
+    try:
+        builtin_extensions = {
+            name
+            for (name,) in connection.execute(
+                "SELECT unnest(aliases || [extension_name]) FROM duckdb_extensions() "
+                "WHERE install_path = '(BUILT-IN)'"
+            ).fetchall()
+        }
+        # Installation uses the captured shared cache.
+        # Older DuckDB versions cannot bind SET values.
+        extension_directory = request["extension_directory"].replace("'", "''")
+        connection.execute(f"SET extension_directory = '{extension_directory}'")
+        for extension in extensions:
+            if extension not in builtin_extensions:
+                connection.install_extension(extension)
+    finally:
+        connection.close()

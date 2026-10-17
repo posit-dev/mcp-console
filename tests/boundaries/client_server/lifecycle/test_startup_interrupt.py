@@ -126,7 +126,7 @@ def test_interrupts_first_cell_before_resolver_registration(
         release,
         root,
     ):
-        started.wait("first resolver has not been spawned")
+        started.wait("first resolver has not been spawned", client=client)
         assert not (root / "resolver.jsonl").exists()
         # The preparation handle is registered, but its materializer is held
         # before process creation. Observe that owner before and after interrupt.
@@ -158,7 +158,7 @@ def test_interrupts_first_cell_between_resolver_phases(
         release,
         root,
     ):
-        started.wait("default preparation has not been spawned")
+        started.wait("default preparation has not been spawned", client=client)
         invocations = [
             json.loads(line)
             for line in (root / "resolver.jsonl").read_text().splitlines()
@@ -195,7 +195,7 @@ def test_interrupts_first_cell_admitted_during_stdin_startup(
         release,
         root,
     ):
-        started.wait("stdin startup has not spawned its first resolver")
+        started.wait("stdin startup has not spawned its first resolver", client=client)
         assert not (root / "resolver.jsonl").exists()
         client.send(stdin="old input\n", timeout_ms=0)
         assert last_tool_text(client) == (

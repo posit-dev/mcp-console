@@ -596,7 +596,7 @@ def test_captures_worker_stdout(binary: Path, execution: Execution) -> Transcrip
 
 
 @executions(DIRECT, SANDBOXED)
-@requires(PROCESS_EVENTS)
+@requires(POSIX, PROCESS_EVENTS)
 def test_compacts_each_polled_output_segment(
     binary: Path,
     execution: Execution,
@@ -622,7 +622,9 @@ def test_compacts_each_polled_output_segment(
             without_elapsed(last_tool_text(client))
             == "\n[running; poll with an empty send]"
         )
-        marker = wait_for_marker(
+        release = wait_for_marker(temporary_path, "zod-release-redraw", client)
+        release_fixture_checkpoint(release, client=client)
+        wait_for_marker(
             temporary_path,
             "zod-redraw-ready",
             client,
@@ -638,7 +640,7 @@ def test_compacts_each_polled_output_segment(
             == "\n[running; poll with an empty send]"
         )
 
-        (marker.parent / "zod-release-redraw").touch()
+        release_fixture_checkpoint(release, client=client)
         client.send(timeout_ms=3_000)
         assert last_tool_text(client) == "output 100%\n"
         compact_previews(client, "x", "y", "z", "s", "p", "ab")

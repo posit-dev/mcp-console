@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.progress import without_elapsed
-from support.requirements import POSIX, R, SQL, requires
+from support.requirements import FILE_READ_DENIAL, POSIX, R, SQL, requires
 from support.assertions import last_tool_text
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient, stop_client
@@ -22,9 +22,82 @@ from support.normalization import (
     normalize_trailing_spaces,
 )
 from support.r import isolated_r_home, r_test_environment
-from support.records import Transcript
+from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.previews import assert_preview, cell_text, normalize_preview_paths
 from support.suites import run_this_suite
+from boundaries.client_server.server.test_no_r import no_r_environment
+
+
+@requires(R, SQL, FILE_READ_DENIAL)
+@executions(DIRECT)
+def test_prepares_extensions_while_unrelated_metadata_is_inaccessible(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    transcripts = {}
+    for provider in ("python", "r"):
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            # Captured cache paths may contain SQL string delimiters.
+            cache = workspace / "extensions'cache"
+            environment = (
+                os.environ.copy() if provider == "r" else no_r_environment(workspace)
+            )
+            environment["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(cache)
+            with McpClient(binary, execution.serve(), environment, workspace) as client:
+                client.initialize_and_list_tools()
+                if provider == "r":
+                    # fmt: r
+                    check = code(r"""
+                        con <- .console$sql_connection()
+                        result <- DBI::dbGetQuery(con, "SELECT 42 AS answer")
+                        stopifnot(result$answer == 42L)
+                        cat("connection retained\n")
+                        """)
+                else:
+                    # fmt: python
+                    check = code("""
+                        assert _console.sql_connection().execute("SELECT 42").fetchone() == (42,)
+                        print("connection retained")
+                        """)
+                client.expect("connection retained\n", **{provider: check})
+                installed = list(cache.glob("v*/*/sqlite_scanner.duckdb_extension"))
+                assert len(installed) == 1, installed
+                extension = installed[0].with_name(
+                    "vss.duckdb_extension.tmp-fixture.duckdb_extension"
+                )
+                extension.write_bytes(b"unrelated in-progress installation")
+                metadata = extension.with_name(extension.name + ".info")
+                metadata.write_bytes(b"unrelated in-progress installation metadata")
+                # A concurrent installer owns this unrelated metadata. Windows
+                # sharing/byte-range locks and Unix permissions both deny reads.
+                with metadata.open("r+b") as held:
+                    if os.name == "nt":
+                        import msvcrt
+
+                        msvcrt.locking(held.fileno(), msvcrt.LK_NBLCK, 1)
+                    else:
+                        metadata.chmod(0)
+                    try:
+                        client.expect(
+                            "[prepared]", requirements={"duckdb": ["core_functions"]}
+                        )
+                        client.expect("connection retained\n", **{provider: check})
+                    finally:
+                        if os.name == "nt":
+                            held.seek(0)
+                            msvcrt.locking(held.fileno(), msvcrt.LK_UNLCK, 1)
+                        else:
+                            metadata.chmod(0o600)
+                transcripts[f"{provider}.yaml"] = McpTranscript(
+                    [
+                        {
+                            "scenario": f"Prepare an extension through the {provider} provider.",
+                            "fixture": "An unrelated installer metadata file remains unreadable while preparation runs.",
+                        },
+                        *client.finish(),
+                    ]
+                )
+    return TranscriptWithCompanions(transcripts.pop("r.yaml").transcript, transcripts)
 
 
 def extension_failure_environment(workspace: Path) -> dict[str, str]:

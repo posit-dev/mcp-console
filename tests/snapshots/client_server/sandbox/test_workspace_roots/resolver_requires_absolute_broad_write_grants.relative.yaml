@@ -5,7 +5,7 @@ fixture: >-
   the real native resolver runner; the worker uses its default read-only
   base.
 ---
-!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.configured-python.yaml
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python.yaml
 ---
 send:
   python: print('ready')

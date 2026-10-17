@@ -5,7 +5,7 @@ fixture: >-
   writes to explicitly granted output and private TMPDIR, then repeats
   after restart.
 ---
-!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.configured-python-client-sandbox.yaml
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python-client-sandbox.yaml
 ---
 send:
   python: |

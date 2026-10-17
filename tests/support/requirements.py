@@ -242,3 +242,9 @@ UNPRIVILEGED = Requirement(
     os.name == "posix" and os.geteuid() != 0,
     "requires POSIX permission fixtures without root bypass",
 )
+
+FILE_READ_DENIAL = Requirement(
+    "file read denial",
+    os.name == "nt" or UNPRIVILEGED.available,
+    "requires Windows byte-range locks or POSIX permissions without root bypass",
+)

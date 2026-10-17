@@ -103,7 +103,8 @@ def finish(client: McpClient, root: Path, *, warning: str = "") -> Transcript:
 def test_profile_fallback_selects_one_base_before_local_overrides(
     binary: Path,
 ) -> TranscriptWithCompanions:
-    with TemporaryDirectory() as temporary, host_tcp_ports() as ports:
+    # Host temporary grants must not also cover the workspace being tested.
+    with TemporaryDirectory(dir=Path.home()) as temporary, host_tcp_ports() as ports:
         root = Path(temporary).resolve()
         for name in ("output", "private", "temp"):
             (root / name).mkdir()
