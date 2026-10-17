@@ -1,0 +1,10 @@
+---
+directory: relative
+clients:
+  - codex
+  - claude
+---
+directory: absolute
+clients:
+  - codex
+  - claude

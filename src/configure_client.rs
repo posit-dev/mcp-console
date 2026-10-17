@@ -18,6 +18,7 @@ struct Configuration {
     updated: String,
     snippet: String,
     changed: bool,
+    shadowed_by: Option<PathBuf>,
 }
 
 pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
@@ -52,12 +53,23 @@ pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
         ));
     }
     let directory = std::env::current_dir().map_err(|error| error.to_string())?;
-    let git_root = directory
-        .ancestors()
-        .find(|ancestor| ancestor.join(".git").exists());
+    if options.directory.is_some() && !matches!(options.scope, ConfigureClientScope::Project) {
+        return Err("--directory requires --scope project".into());
+    }
+    let project_directory = options.directory.as_ref().map(|path| directory.join(path));
+    if let Some(path) = &project_directory
+        && !path.is_dir()
+    {
+        return Err(format!(
+            "Project directory does not exist or is not a directory: {}",
+            path.display()
+        ));
+    }
     let project = match options.scope {
-        ConfigureClientScope::Auto => git_root,
-        ConfigureClientScope::Project => Some(git_root.unwrap_or(&directory)),
+        ConfigureClientScope::Auto => directory
+            .ancestors()
+            .find(|ancestor| ancestor.join(".git").exists()),
+        ConfigureClientScope::Project => Some(project_directory.as_deref().unwrap_or(&directory)),
         ConfigureClientScope::Global => None,
     };
     let scope = if project.is_some() {
@@ -91,12 +103,18 @@ pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
         }
         .map_err(|error| format!("Cannot configure {}: {error}", path.display()))?;
         let changed = previous.as_deref() != Some(updated.as_str());
+        let shadowed_by = if project.is_none() {
+            shadowing_project_configuration(client, &directory, &path, &updated, &options.name)?
+        } else {
+            None
+        };
         plans.push(Configuration {
             client,
             path,
             updated,
             snippet,
             changed,
+            shadowed_by,
         });
     }
     launch.prepare(options.dry_run)?;
@@ -106,8 +124,142 @@ pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
                 .map_err(|error| format!("Cannot write {}: {error}", plan.path.display()))?;
         }
         print!("{}", report(&plan, options, scope));
+        if let Some(path) = &plan.shadowed_by {
+            eprintln!(
+                "Warning: project server {:?} in {} may take precedence over this global registration when loaded. Update or remove that project entry to use the intended settings.",
+                options.name,
+                path.display()
+            );
+        }
     }
     Ok(())
+}
+
+fn shadowing_project_configuration(
+    client: ConfigureClient,
+    directory: &Path,
+    global_path: &Path,
+    global_config: &str,
+    name: &str,
+) -> Result<Option<PathBuf>, String> {
+    // Resolve existing files before comparing them: client homes can contain
+    // parent components or symlinks that alias a discovered project file.
+    let global_path = match global_path.canonicalize() {
+        Ok(path) => Some(path),
+        Err(error) if error.kind() == ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "Cannot inspect global configuration {}: {error}",
+                global_path.display()
+            ));
+        }
+    };
+    // This is a registration diagnostic, not a second client configuration
+    // loader: trust, approvals, profiles, and managed settings remain client-owned.
+    // Codex's user config can customize the ancestor-search boundary:
+    // https://learn.chatgpt.com/docs/config-file/config-advanced#project-root-detection
+    let project_root = match client {
+        ConfigureClient::Codex => {
+            let config = global_config
+                .parse::<DocumentMut>()
+                .map_err(|error| error.to_string())?;
+            let markers = match config.get("project_root_markers") {
+                Some(item) => item
+                    .as_array()
+                    .ok_or("project_root_markers must be an array of strings")?
+                    .iter()
+                    .map(|marker| {
+                        marker
+                            .as_str()
+                            .ok_or("project_root_markers must be an array of strings")
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                None => vec![".git"],
+            };
+            Some(
+                directory
+                    .ancestors()
+                    .find(|ancestor| {
+                        markers.iter().any(|marker| {
+                            let path = ancestor.join(marker);
+                            path.exists()
+                                && (*marker != ".git"
+                                    || !path.is_dir()
+                                    || path.join("HEAD").exists())
+                        })
+                    })
+                    .unwrap_or(directory),
+            )
+        }
+        // Claude Code discovers .mcp.json files in ancestor directories,
+        // including above a Git root; the nearest same-named entry wins.
+        ConfigureClient::Claude => None,
+    };
+    for ancestor in directory.ancestors() {
+        let path = match client {
+            ConfigureClient::Codex => ancestor.join(".codex").join("config.toml"),
+            ConfigureClient::Claude => ancestor.join(".mcp.json"),
+        };
+        let resolved_path = match path.canonicalize() {
+            Ok(path) => Some(path),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => {
+                return Err(format!(
+                    "Cannot inspect project configuration {}: {error}",
+                    path.display()
+                ));
+            }
+        };
+        // Hard-linked configuration paths share in-place edits. This diagnostic
+        // deduplicates relative-path and symlink aliases; hard-link identity is
+        // outside its supported scope.
+        if resolved_path.is_some() && resolved_path != global_path {
+            let source = match fs::read_to_string(&path) {
+                Ok(source) => Some(source),
+                Err(error) if error.kind() == ErrorKind::NotFound => None,
+                Err(error) => {
+                    return Err(format!(
+                        "Cannot inspect project configuration {}: {error}",
+                        path.display()
+                    ));
+                }
+            };
+            if let Some(source) = source {
+                let contains_server = match client {
+                    ConfigureClient::Codex => source
+                        .parse::<DocumentMut>()
+                        .map(|config| {
+                            config
+                                .get("mcp_servers")
+                                .and_then(|servers| servers.get(name))
+                                .is_some()
+                        })
+                        .map_err(|error| error.to_string()),
+                    ConfigureClient::Claude => serde_json::from_str::<serde_json::Value>(&source)
+                        .map(|config| {
+                            config
+                                .get("mcpServers")
+                                .and_then(|servers| servers.get(name))
+                                .is_some()
+                        })
+                        .map_err(|error| error.to_string()),
+                }
+                .map_err(|error| {
+                    format!(
+                        "Cannot inspect project configuration {}: {error}",
+                        path.display()
+                    )
+                })?;
+                if contains_server {
+                    return Ok(Some(path));
+                }
+            }
+        }
+        if project_root == Some(ancestor) {
+            break;
+        }
+    }
+    Ok(None)
 }
 
 fn report(plan: &Configuration, options: &ConfigureClientOptions, scope: &str) -> String {

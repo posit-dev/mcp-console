@@ -1,8 +1,10 @@
 ---
 client: codex
-automatic: Git root or global
-overrides: true
+default: global
+project: current directory
+auto: Git root, otherwise global
 ---
 client: claude
-automatic: Git root or global
-overrides: true
+default: global
+project: current directory
+auto: Git root, otherwise global

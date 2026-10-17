@@ -1,0 +1,8 @@
+---
+alias: relative parent
+global_entry: not a project override
+separate_project_entry: warns
+---
+alias: absolute parent
+global_entry: not a project override
+separate_project_entry: warns

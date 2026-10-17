@@ -1,0 +1,58 @@
+---
+client: codex
+case: current directory
+warning: true
+---
+client: codex
+case: closest ancestor
+warning: true
+---
+client: codex
+case: unrelated server
+warning: false
+---
+client: codex
+case: above Git root
+warning: false
+---
+client: codex
+case: outside Git
+warning: false
+---
+client: codex
+case: custom root marker
+warning: true
+---
+client: codex
+case: disabled root search
+warning: false
+---
+client: claude
+case: current directory
+warning: true
+---
+client: claude
+case: closest ancestor
+warning: true
+---
+client: claude
+case: unrelated server
+warning: false
+---
+client: claude
+case: above Git root
+warning: true
+---
+client: claude
+case: outside Git
+warning: true
+---
+client: claude
+case: custom root marker
+warning: true
+---
+client: claude
+case: disabled root search
+warning: true
+---
+global_file_in_cwd: not reported as a project override

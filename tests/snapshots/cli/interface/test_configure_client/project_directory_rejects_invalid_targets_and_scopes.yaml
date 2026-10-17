@@ -1,0 +1,60 @@
+---
+case: default scope
+dry_run: false
+exit_code: 1
+stderr: |
+  --directory requires --scope project
+---
+case: default scope
+dry_run: true
+exit_code: 1
+stderr: |
+  --directory requires --scope project
+---
+case: global scope
+dry_run: false
+exit_code: 1
+stderr: |
+  --directory requires --scope project
+---
+case: global scope
+dry_run: true
+exit_code: 1
+stderr: |
+  --directory requires --scope project
+---
+case: auto scope
+dry_run: false
+exit_code: 1
+stderr: |
+  --directory requires --scope project
+---
+case: auto scope
+dry_run: true
+exit_code: 1
+stderr: |
+  --directory requires --scope project
+---
+case: missing directory
+dry_run: false
+exit_code: 1
+stderr: |
+  Project directory does not exist or is not a directory: <DIRECTORY>
+---
+case: missing directory
+dry_run: true
+exit_code: 1
+stderr: |
+  Project directory does not exist or is not a directory: <DIRECTORY>
+---
+case: file
+dry_run: false
+exit_code: 1
+stderr: |
+  Project directory does not exist or is not a directory: <DIRECTORY>
+---
+case: file
+dry_run: true
+exit_code: 1
+stderr: |
+  Project directory does not exist or is not a directory: <DIRECTORY>

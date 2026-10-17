@@ -1,0 +1,12 @@
+---
+client: codex
+alias: directory symlink
+global_entry: not a project override
+---
+client: codex
+alias: file symlink
+global_entry: not a project override
+---
+client: claude
+alias: file symlink
+global_entry: not a project override

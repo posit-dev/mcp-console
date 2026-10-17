@@ -1,0 +1,18 @@
+---
+client: codex
+exit_code: 1
+stdout: ""
+stderr: |+
+  Cannot inspect project configuration <PROJECT_CONFIG>: TOML parse error at line 1, column 11
+    |
+  1 | malformed [
+    |           ^
+  key with no value, expected `=`
+
+---
+client: claude
+exit_code: 1
+stdout: ""
+stderr: >
+  Cannot inspect project configuration <PROJECT_CONFIG>: expected value at
+  line 1 column 1

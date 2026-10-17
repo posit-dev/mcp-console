@@ -210,10 +210,13 @@ stdout: |
     [SERVE_ARGS]...  Additional arguments passed to mcp-console serve, after --
 
   Options:
-        --scope <SCOPE>          Configuration scope: auto uses the nearest Git
-                                 project, otherwise global; project uses the Git
-                                 root or current directory [default: auto]
-                                 [possible values: auto, project, global]
+        --scope <SCOPE>          Configuration scope: global by default; project
+                                 uses the current directory; auto selects the
+                                 nearest Git root or global scope outside Git
+                                 [default: global] [possible values: auto,
+                                 project, global]
+        --directory <PATH>       Existing project directory for --scope project;
+                                 relative paths start at the current directory
         --no-uvx                 Configure an absolute executable path; temporary
                                  uvx runs install recorded direct sources with uv.
                                  Index installs must be persistent first.

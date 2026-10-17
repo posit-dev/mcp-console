@@ -12,11 +12,12 @@ Run `mcp-console --help` for the version installed on your machine.
 uvx mcp-console configure-client codex claude
 mcp-console configure-client codex --scope global
 mcp-console configure-client claude --scope project --dry-run
+mcp-console configure-client claude --scope project --directory /path/to/project
 mcp-console configure-client claude --no-auto-load
 mcp-console configure-client codex --pin-version current
 mcp-console configure-client codex --pin-version v0.0.5
 mcp-console configure-client claude --no-uvx
-mcp-console configure-client codex --name console-local -- --writable-root /data
+mcp-console configure-client codex --scope project --name console-local -- --writable-root /data
 ```
 
 `configure-client` registers a stdio MCP server named `console` that launches `uvx mcp-console serve`.
@@ -35,7 +36,7 @@ Global and project configuration take precedence over this client default.
 Arguments after `--` customize the launch; use `-c` to override configuration files too, for example:
 
 ```sh
-mcp-console configure-client codex -- -c sandbox.profile=workspace
+mcp-console configure-client codex --scope project -- -c sandbox.profile=workspace
 ```
 
 To pass `--no-sandbox`, also clear the generated policy with `-c sandbox=null`.
@@ -66,15 +67,29 @@ The recorded source's URL query is redacted from that report and captured uv out
 It leaves existing-tool conflicts to uv and does not force replacement of executable files.
 `--no-uvx` conflicts with `--pin-version`; select the desired version before configuring a direct executable.
 
-The default `--scope auto` uses the nearest ancestor with a `.git` directory or worktree marker file.
-Outside Git, it selects global scope.
-`--scope project` uses that Git root, or the current directory outside Git.
-`--scope global` selects global scope regardless of the current directory.
+Global scope is the default, including inside a Git repository.
+`--scope project` writes configuration in the current directory without searching Git parents.
+Add `--directory PATH` to select another existing project directory; relative paths start at the current directory.
+`--directory` requires `--scope project` and does not set the client's launch directory.
+`--scope auto` preserves automatic scope selection: it uses the nearest ancestor with a `.git` directory or worktree marker file, selecting global scope outside Git.
+`--scope global` explicitly selects the default.
 
 | Client      | Project configuration | Global configuration                                        |
 | ----------- | --------------------- | ----------------------------------------------------------- |
 | Codex       | `.codex/config.toml`  | `$CODEX_HOME/config.toml`, default `~/.codex/config.toml`   |
 | Claude Code | `.mcp.json`           | `$CLAUDE_CONFIG_DIR/.claude.json`, default `~/.claude.json` |
+
+[Codex](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence) and [Claude Code](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence) give loaded project entries precedence over same-named global entries.
+Global registration leaves existing project entries unchanged and warns when it finds one that may take precedence, including during `--dry-run`.
+The warning identifies the nearest matching project file.
+If an earlier registration created a project entry, rerun setup with `--scope project` from that project directory, or select it with `--scope project --directory PATH`.
+Earlier automatic registrations used the Git root.
+To use global settings instead, remove only that server's entry from the project configuration listed above.
+
+The check searches from the current directory through Codex's project root, using `project_root_markers` from its user configuration or `.git` by default; without a matching marker it checks only the current directory.
+For Claude Code, it checks ancestor `.mcp.json` files, including above Git roots.
+It does not evaluate client trust, approvals, profiles, managed settings, or Claude Code's private local entries.
+An unreadable or malformed project file encountered by this check causes an error before installation or writes.
 
 The command prints the selected scope, file path, and fields it sets.
 Use `--dry-run` to preview those settings and any persistent installation without writing files or installing, or to apply them manually.

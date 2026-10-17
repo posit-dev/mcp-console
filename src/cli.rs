@@ -263,9 +263,13 @@ pub struct ConfigureClientOptions {
     #[arg(value_enum, required = true, num_args = 1.., value_name = "CLIENT")]
     pub clients: Vec<ConfigureClient>,
 
-    /// Configuration scope: auto uses the nearest Git project, otherwise global; project uses the Git root or current directory
-    #[arg(long, value_enum, default_value = "auto")]
+    /// Configuration scope: global by default; project uses the current directory; auto selects the nearest Git root or global scope outside Git
+    #[arg(long, value_enum, default_value = "global")]
     pub scope: ConfigureClientScope,
+
+    /// Existing project directory for --scope project; relative paths start at the current directory
+    #[arg(long, value_name = "PATH")]
+    pub directory: Option<PathBuf>,
 
     /// Configure an absolute executable path; temporary uvx runs install recorded direct sources with uv. Index installs must be persistent first. Conflicts with --pin-version
     #[arg(long, conflicts_with = "pin_version")]
