@@ -961,7 +961,16 @@ impl LoadedLibrary {
         }
         .map(libloading::Library::from);
         #[cfg(windows)]
-        let opened = unsafe { libloading::Library::new(&path) };
+        let opened = unsafe {
+            // Python supplies adjacent dependencies such as vcruntime140.dll.
+            // Console's static CRT no longer preloads a system copy. Search
+            // beside the selected, absolute DLL before the normal fallbacks.
+            libloading::os::windows::Library::load_with_flags(
+                &path,
+                libloading::os::windows::LOAD_WITH_ALTERED_SEARCH_PATH,
+            )
+        }
+        .map(libloading::Library::from);
         let library = opened.map_err(|error| {
             format!(
                 "failed to load Python shared library `{}`: {error}",

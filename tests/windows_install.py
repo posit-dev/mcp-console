@@ -8,6 +8,7 @@ import sys
 import tomllib
 
 from windows_sandbox import workspace
+from windows_distribution import inspect_installation, inspect_wheel
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -34,6 +35,7 @@ if __name__ == "__main__":
     os.chdir(ROOT)
     if options.installed_binary is not None:
         binary = options.installed_binary.resolve()
+        native, _ = inspect_installation(binary)
         version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
         assert subprocess.check_output([binary, "--version"], text=True).strip() == (
             f"mcp-console {version}"
@@ -69,7 +71,14 @@ if __name__ == "__main__":
             "WindowsConsole.test_python_without_r",
             "WindowsConsole.test_r_initializes_before_python",
             "WindowsConsole.test_python_initializes_before_r",
-            environment=os.environ | {"MCP_CONSOLE_TEST_BINARY": str(binary)},
+            "WindowsConsole.test_python_sleep_interrupt",
+            "WindowsConsole.test_sql_with_r",
+            "WindowsSandbox.test_network_enabled_sql",
+            environment=os.environ
+            | {
+                "MCP_CONSOLE_TEST_BINARY": str(binary),
+                "MCP_CONSOLE_TEST_NATIVE_BINARY": str(native),
+            },
         )
         raise SystemExit(0)
     # Exercise installed commands from a workspace with ordinary inherited ACLs.
@@ -78,6 +87,7 @@ if __name__ == "__main__":
         venv = directory / "venv"
         run("uv", "build", "--wheel", "--out-dir", wheels)
         (wheel,) = wheels.glob("*.whl")
+        inspect_wheel(wheel)
         # uv copies Windows commands onto PATH. Exercise that public entry
         # point rather than only the executable inside a virtualenv.
         tool_environment = os.environ | {
@@ -107,17 +117,21 @@ if __name__ == "__main__":
         run("uv", "venv", "--python", sys.executable, venv)
         python = venv / "Scripts/python.exe"
         run("uv", "pip", "install", "--python", python, wheel)
+        inspect_installation(venv / "Scripts/mcp-console.exe")
         environment = os.environ | {
             "MCP_CONSOLE_TEST_BINARY": str(venv / "Scripts/mcp-console.exe"),
             "MCP_CONSOLE_TEST_NATIVE_BINARY": str(venv / "libexec/mcp-console.exe"),
         }
         run(sys.executable, ROOT / "tests/windows.py", "-v", environment=environment)
         run("uv", "pip", "install", "--reinstall", "--python", python, ROOT)
+        inspect_installation(venv / "Scripts/mcp-console.exe")
         run(
             sys.executable,
             ROOT / "tests/windows.py",
             "-v",
             "WindowsConsole.test_python_initializes_before_r",
             "WindowsConsole.test_r_initializes_before_python",
+            "WindowsConsole.test_python_sleep_interrupt",
+            "WindowsConsole.test_sql_with_r",
             environment=environment,
         )

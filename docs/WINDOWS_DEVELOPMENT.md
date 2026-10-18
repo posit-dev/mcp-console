@@ -8,6 +8,8 @@ Use the shared [installation instructions](getting-started.qmd#install) and [san
 Source builds additionally need Git, Rust's MSVC toolchain, Visual Studio C++ build tools, the Windows SDK, and CMake.
 From the repository root, run `uv tool install --reinstall .`.
 Source packaging stages the pinned companion.
+Console's Cargo configuration enables static MSVC runtime linkage for native builds, wheels, and source installs.
+Native C/C++ dependencies built through `cc` inherit the same runtime selection.
 Direct Cargo builds need `scripts/stage-sandbox-runner.cmd` first.
 Use `scripts/with-checkout.cmd` for direct mutating build commands.
 
@@ -70,4 +72,6 @@ Keep embedded R sources in LF form as specified by `.gitattributes`.
 For Linux workflows under WSL, use an independent Linux checkout and follow [WSL development](DEVELOPMENT.md#windows-development-through-wsl2).
 
 Windows uses native pipes, events, and process handles rather than Unix signals/descriptors.
+Workers dispatch interpreter interrupts through the system UCRT's signal table, independently of Console's static CRT, so blocking Python calls and temporary native SQL handlers still wake.
+The selected Python DLL's directory is searched first for its dependencies, including any runtime DLLs supplied by Python itself.
 Those implementation choices do not create different public MCP message shapes.

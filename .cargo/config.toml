@@ -1,0 +1,4 @@
+# Apply to Cargo, PEP 517 wheels, and source installs alike. Native cc/cmake
+# dependencies inherit crt-static through CARGO_CFG_TARGET_FEATURE (/MT).
+[target.'cfg(all(target_os = "windows", target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

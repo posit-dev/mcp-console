@@ -305,6 +305,7 @@ class WindowsWorkflow(unittest.TestCase):
             "windows_gate.py",
             "windows_relay.py",
             "windows_cargo.py",
+            "windows_distribution.py",
             "windows_resolver.py",
             "windows_mxc.py",
             "windows_sandbox.py",

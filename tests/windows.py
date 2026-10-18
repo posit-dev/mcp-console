@@ -29,6 +29,7 @@ from support.checkpoints import wait_for_path
 from support.installation import native_console
 from support.normalization import code
 from support.r import r_test_environment
+from windows_distribution import NATIVE_SUFFIXES, inspect_artifacts
 
 from windows_cargo import WindowsCargo  # noqa: F401 -- include build acceptance
 from windows_relay import WindowsRelay  # noqa: F401 -- include protocol acceptance
@@ -436,6 +437,68 @@ def exercise_later_callbacks(session: Session) -> None:
 
 @unittest.skipUnless(os.name == "nt", "native Windows packaging")
 class WindowsPackaging(unittest.TestCase):
+    def test_native_distribution_has_no_redistributable_vc_runtime(self):
+        paths = {NATIVE_BINARY} | {
+            path
+            for path in (NATIVE_BINARY.parent.parent / "libexec").rglob("*")
+            if path.suffix.lower() in NATIVE_SUFFIXES
+        }
+        inspect_artifacts((path, path.read_bytes()) for path in sorted(paths))
+
+    def test_distribution_audit_checks_normal_and_delayed_imports(self):
+        with tempfile.TemporaryDirectory(prefix="console PE imports ") as directory:
+            root = Path(directory)
+            source = root / "main.rs"
+            source.write_text('fn main() { println!("PE import fixture"); }\n')
+            for kind in ("normal", "delayed", "static"):
+                with self.subTest(imports=kind):
+                    binary = root / f"{kind}.exe"
+                    build = subprocess.run(
+                        [
+                            sys.executable,
+                            ROOT / "scripts/with-checkout",
+                            "rustc",
+                            source,
+                            "-o",
+                            binary,
+                            "-C",
+                            "target-feature="
+                            + ("+" if kind == "static" else "-")
+                            + "crt-static",
+                            *(
+                                [
+                                    "-C",
+                                    "link-arg=/DELAYLOAD:VCRUNTIME140.dll",
+                                    "-C",
+                                    "link-arg=delayimp.lib",
+                                ]
+                                if kind == "delayed"
+                                else []
+                            ),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                    )
+                    self.assertEqual(build.returncode, 0, build.stderr)
+                    wheel = root / f"{kind}.whl"
+                    with zipfile.ZipFile(wheel, "w") as archive:
+                        archive.write(
+                            binary, f"fixture.data/data/libexec/{binary.name}"
+                        )
+                    audit = subprocess.run(
+                        [sys.executable, ROOT / "tests/windows_distribution.py", wheel],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    if kind == "static":
+                        self.assertEqual(audit.returncode, 0, audit.stderr)
+                        self.assertIn("kernel32.dll", audit.stdout.lower())
+                    else:
+                        self.assertNotEqual(audit.returncode, 0)
+                        self.assertIn(f"{kind} import VCRUNTIME140.dll", audit.stderr)
+
     def test_concurrent_build_waits_and_recovers_after_failure(self):
         with ExitStack() as cleanup:
             root = Path(
@@ -897,6 +960,12 @@ class WindowsConsole(unittest.TestCase):
         self.addCleanup(session.close)
         session.initialize()
         self.assertIn("42", json.dumps(session.send(r="answer <- 42L; answer")))
+        self.assertIn(
+            "running;", json.dumps(session.send(r="Sys.sleep(60)", timeout_ms=100))
+        )
+        self.assertNotIn(
+            "running;", json.dumps(session.send(control="interrupt", timeout_ms=2000))
+        )
         self.assertIn("42", json.dumps(session.send(r="answer")))
         self.assertIn(
             "FALSE", json.dumps(session.send(control="restart", r="exists('answer')"))
@@ -972,20 +1041,28 @@ class WindowsConsole(unittest.TestCase):
                 session.close()
 
     def test_python_sleep_interrupt(self):
-        session = self.session(defer_bootstrap=True)
-        session.send(python="import time; saved = 42")
-        for initialize_r in (False, True):
-            with self.subTest(initialize_r=initialize_r):
-                if initialize_r:
-                    self.assertIn("42", json.dumps(session.send(r="42")))
-                self.assertIn(
-                    "running;",
-                    json.dumps(session.send(python="time.sleep(60)", timeout_ms=100)),
-                )
-                result = session.send(control="interrupt", timeout_ms=2000)
-                self.assertIn("KeyboardInterrupt", json.dumps(result))
-                self.assertNotIn("running;", json.dumps(result))
-                self.assertIn("42", json.dumps(session.send(python="saved")))
+        for order in ("python", "python-r", "r-python"):
+            with self.subTest(order=order):
+                session = Session(defer_bootstrap=True)
+                try:
+                    session.initialize()
+                    if order == "r-python":
+                        self.assertIn("42", json.dumps(session.send(r="42")))
+                    session.send(python="import time; saved = 42")
+                    if order == "python-r":
+                        self.assertIn("42", json.dumps(session.send(r="42")))
+                    self.assertIn(
+                        "running;",
+                        json.dumps(
+                            session.send(python="time.sleep(60)", timeout_ms=100)
+                        ),
+                    )
+                    result = session.send(control="interrupt", timeout_ms=2000)
+                    self.assertIn("KeyboardInterrupt", json.dumps(result))
+                    self.assertNotIn("running;", json.dumps(result))
+                    self.assertIn("42", json.dumps(session.send(python="saved")))
+                finally:
+                    session.close()
 
     def test_interrupt_then_input_after_r_attachment(self):
         session = self.session(defer_bootstrap=True)
@@ -1033,8 +1110,29 @@ class WindowsConsole(unittest.TestCase):
         result = session.send(
             python=dedent("""
                 import ctypes
+                from pathlib import Path
+                import sys
 
                 assert ctypes.windll.kernel32.GetModuleHandleW("R.dll") == 0
+                # Console must find Python's supplied runtime without relying
+                # on a separately installed system redistributable. A Python
+                # build with its own static CRT may not load this DLL at all.
+                supplied = Path(sys.base_prefix) / "vcruntime140.dll"
+                if supplied.is_file():
+                    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+                    kernel.GetModuleHandleW.argtypes = [ctypes.c_wchar_p]
+                    kernel.GetModuleHandleW.restype = ctypes.c_void_p
+                    kernel.GetModuleFileNameW.argtypes = [
+                        ctypes.c_void_p,
+                        ctypes.c_wchar_p,
+                        ctypes.c_ulong,
+                    ]
+                    kernel.GetModuleFileNameW.restype = ctypes.c_ulong
+                    module = kernel.GetModuleHandleW("vcruntime140.dll")
+                    if module:
+                        loaded = ctypes.create_unicode_buffer(32768)
+                        assert kernel.GetModuleFileNameW(module, loaded, len(loaded))
+                        assert supplied.samefile(loaded.value), (str(supplied), loaded.value)
                 answer = 42
                 print("Python alone:", answer)
                 """)

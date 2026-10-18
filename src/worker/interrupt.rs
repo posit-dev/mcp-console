@@ -475,9 +475,33 @@ pub(super) fn initialize_native() -> io::Result<()> {
         .set(pending.clone())
         .map_err(|_| io::Error::other("interrupt already initialized"))?;
     reinstall()?;
+    // Embedded R/Python and their native libraries use the system UCRT's
+    // signal table, separate from Console's /MT runtime. Dispatch through
+    // that CRT so CPython's wait event and temporary native handlers wake.
+    let runtime = unsafe {
+        libloading::os::windows::Library::load_with_flags(
+            "ucrtbase.dll",
+            libloading::os::windows::LOAD_LIBRARY_SEARCH_SYSTEM32,
+        )
+    }
+    .map_err(io::Error::other)?;
+    let signal = unsafe {
+        *runtime
+            .get::<unsafe extern "C" fn(libc::c_int, libc::sighandler_t) -> libc::sighandler_t>(
+                b"signal\0",
+            )
+            .map_err(io::Error::other)?
+    };
+    let raise = unsafe {
+        *runtime
+            .get::<unsafe extern "C" fn(libc::c_int) -> libc::c_int>(b"raise\0")
+            .map_err(io::Error::other)?
+    };
     std::thread::Builder::new()
         .name("worker-interrupt".into())
         .spawn(move || {
+            // The function pointers must not outlive their loaded CRT module.
+            let _runtime = runtime;
             while requests.wait(None).is_ok() {
                 {
                     let _publication = WINDOWS_REQUEST_LOCK
@@ -492,8 +516,18 @@ pub(super) fn initialize_native() -> io::Result<()> {
                 if let Some(interrupt) = PYTHON_INTERRUPT.get() {
                     unsafe { interrupt() };
                 }
-                // Native libraries may temporarily install their own CRT handler.
+                // Before interpreter startup the UCRT may still use SIG_DFL.
+                // Probe and restore its handler without delivering a fatal
+                // default signal; the relay event still owns the request.
                 unsafe {
+                    let handler = signal(libc::SIGINT, libc::SIG_IGN);
+                    if handler != libc::SIG_ERR as libc::sighandler_t {
+                        signal(libc::SIGINT, handler);
+                        if handler != libc::SIG_DFL && handler != libc::SIG_IGN {
+                            raise(libc::SIGINT);
+                        }
+                    }
+                    // Console's own handler also rearms its private CRT table.
                     libc::raise(libc::SIGINT);
                 }
                 // Keep the request visible until all signal APIs have returned.

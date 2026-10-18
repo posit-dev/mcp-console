@@ -418,8 +418,9 @@ mod platform {
         if overwrite || std::env::var_os(name).is_none() {
             let value = value.to_str().map_err(io::Error::other)?;
             let assignment = CString::new(format!("{name}={value}")).map_err(io::Error::other)?;
-            // Keep both the Win32 environment and the UCRT getenv view used by
-            // embedded R/Python synchronized. _putenv copies its argument.
+            // Set the Win32 environment before loading interpreter libraries,
+            // whose CRTs retain their own environment copies. _putenv also
+            // updates Console's CRT view and copies its argument.
             unsafe {
                 std::env::set_var(name, value);
                 if libc::putenv(assignment.as_ptr()) != 0 {

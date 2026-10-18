@@ -2,7 +2,7 @@
 
 The release workflow publishes five binary-only PyPI wheels: Apple Silicon and Intel macOS, ARM64 and x86-64 Linux, and Windows x64.
 Linux release validation targets glibc 2.35+ with native Ubuntu 22.04 builds.
-The Windows Console command requires the x64 Visual C++ v14 runtime; see [installation requirements](docs/getting-started.qmd#install).
+Windows MSVC builds statically link the runtime.
 No source distribution or GitHub release archive is published by this workflow.
 
 `Cargo.toml` owns the version; keep its root package entry in `Cargo.lock` synchronized.
@@ -69,7 +69,10 @@ Exact loader algorithms and symbol allowlists belong in the release tooling, not
 
 On macOS/Linux use `smoke-wheel WHEEL --installed-only --sandbox-pin PIN_FILE` in a clean runtime without the source checkout/Cargo outputs.
 Windows builds use the PEP 517 backend through `uv build --wheel` so the installed command retains its native bundle.
+Run `python tests/windows_distribution.py WHEEL` to audit normal and delayed PE imports in every bundled native executable or library.
+Redistributable VC runtime dependencies are rejected; ordinary Windows system and UCRT libraries are allowed.
 Install that wheel and run `python tests/windows_install.py --installed-binary PUBLIC_COMMAND` on a clean host.
+Installation acceptance repeats the import audit for installed wheels and source builds, including the environment-bound public launcher.
 Acceptance probes MXC and runs native execution cases when supported, without provisioning accounts or selecting another backend.
 This checks version/help, empty-PATH bundled sandbox execution, filesystem/exit-status enforcement, Python-only MCP, and the R/Python bridge without rebuilding from source.
 Retain empty-PATH bundled-helper acceptance; a working system bwrap does not validate the relocated bundle.
