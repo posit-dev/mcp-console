@@ -103,8 +103,7 @@ def test_inspection_completes_while_prepared_cells_overlap(
 def test_empty_declaration_and_round_trip(
     binary: Path, execution: Execution
 ) -> Transcript:
-    # This case observes deliberate declarations; optional SQL preview probes
-    # must not automatically add packages such as Arrow's optional tzdb.
+    # This case observes deliberate declarations without implicit preparation.
     client = McpClient(binary, execution.serve("--config", "r.resolution=explicit"))
     client.initialize_and_list_tools()
     startup = inspect(client)
@@ -123,12 +122,12 @@ def test_empty_declaration_and_round_trip(
             "reticulate",
             "DBI",
             "duckdb",
-            "arrow",
             "nanoarrow",
             "yyjsonr",
             "ggplot2",
         ]
     ), startup
+    assert "arrow" not in startup["runtime_requirements"]["r"], startup
     assert startup["runtime_requirements"]["python"] == []
     client.send(requirements=dict(startup["requirements"], action="set"))
     assert inspect(client) == startup
@@ -170,16 +169,6 @@ def test_empty_declaration_and_round_trip(
     client.send(python=python)
     assert last_tool_text(client) == "(42, None, None, None, None)\n"
     assert inspect(client) == empty
-    # Initialize the preview dependency before observing the query's output.
-    client.expect(
-        # fmt: r
-        r=code("""
-            stopifnot(
-              suppressPackageStartupMessages(requireNamespace("arrow", quietly = TRUE)),
-              identical(2L + 2L, 4L)
-            )
-            """),
-    )
     result = client.send(
         sql="SELECT 42 AS answer", timeout_ms=int(client.response_timeout * 1_000)
     )

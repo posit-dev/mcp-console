@@ -37,7 +37,6 @@ impl Declaration {
 // Their transitive dependencies are also infrastructure, not optional declarations.
 const R_RUNTIME_REQUIREMENTS: &[&str] = &[
     "DBI",
-    "arrow",
     "duckdb",
     "jsonlite",
     "nanoarrow",

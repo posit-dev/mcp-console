@@ -669,7 +669,6 @@ jobs:
               --with reticulate \
               --with DBI \
               --with duckdb \
-              --with arrow \
               --with nanoarrow \
               --with jsonlite \
               --with pillar \
@@ -678,7 +677,7 @@ jobs:
               --isolated \
               --vanilla \
               "$@" \
-              -e 'sessionInfo(package = c("tidyverse", "reticulate", "DBI", "duckdb", "arrow", "nanoarrow", "jsonlite", "pillar", "tibble", "utf8"))'
+              -e 'sessionInfo(package = c("tidyverse", "reticulate", "DBI", "duckdb", "nanoarrow", "jsonlite", "pillar", "tibble", "utf8"))'
           }
           # shellcheck disable=SC2016 # The dollar sign belongs to R, not the shell.
           prewarm_r -e 'cat("MCP_CONSOLE_TEST_SSH_R_LIBS=", paste(.libPaths(), collapse = .Platform$path.sep), "\n", sep = "", file = Sys.getenv("GITHUB_ENV"), append = TRUE)'

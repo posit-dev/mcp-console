@@ -63,7 +63,7 @@ ARG R_PREPARATION_RUN
 RUN test -n "$R_PREPARATION_RUN" && uv tool run --isolated --python 3.14 --from r-lib-ir ir run \
     --rscript "$R_HOME/bin/Rscript" \
     --with tidyverse --with dplyr --with dbplyr --with reticulate --with DBI \
-    --with duckdb --with arrow --with nanoarrow --with yyjsonr --with ggplot2 \
+    --with duckdb --with nanoarrow --with yyjsonr --with ggplot2 \
     --with jsonlite --with pillar --with tibble --with utf8 \
     --isolated --vanilla -e 'sessionInfo()'
 # Preserve the prepared dependency cache; CMake is only a preparation tool.

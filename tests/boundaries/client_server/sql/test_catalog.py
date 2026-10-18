@@ -909,10 +909,27 @@ def test_preserves_utf8_preview_in_c_locale(
 def test_previews_schema_and_exact_values(
     binary: Path, execution: Execution
 ) -> Transcript:
-    client = McpClient(binary, execution.serve())
+    client = McpClient(binary, execution.serve("-c", "r.resolution=explicit"))
     client.initialize_and_list_tools()
     # fmt: r
     r = code(r"""
+        preview_library <- tempfile("sql-preview-library-")
+        dir.create(preview_library)
+        packages <- installed.packages()[, c("Package", "LibPath")]
+        packages <- packages[
+          !duplicated(packages[, "Package"]) & packages[, "Package"] != "arrow",
+          ,
+          drop = FALSE
+        ]
+        stopifnot(file.symlink(
+          file.path(packages[, "LibPath"], packages[, "Package"]),
+          file.path(preview_library, packages[, "Package"])
+        ))
+        .libPaths(preview_library, include.site = FALSE)
+        stopifnot(
+          !nzchar(system.file(package = "arrow")),
+          !"arrow" %in% loadedNamespaces()
+        )
         invisible(options(
           width = 20L,
           max.print = 1L,
@@ -945,6 +962,7 @@ def test_previews_schema_and_exact_values(
           ) AS exact,
           CAST([1, NULL, 3] AS INTEGER[]) AS items,
           {'name': 'Ada', 'active': true} AS person
+        FROM range(21)
         """)
     client.send(sql=sql)
     values = last_tool_text(client)
@@ -976,9 +994,10 @@ def test_previews_schema_and_exact_values(
         """)
     client.send(sql=sql)
     empty = last_tool_text(client)
+    client.expect(r='stopifnot(!"arrow" %in% loadedNamespaces())')
     transcript = client.finish()
 
-    assert "missing" in values
+    assert "missing" in values, values
     assert "<int64>" in values
     assert "decimal128(38, 9)" in values
     assert "NULL" in values
@@ -986,6 +1005,7 @@ def test_previews_schema_and_exact_values(
     assert "12345678901234567890123456789.123456789" in values
     assert "[1, NULL, 3]" in values
     assert "Ada" in values and "true" in values
+    assert "[additional rows omitted]" in values
     for column in range(1, 13):
         assert f"column_name_{column:02d}_is_deliberately_long" in long_names
     assert "abbreviated names" in long_names

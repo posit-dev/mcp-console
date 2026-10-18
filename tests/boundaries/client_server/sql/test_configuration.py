@@ -18,7 +18,6 @@ SQL_R_REQUIREMENTS = (
     "reticulate",
     "DBI",
     "duckdb",
-    "arrow",
     "nanoarrow",
     "pillar",
     "tibble",

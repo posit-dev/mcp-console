@@ -3,6 +3,23 @@
 ---
 send:
   r: |
+    preview_library <- tempfile("sql-preview-library-")
+    dir.create(preview_library)
+    packages <- installed.packages()[, c("Package", "LibPath")]
+    packages <- packages[
+      !duplicated(packages[, "Package"]) & packages[, "Package"] != "arrow",
+      ,
+      drop = FALSE
+    ]
+    stopifnot(file.symlink(
+      file.path(packages[, "LibPath"], packages[, "Package"]),
+      file.path(preview_library, packages[, "Package"])
+    ))
+    .libPaths(preview_library, include.site = FALSE)
+    stopifnot(
+      !nzchar(system.file(package = "arrow")),
+      !"arrow" %in% loadedNamespaces()
+    )
     invisible(options(
       width = 20L,
       max.print = 1L,
@@ -38,14 +55,35 @@ send:
       ) AS exact,
       CAST([1, NULL, 3] AS INTEGER[]) AS items,
       {'name': 'Ada', 'active': true} AS person
+    FROM range(21)
 result:
   content:
     - type: text
       text: |
-        # A tibble: 1 × 5
-          missing                  big                                   exact items            person                              
-          <string>             <int64>                     <decimal128(38, 9)> <list<l: int32>> <struct<name: string, active: bool>>
-        1 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        # A tibble: 20 × 5
+           missing                  big                                   exact items            person                              
+           <string>             <int64>                     <decimal128(38, 9)> <list<l: int32>> <struct<name: string, active: bool>>
+         1 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+         2 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+         3 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+         4 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+         5 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+         6 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+         7 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+         8 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+         9 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        10 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        11 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        12 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        13 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        14 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        15 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        16 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        17 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        18 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        19 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        20 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
+        [additional rows omitted]
   isError: false
 ---
 send:
@@ -89,4 +127,12 @@ result:
         # A tibble: 0 × 3
         # ℹ 3 variables: id <int32>, amount <decimal128(10, 2)>, tags <list<l: string>>
         [0 rows]
+  isError: false
+---
+send:
+  r: stopifnot(!"arrow" %in% loadedNamespaces())
+result:
+  content:
+    - type: text
+      text: "[done]"
   isError: false

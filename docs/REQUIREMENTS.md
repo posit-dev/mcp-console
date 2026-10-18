@@ -9,11 +9,11 @@ No configuration file is required for managed preparation.
 
 By default, managed sessions request these optional packages and extensions:
 
-| Runtime | Packages or extensions                                                                                    |
-| ------- | --------------------------------------------------------------------------------------------------------- |
-| R       | `tidyverse`, `dplyr`, `dbplyr`, `reticulate`, `DBI`, `duckdb`, `arrow`, `nanoarrow`, `yyjsonr`, `ggplot2` |
-| Python  | `numpy`, `pandas`, `matplotlib`, `plotnine`; also `duckdb` without R                                      |
-| DuckDB  | `icu`, `json`, `sqlite`, when the managed provider is available                                           |
+| Runtime | Packages or extensions                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------ |
+| R       | `tidyverse`, `dplyr`, `dbplyr`, `reticulate`, `DBI`, `duckdb`, `nanoarrow`, `yyjsonr`, `ggplot2` |
+| Python  | `numpy`, `pandas`, `matplotlib`, `plotnine`; also `duckdb` without R                             |
+| DuckDB  | `icu`, `json`, `sqlite`, when the managed provider is available                                  |
 
 These are starter packages, not prerequisites for every analysis.
 Extensions already built into the selected DuckDB do not need downloading.

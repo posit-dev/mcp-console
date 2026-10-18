@@ -153,7 +153,6 @@ def services_later_callbacks_while_idle(
                 packages += [
                     "DBI",
                     "duckdb",
-                    "arrow",
                     "nanoarrow",
                     "pillar",
                     "tibble",

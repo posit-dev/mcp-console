@@ -50,7 +50,6 @@ def mixed_environment(root: Path) -> tuple[dict[str, str], Path, Path]:
                 argument
                 for package in (
                     "DBI",
-                    "arrow",
                     "duckdb",
                     "jsonlite",
                     "nanoarrow",

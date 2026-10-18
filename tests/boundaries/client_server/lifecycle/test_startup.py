@@ -259,7 +259,6 @@ def test_first_cell_prepares_defaults_after_running_response(
               "reticulate",
               "DBI",
               "duckdb",
-              "arrow",
               "nanoarrow",
               "yyjsonr",
               "ggplot2"
@@ -297,7 +296,6 @@ def test_first_cell_prepares_defaults_after_running_response(
             "reticulate",
             "DBI",
             "duckdb",
-            "arrow",
             "nanoarrow",
             "yyjsonr",
             "ggplot2",

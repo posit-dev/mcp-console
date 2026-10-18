@@ -30,7 +30,6 @@ result:
           "runtime_requirements": {
             "r": [
               "DBI",
-              "arrow",
               "duckdb",
               "jsonlite",
               "nanoarrow",
@@ -53,7 +52,6 @@ result:
     runtime_requirements:
       r:
         - DBI
-        - arrow
         - duckdb
         - jsonlite
         - nanoarrow
@@ -108,7 +106,6 @@ result:
           "runtime_requirements": {
             "r": [
               "DBI",
-              "arrow",
               "duckdb",
               "jsonlite",
               "nanoarrow",
@@ -135,7 +132,6 @@ result:
     runtime_requirements:
       r:
         - DBI
-        - arrow
         - duckdb
         - jsonlite
         - nanoarrow

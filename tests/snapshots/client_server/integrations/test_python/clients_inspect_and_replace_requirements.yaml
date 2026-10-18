@@ -11,7 +11,6 @@ sync:
   runtime_requirements:
     r:
       - DBI
-      - arrow
       - duckdb
       - jsonlite
       - nanoarrow
@@ -32,7 +31,6 @@ async:
   runtime_requirements:
     r:
       - DBI
-      - arrow
       - duckdb
       - jsonlite
       - nanoarrow

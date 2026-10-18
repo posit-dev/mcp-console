@@ -10,7 +10,6 @@ send:
       "reticulate",
       "DBI",
       "duckdb",
-      "arrow",
       "nanoarrow",
       "yyjsonr",
       "ggplot2"

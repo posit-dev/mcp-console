@@ -109,7 +109,6 @@ qmd: |+
     isolated: true
     packages:
       - DBI
-      - arrow
       - dbplyr
       - dplyr
       - duckdb

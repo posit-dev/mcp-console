@@ -138,7 +138,6 @@ def test_lazy_python_first_namespace(binary: Path, execution: Execution) -> Tran
                     argument
                     for package in (
                         "DBI",
-                        "arrow",
                         "duckdb",
                         "jsonlite",
                         "nanoarrow",

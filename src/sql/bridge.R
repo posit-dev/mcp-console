@@ -311,17 +311,46 @@ base::local(
 
     stringify <- function(batch, schema, rows, columns, id) {
       render_connection <- ensure_rendering_connection()
-      array_pointer <- nanoarrow::nanoarrow_allocate_array()
-      schema_pointer <- nanoarrow::nanoarrow_allocate_schema()
-      nanoarrow::nanoarrow_pointer_export(batch, array_pointer)
-      nanoarrow::nanoarrow_pointer_export(schema, schema_pointer)
-      table <- arrow::RecordBatch$import_from_c(
-        array_pointer,
-        schema_pointer
-      )
-      table <- table$Slice(0L, rows)$SelectColumns(seq_len(columns) - 1L)
       names <- sprintf("column_%02d", seq_len(columns))
-      table <- table$RenameColumns(names)
+      children <- schema$children[seq_len(columns)]
+      names(children) <- names
+      table <- list(
+        schema = nanoarrow::nanoarrow_schema_modify(
+          schema,
+          list(children = children)
+        ),
+        batch = batch
+      )
+      export_preview <- function(
+        table,
+        pointer,
+        projection = NULL,
+        filter = TRUE
+      ) {
+        stopifnot(isTRUE(filter))
+        columns <- if (is.null(projection)) {
+          seq_along(table$schema$children)
+        } else {
+          match(projection, names(table$schema$children))
+        }
+        stopifnot(!anyNA(columns))
+        schema <- nanoarrow::nanoarrow_schema_modify(
+          table$schema,
+          list(children = table$schema$children[columns])
+        )
+        # DuckDB requires column arrays to retain the batch's length.
+        # Keep the lookahead row here and limit the formatting query below.
+        array <- nanoarrow::nanoarrow_array_modify(
+          table$batch,
+          list(children = table$batch$children[columns])
+        )
+        nanoarrow::nanoarrow_array_set_schema(array, schema)
+        stream <- nanoarrow::basic_array_stream(list(array), schema = schema)
+        nanoarrow::nanoarrow_pointer_export(stream, pointer)
+      }
+      export_schema <- function(table, pointer) {
+        nanoarrow::nanoarrow_pointer_export(table$schema, pointer)
+      }
       occupied <- DBI::dbGetQuery(
         render_connection,
         paste(
@@ -341,7 +370,16 @@ base::local(
         relation <- paste0(relation_base, "_", suffix)
       }
 
-      duckdb::duckdb_register_arrow(render_connection, relation, table)
+      # DuckDB's public R wrapper builds Arrow Scanner/Expression callbacks.
+      # Export our bounded C Data batch directly, preserving types and precision.
+      # The formatting query has no filters, so no filter-expression callbacks
+      # are needed; it must never execute the user's SQL again.
+      duckdb:::rapi_register_arrow(
+        render_connection@conn_ref,
+        relation,
+        list(export_preview, NULL, NULL, NULL, export_schema),
+        table
+      )
       tryCatch(
         {
           identifiers <- DBI::dbQuoteIdentifier(render_connection, names)
@@ -386,7 +424,8 @@ base::local(
             DBI::dbQuoteIdentifier(render_connection, relation),
             "AS preview) SELECT",
             paste(c(value_projection, truncated_projection), collapse = ", "),
-            "FROM strings"
+            "FROM strings LIMIT",
+            rows
           )
           output <- DBI::dbGetQuery(render_connection, query)
           list(

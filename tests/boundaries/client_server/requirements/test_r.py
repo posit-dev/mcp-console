@@ -608,7 +608,6 @@ def test_evaluates_with_default_managed_r(
               "reticulate",
               "DBI",
               "duckdb",
-              "arrow",
               "nanoarrow",
               "yyjsonr",
               "ggplot2"
@@ -652,7 +651,6 @@ def test_evaluates_with_default_managed_r(
             "reticulate",
             "DBI",
             "duckdb",
-            "arrow",
             "nanoarrow",
             "yyjsonr",
             "ggplot2",
@@ -662,7 +660,7 @@ def test_evaluates_with_default_managed_r(
             "utf8",
         }, runs
         client.send(
-            requirements={"r": ["DBI", "duckdb", "arrow", "nanoarrow"]},
+            requirements={"r": ["DBI", "duckdb", "nanoarrow"]},
         )
         assert last_result_text(client) == "[prepared]", client.transcript[-1]
         assert ir_run_records(record) == runs

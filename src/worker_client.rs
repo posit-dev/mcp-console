@@ -46,7 +46,6 @@ pub(crate) const DEFAULT_R_REQUIREMENTS: &[&str] = &[
     "reticulate",
     "DBI",
     "duckdb",
-    "arrow",
     "nanoarrow",
     "yyjsonr",
     "ggplot2",
