@@ -128,6 +128,43 @@ def without_backup_privileges():
 
 @unittest.skipUnless(os.name == "nt", "native Windows sandbox")
 class WindowsSandbox(unittest.TestCase):
+    @requires_mxc(BINARY)
+    def test_command_prompt_metadata_does_not_prevent_launch(self):
+        with workspace() as root:
+            script = root / "launch.cmd"
+            # An external command makes CMD add hidden =ExitCode metadata.
+            script.write_bytes(
+                b"@echo off\r\n"
+                b'"%CONSOLE_COMMAND%" --version >nul\r\n'
+                b"if errorlevel 1 exit /b %errorlevel%\r\n"
+                b'"%CONSOLE_COMMAND%" sandbox --config-env TEST_POLICY -- '
+                b'"%CONSOLE_NATIVE%" --version\r\n'
+            )
+            result = subprocess.run(
+                [
+                    str(Path(os.environ["SystemRoot"]) / "System32/cmd.exe"),
+                    "/d",
+                    "/c",
+                    str(script),
+                ],
+                cwd=root,
+                env=os.environ
+                | {
+                    "CONSOLE_COMMAND": str(BINARY),
+                    "CONSOLE_NATIVE": str(native_console(BINARY)),
+                    "MCP_CONSOLE_HOME": str(root / "home"),
+                    "TEST_POLICY": json.dumps(
+                        {"extends": ":read-only", "network": "enabled"}
+                    ),
+                },
+                capture_output=True,
+                timeout=30,
+            )
+            self.assertEqual((result.returncode, result.stderr), (0, b""))
+            self.assertEqual(
+                result.stdout, subprocess.check_output([str(BINARY), "--version"])
+            )
+
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
     @requires_mxc(BINARY)
     def test_native_r_startup_is_contained_and_reread_on_restart(self):

@@ -833,9 +833,16 @@ def test_adds_python_packages_to_idle_managed_worker(
                     """),
             )
             client.expect("[prepared]", requirements={"python": ["py-yaml12"]})
-            client.send(
+            # Queued stdin does not acknowledge consumption. Collect the cell
+            # across running/input-request cuts without resubmitting its input.
+            wait_for_evaluation_output(
+                client,
+                '[input requested: ""]\nlive packages and state retained\n',
+                "live Python preparation and queued input",
+                completion_timeout_seconds=client.response_timeout,
                 requirements={"python": ["six"]},
                 stdin="live input\n",
+                timeout_ms=0,
                 # fmt: python
                 python=code("""
                     import os, six, sys, yaml12
@@ -857,9 +864,6 @@ def test_adds_python_packages_to_idle_managed_worker(
                     print("live packages and state retained")
                     """),
             )
-            assert last_result_text(client).endswith(
-                "live packages and state retained\n"
-            ), client.transcript[-1]
             client.send(sql="select value from chosen")
             assert "value" in last_result_text(client), client.transcript[-1]
             client.send(python="_console.sql_connection(None)")

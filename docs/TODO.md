@@ -57,6 +57,13 @@ Audit through full-suite capability diagnostics; see [Windows parity](WINDOWS_DE
 The complete test suite uses Python 3.14 so SQL fixtures can install their native provider without building it from source.
 This concerns the test runner, not a blanket claim that Console cannot embed later Python versions.
 
+## R client dependencies
+
+**RC-1 — Resolve ellmer's overlapping S7/rlang imports.** With ellmer 0.5.0 and the S7 revision pinned in `r/DESCRIPTION`, `loadNamespace("ellmer")` warns that `rlang:::=` replaces `S7:::=`.
+Ellmer imports both namespaces in full; its upstream namespace needs to select one binding explicitly before Console can adopt a warning-free dependency combination.
+The R integration tests pass with this warning, which remains visible rather than suppressed in the adapter or tests.
+See the [R package installation notes](../r/README.md).
+
 ## Documentation and agent usability
 
 **DX-1 — Measure tool-description changes with agent evaluations.** This documentation refactor does not change advertised tool prose.

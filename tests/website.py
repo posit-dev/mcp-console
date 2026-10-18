@@ -81,7 +81,8 @@ class WebsiteTests(unittest.TestCase):
         for name in ("pyproject.toml", "great-docs.yml", "LICENSE"):
             shutil.copy2(ROOT / name, docs.parent / name)
         for directory in (docs, docs / "benchmarks"):
-            r_readme = "../r/README.md" if directory == docs else "../../r/README.md"
+            prefix = "" if directory == docs else "../"
+            r_readme = prefix + "../r/README.md"
             (directory / "package-links.md").write_text(
                 "# Package links\n\n"
                 "[R reference](https://t-kalinowski.github.io/mcp-console/"
@@ -90,7 +91,10 @@ class WebsiteTests(unittest.TestCase):
                 "python/reference/MCPConsole.html?view=full#"
                 "mcp_console.MCPConsole.send)\n\n"
                 f"[R overview]({r_readme})\n\n"
-                f"[R configuration]({r_readme}#inspect-and-edit-configuration)\n"
+                f"[R configuration]({r_readme}#inspect-and-edit-configuration)\n\n"
+                f"[Source]({prefix}../src/main.rs?plain=1#L1)\n\n"
+                f"[Template]({prefix}templates/task-checkpoint.md)\n\n"
+                f"[Guide]({prefix}SEND_OPERATIONS.md#standard-input-and-managed-reads)\n"
             )
         result = subprocess.run(
             ["quarto", "render", str(docs), "--to", "html"],
@@ -655,6 +659,27 @@ class WebsiteTests(unittest.TestCase):
                     "r/index.html#inspect-and-edit-configuration",
                 ):
                     self.assertIn(prefix + target, page.links)
+
+    def test_repository_links_are_classified_at_each_depth(self) -> None:
+        for name, prefix in (
+            ("package-links.html", "./"),
+            ("benchmarks/package-links.html", "../"),
+        ):
+            with self.subTest(page=name):
+                page = self.pages[self.site / name]
+                for source in (
+                    "src/main.rs?plain=1#L1",
+                    "docs/templates/task-checkpoint.md",
+                ):
+                    self.assertIn(
+                        "https://github.com/t-kalinowski/mcp-console/blob/main/"
+                        + source,
+                        page.links,
+                    )
+                self.assertIn(
+                    prefix + "SEND_OPERATIONS.html#standard-input-and-managed-reads",
+                    page.links,
+                )
 
     def test_python_adapters_show_complete_examples(self) -> None:
         for name, factory in (

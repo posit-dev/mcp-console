@@ -44,8 +44,9 @@ function Link(link)
     local input_dir = pandoc.path.directory(quarto.doc.input_file)
     local target = pandoc.path.normalize(pandoc.path.join({input_dir, path}))
     local root = pandoc.path.directory(quarto.project.directory)
-    local source = pandoc.path.make_relative(target, root)
-    -- Pandoc normalizes separators but retains parent-directory components.
+    -- Pandoc uses host separators and retains parent-directory components.
+    -- Classify repository paths and construct URLs with forward slashes on every host.
+    local source = pandoc.path.make_relative(target, root):gsub("\\", "/")
     while source:match("[^/]+/%.%./") do
       source = source:gsub("[^/]+/%.%./", "")
     end

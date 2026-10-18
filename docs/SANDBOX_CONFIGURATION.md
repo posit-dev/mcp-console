@@ -360,7 +360,7 @@ The runner consumes it; stdin belongs to the target.
 This mode rejects `-c`, discovery options, and writable-root composition.
 Use a child-specific environment rather than mutating a multithreaded parent's global environment.
 
-The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/1d93f1236afc51c4a40bf37a303b1c602f3f8ca1/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
+The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/bad761ee97eb54caf302d6d4261ef494f686bf12/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
 The native runner enforces the Windows MXC requirement at this boundary.
 Complete policies use the native boolean `proxy.allowLocalBinding` field; the public `auto` selector belongs to the shared YAML schema above.
 Runnable examples are provided in [shell](../examples/sandbox-config.sh), [Python](../examples/sandbox-config.py), and [R](../examples/sandbox-config.R).
@@ -406,6 +406,8 @@ The runner does not detect or clean up legacy state.
 
 Workload environment settings apply after native setup, so clearing inheritance does not remove the launcher's Windows platform variables.
 Configured temporary-directory values reach the workload unchanged.
+Inherited Windows shell metadata whose names start with `=`, such as Command Prompt's `=ExitCode`, is omitted from the workload environment.
+Explicitly configured names containing `=` remain invalid.
 Working directories can contain Windows 8.3 aliases, including aliases in the system temporary path.
 
 The native runner owns a non-breakaway Job and confirms zero active processes before successful retirement.
