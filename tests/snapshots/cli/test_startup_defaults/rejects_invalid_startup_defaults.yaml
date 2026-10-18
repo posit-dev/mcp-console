@@ -63,6 +63,39 @@ stderr: >
   python: managed.extra_packages: unknown field `extra_packages`, expected
   one of `packages`, `version`, `resolution`
 ---
+setting: python.packages=null
+stderr: |
+  python: managed.packages: invalid type: null, expected a sequence
+---
+setting: python.packages=[1]
+stderr: |
+  python: managed.packages[0]: invalid type: integer `1`, expected a string
+---
+setting: python.packages=[""]
+stderr: >
+  python.managed.packages: Python requirement `` is not accepted:
+  host-side managed resolution accepts named package requirements only
+---
+setting: python.version=3.13
+stderr: >
+  python: managed.version: invalid type: floating point `3.13`, expected a
+  string
+---
+setting: python.version=null
+stderr: |
+  python: managed.version: invalid type: null, expected a string
+---
+setting: python.version="/opt/python"
+stderr: >
+  python.managed.version: Python version constraint `/opt/python` is not
+  accepted: host-side managed resolution accepts version numbers and
+  supported PEP 440 version specifiers only
+---
+setting: "python={packages: [], extra_packages: []}"
+stderr: >
+  python: managed.extra_packages: unknown field `extra_packages`, expected
+  one of `packages`, `version`, `resolution`
+---
 setting: "python.existing={executable: .venv, packages: []}"
 stderr: |
   python: existing: invalid type: map, expected path string

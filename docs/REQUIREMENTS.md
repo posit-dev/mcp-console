@@ -24,8 +24,7 @@ Supply a package list to replace a managed runtime's optional defaults:
 r:
   packages: [dplyr, ggplot2]
 python:
-  managed:
-    packages: [numpy, pandas]
+  packages: [numpy, pandas]
 ```
 
 An omitted list keeps the defaults; `[]` requests no optional packages.
@@ -72,9 +71,8 @@ r:
   packages: [dplyr]
   resolution: explicit
 python:
-  managed:
-    packages: [numpy, pandas]
-    resolution: fixed
+  packages: [numpy, pandas]
+  resolution: fixed
 ```
 
 R's `disabled` policy also skips Console's R infrastructure preparation.
@@ -90,7 +88,7 @@ By default, the agent declares Python dependencies through `requirements.python`
 Preparation can accompany the cell that uses the packages.
 
 Reached missing-package loads in R can request preparation by default.
-For Python, opt in with `python.managed.resolution: implicit` in `config.yaml` to let missing imports request preparation.
+For Python, opt in with `python.resolution: implicit` in `config.yaml` to let missing imports request preparation.
 Console does not rerun the whole cell to make this happen.
 
 Python import names and package-distribution names can differ.

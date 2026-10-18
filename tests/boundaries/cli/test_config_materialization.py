@@ -62,6 +62,163 @@ def test_managed_python_resolution_defaults_to_explicit(binary: Path) -> Transcr
     return configurations
 
 
+def test_flat_python_settings_match_managed_selection(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        selected = root / "selected.json"
+        exported = root / "exported.json"
+        environment = os.environ | {"RETICULATE_PYTHON": sys.executable}
+        for managed in (
+            {},
+            {"packages": []},
+            {"version": ">=3.12,<3.14"},
+            {"resolution": "implicit"},
+            {"packages": ["numpy", "pandas"], "version": "3.13", "resolution": "fixed"},
+        ):
+            expected = {"managed": {"resolution": "explicit", **managed}}
+            for python in (managed, {"managed": managed}):
+                selected.write_text(json.dumps({"python": python}), encoding="utf-8")
+                for mode in ("--full", "--prune"):
+                    result = resolve(
+                        binary,
+                        root,
+                        "--config-file",
+                        str(selected),
+                        mode,
+                        "--format",
+                        "json",
+                        environment=environment,
+                    )
+                    assert result.returncode == 0 and not result.stderr, result
+                    settings = json.loads(result.stdout)
+                    assert settings["python"] == expected, settings["python"]
+                    exported.write_text(result.stdout, encoding="utf-8")
+                    again = resolve(
+                        binary,
+                        root,
+                        "--config-file",
+                        str(exported),
+                        mode,
+                        "--format",
+                        "json",
+                        environment=environment,
+                    )
+                    assert again.returncode == 0 and again.stdout == result.stdout, (
+                        again
+                    )
+            records.append(expected)
+    return records
+
+
+def test_flat_and_nested_python_settings_merge_across_layers(
+    binary: Path,
+) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        global_config = root / "console-home/config.yaml"
+        project_config = root / ".agents/console/config.yaml"
+        global_config.parent.mkdir(parents=True)
+        project_config.parent.mkdir(parents=True)
+        for global_nested in (False, True):
+            global_python = {"packages": ["numpy"], "version": "3.13"}
+            project_python = {"packages": ["pandas"], "resolution": "implicit"}
+            if global_nested:
+                global_python = {"managed": global_python}
+            else:
+                project_python = {"managed": project_python}
+            global_config.write_text(json.dumps({"python": global_python}))
+            project_config.write_text(json.dumps({"python": project_python}))
+            result = resolve(
+                binary,
+                root,
+                "--full",
+                "--format",
+                "json",
+                "--default-config",
+                "python.resolution=explicit",
+                "-c",
+                "python.managed.packages=[matplotlib]",
+                "-c",
+                'python.version=">=3.12,<3.14"',
+                "-c",
+                "python.managed.resolution=explicit",
+                "-c",
+                "python.resolution=fixed",
+            )
+            assert result.returncode == 0 and not result.stderr, result
+            python = json.loads(result.stdout)["python"]
+            assert python == {
+                "managed": {
+                    "packages": ["matplotlib"],
+                    "version": ">=3.12,<3.14",
+                    "resolution": "fixed",
+                }
+            }, python
+            records.append({"global_nested": global_nested, "python": python})
+    return records
+
+
+def test_flat_python_settings_reject_mixed_selection_forms(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        config = root / "selected.json"
+        for selector, selection in (
+            ("existing", sys.executable),
+            ("managed", {}),
+            ("first_available", [{"managed": {}}]),
+        ):
+            for field, value in (
+                ("packages", []),
+                ("version", "3.13"),
+                ("resolution", "explicit"),
+            ):
+                config.write_text(
+                    json.dumps({"python": {selector: selection, field: value}})
+                )
+                result = resolve(binary, root, "--config-file", config.name)
+                assert result.returncode == 1 and not result.stdout, result
+                assert result.stderr == (
+                    f"python: cannot combine {field} with {selector} in the same mapping\n"
+                ), result
+                records.append(
+                    {"field": field, "selector": selector, "stderr": result.stderr}
+                )
+        for selector, selection in (
+            ("existing", sys.executable),
+            ("first_available", [{"managed": {}}]),
+        ):
+            config.write_text(json.dumps({"python": {selector: selection}}))
+            result = resolve(
+                binary, root, "--config-file", config.name, "-c", "python.packages=[]"
+            )
+            assert result.returncode == 1 and not result.stdout, result
+            assert "python: expected exactly one" in result.stderr, result
+            records.append({"layered_selector": selector, "stderr": result.stderr})
+        # Validation still follows layering: a complete replacement can discard
+        # an invalid selection without inventing precedence for its mixed forms.
+        config.write_text(json.dumps({"python": {"managed": {}, "packages": []}}))
+        result = resolve(
+            binary,
+            root,
+            "--config-file",
+            config.name,
+            "--format",
+            "json",
+            "-c",
+            "python=null",
+            "-c",
+            "python.packages=[]",
+        )
+        assert result.returncode == 0 and not result.stderr, result
+        python = json.loads(result.stdout)["python"]
+        assert python == {"managed": {"packages": [], "resolution": "explicit"}}, python
+        records.append({"replaced_invalid_selection": python})
+    return records
+
+
 def test_managed_fallback_resolution_is_materialized(binary: Path) -> Transcript:
     records = []
     with TemporaryDirectory() as temporary:

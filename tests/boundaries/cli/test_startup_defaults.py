@@ -32,6 +32,13 @@ def test_rejects_invalid_startup_defaults(binary: Path) -> Transcript:
             ('python.managed.version=""', "python.managed.version"),
             ('python.managed.version="/opt/python"', "python.managed.version"),
             ("python.managed.extra_packages=[]", "managed.extra_packages"),
+            ("python.packages=null", "managed.packages"),
+            ("python.packages=[1]", "managed.packages"),
+            ('python.packages=[""]', "python.managed.packages"),
+            ("python.version=3.13", "managed.version"),
+            ("python.version=null", "managed.version"),
+            ('python.version="/opt/python"', "python.managed.version"),
+            ("python={packages: [], extra_packages: []}", "managed.extra_packages"),
             ("python.existing={executable: .venv, packages: []}", "existing"),
             (
                 "python.first_available=[{existing: unused}, {managed: {version: 3.13}}]",

@@ -49,7 +49,7 @@ def test_empty_python_startup_and_reset(
                 {"python": {"managed": {"version": "9.99", "packages": ["numpy"]}}}
             )
         )
-        configure(root, {"managed": {"packages": ["packaging"]}})
+        configure(root, {"packages": ["packaging"]})
         env["MCP_CONSOLE_HOME"] = str(console_home)
         with McpClient(
             binary,
@@ -57,7 +57,7 @@ def test_empty_python_startup_and_reset(
                 "-c",
                 "cache=host",
                 "-c",
-                'python.managed.version="3.13"',
+                'python.version="3.13"',
                 "-c",
                 "python.managed.packages=[]",
             ),

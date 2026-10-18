@@ -1,4 +1,4 @@
-//! Schema-independent ordered-file and command-line configuration layering.
+//! Ordered-file and command-line configuration layering with runtime shorthands.
 
 use std::path::{Path, PathBuf};
 
@@ -65,7 +65,7 @@ pub fn load(
                     .map_err(|error| format!("cannot read '{}': {error}", path.display()))?;
                 let mut overlay =
                     yaml::load(&source).map_err(|error| format!("{}: {error}", path.display()))?;
-                expand_r_shorthand(&mut overlay);
+                expand_runtime_shorthands(&mut overlay);
                 merge(
                     value.get_or_insert_with(|| Value::Object(Map::new())),
                     overlay,
@@ -96,7 +96,7 @@ fn apply_values(value: &mut Option<Value>, arguments: &[String], kind: &str) -> 
         for key in keys.into_iter().rev() {
             overlay = Value::Object(Map::from_iter([(key.to_string(), overlay)]));
         }
-        expand_r_shorthand(&mut overlay);
+        expand_runtime_shorthands(&mut overlay);
         merge(
             value.get_or_insert_with(|| Value::Object(Map::new())),
             overlay,
@@ -105,12 +105,26 @@ fn apply_values(value: &mut Option<Value>, arguments: &[String], kind: &str) -> 
     Ok(())
 }
 
-// Expand the R path at each input boundary so later options merge with it.
-fn expand_r_shorthand(value: &mut Value) {
+// Normalize equivalent runtime forms before merging each input layer. Keep the
+// existing managed representation for typed capture and configuration exports.
+fn expand_runtime_shorthands(value: &mut Value) {
     if let Some(r) = value.get_mut("r")
         && r.is_string()
     {
         *r = serde_json::json!({"executable": r.take()});
+    }
+    if let Some(python) = value.get_mut("python")
+        && let Some(mapping) = python.as_object()
+    {
+        let selector = ["existing", "managed", "first_available"]
+            .into_iter()
+            .find(|key| mapping.contains_key(*key));
+        let field = ["packages", "version", "resolution"]
+            .into_iter()
+            .find(|key| mapping.contains_key(*key));
+        if selector.is_none() && (field.is_some() || mapping.is_empty()) {
+            *python = serde_json::json!({"managed": python.take()});
+        }
     }
 }
 

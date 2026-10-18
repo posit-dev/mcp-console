@@ -111,15 +111,23 @@ For an explicitly managed environment without a fallback list:
 
 ```yaml
 python:
-  managed:
-    version: ">=3.12,<3.14"
-    packages: [numpy, pandas]
+  version: ">=3.12,<3.14"
+  packages: [numpy, pandas]
 ```
+
+`python.packages`, `python.version`, and `python.resolution` select managed Python.
+The nested `python.managed` form remains supported, including inside `first_available`.
+Do not combine these direct fields with `existing`, `managed`, or `first_available` in the same mapping.
+An empty `python: {}` explicitly selects managed Python with its defaults.
 
 Managed selection uses uv-managed CPython, not a fallback interpreter on `PATH`.
 It excludes interpreters older than CPython 3.10 before ranking available versions or applying version constraints.
 Without R, it requires `uv` on the execution host.
-Omitted `python` retains the launch-time `RETICULATE_PYTHON` compatibility behavior described in [Environment](ENVIRONMENT.md).
+Omitted or `null` `python` retains the launch-time `RETICULATE_PYTHON` compatibility behavior described in [Environment](ENVIRONMENT.md).
+
+Before merging configuration layers, Console expands the direct managed fields to `python.managed`.
+Flat and nested settings in separate layers therefore combine with the same [merge rules](#merge-rules).
+`config resolve` continues to print the nested form.
 
 ## R executable selection
 
@@ -152,8 +160,7 @@ Executables and code they load remain trusted inputs, not immutable sandbox asse
 r:
   packages: [dplyr, dbplyr, ggplot2]
 python:
-  managed:
-    packages: [numpy, pandas, matplotlib]
+  packages: [numpy, pandas, matplotlib]
 ```
 
 Omitting a package list keeps that runtime's defaults.
@@ -169,7 +176,7 @@ See [Dependencies](REQUIREMENTS.md) for default packages, accepted requirement s
 
 ## Dependency-resolution policies
 
-Use `r.resolution` and `python.managed.resolution` to choose `implicit`, `explicit`, or `fixed`.
+Use `r.resolution` and `python.resolution` to choose `implicit`, `explicit`, or `fixed`.
 R defaults to `implicit`; managed Python defaults to `explicit`, so the agent declares dependencies through `requirements.python` before importing them.
 R also accepts `disabled`; for preinstalled-only Python, select an existing environment.
 
@@ -178,9 +185,8 @@ r:
   packages: [dplyr]
   resolution: explicit
 python:
-  managed:
-    packages: [numpy, pandas]
-    resolution: fixed
+  packages: [numpy, pandas]
+  resolution: fixed
 ```
 
 The [policy table](REQUIREMENTS.md#resolution-policy-admission) defines what each mode permits.
@@ -190,8 +196,7 @@ To let missing Python imports request package preparation, opt in through `confi
 
 ```yaml
 python:
-  managed:
-    resolution: implicit
+  resolution: implicit
 ```
 
 ## Native R startup

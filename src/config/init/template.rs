@@ -228,13 +228,12 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
             python_help,
             "\
 # python:
-#   managed:
-#     version: \"3.13\"
-#     resolution: explicit
-#     packages: [numpy, pandas, matplotlib]
+#   version: \"3.13\"
+#   resolution: explicit
+#   packages: [numpy, pandas, matplotlib]
 
 ## Alternatively, use an existing Python environment without managing its packages.
-## Choose this instead of the python.managed block above.
+## Choose this instead of the managed Python settings above.
 ## The environment and its required packages must already be installed.
 # python: .venv
 ",

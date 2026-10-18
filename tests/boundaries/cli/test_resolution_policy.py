@@ -109,7 +109,10 @@ def test_rejects_invalid_policies(binary: Path) -> Transcript:
                 "python.managed.resolution=disabled",
                 "use an existing Python environment or fixed",
             ),
-            ("python.resolution=explicit", "python"),
+            (
+                "python.resolution=disabled",
+                "use an existing Python environment or fixed",
+            ),
             ("resolution=implicit", "resolution"),
             (
                 "python.first_available=[{existing: unused}, {managed: {resolution: disabled}}]",

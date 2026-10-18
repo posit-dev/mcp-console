@@ -1,4 +1,7 @@
 ---
+choice: {}
+managed_preparation_required: true
+---
 choice:
   managed: {}
 managed_preparation_required: true

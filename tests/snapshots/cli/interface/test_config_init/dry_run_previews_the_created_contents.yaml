@@ -72,13 +72,12 @@ preview: |
   ## Let Console manage Python and prepare these initial packages.
   ## version accepts a quoted version or constraint; omit it for no constraint.
   # python:
-  #   managed:
-  #     version: "3.13"
-  #     resolution: explicit
-  #     packages: [numpy, pandas, matplotlib]
+  #   version: "3.13"
+  #   resolution: explicit
+  #   packages: [numpy, pandas, matplotlib]
 
   ## Alternatively, use an existing Python environment without managing its packages.
-  ## Choose this instead of the python.managed block above.
+  ## Choose this instead of the managed Python settings above.
   ## The environment and its required packages must already be installed.
   # python: .venv
 
@@ -174,13 +173,12 @@ created: |
   ## Let Console manage Python and prepare these initial packages.
   ## version accepts a quoted version or constraint; omit it for no constraint.
   # python:
-  #   managed:
-  #     version: "3.13"
-  #     resolution: explicit
-  #     packages: [numpy, pandas, matplotlib]
+  #   version: "3.13"
+  #   resolution: explicit
+  #   packages: [numpy, pandas, matplotlib]
 
   ## Alternatively, use an existing Python environment without managing its packages.
-  ## Choose this instead of the python.managed block above.
+  ## Choose this instead of the managed Python settings above.
   ## The environment and its required packages must already be installed.
   # python: .venv
 

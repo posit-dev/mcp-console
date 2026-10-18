@@ -179,6 +179,18 @@ impl Python {
 }
 
 fn mapping(value: Value) -> Result<Mapping, String> {
+    if let Some(mapping) = value.as_object()
+        && let Some(field) = ["packages", "version", "resolution"]
+            .into_iter()
+            .find(|key| mapping.contains_key(*key))
+        && let Some(selector) = ["existing", "managed", "first_available"]
+            .into_iter()
+            .find(|key| mapping.contains_key(*key))
+    {
+        return Err(format!(
+            "python: cannot combine {field} with {selector} in the same mapping"
+        ));
+    }
     if !value.is_object() || value.as_object().is_some_and(|value| value.len() != 1) {
         return Err("python: expected exactly one of existing, managed, first_available".into());
     }

@@ -178,7 +178,7 @@ def test_managed_selection_requires_preparation(
         )
         env.pop("RETICULATE_UV", None)
         audit = []
-        for choice in ({"managed": {}}, {"first_available": [{"managed": {}}]}):
+        for choice in ({}, {"managed": {}}, {"first_available": [{"managed": {}}]}):
             configure(root, choice, cache="host")
             with McpClient(binary, execution.serve(), env, root) as client:
                 client.initialize_and_list_tools()

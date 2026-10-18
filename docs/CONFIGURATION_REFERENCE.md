@@ -63,15 +63,17 @@ See [R executable selection](CONFIGURATION.md#r-executable-selection) and [Nativ
 
 Choose one selection form:
 
-| Node                     | Accepted values             | Meaning                                                                                                     |
-| ------------------------ | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `python`                 | Omitted or `null`           | Keep launch-time `RETICULATE_PYTHON` compatibility behavior; otherwise use managed selection.               |
-| `python`                 | A path string               | Use an existing Python executable or standard virtual environment. Equivalent to setting `python.existing`. |
-| `python.existing`        | A path string               | Use installed packages in that environment; Console does not manage its Python packages.                    |
-| `python.managed`         | Mapping                     | Prepare a uv-managed CPython environment with the settings below.                                           |
-| `python.first_available` | Nonempty list of candidates | Select the first available candidate from an ordered list.                                                  |
+| Node                     | Accepted values                  | Meaning                                                                                                      |
+| ------------------------ | -------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `python`                 | Omitted or `null`                | Keep launch-time `RETICULATE_PYTHON` compatibility behavior; otherwise use managed selection.                |
+| `python`                 | A path string                    | Use an existing Python executable or standard virtual environment. Equivalent to setting `python.existing`.  |
+| `python`                 | Managed settings mapping or `{}` | Prepare a uv-managed CPython environment with the settings below. An empty mapping selects managed defaults. |
+| `python.existing`        | A path string                    | Use installed packages in that environment; Console does not manage its Python packages.                     |
+| `python.managed`         | Mapping                          | Nested form of the managed settings below.                                                                   |
+| `python.first_available` | Nonempty list of candidates      | Select the first available candidate from an ordered list.                                                   |
 
-A selection mapping contains exactly one of `python.existing`, `python.managed`, or `python.first_available`.
+A mapping contains either managed settings directly or exactly one of `python.existing`, `python.managed`, or `python.first_available`.
+Combining direct managed fields with a selection key in the same mapping is an error.
 Existing Python requires CPython 3.10 or newer with a usable shared embedding library.
 Venv directories need `pyvenv.cfg`; recognized Conda environments are unsupported.
 Interpreter paths use the launch directory and support a leading `~`, as R executable paths do.
@@ -79,21 +81,25 @@ Python selection requires the built-in worker.
 
 ### Managed Python
 
-Fields under `python.managed`:
+Fields directly under `python` select managed Python:
 
-| Node                        | Accepted values                                                                      | Meaning and default                                                                                                                                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `python.managed.version`    | One quoted Python version or constraint string, such as `"3.13"` or `">=3.12,<3.14"` | Restrict the managed CPython version. Omission adds no version constraint; CPython older than 3.10 is always excluded.                                                                               |
-| `python.managed.packages`   | List of named PEP 508 registry requirements                                          | Startup packages to prepare. Omission keeps the [default Python packages](REQUIREMENTS.md#defaults-and-startup-configuration); `[]` requests no optional packages. Preparation does not import them. |
-| `python.managed.resolution` | `implicit`, `explicit`, `fixed`                                                      | When Console may prepare Python packages. Default: `explicit`. Set `implicit` to opt in to preparation on missing imports. For preinstalled-only use, select an existing environment.                |
+| Node                | Accepted values                                                                      | Meaning and default                                                                                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `python.version`    | One quoted Python version or constraint string, such as `"3.13"` or `">=3.12,<3.14"` | Restrict the managed CPython version. Omission adds no version constraint; CPython older than 3.10 is always excluded.                                                                               |
+| `python.packages`   | List of named PEP 508 registry requirements                                          | Startup packages to prepare. Omission keeps the [default Python packages](REQUIREMENTS.md#defaults-and-startup-configuration); `[]` requests no optional packages. Preparation does not import them. |
+| `python.resolution` | `implicit`, `explicit`, `fixed`                                                      | When Console may prepare Python packages. Default: `explicit`. Set `implicit` to opt in to preparation on missing imports. For preinstalled-only use, select an existing environment.                |
 
 ```yaml
 python:
-  managed:
-    version: ">=3.12,<3.14"
-    packages: [numpy, pandas]
-    resolution: fixed
+  version: ">=3.12,<3.14"
+  packages: [numpy, pandas]
+  resolution: fixed
 ```
+
+These fields are also accepted under `python.managed`.
+Direct settings expand to that nested form before each configuration layer is merged, so files and command-line overrides can use either form.
+`config resolve` and validation diagnostics use the nested paths.
+Unlike omitted or `null` Python settings, `python: {}` explicitly selects managed Python and overrides launch-time `RETICULATE_PYTHON`.
 
 ### First available Python
 
@@ -123,7 +129,7 @@ See [Python environment selection](CONFIGURATION.md#python-environment-selection
 
 ## Resolution policies
 
-These values apply to `r.resolution` and `python.managed.resolution`, including a managed fallback candidate:
+These values apply to `r.resolution` and `python.resolution`, including nested managed settings and a managed fallback candidate:
 
 R defaults to `implicit`; managed Python defaults to `explicit`.
 

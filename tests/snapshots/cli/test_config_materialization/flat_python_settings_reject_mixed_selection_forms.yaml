@@ -1,0 +1,58 @@
+---
+field: packages
+selector: existing
+stderr: |
+  python: cannot combine packages with existing in the same mapping
+---
+field: version
+selector: existing
+stderr: |
+  python: cannot combine version with existing in the same mapping
+---
+field: resolution
+selector: existing
+stderr: |
+  python: cannot combine resolution with existing in the same mapping
+---
+field: packages
+selector: managed
+stderr: |
+  python: cannot combine packages with managed in the same mapping
+---
+field: version
+selector: managed
+stderr: |
+  python: cannot combine version with managed in the same mapping
+---
+field: resolution
+selector: managed
+stderr: |
+  python: cannot combine resolution with managed in the same mapping
+---
+field: packages
+selector: first_available
+stderr: |
+  python: cannot combine packages with first_available in the same mapping
+---
+field: version
+selector: first_available
+stderr: |
+  python: cannot combine version with first_available in the same mapping
+---
+field: resolution
+selector: first_available
+stderr: |
+  python: cannot combine resolution with first_available in the same mapping
+---
+layered_selector: existing
+stderr: |
+  python: expected exactly one of existing, managed, first_available
+---
+layered_selector: first_available
+stderr: |
+  python: expected exactly one of existing, managed, first_available
+---
+replaced_invalid_selection:
+  managed:
+    resolution: explicit
+    packages: []
