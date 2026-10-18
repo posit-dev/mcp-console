@@ -62,8 +62,8 @@ def test_retains_discovered_r_home_across_generations(
         commands = root / "bin"
         commands.mkdir()
         retain_system_bwrap(commands)
-        # R's normal embedded shutdown invokes rm through the workload PATH.
-        for name in ("sh", "rm"):
+        # Retain shell launcher dependencies and embedded R's shutdown command.
+        for name in ("sh", "dirname", "readlink", "rm"):
             (commands / name).symlink_to(shutil.which(name))
         r = commands / "R"
         r.write_text(

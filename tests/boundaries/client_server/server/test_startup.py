@@ -67,8 +67,10 @@ def discovery_environment(
                 """)
         )
         probe.chmod(0o755)
-        # The selected R launcher uses sh to report its resource directories.
-        (root / "sh").symlink_to(shutil.which("sh"))
+        # Keep shell launcher dependencies without exposing another R or Python.
+        # Relocatable Rscript installations use dirname and readlink as well.
+        for name in ("sh", "dirname", "readlink"):
+            (root / name).symlink_to(shutil.which(name))
         environment = bare_runtime_environment(os.environ.copy(), root / "library")
         environment["R_PROFILE_USER"] = os.devnull
         environment.pop("R_HOME", None)

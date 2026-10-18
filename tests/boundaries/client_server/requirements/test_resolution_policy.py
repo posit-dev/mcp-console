@@ -92,7 +92,7 @@ def test_requires_explicit_python_requirements_by_default(
         tools.mkdir()
         (tools / "python3").symlink_to(sys.executable)
         (tools / "uv").symlink_to(recorded["RETICULATE_UV"])
-        env = {**recorded, **environment(tools)}
+        env = environment(tools, inherited=recorded)
         with McpClient(
             binary, execution.serve("-c", "cache=host"), env, root
         ) as client:
@@ -147,7 +147,7 @@ def test_locked_python_startup_and_fallback(
         (tools / "python3").symlink_to(sys.executable)
         recorded, uv_record = recording_uv_environment(root)
         (tools / "uv").symlink_to(recorded["RETICULATE_UV"])
-        env = {**recorded, **environment(tools)}
+        env = environment(tools, inherited=recorded)
         env.update(
             {
                 key: value

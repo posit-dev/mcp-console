@@ -41,15 +41,7 @@ def _environment(root: Path, *, without_r: bool = False) -> dict[str, str]:
         bin_dir.mkdir()
         expose_uv(bin_dir)
         retain_system_bwrap(bin_dir)
-        env.update(without_r_environment(bin_dir))
-        for name in (
-            "R_HOME",
-            "R_LIBS",
-            "R_LIBS_USER",
-            "RETICULATE_PYTHON",
-            "RETICULATE_UV",
-        ):
-            env.pop(name, None)
+        env = without_r_environment(bin_dir, inherited=env)
     return env
 
 

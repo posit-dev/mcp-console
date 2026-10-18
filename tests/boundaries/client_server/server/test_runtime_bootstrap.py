@@ -748,7 +748,7 @@ def managed_bootstrap(binary: Path, execution: Execution, *, inspect: bool = Fal
                 """),
         )
         environment, _ = recording_uv_environment(root)
-        environment.update(without_r_environment(commands))
+        environment = without_r_environment(commands, inherited=environment)
         environment["PYTHONPATH"] = str(root)
         environment["MCP_CONSOLE_TEST_UV_PYTHON_INVENTORIES"] = str(
             root / "inventories.json"

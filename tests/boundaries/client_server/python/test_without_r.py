@@ -38,9 +38,12 @@ from support.r import r_test_environment
 from support.python import runtime_source_line, write_test_wheel
 
 
-def environment(path: Path) -> dict[str, str]:
+def environment(
+    path: Path, *, inherited: dict[str, str] | None = None
+) -> dict[str, str]:
+    """Filter R selection after composing the fixture's inherited environment."""
     retain_system_bwrap(path)
-    env = dict(os.environ, PATH=str(path))
+    env = dict(os.environ if inherited is None else inherited, PATH=str(path))
     for name in (
         "R_HOME",
         "R_LIBS",

@@ -2,6 +2,21 @@
 !same-as MCP initialization for this execution mode
 ---
 send:
+  requirements:
+    r:
+      - graphics
+      - grDevices
+    python:
+      - pandas
+    duckdb:
+      - sqlite
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
   r: |
     options(
       console.plot.width_in = 4,

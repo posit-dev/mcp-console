@@ -264,6 +264,10 @@ def test_malformed_metadata_warns_and_uses_default_read_only(
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         python, _ = isolated_python(root)
+        commands = root / "bin"
+        commands.mkdir()
+        # Policy parsing and Python write denial do not require R preparation.
+        environment = without_r_environment(commands)
         malformed = {
             "null": None,
             "empty": {},
@@ -351,7 +355,7 @@ def test_malformed_metadata_warns_and_uses_default_read_only(
                     "-c",
                     f"python.existing={python}",
                 ),
-                os.environ.copy(),
+                environment,
                 root,
             ) as client:
                 client.initialize_and_list_tools()

@@ -290,6 +290,7 @@ It is not read-only HTTPS, does not intercept TLS, and does not guarantee side-e
 
 Domain rules use hostnames, not URLs, paths, or host-and-port restrictions.
 Exact names match that host only; `*.example.org` matches subdomains but not the apex, and `**.example.org` matches both.
+Patterns support `*` and `?` wildcards; character classes such as `[0-9]` are rejected.
 Matching deny rules win.
 Native IP-literal forms are also accepted.
 
@@ -359,7 +360,7 @@ The runner consumes it; stdin belongs to the target.
 This mode rejects `-c`, discovery options, and writable-root composition.
 Use a child-specific environment rather than mutating a multithreaded parent's global environment.
 
-The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/46faf2a5ea7fa4a30b2a6b77b8cedc3cc744156c/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
+The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/1d93f1236afc51c4a40bf37a303b1c602f3f8ca1/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
 The native runner enforces the Windows MXC requirement at this boundary.
 Complete policies use the native boolean `proxy.allowLocalBinding` field; the public `auto` selector belongs to the shared YAML schema above.
 Runnable examples are provided in [shell](../examples/sandbox-config.sh), [Python](../examples/sandbox-config.py), and [R](../examples/sandbox-config.R).

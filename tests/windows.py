@@ -153,8 +153,33 @@ class Session:
         while True:
             response = self.messages.get(timeout=self.timeout)
             if response is None:
+                recorded = []
+                try:
+                    journals = Path(self.directory.name).glob(
+                        ".agents/console/sessions/*/internal/events.jsonl"
+                    )
+                    for journal in journals:
+                        for line in journal.read_text(encoding="utf-8").splitlines():
+                            event = json.loads(line)
+                            if event.get("event") in {"tool_call", "tool_result"}:
+                                recorded.append(
+                                    {
+                                        key: event[key]
+                                        for key in ("event", "call_id", "request_id")
+                                        if key in event
+                                    }
+                                )
+                except (OSError, ValueError) as error:
+                    recorded.append({"diagnostic_error": str(error)})
                 self.errors.seek(0)
-                raise AssertionError(self.errors.read().decode(errors="replace"))
+                errors = self.errors.read().decode(errors="replace")
+                raise AssertionError(
+                    f"stdout closed before {method} response id {self.sequence}; "
+                    f"process status: {self.process.poll()}; "
+                    f"stdin closed: {self.process.stdin.closed}; "
+                    f"recorded calls: {recorded}\n"
+                    f"stderr: {errors or '<empty>'}"
+                )
             if response.get("id") == self.sequence:
                 assert "error" not in response, response
                 return response["result"]

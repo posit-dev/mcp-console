@@ -5,6 +5,9 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
+from contextlib import ExitStack
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -402,18 +405,40 @@ def test_interrupted_replacement_preserves_worker(
 def test_r_duckdb_replacement_failure_and_reset(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with tempfile.TemporaryDirectory() as directory:
+    missing_requests: list[str] = []
+
+    class MissingExtension(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            missing_requests.append(self.path)
+            self.send_error(404, "fixture extension does not exist")
+
+        def log_message(self, *_: object) -> None:
+            pass
+
+    with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+        origin = stack.enter_context(
+            ThreadingHTTPServer(("127.0.0.1", 0), MissingExtension)
+        )
+        thread = threading.Thread(target=origin.serve_forever)
+        thread.start()
+        stack.callback(thread.join)
+        stack.callback(origin.shutdown)
         environment, record = recording_fixture_r_environment(
             Path(directory), ("mcpcleared",)
         )
-        native_rscript = (Path(environment["R_HOME"]) / "bin/Rscript").resolve()
         selected = isolated_r_home(Path(directory), environment)
         rscript = selected / "bin/Rscript"
-        rscript.unlink()
+        native_rscript = rscript.with_name("Rscript-original")
+        rscript.rename(native_rscript)
         native_stderr = Path(directory) / "rscript.stderr"
         environment["MCP_CONSOLE_TEST_REAL_RSCRIPT"] = str(native_rscript)
         environment["MCP_CONSOLE_TEST_RSCRIPT_STDERR"] = str(native_stderr)
+        environment["MCP_CONSOLE_TEST_MISSING_EXTENSION_PROXY"] = (
+            f"http://127.0.0.1:{origin.server_port}"
+        )
         # Capture the native resolver diagnostic before Console receives it.
+        # Route only the missing-extension download to a controlled 404; the
+        # real DuckDB installer and its complete R diagnostic stay under test.
         # fmt: python
         capture = code("""
             import os
@@ -421,8 +446,14 @@ def test_r_duckdb_replacement_failure_and_reset(
             import sys
             from pathlib import Path
 
+            data = sys.stdin.buffer.read()
+            environment = os.environ.copy()
+            if b"not_a_real_duckdb_extension" in data:
+                environment["HTTP_PROXY"] = environment["MCP_CONSOLE_TEST_MISSING_EXTENSION_PROXY"]
             result = subprocess.run(
                 [os.environ["MCP_CONSOLE_TEST_REAL_RSCRIPT"], *sys.argv[1:]],
+                input=data,
+                env=environment,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
@@ -438,7 +469,15 @@ def test_r_duckdb_replacement_failure_and_reset(
         with McpClient(
             binary,
             execution.serve(
-                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
+                "-c",
+                "python.managed.resolution=implicit",
+                "-c",
+                "cache=host",
+                *(
+                    ("-c", "resolver.sandbox.network=enabled")
+                    if execution == SANDBOXED
+                    else ()
+                ),
             ),
             environment,
         ) as client:
@@ -478,6 +517,10 @@ def test_r_duckdb_replacement_failure_and_reset(
                 'Failed to download extension "not_a_real_duckdb_extension"' in error
             ), error
             assert "(HTTP 404)" in error, error
+            assert missing_requests and all(
+                path.endswith("/not_a_real_duckdb_extension.duckdb_extension.gz")
+                for path in missing_requests
+            ), missing_requests
             failure["content"][0]["text"] = (
                 prefix + "<stderr identical to live Rscript --vanilla>"
             )

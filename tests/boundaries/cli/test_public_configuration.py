@@ -501,7 +501,8 @@ def test_native_domain_literals(binary: Path) -> Transcript:
             "fe80::1%3",
             "fe80::1%25",
             "[fe80::1%253]",
-            "api[0-9].example.org",
+            "api?.example.org",
+            "api*.example.org",
         ]
         result = subprocess.run(
             [
@@ -520,6 +521,33 @@ def test_native_domain_literals(binary: Path) -> Transcript:
         )
         assert result.returncode == 0 and result.stderr == "", result
         return [{"domains": hosts, "stdout": result.stdout}]
+
+
+@requires(SANDBOX)
+def test_native_domain_character_classes_are_rejected(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        result = subprocess.run(
+            [
+                binary,
+                "sandbox",
+                "-c",
+                'sandbox.network.proxy.domains.allow=["api[0-9].example.org"]',
+                "--",
+                sys.executable,
+                "-c",
+                "print('unexpected')",
+            ],
+            cwd=temporary,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 1 and result.stdout == "", result
+        assert result.stderr == (
+            "configuration with CLI overrides: sandbox preflight failed (exit status: 1): "
+            "mcp-console-sandbox: brackets are only supported for IPv6 literals or [*]: "
+            "api[0-9].example.org\n"
+        ), result
+        return [{"stderr": result.stderr}]
 
 
 @executions(DIRECT, SANDBOXED)

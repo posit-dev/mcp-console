@@ -542,16 +542,12 @@ def test_evaluates_queries_in_a_persistent_catalog(
         sql = code(r"""
             CREATE TABLE answers AS SELECT CAST(42 AS INTEGER) AS answer
             """)
-        client.send(sql=sql)
-        output = last_tool_text(client)
-        assert output == "[done]", output
+        client.expect("[done]", sql=sql)
 
         sql = code(r"""
             INSERT INTO answers VALUES (7)
             """)
-        client.send(sql=sql)
-        output = last_tool_text(client)
-        assert output == "[done]", output
+        client.expect("[done]", sql=sql)
 
         sql = code(r"""
             SELECT answer FROM answers

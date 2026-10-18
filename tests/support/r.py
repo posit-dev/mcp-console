@@ -110,6 +110,10 @@ def isolated_r_home(directory: Path, environment: dict[str, str]) -> Path:
                 assert count == 1, "R launcher must declare R_HOME_DIR"
                 target.write_text(source)
                 target.chmod(entry.stat().st_mode)
+            elif name == "bin" and entry.name == "Rscript":
+                # Resolving a launcher symlink must retain this installation,
+                # including when Rscript derives R_HOME from its own location.
+                shutil.copy2(entry, target)
             elif name == "etc" and entry.name == "Renviron":
                 shutil.copyfile(entry, target)
             else:

@@ -32,7 +32,7 @@ Package: mcpconsolelocalpkg
 Title: Local R Installation Fixture
 Version: 0.0.1
 Authors@R: person("Test", "Fixture", email = "fixture@example.com", role = c("aut", "cre"))
-Description: Verifies default R package installation inside the sandbox.
+Description: Verifies R package installation inside the sandbox.
 License: MIT
 Encoding: UTF-8
 """,
@@ -82,7 +82,9 @@ Encoding: UTF-8
                     install.packages(
                       "mcpconsolelocalpkg_0.0.1.tar.gz",
                       repos = NULL,
-                      type = "source"
+                      type = "source",
+                      # Request the same help output across R installations.
+                      INSTALL_opts = "--html"
                     )
                     stopifnot(
                       identical(dirname(find.package("mcpconsolelocalpkg")), library),

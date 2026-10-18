@@ -80,6 +80,16 @@ def test_records_real_mixed_language_session(
             current_directory=workspace,
         )
         client.initialize_and_list_tools()
+        # Standalone preparation finishes before recording the cells, even
+        # when cold dependencies outlive an evaluation's observation budget.
+        client.expect(
+            "[prepared]",
+            requirements={
+                "r": ["graphics", "grDevices"],
+                "python": ["pandas"],
+                "duckdb": ["sqlite"],
+            },
+        )
 
         # fmt: r
         r = code(r"""
@@ -140,7 +150,7 @@ def test_records_real_mixed_language_session(
 
         markdown = (session / "transcript.md").read_text(encoding="utf-8")
         quarto = (session / "transcript.qmd").read_text(encoding="utf-8")
-        assert "[Artifact 1 from call 1]" in markdown
+        assert "[Artifact 1 from call 2]" in markdown
         assert "![Artifact 1]" in markdown
         assert artifact["path"] in markdown
         assert f"```{{r}}\n{r}```" in quarto
@@ -170,7 +180,9 @@ def test_records_real_mixed_language_session(
 
         return TranscriptWithCompanions(
             transcript=transcript,
-            companions={"md": markdown, "qmd": quarto},
+            # These are literal recorder outputs. YAML scalars keep embedded
+            # formatters from rewriting code fences in the expected documents.
+            companions={"documents.yaml": [{"md": markdown, "qmd": quarto}]},
         )
 
 

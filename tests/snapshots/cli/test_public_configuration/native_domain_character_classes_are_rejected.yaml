@@ -1,0 +1,5 @@
+---
+stderr: >
+  configuration with CLI overrides: sandbox preflight failed (exit status:
+  1): mcp-console-sandbox: brackets are only supported for IPv6 literals
+  or [*]: api[0-9].example.org

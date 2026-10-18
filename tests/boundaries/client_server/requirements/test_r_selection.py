@@ -322,8 +322,9 @@ def test_changed_rscript_is_rejected_before_preparation(
         environment, _ = recording_ir_environment(root)
         installed = isolated_r_home(root, environment)
         rscript = installed / "bin/Rscript"
-        original = rscript.resolve()
-        rscript.unlink()
+        # Retain its location in bin for relocatable R installations.
+        original = rscript.with_name("Rscript-original")
+        rscript.rename(original)
         rscript.write_text("#!/bin/sh\nexec " + shlex.quote(str(original)) + ' "$@"\n')
         rscript.chmod(0o755)
         marker = root / "changed-rscript-executed"
