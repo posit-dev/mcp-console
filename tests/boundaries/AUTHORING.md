@@ -57,6 +57,8 @@ Use `FifoCheckpoint` (`support.checkpoints`), `read_lines` (`support.capture`), 
 Keep cleanup in context managers or `finally` blocks.
 Use `wait_for_path()` for known marker paths and worker-file discovery only for worker-owned directories whose names are initially unknown.
 `FifoCheckpoint.release()` buffers an early token; `release_fixture_checkpoint()` instead waits for a real reader with a bounded rendezvous.
+Use distinct FIFO paths for successive `release_fixture_checkpoint()` phases.
+Reopening one path can reconnect to a previous phase's writer and receive EOF when it closes.
 Pass the client when its exit should end that wait.
 Marker waits subscribe to native filesystem/process events on macOS and Linux; Windows uses cancellable bounded path polling.
 Pass an owned `Events` instance to `wait_for_path()` when the fixture needs explicit cancellation; `Events.cancel()` wakes the wait without a marker or client.

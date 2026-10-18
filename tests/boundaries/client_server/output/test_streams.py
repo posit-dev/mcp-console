@@ -640,6 +640,9 @@ def test_compacts_each_polled_output_segment(
             == "\n[running; poll with an empty send]"
         )
 
+        release = wait_for_marker(
+            temporary_path, "zod-release-redraw-completion", client
+        )
         release_fixture_checkpoint(release, client=client)
         client.send(timeout_ms=3_000)
         assert last_tool_text(client) == "output 100%\n"

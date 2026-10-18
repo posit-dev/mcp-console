@@ -216,14 +216,18 @@ def preview_ansi_redraw(context: WorkerContext, source: str) -> None:
 
 def redraw_across_polls(context: WorkerContext, source: str) -> None:
     release = context.root / "zod-release-redraw"
+    completion = context.root / "zod-release-redraw-completion"
     os.mkfifo(release)
+    os.mkfifo(completion)
+    # Separate phases cannot reconnect to the previous phase's still-open
+    # writer and receive EOF when that writer closes.
     # The first response must settle before this segment can be emitted.
     with release.open("rb", buffering=0) as checkpoint:
         assert checkpoint.read(1) == b"1"
     send_output(context.writer, "output 10%\r")
     wait_for_server_to_process_sideband(context.reader, context.writer)
     publish_marker(context.root / "zod-redraw-ready")
-    with release.open("rb", buffering=0) as checkpoint:
+    with completion.open("rb", buffering=0) as checkpoint:
         assert checkpoint.read(1) == b"1"
 
     send_output(context.writer, "output 100%\n")
