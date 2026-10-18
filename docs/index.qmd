@@ -73,9 +73,13 @@ See [Packages and environments](REQUIREMENTS.md).
 Console is a **development preview** for macOS, Linux, and Windows x64.
 Run it on the same host as the MCP client.
 
-The default sandbox restricts workspace writes and direct networking but permits host-file reads.
-**Readable secrets are not protected.** Project configuration is trusted input and may widen permissions.
+Without [client permission inheritance](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex) or a configured profile, Console defaults to `read_only`: it restricts network access and filesystem writes but places no restrictions on filesystem reads.
+You can select a different profile or customize a profile by creating a [`.agents/console/config.yaml` file](CONFIGURATION.md) or supplying configuration arguments on the command line.
+Customizations let you manage network access through a [built-in proxy](SANDBOX_CONFIGURATION.md#proxy-modes-and-destinations) with domain allowlists or denylists, allow filesystem writes to specific paths, and block filesystem reads from selected paths.
+
+Project configuration is trusted input and may widen permissions.
 Dependency preparation has a separate policy.
 
-Recordings contain input and output without redaction and have no automatic cleanup.
-Read [Sandbox and trust](SANDBOX.md) before changing permissions and [Recordings and reports](RECORDING.md) before sharing session files.
+[Recordings](RECORDING.md) capture input and output from an MCP Console session.
+They are unredacted, so check for secrets before sharing session files.
+For example, a recording may include a secret printed by code the agent ran.

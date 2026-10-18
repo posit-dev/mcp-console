@@ -42,14 +42,16 @@ Use `--no-warmup` to skip that step.
 Restart the client after setup.
 Your client launches Console on the same host, usually in the workspace where the agent is working.
 
-To register it for the current directory, add `--directory .`.
+To register Console for a specific project, run the command from the project directory and add `--directory .`.
 See [client configuration](CLI.md#configure-a-client) for updating earlier project registrations, other MCP clients, version pinning, and launch options.
 
 ## Try an analysis
 
-Ask your agent:
+With R installed, ask your agent:
 
-> Use MCP Console to generate a small dataset with NumPy and pandas, fit a simple model, and plot the result.
+> Use MCP Console to tell me something interesting about the Palmer Penguins dataset.
+> Load the data from `palmerpenguins` in R and summarize it by species with SQL.
+> Fit a model in R to predict body mass from flipper length, and plot the data and fitted model in Python.
 > Keep the data and model for follow-up.
 
 Then ask:
@@ -57,7 +59,6 @@ Then ask:
 > Which observations does the model fit poorly?
 > Show a plot and the path to the recorded session.
 
-With R installed, try the Palmer Penguins data from `palmerpenguins`, summarize it with SQL, and plot it from Python.
 See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples.
 
 ## Choose permissions
