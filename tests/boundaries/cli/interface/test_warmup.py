@@ -4,12 +4,20 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
+from support.checkpoints import FifoCheckpoint
+from support.processes import (
+    capture_process_identity,
+    host_process_id,
+    live_processes,
+)
 from support.normalization import code
 from support.records import Transcript
 from support.requirements import POSIX, R, SQL, requires
@@ -195,13 +203,17 @@ def test_timeout_retires_the_worker(binary: Path, execution: Execution) -> Trans
     with TemporaryDirectory() as temporary:
         workspace = Path(temporary).resolve()
         pid_file = workspace / "worker.pid"
+        started = workspace / "started"
         config = workspace / "session.json"
         config.write_text(
             json.dumps(
                 {
                     "languages": ["python"],
                     "python": sys.executable,
-                    "environment": {"DOCTOR_PID_FILE": str(pid_file)},
+                    "environment": {
+                        "DOCTOR_PID_FILE": str(pid_file),
+                        "WARMUP_STARTED": str(started),
+                    },
                     "startup": {
                         "language": "python",
                         # fmt: python
@@ -211,6 +223,8 @@ def test_timeout_retires_the_worker(binary: Path, execution: Execution) -> Trans
 
                             with open(os.environ["DOCTOR_PID_FILE"], "w") as stream:
                                 stream.write(str(os.getpid()))
+                            with open(os.environ["WARMUP_STARTED"], "w") as stream:
+                                stream.write("1")
                             threading.Event().wait()
                             """),
                     },
@@ -218,27 +232,32 @@ def test_timeout_retires_the_worker(binary: Path, execution: Execution) -> Trans
             ),
             encoding="utf-8",
         )
-        result = warmup(
-            binary,
-            workspace,
-            execution,
-            "--config-file",
-            str(config),
-            "--writable-root",
-            str(workspace),
-            "--timeout",
-            "5",
-            environment=no_r_environment(workspace),
-        )
+        with (
+            closing(FifoCheckpoint.create(started)) as checkpoint,
+            ThreadPoolExecutor(max_workers=1) as commands,
+        ):
+            running = commands.submit(
+                warmup,
+                binary,
+                workspace,
+                execution,
+                "--config-file",
+                str(config),
+                "--writable-root",
+                str(workspace),
+                "--timeout",
+                "5",
+                environment=no_r_environment(workspace),
+            )
+            checkpoint.wait("startup must reach the blocking checkpoint")
+            # Resolve the namespace PID while the worker is still alive, then
+            # retain its host identity so exit cannot be confused with PID reuse.
+            worker = capture_process_identity(
+                host_process_id(int(pid_file.read_text()), os.getpid())
+            )
+            result = running.result()
         assert result.returncode == 1 and result.stderr == "", result
-        assert pid_file.is_file(), "startup must reach the blocking checkpoint"
-        pid = int(pid_file.read_text())
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            pass
-        else:
-            raise AssertionError(f"warmup left worker {pid} running")
+        assert live_processes([worker]) == [], f"warmup left worker {worker} running"
         assert result.stdout == (
             "MCP Console warmup\n"
             "Server: OK\n"

@@ -282,8 +282,11 @@ fn run_server(
     } else {
         sandbox.configure(None, python.as_ref())?
     };
+    // Server stdio uses blocking adapters and child processes have native
+    // observers. Keep the warmup client's I/O and signal drivers out of this
+    // runtime even when Cargo features enable them for the executable.
     let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
+        .enable_time()
         .build()?;
     let result = runtime.block_on(server::run(
         worker,
