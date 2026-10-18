@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Python package reference into the shared Pages artifact."""
+"""Build the Python package reference during full website renders."""
 
 import os
 from pathlib import Path
@@ -7,6 +7,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+if os.environ.get("QUARTO_PROJECT_RENDER_ALL") != "1":
+    sys.exit(0)
 
 root = Path(__file__).resolve().parent.parent
 destination = Path(os.environ["QUARTO_PROJECT_OUTPUT_DIR"]).resolve() / "python"

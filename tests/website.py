@@ -4,6 +4,7 @@
 from html.parser import HTMLParser
 import ast
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -281,6 +282,48 @@ class WebsiteTests(unittest.TestCase):
         description = soup.find("meta", attrs={"name": "description"})
         self.assertIsNotNone(description)
         self.assertIn("data", description["content"])
+
+    def test_single_page_render_preserves_other_pages_and_package_sites(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="console-page-render-") as directory:
+            workspace = Path(directory) / "project"
+            shutil.copytree(self.workspace.name, workspace)
+            docs = workspace / "docs"
+            site = docs / "_site"
+            unchanged = [
+                path
+                for path in site.rglob("*")
+                if path.is_file()
+                and path != site / "index.html"
+                and (
+                    path.suffix == ".html"
+                    or path.relative_to(site).parts[0] in {"r", "python"}
+                )
+            ]
+            # Make rewrites visible even when their content and clock tick match.
+            for path in unchanged:
+                os.utime(path, (1, 1))
+            timestamps = {path: path.stat().st_mtime_ns for path in unchanged}
+            source = docs / "index.qmd"
+            marker = "Single-page rendering preserves the rest of the website."
+            source.write_text(source.read_text() + f"\n{marker}\n")
+            result = subprocess.run(
+                ["quarto", "render", str(source), "--to", "html"],
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn(marker, (site / "index.html").read_text())
+            changed = [
+                str(path.relative_to(site))
+                for path, timestamp in timestamps.items()
+                if not path.is_file() or path.stat().st_mtime_ns != timestamp
+            ]
+            self.assertEqual(
+                len(changed),
+                0,
+                f"Single-page render changed unrelated output: {changed[:5]}",
+            )
 
     def test_get_started_belongs_to_the_guides_navigation(self) -> None:
         soup = BeautifulSoup(

@@ -103,7 +103,7 @@ The built-in runtimes expose the following session helpers:
 | Python `_console.sql_connection()`                                              | Get, select, or reset a native SQL connection owned by Python. |
 | R `console.plot.width_in`, `console.plot.height_in`, `console.plot.dpi` options | Configure captured plot dimensions and resolution.             |
 
-The [runtime guide](BUILTIN_RUNTIME.md) defines ownership and examples.
+The [runtime reference](RUNTIME_REFERENCE.md) defines ownership and examples.
 These helpers do not make R and Python connection objects interchangeable.
 
 ## CLI and configuration
@@ -119,7 +119,7 @@ Register tools through the supplied adapters so the model receives the connected
 ## What is not a public compatibility contract
 
 Hidden worker/relay/resolver subcommands, internal `MCP_CONSOLE_*` handoffs, process layouts, and recording journal schemas are implementation interfaces.
-Console-owned private protocols evolve in lockstep; custom workers must match the current build.
+Console-owned private protocols evolve in lockstep.
 The separately pinned native runner and external MCP protocol retain their own contracts.
 
 Internal details belong in [Architecture](ARCHITECTURE.md), [Relay protocol](RELAY_PROTOCOL.md), and [Worker protocol](WORKER_PROTOCOL.md).

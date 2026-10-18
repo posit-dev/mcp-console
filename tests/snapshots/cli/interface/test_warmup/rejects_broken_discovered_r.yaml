@@ -1,0 +1,19 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: FAIL
+  failed to discover the worker R home with `R`: Permission denied (os error 13)
+  Checking Python...
+  Python: FAIL
+  failed to discover the worker R home with `R`: Permission denied (os error 13)
+  Checking SQL...
+  SQL: FAIL
+  failed to discover the worker R home with `R`: Permission denied (os error 13)
+  Shutdown: FAIL
+  server exited with status 1
+  Warmup found 4 failed checks.
+stderr: |
+  failed to discover the worker R home with `R`: Permission denied (os error 13)

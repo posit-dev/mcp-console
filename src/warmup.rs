@@ -11,6 +11,9 @@ use tokio::process::Command;
 use crate::cli::ConfigOverrides;
 
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(15);
+// Private opt-in metadata; older servers can ignore the request and retain the
+// ordinary warmup checks without implementing another command or tool.
+pub(crate) const RUNTIME_META: &str = "io.github.t-kalinowski.mcp-console/warmup-runtime";
 
 pub(crate) fn run(
     overrides: &ConfigOverrides,
@@ -168,8 +171,9 @@ async fn check_languages(
             continue;
         }
         println!("Checking {label}...");
-        match tokio::time::timeout(timeout, evaluate(client, field, source)).await {
-            Ok(Ok((output, is_error))) => {
+        let deadline = tokio::time::Instant::now() + timeout;
+        match tokio::time::timeout_at(deadline, evaluate(client, Some((field, source)))).await {
+            Ok(Ok((output, is_error, _))) => {
                 let succeeded = !is_error
                     && if field == "sql" {
                         output.contains(expected)
@@ -191,6 +195,35 @@ async fn check_languages(
                         }
                     }
                 } else {
+                    if field == "r" {
+                        // A successful empty send confirms discovery and startup
+                        // settled. Absence alone can skip R; unknown capabilities,
+                        // preparation errors, and runtime failures remain failures.
+                        match tokio::time::timeout_at(deadline, evaluate(client, None)).await {
+                            Ok(Ok((_, false, Some(false)))) => {
+                                println!("R: SKIP (not installed)");
+                                continue;
+                            }
+                            Ok(Err(error)) => {
+                                failures += report(label, Err(format!("{output}\n{error}")));
+                                break;
+                            }
+                            Ok(Ok((diagnostics, true, _))) => {
+                                failures += report(label, Err(diagnostics));
+                                continue;
+                            }
+                            Err(_) => {
+                                failures += report(
+                                    label,
+                                    Err(format!(
+                                        "{output}\nruntime availability check timed out; stopping the server"
+                                    )),
+                                );
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
                     failures += report(label, Err(output));
                 }
             }
@@ -209,15 +242,23 @@ async fn check_languages(
 
 async fn evaluate(
     client: &Peer<RoleClient>,
-    field: &str,
-    source: &str,
-) -> Result<(String, bool), String> {
-    let mut arguments = serde_json::Map::from_iter([(field.into(), source.into())]);
+    cell: Option<(&str, &str)>,
+) -> Result<(String, bool, Option<bool>), String> {
+    let mut arguments = serde_json::Map::from_iter(
+        cell.into_iter()
+            .map(|(field, source)| (field.into(), source.into())),
+    );
     let mut output = String::new();
     let mut is_error = false;
     loop {
+        let mut request = CallToolRequestParams::new("send").with_arguments(arguments);
+        if cell.is_none() {
+            let mut metadata = rmcp::model::RequestMetaObject::new();
+            metadata.insert(RUNTIME_META.into(), true.into());
+            request.meta = Some(metadata);
+        }
         let result = client
-            .call_tool(CallToolRequestParams::new("send").with_arguments(arguments))
+            .call_tool(request)
             .await
             .map_err(|error| format!("{output}{error}"))?;
         let text = result
@@ -234,7 +275,13 @@ async fn evaluate(
         if !text.ends_with("[running; poll with an empty send]")
             && !text.ends_with("[worker starting]")
         {
-            return Ok((output, is_error));
+            let r_available = result
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.get(RUNTIME_META))
+                .and_then(|runtime| runtime.get("r"))
+                .and_then(serde_json::Value::as_bool);
+            return Ok((output, is_error, r_available));
         }
         // An observation timeout does not cancel or authorize replaying the cell.
         arguments = serde_json::Map::new();

@@ -437,6 +437,9 @@ impl ServerHandler for ConsoleServer {
         }
         context.extensions.insert(delivery.clone());
         let runtime = self.startup.runtime();
+        let runtime_probe =
+            context.meta.get(crate::warmup::RUNTIME_META) == Some(&serde_json::Value::Bool(true));
+        let runtime_worker = runtime.worker.clone();
         // A restart can reset completed failed readiness later in this call.
         // Its wait stays cancellable until initial configuration is accepted.
         let waiting_for_startup =
@@ -494,7 +497,7 @@ impl ServerHandler for ConsoleServer {
         } else {
             call_future.await
         };
-        let result = Arc::new(match result {
+        let mut result = match result {
             Err(error) if error.code == ErrorCode::INVALID_PARAMS => Ok(response_to_tool_result(
                 crate::worker_client::Response::tool_error(error.message.into_owned()),
                 &call,
@@ -504,7 +507,20 @@ impl ServerHandler for ConsoleServer {
             )
             .into()),
             result => result,
-        });
+        };
+        // The warmup driver asks the established discovery owner, not the host
+        // PATH or the wording of a runtime error. Ordinary replies are unchanged.
+        if runtime_probe
+            && let Ok(CallToolResponse::Complete(result)) = &mut result
+            && !result.is_error.unwrap_or(false)
+            && let Some(available) = runtime_worker.r_available()
+        {
+            result.meta.get_or_insert_default().insert(
+                crate::warmup::RUNTIME_META.into(),
+                serde_json::json!({ "r": available }),
+            );
+        }
+        let result = Arc::new(result);
         let recorder = transcript.clone();
         let recording_result = Arc::clone(&result);
         if let Err(error) = tokio::task::spawn_blocking(move || {

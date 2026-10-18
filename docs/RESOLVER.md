@@ -67,12 +67,18 @@ Exact platform fallbacks and generated grants are implemented in [`src/resolver/
 
 ## Configuration
 
-To use a private package mirror:
+Python indexes and mirrors use uv's native settings, including user- or system-level `uv.toml` files and environment variables such as `UV_INDEX_URL`.
+For R, pak's `PKG_CRAN_MIRROR` selects a CRAN-compatible repository, including a private Posit Package Manager instance.
+Pass package-manager environment variables through `resolver.environment`.
+R startup files are not read during preparation.
+
+For example, to use private Python and R package mirrors:
 
 ```yaml
 resolver:
   environment:
     UV_INDEX_URL: https://packages.example.org/simple
+    PKG_CRAN_MIRROR: https://packages.example.org/cran/latest
   sandbox:
     network:
       proxy:

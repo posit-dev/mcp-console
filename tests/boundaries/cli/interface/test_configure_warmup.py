@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.cli.interface.test_configure_client import environment
+from boundaries.client_server.server.test_no_r import no_r_environment
 from support.checkpoints import FifoCheckpoint, wait_for_path
 from support.events import Events
 from support.normalization import code
@@ -221,7 +222,7 @@ def test_starts_one_detached_warmup_with_the_selected_launch(
         ]
 
 
-@requires(POSIX, R, SQL)
+@requires(POSIX, SQL)
 def test_pinned_serve_only_release_warms_runtimes(binary: Path) -> Transcript:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
@@ -240,13 +241,18 @@ def test_pinned_serve_only_release_warms_runtimes(binary: Path) -> Transcript:
                 if command != "serve":
                     raise SystemExit(f"this release supports serve, not {command}")
                 Path(os.environ["TEST_WARMUP_INVOCATION"]).write_text(json.dumps(sys.argv[1:]))
+                # The server's runtime selection, rather than the driver's host
+                # environment, determines whether optional R is installed.
+                os.environ["PATH"] = os.environ["TEST_WARMUP_SERVER_PATH"]
+                for name in ("R_HOME", "R_LIBS", "R_LIBS_USER", "RETICULATE_PYTHON", "RETICULATE_UV"):
+                    os.environ.pop(name, None)
                 binary = os.environ["TEST_WARMUP_BINARY"]
                 os.execv(binary, [binary, command, *arguments])
                 """),
             encoding="utf-8",
         )
+        server_environment = no_r_environment(root)
         commands = root / "commands"
-        commands.mkdir()
         wrapper = commands / "uvx"
         wrapper.write_text(
             "#!/bin/sh\nexec " + shlex.join([sys.executable, str(script)]) + ' "$@"\n',
@@ -265,6 +271,7 @@ def test_pinned_serve_only_release_warms_runtimes(binary: Path) -> Transcript:
                 "PATH": str(commands) + os.pathsep + os.environ["PATH"],
                 "TEST_WARMUP_BINARY": str(binary),
                 "TEST_WARMUP_INVOCATION": str(invocation),
+                "TEST_WARMUP_SERVER_PATH": server_environment["PATH"],
             },
         )
         assert result.returncode == 0 and not result.stderr, result
@@ -286,7 +293,7 @@ def test_pinned_serve_only_release_warms_runtimes(binary: Path) -> Transcript:
         assert log.read_text() == (
             "MCP Console warmup\n"
             "Server: OK\n"
-            "Checking R...\nR: OK\n"
+            "Checking R...\nR: SKIP (not installed)\n"
             "Checking Python...\nPython: OK\n"
             "Checking SQL...\nSQL: OK\n"
             "Shutdown: OK\n"

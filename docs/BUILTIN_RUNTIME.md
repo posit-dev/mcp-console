@@ -1,198 +1,121 @@
-# Working with R, Python, and SQL
+# Sessions and languages
 
-Console keeps data, imports, models, and database state in memory while the agent works.
-A follow-up can inspect or modify what is already there instead of repeating the setup.
+Console gives your agent an interactive workspace for R, Python, and SQL.
+You can ask it to explore data, refine an analysis, or try another approach while keeping the work already in memory.
 
-An error does not undo earlier changes.
-Restarting clears live objects and database state; reconnecting starts a new session.
-[Recordings](RECORDING.md) preserve a record of the work, not a saved copy of the running session.
+## Work iteratively {#build-on-earlier-work}
 
-## Choose the languages you need {#runtime-selection}
+Variables, imports, functions, and database tables remain available between calls.
+For example, after the agent fits a statistical model, you can ask it to inspect the residuals or plot predictions without loading the data and fitting the model again.
+An error does not undo changes made before the failure.
+
+The agent can respond to interactive prompts and step through code in a debugger.
+Long computations can keep running between calls while the agent collects results as they become available.
+A call's wait timeout does not stop the computation.
+The agent can request an interrupt or restart an unresponsive session.
+
+<span id="current-limitations"></span>
+
+Each connection has one session and runs one code cell at a time.
+Restarting clears live objects and in-memory database state; reconnecting starts a new session.
+Recordings preserve a record of the work, not a saved session that can be resumed.
+
+## Combine languages in one session {#r-and-python-interoperability}
+
+Console embeds R, Python, and DuckDB in the same process.
+Your agent can switch languages between calls, choosing the libraries and syntax that fit each step.
+It can reuse data across languages without exporting and reloading intermediate files.
+
+For example, with R and the required packages available, the agent could load complete observations from the Palmer Penguins dataset in R:
+
+```r
+penguins <- na.omit(palmerpenguins::penguins)
+```
+
+Then summarize body mass by species with SQL:
+
+```sql
+SELECT species, avg(body_mass_g) AS mean_body_mass_g
+FROM penguins
+GROUP BY species
+ORDER BY species;
+```
+
+And use Python to plot the relationship between flipper length and body mass:
+
+```python
+r.penguins.plot.scatter(x="flipper_length_mm", y="body_mass_g")
+```
+
+Here, SQL queries the R data frame through the default R-owned DuckDB connection, and Python accesses it through reticulate as `r.penguins`.
+Conversions follow reticulate's rules; some conversions need additional Python packages, such as pandas for data frames.
+The [runtime reference](RUNTIME_REFERENCE.md#r-and-python-interoperability) describes the language bridge and its helpers.
+
+## Tailor the runtime {#runtime-selection}
+
+<span id="r"></span> <span id="python"></span>
+
+You can tailor Console to a project's languages and dependencies.
+For example, [expose only Python and SQL](TOOL_CONFIGURATION.md#model-visible-languages), use an [existing Python environment](CONFIGURATION.md#python-environment-selection), or select a specific [R installation](CONFIGURATION.md#r-executable-selection).
+
+An existing Python environment uses the packages already installed there.
+For managed environments, you can [choose startup packages and control whether more may be prepared during the session](REQUIREMENTS.md).
 
 R and Python can each run without the other.
 SQL uses a database connection supplied by one of them.
-By default, Console prepares a Python environment and uses an in-memory DuckDB database for SQL; install R separately to use it.
+To let your agent use R, [install it separately](getting-started.qmd#install).
 
-You can [select an existing Python environment](CONFIGURATION.md#python-environment-selection) or an [R installation](CONFIGURATION.md#r-executable-selection).
-An existing Python environment needs a supported, embeddable CPython installation, but no third-party packages are needed for standard-library Python code.
-Install packages for the features you use, such as Matplotlib for plots or DuckDB for the default Python-owned SQL connection.
+## Work with databases {#sql-and-duckdb}
 
-The Python client package is separate from the interpreter used for analysis.
-See [Client integration](CLIENTS.md) when connecting from application code.
+<span id="select-a-native-connection"></span>
 
-## R
+Console can use any database with an R DBI or Python DB-API driver.
+Your agent can create a connection object in R or Python and select it for subsequent SQL calls, which then run against that database.
 
-Use R expressions and packages as you would in an interactive R session.
-Visible top-level results are printed, and objects remain available to later code.
+By default, Console prepares an in-memory DuckDB database.
+The agent can use it to query data frames and keep tables and views available between calls.
 
-```r
-measurements <- data.frame(value = c(2, 4, 6))
-mean(measurements$value)
-```
+The selected connection determines the SQL dialect and transaction behavior.
+Access to database files and servers depends on the session's [filesystem and network permissions](SANDBOX.md).
 
-In a later cell:
+The [SQL connection reference](RUNTIME_REFERENCE.md#select-a-native-connection) shows how to select a connection from either language.
+You can also [configure a database connection at startup](CONFIGURATION.md#session-startup-source).
 
-```r
-measurements$centered <- measurements$value - mean(measurements$value)
-measurements
-```
+## Inspect help, plots, and results
 
-R reads its normal startup files by default.
-See [R startup settings](CONFIGURATION.md#native-r-startup) to change that behavior.
+Console formats help and output for agents, with affordances for inspecting results without accidentally flooding the model's context.
 
-### Read installed documentation {#installed-documentation}
+### Help and documentation {#installed-documentation}
 
-The agent can use ordinary help calls such as `?stats::lm`, `help("lm", package = "stats")`, and `help.search("linear models")`.
-Help pages and search results appear as text.
+Your agent can consult installed R help and package vignettes while it works.
+Help pages, search results, and installed HTML vignettes are presented as text, including code examples and evaluated results from the vignettes.
+Vignette figures are represented by captions and available alternative text.
+The [documentation reference](RUNTIME_REFERENCE.md#installed-documentation) explains other formats and access to the original files.
 
-Installed HTML vignettes can also be read as text, including their evaluated results:
+### Plots and images
 
-```r
-vignette("topic", package = "package_name")
-```
+Console captures R plots and Matplotlib pyplot figures and returns them as images for the agent to inspect.
+You can ask the agent to revise labels, change the scale, or try a different view of the same data.
+It can generate a new plot using objects already in the session.
 
-Replace the topic and package name with an installed vignette.
-Figures are represented by captions and available alternative text, not image pixels.
-PDF-only and source-only vignettes show their installed source instead.
-See [documentation behavior](RUNTIME_REFERENCE.md#installed-documentation) for details and ways to inspect the original files.
+The [plotting reference](RUNTIME_REFERENCE.md#plots-and-images) covers image dimensions and which plotting methods are captured automatically.
 
-Long help output can be captured and inspected in smaller pieces:
+### Large results {#output-and-notices}
 
-```r
-text <- capture.output(print(?stats::lm))
-writeLines(text[80:120])
-```
+Console limits how much text it sends back at once and collapses progress bar redraws.
+For oversized output, it shows the beginning and recent end and identifies the retained log.
+The agent can use its client's file tools to inspect that log without rerunning the computation.
 
-## Python
+<span id="result-previews"></span>
 
-Python code runs in a persistent workspace.
-Imports and assignments remain available, and the final expression in a cell is displayed.
+SQL results show a limited number of rows and columns.
+Rows that were never printed are not present in the log, so ask the agent to save the full result when you need the whole dataset.
 
-```python
-import statistics
+## Review and reuse the work
 
-values = [2, 4, 6]
-statistics.mean(values)
-```
+[Recordings](RECORDING.md) retain the code, output, and plots so you can see what the agent did and inspect its results.
+Ask the agent for the recording's location.
+The recorded Quarto document provides a starting point for a report; review its code, inputs, and package requirements before rendering it.
 
-A later cell can use `values` without defining it again.
-Ordinary exceptions print a traceback; earlier changes remain in place.
-An uncaught main-thread `SystemExit` ends the runtime.
-
-Console can prepare missing packages in a managed environment.
-An existing environment uses its installed packages.
-See [Packages and environments](REQUIREMENTS.md).
-
-## Move data between R and Python {#r-and-python-interoperability}
-
-The languages share one process, and reticulate supplies the bridge.
-From Python, `r.name` accesses an R object.
-For example, after the R example above:
-
-```python
-r.measurements
-```
-
-From R, `py$name` accesses a Python object:
-
-```r
-py$values
-```
-
-Conversions follow reticulate's rules; some conversions need additional Python packages.
-You do not need to use the bridge for an analysis in one language.
-[Runtime reference](RUNTIME_REFERENCE.md#r-and-python-interoperability) documents the helper functions and conversion behavior.
-
-## SQL and DuckDB {#sql-and-duckdb}
-
-SQL normally uses one in-memory DuckDB connection.
-Tables and views remain available for later queries.
-
-```sql
-CREATE TABLE measurements_sql AS
-SELECT * FROM (VALUES (2), (4), (6)) AS t(value);
-```
-
-```sql
-SELECT avg(value) AS mean_value FROM measurements_sql;
-```
-
-When R owns the managed connection, SQL can refer to R global data frames by name.
-With a Python-owned connection, register a data frame first:
-
-```python
-import pandas as pd
-
-frame = pd.DataFrame({"value": [2, 4, 6]})
-_console.sql_connection().register("measurements_python", frame)
-```
-
-The registered name can then be used in SQL.
-A database table or view takes precedence over an R data frame with the same name.
-
-### Use another database {#select-a-native-connection}
-
-Select a native DBI connection from R or a DB-API connection from Python.
-For example, Python's standard-library SQLite module provides SQL without installing DuckDB:
-
-```python
-import sqlite3
-
-connection = sqlite3.connect(":memory:")
-_console.sql_connection(connection)
-```
-
-Later SQL cells use that connection.
-From R, the corresponding helper is `.console$sql_connection(connection)`.
-
-Calling the helper without an argument returns the current connection owned by that language.
-Passing `None` in Python or `NULL` in R restores the managed default.
-Restoring the default does not close your connection or commit its transactions; you remain responsible for it.
-
-See [SQL connections](RUNTIME_REFERENCE.md#sql-and-duckdb) for driver behavior, connection ownership, and startup configuration.
-
-### Result previews
-
-SQL previews show at most 20 rows and 12 columns, and long values may be shortened.
-They are not complete exports.
-Fetch and save the full result explicitly when you need the whole dataset.
-
-## Plots and images
-
-R plots are captured as PNG images at the end of a cell.
-The default size is 800 × 600 pixels at 96 DPI.
-Set dimensions in inches and resolution for later plots:
-
-```r
-options(
-  console.plot.width_in = 10,
-  console.plot.height_in = 6,
-  console.plot.dpi = 100
-)
-```
-
-A finished plot cannot be extended from a later cell.
-Explicit user-created graphics devices are not automatically captured.
-
-Python captures open Matplotlib pyplot figures at cell end and then closes them.
-`plt.show()` captures immediately; calling it is optional.
-A figure closed before it is shown is not captured, and figures outside pyplot are not captured automatically.
-
-[Runtime reference](RUNTIME_REFERENCE.md#plots-and-images) covers device behavior and capture during errors or across the language bridge.
-
-## Read results and keep the work {#output-and-notices}
-
-Long output is shown as a preview with its beginning and recent end.
-The agent can use the client's filesystem tools to inspect retained logs rather than repeat the calculation.
-Output that was never printed, such as rows omitted by a database preview, is not present in those logs.
-
-See [Recordings and reports](RECORDING.md) for file locations, retention limits, and report preparation.
-
-## Current limitations
-
-There is one session and one active cell per connection, not parallel cells or named sessions.
-Restart discards live language state.
-Recordings are not checkpoints, and Console does not provide a file-reading or search tool.
-
-[Runtime reference](RUNTIME_REFERENCE.md) records detailed language behavior.
-Client authors should also read [Calls, input, and control](SEND_OPERATIONS.md); ordinary setup does not require learning the MCP call protocol.
+For precise language behavior, see the [runtime reference](RUNTIME_REFERENCE.md).
+[Client integration](CLIENTS.md) covers applications that call Console directly.

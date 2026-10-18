@@ -32,7 +32,7 @@ Use `mcp-console config resolve --full` to include your global, project, and com
 
 Configuration is trusted launcher input and can widen permissions or select executables.
 Unknown fields are errors.
-For launch flags, including custom workers and `--no-sandbox`, see [Command-line reference](CLI.md).
+For launch flags such as `--no-sandbox`, see [Command-line reference](CLI.md).
 
 ## R
 
@@ -56,7 +56,6 @@ r:
 An explicit executable overrides installation hints and PATH discovery.
 Relative executable paths use the launch directory; a leading `~` follows the shared [path rules](CONFIGURATION.md#paths).
 The selected installation is retained across worker restarts.
-R settings require the built-in worker.
 See [R executable selection](CONFIGURATION.md#r-executable-selection) and [Native R startup](CONFIGURATION.md#native-r-startup).
 
 ## Python
@@ -77,7 +76,6 @@ Combining direct managed fields with a selection key in the same mapping is an e
 Existing Python requires CPython 3.10 or newer with a usable shared embedding library.
 Venv directories need `pyvenv.cfg`; recognized Conda environments are unsupported.
 Interpreter paths use the launch directory and support a leading `~`, as R executable paths do.
-Python selection requires the built-in worker.
 
 ### Managed Python
 
@@ -165,7 +163,6 @@ startup:
 ```
 
 Default: `null`, using managed DuckDB without user startup source.
-Configured startup requires the built-in worker and relay.
 Configured source runs once per worker, after runtime helpers are available and before the first SQL cell.
 Its encoded transport, including escaping, is limited to 32 KiB.
 Failure withholds SQL until explicit restart; restart can repeat earlier side effects.

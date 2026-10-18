@@ -86,7 +86,6 @@ Recognized Conda installations are unsupported.
 Explicit selection overrides launch-time `RETICULATE_PYTHON`, uses preinstalled packages, and disables managed Python preparation.
 Existing selections accept no package or version settings.
 A broken selection fails rather than falling back.
-Python selection is unavailable with custom workers.
 
 To choose the first available candidate:
 
@@ -189,7 +188,7 @@ python:
   resolution: fixed
 ```
 
-The [policy table](REQUIREMENTS.md#resolution-policy-admission) defines what each mode permits.
+See [resolution policies](REQUIREMENTS.md#resolution-policy-admission) for what each mode permits.
 These settings govern Console's preparation, not arbitrary installation code or network access inside cells.
 
 To let missing Python imports request package preparation, opt in through `config.yaml`:
@@ -206,8 +205,7 @@ Startup runs inside the worker with its ordinary permissions.
 Console passes `--quiet`, `--interactive`, and `--no-save`, and does not save a workspace at shutdown.
 
 Set `r.vanilla: true` to request R's native `--vanilla` behavior.
-This affects the built-in worker, not discovery or dependency preparation, which remain profile-free.
-Explicit R settings are unsupported with custom workers/relays.
+This affects the session's R runtime; discovery and dependency preparation remain profile-free.
 
 Console attaches its bridges and managed graphics after native startup.
 Startup plots therefore use R's native device.
@@ -240,7 +238,7 @@ Startup code has ordinary worker permissions and may have side effects.
 Failure or interruption withholds SQL until explicit restart; there is no managed fallback or automatic replay.
 Restart may repeat earlier side effects.
 After success, resetting the SQL connection restores managed DuckDB without rerunning startup.
-See [SQL connections](BUILTIN_RUNTIME.md#sql-and-duckdb).
+See [SQL connections](RUNTIME_REFERENCE.md#sql-and-duckdb).
 
 ## Shared environment
 

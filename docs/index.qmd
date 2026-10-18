@@ -9,8 +9,7 @@ toc: false
 sidebar: false
 ---
 
-MCP Console lets your agent run R, Python, and SQL in a persistent session.
-It can load data once, inspect results, refine plots, read help, and debug code with objects and models still in memory.
+MCP Console preserves session state between calls, so your agent can work in R, Python, and SQL without repeating setup.
 
 Code runs in an [OS-level sandbox](SANDBOX.md) by default.
 Console prepares environments and packages automatically; no Console configuration file is required.
@@ -19,27 +18,34 @@ Console prepares environments and packages automatically; no Console configurati
 [Get started](getting-started.qmd){.btn .btn-primary} [User guides](README.md){.btn .btn-outline-primary}
 :::
 
-## An interactive workbench for agents
+Console is a **development preview** for macOS, Linux, and Windows x64.
 
-REPLs let people explore a question one step at a time: run code, inspect the result, and decide what to try next.
-Console gives agents those same interactive affordances in an environment tailored to how they work.
+## Work iteratively
 
-During an analysis, the agent can load a dataset, fit a model, and plot the residuals.
-A follow-up question can use the same data and model rather than repeat the setup.
+Console gives agents the interactive affordances of a REPL, so they can work iteratively: run code, inspect results, and decide what to try next.
+They can refine plots, read help, respond to interactive prompts, and step through code in a debugger.
+Long computations can keep running between calls, and agents can interrupt work or restart an unresponsive session.
 
-The agent can read help, inspect intermediate results, pause in a debugger, and continue after an interruption.
-Long computations can keep running between calls.
-Previews keep long output out of the model's context, while [recordings](RECORDING.md) retain logs and plots for later inspection.
+The environment is designed for agents, with help and output formatted for them.
+For example, Console collapses progress bar redraws and guards against large results accidentally flooding the model's context.
+The agent can inspect oversized output in more detail when needed, without rerunning the computation.
 
 ## Use one language or combine them {#one-workspace-three-languages}
 
-Console embeds R, Python, and DuckDB in one process.
+Console embeds R, Python, and DuckDB in the same process.
+The agent can switch between R, Python, and SQL on any turn, choosing the language and libraries that make each task easiest or most efficient.
+It can reuse live data and models across languages without exporting and reloading intermediate files.
+
 [Reticulate](https://rstudio.github.io/reticulate/) connects R and Python, and [DuckDB](https://duckdb.org/) can query in-memory data frames as SQL views.
-The agent can choose the language that fits each step, reusing live data and models without exporting and reloading intermediate files.
 
 R and Python can each run without the other.
 
-See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples, database connections, and plots.
+See [Sessions and languages](BUILTIN_RUNTIME.md) for examples, database connections, and plots.
+
+## Review the agent's work
+
+[Recordings](RECORDING.md) retain code, output, and plots so you can see what the agent ran in Console and inspect the results.
+They also provide a starting point for reproducible analyses and reports.
 
 ## Build on Console
 
@@ -68,18 +74,10 @@ See [Packages and environments](REQUIREMENTS.md).
 - **Large datasets:** keep data and intermediate results in memory for follow-up questions.
 - **Debugging and package development:** pause execution and inspect live objects where a failure occurs.
 
-## Status and trust
+## Control access to files and networks {#status-and-trust}
 
-Console is a **development preview** for macOS, Linux, and Windows x64.
-Run it on the same host as the MCP client.
+Console's default `read_only` sandbox profile restricts network access and filesystem writes.
+It does not restrict filesystem reads.
 
-Without [client permission inheritance](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex) or a configured profile, Console defaults to `read_only`: it restricts network access and filesystem writes but places no restrictions on filesystem reads.
-You can select a different profile or customize a profile by creating a [`.agents/console/config.yaml` file](CONFIGURATION.md) or supplying configuration arguments on the command line.
-Customizations let you manage network access through a [built-in proxy](SANDBOX_CONFIGURATION.md#proxy-modes-and-destinations) with domain allowlists or denylists, allow filesystem writes to specific paths, and block filesystem reads from selected paths.
-
-Project configuration is trusted input and may widen permissions.
-Dependency preparation has a separate policy.
-
-[Recordings](RECORDING.md) capture input and output from an MCP Console session.
-They are unredacted, so check for secrets before sharing session files.
-For example, a recording may include a secret printed by code the agent ran.
+You can allow writes to selected paths, block reads from selected paths, and control network access with domain allowlists or denylists.
+See [Sandbox configuration](SANDBOX_CONFIGURATION.md) for profiles, custom permissions, and inheriting permissions from Codex.

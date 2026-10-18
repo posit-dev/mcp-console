@@ -80,7 +80,7 @@ Exact helper names and essential restrictions must remain available in the tool 
 
 Describe configured capabilities without claiming that dependencies are already installed.
 An advertised language can fail because the runtime is unavailable; advertising it does not authorize installation.
-Existing Python, bare runtimes, and custom workers have different preparation support.
+Preparation guidance must reflect the selected runtime and resolution policy.
 
 Policy text must reflect selected native permissions.
 Name the configured temporary and workspace write grants and concrete writable paths, subject to narrower read/deny rules.

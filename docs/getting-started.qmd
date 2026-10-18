@@ -2,7 +2,7 @@
 title: Get started
 ---
 
-Install uv, connect Console to your MCP client, and try an analysis.
+Install uv, choose how to connect to Console, and try an analysis.
 No Console configuration file is required.
 
 ## Install
@@ -15,19 +15,22 @@ Sandboxed Windows sessions require a host that supports [MXC](SANDBOX_CONFIGURAT
 
 If Console fails to start on Linux, see [Linux host compatibility](LINUX_COMPATIBILITY.md) for missing libraries or sandbox restrictions.
 
-To use R, install it separately, for example with [rig](https://github.com/r-lib/rig#id-installation) and `rig add release`.
-Python and SQL also work without R.
+To let your agent use R, install it separately, for example with [rig](https://github.com/r-lib/rig#id-installation) and `rig add release`.
+Python and SQL work without R.
 The first session may download Python and packages.
 
-To check your installation and prepare those caches before opening a client, run `uvx mcp-console warmup`.
-Without R, use `uvx mcp-console warmup -c 'languages=[python,sql]'`.
+To check your installation and prepare runtime and package caches before opening a client, run `uvx mcp-console warmup`.
 See [Check your installation](CLI.md#check-your-installation) for configuration and diagnostics.
 
 ### Build from source
 
 To install the development version, follow [Build from source](BUILD_FROM_SOURCE.md).
 
-## Connect your client
+## Connect to Console {#connect-your-client}
+
+Use an MCP client or integrate Console into your own R or Python application.
+
+### Codex and Claude Code
 
 Register Console with the client you use:
 
@@ -43,7 +46,20 @@ Restart the client after setup.
 Your client launches Console on the same host, usually in the workspace where the agent is working.
 
 To register Console for a specific project, run the command from the project directory and add `--directory .`.
-See [client configuration](CLI.md#configure-a-client) for updating earlier project registrations, other MCP clients, version pinning, and launch options.
+See [client configuration](CLI.md#configure-a-client) for updating earlier project registrations, version pinning, and launch options.
+
+### Other MCP clients
+
+Console supports MCP over standard input and output (stdio).
+In your client's MCP settings, use command `uvx` and arguments `["mcp-console", "serve"]`.
+See [Other MCP clients](CLI.md#other-mcp-clients) for a configuration example.
+
+### R and Python packages
+
+The [R package, `mcp.console`](../r/README.md), adds Console to an ellmer chat.
+The [Python package, `mcp_console`](PYTHON.md), provides synchronous and asynchronous clients and adapters for chatlas, OpenAI, and Anthropic.
+
+See [Client integration](CLIENTS.md) for package APIs and tool configuration.
 
 ## Try an analysis
 
@@ -59,12 +75,12 @@ Then ask:
 > Which observations does the model fit poorly?
 > Show a plot and the path to the recorded session.
 
-See [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for examples.
+See [Sessions and languages](BUILTIN_RUNTIME.md) for an example of how your agent can combine languages and build on earlier work.
 
 ## Choose permissions
 
 For Codex configured above, Console defaults to the client's sandbox permissions; configuration files can select another profile.
-Without inheritance or a configured profile, the default sandbox permits host-file reads and private temporary writes, but not ordinary workspace writes or direct network access.
+Without inheritance or a configured profile, the default sandbox permits file reads and private temporary writes, but not ordinary workspace writes or direct network access.
 **It does not protect readable secrets.**
 
 ### Allow project writes {#allow-project-writes}
@@ -75,18 +91,16 @@ To let the agent save files in one project, create Console configuration in the 
 uvx mcp-console config init
 ```
 
-This creates `.agents/console/config.yaml` selecting the workspace profile, including outside Git.
-If the file already exists, edit it instead.
+This creates `.agents/console/config.yaml` with `sandbox.profile: workspace`.
 Restart the client to load the settings.
-The profile permits ordinary writes in Console's launch directory while protecting workspace metadata such as `.git` and `.agents`.
-Host-file reads remain allowed and direct network access remains restricted.
+The `workspace` profile allows writes in Console's launch directory except in sensitive locations such as `.agents` and `.git`.
+File reads remain allowed and direct network access remains restricted.
 
 The command-line reference covers [workspace writes across projects](CLI.md#allow-workspace-writes-across-projects) and [grants for individual directories](CLI.md#grant-writes-to-one-directory).
 See [Sandbox configuration](SANDBOX_CONFIGURATION.md) for the permission rules.
 
 Console loads project configuration automatically, and it can select executables or widen permissions.
 Review and authorize it before launching Console in an unfamiliar project; `--no-project-config` skips that layer.
-Being inside Git does not establish trust.
 
 For interpreter selection and package setup, see [Configuration](CONFIGURATION.md) and [Packages and environments](REQUIREMENTS.md).
 

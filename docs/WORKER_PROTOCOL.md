@@ -1,8 +1,10 @@
 # Worker protocol
 
-This private interface connects a relay to one worker generation, including custom workers selected with `serve --worker PATH`.
+This private interface connects a relay to one worker generation.
 It evolves in lockstep without an independent version.
-Custom workers must implement the current build's contract, not a stable third-party API.
+
+The `--worker` and `--relay` launch overrides are internal testing hooks, not part of Console's public API.
+Test worker fixtures must match the current build's protocol.
 
 [`src/worker_protocol.rs`](../src/worker_protocol.rs) defines the exact message objects.
 [`src/jsonl.rs`](../src/jsonl.rs), [`src/sideband.rs`](../src/sideband.rs), and the boundary tests define framing and endpoints.
@@ -80,7 +82,7 @@ An interrupted receipt affects only the cell admitted before receipt processing,
 Later cells do not inherit that withholding.
 These transitions enqueue commands without waiting for pipe I/O or signal acknowledgment; acknowledgment confirms dispatch, not worker-side interruption or cell completion.
 Native R startup reports its admission and successful completion through `r_initialization`; failed or interrupted R initialization requires explicit restart rather than in-place or automatic retry.
-Custom workers need not send built-in bootstrap events.
+Test worker fixtures need not send built-in bootstrap events.
 
 Each admitted ordinary operation has one matching terminal result:
 
@@ -159,18 +161,17 @@ The relay can forcibly terminate and reap the direct child after grace; descenda
 Outside intentional retirement, unexpected sideband EOF or worker exit, including status zero, fails the generation.
 Closure and direct-worker outcome do not prove native cleanup.
 
-## Custom-worker conformance
+## Test worker fixtures {#custom-worker-conformance}
 
-Custom workers have no built-in defaults or managed Python preparation.
-Explicit R/DuckDB preparation and optional runtime R callbacks require the current [worker protocol](WORKER_PROTOCOL.md#custom-worker-conformance).
+Test worker fixtures have no built-in defaults or managed Python preparation.
 They do not inherit the built-in SQL implementation.
+Python selection is unavailable with test workers.
+Explicit R settings and configured startup are unsupported with test workers or relays.
 
 `--worker PATH` selects one executable without arguments or shell parsing.
-Implement framing, descriptor ownership, readiness, input, results, shutdown, and worker-defined interruption.
-The hidden interface is for development and must match this build.
-The same `--worker` and `--relay` options apply to `warmup`, including background warmup after client configuration.
+Fixtures must implement framing, descriptor ownership, readiness, input, results, shutdown, and worker-defined interruption.
+The same internal `--worker` and `--relay` overrides apply to `warmup`, including background warmup after client configuration.
 
-Custom workers have no built-in defaults or managed Python.
 Explicit R/DuckDB preparation and optional runtime R callbacks must honor prepared `R_LIBS`, apply the managed R library before loading DuckDB, and use the supplied extension directory when set.
 
 [`tests/fixtures/zod`](../tests/fixtures/zod) exercises conformance; fixture commands are not protocol extensions.

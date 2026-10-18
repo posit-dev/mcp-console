@@ -116,6 +116,10 @@ quarto preview docs
 
 On Windows use `.venv/Scripts/python.exe` and activate `.venv/Scripts/Activate.ps1`.
 
+After the initial build, page edits in preview only rerender the changed page.
+The R and Python package sites, including their LLM exports, are rebuilt only during a full website render.
+Run a full render when you need to refresh those reference pages:
+
 ```sh
 quarto render docs
 python3 tests/website.py

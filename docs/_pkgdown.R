@@ -1,3 +1,7 @@
+if (Sys.getenv("QUARTO_PROJECT_RENDER_ALL") != "1") {
+  quit(save = "no")
+}
+
 output_dir <- Sys.getenv("QUARTO_PROJECT_OUTPUT_DIR")
 stopifnot(nzchar(output_dir))
 

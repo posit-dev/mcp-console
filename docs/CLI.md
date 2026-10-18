@@ -167,8 +167,9 @@ Configuration selection, ordered `-c` overrides, `--no-sandbox`, and `--writable
 When using the `inherit_codex` profile, this standalone connection has no client permissions to inherit and uses the configured fallback.
 The check runs with your shell's environment; a client launched with a different environment may select different runtimes.
 
-Each language reports `OK`, `FAIL`, or `SKIP (disabled)`.
-R must be installed separately to pass the R check; use `languages=[python,sql]` when you only need Python and SQL.
+Each language reports `OK`, `FAIL`, or `SKIP`.
+Disabled languages report `SKIP (disabled)`; R reports `SKIP (not installed)` when runtime discovery confirms it is absent, while Python and SQL are still checked.
+An explicitly selected or discovered but broken R installation remains a failure, as do package preparation and runtime errors.
 Warmup prints diagnostics, continues after completed language failures, and exits with status 1 if a check or server shutdown fails.
 `--timeout SECONDS` limits initialization and each language check to 600 seconds by default.
 A timeout or interactive input request stops further checks and shuts down the server.

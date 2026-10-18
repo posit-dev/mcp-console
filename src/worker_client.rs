@@ -384,6 +384,13 @@ impl Client {
         self.0.configuration.get().is_some()
     }
 
+    pub(crate) fn r_available(&self) -> Option<bool> {
+        self.0
+            .configuration
+            .get()
+            .map(|configuration| !configuration.python_only())
+    }
+
     pub(crate) fn startup_finished(&self) -> bool {
         self.0
             .startup

@@ -189,11 +189,116 @@ def test_reports_missing_r_and_checks_python_and_sql(
         result = warmup(
             binary, workspace, execution, environment=no_r_environment(workspace)
         )
-        assert result.returncode == 1 and result.stderr == "", result
-        assert "R: FAIL\n" in result.stdout, result
+        assert result.returncode == 0 and result.stderr == "", result
+        assert "R: SKIP (not installed)\n" in result.stdout, result
         assert "Python: OK\n" in result.stdout, result
         assert "SQL: OK\n" in result.stdout, result
-        assert result.stdout.endswith("Warmup found 1 failed check.\n"), result
+        assert result.stdout.endswith(
+            "All checks passed. Runtime caches are warm.\n"
+        ), result
+        return [{"exit_code": result.returncode, "stdout": result.stdout}]
+
+
+@requires(POSIX)
+@executions(RUNTIME)
+def test_rejects_explicit_missing_r(binary: Path, execution: Execution) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        workspace = Path(temporary)
+        missing = workspace / "missing-R"
+        result = warmup(
+            binary,
+            workspace,
+            execution,
+            "-c",
+            f"r.executable={missing}",
+            environment=no_r_environment(workspace),
+        )
+        assert result.returncode == 1, result
+        assert "R: FAIL\n" in result.stdout, result
+        assert f"r.executable {missing}" in result.stdout, result
+        assert "SKIP (not installed)" not in result.stdout, result
+        assert "All checks passed" not in result.stdout, result
+        return [
+            {
+                "exit_code": result.returncode,
+                "stdout": result.stdout.replace(str(workspace), "<workspace>"),
+                "stderr": result.stderr.replace(str(workspace), "<workspace>"),
+            }
+        ]
+
+
+@requires(POSIX)
+@executions(RUNTIME)
+def test_rejects_broken_discovered_r(binary: Path, execution: Execution) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        workspace = Path(temporary)
+        environment = no_r_environment(workspace)
+        (workspace / "commands/R").write_text("not an executable R installation")
+        result = warmup(binary, workspace, execution, environment=environment)
+        assert result.returncode == 1, result
+        assert "R: FAIL\n" in result.stdout, result
+        assert "Permission denied" in result.stdout, result
+        assert "SKIP (not installed)" not in result.stdout, result
+        assert "All checks passed" not in result.stdout, result
+        return [
+            {
+                "exit_code": result.returncode,
+                "stdout": result.stdout.replace(str(workspace), "<workspace>"),
+                "stderr": result.stderr.replace(str(workspace), "<workspace>"),
+            }
+        ]
+
+
+@requires(POSIX)
+@executions(RUNTIME)
+def test_missing_r_does_not_skip_requested_packages(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        workspace = Path(temporary)
+        result = warmup(
+            binary,
+            workspace,
+            execution,
+            "-c",
+            "r.packages=[praise]",
+            environment=no_r_environment(workspace),
+        )
+        assert result.returncode == 1, result
+        assert "R: FAIL\n" in result.stdout, result
+        assert "requested startup packages require R" in result.stdout, result
+        assert "SKIP (not installed)" not in result.stdout, result
+        assert "All checks passed" not in result.stdout, result
+        return [
+            {
+                "exit_code": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+        ]
+
+
+@requires(R, SQL)
+@executions(RUNTIME)
+def test_reports_r_execution_failure(binary: Path, execution: Execution) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        workspace = Path(temporary)
+        profile = workspace / "Rprofile"
+        profile.write_text(
+            'stopifnot <- function(...) stop("warmup fixture R failure")\n'
+        )
+        config = workspace / "session.json"
+        config.write_text(json.dumps({"environment": {"R_PROFILE_USER": str(profile)}}))
+        result = warmup(binary, workspace, execution, "--config-file", str(config))
+        assert result.returncode == 1 and result.stderr == "", result
+        assert "R: FAIL\n" in result.stdout, result
+        assert "warmup fixture R failure" in result.stdout, result
+        assert "Python: OK\n" in result.stdout, result
+        assert "SQL: OK\n" in result.stdout, result
+        assert "SKIP (not installed)" not in result.stdout, result
+        assert result.stdout.endswith("Shutdown: OK\nWarmup found 1 failed check.\n"), (
+            result
+        )
         return [{"exit_code": result.returncode, "stdout": result.stdout}]
 
 

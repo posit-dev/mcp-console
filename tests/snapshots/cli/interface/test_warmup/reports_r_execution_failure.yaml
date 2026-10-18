@@ -1,0 +1,14 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: FAIL
+  Error in stopifnot(1 + 1 == 2) : warmup fixture R failure
+  Checking Python...
+  Python: OK
+  Checking SQL...
+  SQL: OK
+  Shutdown: OK
+  Warmup found 1 failed check.

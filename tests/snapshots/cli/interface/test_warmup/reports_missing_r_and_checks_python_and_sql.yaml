@@ -1,14 +1,13 @@
 ---
-exit_code: 1
+exit_code: 0
 stdout: |
   MCP Console warmup
   Server: OK
   Checking R...
-  R: FAIL
-  R cells are unavailable in Python sessions without R
+  R: SKIP (not installed)
   Checking Python...
   Python: OK
   Checking SQL...
   SQL: OK
   Shutdown: OK
-  Warmup found 1 failed check.
+  All checks passed. Runtime caches are warm.

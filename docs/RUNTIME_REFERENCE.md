@@ -1,7 +1,7 @@
 # Runtime behavior reference
 
 Detailed language behavior for client authors and integrations.
-Start with [Working with R, Python, and SQL](BUILTIN_RUNTIME.md) for the user guide.
+Start with [Sessions and languages](BUILTIN_RUNTIME.md) for the user guide.
 
 One connection owns one persistent session.
 Globals, imports, options, database state, and unread input survive between cells.
@@ -116,7 +116,7 @@ The other helpers use their matching reticulate help topics, for example `help("
 
 `py_require()` without arguments returns the current R-side Python declarations.
 Managed Python defaults to `explicit`: prepare additions through `requirements.python` in `send`; R-side declarations do not authorize additional preparation.
-With `python.managed.resolution: implicit`, declarations use Console's existing [requirements and preparation](REQUIREMENTS_API.md#live-preparation) path.
+With `python.resolution: implicit`, declarations use Console's existing [requirements and preparation](REQUIREMENTS_API.md#live-preparation) path.
 In that mode, pre-initialization declarations are accepted when Python is prepared; MCP requirements inspection returns the last committed declaration.
 Before Python initializes, `action = "set"` can replace requirements; after initialization, compatible additions preserve live objects.
 Use [restart](REQUIREMENTS_API.md#restarting-with-requirements) for changes that require a fresh environment.
