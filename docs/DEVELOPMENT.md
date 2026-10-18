@@ -123,7 +123,7 @@ python3 tests/website.py
 
 The website test renders a fresh temporary copy and checks titles, navigation, search, and local links/anchors, including both package references.
 The CLI help page reads the normalized cross-platform YAML snapshot from CLI acceptance tests.
-It publishes only `mcp-console`, `serve`, `sandbox`, `config`, `config init`, `config resolve`, and `configure-client` help, preserving the exact tested text.
+It publishes only `mcp-console`, `serve`, `warmup`, `sandbox`, `config`, `config init`, `config resolve`, and `configure-client` help, preserving the exact tested text.
 Internal commands remain covered by acceptance tests.
 To publish another public command, add it to the explicit allowlist in `docs/_filters/cli-help.py` and the independent expected command list in `tests/website.py`.
 When CLI help changes, regenerate snapshots with `scripts/test --update cli/interface/test_help`, inspect the diff, and rerun without `--update`.

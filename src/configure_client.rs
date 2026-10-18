@@ -1,6 +1,7 @@
 //! Client configuration edits. Client trust and tool approvals remain client-owned.
 
 mod launch;
+mod warmup;
 
 use std::fs;
 use std::io::{ErrorKind, Write};
@@ -122,6 +123,13 @@ pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
                 path.display()
             );
         }
+    }
+    if !options.no_warmup
+        && let Err(error) = warmup::start(&launch, options, project.unwrap_or(&directory))
+    {
+        eprintln!(
+            "Warning: client configuration is saved, but background warmup could not start: {error}"
+        );
     }
     Ok(())
 }

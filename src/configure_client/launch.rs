@@ -63,12 +63,12 @@ impl Launch {
                 .map_err(|_| "Executable path is not valid UTF-8")?;
             launch.args.clear();
         }
-        launch.args.push("serve".into());
         Ok(launch)
     }
 
     pub(super) fn arguments(&self, client: ConfigureClient, serve_args: &[String]) -> Vec<String> {
         let mut args = self.args.clone();
+        args.push("serve".into());
         match client {
             ConfigureClient::Codex => args.extend([
                 "--default-config".into(),
@@ -79,6 +79,20 @@ impl Launch {
         // Explicit overrides and files take precedence over client defaults.
         args.extend_from_slice(serve_args);
         args
+    }
+
+    pub(super) fn warmup_command(
+        &self,
+        client: ConfigureClient,
+        serve_args: &[String],
+    ) -> Result<Command, String> {
+        let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+        let mut command = Command::new(executable);
+        command
+            .arg("warmup-server")
+            .arg(&self.command)
+            .args(self.arguments(client, serve_args));
+        Ok(command)
     }
 
     pub(super) fn prepare(&self, dry_run: bool) -> Result<(), String> {

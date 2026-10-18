@@ -1,0 +1,13 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: OK
+  R: SKIP (disabled)
+  Checking Python...
+  Python: FAIL
+  [input requested: "warmup fixture input: "]
+  [waiting for stdin]
+  check requested interactive input
+  Shutdown: OK
+  Warmup found 1 failed check.

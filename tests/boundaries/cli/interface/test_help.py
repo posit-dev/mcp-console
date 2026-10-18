@@ -41,6 +41,7 @@ def test_help(binary: Path) -> Transcript:
         record(binary, "config", "resolve", "--help"),
         record(binary, "configure-client", "--help"),
         record(binary, "serve", "--help"),
+        record(binary, "warmup", "--help"),
         record(binary, "worker", "--help"),
         record(binary, "sandbox"),
         record(binary, "sandbox", "--help"),
@@ -56,6 +57,7 @@ def test_help(binary: Path) -> Transcript:
                     "sandbox",
                     "config",
                     "configure-client",
+                    "warmup",
                     "help",
                 )
             ]

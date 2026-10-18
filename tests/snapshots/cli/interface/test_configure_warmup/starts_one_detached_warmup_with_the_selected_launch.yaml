@@ -1,0 +1,23 @@
+---
+fixture: uvx records its launch, waits at a gate, then exits with status 7
+configure_exit_code: 0
+arguments:
+  - mcp-console@9.8.7
+  - serve
+  - --default-config
+  - sandbox.profile=inherit_codex
+  - --no-project-config
+  - --writable-root
+  - <output>
+directory: <project>
+session: <warmup-pid>
+request: initialize
+log: |
+  MCP Console warmup
+  warmup stderr
+  warmup fixture failure
+  Server: FAIL
+  connection closed: initialize response
+  Shutdown: FAIL
+  server exited with status 7
+  Warmup found 2 failed checks.

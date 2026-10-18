@@ -46,6 +46,7 @@ mod sideband;
 #[cfg(any(unix, windows))]
 mod sql;
 mod transcript;
+mod warmup;
 mod worker;
 mod worker_client;
 mod worker_protocol;
@@ -63,6 +64,35 @@ fn main() -> ExitCode {
     let cli = cli::Cli::parse();
     let mut overrides = cli.overrides;
     match cli.command {
+        cli::Command::Warmup {
+            overrides: command_overrides,
+            no_sandbox,
+            writable_root,
+            timeout,
+            worker,
+            relay,
+        } => {
+            if let Err(error) = overrides.extend(command_overrides) {
+                return exit_with_error(error);
+            }
+            match warmup::run(
+                &overrides,
+                worker,
+                relay,
+                no_sandbox,
+                writable_root,
+                timeout,
+            ) {
+                Ok(true) => ExitCode::SUCCESS,
+                Ok(false) => ExitCode::FAILURE,
+                Err(error) => exit_with_error(error),
+            }
+        }
+        cli::Command::WarmupServer { command } => match warmup::run_server(&command) {
+            Ok(true) => ExitCode::SUCCESS,
+            Ok(false) => ExitCode::FAILURE,
+            Err(error) => exit_with_error(error),
+        },
         cli::Command::ConfigureClient(options) => match configure_client::run(&options) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => exit_with_error(error),

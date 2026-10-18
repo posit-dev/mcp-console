@@ -13,6 +13,8 @@ stderr: |
     config            Create or inspect configuration without starting
                       interpreters or preparing packages
     configure-client  Configure clients to launch MCP Console and expose its tools
+    warmup            Check the configured server and runtimes and warm their
+                      caches
     help              Print this message or the help of the given subcommand(s)
 
   Options:
@@ -40,6 +42,7 @@ stderr: |
 
   Examples:
     mcp-console serve
+    mcp-console warmup
     mcp-console sandbox -- python -c 'print("hello")'
     mcp-console configure-client codex claude
 ---
@@ -55,6 +58,8 @@ stdout: |
     config            Create or inspect configuration without starting
                       interpreters or preparing packages
     configure-client  Configure clients to launch MCP Console and expose its tools
+    warmup            Check the configured server and runtimes and warm their
+                      caches
     help              Print this message or the help of the given subcommand(s)
 
   Options:
@@ -96,6 +101,7 @@ stdout: |
 
   Examples:
     mcp-console serve
+    mcp-console warmup
     mcp-console sandbox -- python -c 'print("hello")'
     mcp-console configure-client codex claude
 ---
@@ -223,12 +229,15 @@ stdout: |
                                  [default: console]
         --no-auto-load           Keep the client's default tool discovery instead
                                  of loading Console tools up front
-        --dry-run                Print proposed settings and any installation
-                                 command without writing files or installing
+        --no-warmup              Skip the background runtime checks and cache
+                                 warming after configuration
+        --dry-run                Preview setup without writing files, installing,
+                                 or starting background warmup
     -h, --help                   Print help
 
   Prints each configuration file and setting changed. Unrelated settings are
   preserved. Use --dry-run to preview or apply the changes manually.
+  Starts cache warming in the background; use --no-warmup to skip it.
   Codex launches default to the client's sandbox permissions; configuration files
   can select another profile. Arguments after -- customize the serve settings.
 
@@ -280,6 +289,57 @@ stdout: |
 
         --writable-root <PATH>
             Allow writes to an additional path (temporary launch option)
+
+    -h, --help
+            Print help (see a summary with '-h')
+---
+command: mcp-console warmup --help
+stdout: |
+  Check the configured server and runtimes and warm their caches
+
+  Usage: mcp-console warmup [OPTIONS]
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+        --no-sandbox
+            Run evaluated code and dependency resolution with host permissions
+
+        --writable-root <PATH>
+            Allow writes to an additional path (temporary launch option)
+
+        --timeout <SECONDS>
+            Maximum seconds for server initialization and each language check
+            
+            [default: 600]
 
     -h, --help
             Print help (see a summary with '-h')

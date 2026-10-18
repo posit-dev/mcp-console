@@ -168,6 +168,7 @@ They do not inherit the built-in SQL implementation.
 `--worker PATH` selects one executable without arguments or shell parsing.
 Implement framing, descriptor ownership, readiness, input, results, shutdown, and worker-defined interruption.
 The hidden interface is for development and must match this build.
+The same `--worker` and `--relay` options apply to `warmup`, including background warmup after client configuration.
 
 Custom workers have no built-in defaults or managed Python.
 Explicit R/DuckDB preparation and optional runtime R callbacks must honor prepared `R_LIBS`, apply the managed R library before loading DuckDB, and use the supplied extension directory when set.

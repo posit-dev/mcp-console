@@ -25,7 +25,7 @@ libloading = "0.9.0"
 libr = { git = "https://github.com/t-kalinowski/ark", rev = "2411df0d1f75d53f88d4bb39bd41ee9c26222757" }
 pep440_rs = "0.7.3"
 pep508_rs = "0.9.2"
-rmcp = { version = "3.5.1", default-features = false, features = ["macros", "server", "transport-io"] }
+rmcp = { version = "3.5.1", default-features = false, features = ["client", "macros", "server", "transport-io"] }
 saphyr = { git = "https://github.com/t-kalinowski/saphyr", rev = "bd5bf9624347b24fa77cc2ef4a67ab2ef5c2cf8b", default-features = false }
 rust-embed = { version = "8.13.0", features = ["debug-embed"] }
 semver = "1.0.28"
@@ -34,7 +34,7 @@ serde_json = "1.0.154"
 serde_path_to_error = "0.1.20"
 sha2 = "0.11.1"
 tempfile = "3.27.0"
-tokio = { version = "1.53.3", features = ["macros", "rt", "sync", "time"] }
+tokio = { version = "1.53.3", features = ["macros", "process", "rt", "sync", "time"] }
 toml_edit = "0.25.17"
 url = "2.5.8"
 

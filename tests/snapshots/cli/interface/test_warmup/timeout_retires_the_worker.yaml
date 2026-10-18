@@ -1,0 +1,11 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: OK
+  R: SKIP (disabled)
+  Checking Python...
+  Python: FAIL
+  check timed out; stopping the server
+  Shutdown: OK
+  Warmup found 1 failed check.

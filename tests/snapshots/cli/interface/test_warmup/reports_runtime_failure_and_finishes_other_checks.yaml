@@ -1,0 +1,19 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: OK
+  Traceback (most recent call last):
+    File "<string>", line 391, in initialize_connection
+    File "<console startup>", line 1, in <module>
+  RuntimeError: warmup fixture startup failure
+  Error: configured startup did not complete; SQL withheld; explicit restart required
+  Checking Python...
+  Python: OK
+  Checking SQL...
+  SQL: FAIL
+  Error: SQL unavailable: configured startup did not complete; explicit restart required
+  Shutdown: OK
+  Warmup found 1 failed check.

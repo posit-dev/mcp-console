@@ -19,6 +19,10 @@ To use R, install it separately, for example with [rig](https://github.com/r-lib
 Python and SQL also work without R.
 The first session may download Python and packages.
 
+To check your installation and prepare those caches before opening a client, run `uvx mcp-console warmup`.
+Without R, use `uvx mcp-console warmup -c 'languages=[python,sql]'`.
+See [Check your installation](CLI.md#check-your-installation) for configuration and diagnostics.
+
 ### Build from source
 
 To install the development version, follow [Build from source](BUILD_FROM_SOURCE.md).
@@ -33,6 +37,8 @@ uvx mcp-console configure-client claude
 ```
 
 This registers Console globally, so it is available across projects, and loads its tools up front.
+It also starts runtime checks and cache warming in the background, printing a log path for the results.
+Use `--no-warmup` to skip that step.
 Restart the client after setup.
 Your client launches Console on the same host, usually in the workspace where the agent is working.
 

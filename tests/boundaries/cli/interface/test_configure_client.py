@@ -43,7 +43,8 @@ def configure(
     extra_environment: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [binary, "configure-client", *arguments],
+        # Registration-only cases leave background execution to test_configure_warmup.
+        [binary, "configure-client", "--no-warmup", *arguments],
         cwd=workspace,
         env=environment(root) | (extra_environment or {}),
         stdin=subprocess.DEVNULL,
@@ -679,6 +680,7 @@ def test_ephemeral_uvx_installs_persistent_executable(binary: Path) -> Transcrip
             str(wheels),
             "mcp-console",
             "configure-client",
+            "--no-warmup",
             "codex",
             "claude",
             "--no-uvx",

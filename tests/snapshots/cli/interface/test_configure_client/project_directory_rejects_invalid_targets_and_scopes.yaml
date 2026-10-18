@@ -7,7 +7,7 @@ stderr: |
 
     tip: to pass '--scope' as a value, use '-- --scope'
 
-  Usage: mcp-console configure-client <CLIENT>... [-- <SERVE_ARGS>...]
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
 
   For more information, try '--help'.
 ---
@@ -19,7 +19,7 @@ stderr: |
 
     tip: to pass '--scope' as a value, use '-- --scope'
 
-  Usage: mcp-console configure-client <CLIENT>... [-- <SERVE_ARGS>...]
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
 
   For more information, try '--help'.
 ---
@@ -31,7 +31,7 @@ stderr: |
 
     tip: to pass '--scope' as a value, use '-- --scope'
 
-  Usage: mcp-console configure-client <CLIENT>... [-- <SERVE_ARGS>...]
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
 
   For more information, try '--help'.
 ---
@@ -43,7 +43,7 @@ stderr: |
 
     tip: to pass '--scope' as a value, use '-- --scope'
 
-  Usage: mcp-console configure-client <CLIENT>... [-- <SERVE_ARGS>...]
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
 
   For more information, try '--help'.
 ---
@@ -55,7 +55,7 @@ stderr: |
 
     tip: to pass '--scope' as a value, use '-- --scope'
 
-  Usage: mcp-console configure-client <CLIENT>... [-- <SERVE_ARGS>...]
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
 
   For more information, try '--help'.
 ---
@@ -67,7 +67,7 @@ stderr: |
 
     tip: to pass '--scope' as a value, use '-- --scope'
 
-  Usage: mcp-console configure-client <CLIENT>... [-- <SERVE_ARGS>...]
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
 
   For more information, try '--help'.
 ---
@@ -79,7 +79,7 @@ stderr: |
 
     tip: to pass '--global' as a value, use '-- --global'
 
-  Usage: mcp-console configure-client <CLIENT>... [-- <SERVE_ARGS>...]
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
 
   For more information, try '--help'.
 ---
@@ -91,7 +91,7 @@ stderr: |
 
     tip: to pass '--global' as a value, use '-- --global'
 
-  Usage: mcp-console configure-client <CLIENT>... [-- <SERVE_ARGS>...]
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
 
   For more information, try '--help'.
 ---

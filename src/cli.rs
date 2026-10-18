@@ -11,6 +11,7 @@ Global settings supply defaults, not a mandatory security ceiling; projects may 
 const ROOT_EXAMPLES: &str = "\
 Examples:
   mcp-console serve
+  mcp-console warmup
   mcp-console sandbox -- python -c 'print(\"hello\")'
   mcp-console configure-client codex claude";
 
@@ -22,6 +23,7 @@ Examples:
 const CONFIGURE_CLIENT_EXAMPLES: &str = "\
 Prints each configuration file and setting changed. Unrelated settings are
 preserved. Use --dry-run to preview or apply the changes manually.
+Starts cache warming in the background; use --no-warmup to skip it.
 Codex launches default to the client's sandbox permissions; configuration files
 can select another profile. Arguments after -- customize the serve settings.
 
@@ -115,6 +117,40 @@ impl ConfigOverrides {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Check the configured server and runtimes and warm their caches
+    #[command(display_order = 5)]
+    Warmup {
+        #[command(flatten)]
+        overrides: ConfigOverrides,
+
+        /// Run evaluated code and dependency resolution with host permissions
+        #[arg(long)]
+        no_sandbox: bool,
+
+        /// Allow writes to an additional path (temporary launch option)
+        #[arg(long, value_name = "PATH", conflicts_with = "no_sandbox")]
+        writable_root: Vec<PathBuf>,
+
+        /// Maximum seconds for server initialization and each language check
+        #[arg(long, default_value_t = 600, value_name = "SECONDS", value_parser = clap::value_parser!(u32).range(1..))]
+        timeout: u32,
+
+        /// Replace the runtime worker during development
+        #[arg(long, hide = true, value_name = "PATH")]
+        worker: Option<PathBuf>,
+
+        /// Replace the worker relay during development
+        #[arg(long, hide = true, value_name = "PATH", requires = "worker")]
+        relay: Option<PathBuf>,
+    },
+
+    /// Warm a server selected by client configuration
+    #[command(hide = true)]
+    WarmupServer {
+        #[arg(value_name = "COMMAND", required = true, num_args = 1.., allow_hyphen_values = true, trailing_var_arg = true)]
+        command: Vec<OsString>,
+    },
+
     /// Configure clients to launch MCP Console and expose its tools
     #[command(after_help = CONFIGURE_CLIENT_EXAMPLES, display_order = 4)]
     ConfigureClient(ConfigureClientOptions),
@@ -283,7 +319,11 @@ pub struct ConfigureClientOptions {
     #[arg(long)]
     pub no_auto_load: bool,
 
-    /// Print proposed settings and any installation command without writing files or installing
+    /// Skip the background runtime checks and cache warming after configuration
+    #[arg(long)]
+    pub no_warmup: bool,
+
+    /// Preview setup without writing files, installing, or starting background warmup
     #[arg(long)]
     pub dry_run: bool,
 
