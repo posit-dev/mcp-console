@@ -96,7 +96,7 @@ impl Configuration {
         // Choose caches after inherited full access: sandbox-produced caches
         // must never become inputs to a newly unsandboxed session.
         crate::resolver::cache::configure(
-            self.cache,
+            self.cache.clone(),
             self.no_sandbox,
             python,
             &mut self.resolver,

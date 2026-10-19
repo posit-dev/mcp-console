@@ -30,3 +30,37 @@ stderr: >
   expected one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
   `inherit_environment`, `environment`, `sandbox`, `resolver`; see
   docs/CONFIGURATION.md for the public format
+---
+override: cache=relative-cache
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format
+---
+override: cache=/tmp/cache
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format
+---
+override: cache=42
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format
+---
+override: "cache={directory: ''}"
+stderr: |
+  configuration with CLI overrides: cache.directory must not be empty
+---
+override: "cache={directory: 42}"
+stderr: >
+  configuration with CLI overrides: cache: invalid type: integer `42`,
+  expected path string; see docs/CONFIGURATION.md for the public format
+---
+override: "cache={path: cache}"
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format
+---
+override: "cache={directory: cache, unknown: true}"
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format

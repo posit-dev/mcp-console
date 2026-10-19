@@ -481,6 +481,16 @@ def test_validates_effective_configuration(binary: Path) -> Transcript:
         ("inherit_environment=1.5", "floating point"),
         ("target.command=[far, faz]", "unknown field"),
         ("unknown={baz: [far, faz]}", "unknown field"),
+        ("cache=relative-cache", "expected managed, host, or a directory mapping"),
+        ("cache=/tmp/cache", "expected managed, host, or a directory mapping"),
+        ("cache=42", "expected managed, host, or a directory mapping"),
+        ("cache={directory: ''}", "cache.directory must not be empty"),
+        ("cache={directory: 42}", "string"),
+        ("cache={path: cache}", "expected managed, host, or a directory mapping"),
+        (
+            "cache={directory: cache, unknown: true}",
+            "expected managed, host, or a directory mapping",
+        ),
     )
     records = []
     with TemporaryDirectory() as temporary:

@@ -67,6 +67,16 @@ def test_console_cache_directory_override(binary: Path) -> Transcript:
 
 
 @requires(SANDBOX, command("uv"))
+def test_configured_cache_directory_overrides_environment(binary: Path) -> Transcript:
+    return cache_locations(
+        binary,
+        host=False,
+        sources=("path", "path_cli", "path_isolated"),
+        cache_override=True,
+    )
+
+
+@requires(SANDBOX, command("uv"))
 def test_empty_console_cache_directory_uses_default(binary: Path) -> Transcript:
     return cache_locations(binary, host=False, sources=("empty",))
 
@@ -224,7 +234,7 @@ def test_console_cache_rejects_unsandboxed_execution(binary: Path) -> Transcript
         assert result.returncode == 1, result
         assert (
             result.stderr
-            == "cache: console requires sandboxing; use cache: host with --no-sandbox\n"
+            == "Console caches require sandboxing; use cache: host with --no-sandbox\n"
         )
         assert not result.stdout
         assert not (root / "cache-base").exists()
@@ -277,7 +287,11 @@ def test_managed_python_and_duckdb_stay_in_console_cache(binary: Path) -> Transc
         env.pop("UV_PYTHON", None)
         env["UV_PYTHON_PREFERENCE"] = "only-managed"
         env["XDG_CACHE_HOME"] = str(root / "cache-base")
-        env["CACHE_TEST_ROOT"] = str(root / "cache-base/mcp-console/dependencies")
+        cache = root / "custom cache/dependencies"
+        env["CACHE_TEST_ROOT"] = str(cache)
+        config = root / ".agents/console/config.yaml"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"cache": {"directory": str(cache.parent)}}))
         for name in CACHE_VARIABLES:
             env[name] = str(root / "host" / name)
         with McpClient(binary, ("serve",), env, root) as client:
@@ -307,19 +321,17 @@ def test_managed_python_and_duckdb_stay_in_console_cache(binary: Path) -> Transc
                     sql="SELECT current_setting('extension_directory') AS directory"
                 )
                 assert not result.get("isError"), result
-                assert str(
-                    root / "cache-base/mcp-console/dependencies/duckdb/extensions"
-                ) in json.dumps(result), result
+                assert str(cache / "duckdb/extensions") in json.dumps(result), result
             client.send(requirements={"python": ["six"]})
             client.expect("six\n", python="import six; print(six.__name__)")
             result = client.send(sql="LOAD sqlite")
             assert not result.get("isError"), result
             client.finish()
-        cache = root / "cache-base/mcp-console/dependencies"
         assert list(
             (cache / "duckdb/extensions").glob("v*/**/sqlite_scanner.duckdb_extension")
         )
         assert not (root / "host").exists()
+        assert not (root / "cache-base").exists()
     return [
         {
             "managed_python": True,
@@ -463,19 +475,22 @@ def cache_locations(
                 [str(file) for file in companion_files]
             )
             if cache_override:
-                console_base = root / "custom-cache"
+                console_base = root / "custom cache"
                 env["MCP_CONSOLE_CACHE_DIR"] = str(console_base)
                 if source == "resolver":
                     settings["resolver"] = {
                         "environment": {"MCP_CONSOLE_CACHE_DIR": str(console_base)}
                     }
                     env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
+                elif source in ("path", "path_cli", "path_isolated"):
+                    settings["cache"] = {"directory": str(console_base)}
+                    env["MCP_CONSOLE_CACHE_DIR"] = str(root / "ignored-cache")
             elif source == "empty":
                 env["MCP_CONSOLE_CACHE_DIR"] = ""
             console_root = console_base / "dependencies"
             if source == "config":
                 settings["cache"] = "host"
-            if source == "isolated":
+            if source in ("isolated", "path_isolated"):
                 settings.update(inherit_environment=False, environment=dict(env))
             if source == "xdg_without_home":
                 env.pop("HOME", None)
@@ -505,7 +520,7 @@ def cache_locations(
                     directory = metadata_root / name
                     directory.mkdir(parents=True)
                     (directory / "keep").write_text("protected metadata")
-            if source == "isolated":
+            if source in ("isolated", "path_isolated"):
                 settings["environment"]["CACHE_TEST_EXPECTED"] = env[
                     "CACHE_TEST_EXPECTED"
                 ]
@@ -583,6 +598,12 @@ def cache_locations(
                 arguments.append("--no-sandbox")
             elif source == "cli":
                 arguments.extend(["-c", "cache=host"])
+            elif source == "path_cli":
+                settings["cache"] = "host"
+                config.write_text(json.dumps(settings))
+                arguments.extend(
+                    ["-c", f"cache.directory={json.dumps(str(console_base))}"]
+                )
             with McpClient(binary, arguments, env, root) as client:
                 client.initialize_and_list_tools()
                 if not host:

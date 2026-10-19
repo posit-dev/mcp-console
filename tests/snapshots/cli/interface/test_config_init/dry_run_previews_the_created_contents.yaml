@@ -86,17 +86,14 @@ preview: |
   # environment:
   #   OMP_NUM_THREADS: "4"
 
-  ## Cache options: console (default when sandboxed), host.
+  ## Cache options: managed (default when sandboxed), host, or a directory mapping.
   ## Use host to reuse ordinary host package caches.
-  # cache: host
-
-  ## Relocate Console-managed caches; ignored when cache: host.
-  ## Dependency caches go under <MCP_CONSOLE_CACHE_DIR>/dependencies.
-  ## Use an absolute path appropriate for your OS.
+  ## directory places managed dependency caches under <directory>/dependencies.
+  ## Relative directories use the launch directory; a leading ~/ uses your home.
+  ## It applies to package preparation and workers.
   ## Configuration and recordings stay in their existing locations.
-  # resolver:
-  #   environment:
-  #     MCP_CONSOLE_CACHE_DIR: /absolute/path/to/console-cache
+  # cache:
+  #   directory: /absolute/path/to/console-cache
 
   Dry run; no files changed.
 ---
@@ -187,14 +184,11 @@ created: |
   # environment:
   #   OMP_NUM_THREADS: "4"
 
-  ## Cache options: console (default when sandboxed), host.
+  ## Cache options: managed (default when sandboxed), host, or a directory mapping.
   ## Use host to reuse ordinary host package caches.
-  # cache: host
-
-  ## Relocate Console-managed caches; ignored when cache: host.
-  ## Dependency caches go under <MCP_CONSOLE_CACHE_DIR>/dependencies.
-  ## Use an absolute path appropriate for your OS.
+  ## directory places managed dependency caches under <directory>/dependencies.
+  ## Relative directories use the launch directory; a leading ~/ uses your home.
+  ## It applies to package preparation and workers.
   ## Configuration and recordings stay in their existing locations.
-  # resolver:
-  #   environment:
-  #     MCP_CONSOLE_CACHE_DIR: /absolute/path/to/console-cache
+  # cache:
+  #   directory: /absolute/path/to/console-cache

@@ -388,7 +388,11 @@ ToolConfig <- S7::new_class(
 #' @param sandbox `NULL`, a [SandboxPolicy()], or `FALSE` for host execution.
 #' @param languages `NULL` or a character vector selecting `"r"`, `"python"`,
 #'   and/or `"sql"` tool inputs. This does not select the installed runtimes.
-#' @param cache `NULL`, `"console"`, or `"host"` for dependency caches.
+#' @param cache `NULL`, `"managed"`, `"host"`, or `list(directory = "path")`.
+#'   `"console"` remains an alias for `"managed"`. A directory uses managed
+#'   caches under `<directory>/dependencies` for preparation and workers.
+#'   Relative paths use the project directory; a leading `~` uses Console's
+#'   launch-home convention. Managed caches require sandboxing.
 #' @param environment `NULL` or a named character vector of child environment
 #'   assignments. Empty string values are allowed; `character()` is an empty
 #'   mapping. Resolver assignments override worker assignments for preparation.
@@ -426,7 +430,34 @@ ConsoleConfig <- S7::new_class(
       }
     ),
     languages = config_string_list(),
-    cache = config_choice(c("console", "host")),
+    cache = S7::new_property(
+      NULL | S7::class_character | S7::class_list,
+      validator = function(value) {
+        if (is.null(value)) {
+          return(NULL)
+        }
+        if (
+          is.character(value) &&
+            length(value) == 1L &&
+            !is.na(value) &&
+            value %in% c("managed", "host", "console")
+        ) {
+          return(NULL)
+        }
+        if (is.list(value) && identical(names(value), "directory")) {
+          path <- value$directory
+          if (
+            is.character(path) &&
+              length(path) == 1L &&
+              !is.na(path) &&
+              nzchar(path)
+          ) {
+            return(NULL)
+          }
+        }
+        "must be NULL, managed, host, or list(directory = path)"
+      }
+    ),
     environment = config_environment(),
     inherit_environment = config_flag(),
     tool = NULL | ToolConfig,

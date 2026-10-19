@@ -134,12 +134,18 @@ def test_directory_validates_and_retains_relative_settings(binary: Path) -> Tran
             str(project),
             "-c",
             f"python={executable.name}",
+            "-c",
+            "cache.directory=host",
         )
         assert result.returncode == 0 and not result.stderr, result
         assert read_yaml(
             project / ".agents/console/config.yaml"
-        ) == WORKSPACE_CONFIGURATION | {"python": executable.name}
+        ) == WORKSPACE_CONFIGURATION | {
+            "python": executable.name,
+            "cache": {"directory": "host"},
+        }
         assert not (root / ".agents").exists()
+        assert not (project / "host").exists()
     return [
         {
             "relative_settings": "validated in the selected project and saved without absolute path expansion"
@@ -251,7 +257,7 @@ def test_template_examples_can_be_uncommented_and_loaded(binary: Path) -> Transc
             in contents
         )
         assert "#   allow_local_binding: true" in contents
-        assert "#     MCP_CONSOLE_CACHE_DIR:" in contents
+        assert "#   directory: /absolute/path/to/console-cache" in contents
         output = root / "shared-output"
         output.mkdir()
         (root / ".env").write_text("SECRET=fixture\n", encoding="utf-8")
@@ -283,11 +289,7 @@ def test_template_examples_can_be_uncommented_and_loaded(binary: Path) -> Transc
         ]
         assert value["r"]["packages"] == ["dplyr", "ggplot2"]
         assert value["environment"] == {"OMP_NUM_THREADS": "4"}
-        assert value["cache"] == "host"
-        assert (
-            value["resolver"]["environment"]["MCP_CONSOLE_CACHE_DIR"]
-            == (root / "cache").as_posix()
-        )
+        assert value["cache"] == {"directory": (root / "cache").as_posix()}
         assert not (root / "cache").exists()
     return [{"template_examples": "uncommented and accepted by config resolve"}]
 

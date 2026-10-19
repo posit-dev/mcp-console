@@ -38,6 +38,99 @@ def resolve(
     )
 
 
+def test_cache_directory_round_trips_without_creating_storage(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        config = root / ".agents/console/config.yaml"
+        config.parent.mkdir(parents=True)
+        environment = os.environ | {"HOME": str(root / "home")}
+        for directory, expected in (
+            ("host", root / "host"),
+            ("managed", root / "managed"),
+            (str(root / "custom cache"), root / "custom cache"),
+            ("~/cache", root / "home/cache"),
+        ):
+            config.write_text(json.dumps({"cache": {"directory": directory}}))
+            for arguments in ((), ("--full",)):
+                result = resolve(
+                    binary,
+                    root,
+                    *arguments,
+                    "--format",
+                    "json",
+                    environment=environment,
+                )
+                assert result.returncode == 0 and result.stderr == "", result
+                settings = json.loads(result.stdout)
+                assert settings["cache"] == {"directory": str(expected)}, settings
+                config.write_text(json.dumps(settings))
+            assert not expected.exists()
+    return [
+        {
+            "cache_directory": "preserved in pruned and full configuration",
+            "created": False,
+        }
+    ]
+
+
+def test_managed_cache_mode_and_console_alias_share_defaults(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        default = resolve(binary, root, "--no-config", "--full", "--format", "json")
+        assert default.returncode == 0 and default.stderr == "", default
+        expected = json.loads(default.stdout)
+        assert expected["cache"] == "managed", expected
+        for mode in ("managed", "console"):
+            for full in (False, True):
+                result = resolve(
+                    binary,
+                    root,
+                    "--no-config",
+                    "--format",
+                    "json",
+                    "-c",
+                    f"cache={mode}",
+                    *(("--full",) if full else ()),
+                )
+                assert result.returncode == 0 and result.stderr == "", result
+                assert json.loads(result.stdout) == (expected if full else {}), result
+    return [{"managed_cache": "default", "console": "compatible alias"}]
+
+
+def test_cache_directory_requires_sandboxing(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        cache = root / "cache"
+        for command in (("config", "resolve"), ("serve",)):
+            result = subprocess.run(
+                [
+                    binary,
+                    *command,
+                    "--no-config",
+                    "--no-sandbox",
+                    "-c",
+                    f"cache.directory={json.dumps(str(cache))}",
+                ],
+                cwd=root,
+                env=os.environ | {"MCP_CONSOLE_HOME": str(root / "console-home")},
+                input="",
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            assert result.returncode == 1 and result.stdout == "", result
+            assert (
+                result.stderr
+                == "Console caches require sandboxing; use cache: host with --no-sandbox\n"
+            ), result
+        assert not cache.exists()
+    return [{"cache_directory_without_sandbox": "rejected before creating storage"}]
+
+
 def test_managed_python_resolution_defaults_to_explicit(binary: Path) -> Transcript:
     configurations = []
     with TemporaryDirectory() as temporary:
@@ -490,7 +583,7 @@ def test_client_sandbox_inheritance_materializes_and_prunes(binary: Path) -> Tra
             )
             assert result.returncode == 0 and json.loads(result.stdout) == {
                 "sandbox": {"profile": profile},
-                "cache": "console",
+                "cache": "managed",
             }, result
         for profile in (
             "codex",
@@ -788,7 +881,7 @@ def test_materializes_without_starting_runtimes(binary: Path) -> Transcript:
         assert settings["r"]["packages"] == ["must-not-install"]
         assert settings["r"]["vanilla"] is False
         assert settings["r"]["resolution"] == "implicit"
-        assert settings["cache"] == "console"
+        assert settings["cache"] == "managed"
         tool = settings["tool"]
         assert tool["description"] and tool["instructions"]
         fields = tool["parameters"]

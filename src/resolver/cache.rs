@@ -14,16 +14,23 @@ pub(crate) fn configure(
     let selection = selection.unwrap_or(if no_sandbox {
         Cache::Host
     } else {
-        Cache::Console
+        Cache::Managed
     });
-    if matches!(selection, Cache::Host) {
-        return Ok(());
-    }
     // Console cache contents may have been produced by sandboxed code. Never
     // reuse them in a local session that removes native enforcement.
-    if no_sandbox {
-        return Err("cache: console requires sandboxing; use cache: host with --no-sandbox".into());
+    // Host-side companion staging uses a separate sandbox cache. Grant only
+    // dependency storage, never the shared Console cache parent.
+    let root = match selection {
+        Cache::Host => return Ok(()),
+        Cache::Managed | Cache::Directory(_) if no_sandbox => {
+            return Err(
+                "Console caches require sandboxing; use cache: host with --no-sandbox".into(),
+            );
+        }
+        Cache::Managed => console_root(resolver)?,
+        Cache::Directory(path) => path,
     }
+    .join("dependencies");
     let explicit_python = python.map_or_else(
         || {
             std::env::var_os("RETICULATE_PYTHON")
@@ -31,9 +38,6 @@ pub(crate) fn configure(
         },
         |python| python.executable.is_some(),
     );
-    // Host-side companion staging uses a separate sandbox cache.
-    // Grant only dependency storage, never the shared Console cache parent.
-    let root = console_root(resolver)?.join("dependencies");
     let path = |relative: &str| -> Result<Value, String> {
         root.join(relative)
             .to_str()

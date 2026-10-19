@@ -22,7 +22,7 @@ See [the trust boundary](#trust-boundary).
 
 ## Cache locations
 
-Sandboxed sessions default to `cache: console`:
+Sandboxed sessions default to `cache: managed` (`console` remains a compatibility alias):
 
 | Platform | Default dependency directory                    |
 | -------- | ----------------------------------------------- |
@@ -32,9 +32,19 @@ Sandboxed sessions default to `cache: console`:
 
 An absolute `XDG_CACHE_HOME` selects `<XDG_CACHE_HOME>/mcp-console/dependencies` on every platform.
 Windows has user-profile/home fallbacks when `LOCALAPPDATA` is unavailable.
-Set `MCP_CONSOLE_CACHE_DIR` to an absolute directory to use `<MCP_CONSOLE_CACHE_DIR>/dependencies` instead.
-It takes precedence over `XDG_CACHE_HOME` and platform defaults; an unset or empty value retains the default selection.
-Selection uses the resolver's effective environment and is captured for the server connection.
+To relocate Console-managed caches, set `cache.directory` in the configuration:
+
+```yaml
+cache:
+  directory: /absolute/path/to/console-cache
+```
+
+Dependency caches go under `<directory>/dependencies` for both package preparation and workers.
+Relative directories use the launch directory; a leading `~` uses the launching user's home.
+This path takes precedence over environment variables and platform defaults.
+With `cache: managed`, the launch-time `MCP_CONSOLE_CACHE_DIR` environment variable selects the cache root ahead of `XDG_CACHE_HOME` and platform defaults; an unset or empty value retains the default selection.
+Environment-based selection uses the resolver's effective environment.
+The selected location is captured for the server connection and retained across worker restarts.
 `MCP_CONSOLE_HOME` moves configuration and recordings, not these caches.
 
 Console redirects supported package/cache variables beneath that directory.
@@ -52,7 +62,7 @@ cache: host
 This retains resolver sandboxing but changes the default cache locations and write grants.
 `MCP_CONSOLE_CACHE_DIR` is ignored with `cache: host`.
 Shared cache writes can affect artifacts later used outside Console.
-`--no-sandbox` defaults to host caches and rejects `cache: console`.
+`--no-sandbox` defaults to host caches and rejects managed caches, including custom directories.
 
 The companion's source/build cache is separate from dependency caches.
 It is not worker-writable under the default policy.

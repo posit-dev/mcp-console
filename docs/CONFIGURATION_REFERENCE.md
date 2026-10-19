@@ -23,7 +23,7 @@ Use `mcp-console config resolve --full` to include your global, project, and com
 | `python`              | Executable/venv path, selection mapping, or `null`      | Select an existing or managed Python environment. Omission keeps [normal Python selection](#python).                                                                                                    |
 | `languages`           | Nonempty list of `r`, `python`, and/or `sql`; or `null` | Choose source fields exposed to the agent. Default: `[r, python, sql]`. This does not install runtimes or change permissions.                                                                           |
 | `startup`             | Mapping or `null`                                       | Run source that selects a SQL connection once per worker. Default: no startup source. See [Session startup](#session-startup).                                                                          |
-| `cache`               | `console`, `host`, or `null`                            | Choose dependency cache locations. Default: `console` when sandboxed, `host` with `--no-sandbox`. See [Caches](#caches).                                                                                |
+| `cache`               | `managed`, `host`, a directory mapping, or `null`       | Choose dependency cache locations. Default: `managed` when sandboxed, `host` with `--no-sandbox`. See [Caches](#caches).                                                                                |
 | `inherit_environment` | `true` or `false`                                       | Inherit launch environment variables. Default: `true`. See [Environment](#environment).                                                                                                                 |
 | `environment`         | Mapping of names to string values                       | Supply environment variables to execution and preparation. Default: `{}`.                                                                                                                               |
 | `sandbox`             | Mapping or `null`                                       | Set evaluated-code permissions. Default: host reads, private temporary writes, and restricted networking. See [Sandbox](#sandbox).                                                                      |
@@ -194,15 +194,22 @@ See [Environment variables](ENVIRONMENT.md) for recognized host settings and [Pa
 
 ## Caches
 
-| Value of `cache` | Meaning                                                                                                                           |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `console`        | Use Console-specific dependency caches and generated resolver write grants. Default for sandboxed execution; requires sandboxing. |
-| `host`           | Use ordinary host cache locations and installed package environments where supported. Default with `--no-sandbox`.                |
+| Value of `cache`    | Meaning                                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `managed`           | Use Console-specific dependency caches and generated resolver write grants. Default for sandboxed execution; requires sandboxing. |
+| `host`              | Use ordinary host cache locations and installed package environments where supported. Default with `--no-sandbox`.                |
+| `{directory: PATH}` | Use managed dependency caches under `<directory>/dependencies` for preparation and workers. Requires sandboxing.                  |
 
 Omitted or `null` selects the appropriate default for the launch.
+`console` remains a compatibility alias for `managed`; configuration exports use `managed`.
+`cache.directory` is a nonempty path using the shared [path rules](CONFIGURATION.md#paths).
+Bare path strings are not accepted.
+For a directory named `host` or `managed`, use `cache: {directory: host}` or `cache: {directory: managed}`.
 For the `inherit_codex` profile, automatic cache selection waits for client metadata: sandboxed profiles use Console caches, and inherited full access uses host caches.
 `config resolve --full` retains `cache: null` for that automatic choice.
 `cache: host` retains resolver sandboxing.
+A configured path takes precedence over `MCP_CONSOLE_CACHE_DIR`, XDG, and platform defaults.
+Configuration and recordings keep their existing locations.
 Existing Python still uses its preinstalled packages.
 See [Cache locations](RESOLVER.md#cache-locations) for directories, environment overrides, and write grants.
 

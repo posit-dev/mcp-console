@@ -70,11 +70,30 @@ pub(crate) fn environment_path(settings: &SandboxSettings, name: &str) -> Option
         .filter(|path| !path.as_os_str().is_empty())
 }
 
-#[derive(Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone)]
 pub(crate) enum Cache {
-    Console,
+    Managed,
     Host,
+    Directory(PathBuf),
+}
+
+impl<'de> Deserialize<'de> for Cache {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match Value::deserialize(deserializer)? {
+            Value::String(mode) if matches!(mode.as_str(), "managed" | "console") => {
+                Ok(Self::Managed)
+            }
+            Value::String(mode) if mode == "host" => Ok(Self::Host),
+            Value::Object(mut fields) if fields.len() == 1 && fields.contains_key("directory") => {
+                PathBuf::deserialize(fields.remove("directory").expect("directory mapping"))
+                    .map(Self::Directory)
+                    .map_err(serde::de::Error::custom)
+            }
+            _ => Err(serde::de::Error::custom(
+                "expected managed, host, or a directory mapping",
+            )),
+        }
+    }
 }
 
 /// Preserve Console's assignments and removals after project environment controls.
@@ -309,6 +328,15 @@ pub(crate) fn read(
         serde_path_to_error::deserialize(value.clone()).map_err(|error| {
             format!("{name}: {error}; see docs/CONFIGURATION.md for the public format")
         })?;
+    if let Some(Cache::Directory(path)) = &mut project.cache {
+        if path.as_os_str().is_empty() {
+            return Err(format!("{name}: cache.directory must not be empty"));
+        }
+        let expanded = crate::console_paths::expand_home(path)
+            .map_err(|error| format!("{name}: cache.directory: {error}"))?;
+        *path = std::path::absolute(directory.join(expanded))
+            .map_err(|error| format!("{name}: cannot locate cache.directory: {error}"))?;
+    }
     if let Some(packages) = project.r.as_ref().and_then(|r| r.packages.as_ref()) {
         crate::worker_client::validate_r_requirements(packages)
             .map_err(|error| format!("{name}: r.packages: {error}"))?;

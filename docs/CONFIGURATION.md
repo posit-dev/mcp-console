@@ -268,10 +268,21 @@ See [Environment variables](ENVIRONMENT.md).
 
 ## Cache selection
 
-Sandboxed sessions default to Console-specific caches.
-Set `MCP_CONSOLE_CACHE_DIR` to an absolute directory to relocate those caches.
+Sandboxed sessions default to `cache: managed`, using Console-specific caches.
+Set `cache.directory` to relocate those caches for package preparation and workers:
+
+```yaml
+cache:
+  directory: /absolute/path/to/console-cache
+```
+
+Dependency caches go under `<directory>/dependencies`.
+Relative paths use the launch directory; a leading `~` follows the shared [path rules](#paths).
+The configured path takes precedence over the launch-time `MCP_CONSOLE_CACHE_DIR` environment variable.
+Configuration and recordings keep their existing locations.
 Set `cache: host` to reuse host cache locations.
-`--no-sandbox` defaults to host caches and rejects `cache: console` and explicit sandbox policies.
+`cache: console` remains an alias for `cache: managed`.
+`--no-sandbox` defaults to host caches and rejects Console-managed caches and explicit sandbox policies.
 The [`inherit_codex` profile](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex) also selects host caches when the first call requests full access.
 [Resolver caches](RESOLVER.md#cache-locations) documents locations and permission implications.
 
@@ -319,7 +330,7 @@ Editing YAML requires a new server connection; restarting a worker does not relo
 ## Paths
 
 Relative paths use the launch directory, including paths written in a global file.
-A leading `~` expands to the launching user's home in interpreter selectors, sandbox and resolver filesystem paths, supported Unix-socket paths, configuration filenames, and `--writable-root`.
+A leading `~` expands to the launching user's home in interpreter selectors, `cache.directory`, sandbox and resolver filesystem paths, supported Unix-socket paths, configuration filenames, and `--writable-root`.
 `MCP_CONSOLE_HOME` also accepts a leading `~`.
 
 Expansion uses a nonempty, absolute `HOME` from the launch environment.

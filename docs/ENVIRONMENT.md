@@ -94,10 +94,12 @@ See [uv's reference](https://docs.astral.sh/uv/reference/environment/) and [reso
 ## Cache and data locations
 
 [Resolver configuration](RESOLVER.md#cache-locations) owns root selection and host-cache permissions.
-`MCP_CONSOLE_CACHE_DIR` selects an absolute Console cache root, taking precedence over XDG and platform defaults.
+Set `cache.directory` in configuration to select the managed cache root for preparation and workers.
+With `cache: managed` (also accepted as `console`), `MCP_CONSOLE_CACHE_DIR` selects that root, taking precedence over XDG and platform defaults.
+An explicit `cache.directory` takes precedence over `MCP_CONSOLE_CACHE_DIR`.
 An unset or empty value uses the defaults; `cache: host` ignores it.
 Let `D` be the selected Console dependency directory.
-`cache: console` applies these assignments to preparation and eligible workers:
+`cache: managed` and an explicit cache directory apply these assignments to preparation and eligible workers:
 
 | Variables                                | Values                                                                                |
 | ---------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -122,7 +124,7 @@ Values observed inside a cell are therefore not necessarily the persistent resol
 With `cache: host`, tool variables/defaults select caches and Console generates appropriate resolver grants.
 An explicit resolver filesystem replaces those generated entries.
 `MCP_CONSOLE_HOME` does not move caches.
-Without `MCP_CONSOLE_CACHE_DIR`, Windows cache-root selection uses absolute `XDG_CACHE_HOME`, then absolute `LOCALAPPDATA`, then its home/profile fallback.
+Without an explicit cache path or `MCP_CONSOLE_CACHE_DIR`, Windows cache-root selection uses absolute `XDG_CACHE_HOME`, then absolute `LOCALAPPDATA`, then its home/profile fallback.
 
 Despite its prefix, `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` is a supported user cache setting in host mode.
 A relative nonempty value resolves against the launch directory; otherwise managed extensions use the resolver home's `.duckdb/extensions`.

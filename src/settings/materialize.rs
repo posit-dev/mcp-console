@@ -19,13 +19,13 @@ pub(crate) fn configuration(
         .profile
         .as_ref()
         .is_some_and(super::ProfileSelection::inherits_codex);
-    let cache = captured.cache.unwrap_or(if no_sandbox {
+    let cache = captured.cache.clone().unwrap_or(if no_sandbox {
         Cache::Host
     } else {
-        Cache::Console
+        Cache::Managed
     });
-    if no_sandbox && matches!(cache, Cache::Console) {
-        return Err("cache: console requires sandboxing; use cache: host with --no-sandbox".into());
+    if no_sandbox && !matches!(cache, Cache::Host) {
+        return Err("Console caches require sandboxing; use cache: host with --no-sandbox".into());
     }
     let languages = captured
         .languages
@@ -73,10 +73,11 @@ pub(crate) fn configuration(
     value["cache"] = if uses_client_profile && captured.cache.is_none() {
         Value::Null
     } else {
-        json!(match cache {
-            Cache::Console => "console",
-            Cache::Host => "host",
-        })
+        match cache {
+            Cache::Managed => json!("managed"),
+            Cache::Host => json!("host"),
+            Cache::Directory(path) => json!({"directory": path}),
+        }
     };
     value["inherit_environment"] =
         json!(captured.policy.get("inherit_environment") != Some(&Value::Bool(false)));
