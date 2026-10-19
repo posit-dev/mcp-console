@@ -3,6 +3,11 @@ use super::super::{Client, RResolver};
 use super::requirements::RequirementDelta;
 use super::state::{Environment, PythonEnvironment};
 
+enum PythonPreparation<'a> {
+    StartupDefaults(Vec<String>),
+    Live(&'a std::path::Path),
+}
+
 pub(in crate::worker_client) enum EnvironmentResolutionFailure {
     Host(String),
     Interrupted(String),
@@ -59,6 +64,9 @@ impl Client {
             python_candidate,
             r_requirements,
             r_changed,
+            r_defaults,
+            python_defaults,
+            duckdb_defaults,
         } = delta;
         let mut environment = environment.clone();
         let python_only = environment
@@ -80,7 +88,7 @@ impl Client {
                     candidate.clone(),
                     resolver,
                     None,
-                    None,
+                    PythonPreparation::StartupDefaults(python_defaults.clone()),
                 )?)
             }
             _ => None,
@@ -113,17 +121,22 @@ impl Client {
                 generation,
                 &environment.r_resolver,
                 r_requirements,
+                r_defaults,
             )?);
         }
-        if !python_only && !duckdb_extensions.is_empty() && (duckdb_changed || r_changed) {
-            let target = environment.r.as_ref().ok_or_else(|| {
-                EnvironmentResolutionFailure::Operation(
-                    "DuckDB extension preparation requires a managed R environment".to_string(),
-                )
-            })?;
-            let extensions = duckdb_extensions.iter().cloned().collect::<Vec<_>>();
-            self.resolve_duckdb_extensions(generation, std::slice::from_ref(target), &extensions)?;
-        }
+        let duckdb_extensions =
+            if !python_only && !duckdb_extensions.is_empty() && (duckdb_changed || r_changed) {
+                self.resolve_duckdb_extensions(
+                    generation,
+                    environment.r.as_slice(),
+                    &duckdb_extensions.iter().cloned().collect::<Vec<_>>(),
+                    &duckdb_defaults,
+                )?
+                .into_iter()
+                .collect()
+            } else {
+                duckdb_extensions
+            };
         if let Some(candidate) = python_candidate {
             let mut resolver = match pending_python {
                 Some(resolver) => resolver,
@@ -171,7 +184,7 @@ impl Client {
                     candidate,
                     &resolver,
                     environment.r.as_ref(),
-                    None,
+                    PythonPreparation::StartupDefaults(python_defaults),
                 )?
             };
             if !environment.custom_worker {
@@ -193,13 +206,19 @@ impl Client {
             }
             environment.python = Some(PythonEnvironment::Managed { selected, resolver });
         }
-        if python_only && !duckdb_extensions.is_empty() && (duckdb_changed || python_changed) {
-            self.resolve_python_duckdb_extensions_for_environment(
-                generation,
-                &environment,
-                &duckdb_extensions.iter().cloned().collect::<Vec<_>>(),
-            )?;
-        }
+        let duckdb_extensions =
+            if python_only && !duckdb_extensions.is_empty() && (duckdb_changed || python_changed) {
+                self.resolve_python_duckdb_extensions_for_environment(
+                    generation,
+                    &environment,
+                    &duckdb_extensions.iter().cloned().collect::<Vec<_>>(),
+                    &duckdb_defaults,
+                )?
+                .into_iter()
+                .collect()
+            } else {
+                duckdb_extensions
+            };
         self.ensure_startup(generation)
             .map_err(EnvironmentResolutionFailure::Operation)?;
         environment.duckdb_extensions = duckdb_extensions;
@@ -246,7 +265,7 @@ impl Client {
             requirements,
             resolver,
             environment.r.as_ref(),
-            Some(current.python()),
+            PythonPreparation::Live(current.python()),
         )?;
         let inspected = self.inspect_managed_python(generation, &candidate, resolver)?;
         crate::python::ensure_libpython_compatible(
@@ -267,6 +286,7 @@ impl Client {
                 &candidate,
                 resolver,
                 &extensions.iter().cloned().collect::<Vec<_>>(),
+                &[],
                 environment.local_runtime.as_ref(),
             )?;
         }
@@ -299,6 +319,7 @@ impl Client {
         generation: &WorkerGeneration,
         resolver: &RResolver,
         requirements: Vec<String>,
+        defaults: Vec<String>,
     ) -> Result<crate::resolver::ManagedR, EnvironmentResolutionFailure> {
         self.ensure_startup(generation)
             .map_err(EnvironmentResolutionFailure::Operation)?;
@@ -307,7 +328,13 @@ impl Client {
             stop_handle = Some(handle.clone());
             self.register_resolver_stop_handle(generation, handle)
         };
-        let retained = requirements.clone();
+        let mut retained = requirements.clone();
+        // Several built-in list entries are also runtime infrastructure.
+        // They remain required even when the convenience defaults are optional.
+        let defaults = defaults
+            .into_iter()
+            .filter(|requirement| !self.0.runtime_r_requirements.contains(requirement))
+            .collect();
         let requirements = requirements
             .into_iter()
             .chain(self.0.runtime_r_requirements.iter().cloned())
@@ -351,7 +378,7 @@ impl Client {
                 )
             }
             super::super::RResolver::Configured(configuration) => {
-                configuration.resolve_r(requirements, on_started)
+                configuration.resolve_r(requirements, defaults, on_started)
             }
             super::super::RResolver::Disabled => {
                 return Err(EnvironmentResolutionFailure::Host(
@@ -364,8 +391,10 @@ impl Client {
         };
         self.clear_resolver_stop_handle(generation)
             .map_err(EnvironmentResolutionFailure::Operation)?;
-        classify_resolver_result(result, stop_handle.as_ref())
-            .map(|managed| managed.with_retained_requirements(retained))
+        classify_resolver_result(result, stop_handle.as_ref()).map(|managed| {
+            retained.retain(|requirement| managed.requirements().contains(requirement));
+            managed.with_retained_requirements(retained)
+        })
     }
 
     fn resolve_managed_python_host(
@@ -374,13 +403,18 @@ impl Client {
         requirements: crate::worker_protocol::PythonRequirementManifest,
         resolver: &crate::resolver::execution::PythonConfiguration,
         managed_r: Option<&crate::resolver::ManagedR>,
-        selected_python: Option<&std::path::Path>,
+        preparation: PythonPreparation<'_>,
     ) -> Result<crate::resolver::ManagedPython, EnvironmentResolutionFailure> {
         self.ensure_startup(generation)
             .map_err(EnvironmentResolutionFailure::Operation)?;
         let mut stop_handle = None;
+        let (defaults, selected_python) = match preparation {
+            PythonPreparation::StartupDefaults(defaults) => (defaults, None),
+            PythonPreparation::Live(selected) => (Vec::new(), Some(selected)),
+        };
         let result = crate::resolver::execution::resolve_python_manifest(
             requirements,
+            defaults,
             resolver,
             managed_r,
             selected_python,
@@ -401,12 +435,15 @@ impl Client {
         generation: &WorkerGeneration,
         managed_r: &[crate::resolver::ManagedR],
         extensions: &[String],
-    ) -> Result<(), EnvironmentResolutionFailure> {
+        defaults: &[String],
+    ) -> Result<Vec<String>, EnvironmentResolutionFailure> {
         if managed_r.is_empty() {
             return Err(EnvironmentResolutionFailure::Operation(
                 "DuckDB extension preparation requires a managed R environment".to_string(),
             ));
         }
+        // Startup has one target; live changes require every retained R library.
+        let mut accepted = extensions.to_vec();
         for managed_r in managed_r {
             self.ensure_startup(generation)
                 .map_err(EnvironmentResolutionFailure::Operation)?;
@@ -421,6 +458,7 @@ impl Client {
                 local.as_ref(),
                 managed_r,
                 extensions,
+                defaults,
                 |handle| {
                     stop_handle = Some(handle.clone());
                     self.register_resolver_stop_handle(generation, handle)
@@ -428,9 +466,11 @@ impl Client {
             );
             self.clear_resolver_stop_handle(generation)
                 .map_err(EnvironmentResolutionFailure::Operation)?;
-            classify_resolver_result(result, stop_handle.as_ref())?;
+            self.ensure_startup(generation)
+                .map_err(EnvironmentResolutionFailure::Operation)?;
+            accepted = classify_resolver_result(result, stop_handle.as_ref())?;
         }
-        Ok(())
+        Ok(accepted)
     }
 
     pub(super) fn resolve_python_duckdb_extensions_for_environment(
@@ -438,7 +478,8 @@ impl Client {
         generation: &WorkerGeneration,
         environment: &Environment,
         extensions: &[String],
-    ) -> Result<(), EnvironmentResolutionFailure> {
+        defaults: &[String],
+    ) -> Result<Vec<String>, EnvironmentResolutionFailure> {
         let (selected, resolver) = environment
             .python
             .as_ref()
@@ -454,6 +495,7 @@ impl Client {
             selected,
             resolver,
             extensions,
+            defaults,
             environment.local_runtime.as_ref(),
         )
     }
@@ -464,8 +506,9 @@ impl Client {
         selected: &crate::resolver::ManagedPython,
         resolver: &crate::resolver::execution::PythonConfiguration,
         extensions: &[String],
+        defaults: &[String],
         runtime: Option<&crate::local_runtime::Selection>,
-    ) -> Result<(), EnvironmentResolutionFailure> {
+    ) -> Result<Vec<String>, EnvironmentResolutionFailure> {
         let extension_directory = runtime
             .and_then(crate::local_runtime::Selection::duckdb_extension_directory)
             .ok_or_else(|| {
@@ -481,6 +524,7 @@ impl Client {
             resolver,
             selected,
             extensions,
+            defaults,
             extension_directory,
             |handle| {
                 stop_handle = Some(handle.clone());

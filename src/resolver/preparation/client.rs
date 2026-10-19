@@ -354,6 +354,7 @@ impl Preparation {
         let diagnostic_reader = {
             let stderr = child.stderr.take().expect("preparation stderr");
             let diagnostic_events = events.clone();
+            let diagnostics = diagnostics.clone();
             thread::spawn(move || {
                 if let Err(error) =
                     crate::process_output::forward(stderr, diagnostic_exit, diagnostics)
@@ -431,7 +432,14 @@ impl Preparation {
         let retired = Arc::new(AtomicBool::new(false));
         let owner_retired = retired.clone();
         let owner = thread::spawn(move || {
-            let result = run(received, &outgoing, pending, open, &owner_blocked);
+            let result = run(
+                received,
+                &outgoing,
+                pending,
+                open,
+                &owner_blocked,
+                &diagnostics,
+            );
             drop(outgoing);
             drop(abort);
             // Retire before joining I/O and reaping. Native cleanup needs a
@@ -619,8 +627,10 @@ fn run(
     initial: Pending,
     open: Input,
     blocked: &Mutex<Option<String>>,
+    diagnostics: &crate::process_output::Diagnostics,
 ) -> Result<(), String> {
     let owner = LABEL;
+    let mut diagnostic = diagnostics();
     let mut active = Some(initial);
     let mut controls: VecDeque<(u64, ResolverControlOutcome, Option<ControlReply>)> =
         VecDeque::new();
@@ -699,6 +709,13 @@ fn run(
                         .filter(|pending| pending.id == id)
                         .ok_or_else(|| format!("mismatched {owner} result chunk"))?;
                     pending.chunks.get_or_insert_default().push_str(&text);
+                }
+                Event::Received(Ok(Output::Diagnostic { id, text })) if hello => {
+                    if !active.as_ref().is_some_and(|pending| pending.id == id) {
+                        return Err(format!("mismatched {owner} diagnostic"));
+                    }
+                    diagnostic(text.as_bytes());
+                    diagnostic(&[]);
                 }
                 Event::Received(Ok(Output::Completed {
                     id,

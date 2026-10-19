@@ -80,6 +80,7 @@ impl Selection {
     pub(crate) fn python(
         configured: Option<OsString>,
         requirements: crate::worker_protocol::PythonRequirementManifest,
+        defaults: Vec<String>,
         resolver: &crate::resolver::execution::PythonConfiguration,
         extension_directory: Option<PathBuf>,
         inspect_explicit: impl FnOnce(
@@ -98,6 +99,7 @@ impl Selection {
             |started| {
                 crate::resolver::execution::resolve_python_manifest(
                     requirements,
+                    defaults,
                     resolver,
                     None,
                     None,
@@ -171,12 +173,12 @@ impl Selection {
         managed: Option<&ManagedPython>,
         resolver: &crate::resolver::execution::PythonConfiguration,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
-    ) -> Result<std::collections::BTreeSet<String>, String> {
+    ) -> Result<Option<std::collections::BTreeSet<String>>, String> {
         let Some(managed) = managed.filter(|_| !DEFAULT_DUCKDB_EXTENSIONS.is_empty()) else {
-            return Ok(Default::default());
+            return Ok(None);
         };
         if !crate::resolver::execution::python_duckdb_available(resolver, managed, on_started)? {
-            return Ok(Default::default());
+            return Ok(None);
         }
         let directory = self
             .duckdb_extension_directory()
@@ -185,14 +187,15 @@ impl Selection {
             .iter()
             .map(|name| (*name).to_string())
             .collect::<Vec<_>>();
-        crate::resolver::execution::resolve_python_duckdb_extensions(
+        let extensions = crate::resolver::execution::resolve_python_duckdb_extensions(
             resolver,
             managed,
+            &extensions,
             &extensions,
             directory,
             on_started,
         )?;
-        Ok(extensions.into_iter().collect())
+        Ok(Some(extensions.into_iter().collect()))
     }
 
     pub(crate) fn duckdb_extension_directory(&self) -> Option<&Path> {

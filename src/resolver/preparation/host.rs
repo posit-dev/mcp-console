@@ -116,6 +116,7 @@ impl Context {
         &mut self,
         operation: Operation,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
+        report: &dyn Fn(String) -> Result<(), String>,
     ) -> Result<serde_json::Value, String> {
         if let Some(installation) = &self.installation {
             installation.validate()?;
@@ -136,9 +137,21 @@ impl Context {
                 }
                 Ok(serde_json::Value::Null)
             }
-            Operation::R { requirements } => {
+            Operation::R {
+                requirements,
+                defaults,
+            } => {
                 let configuration = self.r.as_ref().ok_or("R bootstrap has not been prepared")?;
-                let r = resolver::resolve_r_with(configuration, requirements, on_started)?;
+                let (r, _) = resolver::defaults::resolve(
+                    "R package",
+                    requirements,
+                    defaults,
+                    |requirements, started| {
+                        resolver::resolve_r_with(configuration, requirements, started)
+                    },
+                    on_started,
+                    report,
+                )?;
                 serde_json::to_value(r).map_err(|error| error.to_string())
             }
             Operation::ResolveRStandalone { requirements } => {
@@ -154,17 +167,29 @@ impl Context {
             }
             Operation::Python {
                 requirements,
+                defaults,
                 r,
                 selected_python,
             } => {
                 let r =
                     r.map(|r| r.on_host(self.rscript.as_ref().expect("managed R has an Rscript")));
                 self.prepare_uv(r.as_ref(), on_started)?;
-                let python = resolver::resolve_python_manifest_for_host(
-                    requirements,
-                    &self.python,
-                    selected_python.as_deref(),
+                let (python, _) = resolver::defaults::resolve(
+                    "Python package",
+                    requirements.packages.clone(),
+                    defaults,
+                    |packages, started| {
+                        let mut requirements = requirements.clone();
+                        requirements.packages = packages;
+                        resolver::resolve_python_manifest_for_host(
+                            requirements,
+                            &self.python,
+                            selected_python.as_deref(),
+                            started,
+                        )
+                    },
                     on_started,
+                    report,
                 )?;
                 serde_json::to_value(python).map_err(|error| error.to_string())
             }
@@ -190,10 +215,26 @@ impl Context {
                 self.python.set_resolved_uv(uv.clone());
                 serde_json::to_value(uv).map_err(|error| error.to_string())
             }
-            Operation::Duckdb { r, extensions } => {
+            Operation::Duckdb {
+                r,
+                extensions,
+                defaults,
+            } => {
                 let r = r.on_host(self.rscript.as_ref().expect("managed R has an Rscript"));
-                resolver::resolve_duckdb_extensions(&r, &extensions, on_started)?;
-                Ok(serde_json::Value::Null)
+                let (_, accepted) = resolver::defaults::resolve(
+                    "DuckDB extension",
+                    extensions,
+                    defaults,
+                    |extensions, started| {
+                        if extensions.is_empty() {
+                            return Ok(());
+                        }
+                        resolver::resolve_duckdb_extensions(&r, &extensions, started)
+                    },
+                    on_started,
+                    report,
+                )?;
+                serde_json::to_value(accepted).map_err(|error| error.to_string())
             }
             Operation::PythonDuckdbAvailable { python } => {
                 if !matches!(self.mode, Mode::PythonOnly) || !self.managed_python {
@@ -204,18 +245,31 @@ impl Context {
             Operation::DuckdbPython {
                 python,
                 extensions,
+                defaults,
                 extension_directory,
             } => {
                 if !matches!(self.mode, Mode::PythonOnly) || !self.managed_python {
                     return Err("Python-backed DuckDB preparation requires managed Python".into());
                 }
-                resolver::resolve_python_duckdb_extensions(
-                    &python,
-                    &extensions,
-                    &extension_directory,
+                let (_, accepted) = resolver::defaults::resolve(
+                    "DuckDB extension",
+                    extensions,
+                    defaults,
+                    |extensions, started| {
+                        if extensions.is_empty() {
+                            return Ok(());
+                        }
+                        resolver::resolve_python_duckdb_extensions(
+                            &python,
+                            &extensions,
+                            &extension_directory,
+                            started,
+                        )
+                    },
                     on_started,
+                    report,
                 )?;
-                Ok(serde_json::Value::Null)
+                serde_json::to_value(accepted).map_err(|error| error.to_string())
             }
         }
     }
@@ -240,6 +294,7 @@ impl Context {
 
 enum Event {
     Input(Result<Input, String>),
+    Diagnostic { id: u64, text: String },
     Started(ResolverStopHandle, mpsc::Sender<()>),
     Completed(Output),
     OutputFailed(String),
@@ -355,7 +410,13 @@ pub(super) fn run() -> Result<(), String> {
             let _ = perform(
                 id,
                 &job_events,
-                |started| context.execute(operation, started),
+                |started| {
+                    context.execute(operation, started, &|text| {
+                        job_events
+                            .send(Event::Diagnostic { id, text })
+                            .map_err(|_| "preparation owner stopped".into())
+                    })
+                },
                 Clone::clone,
             );
         }
@@ -426,6 +487,9 @@ pub(super) fn run() -> Result<(), String> {
                     failure = Some("preparation retirement is unconfirmed".into());
                     closing = true;
                 }
+            }
+            Event::Diagnostic { id, text } => {
+                let _ = outgoing.send(Output::Diagnostic { id, text });
             }
             Event::Input(Ok(Input::Close)) => closing = true,
             Event::Input(Err(error)) | Event::OutputFailed(error) => {

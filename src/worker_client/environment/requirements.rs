@@ -105,6 +105,9 @@ pub(in crate::worker_client) struct RequirementDelta {
     pub(super) python_candidate: Option<crate::worker_protocol::PythonRequirementManifest>,
     pub(super) r_requirements: Vec<String>,
     pub(super) r_changed: bool,
+    pub(super) r_defaults: Vec<String>,
+    pub(super) python_defaults: Vec<String>,
+    pub(super) duckdb_defaults: Vec<String>,
 }
 
 impl RequirementDelta {
@@ -134,8 +137,38 @@ impl RequirementDelta {
             super::super::RResolver::Pending(setup) => Some(setup),
             _ => None,
         };
+        let startup = environment.startup_declaration();
+        let r_defaults = if pending.is_some() && environment.startup.r.is_none() {
+            startup
+                .r
+                .into_iter()
+                .filter(|package| !r.contains(package))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let python_defaults = if pending.is_some() && environment.startup.python.packages.is_none()
+        {
+            startup
+                .python
+                .into_iter()
+                .filter(|package| !python.contains(package))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let duckdb_defaults = if pending.is_some() {
+            startup
+                .duckdb
+                .iter()
+                .filter(|extension| !duckdb.contains(extension))
+                .cloned()
+                .collect()
+        } else {
+            Vec::new()
+        };
         if pending.is_some() {
-            duckdb.extend(environment.startup_declaration().duckdb);
+            duckdb.extend(startup.duckdb);
         }
 
         let duckdb_additions = duckdb.into_iter().collect::<BTreeSet<_>>();
@@ -176,6 +209,9 @@ impl RequirementDelta {
             python_candidate,
             r_requirements,
             r_changed,
+            r_defaults,
+            python_defaults,
+            duckdb_defaults,
         };
         delta.validate_policy(environment, action)?;
         Ok(delta)
@@ -203,6 +239,11 @@ impl RequirementDelta {
             ensure_managed_python_available(environment)?;
         }
         let action = requirements.action;
+        let defaults = if action == RequirementsAction::Reset {
+            candidate.clone()
+        } else {
+            Default::default()
+        };
         let delta = Self {
             restart_required: true,
             duckdb_changed: changed && (candidate.duckdb != current.duckdb || pending),
@@ -217,6 +258,17 @@ impl RequirementDelta {
                     || candidate.r != current.r
                     || (environment.custom_worker && environment.r.is_none())),
             r_requirements: candidate.r,
+            r_defaults: if environment.startup.r.is_none() {
+                defaults.r
+            } else {
+                Vec::new()
+            },
+            python_defaults: if environment.startup.python.packages.is_none() {
+                defaults.python
+            } else {
+                Vec::new()
+            },
+            duckdb_defaults: defaults.duckdb,
         };
         delta.validate_policy(environment, action)?;
         Ok(delta)
@@ -258,7 +310,15 @@ impl RequirementDelta {
                 "Python",
             ),
         ] {
-            if changed && !policy.permits_deliberate_changes() {
+            // Reset replays captured startup intent, including skipped defaults.
+            let permitted = match action {
+                RequirementsAction::Reset => policy.prepares_startup(),
+                RequirementsAction::Add | RequirementsAction::Set => {
+                    policy.permits_deliberate_changes()
+                }
+                RequirementsAction::Get => unreachable!("inspection does not calculate candidates"),
+            };
+            if changed && !permitted {
                 return Err(policy.denial(language, operation));
             }
         }

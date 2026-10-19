@@ -47,6 +47,8 @@ An explicitly requested restart still occurs for unchanged requirements.
 
 Inspection returns `requirements`, `prepared`, and `runtime_requirements` in structured content.
 `requirements` is the editable user declaration; `runtime_requirements` identifies additional runtime infrastructure.
+Skipped built-in defaults are absent from the accepted declaration.
+Plain restart retains that accepted declaration; `reset` retries the captured startup defaults under the configured resolution policies.
 During resolution, inspection reports the last commit, not an in-progress candidate.
 During initial startup it may instead return `[worker starting]`.
 
@@ -164,14 +166,15 @@ Accepted declarations and filesystem effects have different lifetimes.
 
 Configuration chooses a policy independently for R and managed Python:
 
-| Policy                         | Prepare startup declaration | Explicit MCP changes | Automatic runtime additions |
-| ------------------------------ | --------------------------- | -------------------- | --------------------------- |
-| `implicit`                     | Yes                         | Yes                  | Yes                         |
-| `explicit`                     | Yes                         | Yes                  | No                          |
-| `fixed`                        | Yes                         | No                   | No                          |
-| R `disabled` / existing Python | No                          | No                   | No                          |
+| Policy                         | Prepare startup declaration | MCP `add` / `set` changes | Automatic runtime additions |
+| ------------------------------ | --------------------------- | ------------------------- | --------------------------- |
+| `implicit`                     | Yes                         | Yes                       | Yes                         |
+| `explicit`                     | Yes                         | Yes                       | No                          |
+| `fixed`                        | Yes                         | No                        | No                          |
+| R `disabled` / existing Python | No                          | No                        | No                          |
 
 Unchanged declarations remain no-ops.
+Under `fixed`, `reset` can retry skipped startup defaults.
 A mixed request is checked as a whole before preparation.
 `set` cannot omit a locked language to clear it, and `reset` or restart cannot unlock a policy.
 A policy change requires a new server connection.

@@ -26,6 +26,8 @@ pub(crate) fn run() -> Result<(), String> {
 }
 
 #[cfg(any(unix, windows))]
+mod defaults;
+#[cfg(any(unix, windows))]
 mod managed_duckdb;
 #[cfg(any(unix, windows))]
 mod managed_duckdb_python;

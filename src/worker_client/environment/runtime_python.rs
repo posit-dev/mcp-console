@@ -159,6 +159,7 @@ impl Client {
 
         let managed = match crate::resolver::execution::resolve_python_manifest(
             requirements,
+            Vec::new(),
             resolver,
             environment.r.as_ref(),
             None,

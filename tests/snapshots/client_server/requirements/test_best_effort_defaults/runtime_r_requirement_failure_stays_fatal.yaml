@@ -1,0 +1,18 @@
+---
+scenario: Required R infrastructure cannot be installed.
+fixture: >-
+  The ir wrapper rejects nanoarrow, including in the required-only
+  declaration.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: raise AssertionError('must not execute')
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: >-
+        [R package resolution failed with exit status: 1: synthetic `ir` failure
+        for nanoarrow]
+  isError: true

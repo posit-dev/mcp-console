@@ -233,6 +233,11 @@ impl ClientConfiguration {
             let selected = crate::local_runtime::Selection::python(
                 configured_python.clone(),
                 startup.python.manifest(python_only),
+                if startup.python.packages.is_none() {
+                    startup.python.manifest(python_only).packages
+                } else {
+                    Vec::new()
+                },
                 &resolver,
                 duckdb_extension_directory.clone(),
                 |executable, started| {
@@ -272,7 +277,17 @@ impl ClientConfiguration {
             selection.r_settings = r_settings;
             selection.r_home = r_home;
             selection.installation = installation;
-            startup.native_duckdb = extensions.clone();
+            // Reset retries built-in defaults after a skipped DuckDB package.
+            // Configured package lists without a provider keep extensions absent.
+            if extensions.is_some()
+                || (python_only && managed.is_some() && startup.python.packages.is_none())
+            {
+                startup.native_duckdb = crate::local_runtime::DEFAULT_DUCKDB_EXTENSIONS
+                    .iter()
+                    .map(|extension| (*extension).into())
+                    .collect();
+            }
+            let extensions = extensions.unwrap_or_default();
             local_runtime = Some(selection);
             resolver_preparation = Some(preparation);
             let python = Some(match managed {

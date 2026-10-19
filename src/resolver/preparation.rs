@@ -52,9 +52,13 @@ pub(crate) enum Operation {
     },
     R {
         requirements: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        defaults: Vec<String>,
     },
     Python {
         requirements: PythonRequirementManifest,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        defaults: Vec<String>,
         r: Option<ManagedR>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         selected_python: Option<std::path::PathBuf>,
@@ -73,10 +77,14 @@ pub(crate) enum Operation {
     Duckdb {
         r: ManagedR,
         extensions: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        defaults: Vec<String>,
     },
     DuckdbPython {
         python: ManagedPython,
         extensions: Vec<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        defaults: Vec<String>,
         extension_directory: std::path::PathBuf,
     },
     PythonDuckdbAvailable {
@@ -123,6 +131,10 @@ enum Input {
 #[serde(deny_unknown_fields)]
 enum Output {
     Hello,
+    Diagnostic {
+        id: u64,
+        text: String,
+    },
     ResultChunk {
         id: u64,
         text: String,
@@ -142,6 +154,21 @@ enum Output {
 
 impl Output {
     fn write(&self, writer: &mut impl Write) -> Result<(), String> {
+        if let Self::Diagnostic { id, text } = self {
+            let mut tail = text.as_str();
+            while !tail.is_empty() {
+                let end = tail.floor_char_boundary((LIMIT / 8).min(tail.len()));
+                write_jsonl(
+                    writer,
+                    &Self::Diagnostic {
+                        id: *id,
+                        text: tail[..end].into(),
+                    },
+                )?;
+                tail = &tail[end..];
+            }
+            return Ok(());
+        }
         let Self::Completed {
             id,
             result: Some(result),

@@ -1,0 +1,17 @@
+---
+scenario: >-
+  A configured package stays required even when it is a built-in default.
+fixture: r.packages explicitly requests tidyverse; the ir wrapper rejects it.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: raise AssertionError('must not execute')
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: >-
+        [R package resolution failed with exit status: 1: synthetic `ir` failure
+        for tidyverse]
+  isError: true

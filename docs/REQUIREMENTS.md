@@ -53,6 +53,11 @@ Console prepares these packages and extensions at startup:
 | Python  | `numpy`, `pandas`, `matplotlib`, `plotnine`; also `duckdb` without R                             |
 | DuckDB  | `icu`, `json`, `sqlite`, when the managed provider is available                                  |
 
+These are starter packages, not prerequisites for every analysis.
+Built-in convenience defaults are prepared on a best-effort basis: Console reports each failed default, skips it, and continues with the other defaults.
+Required runtime infrastructure remains strict, including packages used by the R/Python bridge and SQL adapters.
+Default DuckDB extensions follow the same best-effort rule; an extension requested explicitly remains required.
+
 Preparation makes packages available; the agent still uses ordinary imports, R package-loading calls, or database extension-loading commands in its code.
 Extensions already built into the selected DuckDB do not need downloading.
 
@@ -69,6 +74,7 @@ python:
 
 An omitted list keeps the defaults.
 An empty list (`[]`) removes the additional startup requests; it does not remove Console's required runtime packages, uninstall packages, or delete cached installations.
+Packages listed explicitly in configuration or requested by the agent are required, even if they also appear in the built-in defaults.
 
 [Configuration](CONFIGURATION.md#startup-package-declarations) covers interpreter versions and startup settings.
 [Package preparation and caches](RESOLVER.md) covers download permissions and storage locations.

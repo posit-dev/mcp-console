@@ -216,9 +216,10 @@ def test_locked_python_startup_and_fallback(
                 )
             client.send(requirements={"python": ["packaging"]})
             client.send(requirements={"action": "set", **startup["requirements"]})
-            client.send(requirements={"action": "reset"})
+            client.expect("[prepared]", requirements={"action": "reset"})
             configure(root, {"managed": {"resolution": "implicit"}})
-            client.send(control="restart", requirements={"action": "reset"})
+            result = client.send(control="restart", requirements={"action": "reset"})
+            assert not result.get("isError"), result
             client.expect(
                 "startup available\n",
                 python="import packaging, sys; assert sys.version_info[:2] == (3, 13); print('startup available')",

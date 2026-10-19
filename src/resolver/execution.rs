@@ -46,14 +46,22 @@ impl Preparation {
     pub(crate) fn resolve_r(
         &self,
         requirements: Vec<String>,
+        defaults: Vec<String>,
         on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<ManagedR, String> {
-        self.call(Operation::R { requirements }, on_started)
+        self.call(
+            Operation::R {
+                requirements,
+                defaults,
+            },
+            on_started,
+        )
     }
 }
 
 pub(crate) fn resolve_python_manifest(
     requirements: PythonRequirementManifest,
+    defaults: Vec<String>,
     configuration: &PythonConfiguration,
     managed_r: Option<&ManagedR>,
     selected_python: Option<&std::path::Path>,
@@ -62,6 +70,7 @@ pub(crate) fn resolve_python_manifest(
     configuration.preparation.call(
         Operation::Python {
             requirements,
+            defaults,
             r: managed_r.cloned(),
             selected_python: selected_python.map(std::path::Path::to_path_buf),
         },
@@ -101,13 +110,15 @@ pub(crate) fn resolve_duckdb_extensions(
     preparation: Option<&Preparation>,
     managed_r: &ManagedR,
     extensions: &[String],
+    defaults: &[String],
     on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
-) -> Result<(), String> {
+) -> Result<Vec<String>, String> {
     let preparation = preparation.ok_or("DuckDB resolver has no preparation owner")?;
     preparation.call(
         Operation::Duckdb {
             r: managed_r.clone(),
             extensions: extensions.to_vec(),
+            defaults: defaults.to_vec(),
         },
         on_started,
     )
@@ -117,13 +128,15 @@ pub(crate) fn resolve_python_duckdb_extensions(
     configuration: &PythonConfiguration,
     python: &ManagedPython,
     extensions: &[String],
+    defaults: &[String],
     extension_directory: &std::path::Path,
     on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
-) -> Result<(), String> {
+) -> Result<Vec<String>, String> {
     configuration.preparation.call(
         Operation::DuckdbPython {
             python: python.clone(),
             extensions: extensions.to_vec(),
+            defaults: defaults.to_vec(),
             extension_directory: extension_directory.to_path_buf(),
         },
         on_started,
