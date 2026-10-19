@@ -446,6 +446,10 @@ def _initializes_and_lists_tools(
                     assert (
                         "Use R for vectorized data and string operations" in description
                     )
+                    r_description = properties["r"]["description"]
+                    assert ".console$sql_last_result(n = 100)" in r_description
+                    assert "returns a data frame" in r_description
+                    assert "Arrow" not in r_description
                 extensions = send["inputSchema"]["properties"]["requirements"][
                     "properties"
                 ]["duckdb"]

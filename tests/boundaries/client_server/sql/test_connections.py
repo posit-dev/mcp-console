@@ -156,6 +156,7 @@ def test_gets_selects_and_resets_the_active_native_connection(
             except TypeError as error:
                 print(error)
             assert _console.sql_connection() is selected
+            _ = _console.sql_last_result()
             selected.close()
             """)
         client.send(python=python)
@@ -696,6 +697,9 @@ def test_reports_python_dbapi_cursor_cleanup_failures(
             def fetchmany(self, size):
                 return [(42,)][:size]
 
+            def fetchall(self):
+                return []
+
             def close(self):
                 raise RuntimeError("selected DB-API cleanup failure")
 
@@ -713,6 +717,9 @@ def test_reports_python_dbapi_cursor_cleanup_failures(
     client.send(sql="ANSWER")
     output = last_tool_text(client)
     assert "answer" in output and "42" in output
+    # Retrieving all remaining rows automatically releases the native cursor.
+    client.send(python="_ = _console.sql_last_result()")
+    output = last_tool_text(client)
     assert "Error: selected DB-API cleanup failure" in output
 
     client.send(sql="ERROR")
@@ -1444,7 +1451,21 @@ def test_closes_provisional_connections_after_sql_setup_failure(
             result = client.transcript[-1]["result"]
             assert result.get("isError") is not True, result
             assert "Failed connections closed" in last_tool_text(client), result
-        client.expect(r="startup_allow_sql_setup <- TRUE")
+        client.expect(
+            # fmt: r
+            r=code("""
+                startup_allow_sql_setup <- TRUE
+                recovered <- .console$sql_connection()
+                stopifnot(
+                  length(startup_setup_connections) == 3L,
+                  identical(recovered, startup_setup_connections[[3L]]),
+                  DBI::dbIsValid(recovered)
+                )
+                # The recovery checkpoint ends the setup-failure fixture.
+                # Preview rendering may open its own scratch connection later.
+                suppressMessages(invisible(untrace("dbExecute", where = asNamespace("DBI"))))
+                """),
+        )
         client.send(sql="SELECT 42 AS answer")
         assert "42" in last_tool_text(client), client.transcript[-1]
         client.expect(

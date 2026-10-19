@@ -29,6 +29,10 @@ impl Backend {
         self.0.evaluate(source)
     }
 
+    pub(super) fn close_result(&self) -> Result<(), String> {
+        self.0.call0_integer(c"close_last_result").map(|_| ())
+    }
+
     pub(super) fn restore_managed(&self) -> Result<(), String> {
         match self.0.call0_integer(c"restore_managed_connection")? {
             1 => Ok(()),

@@ -195,6 +195,67 @@ They do not count the complete result.
 The whole-response text budget can shorten them further.
 A preview is not a data export: fetch and save results explicitly when you need the complete dataset.
 
+### Retrieve the last SQL result
+
+After inspecting a SQL preview, retrieve its result in the connection's owning language:
+
+```r
+first <- .console$sql_last_result(n = 100)
+rest <- .console$sql_last_result()
+```
+
+```python
+first = _console.sql_last_result(n=100)
+rest = _console.sql_last_result()
+```
+
+Retrieval starts at the beginning of the SQL result; each call consumes up to `n` successive rows.
+Retrieved data includes every column and the complete values abbreviated or omitted from the preview, using the driver's type conversions.
+The SQL is never replayed.
+
+Omitting `n`, or passing `NULL` / `None`, materializes **all remaining rows** in memory.
+A nonnegative whole number limits the rows fetched and materialized by that call; zero returns an empty result without advancing it.
+There is no rewind operation.
+After exhaustion, subsequent calls return empty results.
+Column names, including duplicates, remain available for empty results; R data frames also retain their column types.
+
+Return types follow the owning provider:
+
+| Provider                                | Returned data                                                               |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| R DBI, including managed DuckDB         | A data frame using the driver's R column conversions                        |
+| Python DB-API, including managed DuckDB | A dictionary with `rows` (native driver rows) and `columns` (ordered names) |
+
+Managed DuckDB returns BIGINT and DECIMAL as numeric columns, which may lose precision; nested values become list or data-frame columns.
+Configure driver type options when creating a [native connection](#select-a-native-connection), before selecting it for SQL cells.
+For example, `DBI::dbConnect(duckdb::duckdb(), bigint = "integer64")` enables DuckDB's `bit64::integer64` columns.
+Python retrieval requires no dataframe package.
+If pandas is installed, `pandas.DataFrame(data["rows"], columns=data["columns"])` follows pandas' conversion rules.
+Use the [R/Python bridge](#r-and-python-interoperability) to transfer retrieved data between languages.
+
+Console fetches more rows on demand; database engines and drivers may buffer additional data internally.
+The row limit bounds Console's retrieval, not those driver allocations or the size of individual values.
+Returned data belongs to the caller and remains usable after cleanup or another SQL cell.
+
+#### Result lifetime
+
+Only the latest SQL cell's result is available, in its owning language.
+Another SQL cell discards it before execution, even if the new SQL fails.
+Selecting a connection, including the same connection or a reset, also discards it.
+Calling the function when no result is available raises an error.
+
+Cleanup is automatic on exhaustion, replacement, a fetch error or interrupt, and restart or worker loss.
+Unrelated language errors and interrupts preserve an idle result.
+Retrieval uses ordinary R/Python polling and interruption; an observation timeout does not cancel it.
+Cleanup does not close a selected connection or commit or roll back its transaction.
+
+Unread results can hold database resources and locks until exhaustion, replacement, or restart; dropping returned data does not discard unread rows.
+Some drivers need an additional fetch to establish exhaustion.
+Python DuckDB may retain native result buffers until another query or connection closure.
+
+Before using the connection directly from R or Python, finish retrieval or select the same connection again to discard unread rows.
+Direct connection use while a result is pending is unsupported: it can invalidate the result without Console detecting the change.
+
 ## Plots and images
 
 R's managed device returns PNG pages and finalizes open pages at cell end, including after language errors.

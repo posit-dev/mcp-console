@@ -94,6 +94,7 @@ pub(super) fn install(api: &PythonApi, installed: bool) -> Result<(), String> {
             method(c"publish_plot", publish_plot, 8),
             method(c"resolve_import_request", resolve_import_request, 8),
             method(c"attach_r", attach_r, 4),
+            method(c"close_r_sql_result", close_r_sql_result, 4),
             method(c"interrupt", interrupt, 1), // METH_VARARGS: signal number and frame
             method(c"inspect_python", inspect_python, 8),
             method(
@@ -231,6 +232,13 @@ unsafe extern "C" fn publish_plot(_: *mut PyObject, image: *mut PyObject) -> *mu
 unsafe extern "C" fn attach_r(_: *mut PyObject, _: *mut PyObject) -> *mut PyObject {
     callback(|services| {
         services.without_gil(crate::worker::ensure_bridge)?;
+        Ok(services.none())
+    })
+}
+
+unsafe extern "C" fn close_r_sql_result(_: *mut PyObject, _: *mut PyObject) -> *mut PyObject {
+    callback(|services| {
+        services.without_gil(crate::sql::close_r_result)?;
         Ok(services.none())
     })
 }

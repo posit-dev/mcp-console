@@ -486,6 +486,9 @@ def test_does_not_resolve_missing_python_imports_from_sql(
         preview = last_result_text(client)
         assert "answer" in preview and "42" in preview, preview
 
+        # Replacing the retained cursor exercises cleanup inside SQL's
+        # automatic-resolution boundary, alongside the other driver callbacks.
+        client.send(sql="ANSWER AGAIN")
         client.send(python="sorted(set(sql_import_stages))")
         assert last_result_text(client) == (
             "['close', 'cursor', 'description', 'execute', 'fetch', 'name', 'repr']\n"

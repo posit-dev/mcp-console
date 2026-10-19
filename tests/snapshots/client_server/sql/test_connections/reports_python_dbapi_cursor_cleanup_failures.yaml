@@ -14,6 +14,9 @@ send:
         def fetchmany(self, size):
             return [(42,)][:size]
 
+        def fetchall(self):
+            return []
+
         def close(self):
             raise RuntimeError("selected DB-API cleanup failure")
 
@@ -39,6 +42,14 @@ result:
         answer
         ------
         42
+  isError: false
+---
+send:
+  python: _ = _console.sql_last_result()
+result:
+  content:
+    - type: text
+      text: |
         Error: selected DB-API cleanup failure
   isError: false
 ---

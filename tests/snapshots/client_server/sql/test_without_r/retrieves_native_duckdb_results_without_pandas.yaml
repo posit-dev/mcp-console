@@ -1,0 +1,91 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |-
+    CREATE SEQUENCE executions;
+                    SELECT i, nextval('executions') AS executed,
+                        9223372036854775807::BIGINT AS big,
+                        12345678901234567890123456789.123456789::DECIMAL(38,9) AS exact,
+                        NULL::INTEGER AS missing, repeat('x', 1000) AS long_value
+                    FROM range(57) AS t(i)
+result:
+  content:
+    - type: text
+      text: |
+        i  | executed | big                 | exact                                              | missing | long_value
+        ---+----------+---------------------+----------------------------------------------------+---------+----------------------------------------------------------------------------------------------------
+        0  | 1        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        1  | 2        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        2  | 3        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        3  | 4        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        4  | 5        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        5  | 6        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        6  | 7        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        7  | 8        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        8  | 9        | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        9  | 10       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        10 | 11       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        11 | 12       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        12 | 13       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        13 | 14       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        14 | 15       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        15 | 16       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        16 | 17       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        17 | 18       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        18 | 19       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        19 | 20       | 9223372036854775807 | Decimal('12345678901234567890123456789.123456789') | NULL    | 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…
+        [additional rows omitted]
+        [cell values truncated to 160 characters]
+  isError: false
+---
+send:
+  python: |
+    from decimal import Decimal
+    import sys
+
+    first = _console.sql_last_result(5)
+    assert first["columns"] == ("i", "executed", "big", "exact", "missing", "long_value")
+    second = _console.sql_last_result(19)
+    rest = _console.sql_last_result()
+    assert _console.sql_last_result()["rows"] == []
+    rows = first["rows"] + second["rows"] + rest["rows"]
+    assert [row[0] for row in rows] == list(range(57))
+    assert [row[1] for row in rows] == list(range(1, 58))
+    assert all(row[2] == 9223372036854775807 for row in rows)
+    assert all(row[3] == Decimal("12345678901234567890123456789.123456789") for row in rows)
+    assert all(row[4] is None and row[5] == "x" * 1000 for row in rows)
+    connection = _console.sql_connection()
+    assert connection.execute("SELECT currval('executions')").fetchone() == (57,)
+    assert "pandas" not in sys.modules
+    print("native DuckDB values retrieved once without pandas")
+result:
+  content:
+    - type: text
+      text: |
+        native DuckDB values retrieved once without pandas
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: |
+    result = _console.sql_last_result()
+    assert result == {"columns": ("answer",), "rows": [(42,)]}
+    assert _console.sql_connection() is connection
+    print("automatic cleanup keeps the managed catalog")
+result:
+  content:
+    - type: text
+      text: |
+        automatic cleanup keeps the managed catalog
+  isError: false

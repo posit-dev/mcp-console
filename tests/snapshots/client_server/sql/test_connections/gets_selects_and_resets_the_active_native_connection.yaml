@@ -101,6 +101,7 @@ send:
     except TypeError as error:
         print(error)
     assert _console.sql_connection() is selected
+    _ = _console.sql_last_result()
     selected.close()
 result:
   content:

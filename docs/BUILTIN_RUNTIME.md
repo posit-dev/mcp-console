@@ -111,6 +111,11 @@ The agent can use its client's file tools to inspect that log without rerunning 
 SQL results show a limited number of rows and columns.
 Rows that were never printed are not present in the log, so ask the agent to save the full result when you need the whole dataset.
 
+After inspecting a SQL preview, the agent can retrieve the original result in R or Python without running the query again.
+It can request a limited number of rows or consume successive chunks; omitting the limit materializes all remaining rows.
+Cleanup is automatic on exhaustion, replacement, or a retrieval error or interrupt.
+See [result retrieval](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result) for return types, conversion choices, and lifetime rules.
+
 ## Review and reuse the work
 
 [Recordings](RECORDING.md) retain the code, output, and plots so you can see what the agent did and inspect its results.

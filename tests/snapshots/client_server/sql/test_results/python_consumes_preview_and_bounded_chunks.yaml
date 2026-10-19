@@ -1,0 +1,373 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import sqlite3
+
+
+    class CountCursor:
+        def __init__(self):
+            self.native = selected.native.cursor()
+            self.closed = False
+            self.fetches = []
+            self.select_on_metadata = False
+            selected.cursors.append(self)
+
+        def execute(self, source):
+            selected.executions += 1
+            self.native.execute(source)
+            return self
+
+        @property
+        def description(self):
+            if self.select_on_metadata:
+                self.select_on_metadata = False
+                _console.sql_connection(replacement)
+            return self.native.description
+
+        def fetchmany(self, n):
+            self.fetches.append(n)
+            rows = self.native.fetchmany(
+                min(n, 2) if getattr(selected, "short", False) else n
+            )
+            self.select_on_metadata = getattr(selected, "select_on_metadata", False)
+            return rows
+
+        def fetchall(self):
+            self.fetches.append("all")
+            return self.native.fetchall()
+
+        def close(self):
+            self.closed = True
+            self.native.close()
+
+
+    class CountConnection:
+        def __init__(self):
+            self.native = sqlite3.connect(":memory:")
+            self.executions = 0
+            self.cursors = []
+
+        def cursor(self):
+            return CountCursor()
+
+
+    selected = CountConnection()
+    _console.sql_connection(selected)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |-
+    WITH RECURSIVE rows(i) AS (
+                VALUES (0) UNION ALL SELECT i + 1 FROM rows WHERE i < 56
+            ) SELECT i, 9223372036854775807 AS big, NULL AS missing,
+                zeroblob(200) AS payload, 'original' AS c05, 6 AS c06,
+                7 AS c07, 8 AS c08, 9 AS c09, 10 AS c10, 11 AS c11,
+                12 AS c12, 'complete column' AS c13 FROM rows
+result:
+  content:
+    - type: text
+      text: |
+        i  | big                 | missing | payload                                                                                                      | c05        | c06 | c07 | c08 | c09 | c10 | c11 | c12
+        ---+---------------------+---------+--------------------------------------------------------------------------------------------------------------+------------+-----+-----+-----+-----+-----+-----+----
+        0  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        1  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        2  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        3  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        4  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        5  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        6  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        7  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        8  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        9  | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        10 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        11 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        12 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        13 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        14 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        15 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        16 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        17 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        18 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        19 | 9223372036854775807 | NULL    | b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\… | 'original' | 6   | 7   | 8   | 9   | 10  | 11  | 12
+        [additional rows omitted]
+        [1 additional column omitted]
+        [cell values truncated to 160 characters]
+  isError: false
+---
+send:
+  python: |
+    assert selected.executions == 1
+    cursor = selected.cursors[-1]
+    assert cursor.fetches == [21] and not cursor.closed
+    empty = _console.sql_last_result(0)
+    assert empty["rows"] == [] and cursor.fetches == [21]
+    assert len(empty["columns"]) == 13 and empty["columns"][-1] == "c13"
+    first = _console.sql_last_result(5)
+    assert cursor.fetches == [21]
+    second = _console.sql_last_result(19)
+    assert cursor.fetches == [21, 3]
+    third = _console.sql_last_result(33)
+    assert cursor.fetches == [21, 3, 33]
+    assert _console.sql_last_result(1) == empty and cursor.closed
+    assert _console.sql_last_result() == empty
+    rows = first["rows"] + second["rows"] + third["rows"]
+    assert first["columns"] == second["columns"] == third["columns"]
+    assert not hasattr(first, "fetch") and not hasattr(first, "close")
+    assert [row[0] for row in rows] == list(range(57))
+    assert all(row[1] == 9223372036854775807 for row in rows)
+    assert all(row[2] is None and row[3] == bytes(200) for row in rows)
+    assert all(row[12] == "complete column" for row in rows)
+    assert selected.executions == 1
+    assert "pandas" not in __import__("sys").modules
+    print("bounded chunks preserve every row and column")
+result:
+  content:
+    - type: text
+      text: |
+        bounded chunks preserve every row and column
+  isError: false
+---
+send:
+  sql: SELECT 1 AS id WHERE FALSE
+result:
+  content:
+    - type: text
+      text: |
+        id
+        --
+        [0 rows]
+  isError: false
+---
+send:
+  python: |
+    empty = _console.sql_last_result()
+    assert empty == {"columns": ("id",), "rows": []}
+    assert selected.cursors[-1].closed
+    assert first["rows"][0][0] == 0
+    print("empty results retain columns and release cursors")
+result:
+  content:
+    - type: text
+      text: |
+        empty results retain columns and release cursors
+  isError: false
+---
+send:
+  python: selected.short = True
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |-
+    WITH RECURSIVE rows(i) AS (
+                VALUES (0) UNION ALL SELECT i + 1 FROM rows WHERE i < 56
+            ) SELECT i FROM rows
+result:
+  content:
+    - type: text
+      text: |
+        i
+        -
+        0
+        1
+  isError: false
+---
+send:
+  python: |
+    cursor = selected.cursors[-1]
+    assert not cursor.closed and cursor.fetches == [21]
+    first = _console.sql_last_result(3)["rows"]
+    second = _console.sql_last_result(10)["rows"]
+    assert len(first) == 3 and len(second) == 2
+    assert not cursor.closed and cursor.fetches == [21, 1, 10]
+    rest = _console.sql_last_result()["rows"]
+    assert first + second + rest == [(i,) for i in range(57)]
+    assert cursor.closed
+    print("short native batches do not imply exhaustion")
+result:
+  content:
+    - type: text
+      text: |
+        short native batches do not imply exhaustion
+  isError: false
+---
+send:
+  python: selected.short = False
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 10 AS value UNION ALL SELECT 20
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        10
+        20
+  isError: false
+---
+send:
+  python: |
+    abandoned = selected.cursors[-1]
+    saved = _console.sql_last_result(n=1)
+    assert saved == {"columns": ("value",), "rows": [(10,)]}
+    assert not abandoned.closed
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 30 AS replacement
+result:
+  content:
+    - type: text
+      text: |
+        replacement
+        -----------
+        30
+  isError: false
+---
+send:
+  python: |
+    assert abandoned.closed
+    assert _console.sql_last_result() == {"columns": ("replacement",), "rows": [(30,)]}
+    assert selected.cursors[-1].closed
+    assert saved == {"columns": ("value",), "rows": [(10,)]}
+    print("replacement cleans up unread rows and preserves returned data")
+result:
+  content:
+    - type: text
+      text: |
+        replacement cleans up unread rows and preserves returned data
+  isError: false
+---
+send:
+  sql: |-
+    WITH RECURSIVE rows(id) AS (
+                VALUES (0) UNION ALL SELECT id + 1 FROM rows WHERE id < 150122
+                ) SELECT id FROM rows
+result:
+  content:
+    - type: text
+      text: |
+        id
+        --
+        0
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+        11
+        12
+        13
+        14
+        15
+        16
+        17
+        18
+        19
+        [additional rows omitted]
+  isError: false
+---
+send:
+  python: |
+    cursor = selected.cursors[-1]
+    data = _console.sql_last_result(10**100)
+    assert data == {
+        "columns": ("id",),
+        "rows": [(i,) for i in range(150123)],
+    }
+    assert max(cursor.fetches) <= 65536 and len(cursor.fetches) > 3
+    assert not cursor.closed
+    assert _console.sql_last_result(1)["rows"] == [] and cursor.closed
+    print("large Python row limits use bounded driver fetches without losing rows")
+result:
+  content:
+    - type: text
+      text: |
+        large Python row limits use bounded driver fetches without losing rows
+  isError: false
+---
+send:
+  python: |
+    replacement = sqlite3.connect(":memory:")
+    selected.select_on_metadata = True
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 41 AS previous_connection
+result:
+  content:
+    - type: text
+      text: |
+        previous_connection
+        -------------------
+        41
+  isError: false
+---
+send:
+  python: |
+    assert _console.sql_connection() is replacement
+    assert selected.cursors[-1].closed
+    try:
+        _console.sql_last_result()
+    except RuntimeError as error:
+        assert "No retained" in str(error)
+    else:
+        raise AssertionError("metadata callback published a stale result")
+    print("selection during metadata reading discards and closes the old result")
+result:
+  content:
+    - type: text
+      text: |
+        selection during metadata reading discards and closes the old result
+  isError: false
+---
+send:
+  sql: SELECT 99 AS selected_connection
+result:
+  content:
+    - type: text
+      text: |
+        selected_connection
+        -------------------
+        99
+  isError: false
+---
+send:
+  python: |
+    assert _console.sql_last_result() == {
+        "columns": ("selected_connection",),
+        "rows": [(99,)],
+    }
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

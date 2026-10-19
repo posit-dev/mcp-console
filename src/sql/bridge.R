@@ -3,6 +3,8 @@ base::local(
     managed_connection <- NULL
     rendering_connection <- NULL
     selected_connection <- NULL
+    last_result <- NULL
+    result_epoch <- 0
     source <- NULL
     printer_ready <- FALSE
     preview_rows <- 20L
@@ -24,11 +26,9 @@ base::local(
       envir = globalenv()
     )
 
-    open_connection <- function() {
-      config <- list(
-        extension_directory = Sys.getenv(
-          "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"
-        )
+    open_connection <- function(config = list()) {
+      config$extension_directory <- Sys.getenv(
+        "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"
       )
       parent <- if (identical(Sys.getenv("MCP_CONSOLE_MANAGED_TEMPDIR"), "1")) {
         Sys.getenv("TMPDIR")
@@ -74,13 +74,12 @@ base::local(
     }
 
     ensure_rendering_connection <- function() {
-      if (identical(selected_connection, managed_connection)) {
-        return(managed_connection)
-      }
-      # User DBI previews must not depend on the managed database or its options.
-      # This scratch catalog opens only for a DBI preview, never the SQL default.
+      # Preview formatting and conversion must not execute another statement on
+      # a retained cursor's connection. Keep a separate scratch catalog.
       if (is.null(rendering_connection)) {
-        rendering_connection <<- open_connection()
+        rendering_connection <<- open_connection(
+          config = list(preserve_insertion_order = "true")
+        )
       }
       rendering_connection
     }
@@ -142,6 +141,7 @@ base::local(
           stop("`connection` must be a valid DBIConnection or NULL")
         }
       }
+      close_last_result()
       invisible(.Call("mcp_console_sql_use_r"))
       selected_connection <<- connection
       invisible(NULL)
@@ -191,6 +191,7 @@ base::local(
     }
 
     restore_managed_connection <- function() {
+      close_last_result()
       selected_connection <<- NULL
       1L
     }
@@ -200,6 +201,7 @@ base::local(
     base::makeActiveBinding("py", function() reticulate::py, tools)
     console <- new.env(parent = emptyenv())
     console$sql_connection <- sql_connection
+    console$sql_last_result <- function(n = NULL) fetch_last_result(n)
     base::assign(".console", console, envir = tools)
 
     ensure_printer <- function() {
@@ -252,76 +254,219 @@ base::local(
       sub("^<nanoarrow_schema (.*)>$", "\\1", format(schema))
     }
 
-    fetch_query <- function() {
-      result <- send_query_arrow()
+    close_last_result <- function() {
+      result_epoch <<- result_epoch + 1
+      previous <- last_result
+      last_result <<- NULL
+      # Discard first; failed driver cleanup must not cancel the next action.
       tryCatch(
         {
-          if (result@stmt_lst$return_type != "QUERY_RESULT") {
-            return(NULL)
+          if (!is.null(previous$result) && DBI::dbIsValid(previous$result)) {
+            DBI::dbClearResult(previous$result)
           }
-
-          stream <- DBI::dbFetchArrow(
-            result,
-            chunk_size = preview_rows + 1L
-          )
-          tryCatch(
-            {
-              schema <- stream$get_schema()
-              batch <- stream$get_next(schema)
-              if (!is.null(batch) && batch$length == 0L) {
-                batch <- NULL
-              }
-              list(schema = schema, batch = batch)
-            },
-            finally = stream$release()
-          )
         },
-        finally = DBI::dbClearResult(result)
+        error = function(condition) {
+          cat("Error: ", conditionMessage(condition), "\n", sep = "")
+        }
       )
+      1L
+    }
+
+    retain_result <- function(result, buffer, schema = NULL) {
+      # Driver completion and cleanup callbacks can change the selection.
+      # Build this candidate before checking the epoch for publication.
+      if (DBI::dbHasCompleted(result)) {
+        DBI::dbClearResult(result)
+        result <- NULL
+      }
+      list(
+        result = result,
+        buffer = buffer,
+        offset = 0L,
+        schema = schema,
+        empty = if (is.null(schema)) buffer[integer(), , drop = FALSE]
+      )
+    }
+
+    fetch_last_result <- function(n) {
+      stopifnot(
+        is.null(n) ||
+          (is.numeric(n) &&
+            length(n) == 1L &&
+            !is.na(n) &&
+            is.finite(n) &&
+            n >= 0 &&
+            n == floor(n))
+      )
+      if (is.null(last_result)) {
+        stop(
+          "No retained R SQL result; retrieve in the connection's owning language"
+        )
+      }
+      pending <- last_result
+      epoch <- result_epoch
+      complete <- FALSE
+      on.exit({
+        if (epoch == result_epoch) {
+          if (complete) last_result <<- pending else close_last_result()
+        }
+      })
+      if (!is.null(pending$result) && !DBI::dbIsValid(pending$result)) {
+        stop("SQL result is no longer valid")
+      }
+      # Only managed DuckDB needs the temporary Arrow retrieval path below.
+      # Its conversion boundary is duckdb_result_data_frame().
+      arrow <- !is.null(pending$schema)
+      remaining <- if (is.null(n)) Inf else n
+      # Arrow conversion skips the consumed prefix of the first saved batch.
+      offset <- if (is.null(pending$buffer)) 0L else pending$offset
+      parts <- list()
+      fetched <- 0
+      while (
+        remaining > 0 && (!is.null(pending$buffer) || !is.null(pending$result))
+      ) {
+        if (is.null(pending$buffer)) {
+          size <- min(remaining, 65536L)
+          pending$buffer <- if (arrow) {
+            DBI::dbFetchArrowChunk(pending$result, chunk_size = size)
+          } else {
+            DBI::dbFetch(pending$result, n = size)
+          }
+          pending$offset <- 0L
+          if (DBI::dbHasCompleted(pending$result)) {
+            DBI::dbClearResult(pending$result)
+            pending$result <- NULL
+          }
+        }
+        count <- if (arrow) pending$buffer$length else nrow(pending$buffer)
+        if (count == 0L) {
+          pending$buffer <- NULL
+          break
+        }
+        take <- min(remaining, count - pending$offset)
+        parts[[length(parts) + 1L]] <- if (arrow) {
+          pending$buffer
+        } else {
+          pending$buffer[
+            seq.int(pending$offset + 1L, pending$offset + take),
+            ,
+            drop = FALSE
+          ]
+        }
+        remaining <- remaining - take
+        fetched <- fetched + take
+        pending$offset <- pending$offset + take
+        if (pending$offset == count) pending$buffer <- NULL
+      }
+      output <- if (arrow) {
+        # Bound SQL LIMIT by fetched rows, not the caller's numeric allowance.
+        duckdb_result_data_frame(parts, pending$schema, fetched, offset)
+      } else if (length(parts)) {
+        do.call(rbind, parts)
+      } else {
+        pending$empty
+      }
+      complete <- TRUE
+      output
+    }
+
+    # DuckDB R 1.5.6 materializes ordinary DBI results before dbFetch(n).
+    # Use its streaming Arrow result until the supported driver includes:
+    # https://github.com/duckdb/duckdb-r/pull/2587
+    # Then use the ordinary DBI retrieval path and remove its Arrow branches.
+    fetch_duckdb <- function() {
+      epoch <- result_epoch
+      result <- send_query_arrow()
+      retained <- FALSE
+      on.exit(if (!retained && !is.null(result)) DBI::dbClearResult(result))
+      if (result@stmt_lst$return_type != "QUERY_RESULT") {
+        return(NULL)
+      }
+
+      batch <- DBI::dbFetchArrowChunk(result, chunk_size = preview_rows + 1L)
+      schema <- nanoarrow::infer_nanoarrow_schema(batch)
+      candidate <- retain_result(result, batch, schema = schema)
+      result <- candidate$result
+      if (epoch == result_epoch) {
+        last_result <<- candidate
+        retained <- TRUE
+      }
+      if (!is.null(batch) && batch$length == 0L) {
+        batch <- NULL
+      }
+      list(schema = schema, batch = batch)
     }
 
     fetch_dbi <- function() {
+      epoch <- result_epoch
       # DBI has no dialect-neutral way to classify a cell before dispatch.
       # Commands that need the statement interface run through DBI from R.
       result <- DBI::dbSendQuery(selected_connection, source)
-      tryCatch(
-        {
-          # DuckDB exposes a Count column even for non-query statements.
-          # Fetching those results warns instead of returning a query preview.
-          if (
-            inherits(result, "duckdb_result") &&
-              result@stmt_lst$return_type != "QUERY_RESULT"
-          ) {
-            return(NULL)
-          }
-          if (nrow(DBI::dbColumnInfo(result)) == 0L) {
-            return(NULL)
-          }
-          data <- DBI::dbFetch(result, n = preview_rows + 1L)
-          schema <- nanoarrow::infer_nanoarrow_schema(data)
-          batch <- nanoarrow::as_nanoarrow_array(data, schema = schema)
-          if (batch$length == 0L) {
-            batch <- NULL
-          }
-          list(schema = schema, batch = batch)
-        },
-        finally = DBI::dbClearResult(result)
-      )
+      retained <- FALSE
+      on.exit(if (!retained && !is.null(result)) DBI::dbClearResult(result))
+      # DuckDB exposes a Count column even for non-query statements.
+      # Fetching those results warns instead of returning a query preview.
+      if (
+        inherits(result, "duckdb_result") &&
+          result@stmt_lst$return_type != "QUERY_RESULT"
+      ) {
+        return(NULL)
+      }
+      if (nrow(DBI::dbColumnInfo(result)) == 0L) {
+        return(NULL)
+      }
+      data <- DBI::dbFetch(result, n = preview_rows + 1L)
+      candidate <- retain_result(result, data)
+      result <- candidate$result
+      if (epoch == result_epoch) {
+        last_result <<- candidate
+        retained <- TRUE
+      }
+      schema <- nanoarrow::infer_nanoarrow_schema(data)
+      batch <- nanoarrow::as_nanoarrow_array(data, schema = schema)
+      if (batch$length == 0L) {
+        batch <- NULL
+      }
+      list(schema = schema, batch = batch)
     }
 
-    stringify <- function(batch, schema, rows, columns, id) {
-      render_connection <- ensure_rendering_connection()
-      names <- sprintf("column_%02d", seq_len(columns))
-      children <- schema$children[seq_len(columns)]
-      names(children) <- names
-      table <- list(
-        schema = nanoarrow::nanoarrow_schema_modify(
-          schema,
-          list(children = children)
-        ),
-        batch = batch
+    # Temporary conversion boundary for managed DuckDB's streaming workaround.
+    # Ask DuckDB to convert only the fetched rows; never replay the source SQL
+    # or use Nanoarrow's R type mappings. Delete when streaming dbFetch(n)
+    # replaces retained Arrow retrieval; see the upstream link above.
+    duckdb_result_data_frame <- function(batches, schema, n, offset) {
+      # Positional scratch names prevent DuckDB from repairing duplicates.
+      # Restore the original labels after the driver's data-frame conversion.
+      children <- schema$children
+      names(children) <- sprintf("column_%02d", seq_along(children))
+      scratch_schema <- nanoarrow::nanoarrow_schema_modify(
+        schema,
+        list(children = children)
       )
-      export_preview <- function(
+      data <- query_arrow(
+        batches,
+        scratch_schema,
+        function(connection, relation) {
+          # OFFSET only skips consumed rows in the saved batches, whose order
+          # the scratch connection preserves; it never paginates the source SQL.
+          paste(
+            "SELECT * FROM",
+            DBI::dbQuoteIdentifier(connection, relation),
+            "LIMIT",
+            n,
+            "OFFSET",
+            offset
+          )
+        }
+      )
+      names(data) <- names(schema$children)
+      data
+    }
+
+    query_arrow <- function(batches, schema, query) {
+      render_connection <- ensure_rendering_connection()
+      table <- list(schema = schema, batches = batches)
+      export_batches <- function(
         table,
         pointer,
         projection = NULL,
@@ -338,50 +483,52 @@ base::local(
           table$schema,
           list(children = table$schema$children[columns])
         )
-        # DuckDB requires column arrays to retain the batch's length.
-        # Keep the lookahead row here and limit the formatting query below.
-        array <- nanoarrow::nanoarrow_array_modify(
-          table$batch,
-          list(children = table$batch$children[columns])
-        )
-        nanoarrow::nanoarrow_array_set_schema(array, schema)
-        stream <- nanoarrow::basic_array_stream(list(array), schema = schema)
+        arrays <- lapply(table$batches, function(batch) {
+          # Keep full column lengths; the SQL query controls row selection.
+          array <- nanoarrow::nanoarrow_array_modify(
+            batch,
+            list(children = batch$children[columns])
+          )
+          nanoarrow::nanoarrow_array_set_schema(array, schema)
+          array
+        })
+        stream <- nanoarrow::basic_array_stream(arrays, schema = schema)
         nanoarrow::nanoarrow_pointer_export(stream, pointer)
       }
       export_schema <- function(table, pointer) {
         nanoarrow::nanoarrow_pointer_export(table$schema, pointer)
       }
-      occupied <- DBI::dbGetQuery(
-        render_connection,
-        paste(
-          "SELECT lower(table_name) AS name",
-          "FROM system.information_schema.tables"
-        )
-      )$name
-      occupied <- c(
-        occupied,
-        tolower(duckdb::duckdb_list_arrow(render_connection))
-      )
-      relation_base <- paste0("__mcp_console_preview_", id)
-      relation <- relation_base
-      suffix <- 0L
-      while (tolower(relation) %in% occupied) {
-        suffix <- suffix + 1L
-        relation <- paste0(relation_base, "_", suffix)
-      }
+      # This private catalog runs one conversion at a time and unregisters it
+      # on exit, so no user-table collision checks or per-cell names are needed.
+      relation <- "__mcp_console_arrow"
 
       # DuckDB's public R wrapper builds Arrow Scanner/Expression callbacks.
-      # Export our bounded C Data batch directly, preserving types and precision.
-      # The formatting query has no filters, so no filter-expression callbacks
-      # are needed; it must never execute the user's SQL again.
+      # Export only the fetched C Data batches. Both callers use unfiltered
+      # scans, so no filter-expression callbacks or R Arrow package are needed.
+      # DuckDB owns conversion to R column types; the user's SQL is never replayed.
       duckdb:::rapi_register_arrow(
         render_connection@conn_ref,
         relation,
-        list(export_preview, NULL, NULL, NULL, export_schema),
+        list(export_batches, NULL, NULL, NULL, export_schema),
         table
       )
-      tryCatch(
-        {
+      on.exit(duckdb::duckdb_unregister_arrow(render_connection, relation))
+      DBI::dbGetQuery(render_connection, query(render_connection, relation))
+    }
+
+    stringify <- function(batch, schema, rows, columns) {
+      names <- sprintf("column_%02d", seq_len(columns))
+      truncated_names <- sprintf("truncated_%02d", seq_len(columns))
+      children <- schema$children[seq_len(columns)]
+      names(children) <- names
+      schema <- nanoarrow::nanoarrow_schema_modify(
+        schema,
+        list(children = children)
+      )
+      output <- query_arrow(
+        list(batch),
+        schema,
+        function(render_connection, relation) {
           identifiers <- DBI::dbQuoteIdentifier(render_connection, names)
           cast_projection <- paste0(
             "CAST(preview.",
@@ -404,7 +551,6 @@ base::local(
             " END AS ",
             identifiers
           )
-          truncated_names <- sprintf("truncated_%02d", seq_len(columns))
           truncated_identifiers <- DBI::dbQuoteIdentifier(
             render_connection,
             truncated_names
@@ -417,7 +563,7 @@ base::local(
             ", false) AS ",
             truncated_identifiers
           )
-          query <- paste(
+          paste(
             "WITH strings AS (SELECT",
             cast_projection,
             "FROM",
@@ -427,16 +573,11 @@ base::local(
             "FROM strings LIMIT",
             rows
           )
-          output <- DBI::dbGetQuery(render_connection, query)
-          list(
-            values = as.list(output[names]),
-            truncated = as.list(output[truncated_names])
-          )
-        },
-        finally = duckdb::duckdb_unregister_arrow(
-          render_connection,
-          relation
-        )
+        }
+      )
+      list(
+        values = as.list(output[names]),
+        truncated = as.list(output[truncated_names])
       )
     }
 
@@ -520,7 +661,7 @@ base::local(
       paste(c(output, markers), collapse = "\n")
     }
 
-    render_preview <- function(preview, id) {
+    render_preview <- function(preview) {
       schema <- preview$schema
       batch <- preview$batch
       total_columns <- length(schema$children)
@@ -543,7 +684,25 @@ base::local(
         values <- rep(list(character()), columns)
         truncated <- rep(list(logical()), columns)
       } else {
-        cells <- stringify(batch, schema, rows, columns, id)
+        # Timestamp schemas carry the source timezone. Preserve it when casting
+        # in the scratch catalog rather than querying the live result connection.
+        schema_timezones <- function(schema) {
+          c(
+            if (grepl("^ts[^:]*:.+", schema$format)) {
+              sub("^ts[^:]*:", "", schema$format)
+            },
+            unlist(lapply(schema$children, schema_timezones), use.names = FALSE)
+          )
+        }
+        zones <- unique(schema_timezones(schema))
+        if (length(zones) == 1L) {
+          rendering <- ensure_rendering_connection()
+          DBI::dbExecute(
+            rendering,
+            paste("SET TimeZone =", DBI::dbQuoteString(rendering, zones))
+          )
+        }
+        cells <- stringify(batch, schema, rows, columns)
         values <- cells$values
         truncated <- cells$truncated
       }
@@ -577,7 +736,9 @@ base::local(
       }
     }
 
-    evaluate_impl <- function(id) {
+    evaluate_impl <- function() {
+      complete <- FALSE
+      on.exit(if (!complete) close_last_result())
       tryCatch(
         {
           ensure_connection()
@@ -596,13 +757,14 @@ base::local(
           }
 
           preview <- if (identical(selected_connection, managed_connection)) {
-            fetch_query()
+            fetch_duckdb()
           } else {
             fetch_dbi()
           }
           if (!is.null(preview)) {
-            render_preview(preview, id)
+            render_preview(preview)
           }
+          complete <- TRUE
         },
         error = function(error) {
           cat("Error: ", conditionMessage(error), "\n", sep = "")
@@ -617,7 +779,7 @@ base::local(
       interrupted <<- FALSE
       # Observe the condition without handling it; R_tryEval remains the boundary.
       withCallingHandlers(
-        evaluate_impl(id),
+        evaluate_impl(),
         interrupt = function(condition) interrupted <<- TRUE,
         error = function(condition) interrupted <<- FALSE
       )

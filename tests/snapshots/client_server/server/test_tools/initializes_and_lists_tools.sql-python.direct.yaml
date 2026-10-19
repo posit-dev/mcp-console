@@ -79,14 +79,21 @@ result:
               preparation can accompany the cell. Import names may differ from
               distribution names. Select a user-owned DB-API connection for SQL cells
               with `_console.sql_connection(connection)`; restore managed DuckDB with
-              `_console.sql_connection(None)`. `_console.sql_connection()` returns the
-              active native Python connection, or errors if another runtime owns SQL;
-              on Python-owned DuckDB, register frames with
-              `_console.sql_connection().register(name, frame)` (globals are not
-              scanned). `matplotlib.pyplot.show()` returns open figures as PNGs
-              immediately and closes them. At cell end, even after errors, remaining
-              open figures return as PNGs and close; `show()` is optional. Closing an
-              unshown figure suppresses capture.
+              `_console.sql_connection(None)`. After Python-owned SQL, `data =
+              _console.sql_last_result(n=100)` retrieves up to n successive native
+              rows, including the original preview first, without re-executing SQL;
+              omit n to materialize all remaining rows. It returns a dictionary with
+              `rows` and ordered `columns`, without requiring pandas. Optional
+              `pandas.DataFrame(data["rows"], columns=data["columns"])` conversion
+              follows pandas' type rules. Cleanup is automatic on exhaustion,
+              replacement, or retrieval failure; connections stay open.
+              `_console.sql_connection()` returns the active native Python connection,
+              or errors if another runtime owns SQL; on Python-owned DuckDB, register
+              frames with `_console.sql_connection().register(name, frame)` (globals
+              are not scanned). `matplotlib.pyplot.show()` returns open figures as
+              PNGs immediately and closes them. At cell end, even after errors,
+              remaining open figures return as PNGs and close; `show()` is optional.
+              Closing an unshown figure suppresses capture.
             type:
               - string
               - "null"
@@ -95,12 +102,21 @@ result:
               Evaluate one complete SQL cell through the active connection. Managed
               DuckDB keeps a persistent catalog. Results are bounded table previews
               that abbreviate long text cells; query focused subsets or aggregates.
-              The selected driver supplies its own SQL dialect and types. Managed
-              conveniences/extensions apply only to DuckDB. Read SQLite with `ATTACH
-              'path' AS name (TYPE sqlite, READ_ONLY)`. With a sandbox, attach
-              existing DuckDB databases outside writable paths using `ATTACH 'path' AS
-              name (READ_ONLY)`. Use `SHOW TABLES`, `DESCRIBE`, `SUMMARIZE`, or
-              `EXPLAIN`; CLI dot commands are not supported.
+              Retrieve data without replay through `.console$sql_last_result(n = 100)`
+              or `_console.sql_last_result(n=100)` in the connection's owning
+              language. Each call consumes successive rows, starting with the original
+              preview; omit n to materialize all remaining rows. Cleanup is automatic
+              on exhaustion, another SQL cell, connection selection, or a retrieval
+              error or interrupt. A partially consumed result can hold database
+              resources and locks. Before direct connection use, finish retrieval or
+              select that connection again to discard unread rows. Transfer retrieved
+              data using the existing language bridge. The selected driver supplies
+              its own SQL dialect and types. Managed conveniences/extensions apply
+              only to DuckDB. Read SQLite with `ATTACH 'path' AS name (TYPE sqlite,
+              READ_ONLY)`. With a sandbox, attach existing DuckDB databases outside
+              writable paths using `ATTACH 'path' AS name (READ_ONLY)`. Use `SHOW
+              TABLES`, `DESCRIBE`, `SUMMARIZE`, or `EXPLAIN`; CLI dot commands are not
+              supported.
             type:
               - string
               - "null"

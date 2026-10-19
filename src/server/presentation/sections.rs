@@ -53,7 +53,7 @@ pub(super) const R_RUNTIME: &str = r#"Evaluate one complete R cell in persistent
 
 pub(super) const R_BRIDGE: &str = " Access Python globals through `py$name`.";
 
-pub(super) const R_SQL: &str = r#" `.console$sql_connection()` returns the active native DBI connection for DBI/dplyr, or errors if another runtime owns SQL. Select a user-owned DBI connection for SQL cells with `.console$sql_connection(connection)`; restore managed DuckDB with `.console$sql_connection(NULL)`. Never disconnect the managed connection; restore it before disconnecting a selection."#;
+pub(super) const R_SQL: &str = r#" `.console$sql_connection()` returns the active native DBI connection for DBI/dplyr, or errors if another runtime owns SQL. Select a user-owned DBI connection for SQL cells with `.console$sql_connection(connection)`; restore managed DuckDB with `.console$sql_connection(NULL)`. Never disconnect the managed connection; restore it before disconnecting a selection. After R-owned SQL, `.console$sql_last_result(n = 100)` returns a data frame of up to n successive rows, including the original preview first, without re-executing SQL; omit n to materialize all remaining rows. Column types and precision follow the database driver. Cleanup is automatic on exhaustion, replacement, or retrieval failure."#;
 
 pub(super) const R_PLOTS: &str = r#" Default-device plots return as PNGs and finalize at cell end, including after errors; draw each plot in one cell. Explicit devices are not captured. Set persistent dimensions in inches and DPI with `options(console.plot.width_in = ..., console.plot.height_in = ..., console.plot.dpi = ...)`."#;
 
@@ -70,7 +70,7 @@ pub(super) const PYTHON_INSTALLED: &str =
 
 pub(super) const PYTHON_BRIDGE: &str = " Access R globals and call functions through `r.name`.";
 
-pub(super) const PYTHON_SQL: &str = r#" Select a user-owned DB-API connection for SQL cells with `_console.sql_connection(connection)`; restore managed DuckDB with `_console.sql_connection(None)`."#;
+pub(super) const PYTHON_SQL: &str = r#" Select a user-owned DB-API connection for SQL cells with `_console.sql_connection(connection)`; restore managed DuckDB with `_console.sql_connection(None)`. After Python-owned SQL, `data = _console.sql_last_result(n=100)` retrieves up to n successive native rows, including the original preview first, without re-executing SQL; omit n to materialize all remaining rows. It returns a dictionary with `rows` and ordered `columns`, without requiring pandas. Optional `pandas.DataFrame(data["rows"], columns=data["columns"])` conversion follows pandas' type rules. Cleanup is automatic on exhaustion, replacement, or retrieval failure; connections stay open."#;
 
 pub(super) const PYTHON_SQL_R: &str =
     " For R-owned DuckDB, bind Python frames to an R name through `r` before querying.";
@@ -93,7 +93,7 @@ pub(super) const CONTROL_END: &str = r#". A following cell runs only if prior wo
 
 pub(super) const CONTROL_END_SELECTED: &str = r#". A following cell runs only if prior work stops. `restart` discards live state, including debugger and unread input; same-call stdin/code go only to the replacement."#;
 
-pub(super) const SQL_RUNTIME: &str = r#"Evaluate one complete SQL cell through the active connection. Managed DuckDB keeps a persistent catalog. Results are bounded table previews that abbreviate long text cells; query focused subsets or aggregates. The selected driver supplies its own SQL dialect and types."#;
+pub(super) const SQL_RUNTIME: &str = r#"Evaluate one complete SQL cell through the active connection. Managed DuckDB keeps a persistent catalog. Results are bounded table previews that abbreviate long text cells; query focused subsets or aggregates. Retrieve data without replay through `.console$sql_last_result(n = 100)` or `_console.sql_last_result(n=100)` in the connection's owning language. Each call consumes successive rows, starting with the original preview; omit n to materialize all remaining rows. Cleanup is automatic on exhaustion, another SQL cell, connection selection, or a retrieval error or interrupt. A partially consumed result can hold database resources and locks. Before direct connection use, finish retrieval or select that connection again to discard unread rows. Transfer retrieved data using the existing language bridge. The selected driver supplies its own SQL dialect and types."#;
 
 pub(super) const SQL_R_FRAMES: &str = r#" With R-owned managed DuckDB, query R data frames by name; DuckDB tables/views take precedence."#;
 

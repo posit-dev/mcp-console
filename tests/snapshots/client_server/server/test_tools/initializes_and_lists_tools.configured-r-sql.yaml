@@ -92,12 +92,16 @@ result:
               SQL. Select a user-owned DBI connection for SQL cells with
               `.console$sql_connection(connection)`; restore managed DuckDB with
               `.console$sql_connection(NULL)`. Never disconnect the managed
-              connection; restore it before disconnecting a selection. Default-device
-              plots return as PNGs and finalize at cell end, including after errors;
-              draw each plot in one cell. Explicit devices are not captured. Set
-              persistent dimensions in inches and DPI with
-              `options(console.plot.width_in = ..., console.plot.height_in = ...,
-              console.plot.dpi = ...)`.
+              connection; restore it before disconnecting a selection. After R-owned
+              SQL, `.console$sql_last_result(n = 100)` returns a data frame of up to n
+              successive rows, including the original preview first, without
+              re-executing SQL; omit n to materialize all remaining rows. Column types
+              and precision follow the database driver. Cleanup is automatic on
+              exhaustion, replacement, or retrieval failure. Default-device plots
+              return as PNGs and finalize at cell end, including after errors; draw
+              each plot in one cell. Explicit devices are not captured. Set persistent
+              dimensions in inches and DPI with `options(console.plot.width_in = ...,
+              console.plot.height_in = ..., console.plot.dpi = ...)`.
             type:
               - string
               - "null"
@@ -106,14 +110,23 @@ result:
               Evaluate one complete SQL cell through the active connection. Managed
               DuckDB keeps a persistent catalog. Results are bounded table previews
               that abbreviate long text cells; query focused subsets or aggregates.
-              The selected driver supplies its own SQL dialect and types. With R-owned
-              managed DuckDB, query R data frames by name; DuckDB tables/views take
-              precedence. Use DBI from an R cell for commands requiring the statement
-              interface. Managed conveniences/extensions apply only to DuckDB. Read
-              SQLite with `ATTACH 'path' AS name (TYPE sqlite, READ_ONLY)`. With a
-              sandbox, attach existing DuckDB databases outside writable paths using
-              `ATTACH 'path' AS name (READ_ONLY)`. Use `SHOW TABLES`, `DESCRIBE`,
-              `SUMMARIZE`, or `EXPLAIN`; CLI dot commands are not supported.
+              Retrieve data without replay through `.console$sql_last_result(n = 100)`
+              or `_console.sql_last_result(n=100)` in the connection's owning
+              language. Each call consumes successive rows, starting with the original
+              preview; omit n to materialize all remaining rows. Cleanup is automatic
+              on exhaustion, another SQL cell, connection selection, or a retrieval
+              error or interrupt. A partially consumed result can hold database
+              resources and locks. Before direct connection use, finish retrieval or
+              select that connection again to discard unread rows. Transfer retrieved
+              data using the existing language bridge. The selected driver supplies
+              its own SQL dialect and types. With R-owned managed DuckDB, query R data
+              frames by name; DuckDB tables/views take precedence. Use DBI from an R
+              cell for commands requiring the statement interface. Managed
+              conveniences/extensions apply only to DuckDB. Read SQLite with `ATTACH
+              'path' AS name (TYPE sqlite, READ_ONLY)`. With a sandbox, attach
+              existing DuckDB databases outside writable paths using `ATTACH 'path' AS
+              name (READ_ONLY)`. Use `SHOW TABLES`, `DESCRIBE`, `SUMMARIZE`, or
+              `EXPLAIN`; CLI dot commands are not supported.
             type:
               - string
               - "null"

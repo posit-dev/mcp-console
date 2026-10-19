@@ -5,6 +5,14 @@ thread_local! {
     static R_BACKEND: std::cell::OnceCell<std::rc::Rc<r_dbi::Backend>> = const { std::cell::OnceCell::new() };
 }
 
+pub(crate) fn close_r_result() -> Result<(), String> {
+    let backend = R_BACKEND.with(|slot| slot.get().cloned());
+    if let Some(backend) = backend {
+        backend.close_result()?;
+    }
+    Ok(())
+}
+
 pub(crate) fn attach_r() -> Result<(), String> {
     let backend = std::rc::Rc::new(r_dbi::Backend::initialize()?);
     R_BACKEND
@@ -52,6 +60,7 @@ impl Bridge {
     }
 
     pub(crate) fn evaluate(&mut self, source: &str) -> Result<(), String> {
+        close_r_result()?;
         if let Some(message) = &self.startup_failure {
             crate::worker::emit_output(
                 crate::worker_protocol::ConsoleChannel::Diagnostic,

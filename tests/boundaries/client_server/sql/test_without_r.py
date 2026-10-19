@@ -84,6 +84,68 @@ def managed_environment(root: Path) -> dict[str, str]:
     )
 
 
+@requires(POSIX, SQL)
+@executions(DIRECT)
+def test_retrieves_native_duckdb_results_without_pandas(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        env = managed_environment(root)
+        with sql_client(
+            binary,
+            execution,
+            env,
+            root,
+            arguments=("-c", "python.managed.packages=[duckdb]"),
+        ) as client:
+            client.send(
+                sql="""CREATE SEQUENCE executions;
+                SELECT i, nextval('executions') AS executed,
+                    9223372036854775807::BIGINT AS big,
+                    12345678901234567890123456789.123456789::DECIMAL(38,9) AS exact,
+                    NULL::INTEGER AS missing, repeat('x', 1000) AS long_value
+                FROM range(57) AS t(i)"""
+            )
+            assert "additional rows omitted" in last_tool_text(client)
+            client.expect(
+                "native DuckDB values retrieved once without pandas\n",
+                # fmt: python
+                python=code("""
+                    from decimal import Decimal
+                    import sys
+
+                    first = _console.sql_last_result(5)
+                    assert first["columns"] == ("i", "executed", "big", "exact", "missing", "long_value")
+                    second = _console.sql_last_result(19)
+                    rest = _console.sql_last_result()
+                    assert _console.sql_last_result()["rows"] == []
+                    rows = first["rows"] + second["rows"] + rest["rows"]
+                    assert [row[0] for row in rows] == list(range(57))
+                    assert [row[1] for row in rows] == list(range(1, 58))
+                    assert all(row[2] == 9223372036854775807 for row in rows)
+                    assert all(row[3] == Decimal("12345678901234567890123456789.123456789") for row in rows)
+                    assert all(row[4] is None and row[5] == "x" * 1000 for row in rows)
+                    connection = _console.sql_connection()
+                    assert connection.execute("SELECT currval('executions')").fetchone() == (57,)
+                    assert "pandas" not in sys.modules
+                    print("native DuckDB values retrieved once without pandas")
+                    """),
+            )
+            client.send(sql="SELECT 42 AS answer")
+            client.expect(
+                "automatic cleanup keeps the managed catalog\n",
+                # fmt: python
+                python=code("""
+                    result = _console.sql_last_result()
+                    assert result == {"columns": ("answer",), "rows": [(42,)]}
+                    assert _console.sql_connection() is connection
+                    print("automatic cleanup keeps the managed catalog")
+                    """),
+            )
+            return client.finish()
+
+
 def extension_cache(root: Path, execution: Execution) -> Path:
     return (
         root / "home/.duckdb/extensions"

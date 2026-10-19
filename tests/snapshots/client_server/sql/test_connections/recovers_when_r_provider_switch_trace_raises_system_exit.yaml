@@ -42,7 +42,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 67, in use_r
+          File "<string>", line 142, in use_r
           File "<mcp-console:python:e1>", line 14, in exit_use_r
         SystemExit: R provider switch exit
         Error: Python function `_mcp_console_sql.use_r` failed

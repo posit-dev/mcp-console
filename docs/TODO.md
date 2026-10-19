@@ -35,6 +35,10 @@ Per-output caps are not a total disk budget.
 Choose a concrete user need before adding cleanup or artifact APIs; protect active sessions and user-managed files.
 Current documentation must continue to state the limits.
 
+**RT-4 — Remove the managed R DuckDB streaming adapter when the driver supports incremental data frames.** The [temporary workaround](ARCHITECTURE.md#managed-duckdb-streaming-workaround) keeps Arrow fetching and scratch conversion internal.
+Once the supported DuckDB R versions include [upstream streaming support](https://github.com/duckdb/duckdb-r/pull/2587), use the ordinary DBI retrieval path and delete the adapter and Arrow-specific retained-result branches.
+Preserve the existing public data-frame, row-limit, preview, and cleanup contracts; exact preview formatting has a separate use for the scratch catalog.
+
 ## Sandbox and platforms
 
 **SP-1 — Review evidence for macOS policy exceptions.** Check each application extension against the actual sandboxed workflow and selected native pin.

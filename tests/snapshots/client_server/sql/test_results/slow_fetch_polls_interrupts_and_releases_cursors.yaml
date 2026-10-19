@@ -1,0 +1,212 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import sqlite3
+
+
+    class GatedCursor:
+        def __init__(self):
+            self.native = connection.native.cursor()
+            self.calls = 0
+            self.closed = False
+            connection.latest = self
+
+        def execute(self, source):
+            self.native.execute(source)
+            return self
+
+        @property
+        def description(self):
+            return self.native.description
+
+        def fetchmany(self, n):
+            self.calls += 1
+            if self.calls > 1:
+                input("fetch> ")
+            return self.native.fetchmany(n)
+
+        def close(self):
+            self.closed = True
+            self.native.close()
+
+
+    class GatedConnection:
+        def __init__(self):
+            self.native = sqlite3.connect(":memory:")
+
+        def cursor(self):
+            return GatedCursor()
+
+
+    connection = GatedConnection()
+    _console.sql_connection(connection)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |-
+    WITH RECURSIVE rows(i) AS (
+                VALUES (0) UNION ALL SELECT i + 1 FROM rows WHERE i < 56
+            ) SELECT i FROM rows
+result:
+  content:
+    - type: text
+      text: |
+        i
+        --
+        0
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+        11
+        12
+        13
+        14
+        15
+        16
+        17
+        18
+        19
+        [additional rows omitted]
+  isError: false
+---
+send:
+  python: data = _console.sql_last_result(30)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "fetch> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    continue
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    assert data == {"columns": ("i",), "rows": [(i,) for i in range(30)]}
+    assert connection.latest.calls == 2
+    _console.sql_connection(connection)
+    assert connection.latest.closed
+    print("resumed retrieval keeps the preview prefix")
+result:
+  content:
+    - type: text
+      text: |
+        resumed retrieval keeps the preview prefix
+  isError: false
+---
+send:
+  sql: |-
+    WITH RECURSIVE rows(i) AS (
+                VALUES (0) UNION ALL SELECT i + 1 FROM rows WHERE i < 56
+            ) SELECT i FROM rows
+result:
+  content:
+    - type: text
+      text: |
+        i
+        --
+        0
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+        11
+        12
+        13
+        14
+        15
+        16
+        17
+        18
+        19
+        [additional rows omitted]
+  isError: false
+---
+send:
+  python: _console.sql_last_result(30)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "fetch> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e4>", line 1, in <module>
+          File "<string>", line 76, in sql_last_result
+          File "<mcp-console:python:e1>", line 22, in fetchmany
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: |
+    assert connection.latest.closed
+    try:
+        _console.sql_last_result(1)
+    except RuntimeError as error:
+        assert "No retained" in str(error)
+    else:
+        raise AssertionError("interrupted cursor remained usable")
+    print("interrupted retrieval releases the cursor")
+result:
+  content:
+    - type: text
+      text: |
+        interrupted retrieval releases the cursor
+  isError: false
