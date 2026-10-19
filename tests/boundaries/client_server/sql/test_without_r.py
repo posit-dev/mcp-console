@@ -284,22 +284,31 @@ def test_default_extension_failure_preserves_close_failure(
                 sql="SELECT 42 AS answer",
                 timeout_ms=int(client.response_timeout * 1_000),
             )
-            assert failure.get("isError"), failure
             if execution is SANDBOXED:
+                # A clean default-extension failure is recoverable. The owner
+                # remains live until shutdown, where its Close still must fail.
+                assert not failure.get("isError"), failure
                 diagnostic = last_result_text(client)
-                assert diagnostic.startswith("DuckDB extension resolution failed"), (
-                    diagnostic
-                )
-                assert "path exists but is not a directory!" in diagnostic, diagnostic
-                assert diagnostic.endswith(
-                    "; resolver input closed; local resolver sandbox exited with exit status: 47"
+                assert diagnostic.startswith(
+                    "skipping default DuckDB extension `sqlite`: DuckDB extension resolution failed"
                 ), diagnostic
-            else:
-                diagnostic = (
-                    "DuckDB extension preparation requires an absolute HOME at server startup; "
-                    "resolver input closed"
+                assert "path exists but is not a directory!" in diagnostic, diagnostic
+                assert diagnostic.endswith("answer\n------\n42\n"), diagnostic
+                transcript, errors = client.finish_with_standard_error(
+                    expected_exit_status=1
                 )
-                assert last_result_text(client) == diagnostic, failure
+                assert marker.exists(), ("resolver did not receive Close", errors)
+                assert errors == (
+                    "resolver input closed; local resolver sandbox exited with exit status: 47\n"
+                ), errors
+                records = transcript[3:] + [{"stderr": errors}]
+                return json.loads(json.dumps(records).replace(str(root), "<temporary>"))
+            assert failure.get("isError"), failure
+            diagnostic = (
+                "DuckDB extension preparation requires an absolute HOME at server startup; "
+                "resolver input closed"
+            )
+            assert last_result_text(client) == diagnostic, failure
             assert marker.exists(), ("resolver did not receive Close", diagnostic)
             assert client.send(requirements={"action": "get"}) == failure
             client.request("ping")
