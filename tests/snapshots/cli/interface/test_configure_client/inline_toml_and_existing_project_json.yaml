@@ -12,6 +12,9 @@ console:
   enabled: true
   omit_tools_from:
     - deferred
+  tools:
+    send:
+      approval_mode: approve
 ---
 client: claude
 console:

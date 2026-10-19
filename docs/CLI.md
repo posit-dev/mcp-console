@@ -88,6 +88,8 @@ Relative paths start at the current directory; setup does not search Git parents
 | Codex       | `.codex/config.toml`  | `$CODEX_HOME/config.toml`, default `~/.codex/config.toml`   |
 | Claude Code | `.mcp.json`           | `$CLAUDE_CONFIG_DIR/.claude.json`, default `~/.claude.json` |
 
+Claude Code tool permissions are written separately to `.claude/settings.json` in the selected project, or `$CLAUDE_CONFIG_DIR/settings.json` globally (default `~/.claude/settings.json`).
+
 [Codex](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence) and [Claude Code](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence) give loaded project entries precedence over same-named global entries.
 Global registration leaves existing project entries unchanged and warns when it finds one that may take precedence, including during `--dry-run`.
 The warning identifies the nearest matching project file.
@@ -108,7 +110,7 @@ TOML key comments and comments around replaced values are preserved.
 Comments inside the managed `args` and `omit_tools_from` arrays are discarded when those arrays are replaced.
 JSON is formatted on write.
 Malformed configuration and an existing remote server with the selected name cause an error without overwriting the file.
-Every selected client's configuration is parsed before installation or writes begin.
+Every selected client's configuration, including Claude Code's permission settings, is parsed before installation or writes begin.
 Existing files are updated in place to retain file identity, symlinks, ownership, and access-control lists, including Windows DACLs.
 These updates are not atomic: an interrupted or failed write may leave an incomplete file.
 New files are created atomically.
@@ -126,9 +128,20 @@ Client startup limits still apply; a cold `uvx` launch can delay tool availabili
 Codex's Strict Code Mode Only controls tool exposure independently and overrides the visibility setting.
 Use a current client version that supports the respective setting.
 
+Configuration also allows Console's `send` tool to run without a per-call approval prompt:
+
+- Codex: [`approval_mode = "approve"`](https://learn.chatgpt.com/docs/config-file/config-reference) in `[mcp_servers.console.tools.send]`.
+- Claude Code: [`"mcp__console__send"`](https://code.claude.com/docs/en/permissions#mcp) in `permissions.allow` in its settings file.
+
+`--name` selects the server for both settings; Claude Code's permission rule uses the server's normalized tool-name spelling.
+Existing Claude Code allow rules are retained without adding duplicate entries.
+`--no-auto-load` affects discovery only; it still configures approval for `send`.
+Console's sandbox permissions are unchanged by the tool allowlist.
+Explicit Claude Code `ask` or `deny` rules and managed client restrictions can still require approval or block a call.
+
 Restart the client after configuration.
 Codex requires project trust before loading project configuration, and Claude Code may ask you to approve a project server.
-Configuration leaves these client approvals and tool permissions unchanged.
+Configuration leaves those project trust decisions unchanged.
 Legacy Claude Code `.config.json` layouts are not supported by this command.
 
 ### Other MCP clients

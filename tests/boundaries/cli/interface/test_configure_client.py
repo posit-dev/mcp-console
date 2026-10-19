@@ -114,7 +114,7 @@ def test_multiple_clients_pins_names_and_serve_arguments(binary: Path) -> Transc
                 "a path",
             )
             assert result.returncode == 0 and result.stderr == "", result
-            assert result.stdout.count("Configuration:") == 2, result
+            assert result.stdout.count("Configuration:") == 3, result
             prefix = [
                 "mcp-console" + (f"@{pin}" if pin else ""),
                 "serve",
@@ -888,6 +888,147 @@ def server(config: dict, client: str) -> dict:
     return config["mcp_servers" if client == "codex" else "mcpServers"]["console"]
 
 
+def test_send_approval_preserves_other_tool_settings(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        for project in (False, True):
+            name = "console.local" if project else "console"
+            path = root / (
+                ".codex/config.toml" if project else "codex-home/config.toml"
+            )
+            path.parent.mkdir(parents=True)
+            source = (
+                'mcp_servers = { "console.local" = { command = "old", '
+                'tools = { send = { approval_mode = "prompt", output_token_limit = 5000 }, '
+                'other = { approval_mode = "prompt" } } } }\n'
+                if project
+                else '[mcp_servers.console]\ncommand = "old"\n'
+                'default_tools_approval_mode = "prompt"\n'
+                "[mcp_servers.console.tools.send]\n"
+                'approval_mode = "prompt" # Keep this comment.\noutput_token_limit = 5000\n'
+                '[mcp_servers.console.tools.other]\napproval_mode = "prompt"\n'
+            )
+            path.write_text(source, encoding="utf-8")
+            arguments = ["codex", "--name", name, "--no-auto-load"]
+            if project:
+                arguments += ["--directory", "."]
+            preview = configure(binary, root, root, *arguments, "--dry-run")
+            assert preview.returncode == 0 and not preview.stderr, preview
+            assert path.read_text(encoding="utf-8") == source
+            assert 'approval_mode = "approve"' in preview.stdout, preview
+            result = configure(binary, root, root, *arguments)
+            assert result.returncode == 0 and not result.stderr, result
+            entry = read_config(path, "codex")["mcp_servers"][name]
+            assert entry["tools"] == {
+                "send": {"approval_mode": "approve", "output_token_limit": 5000},
+                "other": {"approval_mode": "prompt"},
+            }, entry
+            if not project:
+                assert entry["default_tools_approval_mode"] == "prompt"
+                assert "# Keep this comment." in path.read_text(encoding="utf-8")
+            written = path.read_bytes()
+            again = configure(binary, root, root, *arguments)
+            assert again.returncode == 0 and not again.stderr, again
+            assert path.read_bytes() == written
+            records.append(
+                {"project": project, "server": name, "tools": entry["tools"]}
+            )
+    return records
+
+
+def test_claude_send_permission_paths_names_and_preservation(
+    binary: Path,
+) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        workspace = root / "workspace"
+        workspace.mkdir()
+        target = root / "project"
+        target.mkdir()
+        for project in (False, True):
+            name = "console.test_custom-1:@/local" if project else "console"
+            rule = (
+                "mcp__console_test_custom-1___local__send"
+                if project
+                else "mcp__console__send"
+            )
+            settings = (
+                target / ".claude/settings.json"
+                if project
+                else root / "claude-home/settings.json"
+            )
+            registration = (
+                target / ".mcp.json" if project else root / "claude-home/.claude.json"
+            )
+            settings.parent.mkdir(parents=True)
+            original = {
+                "model": "example",
+                "permissions": {
+                    "allow": ["Read", "mcp__other__send"],
+                    "ask": ["Bash"],
+                    "deny": ["Read(./.env)"],
+                },
+            }
+            settings.write_text(json.dumps(original), encoding="utf-8")
+            written = settings.read_bytes()
+            arguments = ["claude", "claude", "--name", name, "--no-auto-load"]
+            if project:
+                arguments += ["--directory", str(target)]
+            preview = configure(binary, root, workspace, *arguments, "--dry-run")
+            assert preview.returncode == 0 and not preview.stderr, preview
+            assert str(settings) in preview.stdout and rule in preview.stdout, preview
+            assert settings.read_bytes() == written and not registration.exists()
+            result = configure(binary, root, workspace, *arguments)
+            assert result.returncode == 0 and not result.stderr, result
+            assert str(settings) in result.stdout and rule in result.stdout, result
+            expected = original | {
+                "permissions": original["permissions"]
+                | {"allow": [*original["permissions"]["allow"], rule]}
+            }
+            assert read_config(settings, "claude") == expected
+            config = read_config(registration, "claude")
+            assert "permissions" not in config and list(config["mcpServers"]) == [name]
+            written = settings.read_bytes()
+            again = configure(binary, root, workspace, *arguments)
+            assert again.returncode == 0 and not again.stderr, again
+            assert settings.read_bytes() == written
+            assert not (workspace / ".claude").exists()
+            records.append({"project": project, "server": name, "settings": expected})
+    return records
+
+
+def test_invalid_claude_permissions_prevent_all_writes(binary: Path) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        settings = root / "claude-home/settings.json"
+        settings.parent.mkdir()
+        for source in (
+            "{",
+            "[]",
+            '{"permissions": []}',
+            '{"permissions": {"allow": "Read"}}',
+            '{"permissions": {"allow": [42]}}',
+        ):
+            settings.write_text(source, encoding="utf-8")
+            for dry_run in (False, True):
+                result = configure(
+                    binary,
+                    root,
+                    root,
+                    "codex",
+                    "claude",
+                    *(["--dry-run"] if dry_run else []),
+                )
+                assert result.returncode == 1 and not result.stdout, result
+                assert str(settings) in result.stderr, result
+                assert settings.read_text(encoding="utf-8") == source
+                assert not (root / "codex-home").exists()
+                assert not (root / "claude-home/.claude.json").exists()
+        return [{"invalid_permissions": 5, "all_configuration_files": "unchanged"}]
+
+
 def test_global_install_preserves_configuration_and_is_repeatable(
     binary: Path,
 ) -> Transcript:
@@ -954,6 +1095,9 @@ def test_global_install_preserves_configuration_and_is_repeatable(
                 before["mcp_servers"]["console"] = entry
             else:
                 assert entry["type"] == "stdio" and entry["alwaysLoad"] is True
+                assert read_config(home / "settings.json", client) == {
+                    "permissions": {"allow": ["mcp__console__send"]}
+                }
                 before["mcpServers"]["console"] = entry
             assert config == before
             written = path.read_bytes()
@@ -964,7 +1108,9 @@ def test_global_install_preserves_configuration_and_is_repeatable(
                 {
                     "client": client,
                     "console": entry,
-                    "stdout": result.stdout.replace(str(path), "<CONFIG>"),
+                    "stdout": result.stdout.replace(str(path), "<CONFIG>").replace(
+                        str(home / "settings.json"), "<SETTINGS>"
+                    ),
                     "repeat": "unchanged",
                 }
             )
@@ -1060,6 +1206,10 @@ def test_project_directory_destinations(binary: Path) -> Transcript:
                 path = target / relative
                 assert str(path) in preview.stdout and str(path) in result.stdout
                 assert server(read_config(path, client), client)["command"] == "uvx"
+                if client == "claude":
+                    assert read_config(target / ".claude/settings.json", client) == {
+                        "permissions": {"allow": ["mcp__console__send"]}
+                    }
                 assert not (workspace / relative).exists()
                 assert not (root / relative).exists()
             records.append({"directory": kind, "clients": ["codex", "claude"]})
@@ -1505,10 +1655,14 @@ def test_dry_run_and_auto_load_opt_out(binary: Path) -> Transcript:
             assert result.returncode == 0 and result.stderr == "", result
             assert str(path) in result.stdout and "uvx" in result.stdout, result
             assert not path.parent.exists()
-            preview = result.stdout.replace(str(path), "<CONFIG>")
+            settings = path.parent / "settings.json"
+            preview = result.stdout.replace(str(path), "<CONFIG>").replace(
+                str(settings), "<SETTINGS>"
+            )
             result = configure(binary, root, root, client)
             assert result.returncode == 0, result
             written = path.read_bytes()
+            permissions = settings.read_bytes() if client == "claude" else None
             result = configure(
                 binary,
                 root,
@@ -1518,6 +1672,8 @@ def test_dry_run_and_auto_load_opt_out(binary: Path) -> Transcript:
                 "--dry-run",
             )
             assert result.returncode == 0 and path.read_bytes() == written, result
+            if client == "claude":
+                assert settings.read_bytes() == permissions
             result = configure(binary, root, root, client, "--no-auto-load")
             assert result.returncode == 0 and result.stderr == "", result
             entry = server(read_config(path, client), client)
@@ -1530,7 +1686,9 @@ def test_dry_run_and_auto_load_opt_out(binary: Path) -> Transcript:
                     "client": client,
                     "console": entry,
                     "dry_run": preview,
-                    "opt_out": result.stdout.replace(str(path), "<CONFIG>"),
+                    "opt_out": result.stdout.replace(str(path), "<CONFIG>").replace(
+                        str(settings), "<SETTINGS>"
+                    ),
                 }
             )
     return records
@@ -1587,6 +1745,8 @@ def test_invalid_configuration_is_not_overwritten(binary: Path) -> Transcript:
                     'mcp_servers = "wrong"',
                     '[mcp_servers]\nconsole = "wrong"',
                     '[mcp_servers.console]\nurl = "https://example.com/mcp"',
+                    "[mcp_servers.console]\ntools = []",
+                    '[mcp_servers.console.tools]\nsend = "wrong"',
                 ),
             ),
             (

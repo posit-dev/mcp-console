@@ -9,6 +9,9 @@ console:
     - sandbox.profile=inherit_codex
   enabled: true
   omit_tools_from: []
+  tools:
+    send:
+      approval_mode: approve
 dry_run: |
   Would configure Console for Codex (global).
   Configuration: <CONFIG>
@@ -20,7 +23,11 @@ dry_run: |
   enabled = true
   omit_tools_from = ["deferred"]
 
+  [mcp_servers.console.tools.send]
+  approval_mode = "approve"
+
   Console tools are configured to load up front. Use --no-auto-load to keep the client's default tool discovery.
+  Console's send tool is allowlisted for calls without individual approval; explicit client restrictions still apply.
   Dry run; no files changed. You can apply the settings above manually.
 opt_out: |
   Configured Console for Codex (global).
@@ -33,7 +40,11 @@ opt_out: |
   enabled = true
   omit_tools_from = []
 
+  [mcp_servers.console.tools.send]
+  approval_mode = "approve"
+
   Console tools use the client's default tool discovery.
+  Console's send tool is allowlisted for calls without individual approval; explicit client restrictions still apply.
   Restart Codex to load the configuration.
 ---
 client: claude
@@ -63,7 +74,20 @@ dry_run: |
     }
   }
 
+  Would configure Console for Claude Code (global).
+  Configuration: <SETTINGS>
+
+  Set these fields:
+  {
+    "permissions": {
+      "allow": [
+        "mcp__console__send"
+      ]
+    }
+  }
+
   Console tools are configured to load up front. Use --no-auto-load to keep the client's default tool discovery.
+  Console's send tool is allowlisted for calls without individual approval; explicit client restrictions still apply.
   Dry run; no files changed. You can apply the settings above manually.
 opt_out: |
   Configured Console for Claude Code (global).
@@ -84,5 +108,18 @@ opt_out: |
     }
   }
 
+  Already configured Console for Claude Code (global).
+  Configuration: <SETTINGS>
+
+  Set these fields:
+  {
+    "permissions": {
+      "allow": [
+        "mcp__console__send"
+      ]
+    }
+  }
+
   Console tools use the client's default tool discovery.
+  Console's send tool is allowlisted for calls without individual approval; explicit client restrictions still apply.
   Restart Claude Code to load the configuration.

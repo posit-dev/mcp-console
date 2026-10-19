@@ -23,6 +23,7 @@ Examples:
 const CONFIGURE_CLIENT_EXAMPLES: &str = "\
 Prints each configuration file and setting changed. Unrelated settings are
 preserved. Use --dry-run to preview or apply the changes manually.
+Allows Console's send tool without individual approval, subject to client restrictions.
 Starts cache warming in the background; use --no-warmup to skip it.
 Codex launches default to the client's sandbox permissions; configuration files
 can select another profile. Arguments after -- customize the serve settings.

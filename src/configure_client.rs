@@ -1,4 +1,4 @@
-//! Client configuration edits. Client trust and tool approvals remain client-owned.
+//! Client registration and send-tool approval settings. Project trust remains client-owned.
 
 mod launch;
 mod warmup;
@@ -8,18 +8,44 @@ use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 use serde_json::json;
-use toml_edit::{Array, DocumentMut, Item, Table, value};
+use toml_edit::{Array, DocumentMut, Item, Table, TableLike, value};
 
 use crate::cli::{ConfigureClient, ConfigureClientOptions};
 use launch::Launch;
 
 struct Configuration {
     client: ConfigureClient,
+    files: Vec<ConfigurationFile>,
+    shadowed_by: Option<PathBuf>,
+}
+
+struct ConfigurationFile {
     path: PathBuf,
     updated: String,
     snippet: String,
     changed: bool,
-    shadowed_by: Option<PathBuf>,
+}
+
+impl ConfigurationFile {
+    fn prepare(
+        path: PathBuf,
+        edit: impl FnOnce(Option<&str>) -> Result<(String, String), String>,
+    ) -> Result<Self, String> {
+        let previous = match fs::read_to_string(&path) {
+            Ok(source) => Some(source),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => return Err(format!("Cannot read {}: {error}", path.display())),
+        };
+        let (updated, snippet) = edit(previous.as_deref())
+            .map_err(|error| format!("Cannot configure {}: {error}", path.display()))?;
+        let changed = previous.as_deref() != Some(updated.as_str());
+        Ok(Self {
+            path,
+            updated,
+            snippet,
+            changed,
+        })
+    }
 }
 
 pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
@@ -84,38 +110,56 @@ pub(crate) fn run(options: &ConfigureClientOptions) -> Result<(), String> {
             },
             None => global_path(client, &directory)?,
         };
-        let previous = match fs::read_to_string(&path) {
-            Ok(source) => Some(source),
-            Err(error) if error.kind() == ErrorKind::NotFound => None,
-            Err(error) => return Err(format!("Cannot read {}: {error}", path.display())),
-        };
-        let (updated, snippet) = match client {
-            ConfigureClient::Codex => edit_codex(previous.as_deref(), options, &launch),
-            ConfigureClient::Claude => edit_claude(previous.as_deref(), options, &launch),
-        }
-        .map_err(|error| format!("Cannot configure {}: {error}", path.display()))?;
-        let changed = previous.as_deref() != Some(updated.as_str());
+        let registration = ConfigurationFile::prepare(path, |source| match client {
+            ConfigureClient::Codex => edit_codex(source, options, &launch),
+            ConfigureClient::Claude => edit_claude(source, options, &launch),
+        })?;
         let shadowed_by = if project.is_none() {
-            shadowing_project_configuration(client, &directory, &path, &updated, &options.name)?
+            shadowing_project_configuration(
+                client,
+                &directory,
+                &registration.path,
+                &registration.updated,
+                &options.name,
+            )?
         } else {
             None
         };
+        let mut files = Vec::new();
+        if client == ConfigureClient::Claude {
+            let settings = match project {
+                Some(project) => project.join(".claude").join("settings.json"),
+                None if std::env::var_os("CLAUDE_CONFIG_DIR")
+                    .is_some_and(|value| !value.is_empty()) =>
+                {
+                    registration.path.with_file_name("settings.json")
+                }
+                None => registration
+                    .path
+                    .with_file_name(".claude")
+                    .join("settings.json"),
+            };
+            files.push(ConfigurationFile::prepare(settings, |source| {
+                edit_claude_permissions(source, &options.name)
+            })?);
+        }
+        files.insert(0, registration);
         plans.push(Configuration {
             client,
-            path,
-            updated,
-            snippet,
-            changed,
+            files,
             shadowed_by,
         });
     }
     launch.prepare(options.dry_run)?;
     for plan in plans {
-        if plan.changed && !options.dry_run {
-            write_configuration(&plan.path, &plan.updated)
-                .map_err(|error| format!("Cannot write {}: {error}", plan.path.display()))?;
+        for file in &plan.files {
+            if file.changed && !options.dry_run {
+                write_configuration(&file.path, &file.updated)
+                    .map_err(|error| format!("Cannot write {}: {error}", file.path.display()))?;
+            }
+            print!("{}", report_file(file, plan.client, options, scope));
         }
-        print!("{}", report(&plan, options, scope));
+        print!("{}", report(plan.client, options, scope));
         if let Some(path) = &plan.shadowed_by {
             eprintln!(
                 "Warning: project server {:?} in {} may take precedence over this global registration when loaded. Update or remove that project entry to use the intended settings.",
@@ -261,35 +305,49 @@ fn shadowing_project_configuration(
     Ok(None)
 }
 
-fn report(plan: &Configuration, options: &ConfigureClientOptions, scope: &str) -> String {
+fn report_file(
+    file: &ConfigurationFile,
+    client: ConfigureClient,
+    options: &ConfigureClientOptions,
+    scope: &str,
+) -> String {
     let action = if options.dry_run {
         "Would configure"
-    } else if plan.changed {
+    } else if file.changed {
         "Configured"
     } else {
         "Already configured"
     };
-    let client = match plan.client {
+    let client = match client {
         ConfigureClient::Codex => "Codex",
         ConfigureClient::Claude => "Claude Code",
     };
-    let mut output = format!(
+    format!(
         "{action} Console for {client} ({scope}).\nConfiguration: {}\n\nSet these fields:\n{}\n",
-        plan.path.display(),
-        plan.snippet,
-    );
+        file.path.display(),
+        file.snippet,
+    )
+}
+
+fn report(client: ConfigureClient, options: &ConfigureClientOptions, scope: &str) -> String {
+    let mut output = String::new();
     if !options.no_auto_load {
         output.push_str("Console tools are configured to load up front. Use --no-auto-load to keep the client's default tool discovery.\n");
     } else {
         output.push_str("Console tools use the client's default tool discovery.\n");
     }
+    output.push_str("Console's send tool is allowlisted for calls without individual approval; explicit client restrictions still apply.\n");
     if options.dry_run {
         output.push_str("Dry run; no files changed. You can apply the settings above manually.\n");
     } else {
+        let client = match client {
+            ConfigureClient::Codex => "Codex",
+            ConfigureClient::Claude => "Claude Code",
+        };
         output.push_str(&format!("Restart {client} to load the configuration.\n"));
     }
     if scope == "project" {
-        output.push_str(match plan.client {
+        output.push_str(match client {
             ConfigureClient::Codex => {
                 "Codex loads project configuration only after you trust the project.\n"
             }
@@ -371,8 +429,33 @@ fn edit_codex(
             Array::new()
         }),
     );
+    let mut tools = Table::new();
+    tools.set_implicit(true);
+    let mut send = Table::new();
+    send.insert("approval_mode", value("approve"));
+    tools.insert("send", Item::Table(send));
+    desired.insert("tools", Item::Table(tools));
+    merge_toml(console, &desired)?;
+    let mut snippet = DocumentMut::new();
+    let mut parent = Table::new();
+    parent.set_implicit(true);
+    snippet["mcp_servers"] = Item::Table(parent);
+    snippet["mcp_servers"][&options.name] = Item::Table(desired);
+    Ok((document.to_string(), snippet.to_string()))
+}
+
+// Merge managed leaves without replacing other tool settings or TOML decoration.
+fn merge_toml(target: &mut dyn TableLike, desired: &Table) -> Result<(), String> {
     for (key, item) in desired.iter() {
-        if let Some(existing) = console.get_mut(key) {
+        if let Some(table) = item.as_table() {
+            let existing = target.entry(key).or_insert(item.clone());
+            merge_toml(
+                existing
+                    .as_table_like_mut()
+                    .ok_or_else(|| format!("{key} must be a table"))?,
+                table,
+            )?;
+        } else if let Some(existing) = target.get_mut(key) {
             let mut replacement = item.clone();
             if let (Some(old), Some(new)) = (existing.as_value(), replacement.as_value_mut()) {
                 // Managed arrays are replaced in full. Keep outer decoration,
@@ -382,15 +465,10 @@ fn edit_codex(
             // Updating the item in place also keeps the key's own comments.
             *existing = replacement;
         } else {
-            console.insert(key, item.clone());
+            target.insert(key, item.clone());
         }
     }
-    let mut snippet = DocumentMut::new();
-    let mut parent = Table::new();
-    parent.set_implicit(true);
-    snippet["mcp_servers"] = Item::Table(parent);
-    snippet["mcp_servers"][&options.name] = Item::Table(desired);
-    Ok((document.to_string(), snippet.to_string()))
+    Ok(())
 }
 
 fn edit_claude(
@@ -429,6 +507,48 @@ fn edit_claude(
     });
     console.extend(desired.as_object().unwrap().clone());
     let snippet = serde_json::to_string_pretty(&json!({"mcpServers": {&options.name: desired}}))
+        .map_err(|error| error.to_string())?;
+    let updated =
+        serde_json::to_string_pretty(&document).map_err(|error| error.to_string())? + "\n";
+    Ok((updated, snippet + "\n"))
+}
+
+fn edit_claude_permissions(source: Option<&str>, name: &str) -> Result<(String, String), String> {
+    let mut document: serde_json::Value =
+        serde_json::from_str(source.unwrap_or("{}")).map_err(|error| error.to_string())?;
+    let permissions = document
+        .as_object_mut()
+        .ok_or("settings must be a JSON object")?
+        .entry("permissions")
+        .or_insert_with(|| json!({}))
+        .as_object_mut()
+        .ok_or("permissions must be a JSON object")?;
+    let allow = permissions
+        .entry("allow")
+        .or_insert_with(|| json!([]))
+        .as_array_mut()
+        .ok_or("permissions.allow must be an array of strings")?;
+    if !allow.iter().all(serde_json::Value::is_string) {
+        return Err("permissions.allow must be an array of strings".to_owned());
+    }
+    // Claude exposes server names with punctuation replaced by underscores:
+    // https://code.claude.com/docs/en/permissions#mcp
+    let name: String = name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '_' | '-') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let rule = json!(format!("mcp__{name}__send"));
+    if !allow.contains(&rule) {
+        allow.push(rule);
+    }
+    // Print the complete merged list so the preview can also be applied manually.
+    let snippet = serde_json::to_string_pretty(&json!({"permissions": {"allow": allow}}))
         .map_err(|error| error.to_string())?;
     let updated =
         serde_json::to_string_pretty(&document).map_err(|error| error.to_string())? + "\n";

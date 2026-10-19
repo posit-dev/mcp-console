@@ -40,7 +40,8 @@ uvx mcp-console configure-client claude
 ```
 
 This registers Console globally, so it is available across projects, and loads its tools up front.
-It also starts runtime checks and cache warming in the background, printing a log path for the results.
+It also adds Console's `send` tool to the client's allowlist so calls do not need individual approval, subject to explicit client restrictions.
+Setup starts runtime checks and cache warming in the background, printing a log path for the results.
 Use `--no-warmup` to skip that step.
 Restart the client after setup.
 Your client launches Console on the same host, usually in the workspace where the agent is working.
