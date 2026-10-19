@@ -31,10 +31,11 @@ $env:LC_ALL = 'C'
 scripts/preflight.cmd
 scripts/stage-sandbox-runner.cmd
 scripts/test.cmd --list
-scripts/test.cmd WindowsConsole.test_python_without_r
-scripts/test.cmd client_server/python/test_runtime
 # Require native coverage on a local MXC-capable host:
 $env:MCP_CONSOLE_TEST_REQUIRE_MXC = '1'
+scripts/test.cmd WindowsConsole.test_python_without_r
+scripts/test.cmd WindowsPreparation
+scripts/test.cmd client_server/python/test_runtime
 scripts/format.cmd
 scripts/check.cmd
 scripts/check.cmd --full
@@ -44,6 +45,12 @@ Remove-Item Env:MCP_CONSOLE_TEST_REQUIRE_MXC
 Set `R_HOME` to the installed R directory when the complete suite requires it.
 `preflight` is read-only; successful inventory is not build or sandbox acceptance.
 Packaging stages its companion automatically, while direct checks need explicit staging.
+
+`WindowsPreparation` exercises cold resolver caches, real package builds and descendants, independent resolver policies, late additions and failures, and cancellation under MXC.
+Its enforcement probes require actual denied filesystem and non-loopback network effects; proxy environment variables alone are insufficient.
+Preparation and proxy regressions use a fresh installation path and inspect firewall application rules before and after execution, so authorization from earlier runs cannot mask a prompt or an administrative setup dependency.
+Native sessions use temporary Console caches; worker-permission cases share a test-owned cache and explicitly select their required providers rather than depending on the caller's package state.
+Keep `MCP_CONSOLE_TEST_REQUIRE_MXC=1` set for those native runs so unavailable MXC fails instead of skipping execution.
 
 The ordinary gate runs native Windows acceptance.
 The full gate adds applicable shared boundary cases, tooling, wheel, and source-install checks.

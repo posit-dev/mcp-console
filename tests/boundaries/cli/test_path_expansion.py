@@ -165,7 +165,6 @@ def test_home_paths_reject_relative_home(binary: Path) -> Transcript:
     return records
 
 
-@requires(POSIX)
 def test_materializes_resolver_home_paths(binary: Path) -> Transcript:
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()

@@ -146,45 +146,71 @@ pub(crate) fn duckdb_extension_directory(
             .map(Some)
             .map_err(|error| error.to_string());
     }
-    let home = environment_path(settings, "HOME");
+    let home = environment_path(settings, "HOME").filter(|path| path.is_absolute());
     #[cfg(windows)]
-    let home = home.or_else(|| environment_path(settings, "USERPROFILE"));
-    Ok(home
-        .filter(|home| home.is_absolute())
-        .map(|home| home.join(".duckdb/extensions")))
+    let home = home
+        .or_else(|| environment_path(settings, "USERPROFILE").filter(|path| path.is_absolute()));
+    Ok(home.map(|home| home.join(".duckdb/extensions")))
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>, String> {
     // Cache selection uses the resolver's effective environment, including its
     // own trusted YAML overrides. Worker environment settings do not reach here.
     // Config-file cache paths need explicit resolver grants; this covers only
     // default locations and direct environment overrides.
     let env = |name| environment_path(settings, name);
-    let home = env("HOME").ok_or("resolver sandbox requires HOME")?;
+    let home = env("HOME");
+    #[cfg(windows)]
+    let home = home
+        .filter(|path| path.is_absolute())
+        .or_else(|| env("USERPROFILE"));
+    let home = home.ok_or("resolver sandbox requires HOME")?;
     if !home.is_absolute() {
         return Err("resolver sandbox requires an absolute HOME".into());
     }
     let xdg_cache = env("XDG_CACHE_HOME").unwrap_or_else(|| home.join(".cache"));
+    #[cfg(windows)]
+    let local = env("LOCALAPPDATA")
+        .filter(|path| path.is_absolute())
+        .unwrap_or_else(|| home.join("AppData/Local"));
+    #[cfg(windows)]
+    let roaming = env("APPDATA")
+        .filter(|path| path.is_absolute())
+        .unwrap_or_else(|| home.join("AppData/Roaming"));
+    #[cfg(unix)]
     let uv_cache_base = if xdg_cache.is_absolute() {
         xdg_cache.clone()
     } else {
         home.join(".cache")
     };
+    #[cfg(windows)]
+    let uv_cache_base = local.join("uv");
+    #[cfg(unix)]
     let xdg_data = env("XDG_DATA_HOME")
         .filter(|path| path.is_absolute())
         .unwrap_or_else(|| home.join(".local/share"));
+    #[cfg(windows)]
+    let xdg_data = roaming;
     let r_cache = env("R_USER_CACHE_DIR")
         .or_else(|| env("XDG_CACHE_HOME"))
         .unwrap_or_else(|| {
             if cfg!(target_os = "macos") {
                 home.join("Library/Caches/org.R-project.R")
             } else {
-                xdg_cache.clone()
+                #[cfg(windows)]
+                {
+                    local.join("R/cache")
+                }
+                #[cfg(unix)]
+                {
+                    xdg_cache.clone()
+                }
             }
         });
     let mut caches = vec![
-        env("UV_CACHE_DIR").unwrap_or_else(|| uv_cache_base.join("uv")),
+        env("UV_CACHE_DIR")
+            .unwrap_or_else(|| uv_cache_base.join(if cfg!(windows) { "cache" } else { "uv" })),
         env("UV_PYTHON_INSTALL_DIR").unwrap_or_else(|| xdg_data.join("uv/python")),
         env("UV_TOOL_DIR").unwrap_or_else(|| xdg_data.join("uv/tools")),
         env("IR_CACHE_DIR").unwrap_or_else(|| r_cache.join("R/ir")),
@@ -194,7 +220,7 @@ pub(crate) fn writable_roots(settings: &SandboxSettings) -> Result<Vec<PathBuf>,
         env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY)
             .unwrap_or_else(|| home.join(".duckdb/extensions")),
         env("MPLCONFIGDIR").unwrap_or_else(|| {
-            if cfg!(target_os = "macos") {
+            if cfg!(any(target_os = "macos", windows)) {
                 home.join(".matplotlib")
             } else {
                 xdg_cache.join("matplotlib")

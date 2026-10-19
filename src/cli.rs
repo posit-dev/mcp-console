@@ -196,6 +196,14 @@ pub enum Command {
     #[command(hide = true)]
     Resolve,
 
+    /// Run the internal Rscript preparation adapter
+    #[cfg(windows)]
+    #[command(hide = true)]
+    ResolverRscript {
+        #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<OsString>,
+    },
+
     /// Run the internal worker relay
     #[command(hide = true)]
     WorkerRelay {

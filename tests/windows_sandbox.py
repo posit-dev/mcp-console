@@ -13,12 +13,14 @@ import unittest
 import uuid
 from contextlib import contextmanager
 from ctypes import wintypes
+from functools import cache
 from pathlib import Path
 from textwrap import dedent
 from support.installation import native_console
 from support.normalization import code
 from support.public_configuration import INVALID_CONFIGURATIONS
 from support.windows_mxc import requires_mxc
+from support.windows_firewall import application_rules
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = Path(
@@ -126,6 +128,30 @@ def without_backup_privileges():
         kernel.CloseHandle(token)
 
 
+@cache
+def worker_dependency_cache():
+    return tempfile.TemporaryDirectory(prefix="console-worker-cache-")
+
+
+def worker_session(environment=None, *, overrides=(), **options):
+    """Select required R providers for the worker permission contracts."""
+    from windows import Session
+
+    environment = dict(os.environ if environment is None else environment)
+    environment.setdefault("MCP_CONSOLE_CACHE_DIR", worker_dependency_cache().name)
+    # Keep explicit compatibility selections, including managed Python.
+    python_default = (
+        ()
+        if environment.get("RETICULATE_PYTHON")
+        else ("python=" + json.dumps(sys.executable),)
+    )
+    return Session(
+        environment,
+        overrides=("r.packages=[]", *python_default, *overrides),
+        **options,
+    )
+
+
 @unittest.skipUnless(os.name == "nt", "native Windows sandbox")
 class WindowsSandbox(unittest.TestCase):
     @requires_mxc(BINARY)
@@ -168,8 +194,6 @@ class WindowsSandbox(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
     @requires_mxc(BINARY)
     def test_native_r_startup_is_contained_and_reread_on_restart(self):
-        from windows import Session
-
         with workspace() as root:
             home = root / "home"
             home.mkdir()
@@ -208,7 +232,9 @@ class WindowsSandbox(unittest.TestCase):
                 MCP_CONSOLE_LANGUAGES="r",
                 CONSOLE_NATIVE_FORBIDDEN=str(root / "forbidden"),
             )
-            session = Session(environment, sandbox=True, use_r_startup_files=True)
+            session = worker_session(
+                environment, sandbox=True, use_r_startup_files=True
+            )
             try:
                 session.initialize()
                 # fmt: r
@@ -241,13 +267,11 @@ class WindowsSandbox(unittest.TestCase):
         self.console_cache_paths(profile_fallback=True)
 
     def console_cache_paths(self, *, profile_fallback: bool):
-        from windows import Session
         from support.resolvers import preseeded_duckdb_python
 
         with workspace() as root:
             python = preseeded_duckdb_python(root)
-            # Probe trusted preparation; selected environment startup hooks
-            # execute under worker permissions rather than resolver grants.
+            # Probe preparation and inspection under their resolver grants.
             subprocess.run(
                 [
                     "rustc",
@@ -284,7 +308,7 @@ class WindowsSandbox(unittest.TestCase):
                 environment.update(
                     HOME="relative-home", USERPROFILE=str(root / "account")
                 )
-            session = Session(
+            session = worker_session(
                 os.environ,
                 sandbox=True,
                 temporary_root=root,
@@ -318,9 +342,9 @@ class WindowsSandbox(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
     @requires_mxc(BINARY)
     def test_network_enabled_sql(self):
-        from windows import Session, exercise_r_sql
+        from windows import exercise_r_sql
 
-        session = Session(sandbox=True, overrides=['sandbox.network="enabled"'])
+        session = worker_session(sandbox=True, overrides=['sandbox.network="enabled"'])
         try:
             session.initialize()
             exercise_r_sql(session)
@@ -329,7 +353,7 @@ class WindowsSandbox(unittest.TestCase):
 
     @requires_mxc(BINARY)
     def test_network_enabled_python_sql(self):
-        from windows import Session, exercise_sql_interrupt
+        from windows import exercise_sql_interrupt
         from support.resolvers import expose_uv
 
         with workspace() as root:
@@ -344,14 +368,13 @@ class WindowsSandbox(unittest.TestCase):
                     ]
                 ),
                 RETICULATE_PYTHON="managed",
-                UV_PYTHON_PREFERENCE="system",
-                UV_PYTHON_DOWNLOADS="never",
             )
             environment.pop("R_HOME", None)
-            session = Session(
+            session = worker_session(
                 environment,
                 sandbox=True,
                 overrides=[
+                    'python={packages: ["duckdb==1.5.6"], version: "3.14"}',
                     'sandbox.network="enabled"',
                     'environment={mcp_console_managed_tempdir: "0", mcp_console_matplotlib_cache: "project"}',
                 ],
@@ -393,10 +416,10 @@ class WindowsSandbox(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
     @requires_mxc(BINARY)
     def test_network_enabled_input_and_interrupt(self):
-        from windows import Session, exercise_input_and_interrupt
+        from windows import exercise_input_and_interrupt
 
         with workspace():
-            session = Session(
+            session = worker_session(
                 sandbox=True,
                 overrides=[
                     'sandbox.network="enabled"',
@@ -411,10 +434,10 @@ class WindowsSandbox(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
     @requires_mxc(BINARY)
     def test_network_enabled_idle_later_callbacks(self):
-        from windows import Session, exercise_later_callbacks
+        from windows import exercise_later_callbacks
 
         with workspace():
-            session = Session(
+            session = worker_session(
                 sandbox=True,
                 overrides=[
                     'sandbox.network="enabled"',
@@ -459,6 +482,8 @@ class WindowsSandbox(unittest.TestCase):
                 assets = source.resolve().parent.parent / relative
                 if assets.exists():
                     shutil.copytree(assets, prefix / relative)
+            companions = list(prefix.rglob("mcp-console-sandbox.exe"))
+            self.assertEqual(application_rules(companions), {})
             result = subprocess.run(
                 [
                     sys.executable,
@@ -470,18 +495,20 @@ class WindowsSandbox(unittest.TestCase):
                 | {
                     "MCP_CONSOLE_TEST_BINARY": str(binary),
                     "MCP_CONSOLE_TEST_NATIVE_BINARY": str(binary),
+                    "MCP_CONSOLE_CACHE_DIR": worker_dependency_cache().name,
                 },
                 capture_output=True,
                 timeout=240,
             )
             self.assertEqual(result.returncode, 0, (result.stdout, result.stderr))
+            self.assertEqual(application_rules(companions), {})
 
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
     @requires_mxc(BINARY)
     def test_network_restricted_input_and_interrupt(self):
-        from windows import Session, exercise_input_and_interrupt
+        from windows import exercise_input_and_interrupt
 
-        session = Session(
+        session = worker_session(
             sandbox=True,
             overrides=[
                 'sandbox.network="restricted"',
@@ -495,10 +522,8 @@ class WindowsSandbox(unittest.TestCase):
 
     @requires_mxc(BINARY)
     def test_network_enabled_allows_loopback_exchange(self):
-        from windows import Session
-
         with workspace():
-            session = Session(
+            session = worker_session(
                 sandbox=True,
                 overrides=[
                     'sandbox.network="enabled"',
@@ -540,10 +565,8 @@ class WindowsSandbox(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("R_HOME"), "configured R runtime")
     @requires_mxc(BINARY)
     def test_r_uses_private_storage_and_preserves_state(self):
-        from windows import Session
-
         with workspace():
-            session = Session(
+            session = worker_session(
                 sandbox=True,
                 overrides=[
                     'sandbox.network="enabled"',
@@ -603,8 +626,6 @@ class WindowsSandbox(unittest.TestCase):
 
     @requires_mxc(BINARY)
     def test_first_python_send_from_short_profile_directory(self):
-        from windows import Session
-
         profile = Path(os.environ["USERPROFILE"])
         short_name = ctypes.create_unicode_buffer(32768)
         get_short_name = ctypes.windll.kernel32.GetShortPathNameW
@@ -616,7 +637,7 @@ class WindowsSandbox(unittest.TestCase):
         if short_name.value.casefold() == str(profile).casefold():
             self.skipTest("user profile has no 8.3 alias")
         temporary = Path(short_name.value) / "AppData/Local/Temp"
-        session = Session(
+        session = worker_session(
             sandbox=True,
             temporary_root=temporary,
             overrides=["r=null", 'sandbox.network="enabled"'],
@@ -642,10 +663,8 @@ class WindowsSandbox(unittest.TestCase):
 
     @requires_mxc(BINARY)
     def test_python_state_and_restart_with_private_temporary_storage(self):
-        from windows import Session
-
         with workspace():
-            session = Session(
+            session = worker_session(
                 sandbox=True,
                 overrides=[
                     'sandbox.network="enabled"',
@@ -803,8 +822,6 @@ class WindowsSandbox(unittest.TestCase):
 
     @requires_mxc(BINARY)
     def test_read_write_supplies_tempdir_when_child_has_no_selection(self):
-        from windows import Session
-
         for inherit in (False, True):
             with self.subTest(inherit=inherit), workspace() as root:
                 temporary = root / "supervisor-temp"
@@ -866,7 +883,7 @@ class WindowsSandbox(unittest.TestCase):
                 self.assertEqual(
                     result.stdout.strip(), "Windows temp fallback is writable"
                 )
-                session = Session(
+                session = worker_session(
                     environment,
                     sandbox=True,
                     temporary_root=root,
@@ -1005,7 +1022,10 @@ class WindowsSandbox(unittest.TestCase):
                         self.assertEqual(
                             selected["proxy"]["socks5"], proxy.get("socks5", "tcp")
                         )
-                    self.assertIsNone(settings["resolver"]["sandbox"])
+                    resolver = settings["resolver"]["sandbox"]["network"]
+                    self.assertTrue(resolver["allow_local_binding"])
+                    self.assertEqual(resolver["proxy"]["mode"], "full")
+                    self.assertIn("pypi.org", resolver["proxy"]["domains"]["allow"])
                     config = root / "resolved.json"
                     config.write_text(result.stdout, encoding="utf-8")
                     again = subprocess.run(
@@ -1073,8 +1093,18 @@ class WindowsSandbox(unittest.TestCase):
                     "sandbox.network={proxy: {}, allow_local_binding: true, sockets: {unix_sockets: [C:/service.sock]}}",
                     "Unix sockets are not supported on Windows",
                 ),
-                ("resolver.sandbox.network=restricted", "resolver.sandbox"),
-                ("resolver.sandbox.filesystem={}", "resolver.sandbox"),
+                (
+                    "resolver.sandbox.network={proxy: {}, allow_local_binding: false}",
+                    "resolver.sandbox.network.allow_local_binding: false cannot be enforced",
+                ),
+                (
+                    "resolver.sandbox.network={proxy: {socks5: tcp_udp}}",
+                    "resolver.sandbox.network.proxy.socks5: SOCKS5 UDP is not supported on Windows",
+                ),
+                (
+                    "resolver.sandbox.network={proxy: {}, sockets: {unix_sockets: [C:/service.sock]}}",
+                    "resolver.sandbox.network.sockets.unix_sockets: Unix sockets are not supported on Windows",
+                ),
                 ("sandbox.unsupported=true", "unsupported"),
             ):
                 with self.subTest(override=override):

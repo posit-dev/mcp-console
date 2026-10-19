@@ -90,5 +90,5 @@ These are possible directions, not supported features or implied commitments.
 Do not copy their old implementation checklists into the active backlog.
 Select a goal, reconcile it with current architecture, and create a scoped issue before implementation.
 
-Documented native limits—runner-loss cleanup, inherited procfs visibility, mount masking, unrestricted/external-mode authority, and Windows host preparation—remain limits unless separately selected for work.
+Documented native limits—runner-loss cleanup, inherited procfs visibility, mount masking, and unrestricted/external-mode authority—remain limits unless separately selected for work.
 They are not hidden promises of stronger guarantees.

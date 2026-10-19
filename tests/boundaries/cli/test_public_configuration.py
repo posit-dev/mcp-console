@@ -199,10 +199,6 @@ def test_rejects_ineffective_and_removed_settings(binary: Path) -> Transcript:
     return transcript
 
 
-@platform_snapshots(
-    "win32",
-    reason="Windows rejects explicit resolver permissions before nested profile validation; Unix rejects session profiles in resolver scope.",
-)
 def test_rejects_session_profiles_in_resolver(binary: Path) -> Transcript:
     transcript = []
     with TemporaryDirectory() as temporary:

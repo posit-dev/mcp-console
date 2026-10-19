@@ -9,6 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
 from support.normalization import code
+from support.installation import installed_console, native_console
+from support.windows_firewall import application_rules
 from support.sandbox_configuration import NATIVE_PROXY
 from support.windows_mxc import mxc_requirement, requires_mxc
 from windows_sandbox import BINARY, workspace
@@ -166,6 +168,10 @@ class WindowsMxc(unittest.TestCase):
 
     @requires_mxc(BINARY)
     def test_proxy_launch(self):
+        binary = installed_console(native_console(BINARY))
+        companions = list(binary.parent.parent.rglob("mcp-console-sandbox.exe"))
+        self.assertEqual(application_rules(companions), {})
+        self.addCleanup(lambda: self.assertEqual(application_rules(companions), {}))
         requests = []
         # fmt: python
         program = code("""
@@ -236,6 +242,14 @@ class WindowsMxc(unittest.TestCase):
                                 b"MXC_ORIGIN"
                             ), reply
             (Path(os.environ["TMP"]) / "probe.txt").write_text("private write")
+            # Exercise hostname resolution without depending on a public origin.
+            # .invalid is reserved; an allowed name must fail as DNS, not policy.
+            connection = http.client.HTTPConnection(proxy.hostname, proxy.port, timeout=10)
+            connection.request("GET", "http://permitted.invalid/")
+            response = connection.getresponse()
+            assert response.status >= 500, response.status
+            response.read()
+            connection.close()
             print("MXC proxy allowed and denied HTTP, CONNECT, and SOCKS")
             """)
 
@@ -260,11 +274,11 @@ class WindowsMxc(unittest.TestCase):
             try:
                 result = subprocess.run(
                     [
-                        str(BINARY),
+                        str(binary),
                         "sandbox",
                         "--no-config",
                         "-c",
-                        "sandbox.network={proxy: {domains: {allow: [127.0.0.1], deny: [localhost]}}}",
+                        "sandbox.network={proxy: {domains: {allow: [127.0.0.1,permitted.invalid], deny: [localhost]}}}",
                         "--",
                         sys.executable,
                         "-c",

@@ -9,6 +9,19 @@ pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command,
         "resolver.environment: preparation requires an absolute HOME or MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when inherit_environment is false",
     )?;
     let mut settings = materialize(settings)?;
+    #[cfg(windows)]
+    // MXC denies renv's junctions and Robocopy's restartable-copy operations.
+    // Use R's copier within the same cache grants, without privileged setup.
+    crate::settings::preserve_environment(
+        &mut settings,
+        [
+            (
+                "RENV_CONFIG_CACHE_SYMLINKS".as_ref(),
+                Some("FALSE".as_ref()),
+            ),
+            ("RENV_CONFIG_COPY_METHOD".as_ref(), Some("r".as_ref())),
+        ],
+    )?;
     crate::settings::preserve_environment(
         &mut settings,
         [(
@@ -28,6 +41,10 @@ pub(crate) fn command(settings: SandboxSettings, parent: u32) -> Result<Command,
             serde_json::to_string(&settings).map_err(|error| error.to_string())?,
         )
         .env(crate::local_runtime::DUCKDB_EXTENSION_DIRECTORY, directory);
+    #[cfg(windows)]
+    command
+        .env("RENV_CONFIG_CACHE_SYMLINKS", "FALSE")
+        .env("RENV_CONFIG_COPY_METHOD", "r");
     Ok(command)
 }
 

@@ -20,9 +20,7 @@ def test_local_binding_values_and_layering(binary: Path) -> Transcript:
         project = root / ".agents/console"
         home.mkdir()
         project.mkdir(parents=True)
-        scopes = (
-            ("sandbox",) if sys.platform == "win32" else ("sandbox", "resolver.sandbox")
-        )
+        scopes = ("sandbox", "resolver.sandbox")
         for scope in scopes:
 
             def document(value):

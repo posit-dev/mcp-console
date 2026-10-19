@@ -1,6 +1,7 @@
 //! Resolver descendants belong to a Job before any resolver code can run.
 //! Job-wide termination confirms zero active processes before accepting results.
-//! This owns trusted host preparation and Python inspection, not a sandbox.
+//! This owns per-operation retirement inside the preparation sandbox (or in
+//! explicit host execution); the pinned native runner owns MXC enforcement.
 
 use std::io;
 use std::mem::{size_of, zeroed};

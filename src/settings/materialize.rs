@@ -137,7 +137,7 @@ pub(crate) fn configuration(
     value["resolver"] = json!({
         "inherit_environment": captured.resolver.get("inherit_environment") != Some(&Value::Bool(false)),
         "environment": captured.resolver.get("environment").cloned().unwrap_or_else(|| json!({})),
-        "sandbox": if no_sandbox || cfg!(windows) { Value::Null } else { permissions(&captured.resolver) },
+        "sandbox": if no_sandbox { Value::Null } else { permissions(&captured.resolver) },
     });
     Ok(value)
 }

@@ -396,7 +396,7 @@ impl Sandbox {
             );
         }
         let network = self.network.or_else(|| {
-            (resolver && cfg!(unix)).then(|| {
+            (resolver && cfg!(any(unix, windows))).then(|| {
                 Network::Managed(ManagedNetwork {
                     proxy: Proxy::Full {
                         domains: None,

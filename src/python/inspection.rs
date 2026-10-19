@@ -78,7 +78,7 @@ pub(crate) fn inspect_native(
     let mut command = resolver_command(executable);
     command
         // Exclude workspace, PYTHONPATH, and user-site imports. Environment
-        // startup hooks still execute; explicit selections use worker permissions.
+        // startup hooks still execute under the caller's inspection policy.
         .arg("-I")
         .arg("-c")
         .arg(INSPECTION_SOURCE)

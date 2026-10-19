@@ -425,10 +425,8 @@ fn resolve_r_with_process(
         .tempdir()
         .map_err(|error| error.to_string())?;
     command.current_dir(directory.path());
-    command
-        .arg("run")
-        .arg("--rscript")
-        .arg(&configuration.rscript);
+    command.arg("run").arg("--rscript");
+    let _rscript = super::r_program::Rscript::append(&mut command, &configuration.rscript)?;
     for requirement in &requirements {
         command.arg("--with").arg(requirement);
     }

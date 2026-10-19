@@ -295,16 +295,41 @@ fn run_resolver_command<F>(
 where
     F: FnOnce(ResolverStopHandle) -> Result<(), String>,
 {
-    let invocation = resolver.spawn(&mut command, None).map_err(|error| {
-        format!(
-            "failed to run {kind} resolver with `{}`: {error}",
-            program.display()
-        )
-    })?;
-    resolver.collect(invocation, program, kind, |handle| {
-        match on_started.take() {
-            Some(started) => started(handle),
-            None => Ok(()),
+    let mut resumed_download = false;
+    loop {
+        let invocation = resolver.spawn(&mut command, None).map_err(|error| {
+            format!(
+                "failed to run {kind} resolver with `{}`: {error}",
+                program.display()
+            )
+        })?;
+        let output = resolver.collect(invocation, program, kind, |handle| {
+            match on_started.take() {
+                Some(started) => started(handle),
+                None => Ok(()),
+            }
+        })?;
+        // MXC denies junction creation. uv has already installed its concrete
+        // interpreter when creating the optional minor-version junction fails,
+        // before package preparation begins. Resume that same sandboxed uv
+        // invocation once; never retry build failures or unconfirmed cleanup.
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        if cfg!(windows)
+            && !resumed_download
+            && std::env::var_os(crate::settings::SANDBOX_MARKER).is_some()
+            && command
+                .get_args()
+                .take(2)
+                .eq([std::ffi::OsStr::new("tool"), std::ffi::OsStr::new("run")])
+            && !output.status.success()
+            && diagnostic.lines().find(|line| line.starts_with("error: "))
+                == Some("error: Failed to create Python minor version link directory")
+            && diagnostic.contains("(os error 5)")
+        {
+            resolver.check_control(kind)?;
+            resumed_download = true;
+            continue;
         }
-    })
+        return Ok(output);
+    }
 }

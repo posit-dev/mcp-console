@@ -38,6 +38,7 @@ from windows_resolver import (  # noqa: F401 -- include resolver acceptance
     WindowsResolverMaterialization,
 )
 from windows_mxc import WindowsMxc  # noqa: F401 -- include MXC contracts and probing
+from windows_preparation import WindowsPreparation  # noqa: F401 -- include resolver enforcement
 from windows_sandbox import WindowsSandbox  # noqa: F401 -- include sandbox acceptance
 
 
@@ -61,6 +62,7 @@ class Session:
         temporary_root=None,
         overrides=(),
         use_r_startup_files=False,
+        binary=None,
     ):
         if sandbox:
             from windows_sandbox import workspace
@@ -80,7 +82,7 @@ class Session:
             )
         (Path(self.directory.name) / ".agents/console").mkdir(parents=True)
         self.errors = tempfile.TemporaryFile()
-        command = [str(BINARY), "serve"]
+        command = [str(binary or BINARY), "serve"]
         if not sandbox:
             command.append("--no-sandbox")
         for override in overrides:
@@ -91,6 +93,9 @@ class Session:
             environment = dict(os.environ, RETICULATE_PYTHON=sys.executable)
         environment = dict(
             environment, MCP_CONSOLE_HOME=str(Path(self.directory.name) / "home")
+        )
+        environment.setdefault(
+            "MCP_CONSOLE_CACHE_DIR", str(Path(self.directory.name) / "cache")
         )
         if not use_r_startup_files:
             for name in ("R_ENVIRON", "R_ENVIRON_USER", "R_PROFILE", "R_PROFILE_USER"):

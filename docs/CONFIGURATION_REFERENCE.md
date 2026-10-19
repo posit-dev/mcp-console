@@ -17,18 +17,18 @@ Use `mcp-console config resolve --full` to include your global, project, and com
 
 ## Top-level settings
 
-| Node                  | Accepted values                                         | Meaning and default                                                                                                                                                                                                      |
-| --------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `r`                   | Executable path, mapping, or `null`                     | Select R, its startup packages, and native startup behavior. Omission uses [normal R discovery](#r).                                                                                                                     |
-| `python`              | Executable/venv path, selection mapping, or `null`      | Select an existing or managed Python environment. Omission keeps [normal Python selection](#python).                                                                                                                     |
-| `languages`           | Nonempty list of `r`, `python`, and/or `sql`; or `null` | Choose source fields exposed to the agent. Default: `[r, python, sql]`. This does not install runtimes or change permissions.                                                                                            |
-| `startup`             | Mapping or `null`                                       | Run source that selects a SQL connection once per worker. Default: no startup source. See [Session startup](#session-startup).                                                                                           |
-| `cache`               | `console`, `host`, or `null`                            | Choose dependency cache locations. Default: `console` when sandboxed, `host` with `--no-sandbox`. See [Caches](#caches).                                                                                                 |
-| `inherit_environment` | `true` or `false`                                       | Inherit launch environment variables. Default: `true`. See [Environment](#environment).                                                                                                                                  |
-| `environment`         | Mapping of names to string values                       | Supply environment variables to execution and preparation. Default: `{}`.                                                                                                                                                |
-| `sandbox`             | Mapping or `null`                                       | Set evaluated-code permissions. Default: host reads, private temporary writes, and restricted networking. See [Sandbox](#sandbox).                                                                                       |
-| `resolver`            | Mapping                                                 | Set package-preparation environment and permissions independently. Default: host reads, cache writes, and a download proxy on macOS/Linux; host permissions on Windows. See [Package preparation](#package-preparation). |
-| `tool`                | Mapping                                                 | Customize tool descriptions, initialization instructions, and parameter visibility. Default: generated presentation. See [Tool presentation](#tool-presentation).                                                        |
+| Node                  | Accepted values                                         | Meaning and default                                                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `r`                   | Executable path, mapping, or `null`                     | Select R, its startup packages, and native startup behavior. Omission uses [normal R discovery](#r).                                                                                                    |
+| `python`              | Executable/venv path, selection mapping, or `null`      | Select an existing or managed Python environment. Omission keeps [normal Python selection](#python).                                                                                                    |
+| `languages`           | Nonempty list of `r`, `python`, and/or `sql`; or `null` | Choose source fields exposed to the agent. Default: `[r, python, sql]`. This does not install runtimes or change permissions.                                                                           |
+| `startup`             | Mapping or `null`                                       | Run source that selects a SQL connection once per worker. Default: no startup source. See [Session startup](#session-startup).                                                                          |
+| `cache`               | `console`, `host`, or `null`                            | Choose dependency cache locations. Default: `console` when sandboxed, `host` with `--no-sandbox`. See [Caches](#caches).                                                                                |
+| `inherit_environment` | `true` or `false`                                       | Inherit launch environment variables. Default: `true`. See [Environment](#environment).                                                                                                                 |
+| `environment`         | Mapping of names to string values                       | Supply environment variables to execution and preparation. Default: `{}`.                                                                                                                               |
+| `sandbox`             | Mapping or `null`                                       | Set evaluated-code permissions. Default: host reads, private temporary writes, and restricted networking. See [Sandbox](#sandbox).                                                                      |
+| `resolver`            | Mapping                                                 | Set package-preparation environment and permissions independently. Default: host reads, cache writes, private temporary storage, and a download proxy. See [Package preparation](#package-preparation). |
+| `tool`                | Mapping                                                 | Customize tool descriptions, initialization instructions, and parameter visibility. Default: generated presentation. See [Tool presentation](#tool-presentation).                                       |
 
 Configuration is trusted launcher input and can widen permissions or select executables.
 Unknown fields are errors.
@@ -202,7 +202,7 @@ See [Environment variables](ENVIRONMENT.md) for recognized host settings and [Pa
 Omitted or `null` selects the appropriate default for the launch.
 For the `inherit_codex` profile, automatic cache selection waits for client metadata: sandboxed profiles use Console caches, and inherited full access uses host caches.
 `config resolve --full` retains `cache: null` for that automatic choice.
-`cache: host` retains resolver sandboxing on macOS/Linux.
+`cache: host` retains resolver sandboxing.
 Existing Python still uses its preinstalled packages.
 See [Cache locations](RESOLVER.md#cache-locations) for directories, environment overrides, and write grants.
 
@@ -212,13 +212,13 @@ The following schema applies under both `sandbox` (evaluated code) and `resolver
 These are independent policies.
 Default worker permissions allow host-file reads, including readable secrets, and private temporary writes; ordinary workspace writes and direct networking are restricted.
 
-| Node                                                  | Accepted values                                                                  | Meaning and default                                                                                        |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `sandbox.profile`                                     | `read_only`, `workspace`, `inherit_codex`, an `inherit_codex` mapping, or `null` | Select the worker's base profile. Omitted or `null`: host-read baseline without workspace writes.          |
-| `resolver.sandbox.profile`                            | `read_only`, `workspace`, or `null`                                              | Select preparation filesystem permissions. Omitted, `null`, or `read_only`: no workspace profile.          |
-| `sandbox.tempdir`<br>`resolver.sandbox.tempdir`       | `managed`, `read_write`, `read_only`                                             | Select automatic temporary-storage grants. Default: `managed`.                                             |
-| `sandbox.filesystem`<br>`resolver.sandbox.filesystem` | Mapping                                                                          | Set concrete read, write, and deny paths. Omission retains generated defaults for that policy.             |
-| `sandbox.network`<br>`resolver.sandbox.network`       | `restricted`, `enabled`, or proxy mapping                                        | Select network access. Worker default: `restricted`; macOS/Linux resolver default: managed download proxy. |
+| Node                                                  | Accepted values                                                                  | Meaning and default                                                                               |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `sandbox.profile`                                     | `read_only`, `workspace`, `inherit_codex`, an `inherit_codex` mapping, or `null` | Select the worker's base profile. Omitted or `null`: host-read baseline without workspace writes. |
+| `resolver.sandbox.profile`                            | `read_only`, `workspace`, or `null`                                              | Select preparation filesystem permissions. Omitted, `null`, or `read_only`: no workspace profile. |
+| `sandbox.tempdir`<br>`resolver.sandbox.tempdir`       | `managed`, `read_write`, `read_only`                                             | Select automatic temporary-storage grants. Default: `managed`.                                    |
+| `sandbox.filesystem`<br>`resolver.sandbox.filesystem` | Mapping                                                                          | Set concrete read, write, and deny paths. Omission retains generated defaults for that policy.    |
+| `sandbox.network`<br>`resolver.sandbox.network`       | `restricted`, `enabled`, or proxy mapping                                        | Select network access. Worker default: `restricted`; resolver default: managed download proxy.    |
 
 `sandbox.profile: inherit_codex` inherits usable client sandbox metadata from the first `send`, before runtime preparation.
 Its default fallback is `read_only`: host reads, private temporary writes, and restricted networking before explicit local settings are applied.
@@ -233,7 +233,8 @@ See [Inherit permissions from Codex](SANDBOX_CONFIGURATION.md#inherit-permission
 
 Setting the whole `sandbox` or `resolver.sandbox` node to `null` clears inherited settings and restores that policy's built-in defaults.
 Enforcement remains enabled.
-Explicit policies conflict with `--no-sandbox`; Windows rejects explicit `resolver.sandbox` policies.
+Explicit policies conflict with `--no-sandbox`.
+Windows resolver policies use MXC and retain the same proxy limitations as worker policies.
 
 ### Workspace profile
 
@@ -278,11 +279,11 @@ See [Filesystem grants](RESOLVER.md#filesystem-grants) before supplying one.
 
 ### Network access
 
-| Value of `sandbox.network` or `resolver.sandbox.network` | Access                                                                                                                                            |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `restricted`                                             | Restricted native networking without a managed proxy. This is the worker default.                                                                 |
-| `enabled`                                                | Host networking while filesystem enforcement remains active.                                                                                      |
-| Mapping with `proxy`                                     | Restricted native networking plus a managed proxy and the optional socket/local-binding settings below. This is the macOS/Linux resolver default. |
+| Value of `sandbox.network` or `resolver.sandbox.network` | Access                                                                                                                                |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `restricted`                                             | Restricted native networking without a managed proxy. This is the worker default.                                                     |
+| `enabled`                                                | Host networking while filesystem enforcement remains active.                                                                          |
+| Mapping with `proxy`                                     | Restricted native networking plus a managed proxy and the optional socket/local-binding settings below. This is the resolver default. |
 
 Selecting either scalar value removes the generated resolver proxy.
 A network mapping requires `sandbox.network.proxy` or `resolver.sandbox.network.proxy`; `full` is not a supported network value.
@@ -360,11 +361,11 @@ See [Sandbox configuration](SANDBOX_CONFIGURATION.md#unix-sockets-and-local-bind
 
 Fields under `resolver`:
 
-| Node                           | Accepted values                   | Meaning and default                                                                                                                                                               |
-| ------------------------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolver.inherit_environment` | `true` or `false`                 | Inherit launch variables for package preparation. Omission follows the top-level `inherit_environment` value.                                                                     |
-| `resolver.environment`         | Mapping of names to string values | Override individual shared `environment` values for preparation. Default: `{}`.                                                                                                   |
-| `resolver.sandbox`             | Sandbox mapping or `null`         | Independent preparation permissions using the [sandbox schema](#sandbox). On macOS/Linux, omission supplies host reads, cache writes, private temp storage, and a download proxy. |
+| Node                           | Accepted values                   | Meaning and default                                                                                                                                               |
+| ------------------------------ | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolver.inherit_environment` | `true` or `false`                 | Inherit launch variables for package preparation. Omission follows the top-level `inherit_environment` value.                                                     |
+| `resolver.environment`         | Mapping of names to string values | Override individual shared `environment` values for preparation. Default: `{}`.                                                                                   |
+| `resolver.sandbox`             | Sandbox mapping or `null`         | Independent preparation permissions using the [sandbox schema](#sandbox). Omission supplies host reads, cache writes, private temp storage, and a download proxy. |
 
 ```yaml
 resolver:
@@ -373,7 +374,8 @@ resolver:
     OMP_NUM_THREADS: "1"
 ```
 
-Windows preparation uses host permissions and rejects explicit `resolver.sandbox` settings.
+Windows uses MXC for preparation and runtime inspection.
+Explicit `allow_local_binding: false` is rejected with a managed proxy; use `network: restricted` to prohibit loopback access.
 The `cache` setting controls generated cache locations and grants.
 See [Package preparation and caches](RESOLVER.md) for mirrors, trust, and custom cache grants.
 

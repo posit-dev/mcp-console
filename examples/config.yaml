@@ -6,3 +6,10 @@ sandbox:
     proxy:
       domains:
         allow: [api.example.com]
+
+# Preparation has independent permissions on macOS, Linux, and Windows MXC.
+# Omit its filesystem mapping to retain cache and private temporary writes.
+# Omitted networking keeps the managed package-download allowlist.
+resolver:
+  sandbox:
+    tempdir: managed

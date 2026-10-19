@@ -924,18 +924,20 @@ def test_bounds_argument_decoding_errors(
             assert all(length <= 8192 for length in lengths), lengths
             assert all("omitted" in result["content"][0]["text"] for result in results)
             assert not started.exists(), "invalid arguments started the worker"
+            # Invalid calls can finish before discovery publishes recording
+            # metadata. The valid call waits for startup and replays those records.
+            result = client.send(r="echo ready")
+            assert result["content"] == [{"type": "text", "text": "zod: ready\n"}], (
+                result
+            )
+            assert result["isError"] is False, result
             session = next((workspace / ".agents/console/sessions").iterdir())
             recorded = [
                 event["result"]
                 for line in (session / "internal/events.jsonl").read_text().splitlines()
                 if (event := json.loads(line))["event"] == "tool_result"
             ]
-            assert recorded == results
-            result = client.send(r="echo ready")
-            assert result["content"] == [{"type": "text", "text": "zod: ready\n"}], (
-                result
-            )
-            assert result["isError"] is False, result
+            assert recorded == [*results, result]
             compact_previews(client, "éλ")
             for entry in client.transcript:
                 if "send" in entry and entry["send"] in [case[0] for case in cases]:

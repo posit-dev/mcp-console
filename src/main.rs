@@ -147,6 +147,11 @@ fn main() -> ExitCode {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => exit_with_error(error),
         },
+        #[cfg(windows)]
+        cli::Command::ResolverRscript { command } => match resolver::run_rscript(&command) {
+            Ok(code) => std::process::exit(code),
+            Err(error) => exit_with_error(error),
+        },
         cli::Command::WorkerRelay { command } => match worker_relay::run(&command) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => exit_with_error(error),

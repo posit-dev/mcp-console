@@ -18,7 +18,7 @@ pub(crate) use environment::{ManagedPython, ManagedR};
 pub(crate) mod cache;
 pub(crate) mod execution;
 pub(crate) mod preparation;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) mod sandbox;
 
 pub(crate) fn run() -> Result<(), String> {
@@ -41,6 +41,8 @@ mod python_configuration;
 mod python_version;
 #[cfg(any(unix, windows))]
 mod r_program;
+#[cfg(windows)]
+pub(crate) use r_program::run_rscript;
 pub(crate) mod result_file;
 #[cfg(not(any(unix, windows)))]
 mod unsupported;

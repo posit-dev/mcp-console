@@ -261,7 +261,7 @@ Console does not grant extra paths or switch backends to make an unsupported pol
 | `network: {proxy: {…}}` | Restricted native networking with a managed proxy.     |
 
 Worker networking defaults to restricted without a proxy.
-Resolver networking on macOS/Linux defaults to its [download proxy](RESOLVER.md#expanded-public-default).
+Resolver networking defaults to its [download proxy](RESOLVER.md#expanded-public-default).
 Explicit scalar values also remove that generated resolver proxy.
 
 A managed mapping requires a non-null `proxy` mapping.
@@ -335,11 +335,11 @@ Limited mode therefore does not restrict every granted channel to GET/HEAD/OPTIO
 
 ## Native capabilities
 
-| Platform | Important limits                                                                                                                                                               |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| macOS    | Managed proxy supported. Console rejects `tcp_udp`; historical evidence records a native reply-routing issue.                                                                  |
-| Linux    | Managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific.                               |
-| Windows  | MXC is required. TCP proxies resolve local binding to true under `auto`; explicit false is rejected. UDP, Unix sockets, and explicit `resolver.sandbox` settings are rejected. |
+| Platform | Important limits                                                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS    | Managed proxy supported. Console rejects `tcp_udp`; historical evidence records a native reply-routing issue.                                                       |
+| Linux    | Managed bridge is TCP-only. Nonempty Unix-socket path lists and `tcp_udp` are rejected. Socket allow-all is supported, but is not path-specific.                    |
+| Windows  | MXC is required for workers and preparation. TCP proxies resolve local binding to true under `auto`; explicit false is rejected. UDP and Unix sockets are rejected. |
 
 A common schema does not imply equal native capabilities.
 Console rejects unsupported explicit requests rather than silently ignoring them.
@@ -414,9 +414,10 @@ The native runner owns a non-breakaway Job and confirms zero active processes be
 Private-storage removal follows that confirmation; cleanup failure retains storage and blocks replacement.
 Forced frontend exit is not a cleanup receipt, and runner death does not guarantee storage deletion.
 
-**Dependency preparation runs with host permissions.** Explicit `resolver.sandbox` policies remain rejected on Windows.
-Resolver environment/cache settings remain usable, but package downloads, installation hooks, and cache writes are outside MXC.
-See [Package downloads and caches](RESOLVER.md).
+Dependency preparation uses a separate MXC policy with host reads, dependency-cache and private temporary writes, and a managed download proxy by default.
+`resolver.sandbox` configures those permissions independently of evaluated code; see [Package preparation](RESOLVER.md).
+Native setup or launch failure stops preparation without falling back to host execution.
+Package downloads, installation hooks, and cache writes use these resolver permissions.
 
 Windows process-creation error 4551 indicates host application-control policy.
 The host must permit the executable and downloaded interpreter DLLs; this is separate from Console's sandbox settings.

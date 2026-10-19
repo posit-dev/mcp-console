@@ -200,7 +200,8 @@ struct Pending {
 const LABEL: &str = "local resolver";
 
 impl Preparation {
-    /// Inspect mutable interpreter code with the captured worker permissions.
+    /// Inspect mutable interpreter code with captured permissions: the resolver
+    /// policy on Windows, and the worker policy on Unix.
     pub(crate) fn inspect<T: serde::de::DeserializeOwned>(
         operation: Operation,
         mut settings: crate::settings::SandboxSettings,
@@ -217,6 +218,11 @@ impl Preparation {
                 &mut settings,
                 [("RETICULATE_PYTHON".as_ref(), None)],
             )?;
+            #[cfg(windows)]
+            {
+                command = crate::resolver::sandbox::command(settings, std::process::id())?;
+            }
+            #[cfg(unix)]
             command
                 .args(["sandbox", "--exit-with-parent"])
                 .arg(std::process::id().to_string())
@@ -275,19 +281,7 @@ impl Preparation {
                 &mut settings,
                 [("RETICULATE_PYTHON".as_ref(), python)],
             )?;
-            #[cfg(unix)]
-            let command = crate::resolver::sandbox::command(settings, std::process::id())?;
-            #[cfg(windows)]
-            let command = {
-                // Windows has no resolver proxy support yet. Keep its existing
-                // host execution, but use the captured Console cache environment.
-                let mut command = std::process::Command::new(
-                    std::env::current_exe().map_err(|error| error.to_string())?,
-                );
-                crate::settings::configure_environment(&mut command, &settings);
-                command
-            };
-            command
+            crate::resolver::sandbox::command(settings, std::process::id())?
         } else {
             let mut command = std::process::Command::new(
                 std::env::current_exe().map_err(|error| error.to_string())?,

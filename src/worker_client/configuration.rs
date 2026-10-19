@@ -129,6 +129,13 @@ impl ClientConfiguration {
             .or_else(|| std::env::var_os("RETICULATE_PYTHON"));
         let program = std::env::current_exe()
             .map_err(|error| format!("failed to locate the R worker executable: {error}"))?;
+        // Windows discovery executes inside the same boundary as preparation;
+        // runtime write/network grants must not widen resolver permissions.
+        let inspection_settings = if cfg!(windows) {
+            &resolver_settings
+        } else {
+            &sandbox_settings
+        };
         let installation = r_settings
             .executable
             .as_ref()
@@ -139,7 +146,7 @@ impl ClientConfiguration {
                     crate::resolver::preparation::Operation::InspectR {
                         executable: executable.clone(),
                     },
-                    sandbox_settings.clone(),
+                    inspection_settings.clone(),
                     no_sandbox,
                     diagnostics.clone(),
                     on_started,
@@ -233,7 +240,7 @@ impl ClientConfiguration {
                         crate::resolver::preparation::Operation::InspectPython {
                             executable: executable.to_owned(),
                         },
-                        sandbox_settings.clone(),
+                        inspection_settings.clone(),
                         no_sandbox,
                         diagnostics.clone(),
                         started,
@@ -336,7 +343,7 @@ impl ClientConfiguration {
                     .and_then(|executable| {
                         crate::resolver::preparation::Preparation::inspect(
                             crate::resolver::preparation::Operation::InspectPython { executable },
-                            sandbox_settings.clone(),
+                            inspection_settings.clone(),
                             no_sandbox,
                             diagnostics.clone(),
                             on_started,

@@ -147,7 +147,7 @@ The session's filesystem and network permissions still apply.
 
 ## Package sources and permissions {#host-resolution-and-trust}
 
-On macOS and Linux, Console resolves and prepares packages in a separate sandbox by default.
+Console resolves and prepares packages in a separate native sandbox by default, including MXC on Windows.
 The resolver sandbox limits writes to dependency caches and temporary directories and restricts network access to allowed package and tooling hosts.
 These permissions are separate from those of the agent's code.
 
@@ -157,7 +157,7 @@ DuckDB extensions come from its core extension repository.
 You can use other sources, such as a private Posit Package Manager instance or a company PyPI mirror, through the package managers' native settings.
 See [Configure package sources](RESOLVER.md#configuration) for repository settings and download permissions.
 
-Windows preparation and `--no-sandbox` use host permissions.
+`--no-sandbox` explicitly uses host permissions.
 [Sandbox and trust](SANDBOX.md) describes the platform-specific limits.
 
 ## Recordings {#saving-an-r-script}

@@ -10,7 +10,7 @@ pub(crate) mod materialize;
 mod python;
 mod resolution;
 mod sandbox;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(crate) use sandbox::capture_filesystem_paths;
 pub(crate) use sandbox::{
     PolicyContext, Profile, ProfileSelection, Tempdir, apply_workspace_profile,
@@ -366,11 +366,6 @@ pub(crate) fn read(
         .and_then(|sandbox| sandbox.profile.clone());
     let network_explicit = value.pointer("/sandbox/network").is_some();
     let resolver_sandbox_requested = project.resolver.sandbox.is_some();
-    if cfg!(windows) && resolver_sandbox_requested {
-        return Err(format!(
-            "{name}: resolver.sandbox: explicit permissions are unsupported because Windows preparation runs with host permissions"
-        ));
-    }
     let mut policy = project
         .sandbox
         .unwrap_or_default()

@@ -23,7 +23,8 @@ server ── native runner → resolve → package tools     preparation
                                              └─ SQL providers
 ```
 
-On Windows, dependency preparation runs with host permissions rather than through a resolver sandbox.
+Windows uses the same preparation boundary through the pinned MXC companion.
+Per-operation Jobs confirm resolver descendant retirement inside that boundary; native policy and managed-proxy ownership stay with the companion.
 
 These processes run on the same host.
 Remote placement belongs to the client or deployment tooling.
@@ -134,6 +135,10 @@ Automatic replacement can reuse a generation, so bundled follow-up work also che
 The hidden `resolve` process materializes environments under the separate [resolver policy](RESOLVER.md).
 The preparation owner publishes a result only after its process and I/O cleanup contract completes.
 The server owns accepted declarations, not the materializer.
+
+Windows preparation adapts Rscript read/search checks with actual opens and directory listing because MXC denies R's impersonation-based ACL query even for readable files.
+The adapter retains the existing preparation Job, profile-free startup, and selected Rscript identity.
+It does not change existence, write, or file-execute checks; native operations continue to enforce explicit filesystem restrictions.
 
 For live changes, a resolved environment is provisional.
 The worker validates and activates it, then sends an acceptance receipt.
