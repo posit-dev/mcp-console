@@ -1,0 +1,11 @@
+---
+stdout: |
+  MCP Console warmup
+  Server: OK
+  R: SKIP (disabled)
+  Checking Python...
+  Python: OK
+  SQL: SKIP (disabled)
+  Shutdown: OK
+  All checks passed. Runtime caches are warm.
+cache_environment_reused_offline: true

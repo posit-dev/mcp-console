@@ -24,6 +24,7 @@ Use `--no-project-config` when opening an unfamiliar project until its configura
 
 Dependency preparation uses a separate policy.
 It normally has host reads, dependency-cache writes, and approved downloads, including through MXC on Windows.
+[`warmup`](CLI.md#check-your-installation) prepares dependencies with host permissions and the configured caches; its runtime checks retain the worker sandbox.
 `--no-sandbox` selects host permissions for both preparation and evaluated code.
 Package installation and build hooks remain trusted code.
 See [Resolver configuration](RESOLVER.md).

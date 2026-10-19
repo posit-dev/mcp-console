@@ -211,7 +211,9 @@ impl Preparation {
     ) -> Result<T, String> {
         let executable = std::env::current_exe().map_err(|error| error.to_string())?;
         let mut command = std::process::Command::new(&executable);
-        if no_sandbox {
+        // Windows inspection uses the resolver launcher below, including its
+        // platform environment during trusted installation warmup.
+        if no_sandbox || (cfg!(unix) && crate::warmup::trusted_preparation()) {
             crate::settings::configure_environment(&mut command, &settings);
         } else {
             crate::settings::preserve_environment(
@@ -306,6 +308,9 @@ impl Preparation {
         diagnostics: crate::process_output::Diagnostics,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<(Self, Discovery), String> {
+        // The trusted-warmup hint belongs to the controller, not the resolver
+        // or any installation/build subprocess it starts.
+        command.env_remove(crate::warmup::PREPARATION_ENVIRONMENT);
         let native = command.get_args().next() == Some("sandbox".as_ref());
         #[cfg(unix)]
         command

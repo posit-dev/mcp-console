@@ -14,6 +14,13 @@ const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(15);
 // Private opt-in metadata; older servers can ignore the request and retain the
 // ordinary warmup checks without implementing another command or tool.
 pub(crate) const RUNTIME_META: &str = "io.github.t-kalinowski.mcp-console/warmup-runtime";
+// Private launch hint: old selected releases can ignore it and retain ordinary
+// preparation. Capture it before configuration can affect child environments.
+pub(crate) const PREPARATION_ENVIRONMENT: &str = "MCP_CONSOLE_TRUSTED_WARMUP";
+
+pub(crate) fn trusted_preparation() -> bool {
+    std::env::var_os(PREPARATION_ENVIRONMENT).as_deref() == Some("1".as_ref())
+}
 
 pub(crate) fn run(
     overrides: &ConfigOverrides,
@@ -69,6 +76,7 @@ pub(crate) fn run_server(arguments: &[OsString]) -> Result<bool, Box<dyn std::er
 
 fn check(mut command: Command, timeout: Duration) -> Result<bool, Box<dyn std::error::Error>> {
     command
+        .env(PREPARATION_ENVIRONMENT, "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         // Preserve preparation, configuration, and shutdown diagnostics live.

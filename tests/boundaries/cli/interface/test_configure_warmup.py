@@ -12,12 +12,13 @@ from tempfile import TemporaryDirectory
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.cli.interface.test_configure_client import environment
+from boundaries.cli.interface.test_warmup import trusted_warmup_environment
 from boundaries.client_server.server.test_no_r import no_r_environment
 from support.checkpoints import FifoCheckpoint, wait_for_path
 from support.events import Events
 from support.normalization import code
 from support.records import Transcript
-from support.requirements import POSIX, R, SQL, requires
+from support.requirements import POSIX, R, SANDBOX, SQL, requires
 from support.suites import run_this_suite
 
 
@@ -335,6 +336,53 @@ def test_direct_launch_warms_real_runtimes(binary: Path) -> Transcript:
             "Shutdown: OK\n"
             "All checks passed. Runtime caches are warm.\n"
         )
+        return [{"configure_exit_code": result.returncode, "log": log.read_text()}]
+
+
+@requires(POSIX, SANDBOX)
+def test_background_warmup_uses_trusted_preparation(binary: Path) -> Transcript:
+    with TemporaryDirectory(prefix="console-warmup-", dir=Path.home()) as temporary:
+        root = Path(temporary).resolve()
+        resolver_environment = trusted_warmup_environment(root)
+        # Retain configure()'s isolated client configuration and Console home.
+        for name in ("CODEX_HOME", "CLAUDE_CONFIG_DIR", "MCP_CONSOLE_HOME"):
+            resolver_environment.pop(name, None)
+        result = configure(
+            binary,
+            root,
+            "codex",
+            "--no-uvx",
+            "--directory",
+            str(root),
+            extra_environment=resolver_environment,
+        )
+        assert result.returncode == 0 and not result.stderr, result
+        match = re.search(
+            r"^Background warmup started \(PID (\d+)\)\. Log: (.+)$",
+            result.stdout,
+            re.MULTILINE,
+        )
+        assert match is not None, result
+        pid = int(match[1])
+        log = Path(match[2])
+        with Events() as events:
+            try:
+                events.watch_process(pid)
+            except ProcessLookupError:
+                pass
+            else:
+                assert pid in events.wait(60), log.read_text()
+        assert log.read_text() == (
+            "MCP Console warmup\n"
+            "Server: OK\n"
+            "R: SKIP (disabled)\n"
+            "Checking Python...\nPython: OK\n"
+            "SQL: SKIP (disabled)\n"
+            "Shutdown: OK\n"
+            "All checks passed. Runtime caches are warm.\n"
+        ), log.read_text()
+        assert (root / "host-write").read_text() == "trusted preparation"
+        assert (root / "cache/dependencies/uv/cache/warmup-environment.json").is_file()
         return [{"configure_exit_code": result.returncode, "log": log.read_text()}]
 
 

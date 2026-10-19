@@ -118,6 +118,10 @@ impl ConfigOverrides {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Check the configured server and runtimes and warm their caches
+    ///
+    /// Dependency preparation runs with host permissions, using the same caches
+    /// as serve. Run only trusted configuration and dependencies. Runtime checks
+    /// use the configured sandbox unless --no-sandbox is selected.
     #[command(display_order = 5)]
     Warmup {
         #[command(flatten)]

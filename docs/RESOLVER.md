@@ -7,8 +7,14 @@ Default preparation runs in a native sandbox with host-file reads, private tempo
 Windows uses the pinned MXC companion, including for package/build subprocesses, runtime discovery and inspection, and DuckDB extension preparation.
 It requires no administrator privileges, custom AppContainer profiles, or custom firewall rules.
 The managed proxy resolves destination names through Windows system DNS.
-An unavailable or failed native sandbox is an error; Console never retries preparation with host permissions.
+During ordinary sessions, an unavailable or failed native sandbox is an error; Console never retries preparation with host permissions.
 `--no-sandbox` explicitly selects host permissions.
+
+[`warmup`](CLI.md#check-your-installation), including the background warmup started by `configure-client`, prepares dependencies with host permissions from the outset.
+It uses the same resolver environment and cache locations as the configured session so downloads and builds can populate the caches before sandboxed use.
+Resolver filesystem and network restrictions do not apply during this trusted installation step.
+Runtime checks retain the configured worker sandbox.
+Older pinned releases that do not support this warmup behavior retain their ordinary preparation policy.
 
 Package builds and interpreter hooks execute code.
 Use trusted requirements, package sources, tools, and configuration.

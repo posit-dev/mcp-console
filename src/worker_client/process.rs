@@ -285,6 +285,7 @@ impl WorkerRuntime {
             },
         );
         command.env_remove(crate::settings::startup::ENVIRONMENT);
+        command.env_remove(crate::warmup::PREPARATION_ENVIRONMENT);
         // Retain the private file through worker readiness; failures also drop
         // its owner. The worker consumes it before any interpreter can run.
         let startup_transport = if builtin && let Some(startup) = startup_source {

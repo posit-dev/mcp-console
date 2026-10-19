@@ -136,6 +136,10 @@ The hidden `resolve` process materializes environments under the separate [resol
 The preparation owner publishes a result only after its process and I/O cleanup contract completes.
 The server owns accepted declarations, not the materializer.
 
+Installation warmup captures a private launch hint and gives preparation host permissions without changing cache selection or worker enforcement.
+The controller removes that hint from resolver and worker launches so their subprocesses do not inherit it.
+Older selected releases may ignore the hint and retain ordinary preparation.
+
 Windows preparation adapts Rscript read/search checks with actual opens and directory listing because MXC denies R's impersonation-based ACL query even for readable files.
 The adapter retains the existing preparation Job, profile-free startup, and selected Rscript identity.
 It does not change existence, write, or file-execute checks; native operations continue to enforce explicit filesystem restrictions.
@@ -279,7 +283,7 @@ Observable text and encoding behavior belongs in [Runtime reference](RUNTIME_REF
 Internal transport/activation names are not supported configuration.
 In particular, do not use the following to choose permissions or runtimes:
 
-`MCP_CONSOLE_LANGUAGES`, `MCP_CONSOLE_SANDBOX`, `MCP_CONSOLE_SANDBOX_SETTINGS`, `MCP_CONSOLE_SANDBOX_CONFIG`, `MCP_CONSOLE_STARTUP_FILE`, `MCP_CONSOLE_LOCAL_RUNTIME`, `MCP_CONSOLE_MANAGED_PYTHON`, `MCP_CONSOLE_R_LIBRARY`, `MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION`, `MCP_CONSOLE_MATPLOTLIB_CACHE`, or `MCP_CONSOLE_MANAGED_TEMPDIR`.
+`MCP_CONSOLE_LANGUAGES`, `MCP_CONSOLE_SANDBOX`, `MCP_CONSOLE_SANDBOX_SETTINGS`, `MCP_CONSOLE_SANDBOX_CONFIG`, `MCP_CONSOLE_STARTUP_FILE`, `MCP_CONSOLE_LOCAL_RUNTIME`, `MCP_CONSOLE_MANAGED_PYTHON`, `MCP_CONSOLE_R_LIBRARY`, `MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION`, `MCP_CONSOLE_MATPLOTLIB_CACHE`, `MCP_CONSOLE_MANAGED_TEMPDIR`, or `MCP_CONSOLE_TRUSTED_WARMUP`.
 
 The `MCP_CONSOLE_SIDEBAND_*`, `MCP_CONSOLE_INTERRUPT_HANDLE`, and `MCP_CONSOLE_INPUT_READY_HANDLE` families belong to the [worker protocol](WORKER_PROTOCOL.md).
 A marker does not create a sandbox.
