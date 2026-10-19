@@ -203,25 +203,76 @@ class WindowsPreparation(unittest.TestCase):
         )
 
     def test_unavailable_mxc_rejects_preparation_before_running_tools(self):
-        from support.windows_faults import run_with_unavailable_mxc
+        from support.windows_faults import mcp_startup_failure, run_with_unavailable_mxc
         from support.windows_mxc import mxc_requirement
 
         result = run_with_unavailable_mxc(
             [
-                str(BINARY),
-                "warmup",
+                str(self.binary),
+                "serve",
                 "--no-config",
+                "-c",
+                "languages=[python]",
                 "-c",
                 'python.managed={packages: ["six==1.17.0"], version: "3.14"}',
             ],
             cwd=self.root,
             env=self.environment | {"MCP_CONSOLE_HOME": str(self.root / "home")},
             inject_unavailable=mxc_requirement(BINARY).available,
+            interaction=mcp_startup_failure,
         )
         self.assertEqual(result.returncode, 1, result)
         self.assertIn(b"MXC is unavailable on this executor;", result.stderr)
+        self.assertNotIn(b"USER CODE RAN", result.stdout + result.stderr)
         self.assertFalse(list((self.root / "cache").rglob("probe-*.json")))
         self.assertFalse((self.protected / "escape").exists())
+
+    def test_trusted_warmup_prepares_before_unavailable_worker_sandbox(self):
+        from support.windows_faults import run_with_unavailable_mxc
+        from support.windows_mxc import mxc_requirement
+
+        # A real interpreter keeps inspection's executable identity check.
+        runtime = self.root / "python"
+        subprocess.run(
+            [sys.executable, "-m", "venv", "--without-pip", str(runtime)],
+            check=True,
+            timeout=60,
+        )
+        python = runtime / "Scripts/python.exe"
+        (runtime / "Lib/site-packages/sitecustomize.py").write_text(
+            "import os, runpy\nrunpy.run_path(os.environ['PREPARATION_PROBE'])\n"
+        )
+        temporary = self.root / "host-temporary"
+        temporary.mkdir()
+        result = run_with_unavailable_mxc(
+            [
+                str(self.binary),
+                "warmup",
+                "--no-config",
+                "-c",
+                "languages=[python]",
+                "-c",
+                "python=" + json.dumps(str(python)),
+                "-c",
+                "resolver.sandbox.filesystem="
+                + json.dumps({"read_only": [self.root.anchor]}),
+            ],
+            cwd=self.root,
+            env=self.environment
+            | {
+                "MCP_CONSOLE_HOME": str(self.root / "home"),
+                "PREPARATION_HOST": "1",
+                "TEMP": str(temporary),
+                "TMP": str(temporary),
+            },
+            inject_unavailable=mxc_requirement(BINARY).available,
+        )
+        self.assertEqual(result.returncode, 1, result)
+        self.assertIn(b"MXC is unavailable on this executor;", result.stderr)
+        records = list((self.root / "cache").rglob("probe-*.json"))
+        self.assertTrue(records)
+        self.assertTrue(all(json.loads(path.read_text())["host"] for path in records))
+        self.assertEqual((self.protected / "escape").read_text(), "changed")
 
     def test_explicit_resolver_policy_conflicts_with_no_sandbox(self):
         result = subprocess.run(
@@ -284,24 +335,15 @@ class WindowsPreparation(unittest.TestCase):
 
     @requires_mxc(BINARY)
     def test_explicit_filesystem_restriction_blocks_cache_writes(self):
-        result = subprocess.run(
-            [
-                BINARY,
-                "warmup",
-                "--no-config",
-                "-c",
+        session = self.session(
+            overrides=(
                 "resolver.sandbox.filesystem="
                 + json.dumps({"read_only": [self.root.anchor]}),
-            ],
-            cwd=self.root,
-            env=self.environment | {"MCP_CONSOLE_HOME": str(self.root / "home")},
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
+            )
         )
-        self.assertEqual(result.returncode, 1, result)
-        self.assertIn("PermissionError", result.stderr)
+        result = session.send(python="raise AssertionError('USER CODE RAN')")
+        self.assertTrue(result.get("isError"), result)
+        self.assertIn("PermissionError", json.dumps(result))
         self.assertFalse(list((self.root / "cache").rglob("probe-*.json")))
 
     @requires_mxc(BINARY)
@@ -441,7 +483,14 @@ class WindowsPreparation(unittest.TestCase):
         self.environment.update(
             PREPARATION_R=str(Path(os.environ["R_HOME"]) / "bin/R.exe"),
             UV_PYTHON_PREFERENCE="only-managed",
+            PATH=os.pathsep.join(
+                [
+                    str(self.root / "bin"),
+                    str(Path(os.environ["SystemRoot"]) / "System32"),
+                ]
+            ),
         )
+        self.assertIsNone(shutil.which("ir", path=self.environment["PATH"]))
         session = self.session(
             overrides=(
                 "languages=[r,python]",

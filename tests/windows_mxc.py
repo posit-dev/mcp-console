@@ -11,6 +11,7 @@ from threading import Thread
 from support.normalization import code
 from support.installation import installed_console, native_console
 from support.windows_firewall import application_rules
+from support.windows_faults import mcp_startup_failure
 from support.sandbox_configuration import NATIVE_PROXY
 from support.windows_mxc import mxc_requirement, requires_mxc
 from windows_sandbox import BINARY, workspace
@@ -18,59 +19,6 @@ from windows_sandbox import BINARY, workspace
 
 @unittest.skipUnless(os.name == "nt", "native Windows MXC")
 class WindowsMxc(unittest.TestCase):
-    def _mcp_startup_failure(self, process):
-        captured = []
-
-        def request(identifier, method, params):
-            process.stdin.write(
-                (
-                    json.dumps(
-                        {
-                            "jsonrpc": "2.0",
-                            "id": identifier,
-                            "method": method,
-                            "params": params,
-                        }
-                    )
-                    + "\n"
-                ).encode()
-            )
-            process.stdin.flush()
-            while line := process.stdout.readline():
-                captured.append(line)
-                response = json.loads(line)
-                if response.get("id") == identifier:
-                    return response
-            raise AssertionError("MCP closed before the startup failure response")
-
-        request(
-            1,
-            "initialize",
-            {
-                "protocolVersion": "2024-11-05",
-                "clientInfo": {"name": "MXC acceptance", "version": "1"},
-                "capabilities": {},
-            },
-        )
-        process.stdin.write(b'{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
-        request(2, "tools/list", {})
-        response = request(
-            3,
-            "tools/call",
-            {
-                "name": "send",
-                "arguments": {
-                    "python": "print('USER CODE RAN')",
-                    "timeout_ms": 30000,
-                },
-            },
-        )
-        self.assertTrue(response["result"].get("isError"), response)
-        # Do not close input until failure was observed; EOF cancellation
-        # alone cannot establish that startup withheld the submitted cell.
-        remainder, stderr = process.communicate()
-        return b"".join(captured) + remainder, stderr
-
     def test_startup_failures_withhold_code_at_every_public_entry_point(self):
         from support.windows_faults import run_with_unavailable_mxc
 
@@ -125,9 +73,7 @@ class WindowsMxc(unittest.TestCase):
                         inject_unavailable=native_available,
                         cwd=root,
                         env=environment,
-                        interaction=self._mcp_startup_failure
-                        if route == "session"
-                        else None,
+                        interaction=mcp_startup_failure if route == "session" else None,
                     )
                     output = (result.stdout + result.stderr).decode(errors="replace")
                     self.assertIn("WINDOWS.html#native-sandbox", output)
@@ -160,7 +106,7 @@ class WindowsMxc(unittest.TestCase):
                 inject_unavailable=mxc_requirement(BINARY).available,
                 cwd=root,
                 env=os.environ | {"MCP_CONSOLE_HOME": str(root / "home")},
-                interaction=self._mcp_startup_failure,
+                interaction=mcp_startup_failure,
             )
             output = (result.stdout + result.stderr).decode(errors="replace")
             self.assertIn(b"WINDOWS.html#native-sandbox", result.stderr)

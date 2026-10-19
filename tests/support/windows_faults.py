@@ -7,11 +7,66 @@ Windows x64 is the supported native acceptance target.
 
 import ctypes
 from ctypes import wintypes as w
+import json
 from pathlib import Path
 import struct
 import subprocess
 from threading import Thread
 import time
+
+
+def mcp_startup_failure(process: subprocess.Popen) -> tuple[bytes, bytes]:
+    """Observe a rejected public send before closing its MCP connection."""
+    captured = []
+
+    def request(identifier: int, method: str, params: dict) -> dict:
+        process.stdin.write(
+            (
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": identifier,
+                        "method": method,
+                        "params": params,
+                    }
+                )
+                + "\n"
+            ).encode()
+        )
+        process.stdin.flush()
+        while line := process.stdout.readline():
+            captured.append(line)
+            response = json.loads(line)
+            if response.get("id") == identifier:
+                return response
+        raise AssertionError("MCP closed before the startup failure response")
+
+    request(
+        1,
+        "initialize",
+        {
+            "protocolVersion": "2024-11-05",
+            "clientInfo": {"name": "MXC acceptance", "version": "1"},
+            "capabilities": {},
+        },
+    )
+    process.stdin.write(b'{"jsonrpc":"2.0","method":"notifications/initialized"}\n')
+    request(2, "tools/list", {})
+    response = request(
+        3,
+        "tools/call",
+        {
+            "name": "send",
+            "arguments": {
+                "python": "print('USER CODE RAN')",
+                "timeout_ms": 30000,
+            },
+        },
+    )
+    assert response["result"].get("isError"), response
+    # EOF cancellation alone cannot establish that startup withheld the cell.
+    remainder, stderr = process.communicate()
+    return b"".join(captured) + remainder, stderr
 
 
 def run_with_unavailable_mxc(
@@ -241,7 +296,11 @@ def run_with_unavailable_mxc(
         if failures:
             raise failures[0]
         if inject_unavailable:
-            assert patched, "fault did not reach the verified native runner"
+            assert patched, (
+                "fault did not reach the verified native runner",
+                process.returncode,
+                output[0],
+            )
         return subprocess.CompletedProcess(command, process.returncode, *output[0])
     finally:
         if reader.is_alive() or processes:

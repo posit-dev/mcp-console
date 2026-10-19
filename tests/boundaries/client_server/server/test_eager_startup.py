@@ -662,9 +662,16 @@ def early_requirements_with_pending_poll(
                 submitted = client.start_send(
                     r='cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L',
                     requirements={"action": "set"},
-                    timeout_ms=600_000 if completed_response else 0,
+                    timeout_ms=0,
                 )
                 if completed_response:
+                    # A written request may not yet own the early cell. Its
+                    # running response proves admission before discovery can
+                    # launch default preparation and consume the DBI gate.
+                    client.receive(submitted)
+                    assert without_elapsed(last_result_text(client)) == RUNNING
+                    assert phase_progress(last_result_text(client)) == "startup"
+                    submitted = client.start_send(timeout_ms=600_000)
                     release.release()
                     prepared.wait(
                         "initial polling does not block candidate preparation"
