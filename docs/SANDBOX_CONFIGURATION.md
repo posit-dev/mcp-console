@@ -16,7 +16,7 @@ The two policies are independent.
 Examples below configure `sandbox`; the same fields are accepted under `resolver.sandbox`, except for the `inherit_codex` profile.
 Defaults below apply after launch defaults, configuration files, and command-line overrides have been combined.
 Worker defaults permit host reads, including readable secrets, and private temporary writes, with ordinary workspace writes and direct networking restricted.
-Preparation defaults also permit dependency-cache writes and approved downloads; see [Package sources and caches](RESOLVER.md).
+Preparation defaults also permit dependency-cache writes and approved downloads; see [Package settings](PACKAGE_CONFIGURATION.md).
 
 Configuration is trusted launcher input and can widen these permissions.
 Setting either whole permission node to `null` clears inherited settings and restores that context's built-in defaults; enforcement remains enabled.
@@ -67,7 +67,7 @@ Explicit absolute write grants, network settings, and temporary-storage settings
 
 For example, an agent can read `data.csv`, update `analysis.py`, and save `plot.png` in the workspace.
 It cannot edit `.agents/console/config.yaml`, delete `.git`, or write ordinary files outside the workspace and private temporary storage without another grant.
-Package preparation retains its [independent policy](RESOLVER.md).
+Package preparation retains its [independent policy](PACKAGE_CONFIGURATION.md).
 
 To construct the same permissions without selecting a profile, use:
 
@@ -87,6 +87,19 @@ When the resolved configuration contains neither a `profile` nor explicit write 
 Explicit filesystem entries compose with the profile: narrower rules override ancestors, and at the same path deny wins over write, then read.
 An explicit write at a protected metadata path or beneath it can therefore permit changes there; these defaults are not an unchangeable ceiling.
 Network and temporary-storage selections remain independent.
+
+### Allow workspace writes across projects
+
+To select workspace writes for future launches across projects, update the global client registration:
+
+```sh
+uvx mcp-console configure-client claude -- -c sandbox.profile=workspace
+```
+
+The profile uses each future launch directory as the workspace; running setup does not bind it to the setup directory.
+The `-c` setting overrides profiles selected in configuration files or inherited from the client.
+Use this option when you want that write policy across projects.
+An existing project client entry may take precedence over the global entry; see [client configuration](CLI.md#configure-a-client).
 
 ## Grant or restrict file access {#filesystem}
 
@@ -118,7 +131,7 @@ Paths do not expand environment-variable references, create directories, grant p
 
 Worker entries modify the host-read/private-write baseline.
 When the resolved configuration contains neither a `profile` nor `read_write`, it grants no workspace writes.
-An explicit resolver filesystem instead **replaces** its default entries, including host reads and cache writes; see [resolver grants](RESOLVER.md#filesystem-grants).
+An explicit resolver filesystem instead **replaces** its default entries, including host reads and cache writes; see [resolver grants](PACKAGE_CONFIGURATION.md#filesystem-grants).
 
 Relative `read_write` paths and `--writable-root` arguments that resolve to a filesystem root, the user's home directory, or a parent of home are ignored with a warning.
 This applies to both worker and resolver filesystem settings.
@@ -143,6 +156,23 @@ Linux can reject file write roots, skips absent write roots until a later launch
 Create intended writable directories first.
 Console does not grant extra paths or switch backends to make an unsupported policy work.
 
+### Grant writes to one directory
+
+To add a writable path through a project client entry, create the directory before registering the grant:
+
+```sh
+mkdir output
+uvx mcp-console configure-client claude --directory . -- -c sandbox.profile=read_only --writable-root output
+```
+
+Use `codex` in place of `claude` for Codex.
+The client chooses Console's launch directory, and Console resolves `output` there.
+The `read_only` base restricts ordinary workspace writes; `--writable-root` adds the explicit grant.
+Other configured filesystem permissions still apply.
+`--writable-root PATH` may be repeated.
+It adds filesystem grants without selecting the workspace profile, does not create missing directories, and remains subject to more specific permission rules.
+See the [path rules above](#filesystem) for protected metadata and more specific permissions.
+
 ## Configure network access {#network-choices}
 
 The value of `sandbox.network` or `resolver.sandbox.network` selects the network policy:
@@ -154,7 +184,7 @@ The value of `sandbox.network` or `resolver.sandbox.network` selects the network
 | `network: {proxy: {…}}` | Restricted native networking with a managed proxy.     |
 
 Worker networking defaults to restricted without a proxy.
-Resolver networking defaults to its [download proxy](RESOLVER.md#expanded-public-default).
+Resolver networking defaults to its [download proxy](PACKAGE_CONFIGURATION.md#expanded-public-default).
 Explicit scalar values also remove that generated resolver proxy.
 
 A managed mapping requires a non-null `proxy` mapping.
@@ -424,6 +454,10 @@ It removes native enforcement and native descendant cleanup, and omits managed t
 Normal relay shutdown still reaps its direct worker, but Console does not add a temporary-storage cleanup guarantee.
 See [Temporary storage](#temporary-storage) for runtime-specific behavior.
 
+`--no-sandbox` also conflicts with `--writable-root`.
+For an exported configuration, pass `--no-sandbox` to both `config resolve` and `serve`; launch flags are not stored in YAML.
+See [Cache selection](PACKAGE_CONFIGURATION.md#cache-locations) for clearing inherited permission settings deliberately.
+
 ## Platform support {#native-capabilities}
 
 | Platform | Important limits                                                                                                                                                             |
@@ -459,7 +493,7 @@ Explicitly configured names containing `=` remain invalid.
 Working directories can contain Windows 8.3 aliases, including aliases in the system temporary path.
 
 Dependency preparation uses a separate MXC policy with host reads, dependency-cache and private temporary writes, and a managed download proxy by default.
-`resolver.sandbox` configures those permissions independently of evaluated code; see [Package preparation](RESOLVER.md).
+`resolver.sandbox` configures those permissions independently of evaluated code; see [Package preparation](PACKAGE_CONFIGURATION.md).
 Native setup or launch failure stops preparation without falling back to host execution.
 Package downloads, installation hooks, and cache writes use these resolver permissions.
 

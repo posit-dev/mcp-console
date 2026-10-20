@@ -1,56 +1,22 @@
 ---
 title: MCP Console Python
 description: Python clients and adapters for persistent R, Python, and SQL sessions.
+sidebar: reference
 ---
 
-`mcp_console` connects Python applications and model frameworks to Console's persistent workbench.
-This package connects your application to Console; it is separate from the Python environment used by the agent's analysis.
-Use this site for exact signatures and complete integration examples; use the [guides](https://t-kalinowski.github.io/mcp-console/CLIENTS.html) for runtime behavior and configuration.
+`mcp_console` provides Python clients and model framework adapters for Console's persistent R, Python, and SQL workbench.
 
-## Start without a model
+## Use the package
 
-Install the `client` extra with Python 3.11 or newer:
+Start with [Use Console from Python](../PYTHON.md), or jump to a task:
 
-```sh
-pip install 'mcp-console[client]'
-```
+- <span id="start-without-a-model"></span> [Call Console directly](../PYTHON.md#call-console-directly): install the client and make synchronous or asynchronous calls.
+- <span id="add-a-model-framework"></span> [Choose a model integration](../PYTHON.md#choose-a-model-integration): select an adapter and its package extra.
+- <span id="calls-and-dependencies"></span> [Drive send directly](../SEND_OPERATIONS.md) for call sequencing, or [Requirements](reference/Requirements.qmd) for dependency declarations.
 
-```python
-from mcp_console import MCPConsole
+## API reference
 
-with MCPConsole() as console:
-    print(console.send(python="values = [12, 15, 18]; values"))
-    print(console.send(python="sum(values) / len(values)"))
-```
+The [Python API reference](reference/index.qmd) documents arguments, return values, and complete integration examples.
+See [MCPConsole](reference/MCPConsole.qmd) and [AsyncMCPConsole](reference/AsyncMCPConsole.qmd) for the clients, and [Requirements](reference/Requirements.qmd) for dependency declarations.
 
-Keep the connection open to retain state.
-Use [MCPConsole](reference/MCPConsole.qmd) for synchronous calls or [AsyncMCPConsole](reference/AsyncMCPConsole.qmd) for asynchronous calls.
-Reconnect starts a new session.
-
-## Add a model framework
-
-Install the matching extra instead of `client`.
-Reference examples describe provider credentials, model selection, and cleanup.
-
-::: {.table-responsive tabindex="0" role="region" aria-label="Framework integrations"}
-
-| Framework                    | Extra           | Existing Console connection                           | Framework-managed connection                                 |
-| ---------------------------- | --------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
-| chatlas                      | `chatlas`       | [tool](reference/chatlas.tool.qmd)                    | [register](reference/chatlas.register.qmd)                   |
-| `openai` — Responses API     | `openai`        | [responses_tool](reference/openai.responses_tool.qmd) | Application-owned loop.                                      |
-| `openai-agents` — Agents SDK | `openai-agents` | [agents_tool](reference/openai.agents_tool.qmd)       | [agents_server](reference/openai.agents_server.qmd)          |
-| `openai-codex` — Codex SDK   | `codex`         | —                                                     | [server](reference/codex.server.qmd) supplies configuration. |
-| Anthropic                    | `anthropic`     | [tool](reference/anthropic.tool.qmd)                  | [tools](reference/anthropic.tools.qmd)                       |
-
-:::
-
-Responses and native MCP integrations preserve images.
-Text-tool adapters return MIME placeholders for images.
-Create adapters from the connected server so they retain its actual schema, rather than inferring it from method annotations.
-
-## Calls and dependencies
-
-A call can stop waiting while code continues.
-Poll without code to collect output; do not resubmit the cell.
-The [Python guide](https://t-kalinowski.github.io/mcp-console/PYTHON.html) explains connection ownership and requirements inspection.
-[Requirements](reference/Requirements.qmd) documents the client declaration type.
+The shared [documentation](../README.md) covers language behavior, configuration, sandbox permissions, and recordings.

@@ -114,7 +114,7 @@ Each provider initially fetches at most 21 preview/lookahead rows and requests o
 Console does not eagerly fetch, copy, count, or spool the complete result; engines and drivers still own their internal buffering.
 An empty fetch or `fetchall()` establishes DB-API exhaustion; a short nonempty batch does not.
 The router and selection callbacks invalidate results across language boundaries without initializing another runtime.
-Observable consumption, conversion, and lifetime rules belong in the [runtime reference](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result).
+Observable consumption, conversion, and lifetime rules belong in [Language behavior](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result).
 
 Configured SQL startup code runs once per worker after its helpers are installed.
 A failed startup cannot be silently replayed or replaced with a fallback connection.
@@ -155,7 +155,7 @@ Worker terminal receipts or terminal generation failure settle execution; output
 Completed but unclaimed responses retain the ordinary cell slot until collected.
 Control-and-cell calls retain that admission across their ordered steps.
 Restart input/code targets only the replacement; an interrupt's follow-up cannot silently migrate after a failure.
-[Send operations](SEND_OPERATIONS.md) owns the public ordering and partial-effect rules.
+[Send operations](API.md#operations) owns the public ordering and partial-effect rules.
 
 Restart prepares a changed environment before retiring the current worker.
 Failure before acceptance preserves the old declaration and worker.
@@ -168,7 +168,7 @@ Automatic replacement can reuse a generation, so bundled follow-up work also che
 
 ## Preparation and activation
 
-The hidden `resolve` process materializes environments under the separate [resolver policy](RESOLVER.md).
+The hidden `resolve` process materializes environments under the separate [resolver policy](PACKAGE_CONFIGURATION.md).
 The preparation owner publishes a result only after its process and I/O cleanup contract completes.
 The server owns accepted declarations, not the materializer.
 
@@ -243,7 +243,7 @@ This assumes filesystem operations eventually return; an indefinitely blocked re
 Fail-open handling applies to reported recording errors and bounded queue overload, not cancellation of an operating-system filesystem call already in progress.
 Closing the delivery gate also settles failed or abandoned protocol writes, including discovery and ping responses, before recording ends.
 Markdown and QMD are projections, not interpreter checkpoints; a journaled result does not prove client receipt.
-See [Recordings](RECORDING.md).
+See [Recording reference](RECORDING_REFERENCE.md).
 
 ### Why native R graphics callbacks
 
@@ -322,7 +322,7 @@ R startup can mutate the native process environment; neither that thread nor the
 
 R opens installed vignette files using native filename handling and passes their bytes to a callback using Rust's `html2text` crate, without Pandoc, knitr, rmarkdown, or a browser.
 Console removes the temporary converted file if a function pager raises an error.
-Observable text and encoding behavior belongs in [Runtime reference](RUNTIME_REFERENCE.md#installed-documentation).
+Observable text and encoding behavior belongs in [Language behavior](RUNTIME_REFERENCE.md#installed-documentation).
 
 ## Internal variables: leave unset
 

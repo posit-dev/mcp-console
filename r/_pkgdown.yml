@@ -17,19 +17,29 @@ repo:
 
 navbar:
   structure:
-    left: [console, reference, articles]
+    left:
+      - console
+      - start
+      - documentation
+      - build
+      - console_reference
     right: [search, github, lightswitch]
   components:
     console:
       text: MCP Console
       href: ../index.html
-    articles:
+    start:
+      text: Get started
+      href: ../getting-started.html
+    documentation:
       text: Guides
-      menu:
-        - text: Giving an agent an R session
-          href: articles/autonomous-report.html
-        - text: Configure a Console session
-          href: articles/configuration.html
+      href: ../README.html
+    build:
+      text: Build
+      href: ../BUILD.html
+    console_reference:
+      text: Reference
+      href: ../REFERENCE.html
 
 articles:
   - title: Guides

@@ -18,6 +18,11 @@ class Requirements(TypedDict, total=False):
     also discards its variables. Python packages run in Console's worker
     environment; installing a framework extra prepares the calling application.
 
+    Inspection normally returns JSON text, but can return a startup notice
+    before the runtime is ready; check the response before parsing it.
+    See the [send reference](../../API.html#requirements) for accepted package
+    syntax, preparation policies, and complete replacement rules.
+
     Attributes:
         action: `get`, `add` (the default), `set`, or `reset`.
         python_version: Python version constraints, such as `[">=3.11"]`.
@@ -60,6 +65,9 @@ class AsyncMCPConsole:
     discovers its tools; leaving the context closes its connection and process.
     Variables persist across `send()` calls on this connection. A new connection
     starts a new session.
+    By default the client prefers Console in the current Python environment,
+    then PATH, and launches `serve`. Use `command` and `args` to select another
+    executable or launch configuration.
 
     Args:
         command: Console executable. Defaults to the installed `mcp-console`.
@@ -174,6 +182,8 @@ class AsyncMCPConsole:
         Send at most one of r, python, or sql per call.
         If output ends in ``[running; poll with an empty send]``, call again
         without code or stdin until completion before submitting another cell.
+        `console(...)` is an alias for `send(...)`.
+        If tool configuration hides `timeout_ms`, poll without that argument.
 
         Args:
             r: One complete R cell.
@@ -182,11 +192,12 @@ class AsyncMCPConsole:
             control: Interrupt the active operation or restart the runtime.
             requirements: Declaration keyed by r, python, or duckdb, with optional
                 python_version and exclude_newer constraints. action defaults to
-                add; get returns complete inspection JSON; set replaces omitted
+                add; get normally returns inspection JSON, but can return a
+                startup notice before the runtime is ready; set replaces omitted
                 fields with empty values; reset restores startup defaults.
                 Changed replacements of a live worker require control="restart".
             stdin: Exact input for an active prompt or debugger.
-            timeout_ms: Maximum wait after dispatch; timeout does not cancel work.
+            timeout_ms: Maximum observation wait; timeout does not cancel work.
                 Omission or None uses the server default of 60,000 ms.
 
         Returns:

@@ -2,8 +2,9 @@
 
 Customize which languages, parameters, and descriptions the agent sees through your [configuration file](CONFIGURATION.md).
 These settings change presentation, not sandbox permissions.
-For interpreter selection, startup packages, and database startup, see [Interpreters and startup](RUNTIME_CONFIGURATION.md).
-For a guide with examples, see [Build on Console](BUILD_ON_CONSOLE.md).
+For interpreter selection and database startup, see [Languages and startup](RUNTIME_CONFIGURATION.md).
+For startup packages and preparation policies, see [Package settings](PACKAGE_CONFIGURATION.md).
+For a guide with examples, see [Build a data assistant](BUILD_ON_CONSOLE.md).
 
 ## Model-visible languages
 
@@ -111,39 +112,4 @@ To hide only the timeout through the command line:
 mcp-console serve -c tool.parameters.timeout_ms.enabled=false
 ```
 
-## Inspect and edit resolved configuration
-
-Materialize configuration before editing descriptions or running an evaluation:
-
-```sh
-mcp-console config resolve --full > session.yaml
-# Inspect and edit session.yaml, then launch with that file alone.
-mcp-console serve --config-file session.yaml
-```
-
-See [Export a configuration](CONFIGURATION.md#export-a-configuration) for file selection, pruning, launch flags, and export limitations.
-The details below apply when editing generated tool text and parameter metadata.
-
-Tool prose is pruned against generated text for the selected languages, permissions, and timeout visibility.
-Explicit text remains when those conditional defaults differ.
-
-The full output contains captured settings, configuration defaults, generated instructions and descriptions, and every parameter selected by `languages`, including disabled parameters.
-Each parameter has explicit `enabled` and `description` fields, read-only `schema` metadata for its type and constraints, and a `parameters` mapping for nested fields.
-Generated Python parameter descriptions export as `null` so the next launch regenerates guidance for its selected environment and resolution policy.
-An explicit Python description remains verbatim, including an empty string.
-Changes to the `schema` metadata fail validation.
-Use `enabled: false` to hide a parameter while retaining its details for inspection or re-enabling.
-
-Materialized text is an explicit override: subsequently hiding `timeout_ms` does not rewrite the saved tool description.
-Edit that text too if the experiment should remove its timeout guidance.
-Removing an override or setting `description: null` restores generated text; an empty string replaces it with empty text.
-The exported document keeps the ordinary configuration semantics; deleting a parameter entry restores its defaults rather than hiding it.
-
-Changing `languages` may make saved parameter entries unavailable; resolve the desired language selection before editing the tool.
-
-R exposes these operations through [`discover_console_config()`, `materialize_console_config()`, and `prune_console_config()`](https://t-kalinowski.github.io/mcp-console/r/articles/configuration.html#inspect-and-edit-configuration).
-They return ordinary S7 `ConsoleConfig` objects with file discovery disabled.
-`read_console_config()` imports one required JSON or YAML file; `ConsoleConfig(...)` builds settings directly in R.
-Edit properties with `@`; use `$` to select named parameter entries.
-The sandbox choice remains in the configuration, while executable and launch-directory choices remain explicit arguments to each call.
-`console_tool()` discovers optional files by default; pass `config = ConsoleConfig(...)` to skip them.
+To inspect generated descriptions and parameter metadata before editing, see [Inspect and edit resolved configuration](CONFIGURATION.md#inspect-and-edit-resolved-configuration).

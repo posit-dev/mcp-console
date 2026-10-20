@@ -88,7 +88,7 @@ The first shutdown/EOF retirement fixes the worker deadline.
 Later observations cannot renew it.
 The relay closes stdin and requests worker shutdown concurrently, then terminates and reaps the direct child if it does not exit.
 Fatal transport failures retire immediately.
-The server's interrupt grace and optional follow-up cell are defined in [send ordering](SEND_OPERATIONS.md), not by a new wire message.
+The server's interrupt grace and optional follow-up cell are defined in [send ordering](API.md#operations), not by a new wire message.
 
 Shutdown acceptance, controller EOF, worker-sideband EOF, child exit, and cancellation completion are distinct observations.
 Do not use one as evidence for another.

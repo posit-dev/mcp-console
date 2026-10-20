@@ -2,113 +2,85 @@
 title: Get started
 ---
 
-Install uv, choose how to connect to Console, and try an analysis.
-No Console configuration file is required.
+Connect Console to an agent, ask it to run a small analysis, then follow up using the same data.
+This walkthrough uses Python; you don't need to install R or create a Console configuration file.
 
 ## Install
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
-The examples below use `uvx` to run Console without a separate installation.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to run Console with `uvx`, without a separate Console installation.
+Console prepares Python and its packages for you, so the first setup can take longer while they download.
 
-Prebuilt packages are available for macOS and Linux on ARM64 and x86-64, and for Windows x64.
-Sandboxed Windows sessions require Windows 11 with [Microsoft Execution Containers (MXC)](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/08/kb5120998-windows-11-24h2-25h2-update#microsoft-execution-containers).
+If you also want to use R, [install it separately](CLIENTS.md#r-python-and-sql).
+[Install and connect](CLIENTS.md) covers supported platforms and runtime requirements, including the Windows sandbox prerequisite.
 
-If Console fails to start on Linux, see [Linux host compatibility](LINUX_COMPATIBILITY.md) for missing libraries or sandbox restrictions.
+<span id="build-from-source"></span>
 
-To let your agent use R, install it separately, for example with [rig](https://github.com/r-lib/rig#id-installation) and `rig add release`.
-Python and SQL work without R.
-The first session may download Python and packages.
+For a development checkout, see [Build from source](BUILD_FROM_SOURCE.md).
 
-To check your installation and prepare runtime and package caches before opening a client, run `uvx mcp-console warmup`.
-See [Check your installation](CLI.md#check-your-installation) for configuration and diagnostics.
-
-### Build from source
-
-To install the development version, follow [Build from source](BUILD_FROM_SOURCE.md).
-
-## Connect to Console {#connect-your-client}
-
-Use an MCP client or integrate Console into your own R or Python application.
+## Connect a client {#connect-your-client}
 
 ### Codex and Claude Code
 
-Connect Console to your clients:
+Run the command for your client:
 
 ```sh
 uvx mcp-console configure-client codex
 uvx mcp-console configure-client claude
 ```
 
-This registers Console globally, so it is available across projects, and loads its tools up front.
-It also adds Console's `send` tool to the client's allowlist so calls do not need individual approval, subject to explicit client restrictions.
-Setup starts runtime checks and cache warming in the background, printing a log path for the results.
-Use `--no-warmup` to skip that step.
-Restart the client after setup.
-Your client launches Console on the same host, usually in the workspace where the agent is working.
-
-To register Console for a specific project, run the command from the project directory and add `--directory .`.
-See [client configuration](CLI.md#configure-a-client) for project registration, version pinning, and launch options.
+This makes Console available across projects and allows the agent to call its `send` tool, subject to explicit client restrictions.
+Setup checks the runtimes and prepares caches in the background, printing a log path for progress and errors.
+Restart your client after setup so it loads the new tool.
+[MCP clients](CLIENTS.md) covers project registration and other setup options.
 
 ### Other MCP clients
 
-Console supports MCP over standard input and output (stdio).
 In your client's MCP settings, use command `uvx` and arguments `["mcp-console", "serve"]`.
-See [Other MCP clients](CLI.md#other-mcp-clients) for a configuration example.
+See [MCP client setup](CLIENTS.md#other-mcp-clients) for a configuration example.
 
 ### R and Python packages
 
-The [R package, `mcp.console`](../r/README.md), adds Console to an ellmer chat.
-The [Python package, `mcp_console`](PYTHON.md), provides synchronous and asynchronous clients and adapters for chatlas, OpenAI, and Anthropic.
+Follow [Use Console from R](R.md) to add a Console tool to an ellmer chat, or [Use Console from Python](PYTHON.md) for direct calls and model framework integrations.
+Both guides include client package installation.
 
-See [Client integration](CLIENTS.md) for package APIs and [Tool configuration](TOOL_CONFIGURATION.md) for language visibility and tool descriptions.
+Once connected, the agent can run code in a persistent Console session.
 
 ## Try an analysis
 
-With R installed, ask your agent:
+Ask your agent:
 
-> Use MCP Console to tell me something interesting about the Palmer Penguins dataset.
-> Load the data from `palmerpenguins` in R and summarize it by species with SQL.
-> Fit a model in R to predict body mass from flipper length, and plot the data and fitted model in Python.
-> Keep the data and model for follow-up.
+> Use MCP Console to simulate rolling two dice 1,000 times in Python.
+> Plot the distribution of their sums and keep the simulated rolls for follow-up.
 
-Then ask:
+The agent can run the simulation and inspect the plot in Console.
+The simulated rolls remain in the session after it responds to you.
+Follow up with:
 
-> Which observations does the model fit poorly?
-> Show a plot and the path to the recorded session.
+> Compare those results with the expected probabilities.
+> Use the rolls already in memory, without simulating them again.
 
-See [Sessions and languages](BUILTIN_RUNTIME.md) for an example of how your agent can combine languages and build on earlier work.
+The agent can calculate another summary or revise the plot using the existing data.
+[Sessions and languages](BUILTIN_RUNTIME.md) shows how this also works across R, Python, and SQL.
 
-## Choose permissions
+<span id="choose-permissions"></span> <span id="allow-project-writes"></span>
 
-For Codex configured above, Console defaults to the client's sandbox permissions; configuration files can select another profile.
-Without inheritance or a configured profile, the default sandbox permits file reads and private temporary writes, but not ordinary workspace writes or direct network access.
-**It does not protect readable secrets.**
+This example works in memory and does not need to write files in your project.
+The built-in default sandbox restricts project writes and direct network access, but allows reading files your account can read, including readable secrets.
+Client setup and configuration can select different permissions; Codex setup defaults to inheriting the client's permissions.
+To let the agent save files in a project, follow [Give a session the access it needs](SANDBOX.md#give-a-session-the-access-it-needs).
 
-### Allow project writes {#allow-project-writes}
+## Review the work {#keep-the-session}
 
-To let the agent save files in one project, create Console configuration in the directory where the client launches it:
+Ask the agent:
 
-```sh
-uvx mcp-console config init
-```
+> Show me the code you ran and the path to the recorded session.
 
-This creates `.agents/console/config.yaml` with `sandbox.profile: workspace`.
-Restart the client to load the settings.
-The `workspace` profile allows writes in Console's launch directory except in sensitive locations such as `.agents` and `.git`.
-File reads remain allowed and direct network access remains restricted.
+Open `transcript.md` in that directory to review the calls, results, and links to plots.
+The recording stays on the machine where Console runs after the live session ends.
+It contains code, input, and output without redaction, so review it before sharing.
 
-The command-line reference covers [workspace writes across projects](CLI.md#allow-workspace-writes-across-projects) and [grants for individual directories](CLI.md#grant-writes-to-one-directory).
-See [Sandbox permissions](SANDBOX_CONFIGURATION.md) for the permission rules.
+The recording does not preserve live objects for a later session.
+Restarting Console clears the simulated rolls and other objects in memory.
+[Recordings and reports](RECORDING.md) explains how to inspect saved output and reuse the code.
 
-Console loads project configuration automatically, and it can select executables or widen permissions.
-Review and authorize it before launching Console in an unfamiliar project; `--no-project-config` skips that layer.
-
-For interpreter selection and package setup, see [Interpreters and startup](RUNTIME_CONFIGURATION.md) and [Packages and environments](REQUIREMENTS.md).
-
-## Keep the session
-
-Console records transcripts and artifacts locally.
-[Recordings and reports](RECORDING.md) explains where to find them and how to turn a reviewed copy into a report.
-
-Recordings are not checkpoints.
-They contain input and output without redaction and are not automatically deleted.
+Continue with [Sessions and languages](BUILTIN_RUNTIME.md) to learn how the agent builds on earlier work and combines R, Python, and SQL.

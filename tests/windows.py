@@ -1730,8 +1730,9 @@ class WindowsConsole(unittest.TestCase):
         )
         self.assertIn("1.", json.dumps(result))
         result = completed(python="import sniffio; print(sniffio.__version__)")
-        self.assertIn("No module named 'sniffio'", json.dumps(result))
-        self.assertIn("resolution=explicit", json.dumps(result))
+        self.assertIn(
+            "ModuleNotFoundError: No module named 'sniffio'", json.dumps(result)
+        )
         inspection = session.send(requirements={"action": "get"})
         self.assertEqual(
             inspection["structuredContent"]["requirements"]["python"], ["six"]

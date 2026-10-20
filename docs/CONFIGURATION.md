@@ -53,31 +53,11 @@ mcp-console config resolve
 
 This uses the same files and command-line overrides as starting a session, without starting interpreters or preparing packages.
 Built-in defaults are omitted; add `--full` to include them.
-You can also [save the resolved configuration](#export-a-configuration) and use it for a later session.
+You can [save the resolved configuration](#export-a-configuration) for a later session or [edit its generated tool descriptions and parameter settings](#edit-exported-tool-settings).
 
-## Settings by task {#settings-by-task}
+<span id="settings-by-task"></span> <span id="top-level-settings"></span> <span id="r-executable-selection"></span> <span id="native-r-startup"></span> <span id="python-environment-selection"></span> <span id="startup-package-declarations"></span> <span id="dependency-resolution-policies"></span> <span id="session-startup-source"></span> <span id="cache-selection"></span> <span id="shared-environment"></span> <span id="model-visible-languages"></span> <span id="tool-descriptions-and-parameters"></span>
 
-<span id="top-level-settings"></span>
-
-Use these references for accepted values, defaults, and examples.
-Dotted paths such as `r.packages` show nesting.
-
-| Setting                              | Value or form                                           | Reference                                                                                                                                                           |
-| ------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `r`                                  | Executable path, mapping, or `null`                     | <span id="r-executable-selection"></span> <span id="native-r-startup"></span> [Select R and its startup behavior](RUNTIME_CONFIGURATION.md#r-executable-selection). |
-| `python`                             | Executable/venv path, selection mapping, or `null`      | <span id="python-environment-selection"></span> [Select an existing or managed Python environment](RUNTIME_CONFIGURATION.md#python-environment-selection).          |
-| `r.packages`, `python.packages`      | Lists within the runtime mapping                        | <span id="startup-package-declarations"></span> [Choose startup packages](RUNTIME_CONFIGURATION.md#startup-package-declarations).                                   |
-| `r.resolution`, `python.resolution`  | Policy names within the runtime mapping                 | <span id="dependency-resolution-policies"></span> [Control package preparation](RUNTIME_CONFIGURATION.md#dependency-resolution-policies).                           |
-| `startup`                            | Mapping or `null`                                       | <span id="session-startup-source"></span> [Select a database connection at startup](RUNTIME_CONFIGURATION.md#session-startup-source).                               |
-| `sandbox`                            | Mapping or `null`                                       | [Set filesystem and network permissions](SANDBOX_CONFIGURATION.md).                                                                                                 |
-| `resolver`                           | Mapping                                                 | [Configure package sources and preparation](RESOLVER.md#configuration).                                                                                             |
-| `cache`                              | `managed`, `host`, `{directory: PATH}`, or `null`       | <span id="cache-selection"></span> [Choose package cache locations](RESOLVER.md#cache-locations).                                                                   |
-| `inherit_environment`, `environment` | Boolean; mapping of names to strings                    | <span id="shared-environment"></span> [Set environment values and inheritance](ENVIRONMENT.md#where-to-set-variables).                                              |
-| `languages`                          | Nonempty list of `r`, `python`, and/or `sql`; or `null` | <span id="model-visible-languages"></span> [Choose the languages exposed to the agent](TOOL_CONFIGURATION.md#model-visible-languages).                              |
-| `tool`                               | Mapping                                                 | <span id="tool-descriptions-and-parameters"></span> [Customize tool descriptions and parameters](TOOL_CONFIGURATION.md#tool-descriptions-and-parameters).           |
-
-For the underlying concepts, read [Packages and environments](REQUIREMENTS.md) and [Sandbox and trust](SANDBOX.md).
-For launch flags, see the [Command-line reference](CLI.md).
+Use the [Reference index](REFERENCE.md#configuration) to look up a configuration key.
 
 ## Choose which files to load
 
@@ -198,7 +178,7 @@ Changing one selector does not implicitly remove incompatible siblings.
 
 Before merging each layer, Console expands an R path to `r.executable` and direct managed Python fields to `python.managed`.
 An empty `python: {}` also selects the managed form.
-Flat and nested runtime settings therefore merge at the same paths; [Interpreters and startup](RUNTIME_CONFIGURATION.md) describes the selection rules.
+Flat and nested runtime settings therefore merge at the same paths; [Languages and startup](RUNTIME_CONFIGURATION.md) describes the selection rules.
 
 ## Export a configuration
 
@@ -221,7 +201,9 @@ An unchanged configuration produces `{}`.
 Mappings are pruned recursively.
 Changed arrays and scalar values stay complete, including empty arrays and strings; overrides needed to preserve conditional defaults remain explicit.
 `--full` includes defaults and generated tool descriptions; it cannot be combined with `--prune`.
-See [Tool configuration](TOOL_CONFIGURATION.md#inspect-and-edit-resolved-configuration) before editing that generated text or schema metadata.
+
+Tool prose is pruned against generated text for the selected languages, permissions, and timeout visibility.
+Explicit text remains when those conditional defaults differ.
 
 Use the same launch directory for export and execution so relative paths retain their meaning.
 For host execution, pass `--no-sandbox` to both commands; launch flags are not stored in YAML.
@@ -231,7 +213,30 @@ Managed fallback entries include their effective resolution policy even when an 
 An export does not pin installed dependencies or copy the host environment.
 Exported interpreter paths must be representable as UTF-8.
 
-R exposes the same operations through its [configuration workflow](https://t-kalinowski.github.io/mcp-console/r/reference/config-workflow.html).
+### Edit exported tool settings
+
+The full output contains captured settings, configuration defaults, generated instructions and descriptions, and every parameter selected by `languages`, including disabled parameters.
+Each parameter has explicit `enabled` and `description` fields, read-only `schema` metadata for its type and constraints, and a `parameters` mapping for nested fields.
+Generated Python parameter descriptions export as `null` so the next launch regenerates guidance for its selected environment and resolution policy.
+An explicit Python description remains verbatim, including an empty string.
+Changes to the `schema` metadata fail validation.
+Use `enabled: false` to hide a parameter while retaining its details for inspection or re-enabling.
+
+Materialized text is an explicit override: subsequently hiding `timeout_ms` does not rewrite the saved tool description.
+Edit that text too if the experiment should remove its timeout guidance.
+Removing an override or setting `description: null` restores generated text; an empty string replaces it with empty text.
+The exported document keeps the ordinary configuration semantics; deleting a parameter entry restores its defaults rather than hiding it.
+
+Changing `languages` may make saved parameter entries unavailable; resolve the desired language selection before editing the tool.
+
+### Inspect and edit settings from R
+
+R exposes these operations through [`discover_console_config()`, `materialize_console_config()`, and `prune_console_config()`](https://t-kalinowski.github.io/mcp-console/r/articles/configuration/#inspect-and-edit-configuration).
+They return ordinary S7 `ConsoleConfig` objects with file discovery disabled.
+`read_console_config()` imports one required JSON or YAML file; `ConsoleConfig(...)` builds settings directly in R.
+Edit properties with `@`; use `$` to select named parameter entries.
+The sandbox choice remains in the configuration, while executable and launch-directory choices remain explicit arguments to each call.
+`console_tool()` discovers optional files by default; pass `config = ConsoleConfig(...)` to skip them.
 
 ## Paths
 

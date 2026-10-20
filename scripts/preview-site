@@ -1,0 +1,12 @@
+#!/usr/bin/env -S uv run --no-project --isolated --with-requirements docs/requirements.txt python
+"""Preview the documentation website from the repository root."""
+
+import os
+import sys
+
+os.environ["QUARTO_PYTHON"] = sys.executable
+os.environ["MCP_CONSOLE_WEBSITE_PREVIEW"] = "1"
+os.execvp(
+    "quarto",
+    ["quarto", "preview", "docs", "--render", "html", "--no-navigate", *sys.argv[1:]],
+)

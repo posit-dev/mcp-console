@@ -93,36 +93,53 @@ The [concurrency comparison](benchmarks/transcript-concurrency.md) is dated evid
 
 ## Documentation website
 
-Quarto renders top-level Markdown guides and benchmark pages directly.
-R pkgdown and Python Great Docs add generated package sites.
+Quarto renders the Markdown guides, benchmark pages, and Python API reference.
+R pkgdown adds its package site after the main render.
 Historical design sketches, task templates, and root/test documentation are not all published as website guides.
 
 Keep Markdown usable in the repository.
 The website filter takes page titles from first headings, rewrites links outside `docs/` to GitHub, and maps the R README and published package-reference URLs to local rendered pages.
-Keep public filenames stable when possible; update references and navigation when adding or moving a page.
+Keep source filenames descriptive; use source paths in navigation and relative Markdown links.
+After Quarto and pkgdown render, `docs/_urls.py` publishes lowercase directory URLs, so `BUILTIN_RUNTIME.md` appears at `builtin_runtime/`.
+The generated `index.html` files belong only to the build output; source files do not move.
+The R and Python guides use `r-guide/` and `python-guide/`, leaving `r/` and `python/` for the package overviews.
+The hook updates page links, asset paths, search, sitemaps, and the Python inventory while preserving symbol fragments.
+Links from independently rendered package documentation must already use the published URLs; the hook only rewrites output built as part of the website.
+It also highlights the current navbar page or its sidebar index, so Get started and Guides can share a sidebar without both appearing under Get started.
+Partial renders update only the affected pages and their search entries.
 
-Install Quarto, R, pkgdown, and the R package dependencies:
+Install Quarto, uv, R, pkgdown, and the R package dependencies:
 
 ```r
 pak::pak(c("pkgdown", "local::r"))
 ```
 
 ```sh
-uv venv .venv
-uv pip install --python .venv/bin/python -r docs/requirements.txt
-source .venv/bin/activate
-quarto preview docs
+scripts/preview-site
+scripts/render-site
 ```
 
-On Windows use `.venv/Scripts/python.exe` and activate `.venv/Scripts/Activate.ps1`.
+These scripts run `quarto preview docs --render html --no-navigate` and `quarto render docs --to html` with the Python documentation tools supplied by uv.
+Run them from the repository root.
+Additional arguments are passed to Quarto.
+Use `scripts/preview-site --port 3604 --no-browser` to choose a port and keep the browser closed.
+On Windows, invoke either script explicitly with `uv run --no-project --isolated --with-requirements docs/requirements.txt python scripts/preview-site` or `scripts/render-site` in its place.
 
-After the initial build, page edits in preview only rerender the changed page.
-The R and Python package sites, including their LLM exports, are rebuilt only during a full website render.
-Run a full render when you need to refresh those reference pages:
+The pre-render script `docs/_python.py` uses the pinned Great Docs generator to write Python reference sources before Quarto discovers pages.
+The hook runs through uv, which prepares a separate environment from `docs/requirements.txt`; Great Docs does not need to be installed in the Python environment Quarto selects.
+It preserves explicit members, inline methods, static introspection, symbol anchors, and source links.
+Generated pages use the main site's Reference sidebar, theme, and search.
+Preview starts with a full HTML render so Quarto discovers generated pages on a clean checkout, then rerenders changed pages.
+Use `scripts/preview-site` so the URL hook retains the original outputs Quarto needs to track those renders.
+The clean URLs use Quarto's reload client, and preview stays on the current page when a source changes.
+Full renders remove the original outputs and omit the preview client.
+Run `scripts/render-site` after editing Python docstrings or `great-docs.yml`, or to refresh the R package site.
+Both commands write to `docs/_site`.
+
+To check the rendered pages:
 
 ```sh
-quarto render docs
-python3 tests/website.py
+uv run --no-project --with-requirements docs/requirements.txt python tests/website.py
 ```
 
 The website test renders a fresh temporary copy and checks titles, navigation, search, and local links/anchors, including both package references.
@@ -134,30 +151,47 @@ When CLI help changes, regenerate snapshots with `scripts/test --update cli/inte
 Never hand-edit snapshots; website rendering does not build or run Console.
 The configuration page also embeds the complete starter file from the `config init` acceptance snapshot through `docs/_filters/config-init.py`.
 Changes to the generated starter appear on the website when that snapshot is regenerated.
-Quarto's post-render scripts build `docs/_site/r/` and `docs/_site/python/`.
+Quarto renders Python pages into `docs/_site/python/`; the post-render script builds `docs/_site/r/`.
 Python reference uses static source analysis, and the R workflow vignette displays its examples without execution, so API credentials and a Console executable are not required for those builds.
 
 Edit Python API docstrings and R roxygen sources for generated reference changes, not generated HTML.
 The site configurations are `docs/_quarto.yml`, `great-docs.yml`, and `r/_pkgdown.yml`.
-Generated build directories remain ignored.
+Generated Python sources, inventories, Markdown/LLM downloads, and build directories remain ignored.
+Keep Great Docs internal API calls in `docs/_python.py` and update its exact dependency pin when changing the integration.
+The Python reference filter resolves symbol links against the generated inventory; the main stylesheet owns reference presentation.
 
 On page load, the guides and package references follow the browser's light or dark preference by default.
 A saved choice from a page's theme control takes precedence over the browser preference.
 
 ### Documentation ownership
 
-The [user guides](README.md) offer two reading paths: [Learn Console](README.md#learn-console) introduces the concepts without requiring installation, and [Reference](README.md#reference) supports specific tasks and precise lookups.
-Keep Sessions and languages, Packages and environments, and Sandbox and trust readable as a sequence.
-Use examples to explain the concepts, then link to the reference for complete settings and edge cases.
+The top navigation links to [Get started](getting-started.qmd), [Guides](README.md), [Build](BUILD.md), and [Reference](REFERENCE.md).
+Guides opens a compact reading list followed by the "I want to…" table.
+Get started is a walkthrough of connecting an agent, running a first analysis, following up, and reviewing the work.
+Both use one shared sidebar, beginning with an expanded Learn Console category: Get started, Sessions and languages, Packages and environments, Sandbox and trust, and Recordings and reports.
+The Set up group covers installation and MCP client connections; Other tasks contains Run commands in a sandbox.
+Build has its own sidebar for the data assistant walkthrough, R and Python integration, and driving `send` directly.
+Its Builder reference links use published routes so the linked sources remain owned by the Reference sidebar.
+Reference has one sidebar for configuration files, settings by concept, behavior, interfaces, and the glossary.
+Development has its own sidebar and a footer link.
+Quarto's previous/next links follow sidebar order so readers can walk through the learning chapters.
+Keep the chapter continuations in the same order.
+Each concept has one explanatory chapter, task guide, and reference topic where those roles are needed.
+Link between those counterparts near the top of each page.
+The home page and learning chapters link inline to guides; put exact-setting and behavior references at the end of a section so they do not interrupt the explanation.
+The "I want to…" table connects tasks to guides; the Reference index maps setting names to their owning reference sections.
 
 All settings accepted in `config.yaml` belong in the user reference.
-Each reference topic has one owner: [Configuration files](CONFIGURATION.md) for discovery, merging, paths, and export; [Interpreters and startup](RUNTIME_CONFIGURATION.md) for R/Python selection, startup packages, resolution policies, and database startup; [Tool configuration](TOOL_CONFIGURATION.md) for language visibility, descriptions, and accepted parameters; [Sandbox permissions](SANDBOX_CONFIGURATION.md) for permission fields and enforcement limits; [Package sources and caches](RESOLVER.md) for preparation and cache settings; and [Environment variables](ENVIRONMENT.md) for environment settings and recognized variables.
-The configuration settings index links to these owners instead of repeating their field tables.
-[Runtime behavior](RUNTIME_REFERENCE.md) and [Recordings and reports](RECORDING.md) also belong in the user reference.
+Each reference topic has one owner: [Configuration files](CONFIGURATION.md) for discovery, merging, paths, and export; [Languages and startup](RUNTIME_CONFIGURATION.md) for R/Python selection, native startup, and database startup; [Tool configuration](TOOL_CONFIGURATION.md) for language visibility, descriptions, and accepted parameters; [Sandbox permissions](SANDBOX_CONFIGURATION.md) for permission fields and enforcement limits; [Package settings](PACKAGE_CONFIGURATION.md) for startup declarations, preparation policies, sources, caches, and preparation permissions; and [Environment variables](ENVIRONMENT.md) for environment settings and recognized variables.
+The [Reference index](REFERENCE.md#configuration) links to these owners instead of repeating their field tables; do not add a second settings index to Configuration files.
+[Language behavior](RUNTIME_REFERENCE.md) owns code execution, language helpers, SQL results, and output; [Recording reference](RECORDING_REFERENCE.md) owns storage and retention, while [Recordings and reports](RECORDING.md) explains reading and reusing a session.
 
-[Build on Console](BUILD_ON_CONSOLE.md) introduces application building with examples of tool customization, prepared sessions, and integration.
-[Client integration](CLIENTS.md) collects the interfaces for applications that call Console.
-Exact MCP calls and requirement operations belong in [MCP send reference](API.md) and [Requirements API](REQUIREMENTS_API.md).
+[Build a data assistant](BUILD_ON_CONSOLE.md) introduces tool descriptions, language and parameter visibility, and prepared sessions for any connection method.
+[MCP client setup](CLIENTS.md) belongs in Guides under Set up.
+[R](R.md) and [Python](PYTHON.md) belong in Build, with direct links from Get started and the Guides task table.
+Generated package manuals provide exact signatures and package-specific examples, with links back to the main documentation.
+Exact MCP calls and requirement operations belong in [MCP send reference](API.md).
+[Drive send directly](SEND_OPERATIONS.md) walks client authors through common operations; Python-specific result and cancellation details belong in the generated client API.
 Keep compatibility anchors when moving public sections and include every new page in the appropriate sidebar and search index.
 Architecture belongs in [Architecture](ARCHITECTURE.md); exact private message schemas belong with their source definitions.
 Prefer a cross-reference over another explanation of restart, preparation, or sandbox trust.

@@ -1,7 +1,8 @@
-# Runtime behavior reference
+# Language behavior
 
-Detailed language behavior for client authors and integrations.
-Start with [Sessions and languages](BUILTIN_RUNTIME.md) for the user guide.
+This page documents how R, Python, and SQL code behaves inside Console, including language helpers, SQL results, plots, and output.
+The behavior applies whether you connect through an MCP client, R, or Python.
+Start with [Sessions and languages](BUILTIN_RUNTIME.md) for a guided introduction.
 
 One connection owns one persistent session.
 Globals, imports, options, database state, and unread input survive between cells.
@@ -9,14 +10,14 @@ Cells are not transactions: an error can leave earlier changes in place.
 Restart or worker loss discards all live language state.
 
 Submit one complete R, Python, or SQL cell, inspect its result, and then submit the next.
-[Calls, input, and control](SEND_OPERATIONS.md) covers polling, interactive input, interruption, and restart; [`send` API](API.md) lists the arguments.
+[Drive send directly](SEND_OPERATIONS.md) covers polling, interactive input, interruption, and restart; [`send` API](API.md) lists the arguments.
 
 ## Runtime selection
 
-[Interpreters and startup](RUNTIME_CONFIGURATION.md#python-environment-selection) owns interpreter requirements and selection.
-[Packages and environments](REQUIREMENTS.md) owns package defaults and preparation choices.
+[Languages and startup](RUNTIME_CONFIGURATION.md#python-environment-selection) owns interpreter requirements and selection.
+[Package settings](PACKAGE_CONFIGURATION.md) owns package defaults and preparation policies.
 Language visibility changes tool fields, not the availability of a SQL provider.
-Tool discovery is independent of [server readiness](SEND_OPERATIONS.md#server-readiness).
+Tool discovery is independent of [server readiness](API.md#server-readiness).
 
 ## R
 
@@ -115,10 +116,10 @@ For help, use `help("import", package = "reticulate")` for `py_import()`.
 The other helpers use their matching reticulate help topics, for example `help("py_run_string", package = "reticulate")`.
 
 `py_require()` without arguments returns the current R-side Python declarations.
-Under managed Python's `explicit` and `implicit` policies, evaluated declarations authorize [preparation](REQUIREMENTS_API.md#python-declarations-from-r), including calls from R package `.onLoad()` hooks.
+Under managed Python's `explicit` and `implicit` policies, evaluated declarations authorize [preparation](API.md#python-declarations-from-r), including calls from R package `.onLoad()` hooks.
 Pre-initialization declarations are accepted when Python is prepared; MCP requirements inspection returns the last committed declaration.
 Before Python initializes, `action = "set"` can replace requirements; after initialization, compatible additions preserve live objects.
-Use [restart](REQUIREMENTS_API.md#restarting-with-requirements) for changes that require a fresh environment.
+Use [restart](API.md#restarting-with-requirements) for changes that require a fresh environment.
 
 Ordinary Python does not need to attach reticulate, and R can run without Python.
 
@@ -289,8 +290,8 @@ These plot rules also apply across the reticulate bridge.
 
 Language warnings and errors are ordinary console output.
 Preparation, transport, and protocol failures are MCP tool errors.
-[MCP results](API.md#results) defines status notices and [Calls, input, and control](SEND_OPERATIONS.md) defines readiness, replacement, and polling behavior.
-[Output limits](API.md#output-limits) and [Recordings](RECORDING.md) describe previews, raw logs, and retention.
+[MCP results](API.md#results) defines status notices and [Calls and session lifetime](API.md#calls-and-session-lifetime) defines readiness, replacement, and polling behavior.
+[Output limits](API.md#output-limits) and [Recording reference](RECORDING_REFERENCE.md) describe previews, raw logs, and retention.
 
 ## Current limitations
 

@@ -1,3 +1,7 @@
+---
+sidebar: guides
+---
+
 # Linux host compatibility
 
 Use this page to troubleshoot Linux startup failures, including missing libraries and host restrictions.

@@ -3,6 +3,8 @@
 Use `mcp-console sandbox` to run a program and its child processes with limits on file and network access.
 You can use it directly from your terminal, scripts, or build jobs, independently of the MCP server.
 
+Read [Sandbox and trust](SANDBOX.md) for the permission model, or [Sandbox permissions](SANDBOX_CONFIGURATION.md) for exact settings and platform limits.
+
 ## Install
 
 Install Console with [uv](https://docs.astral.sh/uv/getting-started/installation/):
@@ -102,6 +104,20 @@ Relative paths use the directory where you launch Console, including paths writt
 For settings you want applied automatically, use Console's [global or project configuration files](CONFIGURATION.md#files-and-precedence).
 Command-line `-c` settings override matching file settings.
 [Environment variables](ENVIRONMENT.md#where-to-set-variables) covers variables supplied to the program.
+
+### Pass settings through an environment variable
+
+You can store a complete configuration as a one-line YAML or JSON object and pass its variable name through `--config-env`.
+For example, in a POSIX shell, after creating `output`:
+
+```sh
+export SANDBOX_SETTINGS='{sandbox: {profile: read_only, filesystem: {read_write: [output], deny: [secrets]}, network: restricted}}'
+mcp-console sandbox --config-env SANDBOX_SETTINGS -- python analysis.py
+```
+
+The variable uses the same structure as a configuration file, including the outer `sandbox:` key.
+`--config-env` replaces global and project file discovery while retaining Console's built-in defaults.
+Command-line `-c` settings override matching values in the variable.
 
 ## Shell commands and redirection
 

@@ -14,11 +14,15 @@ MCP Console lets your agent explore data and develop code interactively in R, Py
 Code runs in an [OS-level sandbox](SANDBOX.md) by default.
 Console prepares environments and packages automatically; no Console configuration file is required.
 
+Console works with MCP-compatible clients such as Codex and Claude Code and does not depend on a particular model provider.
+You can also use Console from [R](R.md) or [Python](PYTHON.md).
+
 ::: {.home-links}
-[Get started](getting-started.qmd){.btn .btn-primary} [User guides](README.md){.btn .btn-outline-primary}
+[Get started](getting-started.qmd){.btn .btn-primary} [Build on Console](BUILD.md){.btn .btn-outline-primary} [Reference](REFERENCE.md){.btn .btn-outline-primary}
 :::
 
-Console is a **development preview** for macOS, Linux, and Windows x64.
+Console provides a unified API across macOS, Linux, and Windows x64.
+It is currently a **development preview**.
 
 ## Work iteratively
 
@@ -42,55 +46,53 @@ R and Python can each run without the other.
 
 See [Sessions and languages](BUILTIN_RUNTIME.md) for examples, database connections, and plots.
 
-## Review the agent's work
+## Use a full runtime in a sandbox {#status-and-trust}
 
-[Recordings](RECORDING.md) retain code, output, and plots so you can see what the agent ran in Console and inspect the results.
-They also provide a starting point for reproducible analyses and reports.
+Console uses native R and Python runtimes, with access to their package ecosystems, including packages with compiled code.
+An OS-level sandbox enforces limits on file and network access.
 
-## Run commands in a sandbox
+The default `read_only` sandbox profile restricts network access and filesystem writes.
+You can customize these permissions to allow writes to selected paths, block reads from selected paths, and control network access with domain allowlists or denylists.
+See [Sandbox and trust](SANDBOX.md) for the defaults and how to adapt them to your work.
 
-Use Console's sandbox directly from your terminal to run scripts and other programs with controlled file and network access.
+<span id="run-commands-in-a-sandbox"></span>
+
+The [`mcp-console sandbox` subcommand](SANDBOX_COMMAND.md) makes the same sandbox available for scripts and other programs, independently of an agent session.
 The permissions apply to the command and its child processes.
 
 ```sh
 mcp-console sandbox -- python analysis.py
 ```
 
-[Run commands in a sandbox](SANDBOX_COMMAND.md) covers installation, workspace writes, network access, and reusable settings.
+## Use packages without managing environments {#environment-setup}
 
-## Build on Console
+Console automatically prepares its own environments and package libraries, reusing cached installations across sessions.
+You don't need to create an environment or install packages for the agent.
 
-Build LLM applications on Console's persistent runtime.
-Replace the complete [tool description and instructions](TOOL_CONFIGURATION.md#tool-descriptions-and-parameters), choose which language interfaces and parameters the model can use, and [preconfigure the runtime](RUNTIME_CONFIGURATION.md).
-Set [sandbox permissions](SANDBOX_CONFIGURATION.md) to control access to files and networks.
+The agent can request packages from the full R and Python ecosystems as an analysis develops, without requiring approval for each package.
+By default, these requests are handled in a separate OS-level sandbox, with writes limited to dependency caches and temporary directories and network access limited to allowed package and tooling hosts.
+Installing a package doesn't expand the permissions of the agent's code.
+
+See [Packages and environments](REQUIREMENTS.md).
+
+## Review the agent's work
+
+[Recordings](RECORDING.md) retain code, output, and plots so you can see what the agent ran in Console and inspect the results.
+They also provide a starting point for reproducible analyses and reports.
+
+## Build on Console {#build-on-console}
+
+Replace the complete tool description and instructions, choose which language interfaces and parameters the model can use, and preconfigure the runtime.
+Set sandbox permissions to control access to files and networks.
 
 For example, build a data chat with only SQL and a selected database connection, or a reporting assistant with a prepared R or Python environment.
 
-[Build on Console](BUILD_ON_CONSOLE.md) shows how to customize the tool interface, describe available data, prepare the session, and connect your application.
-
-Console works with MCP-compatible clients such as Codex and Claude Code and does not depend on a particular model provider.
-To connect from your own application, see [Client integration](CLIENTS.md).
-
-## Choose how packages are prepared {#environment-setup}
-
-By default, Console prepares packages for the session and reuses cached installations.
-The agent can request additional packages as it works.
-
-You can instead [select an existing Python environment](RUNTIME_CONFIGURATION.md#python-environment-selection) or choose when Console may prepare dependencies.
-See [Packages and environments](REQUIREMENTS.md).
+[Build on Console](BUILD.md) introduces tool customization, prepared sessions, and the R and Python clients.
 
 ## Where Console fits
 
 - **Unattended analysis:** run long analyses with limits on filesystem writes and network access.
 - **Model evaluations:** evaluate how an agent explores data, checks its work, and responds to results.
-- **Conversational analysis:** discuss questions and results while the agent works in its own session.
+- **Conversational exploration:** discuss questions and results while the agent works in its own session.
 - **Large datasets:** keep data and intermediate results in memory for follow-up questions.
 - **Debugging and package development:** pause execution and inspect live objects where a failure occurs.
-
-## Control access to files and networks {#status-and-trust}
-
-Console's default `read_only` sandbox profile restricts network access and filesystem writes.
-It does not restrict filesystem reads.
-
-You can allow writes to selected paths, block reads from selected paths, and control network access with domain allowlists or denylists.
-See [Sandbox permissions](SANDBOX_CONFIGURATION.md) for profiles, custom permissions, and inheriting permissions from Codex.

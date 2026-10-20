@@ -1,55 +1,21 @@
 # Recordings and reports
 
-Console keeps transcripts, text output, and plots on the machine where it runs.
-Ask the agent for the recording's path, or use the locations below.
+Console records the agent's calls, text output, and plots on the machine where it runs.
+You can use that record to check how it reached a result, inspect output that did not fit in a response, or turn reviewed code into a report.
 
 Recordings contain source, input, requirements, output, and artifacts **without redaction**.
 Review them before sharing.
-There is no aggregate quota or automatic cleanup, so remove old recordings deliberately.
 
-## Location and files
+## Read the recording {#location-and-files}
 
-If `.agents/console` already exists in the launch directory, recordings use `.agents/console/sessions/<run-id>/`.
-Otherwise they use `~/.agents/console/sessions/<run-id>/`; `MCP_CONSOLE_HOME` replaces that fallback Console directory.
+Ask the agent for the recording's path, then open `transcript.md` in that directory.
+It shows calls and results with links to retained plots and other artifacts.
+For the dice example in [Get started](getting-started.qmd), you can inspect both the simulation and the later comparison that reused its results.
 
-Console does not create a project `.agents` directory just to select project storage.
-The first received MCP `tools/call` targeting `send` activates a recording for the Console process.
-Polls, input, controls, rejected submissions, and requests cancelled before execution all activate recording.
-Initialization, tool discovery, pings, startup output, and startup failure alone do not create a persistent recording.
-
-Console retains preceding protocol traffic and startup text/images temporarily.
-The first send publishes that prelude in its observed order with its original timestamps.
-If the process exits without send, Console discards the temporary capture.
-The recording retains the process start time separately from publication time.
-Restarts and automatic worker replacement create numbered sessions within that same recording.
-
-| File                      | Use                                                |
-| ------------------------- | -------------------------------------------------- |
-| `transcript.md`           | Read calls, results, and links to artifacts.       |
-| `transcript.qmd`          | Review submitted source and edit it into a report. |
-| `internal/events.jsonl`   | Inspect recording events as JSON.                  |
-| `outputs/call-NNNNNN.log` | Read raw text from a code cell, up to 1 GiB.       |
-| `outputs/session.log`     | Read startup and idle text, up to 1 GiB.           |
-| `artifacts/`              | Find retained images.                              |
-
-`internal/events.jsonl` records one JSON object per event, including MCP requests, responses, and notifications, canonical tool calls/results, worker lifetimes, dependency selections, and references to output logs and images.
-Protocol events reference the canonical send call/result records instead of duplicating their payloads.
-A response assembly event and a completed local transport write are separate observations.
-Neither proves that the client acknowledged the response or that a model read it.
-
-Worker events record actual start, readiness, and termination.
-A restart request does not itself establish a session; a failed preparation or launch that never acquires a worker has no session number.
-Interrupting a surviving worker stays in its session.
-The journal can help inspect a recording with scripts or investigate a failed call.
-Its format may change between Console releases.
-
-Returned paths refer to the Console host.
-Project paths are normally relative to the launch directory; fallback paths are absolute.
-A long-location notice may instead name a path relative to the selected Console directory.
+The recording documents what happened; it does not save the live Python objects, R objects, or in-memory database for a later session.
+To repeat an analysis, you will need its inputs and reviewed code.
 
 ## Retrieve omitted output
-
-Each cell gets a log file when execution starts, even if it produces no text output.
 
 Console limits how much text it sends to the agent at once.
 When a response leaves out text, a notice points to the existing log file and says if any output could not be saved.
@@ -62,9 +28,11 @@ Reading it does not remove output from later responses.
 Logs contain the text that R, Python, or SQL displayed.
 For example, if a table's display includes only a few rows, the log contains that abbreviated display.
 To get the complete data, ask the agent to fetch it or save it to a file.
-For SQL, your agent can [retrieve the last result](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result) in R or Python without running the query again.
+For SQL, your agent can retrieve the last result in R or Python without running the query again.
 
-## Render a reviewed copy
+Reference: [Retrieve the last SQL result](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result).
+
+## Turn the code into a report {#render-a-reviewed-copy}
 
 `transcript.qmd` is a starting point for a report, **not a replay or checkpoint**.
 It can contain failed evaluations and rejected calls.
@@ -94,11 +62,9 @@ Package declarations are not a lockfile or a complete history of the environment
 Some recordings disable evaluation because runtime information is unavailable or the session changed between incompatible dependency declarations.
 Review those boundaries and choose the rendering environment explicitly rather than simply enabling every chunk.
 
-## Recording failures
+<span id="storage-and-retention"></span> <span id="recording-failures"></span>
 
-Recording can fail while computation continues.
-A notice identifies files or artifacts that are unavailable or only partially retained; do not assume all output was saved.
-If a stalled journal writer exhausts the bounded protocol backlog, Console disables recording and reports the failure on stderr while continuing to receive MCP traffic.
+Reference: [Recording storage, files, and retention](RECORDING_REFERENCE.md).
 
-The recording journal and generated file formats are not independently versioned APIs.
-Implementation and failure-handling details belong in [Architecture](ARCHITECTURE.md#output-and-delivery).
+For other workflows, the [documentation index](README.md#task-index) links to guides by what you want to do.
+To prepare Console for a particular project or agent, continue with [Build a data assistant](BUILD_ON_CONSOLE.md).

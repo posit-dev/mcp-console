@@ -1,5 +1,0 @@
-/* Leave room for heading anchors when text is enlarged. */
-.anchored {
-  overflow-wrap: anywhere;
-  padding-right: 1.5em;
-}

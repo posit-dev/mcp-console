@@ -1,12 +1,93 @@
-# Package sources and caches
+# Package settings
 
-Use this reference to choose package sources, relocate or share caches, and set package-preparation permissions.
-For an introduction to managed and existing environments, read [Packages and environments](REQUIREMENTS.md).
+Configure startup packages, when more packages may be prepared, package sources, cache locations, and preparation permissions.
+[Packages and environments](REQUIREMENTS.md) explains how these choices affect an analysis.
+For interpreter selection and native startup, see [Languages and startup](RUNTIME_CONFIGURATION.md).
 
-- [Use a private package mirror](#configuration).
-- [Choose cache locations](#cache-locations) or [reuse host caches](#host-cache-selection).
-- [Grant access to custom cache directories](#filesystem-grants).
-- [Look up the default download permissions](#expanded-public-default).
+Put these settings in a [configuration file](CONFIGURATION.md).
+They are captured when the server starts; open a new connection after changing them.
+The `requirements` argument can change the live declaration within the configured policies; its request format is documented in the [send reference](API.md#requirements).
+
+## Choose startup packages {#startup-package-declarations}
+
+| Setting           | Accepted values                             | Meaning and default                                                                                                                                                         |
+| ----------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `r.packages`      | List of single-line `ir` package references | Startup R packages. Omission keeps the defaults; `[]` requests no optional packages.                                                                                        |
+| `python.packages` | List of named PEP 508 registry requirements | Startup packages for managed Python. Also accepted under `python.managed` or a managed fallback candidate. Omission keeps the defaults; `[]` requests no optional packages. |
+
+```yaml
+r:
+  packages: [dplyr, dbplyr, ggplot2]
+python:
+  packages: [numpy, pandas, matplotlib]
+```
+
+An omitted package list keeps that runtime's [default startup declaration](#default-startup-packages).
+A supplied list replaces it; an empty list (`[]`) requests no optional packages.
+Empty lists do not remove Console's required runtime infrastructure, uninstall packages, or delete cached installations.
+Preparation makes packages available without attaching R packages or importing Python modules.
+
+Packages listed explicitly in configuration are required, even if they also occur in the built-in defaults.
+
+R package strings use single-line `ir` references, including supported remote references; local sources, NUL, and line breaks are rejected.
+Python strings use named PEP 508 registry requirements, including versions, extras, and markers; paths, editable requirements, URLs, archives, and `name @ URL` references are rejected.
+See [accepted requirement input](API.md#accepted-requirement-input) for package-request fields.
+
+Later `requirements` calls with `action: reset` restore the effective startup declaration captured at server launch, rather than rereading a subsequently edited configuration file.
+[Requirements API](API.md#requirements) covers additions, replacement, and changes that require a runtime restart.
+
+### Default packages and extensions {#default-startup-packages}
+
+Console prepares these packages and extensions at startup:
+
+| Runtime | Packages or extensions                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------ |
+| R       | `tidyverse`, `dplyr`, `dbplyr`, `reticulate`, `DBI`, `duckdb`, `nanoarrow`, `yyjsonr`, `ggplot2` |
+| Python  | `numpy`, `pandas`, `matplotlib`, `plotnine`; also `duckdb` without R                             |
+| DuckDB  | `icu`, `json`, `sqlite`, when the managed provider is available                                  |
+
+Built-in convenience defaults are prepared on a best-effort basis: Console reports each failed default, skips it, and continues with the other defaults.
+Required runtime infrastructure remains strict, including packages used by the R/Python bridge and SQL adapters.
+Default DuckDB extensions follow the same best-effort rule; an extension requested explicitly remains required.
+Extensions already built into the selected DuckDB do not need downloading.
+
+## Choose when packages may be prepared {#dependency-resolution-policies}
+
+<span id="resolution-policies"></span>
+
+Set `r.resolution` or `python.resolution` to control Console's package preparation.
+The Python setting also applies under `python.managed` and in managed fallback candidates.
+R defaults to `implicit`; managed Python defaults to `explicit`.
+For how these choices affect an analysis, read [When packages are prepared](REQUIREMENTS.md#resolution-policy-admission).
+
+| Policy              | Startup preparation                                                     | During the session                                                                                                                                                         |
+| ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fixed`             | Prepare the startup declaration.                                        | Keep that declaration fixed for the connection; reject package additions and version changes through Console.                                                              |
+| `explicit`          | Prepare the startup declaration.                                        | Also accept package requests through `requirements` and managed Python declarations through `reticulate::py_require()`. Ordinary loads/imports do not trigger preparation. |
+| `implicit`          | Prepare the startup declaration.                                        | Also accept explicit requests and prepare missing packages when execution reaches a supported load/import. The cell is not rerun.                                          |
+| `disabled` (R only) | No managed R package preparation, including Console's R infrastructure. | No managed preparation. If `r.packages` is supplied, it must be empty.                                                                                                     |
+
+For example, allow explicit R package requests while keeping the Python startup declaration fixed:
+
+```yaml
+r:
+  packages: [dplyr]
+  resolution: explicit
+python:
+  packages: [numpy, pandas]
+  resolution: fixed
+```
+
+To enable preparation on missing Python imports, set `python.resolution: implicit`.
+For preinstalled-only Python, select an [existing environment](RUNTIME_CONFIGURATION.md#use-an-existing-environment).
+DuckDB extension preparation follows the resolution policy of its managed provider.
+
+Changing a resolution policy requires a new server connection.
+These policies govern Console's preparation; they do not restrict arbitrary installation commands in submitted code or grant network access.
+[Requirements API](API.md#requirements) specifies live-request behavior.
+Preparation permissions and package sources are configured separately, as described below.
+
+## Preparation permissions
 
 The resolver selects environments and prepares packages separately from the agent's code.
 Its filesystem and network permissions are independent of the session's permissions.
@@ -212,7 +293,7 @@ Captured names and interpreter identity checks do not prevent every concurrent f
 
 `UV_OFFLINE=1` in a worker is a uv setting, not process-level network enforcement or a description of resolver permissions.
 R discovery/preparation is profile-free.
-See [Requirements API](REQUIREMENTS_API.md#accepted-requirement-input) for supported request syntax and [live preparation](REQUIREMENTS_API.md#live-preparation) for partial effects.
+See [Requirements API](API.md#accepted-requirement-input) for supported request syntax and [live preparation](API.md#live-preparation) for partial effects.
 
 ## Selecting resolver tools
 

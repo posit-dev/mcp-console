@@ -2,6 +2,10 @@
 
 Console gives your agent an interactive workspace for R, Python, and SQL.
 You can ask it to explore data, refine an analysis, or try another approach while keeping the work already in memory.
+Your client connects to Console and gives the agent a tool for running code in that session.
+The same session model applies whether you use an MCP client, the R package, or the Python package.
+
+For exact helper names and execution behavior, see [Language behavior](RUNTIME_REFERENCE.md).
 
 ## Work iteratively {#build-on-earlier-work}
 
@@ -49,48 +53,48 @@ r.penguins.plot.scatter(x="flipper_length_mm", y="body_mass_g")
 
 Here, SQL queries the R data frame through the default R-owned DuckDB connection, and Python accesses it through reticulate as `r.penguins`.
 Conversions follow reticulate's rules; some conversions need additional Python packages, such as pandas for data frames.
-The [runtime reference](RUNTIME_REFERENCE.md#r-and-python-interoperability) describes the language bridge and its helpers.
 
-## Tailor the runtime {#runtime-selection}
+Reference: [R and Python interoperability](RUNTIME_REFERENCE.md#r-and-python-interoperability).
+
+## Use the languages you need {#runtime-selection}
 
 <span id="r"></span> <span id="python"></span>
 
-You can tailor Console to a project's languages and dependencies.
-For example, [expose only Python and SQL](TOOL_CONFIGURATION.md#model-visible-languages), use an [existing Python environment](RUNTIME_CONFIGURATION.md#python-environment-selection), or select a specific [R installation](RUNTIME_CONFIGURATION.md#r-executable-selection).
-
-An existing Python environment uses the packages already installed there.
-For managed environments, you can [choose startup packages and control whether more may be prepared during the session](REQUIREMENTS.md).
-
 R and Python can each run without the other.
 SQL uses a database connection supplied by one of them.
-To let your agent use R, [install it separately](getting-started.qmd#install).
+Console can prepare Python for you; to let your agent use R, [install it separately](CLIENTS.md#r-python-and-sql).
+
+Console prepares packages in its own environments and libraries by default.
+The [Packages and environments](REQUIREMENTS.md) guide explains how those packages become available during an analysis.
+You can also use an existing Python environment, select an R installation, or limit the languages exposed to the agent.
+
+Exact settings: [Languages and startup](RUNTIME_CONFIGURATION.md).
 
 ## Work with databases {#sql-and-duckdb}
 
 <span id="select-a-native-connection"></span>
 
 Console can use any database with an R DBI or Python DB-API driver.
-Your agent can create a connection object in R or Python and select it for subsequent SQL calls, which then run against that database.
-
 By default, Console prepares an in-memory DuckDB database.
 The agent can use it to query data frames and keep tables and views available between calls.
 
+To work with another database, your agent can create a connection object in R or Python and select it for subsequent SQL calls.
 The selected connection determines the SQL dialect and transaction behavior.
 Access to database files and servers depends on the session's [filesystem and network permissions](SANDBOX.md).
 
-The [SQL connection reference](RUNTIME_REFERENCE.md#select-a-native-connection) shows how to select a connection from either language.
-You can also [configure a database connection at startup](RUNTIME_CONFIGURATION.md#session-startup-source).
+Reference: [SQL connection helpers](RUNTIME_REFERENCE.md#select-a-native-connection) and [database startup settings](RUNTIME_CONFIGURATION.md#session-startup-source).
 
 ## Inspect help, plots, and results
 
-Console formats help and output for agents, with affordances for inspecting results without accidentally flooding the model's context.
+The agent can consult package documentation and inspect results as it works.
+Console returns text and images while limiting how much text reaches the model at once.
 
 ### Help and documentation {#installed-documentation}
 
 Your agent can consult installed R help and package vignettes while it works.
 Help pages, search results, and installed HTML vignettes are presented as text, including code examples and evaluated results from the vignettes.
-Vignette figures are represented by captions and available alternative text.
-The [documentation reference](RUNTIME_REFERENCE.md#installed-documentation) explains other formats and access to the original files.
+
+Reference: [Supported documentation formats and original files](RUNTIME_REFERENCE.md#installed-documentation).
 
 ### Plots and images
 
@@ -109,8 +113,10 @@ The agent can use its client's file tools to inspect that log without rerunning 
 <span id="result-previews"></span>
 
 SQL previews show a limited number of rows and columns, and the log records that preview.
-Your agent can [retrieve the last SQL result](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result) in R or Python without rerunning the query, then analyze the data or save it to a file.
+Your agent can retrieve the last SQL result in R or Python without rerunning the query, then analyze the data or save it to a file.
 It can retrieve all rows at once or work through the result in chunks.
+
+Reference: [Retrieve the last SQL result](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result).
 
 ## Review and reuse the work
 
@@ -118,7 +124,4 @@ It can retrieve all rows at once or work through the result in chunks.
 Ask the agent for the recording's location.
 The recorded Quarto document provides a starting point for a report; review its code, inputs, and package requirements before rendering it.
 
-For precise language behavior, see the [runtime reference](RUNTIME_REFERENCE.md).
-[Client integration](CLIENTS.md) covers applications that call Console directly.
-
-Continue with [Packages and environments](REQUIREMENTS.md) to learn how Console prepares the libraries your agent uses.
+Continue with [Packages and environments](REQUIREMENTS.md) to learn how the agent gets the libraries it uses.

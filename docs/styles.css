@@ -96,11 +96,11 @@ pre.cli-help code {
 }
 
 .quarto-dark pre.cli-help {
-  background-color: #131c22;
+  background-color: #2e3a34;
 }
 
 .quarto-dark .cli-help-heading {
-  color: #5fe084;
+  color: var(--bs-link-color);
 }
 
 .cli-help-tabs .nav-link.active {
@@ -129,4 +129,76 @@ pre.cli-help code {
   margin-top: 0;
   font-size: 1.2rem;
   border-bottom: 0;
+}
+
+/* Generated Python reference uses the site's fonts, colors, and spacing. */
+.doc-api-page main.content {
+  min-width: 0;
+}
+
+.doc-object-name,
+.doc-parameter-name,
+.gd-summary-table td:first-child {
+  font-family: var(--bs-font-monospace);
+}
+
+.doc-api-page h1 {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+}
+
+.doc-signature pre code > span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.doc-signature pre {
+  padding-right: 2.5rem;
+}
+
+.doc-usage-source {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--bs-secondary-color);
+  font-size: 0.875rem;
+  margin-top: 1rem;
+}
+
+.doc-usage-source p {
+  margin-bottom: 0.35rem;
+}
+
+.doc-definition-items dt {
+  margin-top: 1rem;
+}
+
+.doc-definition-items dd {
+  margin: 0.5rem 0 1rem 1rem;
+}
+
+.doc-parameter-annotation,
+.doc-parameter-default {
+  font-weight: normal;
+  color: var(--bs-secondary-color);
+}
+
+.gd-summary-table {
+  width: 100%;
+  table-layout: fixed;
+  margin-bottom: 1.5rem;
+}
+
+.gd-summary-table th,
+.gd-summary-table td {
+  border-bottom: 1px solid var(--bs-border-color);
+  padding: 0.65rem;
+  vertical-align: top;
+}
+
+.gd-summary-table th:first-child {
+  width: 35%;
+}
+
+.doc-api-page span[id] {
+  scroll-margin-top: 5rem;
 }

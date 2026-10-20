@@ -101,11 +101,11 @@ Important exceptions are:
 
 Package indexes, credentials, mirrors, TLS, build controls, and timeouts remain uv settings.
 Mirror configuration does not grant sandbox access to the mirror.
-See [uv's reference](https://docs.astral.sh/uv/reference/environment/) and [resolver networking](RESOLVER.md#configuration).
+See [uv's reference](https://docs.astral.sh/uv/reference/environment/) and [resolver networking](PACKAGE_CONFIGURATION.md#configuration).
 
 ## Cache and data locations
 
-[Package sources and caches](RESOLVER.md#cache-locations) owns root selection and host-cache permissions.
+[Package settings](PACKAGE_CONFIGURATION.md#cache-locations) owns root selection and host-cache permissions.
 Set `cache.directory` in configuration to select the managed cache root for preparation and workers.
 With `cache: managed`, `MCP_CONSOLE_CACHE_DIR` selects an absolute cache root, taking precedence over XDG and platform defaults.
 An explicit `cache.directory` takes precedence over `MCP_CONSOLE_CACHE_DIR`.

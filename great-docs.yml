@@ -3,26 +3,9 @@ display_name: MCP Console Python
 parser: google
 dynamic: false
 inline_methods: true
-site_url: https://t-kalinowski.github.io/mcp-console/python/
-github_style: icon
-pypi: false
 
 source:
   branch: main
-
-homepage: user_guide
-user_guide: docs/python
-skill:
-  enabled: false
-pre_render:
-  - docs/python/_render.py
-seo:
-  canonical:
-    base_url: https://t-kalinowski.github.io/mcp-console/python/
-
-site:
-  theme: cosmo
-  css: docs/python/styles.css
 
 reference:
   title: Python API reference

@@ -1,8 +1,14 @@
 project:
   type: website
+  pre-render:
+    - >-
+      uv run --no-project --isolated --with-requirements requirements.txt
+      python _python.py
   post-render:
     - _pkgdown.R
-    - _python.py
+    - >-
+      uv run --no-project --isolated --with-requirements requirements.txt
+      python _urls.py
   render:
     - index.qmd
     - getting-started.qmd
@@ -10,7 +16,15 @@ project:
     - README.md
     - "*.md"
     - benchmarks/*.md
+    - python/index.qmd
+    - python/reference/*.qmd
+    - "!python/**/*.md"
     - "!templates/"
+  resources:
+    - python/objects.json
+    - python/index.md
+    - python/reference/*.md
+    - python/llms*.txt
 
 website:
   title: MCP Console
@@ -21,79 +35,105 @@ website:
   repo-url: https://github.com/t-kalinowski/mcp-console
   repo-subdir: docs
   repo-actions: [edit, issue]
+  page-navigation: true
   navbar:
     left:
+      - href: getting-started.qmd
+        text: Get started
       - href: README.md
-        text: User guides
-      - href: README.md#reference
+        text: Guides
+      - href: BUILD.md
+        text: Build
+      - href: REFERENCE.md
         text: Reference
-      - href: SANDBOX_COMMAND.md
-        text: Sandbox
-      - href: BUILD_ON_CONSOLE.md
-        text: Build on Console
-      - href: DEVELOPMENT.md
-        text: Development
     right:
-      - text: Packages
-        menu:
-        - href: python/index.html
-          text: Python package
-        - href: r/index.html
-          text: R package
       - icon: github
         href: https://github.com/t-kalinowski/mcp-console
         aria-label: GitHub repository
   sidebar:
     - id: guides
-      title: User guides
+      title: Guides
       style: docked
-      collapse-level: 1
+      collapse-level: 2
       contents:
       - href: README.md
         text: Overview
-      - getting-started.qmd
-      - SANDBOX_COMMAND.md
       - section: Learn Console
         contents:
+        - getting-started.qmd
         - BUILTIN_RUNTIME.md
         - REQUIREMENTS.md
         - SANDBOX.md
-      - section: Reference
-        contents:
-        - CONFIGURATION.md
-        - RUNTIME_CONFIGURATION.md
-        - TOOL_CONFIGURATION.md
-        - SANDBOX_CONFIGURATION.md
-        - RESOLVER.md
-        - ENVIRONMENT.md
-        - RUNTIME_REFERENCE.md
         - RECORDING.md
-        - CLI.md
-        - cli-help.qmd
-      - section: Platforms and installation
+      - section: Set up
         contents:
-        - LINUX_COMPATIBILITY.md
-        - BUILD_FROM_SOURCE.md
-      - GLOSSARY.md
-    - id: clients
-      title: Build on Console
+        - CLIENTS.md
+      - section: Other tasks
+        contents:
+        - SANDBOX_COMMAND.md
+    - id: build
+      title: Build
       style: docked
-      collapse-level: 1
+      collapse-level: 2
       contents:
-      - BUILD_ON_CONSOLE.md
-      - CLIENTS.md
-      - PYTHON.md
-      - href: r/index.html
-        text: R and ellmer
-      - section: MCP reference
+      - href: BUILD.md
+        text: Overview
+      - href: BUILD_ON_CONSOLE.md
+        text: Build a data assistant
+      - section: Integrate
         contents:
-        - API.md
-        - SEND_OPERATIONS.md
-        - REQUIREMENTS_API.md
-      - href: python/reference/index.html
-        text: Python API
-      - href: r/reference/index.html
-        text: R API
+        - href: R.md
+          text: From R (ellmer)
+        - href: PYTHON.md
+          text: From Python
+        - href: SEND_OPERATIONS.md
+          text: Drive send directly
+      - section: Builder reference
+        contents:
+        # Published routes link out without assigning these sources to two sidebars.
+        - href: tool_configuration/
+          text: Tool settings
+        - href: api/
+          text: Send tool
+        - href: r/reference/
+          text: R API
+        - href: python/reference/
+          text: Python API
+    - id: reference
+      title: Reference
+      style: docked
+      collapse-level: 2
+      contents:
+      - href: REFERENCE.md
+        text: Reference index
+      - CONFIGURATION.md
+      - section: Settings
+        contents:
+        - RUNTIME_CONFIGURATION.md
+        - href: PACKAGE_CONFIGURATION.md
+          text: Packages
+        - href: SANDBOX_CONFIGURATION.md
+          text: Sandbox
+        - href: TOOL_CONFIGURATION.md
+          text: Tool interface
+        - ENVIRONMENT.md
+      - section: Behavior
+        contents:
+        - RUNTIME_REFERENCE.md
+        - href: RECORDING_REFERENCE.md
+          text: Recordings
+      - section: Interfaces
+        contents:
+        - href: CLI.md
+          text: Command line
+        - cli-help.qmd
+        - href: API.md
+          text: MCP send
+        - href: r/reference/index.html
+          text: R API
+        - href: python/reference/index.qmd
+          text: Python API
+      - GLOSSARY.md
     - id: development
       title: Development
       style: docked
@@ -115,10 +155,13 @@ website:
   page-footer:
     left: MCP Console · MIT License
     right:
+      - text: Development
+        href: DEVELOPMENT.md
       - text: Source
         href: https://github.com/t-kalinowski/mcp-console
 
 filters:
+  - _filters/python-reference.lua
   - _filters/website.lua
 
 execute:

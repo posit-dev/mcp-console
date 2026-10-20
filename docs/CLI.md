@@ -3,6 +3,7 @@
 Use `serve` to run the MCP server, `warmup` to check the runtimes and warm caches, `sandbox` to run one command under a sandbox, `config init` to create shared settings, `config resolve` to inspect configuration, and `configure-client` to register Console with a client.
 Console runs on the local host; it does not create remote connections.
 
+See [Install and connect](CLIENTS.md) for supported hosts and runtime setup.
 The [CLI help page](cli-help.qmd) shows tested public-command help.
 Run `mcp-console --help` for the version installed on your machine.
 
@@ -25,6 +26,7 @@ mcp-console configure-client codex --directory . --name console-local -- --writa
 Pass one or more client names; all options apply to every selected client, and repeated client names are configured once.
 Use separate invocations for different settings per client.
 `--name NAME` changes the server name; arguments after `--` are appended after `serve`.
+Each call replaces that entry's managed launch arguments, so include every server option you want to retain and restart the client afterward.
 Codex server names must match `^[a-zA-Z0-9_:@/.-]+$`; other names are rejected before installation or configuration changes.
 Its built-in `codex_apps` name is also reserved and rejected before changes.
 When Claude Code is selected, its reserved names (`workspace`, `claude-in-chrome`, `computer-use`, `Claude Preview`, and `Claude Browser`) are rejected before configuration changes.
@@ -143,24 +145,7 @@ Codex requires project trust before loading project configuration, and Claude Co
 Configuration leaves those project trust decisions unchanged.
 Legacy Claude Code `.config.json` layouts are not supported by this command.
 
-### Other MCP clients
-
-Configure a stdio server with command `uvx` and arguments `["mcp-console", "serve"]`.
-Clients using an `mcpServers` mapping can use:
-
-```json
-{
-  "mcpServers": {
-    "console": {
-      "command": "uvx",
-      "args": ["mcp-console", "serve"]
-    }
-  }
-}
-```
-
-Console runs on the same host as the client, usually in the agent's workspace.
-For remote work, run both on the remote host; Console does not manage remote connections or containers.
+For other MCP clients, use the [stdio configuration example](CLIENTS.md#other-mcp-clients).
 
 ## Check your installation
 
@@ -201,50 +186,15 @@ mcp-console serve
 
 Your MCP client normally launches this command.
 It communicates over standard input and output and waits for the client; it is not an interactive terminal.
-See [Connect your client](getting-started.qmd#connect-your-client).
+See [MCP client setup](CLIENTS.md).
 
-For ordinary project writes, create `.agents/console/config.yaml` in the launch directory:
+For project-write setup, follow [Give a session the access it needs](SANDBOX.md#give-a-session-the-access-it-needs).
+The launch flags below also apply to `warmup`:
 
-```yaml
-sandbox:
-  profile: workspace
-```
-
-The [workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile) allows project writes while keeping workspace metadata read-only.
-It retains the default private temporary storage and restricted networking.
-
-Each `configure-client` call replaces that entry's managed launch arguments.
-Include every server option you want to retain when changing its permissions, and restart the client afterward.
-
-### Allow workspace writes across projects
-
-To select workspace writes for future launches across projects, update the global client registration:
-
-```sh
-uvx mcp-console configure-client claude -- -c sandbox.profile=workspace
-```
-
-The profile uses each future launch directory as the workspace; running setup does not bind it to the setup directory.
-The `-c` setting overrides profiles selected in configuration files or inherited from the client.
-Use this option when you want that write policy across projects.
-An existing project client entry may take precedence over the global entry; see [client configuration](#configure-a-client).
-
-### Grant writes to one directory
-
-To add a writable path through a project client entry, create the directory before registering the grant:
-
-```sh
-mkdir output
-uvx mcp-console configure-client claude --directory . -- -c sandbox.profile=read_only --writable-root output
-```
-
-Use `codex` in place of `claude` for Codex.
-The client chooses Console's launch directory, and Console resolves `output` there.
-The `read_only` base restricts ordinary workspace writes; `--writable-root` adds the explicit grant.
-Other configured filesystem permissions still apply.
-`--writable-root PATH` may be repeated.
-It adds filesystem grants without selecting the workspace profile, does not create missing directories, and remains subject to more specific permission rules.
-[Sandbox permissions](SANDBOX_CONFIGURATION.md) documents path rules and protected metadata.
+| Option                 | Effect                                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `--writable-root PATH` | Add write access to an existing directory; may be repeated. See [filesystem rules](SANDBOX_CONFIGURATION.md#filesystem).              |
+| `--no-sandbox`         | Run with host permissions. See [host execution](SANDBOX_CONFIGURATION.md#run-without-the-sandbox) for conflicts, caches, and cleanup. |
 
 ## Standalone sandbox
 
@@ -254,6 +204,7 @@ mcp-console sandbox -- python analysis.py
 
 Run an installed program with Console's filesystem and network permissions.
 [Run commands in a sandbox](SANDBOX_COMMAND.md) covers command arguments, workspace writes, networking, saved configuration, and cleanup.
+`--config-env NAME` reads standalone configuration from the named environment variable; see [configuration inputs and precedence](CONFIGURATION.md#configuration-environment).
 
 ## Configuration options
 
@@ -299,7 +250,7 @@ By default, `config init` creates `.agents/console/config.yaml` in the current d
 `--global` creates `$MCP_CONSOLE_HOME/config.yaml`, or `~/.agents/console/config.yaml` when the variable is unset.
 The two options are mutually exclusive.
 These files are shared by clients that launch Console with the same configuration locations.
-Client registration remains a separate operation; see [Connect your client](getting-started.qmd#connect-your-client).
+Client registration remains a separate operation; see [MCP client setup](CLIENTS.md).
 
 The starter selects `sandbox.profile: workspace`: ordinary workspace writes are allowed, while the project's `.git`, `.agents`, `.codex`, and `.aws` paths stay read-only.
 Other readable host files remain readable.
@@ -343,42 +294,6 @@ Use `--full` to include defaults or `--format json` for JSON; `--full` and `--pr
 The [configuration options](#configuration-options) apply before `config` or after `resolve`.
 
 See [Export a configuration](CONFIGURATION.md#export-a-configuration) for pruning rules, relative paths, editable fields, and what an export retains.
-
-## Windows sandbox requirements
-
-Native Windows sandboxed launches require MXC.
-Unsupported hosts and policies fail before the workload executes; there is no automatic weaker fallback.
-
-MXC needs no provisioning command.
-See [Windows host requirements](SANDBOX_CONFIGURATION.md#windows-mxc-requirement).
-
-## Run without sandboxing
-
-```sh
-mcp-console serve --no-sandbox
-```
-
-This runs evaluated code and dependency preparation with host permissions and removes native descendant-cleanup guarantees.
-It also disables [managed temporary storage](SANDBOX_CONFIGURATION.md#temporary-storage).
-It conflicts with writable-root options and explicit analysis or resolver sandbox settings.
-It uses host cache mode and rejects managed caches, including custom cache directories.
-
-For a configuration exported for host execution, pass `--no-sandbox` to both `config resolve` and `serve`; the launch flag is not stored in YAML.
-See [Cache selection](RESOLVER.md#cache-locations) for clearing inherited permission settings deliberately.
-
-## Configuration from an environment variable
-
-Standalone callers can supply configuration without a file:
-
-```sh
-mcp-console sandbox --config-env CONFIG_VARIABLE -- COMMAND
-```
-
-The named variable holds YAML or JSON in the same structure as `config.yaml`.
-It replaces file discovery, with `--default-config` settings below it and `-c` overrides above it.
-Writable-root options still apply.
-
-See [Configuration through an environment variable](CONFIGURATION.md#configuration-environment) for accepted inputs and runnable examples.
 
 <span id="developer-only-commands"></span>
 

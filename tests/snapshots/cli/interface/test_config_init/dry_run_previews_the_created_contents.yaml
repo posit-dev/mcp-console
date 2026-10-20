@@ -4,7 +4,7 @@ preview: |
 
   ## MCP Console configuration, shared across clients.
   ## Full reference:
-  ## https://t-kalinowski.github.io/mcp-console/CONFIGURATION_REFERENCE.html
+  ## https://t-kalinowski.github.io/mcp-console/reference/#configuration
   ##
   ## Reconnect your client after editing.
   ## Relative paths use Console's launch directory, not this file's directory.
@@ -102,7 +102,7 @@ created: |
 
   ## MCP Console configuration, shared across clients.
   ## Full reference:
-  ## https://t-kalinowski.github.io/mcp-console/CONFIGURATION_REFERENCE.html
+  ## https://t-kalinowski.github.io/mcp-console/reference/#configuration
   ##
   ## Reconnect your client after editing.
   ## Relative paths use Console's launch directory, not this file's directory.

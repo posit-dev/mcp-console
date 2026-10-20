@@ -105,12 +105,42 @@ class MCPConsole:
     The context starts Console and discovers its tools; leaving it closes the
     connection and subprocess. Variables persist across calls on this connection.
     The application owns its model clients, agents, and tool loops.
+    By default the client prefers Console in the current Python environment,
+    then PATH, and launches `serve`. Use `command` and `args` to select another
+    executable or launch configuration.
 
     Calls block while the official MCP client runs on a background event loop.
-    Catching `KeyboardInterrupt` while waiting cancels that request's wait,
-    leaving an admitted cell running.
-    Poll to collect its output or send `control="interrupt"` to stop execution.
     Connect and close only when no other call is in progress.
+    A control-only interrupt may be sent from another thread while a call waits.
+
+    A `KeyboardInterrupt` during a response wait cancels that request's wait,
+    leaving an admitted cell running. The client waits for the SDK's request
+    cleanup before re-raising, so subsequent calls cannot overtake cancellation.
+    Concurrent sends are rejected while cancellation cleanup is in progress;
+    ordinary concurrent control calls remain available when a cell is running.
+    The interrupted wait retains admission while publishing cancellation, so a
+    competing send cannot pass between those steps.
+
+    Cleanup has a five-second limit; another `KeyboardInterrupt` also ends the
+    wait. Cancellation submission does not wait for the SDK event loop, so the
+    limit also applies while the SDK is busy validating a response. Interrupting
+    before a request starts prevents it from being sent and leaves the
+    connection usable.
+
+    If cleanup does not finish, the client aborts that request task and rejects
+    further calls until the connection has been closed and reconnected. Closing
+    waits at most five seconds for the aborted request to stop before closing
+    the SDK transport and portal. If that request still cannot stop, closing
+    raises an error and retains the invalid connection until it stops.
+
+    Catch `KeyboardInterrupt` inside the connection's context to poll for output
+    or call `console.send(control="interrupt")` to interrupt execution explicitly.
+    Leaving the context closes the session. If SDK teardown raises after
+    consuming its cleanup callbacks, the client records a disconnected state;
+    reconnecting starts a fresh session.
+
+    Cancellation can race with delivery. A journaled result records response
+    assembly, not confirmed client receipt.
 
     Args:
         command: Console executable. Defaults to the installed `mcp-console`.
@@ -261,6 +291,9 @@ class MCPConsole:
         per call. If output ends in `[running; poll with an empty send]`, collect
         the remaining output with `console.send()` before submitting another cell.
         Images appear as MIME placeholders; MCP tool errors raise `RuntimeError`.
+        `console(...)` is an alias for `send(...)`.
+        If tool configuration hides `timeout_ms`, poll with `console.send()`
+        without that argument.
         """
         arguments = {
             "r": r,

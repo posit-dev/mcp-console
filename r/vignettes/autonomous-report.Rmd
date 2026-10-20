@@ -45,7 +45,7 @@ Let's use the R installation running this script, selected by `current_r()`, and
 The initial sandbox policy lets it write reports and contact an API.
 Replace `api.example.com` with the service your report needs.
 On Windows, a managed proxy also permits local binding because MXC's host-loopback access is bidirectional.
-Explicitly disabling local binding with a managed proxy is unsupported there; see [Windows networking](https://t-kalinowski.github.io/mcp-console/WINDOWS.html#native-sandbox).
+Explicitly disabling local binding with a managed proxy is unsupported there; see [Windows networking](https://t-kalinowski.github.io/mcp-console/sandbox_configuration/#unix-sockets-and-local-binding).
 
 ```{r config}
 config <- ConsoleConfig(
@@ -84,10 +84,10 @@ The launcher still uses its trusted host environment to locate executables and p
 There is one detail to keep in mind when scoping file access: Console's sandbox allows reads of host files by default.
 `read_only = "./data"` does not hide other readable files.
 The `deny` entry blocks access to `~/.ssh`; add other sensitive locations as needed.
-See [Sandbox permissions](https://t-kalinowski.github.io/mcp-console/SANDBOX.html) for the full policy.
+See [Sandbox permissions](https://t-kalinowski.github.io/mcp-console/sandbox_configuration/) for the full policy.
 
 Package preparation has separate permissions and may download packages at startup or while the agent is working.
-See [Resolver configuration](https://t-kalinowski.github.io/mcp-console/RESOLVER.html) if you need to configure that access too; explicit resolver sandbox policies are unsupported on Windows.
+See [Package settings](https://t-kalinowski.github.io/mcp-console/package_configuration/#preparation-permissions) if you need to configure that access too; explicit resolver sandbox policies are unsupported on Windows.
 
 ## Add a writable directory and an allowed domain
 

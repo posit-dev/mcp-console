@@ -1,12 +1,11 @@
-# Interpreters and startup
+# Languages and startup
 
-Choose an R installation or Python environment, set the packages available at startup, and select a SQL connection before analysis begins.
-Console works without these settings; [Packages and environments](REQUIREMENTS.md) explains its defaults and how package preparation fits into a session.
+Choose an R installation or Python environment, control native R startup, and select a SQL connection before analysis begins.
+[Sessions and languages](BUILTIN_RUNTIME.md) introduces the shared session.
+[Package settings](PACKAGE_CONFIGURATION.md) covers startup packages and preparation policies; [Tool settings](TOOL_CONFIGURATION.md#model-visible-languages) controls which languages the model can use.
 
 - [Choose a Python environment](#python-environment-selection).
 - [Choose an R installation](#r-executable-selection).
-- [Choose startup packages](#startup-package-declarations).
-- [Choose when packages may be prepared](#dependency-resolution-policies).
 - [Control R startup files](#native-r-startup).
 - [Select a SQL connection at startup](#session-startup-source).
 
@@ -59,18 +58,14 @@ The session's filesystem and network permissions still apply.
 ```yaml
 python:
   version: ">=3.12,<3.14"
-  packages: [numpy, pandas]
-  resolution: explicit
 ```
 
-| Setting             | Accepted values                                                                      | Meaning and default                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `python.version`    | One quoted Python version or constraint string, such as `"3.13"` or `">=3.12,<3.14"` | Restrict the managed CPython version. Omission adds no version constraint; versions older than 3.10 are always excluded.                                              |
-| `python.packages`   | List of named PEP 508 registry requirements                                          | Packages to prepare at startup. Omission keeps the [default Python packages](REQUIREMENTS.md#defaults-and-startup-configuration); `[]` requests no optional packages. |
-| `python.resolution` | `implicit`, `explicit`, or `fixed`                                                   | When Console may prepare packages. Default: `explicit`. See [Resolution policies](#dependency-resolution-policies).                                                   |
+| Setting          | Accepted values                                                                      | Meaning and default                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `python.version` | One quoted Python version or constraint string, such as `"3.13"` or `">=3.12,<3.14"` | Restrict the managed CPython version. Omission adds no version constraint; versions older than 3.10 are always excluded. |
 
 The same fields are accepted under `python.managed` and in a managed fallback candidate.
-See [Startup packages](#startup-package-declarations) for package syntax and replacement rules.
+For `packages` and `resolution` fields in these mappings, see [Package settings](PACKAGE_CONFIGURATION.md#startup-package-declarations).
 
 Managed selection uses uv-managed CPython, rather than selecting a fallback interpreter on `PATH`.
 It excludes versions older than CPython 3.10 before ranking available versions or applying constraints.
@@ -90,7 +85,6 @@ python:
     - active_venv
     - managed:
         version: "3.13"
-        packages: [numpy, pandas, matplotlib]
 ```
 
 | Candidate        | Selection behavior                                                                                                                                                           |
@@ -116,23 +110,21 @@ r: /opt/R/bin/R
 ```
 
 The scalar form expands to `r: {executable: PATH}` before configuration layers are merged.
-Use a mapping to combine executable selection with package and startup settings:
+Use a mapping to combine executable selection with startup settings:
 
 ```yaml
 r:
   executable: /opt/R/bin/R
-  packages: [dplyr, ggplot2]
-  resolution: explicit
   vanilla: true
 ```
 
-| Setting        | Accepted values                                | Meaning and default                                                                                                                                              |
-| -------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `r`            | Executable path, mapping, or `null`            | Select an installation and its package/startup settings. Omission or `null` uses normal R discovery and defaults.                                                |
-| `r.executable` | Nonempty path string                           | Installed R executable or ordinary launcher. Omission uses installation hints and `PATH` discovery.                                                              |
-| `r.packages`   | List of single-line `ir` package references    | Packages to prepare at startup. Omission keeps the [default R packages](REQUIREMENTS.md#defaults-and-startup-configuration); `[]` requests no optional packages. |
-| `r.resolution` | `implicit`, `explicit`, `fixed`, or `disabled` | When Console may prepare packages. Default: `implicit`. See [Resolution policies](#dependency-resolution-policies).                                              |
-| `r.vanilla`    | `true` or `false`                              | Request R's native `--vanilla` startup. Default: `false`, retaining normal environment files, profiles, and workspace restoration.                               |
+| Setting        | Accepted values                     | Meaning and default                                                                                                                |
+| -------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `r`            | Executable path, mapping, or `null` | Select an installation and its package/startup settings. Omission or `null` uses normal R discovery and defaults.                  |
+| `r.executable` | Nonempty path string                | Installed R executable or ordinary launcher. Omission uses installation hints and `PATH` discovery.                                |
+| `r.vanilla`    | `true` or `false`                   | Request R's native `--vanilla` startup. Default: `false`, retaining normal environment files, profiles, and workspace restoration. |
+
+For `r.packages` and `r.resolution`, see [Package settings](PACKAGE_CONFIGURATION.md).
 
 Select an executable or launcher, not an R installation directory, Rscript, or a command with arguments.
 An explicit executable overrides installation hints and `PATH` discovery.
@@ -142,65 +134,9 @@ Console retains the selected installation across runtime restarts.
 If its captured executable or resources change incompatibly, start a new server connection.
 Executables and the code they load are trusted inputs; selecting them does not make them immutable sandbox assets.
 
-## Choose startup packages {#startup-package-declarations}
+<span id="startup-package-declarations"></span> <span id="default-startup-packages"></span> <span id="dependency-resolution-policies"></span> <span id="resolution-policies"></span>
 
-```yaml
-r:
-  packages: [dplyr, dbplyr, ggplot2]
-python:
-  packages: [numpy, pandas, matplotlib]
-```
-
-An omitted package list keeps that runtime's [default startup declaration](REQUIREMENTS.md#defaults-and-startup-configuration).
-A supplied list replaces it; an empty list (`[]`) requests no optional packages.
-Empty lists do not remove Console's required runtime infrastructure, uninstall packages, or delete cached installations.
-Preparation makes packages available without attaching R packages or importing Python modules.
-
-Built-in optional defaults are prepared on a best-effort basis; Console reports and skips failed defaults.
-Packages listed explicitly in configuration are required, even if they also occur in the built-in defaults.
-Required runtime infrastructure remains strict.
-
-R package strings use single-line `ir` references, including supported remote references; local sources, NUL, and line breaks are rejected.
-Python strings use named PEP 508 registry requirements, including versions, extras, and markers; paths, editable requirements, URLs, archives, and `name @ URL` references are rejected.
-See [accepted requirement input](REQUIREMENTS_API.md#accepted-requirement-input) for package-request fields.
-
-Later `requirements` calls with `action: reset` restore the effective startup declaration captured at server launch, rather than rereading a subsequently edited configuration file.
-[Requirements API](REQUIREMENTS_API.md) covers additions, replacement, and changes that require a runtime restart.
-
-## Choose when packages may be prepared {#dependency-resolution-policies}
-
-<span id="resolution-policies"></span>
-
-Set `r.resolution` or `python.resolution` to control Console's package preparation.
-The Python setting also applies under `python.managed` and in managed fallback candidates.
-R defaults to `implicit`; managed Python defaults to `explicit`.
-
-| Policy              | Startup preparation                                                     | During the session                                                                                                                                                         |
-| ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fixed`             | Prepare the startup declaration.                                        | Keep that declaration fixed for the connection; reject package additions and version changes through Console.                                                              |
-| `explicit`          | Prepare the startup declaration.                                        | Also accept package requests through `requirements` and managed Python declarations through `reticulate::py_require()`. Ordinary loads/imports do not trigger preparation. |
-| `implicit`          | Prepare the startup declaration.                                        | Also accept explicit requests and prepare missing packages when execution reaches a supported load/import. The cell is not rerun.                                          |
-| `disabled` (R only) | No managed R package preparation, including Console's R infrastructure. | No managed preparation. If `r.packages` is supplied, it must be empty.                                                                                                     |
-
-For example, allow explicit R package requests while keeping the Python startup declaration fixed:
-
-```yaml
-r:
-  packages: [dplyr]
-  resolution: explicit
-python:
-  packages: [numpy, pandas]
-  resolution: fixed
-```
-
-To enable preparation on missing Python imports, set `python.resolution: implicit`.
-For preinstalled-only Python, select an [existing environment](#use-an-existing-environment).
-DuckDB extension preparation follows the resolution policy of its managed provider.
-
-Changing a resolution policy requires a new server connection.
-These policies govern Console's preparation; they do not restrict arbitrary installation commands in submitted code or grant network access.
-[Packages and environments](REQUIREMENTS.md#resolution-policy-admission) explains the policies with examples, and [Requirements API](REQUIREMENTS_API.md) specifies live-request behavior.
-[Package sources and caches](RESOLVER.md) covers download permissions and package sources.
+Startup declarations, default packages, and resolution policies are documented in [Package settings](PACKAGE_CONFIGURATION.md).
 
 ## Control R startup files {#native-r-startup}
 
