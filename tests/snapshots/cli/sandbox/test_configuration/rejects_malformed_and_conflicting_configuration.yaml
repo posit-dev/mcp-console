@@ -66,31 +66,31 @@ stdout: ""
 stderr: |
   mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 198)
 ---
-scenario: --config-env ABSENT_POLICY
+scenario: --runner-config-env ABSENT_POLICY
 exit_code: 1
 stdout: ""
 stderr: |
   mcp-console-sandbox: selected configuration variable is not set
 ---
-scenario: --config-env TEST_POLICY --config-env
+scenario: --runner-config-env TEST_POLICY --runner-config-env
 exit_code: 2
 stdout: ""
 stderr: |
-  error: the argument '--config-env <NAME>' cannot be used multiple times
+  error: the argument '--runner-config-env <NAME>' cannot be used multiple times
 
   Usage: mcp-console sandbox [OPTIONS] <COMMAND>...
 
   For more information, try '--help'.
 ---
-scenario: --config-env TEST_POLICY --exit-with-parent
+scenario: --runner-config-env TEST_POLICY --exit-with-parent
 exit_code: 2
 stdout: ""
 stderr: >
-  error: the argument '--config-env <NAME>' cannot be used with
+  error: the argument '--runner-config-env <NAME>' cannot be used with
   '--exit-with-parent <PID>'
 
 
-  Usage: mcp-console sandbox --config-env <NAME> <COMMAND>...
+  Usage: mcp-console sandbox <COMMAND>...
 
 
   For more information, try '--help'.

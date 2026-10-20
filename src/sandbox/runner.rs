@@ -14,8 +14,8 @@ const CONFIGURATION: &str = "MCP_CONSOLE_SANDBOX_CONFIG";
 pub(super) fn run(
     command: &[OsString],
     parent: Option<u32>,
-    config_env: Option<&str>,
-    settings_env: Option<&str>,
+    runner_config_env: Option<&str>,
+    consumed_env: Option<&str>,
     mut settings: SandboxSettings,
 ) -> Result<ExitCode, String> {
     #[cfg(unix)]
@@ -26,7 +26,7 @@ pub(super) fn run(
             "sandbox owner {pid} is not the launcher's current parent"
         ));
     }
-    if config_env.is_none() {
+    if runner_config_env.is_none() {
         crate::settings::revalidate_writable_roots(&mut settings)?;
     }
     // Unix exec preserves the caller. Windows waits while the native runner
@@ -50,13 +50,13 @@ pub(super) fn run(
             }
         }
     }
-    if let Some(name) = settings_env {
+    if let Some(name) = consumed_env {
         runner.env_remove(name);
     }
-    if config_env != Some(crate::settings::ENVIRONMENT) {
+    if runner_config_env != Some(crate::settings::ENVIRONMENT) {
         runner.env_remove(crate::settings::ENVIRONMENT);
     }
-    if config_env.is_none() {
+    if runner_config_env.is_none() {
         // This is also the serve path: an ambient value never selects policy.
         let mut lifecycle = json!({});
         match crate::settings::Tempdir::from_settings(&settings) {
@@ -121,14 +121,18 @@ pub(super) fn run(
         }
         settings.insert("lifecycle".into(), lifecycle);
         runner.env(CONFIGURATION, Value::Object(settings).to_string());
-    } else if config_env != Some(CONFIGURATION) {
+    } else if runner_config_env != Some(CONFIGURATION) {
         runner.env_remove(CONFIGURATION);
     }
-    if config_env != Some(MARKER) {
+    if runner_config_env != Some(MARKER) {
         runner.env(MARKER, "1");
     }
     runner
-        .args(["--config-env", config_env.unwrap_or(CONFIGURATION), "--"])
+        .args([
+            "--config-env",
+            runner_config_env.unwrap_or(CONFIGURATION),
+            "--",
+        ])
         .args(command)
         .env_remove("DYLD_INSERT_LIBRARIES")
         .env_remove("LD_PRELOAD");

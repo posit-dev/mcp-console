@@ -9,8 +9,9 @@ mod runner;
 #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 mod unsupported;
 
-pub fn capture_settings(
+fn capture_settings(
     roots: Vec<PathBuf>,
+    config_env: Option<&str>,
     overrides: &crate::cli::ConfigOverrides,
 ) -> Result<crate::settings::SandboxSettings, String> {
     let workspace = std::env::current_dir()
@@ -20,7 +21,16 @@ pub fn capture_settings(
         profile,
         policy: mut settings,
         ..
-    } = crate::settings::discover(&workspace, overrides)?;
+    } = if let Some(name) = config_env {
+        crate::settings::from_configuration_environment(&workspace, name, overrides)?
+    } else {
+        crate::settings::discover(&workspace, overrides)?
+    };
+    if let Some(name) = config_env {
+        // The selected document is launch input, including when its environment
+        // mapping tries to reintroduce the transport variable into the workload.
+        crate::settings::preserve_environment(&mut settings, [(std::ffi::OsStr::new(name), None)])?;
+    }
     if let Some(profile) = profile {
         match profile.select(false) {
             crate::settings::Profile::ReadOnly => {}
@@ -96,12 +106,16 @@ pub fn run(
     command: &[OsString],
     exit_with_parent: Option<u32>,
     config_env: Option<&str>,
+    runner_config_env: Option<&str>,
     settings_env: Option<&str>,
     writable_roots: Vec<PathBuf>,
     overrides: &crate::cli::ConfigOverrides,
 ) -> Result<ExitCode, String> {
-    if config_env.is_some() || settings_env.is_some() {
-        let selector = if overrides.no_config {
+    let private_selector = runner_config_env
+        .map(|_| "--runner-config-env")
+        .or(settings_env.map(|_| "--settings-env"));
+    if let Some(selector) = private_selector.or(config_env.map(|_| "--config-env")) {
+        let conflicting = if overrides.no_config {
             Some("--no-config")
         } else if overrides.no_project_config {
             Some("--no-project-config")
@@ -109,42 +123,39 @@ pub fn run(
             Some("--no-global-config")
         } else if overrides.config_file.is_some() {
             Some("--config-file")
-        } else if !overrides.default_values.is_empty() {
+        } else if overrides.values_file.is_some() {
+            Some("--config-overrides-file")
+        } else if private_selector.is_some() && !overrides.default_values.is_empty() {
             Some("--default-config")
+        } else if private_selector.is_some() && !overrides.values.is_empty() {
+            Some("configuration overrides")
         } else {
             None
         };
-        if let Some(flag) = selector {
-            return Err(format!(
-                "{flag} cannot be combined with --config-env or --settings-env"
-            ));
+        if let Some(flag) = conflicting {
+            return Err(format!("{flag} cannot be combined with {selector}"));
         }
     }
-    if !overrides.values.is_empty() && (config_env.is_some() || settings_env.is_some()) {
-        return Err(
-            "configuration overrides cannot be combined with --config-env or --settings-env".into(),
-        );
-    }
-    let settings = if config_env.is_some() {
+    let settings = if runner_config_env.is_some() {
         crate::settings::SandboxSettings::default()
     } else if let Some(name) = settings_env {
         crate::settings::from_environment(name)?
     } else {
-        capture_settings(writable_roots, overrides)?
+        capture_settings(writable_roots, config_env, overrides)?
     };
     #[cfg(any(target_os = "macos", target_os = "linux", windows))]
     {
         runner::run(
             command,
             exit_with_parent,
-            config_env,
-            settings_env,
+            runner_config_env,
+            config_env.or(settings_env),
             settings,
         )
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
     {
-        let _ = (exit_with_parent, config_env, settings_env, settings);
+        let _ = (exit_with_parent, runner_config_env, settings_env, settings);
         unsupported::run(command)
     }
 }

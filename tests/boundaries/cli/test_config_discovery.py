@@ -416,7 +416,7 @@ def test_rejects_discovery_control_with_captured_settings(binary: Path) -> Trans
         root = Path(temporary).resolve()
         environment = os.environ | {"MCP_CONSOLE_HOME": str(root / "home")}
         environment.pop("MCP_CONSOLE_TEST_CAPTURED", None)
-        for selector in ("--config-env", "--settings-env"):
+        for selector in ("--config-env", "--runner-config-env", "--settings-env"):
             for payload in (None, "not JSON"):
                 selected_environment = environment.copy()
                 if payload is not None:
@@ -429,6 +429,8 @@ def test_rejects_discovery_control_with_captured_settings(binary: Path) -> Trans
                     ("--default-config", "sandbox.profile=workspace"),
                 ):
                     flag = flags[0]
+                    if selector == "--config-env" and flag == "--default-config":
+                        continue
                     for placement in ("before", "after"):
                         arguments = (
                             (*flags, "sandbox")
@@ -453,7 +455,7 @@ def test_rejects_discovery_control_with_captured_settings(binary: Path) -> Trans
                         assert result.returncode == 1 and result.stdout == "", result
                         assert (
                             result.stderr
-                            == f"{flag} cannot be combined with --config-env or --settings-env\n"
+                            == f"{flag} cannot be combined with {selector}\n"
                         ), result
                         records.append(
                             {

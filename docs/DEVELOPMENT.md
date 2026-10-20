@@ -202,6 +202,34 @@ Use the intended parent for a stacked PR, not necessarily `main`.
 Stage intended new files before measuring.
 Line counts help review planning; they do not establish semantic scope.
 
+## Native sandbox policy experiments
+
+The hidden `sandbox --runner-config-env NAME` flag passes the named environment variable's JSON payload unchanged to the pinned native runner.
+It bypasses application configuration discovery, validation, and generated policy additions, including managed temporary storage and Console's platform extensions.
+The runner still validates and consumes its input.
+This is an internal development escape hatch: neither the flag nor the runner's schema has a public stability guarantee.
+Use the public `sandbox --config-env` interface for configuration in the `config.yaml` format.
+
+The native selector is exclusive with `--config-env`, `--settings-env`, `--exit-with-parent`, configuration selection/defaults/overrides, and writable-root options.
+Native lifecycle settings belong in the JSON payload.
+The current companion revision is recorded in [sandbox-runner.json](../sandbox-runner.json); consult that revision's protocol for accepted fields.
+Stdin remains the workload's input, and native environment/argument size limits apply.
+
+Native filesystem kinds have different enforcement limits:
+
+| Kind               | Meaning without a proxy                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `restricted`       | Native filesystem rules, selected networking, and native supervision.                                    |
+| `unrestricted`     | Full OS-permitted filesystem access; entries do not narrow it. Native supervision/network policy remain. |
+| `external-sandbox` | Delegate filesystem and networking to an outer boundary. The runner does not create or verify it.        |
+
+In external mode without a proxy, `network: restricted` installs no network restriction.
+Windows rejects external mode and requires MXC for native policy launches too.
+On Linux, external mode supervises the original group/direct child; the outer boundary must retire escaped descendants.
+A managed proxy can add native networking while filesystem enforcement remains delegated.
+Full filesystem writes can influence unsandboxed processes and shared artifacts; restricted-policy isolation guarantees do not extend to hostile unrestricted workloads.
+Cleanup is not proof of isolation.
+
 ## Checkout ownership
 
 Build, staging, checking, and packaging share `.dev-workflow/checkout.lock`, outside `target`.

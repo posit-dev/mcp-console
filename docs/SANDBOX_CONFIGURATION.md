@@ -438,7 +438,7 @@ Setup failures do not trigger an automatic retry with weaker enforcement or with
 
 ### Windows MXC requirement
 
-Normal sessions, standalone commands, and complete native policies require MXC.
+Normal sessions and standalone commands require MXC.
 Unsupported hosts and policies fail before the workload executes; there is no backend or host-execution fallback.
 Explicit `serve --no-sandbox` remains available.
 
@@ -499,47 +499,8 @@ Surviving sandboxed processes retain their native enforcement.
 
 Console guarantees temporary-storage cleanup only with an active sandbox and managed storage.
 Other modes use normal runtime cleanup without an added Console guarantee; see [Temporary storage](#temporary-storage) and [Run without the sandbox](#run-without-the-sandbox).
-Complete native unrestricted and external modes also have different guarantees, described below.
 
-## Supply a complete native policy {#explicit-complete-policy}
+## Supply configuration through an environment variable {#explicit-complete-policy}
 
-Advanced standalone callers can use `sandbox --config-env NAME` with a **complete native JSON policy**.
-This bypasses automatic configuration and all generated Console policy defaults, including private temporary-storage and application-extension additions.
-
-```sh
-SANDBOX_POLICY='{"filesystem":{"kind":"restricted","entries":[{"path":{"type":"special","value":{"kind":"root"}},"access":"read"}]},"network":"restricted"}' \
-  mcp-console sandbox --config-env SANDBOX_POLICY -- /bin/echo 'literal argument'
-```
-
-The variable holds JSON, not a filename.
-The runner consumes it; stdin belongs to the target.
-This mode rejects `-c`, discovery options, and writable-root composition.
-Use a child-specific environment rather than mutating a multithreaded parent's global environment.
-
-The [pinned runner schema](https://github.com/t-kalinowski/cobox/blob/bad761ee97eb54caf302d6d4261ef494f686bf12/codex-rs/mcp-console-sandbox/PROTOCOL.md#complete-json-reference) defines native fields; its private protocol is unversioned.
-The native runner enforces the Windows MXC requirement at this boundary.
-Complete policies use the native boolean `proxy.allowLocalBinding` field; the public `auto` selector belongs to the shared YAML schema above.
-Runnable examples are provided in [shell](../examples/sandbox-config.sh), [Python](../examples/sandbox-config.py), and [R](../examples/sandbox-config.R).
-
-Complete policies can request OS-specific options unavailable in `config.yaml`.
-Environment/argument size limits still apply: a nominally valid JSON payload can exceed native process-launch limits.
-The internal bootstrap-descriptor transport belongs to the pinned protocol, not this public YAML reference.
-
-### Filesystem and enforcement modes
-
-These **complete-native-policy** kinds are not `config.yaml` permission groups:
-
-| Kind               | Meaning without a proxy                                                                                  |
-| ------------------ | -------------------------------------------------------------------------------------------------------- |
-| `restricted`       | Native filesystem rules, selected networking, and native supervision.                                    |
-| `unrestricted`     | Full OS-permitted filesystem access; entries do not narrow it. Native supervision/network policy remain. |
-| `external-sandbox` | Delegate filesystem and networking to an outer boundary. The runner does not create or verify it.        |
-
-In external mode without a proxy, `network: restricted` installs no network restriction.
-Console rejects external mode on Windows, where every sandboxed launch must use MXC.
-Linux then supervises the original group/direct child; the outer boundary must retire escaped descendants.
-A managed proxy can add native networking while filesystem enforcement remains delegated.
-
-Full filesystem writes can influence unsandboxed processes and shared artifacts.
-Restricted-policy isolation guarantees do not extend to hostile unrestricted workloads.
-Cleanup is not proof of isolation.
+Standalone commands accept the same public configuration through `sandbox --config-env NAME`.
+See [Configuration through an environment variable](CONFIGURATION.md#configuration-environment) for precedence, defaults, and examples.

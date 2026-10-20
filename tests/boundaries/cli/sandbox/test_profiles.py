@@ -549,7 +549,7 @@ def test_complete_policy_selector_bypasses_project_and_console_adjustments(
                     _ = Path(".claude/native").write_text("no Console adjustment")
                     print("complete native selector bypasses project discovery and application adjustments")
                     """),
-                "--config-env",
+                "--runner-config-env",
                 "TEST_POLICY",
                 environment={"TEST_POLICY": json.dumps(policy)},
             )
@@ -598,7 +598,7 @@ def test_workspace_options_preserve_explicit_native_values(binary: Path) -> Tran
                             assert allowed, key
                     print("explicit native temporary-directory options preserved")
                     """),
-                "--config-env",
+                "--runner-config-env",
                 "TEST_POLICY",
                 environment={
                     "TEST_POLICY": json.dumps(

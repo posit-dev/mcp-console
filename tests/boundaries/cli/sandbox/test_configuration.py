@@ -48,7 +48,7 @@ def invoke(binary: Path, config: dict | str, *command: str, launch_prefix=(), **
             *launch_prefix,
             binary,
             "sandbox",
-            "--config-env",
+            "--runner-config-env",
             "TEST_POLICY",
             "--",
             *command,
@@ -366,9 +366,9 @@ def test_rejects_malformed_and_conflicting_configuration(binary: Path) -> Transc
             }
         )
     for options in (
-        ["--config-env", "ABSENT_POLICY"],
-        ["--config-env", "TEST_POLICY", "--config-env", "SECOND_POLICY"],
-        ["--config-env", "TEST_POLICY", "--exit-with-parent", str(os.getpid())],
+        ["--runner-config-env", "ABSENT_POLICY"],
+        ["--runner-config-env", "TEST_POLICY", "--runner-config-env", "SECOND_POLICY"],
+        ["--runner-config-env", "TEST_POLICY", "--exit-with-parent", str(os.getpid())],
     ):
         result = subprocess.run(
             [binary, "sandbox", *options, "--", "/bin/echo", "executed"],
@@ -401,7 +401,7 @@ def test_options_before_command_are_launcher_options(binary: Path) -> Transcript
             [
                 binary,
                 "sandbox",
-                "--config-env",
+                "--runner-config-env",
                 "TEST_POLICY",
                 option,
                 "3",
@@ -478,7 +478,7 @@ def test_target_cannot_replace_active_policy(binary: Path) -> Transcript:
             [
                 sys.argv[1],
                 "sandbox",
-                "--config-env",
+                "--runner-config-env",
                 "TEST_POLICY",
                 "--",
                 sys.executable,
@@ -566,7 +566,7 @@ def test_launcher_marker_cannot_replace_selected_configuration(
         [
             binary,
             "sandbox",
-            "--config-env",
+            "--runner-config-env",
             "MCP_CONSOLE_SANDBOX",
             "--",
             sys.executable,

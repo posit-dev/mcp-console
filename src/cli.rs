@@ -229,16 +229,20 @@ pub enum Command {
         #[command(flatten)]
         overrides: ConfigOverrides,
 
-        /// Read the runner configuration as JSON from this launch environment variable
-        #[arg(long, value_name = "NAME", conflicts_with = "exit_with_parent")]
+        /// Use only this environment variable's YAML or JSON configuration, then apply -c overrides
+        #[arg(long, value_name = "NAME")]
         config_env: Option<String>,
+
+        /// Pass native JSON unchanged to the runner; no stability guarantee
+        #[arg(long, hide = true, value_name = "NAME", conflicts_with_all = ["config_env", "settings_env", "exit_with_parent", "writable_root"])]
+        runner_config_env: Option<String>,
 
         /// Consume the application settings captured by the server
         #[arg(long, hide = true, value_name = "NAME", conflicts_with_all = ["config_env", "writable_root"])]
         settings_env: Option<String>,
 
         /// Allow writes to an additional path (temporary launch option)
-        #[arg(long, value_name = "PATH", conflicts_with = "config_env")]
+        #[arg(long, value_name = "PATH")]
         writable_root: Vec<PathBuf>,
 
         /// Retire the sandbox when this parent process exits

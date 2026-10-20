@@ -346,7 +346,7 @@ See [Export a configuration](CONFIGURATION.md#export-a-configuration) for prunin
 
 ## Windows sandbox requirements
 
-Native Windows sandboxed launches require MXC, including complete native policies.
+Native Windows sandboxed launches require MXC.
 Unsupported hosts and policies fail before the workload executes; there is no automatic weaker fallback.
 
 MXC needs no provisioning command.
@@ -366,19 +366,19 @@ It uses host cache mode and rejects managed caches, including custom cache direc
 For a configuration exported for host execution, pass `--no-sandbox` to both `config resolve` and `serve`; the launch flag is not stored in YAML.
 See [Cache selection](RESOLVER.md#cache-locations) for clearing inherited permission settings deliberately.
 
-## Complete native policy
+## Configuration from an environment variable
 
-Advanced standalone callers can use:
+Standalone callers can supply configuration without a file:
 
 ```sh
-mcp-console sandbox --config-env POLICY_VARIABLE -- COMMAND
+mcp-console sandbox --config-env CONFIG_VARIABLE -- COMMAND
 ```
 
-The named launch environment variable holds a complete native JSON policy, not a filename.
-This bypasses automatic application configuration and Console's generated policy defaults; it does not merge with configuration-selection flags, `-c`, or writable-root options.
+The named variable holds YAML or JSON in the same structure as `config.yaml`.
+It replaces file discovery, with `--default-config` settings below it and `-c` overrides above it.
+Writable-root options still apply.
 
-This is a separate advanced interface, not another spelling of `config.yaml`.
-See [Explicit complete policy](SANDBOX_CONFIGURATION.md#explicit-complete-policy) for the pinned schema and runnable examples.
+See [Configuration through an environment variable](CONFIGURATION.md#configuration-environment) for accepted inputs and runnable examples.
 
 <span id="developer-only-commands"></span>
 

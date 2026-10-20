@@ -288,7 +288,7 @@ def test_rejects_conflicting_writable_root_options(binary: Path) -> Transcript:
         ["serve", "--no-sandbox", "--writable-root", "."],
         [
             "sandbox",
-            "--config-env",
+            "--runner-config-env",
             "POLICY",
             "--writable-root",
             ".",

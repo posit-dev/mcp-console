@@ -12,12 +12,12 @@ arguments:
   - -c
   - extends=:workspace
   - sandbox
-  - --config-env
+  - --runner-config-env
   - TEST_POLICY
   - --
   - /usr/bin/true
 stderr: |
-  configuration overrides cannot be combined with --config-env or --settings-env
+  configuration overrides cannot be combined with --runner-config-env
 ---
 arguments:
   - sandbox
@@ -28,4 +28,4 @@ arguments:
   - --
   - /usr/bin/true
 stderr: |
-  configuration overrides cannot be combined with --config-env or --settings-env
+  configuration overrides cannot be combined with --settings-env

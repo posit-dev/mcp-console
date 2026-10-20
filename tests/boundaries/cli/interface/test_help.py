@@ -49,6 +49,9 @@ def test_help(binary: Path) -> Transcript:
     for entry in entries:
         output = entry.get("stdout", "") + entry.get("stderr", "")
         assert all(len(line) <= 80 for line in output.splitlines()), entry
+        if entry["command"] == "mcp-console sandbox --help":
+            assert "--config-env <NAME>" in output, entry
+            assert "--runner-config-env" not in output, entry
         if entry["command"] in ("mcp-console", "mcp-console --help"):
             positions = [
                 output.index(f"\n  {command} ")

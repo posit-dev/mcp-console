@@ -111,7 +111,6 @@ These helpers do not make R and Python connection objects interchangeable.
 ## CLI and configuration
 
 See [Command-line reference](CLI.md), [Configuration files](CONFIGURATION.md), and [Tool configuration](TOOL_CONFIGURATION.md).
-The complete native-policy interface remains separate from application YAML; see [Sandbox permissions](SANDBOX_CONFIGURATION.md#explicit-complete-policy).
 
 ## Client packages
 

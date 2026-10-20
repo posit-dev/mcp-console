@@ -17,7 +17,7 @@ stderr: >
 ---
 arguments:
   - sandbox
-  - --config-env
+  - --runner-config-env
   - POLICY
   - --writable-root
   - .
@@ -26,11 +26,11 @@ arguments:
   - workload started
 exit_code: 2
 stderr: >
-  error: the argument '--config-env <NAME>' cannot be used with '--writable-root
-  <PATH>'
+  error: the argument '--runner-config-env <NAME>' cannot be used with
+  '--writable-root <PATH>'
 
 
-  Usage: mcp-console sandbox --config-env <NAME> <COMMAND>...
+  Usage: mcp-console sandbox <COMMAND>...
 
 
   For more information, try '--help'.

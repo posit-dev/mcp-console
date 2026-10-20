@@ -163,7 +163,7 @@ class WindowsSandbox(unittest.TestCase):
                 b"@echo off\r\n"
                 b'"%CONSOLE_COMMAND%" --version >nul\r\n'
                 b"if errorlevel 1 exit /b %errorlevel%\r\n"
-                b'"%CONSOLE_COMMAND%" sandbox --config-env TEST_POLICY -- '
+                b'"%CONSOLE_COMMAND%" sandbox --runner-config-env TEST_POLICY -- '
                 b'"%CONSOLE_NATIVE%" --version\r\n'
             )
             result = subprocess.run(
@@ -1228,7 +1228,7 @@ class WindowsSandbox(unittest.TestCase):
                     [
                         str(BINARY),
                         "sandbox",
-                        "--config-env",
+                        "--runner-config-env",
                         "TEST_POLICY",
                         "--",
                         *command,
@@ -1285,7 +1285,7 @@ class WindowsSandbox(unittest.TestCase):
                 [
                     str(BINARY),
                     "sandbox",
-                    "--config-env",
+                    "--runner-config-env",
                     "TEST_POLICY",
                     "--",
                     str(Path(os.environ["SystemRoot"]) / "System32/cmd.exe"),
@@ -1318,7 +1318,7 @@ class WindowsSandbox(unittest.TestCase):
                 [
                     str(BINARY),
                     "sandbox",
-                    "--config-env",
+                    "--runner-config-env",
                     "TEST_POLICY",
                     "--",
                     str(Path(os.environ["SystemRoot"]) / "System32/cmd.exe"),

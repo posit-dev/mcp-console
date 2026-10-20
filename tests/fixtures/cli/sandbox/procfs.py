@@ -270,7 +270,9 @@ def main(binary: str, interface: str, expected_proc: str) -> None:
                     }
                     command = [binary] + (["sandbox"] if interface == "console" else [])
                     command += [
-                        "--config-env",
+                        "--runner-config-env"
+                        if interface == "console"
+                        else "--config-env",
                         "PROCFS_TEST_CONFIG",
                         "--",
                         sys.executable,

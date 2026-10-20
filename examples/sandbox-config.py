@@ -5,13 +5,7 @@ import subprocess
 import sys
 
 config = {
-    "filesystem": {
-        "kind": "restricted",
-        "entries": [
-            {"path": {"type": "special", "value": {"kind": "root"}}, "access": "read"}
-        ],
-    },
-    "network": "restricted",
+    "sandbox": {"profile": "read_only", "network": "restricted"},
     "environment": {"MESSAGE": 'value: café 雪, "quotes", $() and spaces'},
 }
 console = sys.argv[1] if len(sys.argv) > 1 else "mcp-console"
@@ -20,7 +14,7 @@ subprocess.run(
         console,
         "sandbox",
         "--config-env",
-        "SANDBOX_POLICY",
+        "CONSOLE_CONFIG",
         "--",
         "/bin/sh",
         "-c",
@@ -28,6 +22,6 @@ subprocess.run(
         "sh",
         "literal argument: * ; $(echo no)",
     ],
-    env={**os.environ, "SANDBOX_POLICY": json.dumps(config, ensure_ascii=False)},
+    env={**os.environ, "CONSOLE_CONFIG": json.dumps(config, ensure_ascii=False)},
     check=True,
 )

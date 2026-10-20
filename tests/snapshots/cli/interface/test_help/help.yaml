@@ -412,8 +412,8 @@ stdout: |
             dotted KEY=VALUE assignments
 
         --config-env <NAME>
-            Read the runner configuration as JSON from this launch environment
-            variable
+            Use only this environment variable's YAML or JSON configuration, then
+            apply -c overrides
 
         --writable-root <PATH>
             Allow writes to an additional path (temporary launch option)

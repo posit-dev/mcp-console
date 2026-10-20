@@ -526,7 +526,7 @@ def test_overrides_do_not_bypass_file_errors_or_explicit_inputs(
                     "-c",
                     "extends=:workspace",
                     "sandbox",
-                    "--config-env",
+                    "--runner-config-env",
                     "TEST_POLICY",
                     "--",
                     "/usr/bin/true",

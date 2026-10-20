@@ -128,4 +128,4 @@ Cleanup after a crashed or forcibly stopped runner has [platform-specific limits
 [Temporary storage](SANDBOX_CONFIGURATION.md#temporary-storage) describes the other storage options.
 
 For all command options, see [`sandbox` CLI help](cli-help.qmd#all-platforms-mcp-console-sandbox).
-Advanced integrations can also [supply a complete native policy](SANDBOX_CONFIGURATION.md#explicit-complete-policy).
+Integrations can also [supply configuration through an environment variable](CONFIGURATION.md#configuration-environment).

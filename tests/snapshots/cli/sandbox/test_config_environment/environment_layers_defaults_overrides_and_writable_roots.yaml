@@ -1,0 +1,3 @@
+---
+stdout: |
+  defaults < environment < ordered overrides; writable root retained

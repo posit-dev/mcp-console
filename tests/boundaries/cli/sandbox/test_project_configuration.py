@@ -358,7 +358,7 @@ def test_explicit_policy_bypasses_project_configuration(binary: Path) -> Transcr
                 [
                     binary,
                     "sandbox",
-                    "--config-env",
+                    "--runner-config-env",
                     name,
                     "--",
                     sys.executable,

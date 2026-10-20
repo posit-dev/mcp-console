@@ -146,7 +146,29 @@ mcp-console serve -c 'environment={"APP.VERSION": "v1", COUNT: "42"}'
 
 There is no variable expansion or file inclusion in these values.
 `-c` accepts an assignment, not a file path or root configuration document.
-The separate native `sandbox --config-env` interface cannot be combined with application configuration options; see [CLI](CLI.md).
+
+## Supply sandbox configuration through an environment variable {#configuration-environment}
+
+For standalone commands, `sandbox --config-env NAME` reads a YAML or JSON mapping from the named launch environment variable.
+It accepts the same structure as a configuration file, including `sandbox`, `environment`, and `inherit_environment`.
+
+```sh
+CONSOLE_CONFIG='sandbox: {profile: workspace, network: restricted}' \
+  mcp-console sandbox --config-env CONSOLE_CONFIG -- python analysis.py
+```
+
+This replaces global and project file discovery.
+`--default-config` settings apply before the environment document, and ordered `-c` overrides apply after it.
+`--writable-root` adds launch-specific write access as usual.
+The selector cannot be combined with `--config-file`, `--no-config`, `--no-global-config`, or `--no-project-config`.
+
+The variable must contain one configuration mapping; an unset variable, empty text, or invalid configuration fails before the command starts.
+Use `{}` to select Console's defaults.
+Relative paths use the launch directory, and omitted settings retain their ordinary defaults, including managed temporary storage.
+The selected variable is removed from the command's environment, and stdin remains available to the command.
+Environment and argument size limits still apply.
+
+Runnable examples use child-specific environments in [shell](../examples/sandbox-config.sh), [Python](../examples/sandbox-config.py), and [R](../examples/sandbox-config.R).
 
 ## Merge rules
 

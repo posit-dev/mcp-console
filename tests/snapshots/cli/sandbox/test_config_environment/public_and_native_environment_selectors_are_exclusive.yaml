@@ -1,0 +1,10 @@
+---
+stderr: >
+  error: the argument '--config-env <NAME>' cannot be used with
+  '--runner-config-env <NAME>'
+
+
+  Usage: mcp-console sandbox --config-env <NAME> <COMMAND>...
+
+
+  For more information, try '--help'.

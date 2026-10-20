@@ -1,14 +1,7 @@
 args <- commandArgs(trailingOnly = TRUE)
 console <- if (length(args)) args[[1L]] else "mcp-console"
 config <- list(
-  filesystem = list(
-    kind = "restricted",
-    entries = list(list(
-      path = list(type = "special", value = list(kind = "root")),
-      access = "read"
-    ))
-  ),
-  network = "restricted",
+  sandbox = list(profile = "read_only", network = "restricted"),
   environment = list(MESSAGE = 'value: café 雪, "quotes", $() and spaces')
 )
 result <- processx::run(
@@ -16,7 +9,7 @@ result <- processx::run(
   c(
     "sandbox",
     "--config-env",
-    "SANDBOX_POLICY",
+    "CONSOLE_CONFIG",
     "--",
     "/bin/sh",
     "-c",
@@ -26,7 +19,7 @@ result <- processx::run(
   ),
   env = c(
     "current",
-    SANDBOX_POLICY = jsonlite::toJSON(config, auto_unbox = TRUE)
+    CONSOLE_CONFIG = jsonlite::toJSON(config, auto_unbox = TRUE)
   )
 )
 cat(result$stdout)

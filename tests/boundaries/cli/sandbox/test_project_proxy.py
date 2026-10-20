@@ -451,7 +451,7 @@ def test_pinned_native_udp_reply_returns_to_origin(binary: Path) -> Transcript:
             [
                 binary,
                 "sandbox",
-                "--config-env",
+                "--runner-config-env",
                 "NATIVE_UDP_POLICY",
                 "--",
                 sys.executable,

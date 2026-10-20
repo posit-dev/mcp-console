@@ -310,7 +310,6 @@ pub(crate) fn read(
         &values,
         overrides.config_file.is_some(),
     )?;
-    let configured = value.is_some();
     let files = paths
         .iter()
         .map(|path| path.display().to_string())
@@ -323,6 +322,29 @@ pub(crate) fn read(
         (_, true) => format!("configuration from {files}"),
         (_, false) => format!("configuration from {files} with CLI overrides"),
     };
+    capture(directory, value, name)
+}
+
+pub fn from_configuration_environment(
+    directory: &Path,
+    name: &str,
+    overrides: &crate::cli::ConfigOverrides,
+) -> Result<Captured, String> {
+    let value =
+        crate::config::load_environment(name, &overrides.default_values, &overrides.values)?;
+    let mut source = format!("configuration environment '{name}'");
+    if !overrides.values.is_empty() {
+        source.push_str(" with CLI overrides");
+    }
+    capture(directory, Some(value), source).map(|(captured, _)| captured)
+}
+
+fn capture(
+    directory: &Path,
+    value: Option<Value>,
+    name: String,
+) -> Result<(Captured, Value), String> {
+    let configured = value.is_some();
     let mut value = value.unwrap_or_else(|| serde_json::json!({}));
     let mut project: Project =
         serde_path_to_error::deserialize(value.clone()).map_err(|error| {

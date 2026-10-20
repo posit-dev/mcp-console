@@ -1,4 +1,4 @@
-//! Ordered-file and command-line configuration layering with runtime shorthands.
+//! Public configuration sources and command-line layering with runtime shorthands.
 
 use std::path::{Path, PathBuf};
 
@@ -103,6 +103,28 @@ fn apply_values(value: &mut Option<Value>, arguments: &[String], kind: &str) -> 
         );
     }
     Ok(())
+}
+
+/// Select one public configuration document from the launch environment.
+/// It replaces file discovery and retains the ordinary CLI precedence.
+pub fn load_environment(
+    name: &str,
+    defaults: &[String],
+    overrides: &[String],
+) -> Result<Value, String> {
+    let source = std::env::var(name)
+        .map_err(|error| format!("cannot read configuration environment '{name}': {error}"))?;
+    let mut overlay = yaml::load(&source)
+        .map_err(|error| format!("configuration environment '{name}': {error}"))?;
+    expand_runtime_shorthands(&mut overlay);
+    let mut value = None;
+    apply_values(&mut value, defaults, "default")?;
+    merge(
+        value.get_or_insert_with(|| Value::Object(Map::new())),
+        overlay,
+    );
+    apply_values(&mut value, overrides, "override")?;
+    Ok(value.expect("selected configuration document"))
 }
 
 // Normalize equivalent runtime forms before merging each input layer. Keep the
