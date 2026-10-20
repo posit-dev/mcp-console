@@ -968,17 +968,8 @@ def test_disables_automatic_resolution_for_user_selected_python(
 
         client.send(python=f"import {missing}")
         output = last_result_text(client)
-        for expected in (
-            "ModuleNotFoundError",
-            missing,
-            "user-selected Python environment",
-            "Automatic managed package resolution is disabled",
-            "requirements.python",
-            "also disabled",
-            "Install the distribution into the selected environment",
-            "managed Python",
-        ):
-            assert expected in output, (expected, output)
+        assert f"ModuleNotFoundError: No module named '{missing}'" in output, output
+        assert "MCP Console" not in output, output
         client.transcript[-1]["result"]["content"][0]["text"] = (
             normalize_python_traceback_paths(output)
         )

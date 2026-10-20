@@ -18,6 +18,7 @@ from support.assertions import (
 )
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
+from boundaries.client_server.requirements.test_actions import inspect
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.records import Transcript
@@ -192,9 +193,7 @@ def test_preserves_preparation_restoration_and_live_noops(
         environment["MCP_CONSOLE_LANGUAGES"] = "r"
         with McpClient(
             binary,
-            execution.serve(
-                "-c", "python.managed.resolution=implicit", "-c", "cache=host"
-            ),
+            execution.serve("-c", "cache=host"),
             environment,
         ) as client:
             client.initialize_and_list_tools()
@@ -283,6 +282,31 @@ def test_preserves_preparation_restoration_and_live_noops(
             client.send(r=r)
             assert last_tool_text(client) == "[done]", last_tool_text(client)
             assert uv_tool_run_requirements(record) == resolutions
+            accepted = inspect(client)
+            Path(environment["MCP_CONSOLE_TEST_UV_FAILURE_MARKER"]).touch()
+            client.expect(
+                # fmt: r
+                r=code("""
+                    marker <- reticulate::py_eval("object()", convert = FALSE)
+                    marker_id <- reticulate::py_id(marker)
+                    initial_config <- reticulate::py_config()
+                    failure <- tryCatch(
+                      reticulate::py_require("py-yaml12"),
+                      error = conditionMessage
+                    )
+                    stopifnot(
+                      grepl("synthetic uv failure", failure, fixed = TRUE),
+                      identical(reticulate::py_require(), unchanged),
+                      identical(reticulate::py_config(), initial_config),
+                      identical(reticulate::py_id(marker), marker_id)
+                    )
+                    """),
+            )
+            assert inspect(client) == accepted
+            assert uv_tool_run_requirements(record)[len(resolutions) :] == [
+                ["numpy", "py-yaml12"]
+            ]
+            Path(environment["MCP_CONSOLE_TEST_UV_FAILURE_MARKER"]).unlink()
             client.send(requirements={"python": ["py-yaml12"]})
             assert last_tool_text(client) == "[prepared]", last_tool_text(client)
             # fmt: r

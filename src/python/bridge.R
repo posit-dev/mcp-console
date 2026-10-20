@@ -22,6 +22,7 @@ base::local(
       request <- list(
         requirements = requirements,
         retained_requirements = retained_requirements,
+        explicit_declaration = TRUE,
         initialized = initialized
       )
       jsonlite::toJSON(
@@ -35,7 +36,8 @@ base::local(
     version_request_json <- function(constraints) {
       jsonlite::toJSON(
         list(
-          constraints = I(as.character(constraints %||% character()))
+          constraints = I(as.character(constraints %||% character())),
+          explicit_declaration = TRUE
         ),
         auto_unbox = TRUE,
         null = "null",
@@ -124,6 +126,9 @@ base::local(
         exclude_newer = current_requirements()$exclude_newer,
         initialized = FALSE
       ) {
+        # These manifests come from evaluated py_require() declarations,
+        # including package hooks. Missing-import inference uses a separate
+        # native request and does not receive declaration authorization.
         current <- current_requirements()
         requirements <- manifest(packages, python_version, exclude_newer)
         retained_requirements <- manifest(

@@ -175,12 +175,12 @@ Set `r.resolution` or `python.resolution` to control Console's package preparati
 The Python setting also applies under `python.managed` and in managed fallback candidates.
 R defaults to `implicit`; managed Python defaults to `explicit`.
 
-| Policy              | Startup preparation                                                     | During the session                                                                                                                |
-| ------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `fixed`             | Prepare the startup declaration.                                        | Keep that declaration fixed for the connection; reject package additions and version changes through Console.                     |
-| `explicit`          | Prepare the startup declaration.                                        | Also accept explicit package requests through `requirements`. Ordinary loads/imports do not trigger preparation.                  |
-| `implicit`          | Prepare the startup declaration.                                        | Also accept explicit requests and prepare missing packages when execution reaches a supported load/import. The cell is not rerun. |
-| `disabled` (R only) | No managed R package preparation, including Console's R infrastructure. | No managed preparation. If `r.packages` is supplied, it must be empty.                                                            |
+| Policy              | Startup preparation                                                     | During the session                                                                                                                                                         |
+| ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fixed`             | Prepare the startup declaration.                                        | Keep that declaration fixed for the connection; reject package additions and version changes through Console.                                                              |
+| `explicit`          | Prepare the startup declaration.                                        | Also accept package requests through `requirements` and managed Python declarations through `reticulate::py_require()`. Ordinary loads/imports do not trigger preparation. |
+| `implicit`          | Prepare the startup declaration.                                        | Also accept explicit requests and prepare missing packages when execution reaches a supported load/import. The cell is not rerun.                                          |
+| `disabled` (R only) | No managed R package preparation, including Console's R infrastructure. | No managed preparation. If `r.packages` is supplied, it must be empty.                                                                                                     |
 
 For example, allow explicit R package requests while keeping the Python startup declaration fixed:
 

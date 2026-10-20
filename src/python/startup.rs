@@ -71,7 +71,7 @@ pub(super) fn install_services(libpython: &Path) -> Result<(), String> {
 
 /// Install the shared evaluator after the selected interpreter is live.
 /// Reticulate may call this from its initialization hook. Both compositions
-/// install their managed or disabled import policy through this setup boundary.
+/// install their captured import policy through this setup boundary.
 /// Successful steps remain in the process-lifetime library state, so a later
 /// call resumes incomplete setup without replacing the interpreter.
 pub(crate) fn setup_runtime(libpython: &Path, managed: bool) -> Result<bool, String> {
@@ -119,20 +119,18 @@ pub(crate) fn setup_runtime(libpython: &Path, managed: bool) -> Result<bool, Str
     Ok(true)
 }
 
-fn import_policy(managed: bool) -> ImportResolution<'static> {
-    if managed {
-        return ImportResolution::Managed;
+fn import_policy(managed: bool) -> ImportResolution {
+    if !managed {
+        return ImportResolution::Native;
     }
-    ImportResolution::Disabled(
-        match std::env::var("MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION").as_deref() {
-            Ok("0") => {
-                "MCP Console dynamic environment resolution is unavailable. Install the distribution into the ambient Python environment, or install `ir` or `uv` and restart MCP Console."
-            }
-            _ => {
-                "MCP Console is using a user-selected Python environment. Automatic managed package resolution is disabled, and `requirements.python` is also disabled for this interpreter selection. Install the distribution into the selected environment or restart MCP Console with managed Python enabled."
-            }
-        },
-    )
+    let selection = super::SELECTION
+        .get()
+        .expect("runtime capabilities are configured before Python setup");
+    if selection.automatic_python_resolution {
+        ImportResolution::Implicit
+    } else {
+        ImportResolution::Native
+    }
 }
 
 pub(crate) fn finish_initialization() -> Result<(), String> {

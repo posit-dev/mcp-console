@@ -233,6 +233,8 @@ fn prepare_packages(packages: Vec<String>) -> Result<super::PreparationOutcome, 
     let candidate = match crate::worker::resolve_python(PythonResolveRequest {
         requirements: requirements.clone(),
         retained_requirements: requirements,
+        // MCP additions can include still-lazy R declarations.
+        explicit_declaration: true,
         initialized: live,
         import_resolution: None,
     }) {
@@ -331,6 +333,7 @@ pub(crate) fn initialize(
         let candidate = crate::worker::resolve_python(PythonResolveRequest {
             requirements: request,
             retained_requirements: requirements.clone(),
+            explicit_declaration: true,
             initialized: false,
             import_resolution: None,
         })?;
@@ -506,6 +509,7 @@ pub(crate) fn resolve_import(resolution: PythonImportResolution) -> Result<Strin
     let request = PythonResolveRequest {
         requirements: requirements.clone(),
         retained_requirements: requirements.clone(),
+        explicit_declaration: false,
         initialized: true,
         import_resolution: Some(resolution.clone()),
     };

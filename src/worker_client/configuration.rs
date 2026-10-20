@@ -308,6 +308,7 @@ impl ClientConfiguration {
                 r_home,
                 installation,
                 r_settings,
+                automatic_python_resolution: false,
                 python: None,
             });
             resolver_preparation = Some(preparation.clone());
@@ -339,6 +340,10 @@ impl ClientConfiguration {
         // Configured environments are captured before either interpreter starts.
         // Windows also retains its independent legacy peer-runtime selection.
         let mut local_runtime = local_runtime;
+        if let Some(runtime) = &mut local_runtime {
+            runtime.automatic_python_resolution =
+                startup.python.resolution.permits_implicit_additions();
+        }
         if let Some(runtime) = &mut local_runtime
             && runtime.python.is_none()
             && inspect_explicit

@@ -17,9 +17,7 @@ result:
       text: |
         Traceback (most recent call last):
           File "<mcp-console:python:e2>", line 1, in <module>
-        ModuleNotFoundError: No module named 'mcp_console_user_selected_missing'.
-
-        MCP Console is using a user-selected Python environment. Automatic managed package resolution is disabled, and `requirements.python` is also disabled for this interpreter selection. Install the distribution into the selected environment or restart MCP Console with managed Python enabled.
+        ModuleNotFoundError: No module named 'mcp_console_user_selected_missing'
   isError: false
 ---
 send:

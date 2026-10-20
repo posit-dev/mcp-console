@@ -106,10 +106,32 @@ Available packages, explicit `lib.loc`, and ordinary help/listing operations ret
 Failure preserves the original loading operation's behavior, including `FALSE` from a missing-package `require()` or `requireNamespace()`.
 A successfully accepted library remains available even if the subsequent load or cell fails.
 
+## Python declarations from R
+
+For managed Python, evaluated `reticulate::py_require()` calls count as explicit dependency requests under `explicit` and `implicit`, including calls from R package `.onLoad()` hooks.
+Package extras, version constraints, and publication cutoffs retain their declared meaning.
+
+```r
+reticulate::py_require("requests[socks]>=2.32,<3", python_version = ">=3.10,<4")
+requests <- reticulate::import("requests")
+```
+
+Before Python initializes, declarations remain local to the worker until preparation succeeds.
+They can be prepared on first Python use or together with a later MCP requirements request.
+Requirements inspection reports the last accepted declaration, including R-side requirements after successful preparation.
+
+After initialization, compatible additions use [live Python preparation](#live-python-preparation) and preserve live objects.
+Reticulate's declaration checks still apply: changing existing package requirements, removing packages, changing the publication cutoff, or requesting an incompatible interpreter requires restart.
+Resolution failure preserves accepted requirements and live state.
+The `fixed` policy continues to reject changes; existing Python environments retain their native reticulate behavior.
+
 ## Automatic Python import resolution
 
-Managed Python defaults to `explicit`: declare dependencies through `requirements.python` before importing them.
+Managed Python defaults to `explicit`: declare dependencies through `requirements.python` or `reticulate::py_require()` before importing them.
 Set `python.resolution: implicit` in `config.yaml` to let a last-chance import finder prepare a missing distribution.
+Console registers this dependency-resolution finder only under `implicit`.
+Under `explicit` and `fixed`, missing imports retain native Python errors without distribution inference or a preparation request.
+Display, plotting, and reticulate interoperability hooks remain active independently of this policy.
 Existing standard-library, installed, local, and loaded modules retain normal lookup.
 Availability checks such as `find_spec()` do not install packages.
 
@@ -166,14 +188,15 @@ Accepted declarations and filesystem effects have different lifetimes.
 
 Configuration chooses a policy independently for R and managed Python:
 
-| Policy                         | Prepare startup declaration | MCP `add` / `set` changes | Automatic runtime additions |
-| ------------------------------ | --------------------------- | ------------------------- | --------------------------- |
-| `implicit`                     | Yes                         | Yes                       | Yes                         |
-| `explicit`                     | Yes                         | Yes                       | No                          |
-| `fixed`                        | Yes                         | No                        | No                          |
-| R `disabled` / existing Python | No                          | No                        | No                          |
+| Policy                         | Prepare startup declaration | Explicit requests | Automatic runtime additions |
+| ------------------------------ | --------------------------- | ----------------- | --------------------------- |
+| `implicit`                     | Yes                         | Yes               | Yes                         |
+| `explicit`                     | Yes                         | Yes               | No                          |
+| `fixed`                        | Yes                         | No                | No                          |
+| R `disabled` / existing Python | No                          | No                | No                          |
 
 Unchanged declarations remain no-ops.
+Explicit requests include MCP `add` / `set` changes and managed Python declarations through `reticulate::py_require()`.
 Under `fixed`, `reset` can retry skipped startup defaults.
 A mixed request is checked as a whole before preparation.
 `set` cannot omit a locked language to clear it, and `reset` or restart cannot unlock a policy.

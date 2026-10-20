@@ -134,16 +134,20 @@ class _McpConsoleImportFinder:
             importlib._bootstrap._exec.__code__,
         )
         self._callback = None
-        self._disabled_reason = "automatic Python package resolution is not configured"
         self._pid = None
         self._thread = None
         self._state = threading.local()
 
-    def configure(self, callback, disabled_reason):
+    def configure(self, callback):
         self._callback = callback
-        self._disabled_reason = disabled_reason
         self._pid = self._os.getpid()
         self._thread = self._threading.get_ident()
+
+        # Only implicit policy supplies a callback; other policies leave native
+        # import lookup and errors untouched. Keep registration idempotent when
+        # setup resumes after interruption.
+        if callback is not None and self not in self._sys.meta_path:
+            self._sys.meta_path.append(self)
         return None
 
     def configure_psutil(self, callback):
@@ -196,11 +200,6 @@ class _McpConsoleImportFinder:
         )
         if specification is not None:
             return specification
-        if self._callback is None:
-            self._missing_module(
-                fullname,
-                f"No module named {fullname!r}.\n\n{self._disabled_reason}",
-            )
         if self._pid != self._os.getpid():
             self._missing_module(
                 fullname,
@@ -450,7 +449,8 @@ if _mcp_console_import_finder is None:
         _mcp_console_explicit_requirement,
         _McpConsoleModuleLoader,
     )
-    _sys.meta_path.append(_mcp_console_import_finder)
+    # Display defaults and SQL suppression reuse this object's helpers. Only
+    # implicit resolution registers it as an import finder, during configure().
 
 
 def _mcp_console_print_exception(

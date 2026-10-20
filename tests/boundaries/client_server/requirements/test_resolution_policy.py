@@ -36,6 +36,10 @@ from support.resolvers import (
     uv_tool_run_requirements,
 )
 
+NATIVE_IMPORT_ERRORS = (
+    Path(__file__).parents[3] / "fixtures" / "native_import_errors.py"
+).read_text()
+
 
 def mixed_environment(root: Path) -> tuple[dict[str, str], Path, Path]:
     env, ir_record = recording_fixture_r_environment(root, ("mcpfirst", "mcpsecond"))
@@ -123,6 +127,7 @@ def test_requires_explicit_python_requirements_by_default(
                     print("dynamic imports require declared dependencies")
                     """),
             )
+            client.expect("native import errors\n", python=NATIVE_IMPORT_ERRORS)
             assert inspect(client) == startup
             assert uv_tool_run_requirements(uv_record) == baseline
             client.expect(
@@ -193,6 +198,8 @@ def test_locked_python_startup_and_fallback(
             assert baseline and all(
                 packages == ["packaging"] for packages in baseline
             ), baseline
+            client.expect("native import errors\n", python=NATIVE_IMPORT_ERRORS)
+            assert uv_tool_run_requirements(uv_record) == baseline
             for requirements in (
                 {"python": ["six"]},
                 {"python_version": [">=3.12"]},
@@ -341,7 +348,7 @@ def test_explicit_runtime_requests_and_deliberate_additions(
             {
                 "first_available": [
                     {"existing": "missing"},
-                    {"managed": {"packages": []}},
+                    {"managed": {"version": "3.13", "packages": []}},
                 ]
             },
             cache="host",
@@ -360,21 +367,10 @@ def test_explicit_runtime_requests_and_deliberate_additions(
                 ir_run_records(ir_record),
                 uv_tool_run_requirements(uv_record),
             ) == baseline
-            # A deferred reticulate declaration cannot authorize host preparation.
-            client.send(r="reticulate::py_require('six'); reticulate::py_config()")
-            assert "python.managed.resolution=explicit" in last_tool_text(client), (
-                last_tool_text(client)
+            client.expect(
+                "Python initialized\n",
+                python="import os; marker = object(); marker_id = id(marker); original_pid = os.getpid(); print('Python initialized')",
             )
-            normalize_trailing_spaces(client)
-            assert inspect(client) == startup
-            assert (
-                ir_run_records(ir_record),
-                uv_tool_run_requirements(uv_record),
-            ) == baseline
-            client.send(
-                r="reticulate::py_require(packages = character(), action = 'set')"
-            )
-            client.expect("Python initialized\n", python="print('Python initialized')")
             baseline = (ir_run_records(ir_record), uv_tool_run_requirements(uv_record))
             client.send(python="import six")
             assert "ModuleNotFoundError" in last_tool_text(client), last_tool_text(
@@ -388,16 +384,98 @@ def test_explicit_runtime_requests_and_deliberate_additions(
                 ir_run_records(ir_record),
                 uv_tool_run_requirements(uv_record),
             ) == baseline
-            client.send(requirements={"r": ["mcpsecond"], "python": ["six"]})
+            client.expect(
+                r="reticulate::py_require('six>=1.16,<2', python_version = '<3.14')"
+            )
+            accepted = inspect(client)
+            assert accepted["requirements"]["python"] == ["six>=1.16,<2"]
+            baseline = (ir_run_records(ir_record), uv_tool_run_requirements(uv_record))
+            client.expect("native import errors\n", python=NATIVE_IMPORT_ERRORS)
+            client.send(python="import yaml12")
+            assert "ModuleNotFoundError" in last_tool_text(client), last_tool_text(
+                client
+            )
+            client.transcript[-1]["result"]["content"][0]["text"] = (
+                normalize_python_traceback_paths(last_tool_text(client))
+            )
+            assert inspect(client) == accepted
+            assert (
+                ir_run_records(ir_record),
+                uv_tool_run_requirements(uv_record),
+            ) == baseline
+            client.send(requirements={"r": ["mcpsecond"], "python": ["packaging"]})
             client.expect(
                 "deliberate packages available\n",
                 r="stopifnot(mcpsecond::fixture()); cat('deliberate packages available\\n')",
             )
             client.expect(
                 "deliberate Python available\n",
-                python="import six; print('deliberate Python available')",
+                python="import six, packaging; assert id(marker) == marker_id and os.getpid() == original_pid; print('deliberate Python available')",
             )
-            assert inspect(client)["requirements"]["python"] == ["six"]
+            assert inspect(client)["requirements"]["python"] == [
+                "packaging",
+                "six>=1.16,<2",
+            ]
+            return client.finish()
+
+
+@requires(POSIX, R, command("uv"), command("ir"))
+@executions(DIRECT)
+def test_fixed_rejects_py_require_preparation(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        env, _, uv_record = mixed_environment(root)
+        env["MCP_CONSOLE_LANGUAGES"] = "r"
+        configure(
+            root,
+            {"managed": {"version": "3.13", "packages": [], "resolution": "fixed"}},
+            cache="host",
+            r={"packages": [], "resolution": "fixed"},
+        )
+        with McpClient(binary, execution.serve(), env, root) as client:
+            client.initialize_and_list_tools()
+            startup = inspect(client)
+            baseline = uv_tool_run_requirements(uv_record)
+            client.expect(
+                # fmt: r
+                r=code("""
+                    before <- reticulate::py_require()
+                    reticulate::py_require("six", python_version = ">=3.13")
+                    failure <- tryCatch(
+                      reticulate::py_write_requirements(NULL, NULL, freeze = FALSE, python = NULL),
+                      error = conditionMessage
+                    )
+                    stopifnot(grepl("python.managed.resolution=fixed", failure, fixed = TRUE))
+                    reticulate::py_require(
+                      as.character(before$packages),
+                      python_version = as.character(before$python_version),
+                      action = "set"
+                    )
+                    """),
+            )
+            assert inspect(client) == startup
+            assert uv_tool_run_requirements(uv_record) == baseline
+            client.expect(r="invisible(reticulate::py_config())")
+            baseline = uv_tool_run_requirements(uv_record)
+            client.expect(
+                "native import errors\n",
+                r=f'reticulate::py_run_string(r"(\n{NATIVE_IMPORT_ERRORS})")',
+            )
+            client.expect(
+                # fmt: r
+                r=code("""
+                    before <- reticulate::py_require()
+                    failure <- tryCatch(reticulate::py_require("six"), error = conditionMessage)
+                    stopifnot(
+                      grepl("python.managed.resolution=fixed", failure, fixed = TRUE),
+                      identical(reticulate::py_require(), before)
+                    )
+                    """),
+            )
+            assert inspect(client) == startup
+            assert uv_tool_run_requirements(uv_record) == baseline
             return client.finish()
 
 
@@ -609,7 +687,7 @@ def test_python_provider_extension_policy(
 
 @requires(POSIX, R, command("uv"), command("ir"))
 @executions(DIRECT)
-def test_deferred_runtime_declaration_cannot_piggyback_on_mcp(
+def test_deferred_declaration_and_mcp_requirements_prepare_together(
     binary: Path, execution: Execution
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as temporary:
@@ -626,42 +704,49 @@ def test_deferred_runtime_declaration_cannot_piggyback_on_mcp(
             client.initialize_and_list_tools()
             startup = inspect(client)
             baseline = (ir_run_records(ir_record), uv_tool_run_requirements(uv_record))
-            client.send(
-                r="reticulate::py_require(python_version = '3.13', exclude_newer = '2026-01-01'); reticulate::py_write_requirements(NULL, NULL, freeze = FALSE)"
-            )
-            assert "python.managed.resolution=explicit" in last_tool_text(client), (
-                last_tool_text(client)
-            )
-            assert inspect(client) == startup
-            assert (
-                ir_run_records(ir_record),
-                uv_tool_run_requirements(uv_record),
-            ) == baseline
-            client.send(
-                r="reticulate::py_require(python_version = character(), exclude_newer = '', action = 'set')"
-            )
             client.expect(
-                r="reticulate::py_require('six'); stopifnot(!reticulate::py_available(initialize = FALSE))"
+                # fmt: r
+                r=code("""
+                    reticulate::py_require(
+                      "requests[socks]>=2.32,<3",
+                      python_version = ">=3.13, <3.14",
+                      exclude_newer = "2026-01-01"
+                    )
+                    written <- reticulate::py_write_requirements(
+                      NULL,
+                      NULL,
+                      freeze = FALSE,
+                      python = NULL
+                    )
+                    stopifnot(
+                      identical(written$packages, "requests[socks]>=2.32,<3"),
+                      startsWith(written$python_version, "3.13."),
+                      !reticulate::py_available(initialize = FALSE)
+                    )
+                    """),
             )
-            baseline = (ir_run_records(ir_record), uv_tool_run_requirements(uv_record))
-            result = client.send(requirements={"python": ["packaging"]})
-            assert result.get(
-                "isError"
-            ) and "python.managed.resolution=explicit" in str(result), result
             assert inspect(client) == startup
             assert (
                 ir_run_records(ir_record),
                 uv_tool_run_requirements(uv_record),
             ) == baseline
-            client.send(
-                r="reticulate::py_require(packages = character(), action = 'set')"
-            )
-            client.send(requirements={"python": ["packaging"]})
+            client.expect("[prepared]", requirements={"python": ["packaging"]})
             client.expect(
                 "authorized Python initialized\n",
-                r="stopifnot(reticulate::py_eval('__import__(\"packaging\").__name__') == 'packaging'); cat('authorized Python initialized\\n')",
+                # fmt: r
+                r=code(r"""
+                    stopifnot(
+                      reticulate::py_eval('__import__("packaging").__name__') == "packaging",
+                      reticulate::py_eval('__import__("requests").__name__') == "requests",
+                      reticulate::py_eval('__import__("socks").__name__') == "socks"
+                    )
+                    cat("authorized Python initialized\n")
+                    """),
             )
-            assert inspect(client)["requirements"]["python"] == ["packaging"]
+            accepted = inspect(client)["requirements"]
+            assert accepted["python"] == ["packaging", "requests[socks]>=2.32,<3"]
+            assert accepted["python_version"] == ["<3.14", ">=3.13"]
+            assert accepted["exclude_newer"] == "2026-01-01"
             return client.finish()
 
 

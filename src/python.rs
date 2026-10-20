@@ -14,9 +14,9 @@ pub(crate) use startup::{finish_initialization, initialize_selected, setup_runti
 const RUNTIME_SOURCE: &str = include_str!("python/runtime.py");
 
 /// Import policy installed before shared runtime setup is complete.
-pub(crate) enum ImportResolution<'a> {
-    Managed,
-    Disabled(&'a str),
+pub(crate) enum ImportResolution {
+    Implicit,
+    Native,
 }
 
 #[derive(serde::Deserialize)]

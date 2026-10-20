@@ -67,6 +67,8 @@ Interrupt delivery belongs to the outer relay; MCP response assembly belongs to 
 Python environment replies contain inspected runtime identity and manifests, not rediscovery hints.
 Runtime callbacks cannot supply arbitrary resolver programs or environment maps.
 Public package declarations and private activation objects are different schemas.
+The captured worker selection carries `automatic_python_resolution` separately from managed-interpreter capability, including when R-side interpreter selection is still lazy.
+Only a managed interpreter with this capability registers the dependency-resolution finder; the host also checks policy admission for every inferred request.
 
 ## Readiness and operations
 
@@ -119,6 +121,10 @@ Distinguish ordinary host failure, resolver interruption, and boundary-ending op
 Do not disguise transport failure as an ordinary missing package.
 
 ### Live Python preparation
+
+Python environment and version-resolution requests carry `explicit_declaration` when they originate from evaluated `py_require()` declarations or MCP preparation, including still-lazy R declarations.
+The host admits these requests under `explicit` or `implicit`; inferred imports still require `implicit`.
+Declaration authorization does not itself accept a candidate.
 
 The ordinary sequence is:
 

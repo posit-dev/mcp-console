@@ -215,11 +215,9 @@ fn native_python_setup_runs_cells_without_r() {
     assert!(cells[2].1.contains("ValueError: native setup failure"));
     assert_eq!(cells[3].0, "44\n");
     assert_eq!(cells[4], (String::new(), String::new()));
-    assert!(
-        cells[5]
-            .1
-            .contains("MCP Console is using a user-selected Python environment. Automatic managed package resolution is disabled")
-    );
+    assert!(cells[5].1.contains(
+        "ModuleNotFoundError: No module named 'mcp_console_missing_native_fixture_package'"
+    ));
     assert!(
         child
             .wait_with_output()
@@ -546,6 +544,7 @@ fn native_probe() {
         .expect("configure native worker environment");
         let mut runtime = crate::python::Runtime::new(crate::local_runtime::WorkerSelection {
             r_settings: Default::default(),
+            automatic_python_resolution: false,
             r: false,
             installation: None,
             python: Some(crate::local_runtime::Python {

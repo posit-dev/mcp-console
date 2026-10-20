@@ -35,6 +35,7 @@ impl Client {
         let crate::worker_protocol::PythonResolveRequest {
             requirements,
             retained_requirements,
+            explicit_declaration,
             initialized,
             import_resolution,
         } = request;
@@ -55,9 +56,11 @@ impl Client {
             );
         }
         let policy = environment.startup.python.resolution;
-        // A deferred runtime declaration is not authorized by a later MCP
-        // addition. Only the normalized candidate owned by that operation is.
-        let deliberate = deliberate.as_ref() == Some(&retained_requirements);
+        // Evaluated declarations (including package .onLoad hooks) authorize
+        // explicit preparation. Inferred missing imports still require implicit
+        // resolution, even when the candidate includes declared requirements.
+        let deliberate = import_resolution.is_none()
+            && (explicit_declaration || deliberate.as_ref() == Some(&retained_requirements));
         if current.requirements() != &retained_requirements
             && !(if deliberate {
                 policy.permits_deliberate_changes()
@@ -67,7 +70,9 @@ impl Client {
         {
             return Err(policy.denial(
                 "Python",
-                if deliberate {
+                if explicit_declaration && import_resolution.is_none() {
+                    "explicit declaration"
+                } else if deliberate {
                     "MCP preparation"
                 } else {
                     "runtime dependency request"
@@ -206,9 +211,12 @@ impl Client {
         let mut constraints = request.constraints.clone();
         constraints.sort();
         constraints.dedup();
-        if !policy.permits_implicit_additions()
-            && constraints != current.requirements().python_version
-        {
+        let permitted = if request.explicit_declaration {
+            policy.permits_deliberate_changes()
+        } else {
+            policy.permits_implicit_additions()
+        };
+        if !permitted && constraints != current.requirements().python_version {
             return Err(policy.denial("Python", "runtime version resolution"));
         }
         let result = crate::resolver::execution::resolve_python_version(

@@ -18,7 +18,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 146, in configure
+          File "<string>", line 144, in configure
           File "<setup checkpoint>", line 9, in configuring_thread
           File "<string>", line 50, in _console_input
         KeyboardInterrupt

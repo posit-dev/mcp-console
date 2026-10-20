@@ -28,6 +28,7 @@ from support.events import Events
 from support.records import Transcript
 from support.python import write_test_wheel
 from boundaries.client_server.python.test_peer_runtime import without_r
+from boundaries.client_server.requirements.test_actions import inspect
 from support.resolvers import (
     checkpoint_uv_environment,
     matplotlib_test_environment,
@@ -47,7 +48,7 @@ def test_declares_imports_and_uses_python_packages(
     environment.pop("RETICULATE_PYTHON", None)
     with McpClient(
         binary,
-        execution.serve("-c", "python.managed.resolution=implicit"),
+        execution.serve(),
         environment,
     ) as client:
         client.initialize_and_list_tools()
@@ -1171,7 +1172,7 @@ def test_layers_python_requirements_declared_by_r_packages(
         )
         client = McpClient(
             binary,
-            execution.serve("-c", "python.managed.resolution=implicit"),
+            execution.serve(),
             environment,
         )
         client.initialize_and_list_tools()
@@ -1195,6 +1196,7 @@ def test_layers_python_requirements_declared_by_r_packages(
         client.expect(r=r)
 
         client.expect(r="library(mcpconsolepyrequire)")
+        assert "py-yaml12" in inspect(client)["requirements"]["python"]
 
         # fmt: r
         r = code(r"""
@@ -1296,6 +1298,11 @@ def test_does_not_retain_package_requirements_before_python_initializes(
         client.send(r=r)
         output = last_tool_text(client)
         assert output == "[1] FALSE\n", repr(output)
+        client.expect(
+            r='library(mcpconsolepyrequire); yaml12 <- reticulate::import("yaml12")'
+        )
+        client.expect("[1] 42\n", r='yaml12$parse_yaml("answer: 42")$answer')
+        assert "py-yaml12" in inspect(client)["requirements"]["python"]
         return client.finish()[3:]
 
 

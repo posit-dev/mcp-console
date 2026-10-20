@@ -510,7 +510,7 @@ pub(super) fn install_services() -> Result<(), String> {
 }
 
 pub(super) fn configure_import_resolution(
-    resolution: super::ImportResolution<'_>,
+    resolution: super::ImportResolution,
 ) -> Result<bool, String> {
     api()?.with_gil(|api| unsafe {
         let function = api.function(c"_mcp_console", c"configure_import_resolution")?;
@@ -526,28 +526,14 @@ pub(super) fn configure_import_resolution(
         if none.is_null() {
             return api.finish_setup(std::ptr::null_mut());
         }
-        let (callback, disabled_reason) = match resolution {
-            super::ImportResolution::Managed => (
-                api.function(c"_mcp_console_services", c"resolve_import")?,
-                None,
-            ),
-            super::ImportResolution::Disabled(reason) => (none, Some(reason)),
+        let callback = match resolution {
+            super::ImportResolution::Implicit => {
+                api.function(c"_mcp_console_services", c"resolve_import")?
+            }
+            super::ImportResolution::Native => none,
         };
-        let reason = disabled_reason.map(|reason| {
-            (api.unicode_from_string_and_size)(reason.as_ptr().cast(), reason.len() as isize)
-        });
-        if reason.is_some_and(|reason| reason.is_null()) {
-            return api.finish_setup(std::ptr::null_mut());
-        }
-        let result = (api.call_function_obj_args)(
-            function,
-            callback,
-            reason.unwrap_or(none),
-            std::ptr::null_mut::<PyObject>(),
-        );
-        if let Some(reason) = reason {
-            (api.dec_ref)(reason);
-        }
+        let result =
+            (api.call_function_obj_args)(function, callback, std::ptr::null_mut::<PyObject>());
         api.finish_setup(result)
     })
 }

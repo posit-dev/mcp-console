@@ -102,6 +102,9 @@ console.send({
 ```
 
 Ordinary R package-loading calls and Python imports use available packages; they do not trigger preparation on their own.
+For managed Python, evaluated `reticulate::py_require()` calls also count as explicit dependency requests, including declarations from R package `.onLoad()` hooks.
+They retain declared versions and extras and use the same preparation lifecycle as MCP requests.
+See [Python declarations from R](REQUIREMENTS_API.md#python-declarations-from-r) for initialization and live-addition rules.
 
 ### `implicit`: also prepare packages on load or import
 
