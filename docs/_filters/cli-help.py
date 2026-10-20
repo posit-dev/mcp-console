@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 from typing import Any
 
-from pandocfilters import Code, Div, Header, RawBlock, Span, toJSONFilter
+from pandocfilters import Code, Header, RawBlock, toJSONFilter
 from yaml12 import read_yaml
 
 SNAPSHOTS = (
@@ -30,7 +30,7 @@ PUBLIC_HELP_COMMANDS = (
 
 def cli_help(
     key: str, value: Any, format: str, metadata: dict[str, Any]
-) -> dict[str, Any] | None:
+) -> list[dict[str, Any]] | None:
     if key != "Div" or "cli-help-transcript" not in value[0][1]:
         return None
     assert format == "html", "CLI help presentation requires HTML"
@@ -47,12 +47,11 @@ def cli_help(
         assert not entry.get("stderr"), command
         name = command.removesuffix(" --help")
         identifier = platform + "-" + name.replace(" ", "-")
-        label = identifier + "-label"
         blocks.append(
             Header(
                 3,
                 [identifier, [], []],
-                [Span([label, [], []], [Code(["", [], []], name)])],
+                [Code(["", [], []], name)],
             )
         )
         output = re.sub(
@@ -64,12 +63,21 @@ def cli_help(
             RawBlock(
                 "html",
                 f'<pre class="cli-help" data-command="{escape(command)}" '
-                f'tabindex="0" role="region" aria-labelledby="{label}">'
+                f'tabindex="0" role="region" aria-label="{escape(name)}">'
                 f"<code>{output}</code></pre>",
             )
         )
     assert blocks, "transcript contains no successful public --help commands"
-    return Div(attributes, blocks)
+    # Pandoc omits headings grouped inside a Div from its table of contents.
+    # Keep the HTML container while exposing its headings at document level.
+    return [
+        RawBlock(
+            "html",
+            f'<div id="{escape(platform)}" class="cli-help-transcript">',
+        ),
+        *blocks,
+        RawBlock("html", "</div>"),
+    ]
 
 
 if __name__ == "__main__":

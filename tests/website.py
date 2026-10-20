@@ -75,10 +75,9 @@ class WebsiteTests(unittest.TestCase):
             ignore=shutil.ignore_patterns("docs", "*.Rcheck", "*.tar.gz"),
         )
         shutil.copytree(ROOT / "python", docs.parent / "python")
-        shutil.copytree(
-            ROOT / "tests/snapshots/cli/interface/test_help",
-            docs.parent / "tests/snapshots/cli/interface/test_help",
-        )
+        for suite in ("test_help", "test_config_init"):
+            relative = Path("tests/snapshots/cli/interface") / suite
+            shutil.copytree(ROOT / relative, docs.parent / relative)
         for name in ("pyproject.toml", "great-docs.yml", "LICENSE"):
             shutil.copy2(ROOT / name, docs.parent / name)
         for directory in (docs, docs / "benchmarks"):
@@ -223,10 +222,8 @@ class WebsiteTests(unittest.TestCase):
                 for pre in panel.select("pre.cli-help"):
                     self.assertEqual(pre.get("tabindex"), "0")
                     self.assertEqual(pre.get("role"), "region")
-                    label = soup.find(id=pre.get("aria-labelledby"))
-                    self.assertIsNotNone(label)
                     self.assertEqual(
-                        label.get_text().strip(),
+                        pre.get("aria-label"),
                         pre["data-command"].removesuffix(" --help"),
                     )
                 headings = [
@@ -251,6 +248,9 @@ class WebsiteTests(unittest.TestCase):
     def test_reading_paths_have_their_own_navigation(self) -> None:
         paths = (
             ("CONFIGURATION.html", "REQUIREMENTS.html", "SEND_OPERATIONS.html"),
+            ("RUNTIME_CONFIGURATION.html", "CONFIGURATION.html", "API.html"),
+            ("RUNTIME_REFERENCE.html", "CONFIGURATION.html", "API.html"),
+            ("CONFIGURATION_REFERENCE.html", "CONFIGURATION.html", "API.html"),
             ("API.html", "REQUIREMENTS_API.html", "SANDBOX_CONFIGURATION.html"),
             ("ARCHITECTURE.html", "WINDOWS_DEVELOPMENT.html", "REQUIREMENTS.html"),
         )
@@ -268,7 +268,9 @@ class WebsiteTests(unittest.TestCase):
                 navbar = soup.select_one(".navbar")
                 for label in (
                     "User guides",
-                    "Client integration",
+                    "Reference",
+                    "Sandbox",
+                    "Build on Console",
                     "Development",
                     "Packages",
                 ):

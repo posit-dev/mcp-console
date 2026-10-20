@@ -11,7 +11,7 @@ Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
 The examples below use `uvx` to run Console without a separate installation.
 
 Prebuilt packages are available for macOS and Linux on ARM64 and x86-64, and for Windows x64.
-Sandboxed Windows sessions require a host that supports [MXC](SANDBOX_CONFIGURATION.md#windows-mxc-requirement).
+Sandboxed Windows sessions require Windows 11 with [Microsoft Execution Containers (MXC)](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/08/kb5120998-windows-11-24h2-25h2-update#microsoft-execution-containers).
 
 If Console fails to start on Linux, see [Linux host compatibility](LINUX_COMPATIBILITY.md) for missing libraries or sandbox restrictions.
 
@@ -32,7 +32,7 @@ Use an MCP client or integrate Console into your own R or Python application.
 
 ### Codex and Claude Code
 
-Register Console with the client you use:
+Connect Console to your clients:
 
 ```sh
 uvx mcp-console configure-client codex
@@ -47,7 +47,7 @@ Restart the client after setup.
 Your client launches Console on the same host, usually in the workspace where the agent is working.
 
 To register Console for a specific project, run the command from the project directory and add `--directory .`.
-See [client configuration](CLI.md#configure-a-client) for updating earlier project registrations, version pinning, and launch options.
+See [client configuration](CLI.md#configure-a-client) for project registration, version pinning, and launch options.
 
 ### Other MCP clients
 
@@ -60,7 +60,7 @@ See [Other MCP clients](CLI.md#other-mcp-clients) for a configuration example.
 The [R package, `mcp.console`](../r/README.md), adds Console to an ellmer chat.
 The [Python package, `mcp_console`](PYTHON.md), provides synchronous and asynchronous clients and adapters for chatlas, OpenAI, and Anthropic.
 
-See [Client integration](CLIENTS.md) for package APIs and tool configuration.
+See [Client integration](CLIENTS.md) for package APIs and [Tool configuration](TOOL_CONFIGURATION.md) for language visibility and tool descriptions.
 
 ## Try an analysis
 
@@ -98,12 +98,12 @@ The `workspace` profile allows writes in Console's launch directory except in se
 File reads remain allowed and direct network access remains restricted.
 
 The command-line reference covers [workspace writes across projects](CLI.md#allow-workspace-writes-across-projects) and [grants for individual directories](CLI.md#grant-writes-to-one-directory).
-See [Sandbox configuration](SANDBOX_CONFIGURATION.md) for the permission rules.
+See [Sandbox permissions](SANDBOX_CONFIGURATION.md) for the permission rules.
 
 Console loads project configuration automatically, and it can select executables or widen permissions.
 Review and authorize it before launching Console in an unfamiliar project; `--no-project-config` skips that layer.
 
-For interpreter selection and package setup, see [Configuration](CONFIGURATION.md) and [Packages and environments](REQUIREMENTS.md).
+For interpreter selection and package setup, see [Interpreters and startup](RUNTIME_CONFIGURATION.md) and [Packages and environments](REQUIREMENTS.md).
 
 ## Keep the session
 

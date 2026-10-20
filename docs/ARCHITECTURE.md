@@ -71,7 +71,7 @@ An untranslatable permission entry rejects the entire client profile rather than
 Only the selected base contributes permissions; the workspace fallback cannot widen a selected client policy.
 The captured policy survives startup retries and worker replacement; changed recognized permissions require a new connection.
 Connection closure before the first call settles pending startup without creating a runtime.
-The metadata adapter and its supported limits live in [`src/server/sandbox.rs`](../src/server/sandbox.rs) and [sandbox configuration](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex).
+The metadata adapter and its supported limits live in [`src/server/sandbox.rs`](../src/server/sandbox.rs) and [sandbox permissions](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex).
 
 Transport readiness connects command, input, output, and resolver services before built-in interpreter bootstrap.
 It does not mean either interpreter is initialized.
@@ -218,7 +218,7 @@ The pinned runner has no separate Unix cleanup receipt; a nonzero status can rep
 Connection closure cancels startup/preparation, retires execution resources, settles accepted responses, and bounds blocked MCP delivery.
 Physical EOF can precede transport consumption of queued requests; response settlement waits for the transport's input drain within the same delivery deadline.
 Before session initialization, EOF succeeds after a complete bootstrap response and transport input drain; receiving another message clears that completion.
-Native runner loss retains the [documented lifetime limits](SANDBOX.md#supported-hosts-and-lifetime-limits); Console has no independent recovery daemon.
+Native runner loss retains the [documented lifetime limits](SANDBOX_CONFIGURATION.md#supported-hosts-and-lifetime-limits); Console has no independent recovery daemon.
 
 ## Output and delivery
 

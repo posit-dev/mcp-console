@@ -35,7 +35,7 @@ They are mutually exclusive, and `...` must be empty.
 console_tool(path = Sys.which("mcp-console"))
 ```
 
-Starting with Console 0.0.5, published releases include a Windows x64 wheel that `console_tool()` can resolve through `reticulate::uv_run_tool()`.
+On Windows, `console_tool()` can resolve the Console x64 wheel through `reticulate::uv_run_tool()`.
 See [installation requirements](https://t-kalinowski.github.io/mcp-console/getting-started.html#install).
 
 ## Session configuration
@@ -69,7 +69,7 @@ See [SandboxPolicy](https://t-kalinowski.github.io/mcp-console/r/reference/Sandb
 
 <span id="discover-configuration-once"></span> <span id="inspect-and-edit-configuration"></span> <span id="existing-callers"></span>
 
-[Configure a Console session](https://t-kalinowski.github.io/mcp-console/r/articles/configuration.html) covers discovery, inspection, editing tool descriptions, saved settings, and migration for existing callers.
+[Configure a Console session](https://t-kalinowski.github.io/mcp-console/r/articles/configuration.html) covers discovery, inspection, editing tool descriptions, saved settings, and launching a configured session.
 The [configuration workflow reference](https://t-kalinowski.github.io/mcp-console/r/reference/config-workflow.html) documents exact signatures.
 
 ## Behavior and safety

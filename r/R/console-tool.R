@@ -32,8 +32,8 @@
 #'   reads optional global/project files once and materializes their settings.
 #'   Pass `ConsoleConfig()` to skip files and use built-in defaults: host reads,
 #'   private temporary writes, and no worker networking. Resolver defaults are
-#'   independent. A supplied config reads no files unless its legacy `discovery`
-#'   property explicitly requests it. Explicit `NULL` retains the old behavior of
+#'   independent. A supplied config reads no files unless its `discovery`
+#'   property explicitly requests it. Explicit `NULL` is equivalent to
 #'   `ConsoleConfig()`. Use the same `path`, `version`, and `project` when
 #'   inspecting and launching a config.
 #' @param project Existing directory to use as the child process's working

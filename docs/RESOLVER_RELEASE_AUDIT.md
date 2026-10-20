@@ -4,7 +4,7 @@
 It did not evaluate every later source or companion pin.
 
 The [complete original report](https://github.com/t-kalinowski/mcp-console/blob/b9caf7c55e9f9fbb0ce33582e4c61d615813b4eb/docs/RESOLVER_RELEASE_AUDIT.md) retains fixture details, local record IDs, and the full run history.
-Current behavior belongs in [Resolver configuration](RESOLVER.md), [Requirements](REQUIREMENTS.md), and [Sandbox and trust](SANDBOX.md).
+Current behavior belongs in [Package sources and caches](RESOLVER.md), [Requirements](REQUIREMENTS.md), and [Sandbox and trust](SANDBOX.md).
 
 ## Boundary evaluated
 

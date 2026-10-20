@@ -44,7 +44,7 @@ Preserve the existing public data-frame, row-limit, preview, and cleanup contrac
 **SP-1 — Review evidence for macOS policy exceptions.** Check each application extension against the actual sandboxed workflow and selected native pin.
 Distinguish historical evidence from speculation and inherited runner allowances.
 Preserve meaningful regressions, including real-library process creation; resolver success is not worker-sandbox evidence.
-See [Sandbox](SANDBOX.md#policy-extensions-and-compatibility).
+See [Sandbox](ARCHITECTURE.md#policy-extensions-and-compatibility).
 
 **SP-2 — Track managed UDP and Unix-socket capability gaps.** Console rejects `tcp_udp` on macOS/Linux and path-specific Unix-socket lists on Linux.
 Historical docs recorded an upstream UDP reply-routing issue.

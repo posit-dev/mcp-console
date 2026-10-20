@@ -66,7 +66,7 @@ Individual-file write roots can be rejected, and missing write roots are skipped
 Create intended writable directories first.
 Console does not create permanent placeholders, grant parents, or switch backends to work around native limits.
 
-[Sandbox configuration](SANDBOX_CONFIGURATION.md#filesystem) owns path precedence and metadata protection.
+[Sandbox permissions](SANDBOX_CONFIGURATION.md#filesystem) owns path precedence and metadata protection.
 Restricted-policy security results must not be attributed to unrestricted or externally enforced workloads.
 
 ## Reproducing the comparisons

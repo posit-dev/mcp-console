@@ -132,6 +132,8 @@ Internal commands remain covered by acceptance tests.
 To publish another public command, add it to the explicit allowlist in `docs/_filters/cli-help.py` and the independent expected command list in `tests/website.py`.
 When CLI help changes, regenerate snapshots with `scripts/test --update cli/interface/test_help`, inspect the diff, and rerun without `--update`.
 Never hand-edit snapshots; website rendering does not build or run Console.
+The configuration page also embeds the complete starter file from the `config init` acceptance snapshot through `docs/_filters/config-init.py`.
+Changes to the generated starter appear on the website when that snapshot is regenerated.
 Quarto's post-render scripts build `docs/_site/r/` and `docs/_site/python/`.
 Python reference uses static source analysis, and the R workflow vignette displays its examples without execution, so API credentials and a Console executable are not required for those builds.
 
@@ -144,9 +146,18 @@ A saved choice from a page's theme control takes precedence over the browser pre
 
 ### Documentation ownership
 
-The website has three reading paths: [User guides](README.md), [Client integration](CLIENTS.md), and Development.
-Ordinary configuration, packages, permissions, languages, and recordings belong in the user guides.
-Exact MCP call, requirement-operation, tool-presentation, and runtime behavior belongs in [MCP send reference](API.md), [Requirements API](REQUIREMENTS_API.md), [Tool configuration](TOOL_CONFIGURATION.md), and [Runtime behavior reference](RUNTIME_REFERENCE.md).
+The [user guides](README.md) offer two reading paths: [Learn Console](README.md#learn-console) introduces the concepts without requiring installation, and [Reference](README.md#reference) supports specific tasks and precise lookups.
+Keep Sessions and languages, Packages and environments, and Sandbox and trust readable as a sequence.
+Use examples to explain the concepts, then link to the reference for complete settings and edge cases.
+
+All settings accepted in `config.yaml` belong in the user reference.
+Each reference topic has one owner: [Configuration files](CONFIGURATION.md) for discovery, merging, paths, and export; [Interpreters and startup](RUNTIME_CONFIGURATION.md) for R/Python selection, startup packages, resolution policies, and database startup; [Tool configuration](TOOL_CONFIGURATION.md) for language visibility, descriptions, and accepted parameters; [Sandbox permissions](SANDBOX_CONFIGURATION.md) for permission fields and enforcement limits; [Package sources and caches](RESOLVER.md) for preparation and cache settings; and [Environment variables](ENVIRONMENT.md) for environment settings and recognized variables.
+The configuration settings index links to these owners instead of repeating their field tables.
+[Runtime behavior](RUNTIME_REFERENCE.md) and [Recordings and reports](RECORDING.md) also belong in the user reference.
+
+[Build on Console](BUILD_ON_CONSOLE.md) introduces application building with examples of tool customization, prepared sessions, and integration.
+[Client integration](CLIENTS.md) collects the interfaces for applications that call Console.
+Exact MCP calls and requirement operations belong in [MCP send reference](API.md) and [Requirements API](REQUIREMENTS_API.md).
 Keep compatibility anchors when moving public sections and include every new page in the appropriate sidebar and search index.
 Architecture belongs in [Architecture](ARCHITECTURE.md); exact private message schemas belong with their source definitions.
 Prefer a cross-reference over another explanation of restart, preparation, or sandbox trust.

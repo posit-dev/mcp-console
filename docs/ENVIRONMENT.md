@@ -1,9 +1,18 @@
 # Environment variables
 
-Prefer [configuration](CONFIGURATION.md) for settings with a public YAML equivalent.
-This reference covers environment values that can affect Console startup and execution; it is not a catalog of every variable read by R, Python, compilers, or imported packages.
+Use this reference to supply environment values to a session or to package preparation, and to look up variables that affect Console.
+For file locations and overrides, see [Configuration files](CONFIGURATION.md).
+Variables interpreted only by R, Python, compilers, or imported packages retain those tools' own behavior.
 
 ## Where to set variables
+
+| Setting                        | Accepted values             | Default and behavior                                                                          |
+| ------------------------------ | --------------------------- | --------------------------------------------------------------------------------------------- |
+| `inherit_environment`          | `true` or `false`           | Default: `true`. Inherit launch variables for the worker and, unless overridden, preparation. |
+| `environment`                  | Mapping of names to strings | Default: `{}`. Shared values for the worker and preparation.                                  |
+| `resolver.inherit_environment` | `true` or `false`           | Omission follows `inherit_environment`; an explicit value overrides it for preparation.       |
+| `resolver.environment`         | Mapping of names to strings | Default: `{}`. Override individual shared values for preparation.                             |
+
 
 **Server settings** must be present in the environment launching `mcp-console serve`.
 For example, setting `MCP_CONSOLE_HOME` inside a cell or YAML `environment` does not move the running server's configuration or recordings.
@@ -31,7 +40,10 @@ Shared values, including credentials, also reach preparation.
 
 Console subsequently applies its runtime, cache, temporary-storage, proxy, and transport assignments.
 These win over conflicting inherited/YAML values.
-On Windows, that precedence also applies to differently cased names.
+Names are case-sensitive on Unix.
+On Windows, each configured environment must have unique names under case-insensitive comparison after file/CLI layering and shared/resolver merging.
+Use the same spelling when overriding a variable; `TEMP` and `temp` cannot both be configured.
+Console-owned assignments take precedence on Windows even when an inherited name uses different casing.
 Managed temporary-storage assignments apply only with `sandbox.tempdir: managed`.
 On Windows, `read_write` supplies the granted host default as `TMPDIR`, `TEMP`, and `TMP` when all three child values are unset or empty.
 Other configured/inherited temp values are preserved; `--no-sandbox` adds no temporary-environment assignments.
@@ -48,11 +60,11 @@ It does rerun R's native startup files.
 | `USERPROFILE`       | Windows fallback for home/cache discovery when the relevant HOME value is unavailable; native home discovery can also use the Windows profile API.                                                                                                                                  |
 | `PATH`              | R, resolver, and subprocess discovery. The selected Python executable directory is added during worker initialization/activation. Windows R discovery supports `.exe`, `.bat`, and `.cmd`.                                                                                          |
 | `R_HOME`            | Selects an R installation directory unless public `r` selection overrides it. Presence, including empty/invalid values, can cause a selection error instead of Python-only fallback.                                                                                                |
-| `RETICULATE_PYTHON` | Legacy launch-time existing-Python selection, also recognized without R. Empty, absent, and literal `managed` are not explicit selections. Public `python` configuration wins.                                                                                                      |
+| `RETICULATE_PYTHON` | Launch-time existing-Python selection, also recognized without R. Empty, absent, and literal `managed` are not explicit selections. Public `python` configuration wins.                                                                                                             |
 | `RETICULATE_UV`     | uv selection for R/reticulate-backed Python preparation. R-free preparation ignores it and uses PATH uv.                                                                                                                                                                            |
 | `SystemRoot`        | Windows supervisor preflight uses it to locate `System32/cmd.exe`.                                                                                                                                                                                                                  |
 
-Use [interpreter selection](CONFIGURATION.md#python-environment-selection) for projects rather than depending on ambient activation.
+Use [interpreter selection](RUNTIME_CONFIGURATION.md#python-environment-selection) for projects rather than depending on ambient activation.
 In particular, `VIRTUAL_ENV` selects Python only through the configured `active_venv` choice; `UV_PYTHON` is not a substitute for `python:`.
 
 ## Python and reticulate
@@ -93,11 +105,11 @@ See [uv's reference](https://docs.astral.sh/uv/reference/environment/) and [reso
 
 ## Cache and data locations
 
-[Resolver configuration](RESOLVER.md#cache-locations) owns root selection and host-cache permissions.
+[Package sources and caches](RESOLVER.md#cache-locations) owns root selection and host-cache permissions.
 Set `cache.directory` in configuration to select the managed cache root for preparation and workers.
-With `cache: managed` (also accepted as `console`), `MCP_CONSOLE_CACHE_DIR` selects that root, taking precedence over XDG and platform defaults.
+With `cache: managed`, `MCP_CONSOLE_CACHE_DIR` selects an absolute cache root, taking precedence over XDG and platform defaults.
 An explicit `cache.directory` takes precedence over `MCP_CONSOLE_CACHE_DIR`.
-An unset or empty value uses the defaults; `cache: host` ignores it.
+An unset or empty `MCP_CONSOLE_CACHE_DIR` uses the defaults; `cache: host` ignores it.
 Let `D` be the selected Console dependency directory.
 `cache: managed` and an explicit cache directory apply these assignments to preparation and eligible workers:
 

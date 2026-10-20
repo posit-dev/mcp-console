@@ -40,7 +40,7 @@ Both default to \code{TRUE} when \code{ConfigDiscovery()} is explicitly construc
 and/or \code{"sql"} tool inputs. This does not select the installed runtimes.}
 
 \item{cache}{\code{NULL}, \code{"managed"}, \code{"host"}, or \code{list(directory = "path")}.
-\code{"console"} remains an alias for \code{"managed"}. A directory uses managed
+\code{"console"} is an alias for \code{"managed"}. A directory uses managed
 caches under \verb{<directory>/dependencies} for preparation and workers.
 Relative paths use the project directory; a leading \code{~} uses Console's
 launch-home convention. Managed caches require sandboxing.}
@@ -78,8 +78,7 @@ object, or \code{\link[=materialize_console_config]{materialize_console_config()
 \code{\link[=prune_console_config]{prune_console_config()}} produces a compact view of nondefault settings.
 \code{\link[=console_tool]{console_tool()}} discovers files when \code{config} is omitted.
 
-The following launch-time discovery interface is retained for existing callers.
-\code{ConfigDiscovery()} explicitly enables global and project file discovery.
+\code{ConfigDiscovery()} explicitly enables global and project file discovery at launch.
 Disable either source with \code{global = FALSE} or \code{project = FALSE}. Project
 discovery reads \code{.agents/console/config.yaml} in \code{console_tool()}'s launch
 directory; no ancestor directories are searched. Files can select runtimes,

@@ -24,8 +24,8 @@ console_tool(
 reads optional global/project files once and materializes their settings.
 Pass \code{ConsoleConfig()} to skip files and use built-in defaults: host reads,
 private temporary writes, and no worker networking. Resolver defaults are
-independent. A supplied config reads no files unless its legacy \code{discovery}
-property explicitly requests it. Explicit \code{NULL} retains the old behavior of
+independent. A supplied config reads no files unless its \code{discovery}
+property explicitly requests it. Explicit \code{NULL} is equivalent to
 \code{ConsoleConfig()}. Use the same \code{path}, \code{version}, and \code{project} when
 inspecting and launching a config.}
 

@@ -15,7 +15,7 @@ resolve_console_config(
 \arguments{
 \item{config}{A \code{\link[=ConsoleConfig]{ConsoleConfig()}}. In discovery and file reads, its settings
 override the selected files. Explicit permissions replace inherited permission
-nodes. Leave its legacy \code{discovery} property \code{NULL} for these operations.}
+nodes. Leave its \code{discovery} property \code{NULL} for these operations.}
 
 \item{...}{Must be empty. Reserved for future use.}
 
@@ -32,7 +32,7 @@ this directory; the caller's working directory is unchanged.}
 A \code{\link[=ConsoleConfig]{ConsoleConfig()}} with file discovery disabled.
 }
 \description{
-Compatibility alias for \code{\link[=materialize_console_config]{materialize_console_config()}}. Returns an ordinary
+Alias for \code{\link[=materialize_console_config]{materialize_console_config()}}. Returns an ordinary
 S7 \code{\link[=ConsoleConfig]{ConsoleConfig()}} with complete defaults and tool presentation.
 Use \code{\link[=discover_console_config]{discover_console_config()}} to explicitly read optional configuration files,
 \code{\link[=read_console_config]{read_console_config()}} for a required file, and \code{\link[=prune_console_config]{prune_console_config()}} for

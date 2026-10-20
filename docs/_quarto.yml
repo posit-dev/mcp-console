@@ -25,8 +25,12 @@ website:
     left:
       - href: README.md
         text: User guides
-      - href: CLIENTS.md
-        text: Client integration
+      - href: README.md#reference
+        text: Reference
+      - href: SANDBOX_COMMAND.md
+        text: Sandbox
+      - href: BUILD_ON_CONSOLE.md
+        text: Build on Console
       - href: DEVELOPMENT.md
         text: Development
     right:
@@ -48,19 +52,22 @@ website:
       - href: README.md
         text: Overview
       - getting-started.qmd
-      - section: Using Console
+      - SANDBOX_COMMAND.md
+      - section: Learn Console
         contents:
         - BUILTIN_RUNTIME.md
         - REQUIREMENTS.md
-        - RECORDING.md
-      - section: Configure Console
+        - SANDBOX.md
+      - section: Reference
         contents:
         - CONFIGURATION.md
-        - CONFIGURATION_REFERENCE.md
-        - SANDBOX.md
+        - RUNTIME_CONFIGURATION.md
+        - TOOL_CONFIGURATION.md
         - SANDBOX_CONFIGURATION.md
         - RESOLVER.md
         - ENVIRONMENT.md
+        - RUNTIME_REFERENCE.md
+        - RECORDING.md
         - CLI.md
         - cli-help.qmd
       - section: Platforms and installation
@@ -69,10 +76,11 @@ website:
         - BUILD_FROM_SOURCE.md
       - GLOSSARY.md
     - id: clients
-      title: Client integration
+      title: Build on Console
       style: docked
       collapse-level: 1
       contents:
+      - BUILD_ON_CONSOLE.md
       - CLIENTS.md
       - PYTHON.md
       - href: r/index.html
@@ -82,8 +90,6 @@ website:
         - API.md
         - SEND_OPERATIONS.md
         - REQUIREMENTS_API.md
-        - TOOL_CONFIGURATION.md
-        - RUNTIME_REFERENCE.md
       - href: python/reference/index.html
         text: Python API
       - href: r/reference/index.html

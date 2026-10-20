@@ -46,7 +46,7 @@ read_console_config(
 \arguments{
 \item{config}{A \code{\link[=ConsoleConfig]{ConsoleConfig()}}. In discovery and file reads, its settings
 override the selected files. Explicit permissions replace inherited permission
-nodes. Leave its legacy \code{discovery} property \code{NULL} for these operations.}
+nodes. Leave its \code{discovery} property \code{NULL} for these operations.}
 
 \item{...}{Must be empty. Reserved for future use.}
 

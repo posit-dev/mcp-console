@@ -355,8 +355,7 @@ ToolConfig <- S7::new_class(
 #' [prune_console_config()] produces a compact view of nondefault settings.
 #' [console_tool()] discovers files when `config` is omitted.
 #'
-#' The following launch-time discovery interface is retained for existing callers.
-#' `ConfigDiscovery()` explicitly enables global and project file discovery.
+#' `ConfigDiscovery()` explicitly enables global and project file discovery at launch.
 #' Disable either source with `global = FALSE` or `project = FALSE`. Project
 #' discovery reads `.agents/console/config.yaml` in `console_tool()`'s launch
 #' directory; no ancestor directories are searched. Files can select runtimes,
@@ -389,7 +388,7 @@ ToolConfig <- S7::new_class(
 #' @param languages `NULL` or a character vector selecting `"r"`, `"python"`,
 #'   and/or `"sql"` tool inputs. This does not select the installed runtimes.
 #' @param cache `NULL`, `"managed"`, `"host"`, or `list(directory = "path")`.
-#'   `"console"` remains an alias for `"managed"`. A directory uses managed
+#'   `"console"` is an alias for `"managed"`. A directory uses managed
 #'   caches under `<directory>/dependencies` for preparation and workers.
 #'   Relative paths use the project directory; a leading `~` uses Console's
 #'   launch-home convention. Managed caches require sandboxing.

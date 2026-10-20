@@ -67,7 +67,7 @@ reference:
     contents:
     - ToolConfig
     - ToolParameterConfig
-  - title: Compatibility
+  - title: Configuration helpers
     contents:
     - resolve_console_config
     - ConfigDiscovery

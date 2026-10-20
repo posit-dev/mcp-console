@@ -1,7 +1,6 @@
 ---
 title: CLI help
-page-layout: full
-toc: false
+toc-depth: 3
 body-classes: cli-help-page
 filters:
   - _filters/cli-help.py

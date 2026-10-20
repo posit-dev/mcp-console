@@ -9,7 +9,7 @@ toc: false
 sidebar: false
 ---
 
-MCP Console preserves session state between calls, so your agent can work in R, Python, and SQL without repeating setup.
+MCP Console lets your agent explore data and develop code interactively in R, Python, and SQL.
 
 Code runs in an [OS-level sandbox](SANDBOX.md) by default.
 Console prepares environments and packages automatically; no Console configuration file is required.
@@ -27,8 +27,8 @@ They can refine plots, read help, respond to interactive prompts, and step throu
 Long computations can keep running between calls, and agents can interrupt work or restart an unresponsive session.
 
 The environment is designed for agents, with help and output formatted for them.
-For example, Console collapses progress bar redraws and guards against large results accidentally flooding the model's context.
-The agent can inspect oversized output in more detail when needed, without rerunning the computation.
+For example, Console collapses progress bar redraws and previews large results to keep them from flooding the model's context.
+The agent can then inspect those results in more detail without rerunning the computation.
 
 ## Use one language or combine them {#one-workspace-three-languages}
 
@@ -47,13 +47,26 @@ See [Sessions and languages](BUILTIN_RUNTIME.md) for examples, database connecti
 [Recordings](RECORDING.md) retain code, output, and plots so you can see what the agent ran in Console and inspect the results.
 They also provide a starting point for reproducible analyses and reports.
 
+## Run commands in a sandbox
+
+Use Console's sandbox directly from your terminal to run scripts and other programs with controlled file and network access.
+The permissions apply to the command and its child processes.
+
+```sh
+mcp-console sandbox -- python analysis.py
+```
+
+[Run commands in a sandbox](SANDBOX_COMMAND.md) covers installation, workspace writes, network access, and reusable settings.
+
 ## Build on Console
 
 Build LLM applications on Console's persistent runtime.
-Replace the complete [tool description and instructions](TOOL_CONFIGURATION.md#tool-descriptions-and-parameters), choose which language interfaces and parameters the model can use, and [preconfigure the runtime](CONFIGURATION.md).
+Replace the complete [tool description and instructions](TOOL_CONFIGURATION.md#tool-descriptions-and-parameters), choose which language interfaces and parameters the model can use, and [preconfigure the runtime](RUNTIME_CONFIGURATION.md).
 Set [sandbox permissions](SANDBOX_CONFIGURATION.md) to control access to files and networks.
 
 For example, build a data chat with only SQL and a selected database connection, or a reporting assistant with a prepared R or Python environment.
+
+[Build on Console](BUILD_ON_CONSOLE.md) shows how to customize the tool interface, describe available data, prepare the session, and connect your application.
 
 Console works with MCP-compatible clients such as Codex and Claude Code and does not depend on a particular model provider.
 To connect from your own application, see [Client integration](CLIENTS.md).
@@ -63,7 +76,7 @@ To connect from your own application, see [Client integration](CLIENTS.md).
 By default, Console prepares packages for the session and reuses cached installations.
 The agent can request additional packages as it works.
 
-You can instead [select an existing Python environment](CONFIGURATION.md#python-environment-selection) or choose when Console may prepare dependencies.
+You can instead [select an existing Python environment](RUNTIME_CONFIGURATION.md#python-environment-selection) or choose when Console may prepare dependencies.
 See [Packages and environments](REQUIREMENTS.md).
 
 ## Where Console fits
@@ -80,4 +93,4 @@ Console's default `read_only` sandbox profile restricts network access and files
 It does not restrict filesystem reads.
 
 You can allow writes to selected paths, block reads from selected paths, and control network access with domain allowlists or denylists.
-See [Sandbox configuration](SANDBOX_CONFIGURATION.md) for profiles, custom permissions, and inheriting permissions from Codex.
+See [Sandbox permissions](SANDBOX_CONFIGURATION.md) for profiles, custom permissions, and inheriting permissions from Codex.

@@ -19,9 +19,14 @@ Recording starts when a call, startup output, or startup failure needs it.
 | ------------------------- | -------------------------------------------------- |
 | `transcript.md`           | Read calls, results, and links to artifacts.       |
 | `transcript.qmd`          | Review submitted source and edit it into a report. |
+| `internal/events.jsonl`   | Inspect session events as JSON.                    |
 | `outputs/call-NNNNNN.log` | Read raw text from a code cell, up to 1 GiB.       |
 | `outputs/session.log`     | Read startup and idle text, up to 1 GiB.           |
 | `artifacts/`              | Find retained images.                              |
+
+`internal/events.jsonl` records one JSON object per event, including tool calls and results, dependency selections, and references to output logs and images.
+It can be useful for inspecting a session with scripts or investigating a failed call.
+Its format may change between Console releases.
 
 Returned paths refer to the Console host.
 Project paths are normally relative to the launch directory; fallback paths are absolute.
@@ -29,16 +34,20 @@ A long-location notice may instead name a path relative to the selected Console 
 
 ## Retrieve omitted output
 
-The agent can use its client's filesystem tools to read the named raw log.
-Console does not provide a file-reading tool.
-Rerunning a cell is not a way to retrieve its previous output.
+Each cell gets a log file when execution starts, even if it produces no text output.
 
-Reading a log does not consume pending Console output.
-Logs receive text before preview truncation and are flushed when Console assembles a response, so they can be read while a cell runs.
-Notices identify output that was omitted from a response and distinguish partial retention from a complete recording.
+Console limits how much text it sends to the agent at once.
+When a response leaves out text, a notice points to the existing log file and says if any output could not be saved.
+The agent can read that file with its client's file-reading tools, without running the code again.
 
-A log cannot recover values that a language printer or SQL preview never emitted.
-Fetch or save the complete data explicitly when it matters.
+The agent can also read the log while the code is still running.
+Console updates the log before sending each response.
+Reading it does not remove output from later responses.
+
+Logs contain the text that R, Python, or SQL displayed.
+For example, if a table's display includes only a few rows, the log contains that abbreviated display.
+To get the complete data, ask the agent to fetch it or save it to a file.
+For SQL, your agent can [retrieve the last result](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result) in R or Python without running the query again.
 
 ## Render a reviewed copy
 

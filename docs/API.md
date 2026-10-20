@@ -101,6 +101,8 @@ The built-in runtimes expose the following session helpers:
 | R `py$name`                                                                     | Access a Python object through reticulate.                     |
 | R `.console$sql_connection()`                                                   | Get, select, or reset a native SQL connection owned by R.      |
 | Python `_console.sql_connection()`                                              | Get, select, or reset a native SQL connection owned by Python. |
+| R `.console$sql_last_result(n = NULL)`                                          | Retrieve successive rows from a SQL result owned by R.         |
+| Python `_console.sql_last_result(n=None)`                                       | Retrieve successive rows from a SQL result owned by Python.    |
 | R `console.plot.width_in`, `console.plot.height_in`, `console.plot.dpi` options | Configure captured plot dimensions and resolution.             |
 
 The [runtime reference](RUNTIME_REFERENCE.md) defines ownership and examples.
@@ -108,8 +110,8 @@ These helpers do not make R and Python connection objects interchangeable.
 
 ## CLI and configuration
 
-See [Command-line reference](CLI.md), [Configuration](CONFIGURATION.md), and [Tool configuration](TOOL_CONFIGURATION.md).
-The complete native-policy interface remains separate from application YAML; see [Sandbox configuration](SANDBOX_CONFIGURATION.md#explicit-complete-policy).
+See [Command-line reference](CLI.md), [Configuration files](CONFIGURATION.md), and [Tool configuration](TOOL_CONFIGURATION.md).
+The complete native-policy interface remains separate from application YAML; see [Sandbox permissions](SANDBOX_CONFIGURATION.md#explicit-complete-policy).
 
 ## Client packages
 

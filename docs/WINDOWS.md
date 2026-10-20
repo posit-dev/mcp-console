@@ -5,15 +5,14 @@ sidebar: guides
 # Windows
 
 Windows uses the shared installation, configuration, and runtime guides.
-This page keeps links from earlier documentation working.
 
 <span id="install-and-run"></span>
 
-See [Get started](getting-started.qmd#install) for installation and client setup, and [Configuration](CONFIGURATION.md) for interpreter selection.
+See [Get started](getting-started.qmd#install) for installation and client setup, and [Interpreters and startup](RUNTIME_CONFIGURATION.md) for interpreter selection.
 
 <span id="native-sandbox"></span> <span id="lifecycle-and-platform-differences"></span> <span id="troubleshooting"></span>
 
-[Sandbox configuration](SANDBOX_CONFIGURATION.md#windows-mxc-requirement) covers Windows host requirements, cleanup, and troubleshooting.
+[Sandbox permissions](SANDBOX_CONFIGURATION.md#windows-mxc-requirement) covers Windows host requirements, cleanup, and troubleshooting.
 [Calls, input, and control](SEND_OPERATIONS.md#interruption) covers interruption.
 
 <span id="build-from-source"></span>

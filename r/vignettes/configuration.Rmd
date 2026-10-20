@@ -11,7 +11,7 @@ vignette: |
 knitr::opts_chunk$set(eval = FALSE)
 ```
 
-Use this reference to discover settings, inspect and edit configuration objects, and migrate existing integrations.
+Use this reference to discover settings, inspect and edit configuration objects, and launch configured sessions.
 Examples are displayed without execution.
 For a complete analysis task, see [Giving an agent an R session](autonomous-report.html).
 
@@ -20,7 +20,7 @@ For a complete analysis task, see [Giving an agent an R session](autonomous-repo
 The development interface uses S7 from `RConsortium/S7`, pinned in `DESCRIPTION`.
 Install the declared GitHub dependency with pak/remotes before building the package; `R CMD INSTALL` alone does not process `Remotes`.
 During development, use `path=` to select the current checkout's Console binary.
-Use a matching Console executable; older published binaries may not support these configuration operations.
+Use a matching Console executable for these configuration operations.
 
 `ConsoleConfig()` combines runtime selection, package preparation, permissions, and tool presentation.
 It reads no configuration files.
@@ -70,8 +70,8 @@ console_tool(config = ConsoleConfig()) # Built-in defaults, no config files
 console_tool(config = ConsoleConfig(sandbox = FALSE)) # Host execution
 ```
 
-**Default change:** `console_tool()` now discovers configuration files.
-To retain the previous behavior, pass `config = ConsoleConfig()`.
+`console_tool()` discovers configuration files by default.
+Pass `config = ConsoleConfig()` to use built-in defaults without reading files.
 Discovery trusts the whole application configuration, including executable selection, environments, and permissions.
 
 ## Discover configuration once
@@ -163,7 +163,7 @@ writeLines(
 restored <- read_console_config("report.json")
 ```
 
-`as.list()` excludes launch-only controls: legacy `discovery` and `sandbox = FALSE`.
+`as.list()` excludes launch-only controls: `discovery` and `sandbox = FALSE`.
 For host execution, retain the S7 object (for example with `saveRDS()`) or pass `config = ConsoleConfig(sandbox = FALSE)` when reading JSON.
 Runtime-dependent interpreter selection, automatic package lists, and runtime-owned cache paths remain policies.
 Materialization does not lock dependencies or copy inherited environment variables.
@@ -173,10 +173,10 @@ Materialization does not lock dependencies or copy inherited environment variabl
 The ellmer adapter uses the latter tool definition and does not automatically insert server instructions into the chat prompt.
 See [tool presentation and lifecycle](https://t-kalinowski.github.io/mcp-console/TOOL_CONFIGURATION.html#tool-descriptions-and-parameters).
 
-## Existing callers
+## Launch a configured session {#existing-callers}
 
-`resolve_console_config()` remains an alias for full materialization.
-Its result now uses S7 properties instead of the earlier list result, and executable/project choices remain explicit arguments:
+`resolve_console_config()` is an alias for full materialization.
+Configuration objects use S7 properties, and executable/project choices are explicit arguments:
 
 ```r
 config <- materialize_console_config(path = binary, project = project)
@@ -184,9 +184,9 @@ config@tool@description <- "Run a report cell."
 tool <- console_tool(config = config, path = binary, project = project)
 ```
 
-`ConsoleConfig(discovery = ConfigDiscovery(...))` remains supported for existing code that explicitly requests discovery at launch.
-For new code, use `discover_console_config(global_file = ..., project_file = ...)` to make that file read visible before launch.
-Explicit `config = NULL` retains its old meaning of `ConsoleConfig()`; omitting `config` uses discovery.
+`ConsoleConfig(discovery = ConfigDiscovery(...))` requests discovery at launch.
+Use `discover_console_config(global_file = ..., project_file = ...)` to read the files before launch.
+Explicit `config = NULL` is equivalent to `ConsoleConfig()`; omitting `config` uses discovery.
 Constructed, discovered, materialized, and pruned objects share validation and temporary-file transport, so long descriptions and startup programs do not consume command-line space.
 
 Python fallback policies and SQL startup source use the same typed constructors when supplied directly or returned by materialization:

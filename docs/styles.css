@@ -22,8 +22,15 @@ main :not(pre) > code {
   overflow-wrap: normal;
 }
 
+main .table-responsive a,
 main .table-responsive :not(pre) > code {
   overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* Keep historical bookmarks in table rows below the fixed navigation bar. */
+main .table-responsive span[id] {
+  scroll-margin-top: 5rem;
 }
 
 main {

@@ -12,7 +12,7 @@ No configuration file is required.
 Prepared environments, packages, and extensions are kept in [Console's own caches](RESOLVER.md#cache-locations) for reuse across sessions.
 
 The agent's code runs in an [OS-level sandbox](SANDBOX.md) by default, with restricted filesystem writes and direct network access.
-Package preparation has [separate permissions](#host-resolution-and-trust), including its own sandbox on macOS and Linux.
+Package preparation has [separate permissions](#host-resolution-and-trust), including its own sandbox on macOS, Linux, and Windows.
 
 ## Add packages as needed {#add-packages-during-an-analysis}
 
@@ -76,8 +76,8 @@ An omitted list keeps the defaults.
 An empty list (`[]`) removes the additional startup requests; it does not remove Console's required runtime packages, uninstall packages, or delete cached installations.
 Packages listed explicitly in configuration or requested by the agent are required, even if they also appear in the built-in defaults.
 
-[Configuration](CONFIGURATION.md#startup-package-declarations) covers interpreter versions and startup settings.
-[Package preparation and caches](RESOLVER.md) covers download permissions and storage locations.
+[Interpreters and startup](RUNTIME_CONFIGURATION.md#startup-package-declarations) covers interpreter versions and startup settings.
+[Package sources and caches](RESOLVER.md) covers download permissions and storage locations.
 
 ## Choose when packages may be prepared {#resolution-policy-admission}
 
@@ -146,14 +146,14 @@ python: .venv
 ```
 
 Console uses the selected environment as supplied, without resolving or installing Python packages.
-Console itself needs no third-party Python packages; a [compatible Python installation](CONFIGURATION.md#python-environment-selection) with its standard library is sufficient.
+Console itself needs no third-party Python packages; a [compatible Python installation](RUNTIME_CONFIGURATION.md#python-environment-selection) with its standard library is sufficient.
 
 Install the packages you want your agent to use in that environment, such as pandas for data frames, Matplotlib for plotting, and DuckDB for the default [Python-owned SQL connection](BUILTIN_RUNTIME.md#select-a-native-connection).
 The session's filesystem and network permissions still apply.
 
 ## Package sources and permissions {#host-resolution-and-trust}
 
-Console resolves and prepares packages in a separate native sandbox by default, including MXC on Windows.
+Console resolves and prepares packages in a separate native sandbox by default.
 The resolver sandbox limits writes to dependency caches and temporary directories and restricts network access to allowed package and tooling hosts.
 These permissions are separate from those of the agent's code.
 
@@ -175,3 +175,5 @@ Package requirements are included in the session's [recordings](RECORDING.md), a
 For requirement actions, accepted input, and live-preparation semantics, see [Requirements API](REQUIREMENTS_API.md).
 
 <span id="custom-workers"></span>
+
+Continue with [Sandbox and trust](SANDBOX.md) to understand what the session and package preparation can access.

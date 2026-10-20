@@ -1,10 +1,16 @@
 # Tool configuration
 
-Customize what the agent sees for client integrations and evaluations.
+Customize which languages, parameters, and descriptions the agent sees through your [configuration file](CONFIGURATION.md).
 These settings change presentation, not sandbox permissions.
-Ordinary session setup is in [Configuration](CONFIGURATION.md).
+For interpreter selection, startup packages, and database startup, see [Interpreters and startup](RUNTIME_CONFIGURATION.md).
+For a guide with examples, see [Build on Console](BUILD_ON_CONSOLE.md).
 
 ## Model-visible languages
+
+| Setting     | Accepted values                                         | Default                                |
+| ----------- | ------------------------------------------------------- | -------------------------------------- |
+| `languages` | Nonempty list of `r`, `python`, and/or `sql`; or `null` | Omitted or `null`: `[r, python, sql]`. |
+
 
 ```yaml
 languages: [sql, python]
@@ -22,7 +28,15 @@ This is a presentation setting, not a security boundary.
 
 ## Tool descriptions and parameters
 
-Use `tool` to customize the exposed `send` definition for evaluations or other clients:
+The `tool` mapping accepts these settings:
+
+| Setting             | Accepted values                        | Default and behavior                                                                         |
+| ------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `tool.description`  | String or `null`                       | Omitted or `null`: generated `send` description. A string replaces it completely.            |
+| `tool.instructions` | String or `null`                       | Omitted or `null`: generated initialization instructions. A string replaces them completely. |
+| `tool.parameters`   | Mapping of parameter names to settings | Omission keeps the normal schema and descriptions.                                           |
+
+For example:
 
 ```yaml
 languages: [python]
@@ -59,6 +73,22 @@ In that workflow, initialization instructions may supply the initial server summ
 Do not assume instructions are always shown, shown in full, or the only text visible before loading a tool.
 See [deferred tool discovery](TOOL_DESCRIPTIONS.md#deferred-tool-discovery) for client-specific guidance and the protocol references.
 
+### Parameter settings
+
+Each entry under `tool.parameters.<name>` accepts:
+
+| Node                                 | Accepted values                                                    | Meaning and default                                                                                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool.parameters.<name>.enabled`     | `true` or `false`                                                  | Advertise and accept the parameter when true. Default: `true`. False hides it and rejects explicitly supplied values, including `null`; omission retains the runtime default. |
+| `tool.parameters.<name>.description` | String or `null`                                                   | Replace that parameter's description. Omitted or `null`: generated text.                                                                                                      |
+| `tool.parameters.<name>.parameters`  | Mapping of nested parameter names to the same settings             | Customize fields inside an object parameter. Omission keeps their defaults; scalar fields accept no nested names.                                                             |
+| `tool.parameters.<name>.schema`      | Unchanged metadata mapping from `config resolve --full`, or `null` | Read-only inspection of argument types/constraints. Changing metadata is invalid; omit it when writing configuration by hand.                                                 |
+
+Available top-level names are `r`, `python`, `sql`, `requirements`, `control`, `stdin`, and `timeout_ms`.
+Source fields are available only for the selected `languages`.
+Under `tool.parameters.requirements.parameters`, the names are `action`, `r`, `python`, `python_version`, `duckdb`, and `exclude_newer`.
+Each uses the same parameter settings above.
+
 Each parameter's `description` replaces its complete description; nested parameters use another `parameters` mapping.
 Strings are used verbatim, including empty strings, without appending generated guidance or permission text.
 Omitted descriptions and instructions keep their generated text.
@@ -91,18 +121,11 @@ mcp-console config resolve --full > session.yaml
 mcp-console serve --config-file session.yaml
 ```
 
-`config resolve` uses the same file selection, ordered `-c` overrides, and validation as `serve`.
-Use `--no-config` for built-in configuration without discovered files, or `--config-file PATH` to start from one selected file.
-`--format json` emits JSON instead of YAML.
-The command does not start interpreters, prepare packages, or create session/cache directories.
+See [Export a configuration](CONFIGURATION.md#export-a-configuration) for file selection, pruning, launch flags, and export limitations.
+The details below apply when editing generated tool text and parameter metadata.
 
-With no output flag, `config resolve` uses `--prune`: it omits settings equal to the binary's built-in defaults, independently of global and project configuration.
-The comparison uses the same sandbox choice as the export.
-An unchanged configuration produces `{}`.
-Mappings are pruned recursively; changed arrays and scalar values remain complete, including empty arrays and strings.
-Overrides needed to preserve conditional defaults, such as resolver environment inheritance, remain explicit.
-Tool prose is compared with generated text for the selected languages, permissions, and timeout visibility, retaining explicit text when those conditional defaults differ.
-Use `--full` to include all configuration defaults; it cannot be combined with `--prune`.
+Tool prose is pruned against generated text for the selected languages, permissions, and timeout visibility.
+Explicit text remains when those conditional defaults differ.
 
 The full output contains captured settings, configuration defaults, generated instructions and descriptions, and every parameter selected by `languages`, including disabled parameters.
 Each parameter has explicit `enabled` and `description` fields, read-only `schema` metadata for its type and constraints, and a `parameters` mapping for nested fields.
@@ -116,15 +139,6 @@ Edit that text too if the experiment should remove its timeout guidance.
 Removing an override or setting `description: null` restores generated text; an empty string replaces it with empty text.
 The exported document keeps the ordinary configuration semantics; deleting a parameter entry restores its defaults rather than hiding it.
 
-Use the same launch directory for export and execution so relative permission paths retain their meaning.
-For host execution, pass `--no-sandbox` to both `config resolve` and `serve`; launch flags are not stored in application YAML.
-The selected configuration file bypasses automatic global/project discovery.
-
-Values determined during runtime preparation remain policies: omitted automatic package lists, `python: null` for normal interpreter selection, inherited environment variables, and runtime-created cache and temporary paths.
-Python `first_available` lists retain their candidates, including `active_venv`; the next launch evaluates them against its own environment and filesystem.
-Managed fallback entries include their effective resolution policy even when an existing candidate is selected.
-The export does not pin installed dependencies or copy the host environment.
-Exported interpreter paths must be representable as UTF-8; other native paths produce a configuration error.
 Changing `languages` may make saved parameter entries unavailable; resolve the desired language selection before editing the tool.
 
 R exposes these operations through [`discover_console_config()`, `materialize_console_config()`, and `prune_console_config()`](https://t-kalinowski.github.io/mcp-console/r/articles/configuration.html#inspect-and-edit-configuration).

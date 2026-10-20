@@ -1,7 +1,7 @@
 # Windows development and validation
 
 Contributor build and test procedures.
-Use the shared [installation instructions](getting-started.qmd#install) and [sandbox configuration](SANDBOX_CONFIGURATION.md#windows-mxc-requirement) for runtime setup.
+Use the shared [installation instructions](getting-started.qmd#install) and [sandbox permissions](SANDBOX_CONFIGURATION.md#windows-mxc-requirement) for runtime setup.
 
 ## Build from source
 

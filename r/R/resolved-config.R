@@ -1,6 +1,6 @@
 #' Materialize Console configuration
 #'
-#' Compatibility alias for [materialize_console_config()]. Returns an ordinary
+#' Alias for [materialize_console_config()]. Returns an ordinary
 #' S7 [ConsoleConfig()] with complete defaults and tool presentation.
 #' Use [discover_console_config()] to explicitly read optional configuration files,
 #' [read_console_config()] for a required file, and [prune_console_config()] for
@@ -70,7 +70,7 @@ resolve_console_config <- function(
 #'
 #' @param config A [ConsoleConfig()]. In discovery and file reads, its settings
 #'   override the selected files. Explicit permissions replace inherited permission
-#'   nodes. Leave its legacy `discovery` property `NULL` for these operations.
+#'   nodes. Leave its `discovery` property `NULL` for these operations.
 #' @param global_file Optional global configuration path. Defaults to
 #'   `config.yaml` in `MCP_CONSOLE_HOME`, or `~/.agents/console/config.yaml`.
 #' @param project_file Optional project configuration path. Defaults to

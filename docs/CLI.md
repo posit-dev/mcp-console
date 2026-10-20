@@ -93,8 +93,7 @@ Claude Code tool permissions are written separately to `.claude/settings.json` i
 [Codex](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence) and [Claude Code](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence) give loaded project entries precedence over same-named global entries.
 Global registration leaves existing project entries unchanged and warns when it finds one that may take precedence, including during `--dry-run`.
 The warning identifies the nearest matching project file.
-If an earlier registration created a project entry, rerun setup with `--directory PATH` for that project directory.
-Earlier automatic registrations used the Git root.
+To update an existing project entry, rerun setup with `--directory PATH` for that project directory.
 To use global settings instead, remove only that server's entry from the project configuration listed above.
 
 The check searches from the current directory through Codex's project root, using `project_root_markers` from its user configuration or `.git` by default; without a matching marker it checks only the current directory.
@@ -245,42 +244,37 @@ The `read_only` base restricts ordinary workspace writes; `--writable-root` adds
 Other configured filesystem permissions still apply.
 `--writable-root PATH` may be repeated.
 It adds filesystem grants without selecting the workspace profile, does not create missing directories, and remains subject to more specific permission rules.
-[Sandbox configuration](SANDBOX_CONFIGURATION.md) documents path rules and protected metadata.
+[Sandbox permissions](SANDBOX_CONFIGURATION.md) documents path rules and protected metadata.
 
 ## Standalone sandbox
 
 ```sh
-mcp-console sandbox -- Rscript analysis.R
-mcp-console sandbox --writable-root . -- python script.py
-mcp-console sandbox -c sandbox.network=enabled -- python download.py
+mcp-console sandbox -- python analysis.py
 ```
 
-Arguments after `--` and standard input belong to the target command.
-This applies the sandbox and workload environment, but does not provide a persistent Console session, automatic package preparation, plot capture, or recordings.
-
-The default permits host-file reads and private temporary writes, not workspace writes.
-See [Sandbox and trust](SANDBOX.md) for networking and cleanup limits.
+Run an installed program with Console's filesystem and network permissions.
+[Run commands in a sandbox](SANDBOX_COMMAND.md) covers command arguments, workspace writes, networking, saved configuration, and cleanup.
 
 ## Configuration options
 
-These options work before or after `serve`, `warmup`, and ordinary `sandbox`:
+These options work before or after `serve`, `warmup`, and ordinary `sandbox`, and with [`config resolve`](#inspect-configuration):
 
-| Option                               | Configuration sources                                           |
-| ------------------------------------ | --------------------------------------------------------------- |
-| No selection flags                   | Global file, launch-directory project file, then CLI overrides. |
-| `--no-project-config`                | Global file and CLI overrides.                                  |
-| `--no-global-config`                 | Project file and CLI overrides.                                 |
-| `--no-config`                        | CLI overrides only.                                             |
-| `--config-file PATH`                 | One explicit YAML or JSON file, then CLI overrides.             |
-| `-c KEY=VALUE`, `--config KEY=VALUE` | One dotted assignment; repeat to apply several in order.        |
+| Option                               | Effect                                                      |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `--no-project-config`                | Skip the automatic project file.                            |
+| `--no-global-config`                 | Skip the automatic global file.                             |
+| `--no-config`                        | Skip both automatic files.                                  |
+| `--config-file PATH`                 | Read one required YAML or JSON file instead of those files. |
+| `--default-config KEY=VALUE`         | Set a launch default that configuration files can override. |
+| `-c KEY=VALUE`, `--config KEY=VALUE` | Override settings from configuration files.                 |
 
-An explicit configuration file is required to exist.
-`--config-file` may occur once and cannot be combined with discovery exclusions.
-`-c` accepts an assignment, not a file path or a complete root document.
+`--config-file` may occur once and cannot be combined with discovery-exclusion flags.
+Both assignment options accept dotted keys and YAML values; repeat them to apply several in order.
 
 ```sh
 mcp-console serve --config-file ./session.yaml
 mcp-console serve --no-project-config
+mcp-console serve --default-config sandbox.profile=inherit_codex
 mcp-console serve -c 'languages=[python,sql]' -c 'python=.venv'
 ```
 
@@ -289,7 +283,7 @@ In PowerShell, quote the complete assignment when it contains spaces or structur
 
 Project configuration is trusted input and can widen permissions.
 Use `--no-project-config` for an unfamiliar project until you have reviewed its settings.
-[Configuration](CONFIGURATION.md) defines paths, precedence, and merging.
+See [Configuration files](CONFIGURATION.md#files-and-precedence) for file discovery and precedence, and [Command-line overrides](CONFIGURATION.md#command-line-overrides) for assignment syntax and merge examples.
 
 ## Initialize configuration
 
@@ -300,18 +294,40 @@ mcp-console config init --directory /path/to/project
 mcp-console config init -c r.resolution=disabled -c 'r.packages=[]' --dry-run
 ```
 
-`config init` creates `.agents/console/config.yaml` in the current directory, without searching Git parents or falling back to global configuration outside Git.
-Use `--directory PATH` for another existing project directory, or `--global` for Console's global configuration location; these options are mutually exclusive.
-The annotated starter selects `sandbox.profile: workspace`, with comments explaining workspace writes and read-only project metadata.
-It includes commented examples for common settings, using `##` for explanations and `#` for YAML to uncomment.
-Ordered `-c`/`--config` assignments apply after the starter permissions.
-Other defaults remain implicit; initialization does not read discovered files or materialize defaults.
-Existing destinations cause an error and remain unchanged.
-The command prints the path and file contents; `--dry-run` previews them without creating files or directories.
+By default, `config init` creates `.agents/console/config.yaml` in the current directory.
+`--directory PATH` selects an existing project directory and interprets relative settings there.
+`--global` creates `$MCP_CONSOLE_HOME/config.yaml`, or `~/.agents/console/config.yaml` when the variable is unset.
+The two options are mutually exclusive.
+These files are shared by clients that launch Console with the same configuration locations.
+Client registration remains a separate operation; see [Connect your client](getting-started.qmd#connect-your-client).
 
-`-c` may appear before `config` or after `init`.
-Configuration-source flags and `--default-config` are not accepted by initialization.
-See [Create a configuration file](CONFIGURATION.md#create-a-configuration-file) for paths and behavior.
+The starter selects `sandbox.profile: workspace`: ordinary workspace writes are allowed, while the project's `.git`, `.agents`, `.codex`, and `.aws` paths stay read-only.
+Other readable host files remain readable.
+It includes commented examples for permissions, packages, interpreters, environment variables, and caches.
+Lines beginning with `##` are explanations; lines beginning with `#` are YAML examples to uncomment.
+
+Use repeated `-c` or `--config` assignments to override the starter settings, with the same ordering and merge rules as launch overrides.
+Assignments may appear before `config` or after `init`.
+Supplied sections show active YAML with their guidance; unconfigured sections retain commented examples.
+To start with read-only permissions instead, replace the starter profile:
+
+```sh
+mcp-console config init -c sandbox.profile=read_only
+```
+
+Later profile overrides replace the starter profile without retaining explicit workspace write grants.
+Filesystem settings add exceptions to the selected profile; to restrict writes to selected directories, choose `read_only` and supply those directories in `sandbox.filesystem.read_write`.
+
+Only the starter permissions and supplied settings are saved: initialization does not copy discovered global or project configuration or expand built-in defaults.
+Explicit values are retained even when they equal built-in defaults, so a new project layer can override different global values.
+Configuration-source flags such as `--config-file` and `--no-config` are not accepted.
+`--default-config` is a launch setting and is not accepted by initialization; use `-c` for settings to save in the new file.
+
+The command validates settings without starting interpreters or preparing packages, creates the configuration directory if needed, and reports the file path and contents.
+An existing destination causes an error and is left untouched, including with `--dry-run` or `-c`.
+`--dry-run` prints the proposed path and contents without creating files or directories.
+
+See [Configuration files](CONFIGURATION.md) for how these files are found and applied.
 
 ## Inspect configuration
 
@@ -322,15 +338,11 @@ mcp-console serve --config-file session.yaml
 ```
 
 `config resolve` prints settings without starting runtimes or preparing packages.
-By default it uses `--prune`, omitting settings equal to the binary's built-in defaults.
-`--full` includes defaults, tool descriptions, and parameter settings; it cannot be combined with `--prune`.
+The default output is YAML with built-in defaults omitted.
+Use `--full` to include defaults or `--format json` for JSON; `--full` and `--prune` are mutually exclusive.
+The [configuration options](#configuration-options) apply before `config` or after `resolve`.
 
-YAML is the default output.
-Use `--format json` for JSON.
-Configuration selection flags and `-c` work before `config` or after `resolve`.
-Keep the same launch directory when exporting and using relative paths.
-
-See [Inspect and edit resolved configuration](CONFIGURATION.md#inspect-and-edit-resolved-configuration) for editable fields and runtime-dependent defaults.
+See [Export a configuration](CONFIGURATION.md#export-a-configuration) for pruning rules, relative paths, editable fields, and what an export retains.
 
 ## Windows sandbox requirements
 
@@ -347,12 +359,12 @@ mcp-console serve --no-sandbox
 ```
 
 This runs evaluated code and dependency preparation with host permissions and removes native descendant-cleanup guarantees.
-It also disables [managed temporary storage](SANDBOX_CONFIGURATION.md#profiles-and-temporary-storage).
+It also disables [managed temporary storage](SANDBOX_CONFIGURATION.md#temporary-storage).
 It conflicts with writable-root options and explicit analysis or resolver sandbox settings.
-It uses host cache mode and rejects `cache: console`.
+It uses host cache mode and rejects managed caches, including custom cache directories.
 
 For a configuration exported for host execution, pass `--no-sandbox` to both `config resolve` and `serve`; the launch flag is not stored in YAML.
-See [Cache selection](CONFIGURATION.md#cache-selection) for clearing inherited permission settings deliberately.
+See [Cache selection](RESOLVER.md#cache-locations) for clearing inherited permission settings deliberately.
 
 ## Complete native policy
 

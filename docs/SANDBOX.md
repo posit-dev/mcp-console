@@ -1,74 +1,76 @@
 # Sandbox and trust
 
-The code an agent runs can read files and launch programs.
-The sandbox limits that access; it does not make arbitrary projects, dependencies, or recorded output safe.
+Console runs your agent's code in an operating-system sandbox.
+The sandbox controls which files that code can read or change and which network connections it can make.
+These permissions also apply to programs the code starts.
 
-## Default permissions
+This lets you give an agent access to data while choosing where it can save its work and which services it can contact.
+The sandbox limits access; it does not establish that a project, dependency, or piece of code is trustworthy.
 
-The worker can read host files, write private temporary storage, and run child processes.
-Workspace writes and direct networking are restricted.
-**Host-file reads include readable secrets.** For ordinary project writes, use the [workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile), which keeps workspace metadata read-only:
+You can also [run commands directly](SANDBOX_COMMAND.md) from your terminal using the same sandbox.
 
-```yaml
-sandbox:
-  profile: workspace
-```
+## What code can do by default {#default-permissions}
 
-Writable workspace paths are persistent user data; Console does not delete them during cleanup.
-With the default `sandbox.tempdir: managed`, private temporary storage belongs to the worker lifetime.
-The `read_write` and `read_only` modes retain normal host temporary-directory selection; see [temporary storage](SANDBOX_CONFIGURATION.md#profiles-and-temporary-storage).
+With Console's built-in `read_only` profile, code can read files that your account can read, use private temporary storage, and start other programs.
+It cannot ordinarily write to your project or make direct network connections.
+For example, an agent can load a local CSV, calculate results, and make a plot without permission to edit the source data.
 
-Project configuration is trusted launcher input.
-It can choose executables, supply credentials, and widen permissions; global configuration is not a mandatory ceiling.
-Use `--no-project-config` when opening an unfamiliar project until its configuration has been authorized.
+**Readable host files include readable secrets.** The `read_only` profile protects files from changes; it does not hide their contents.
+You can deny access to specific paths when the agent should not be able to read them.
 
-Dependency preparation uses a separate policy.
-It normally has host reads, dependency-cache writes, and approved downloads, including through MXC on Windows.
-[`warmup`](CLI.md#check-your-installation) prepares dependencies with host permissions and the configured caches; its runtime checks retain the worker sandbox.
-`--no-sandbox` selects host permissions for both preparation and evaluated code.
-Package installation and build hooks remain trusted code.
-See [Resolver configuration](RESOLVER.md).
+Your client setup and configuration can select a different profile.
+In particular, [`mcp-console configure-client codex`](CLI.md#configure-a-client) sets up Console to inherit Codex's permissions unless a configuration file overrides that choice.
 
-## Application policy and launch
+## Give a session the access it needs
 
-Setup failures do not trigger an automatic retry with weaker enforcement or without a sandbox.
-See [Architecture](ARCHITECTURE.md#application-policy-and-launch) for launch and verification ownership.
+If the agent needs to edit scripts or save reports in your project, the `workspace` profile permits those writes while keeping the project's `.git`, `.agents`, `.codex`, and `.aws` paths read-only by default.
+The workspace is the directory where Console starts; changing directories during a session does not move that boundary.
+You can also grant writes to selected output directories or block reads from particular paths.
 
-## Supported hosts and lifetime limits
+Network access is a separate choice.
+You can keep networking restricted, allow selected destinations through Console's proxy, or permit host networking.
+Allowing an API through the proxy does not automatically grant every other kind of network connection.
 
-**macOS:** Seatbelt enforces permissions.
-Cleanup covers the owned process group and detached descendants the runner observes.
-A descendant that detaches and becomes orphaned before observation may escape discovery.
-General shell job suspension/resumption is unsupported.
+See [Sandbox permissions](SANDBOX_CONFIGURATION.md) for profiles, file access, networking, and their platform limits.
 
-**Linux:** Bubblewrap provides namespace-based enforcement and retirement.
-Namespace setup must be permitted by the host.
-Fresh procfs is optional; inherited procfs can expose host PIDs and readable metadata.
-A stopped namespace init can exceed cleanup deadlines when emergency termination facilities are unavailable.
-See [Linux compatibility](LINUX_COMPATIBILITY.md).
+## Why packages have separate permissions
 
-**Windows x64:** Native execution requires MXC for every sandboxed launch.
-Unsupported hosts and policies fail before executing the workload.
-The runner confirms Job retirement before successful exit and private-storage removal.
-See [Windows requirements](SANDBOX_CONFIGURATION.md#windows-mxc-requirement).
+Console may need to download and install a package before running code that uses it.
+Package preparation therefore has its own permissions: by default, it can read host files, write dependency caches and private temporary files, and download from approved package sources.
+Your session can use prepared packages while its own networking remains restricted.
 
-Caller death triggers cleanup while the runner remains alive.
-There is no independent recovery process.
-Runner death, a stopped/hung runner, or a forced frontend kill does not guarantee descendant termination, temporary-storage deletion, or terminal restoration.
-Surviving sandboxed processes retain their native enforcement.
+The installation check, [`warmup`](CLI.md#check-your-installation), prepares dependencies with host permissions so they can be cached before a sandboxed session; its runtime checks still use the session's sandbox.
 
-Cleanup failures are errors.
-Unconfirmed retirement retains private storage and blocks replacement rather than being reported as success.
-Closing pipes or reaping the direct worker does not prove native descendant cleanup.
+Installation and build steps can execute code, so the packages and package sources you choose still need to be trusted.
+The session's `sandbox` settings and preparation's `resolver.sandbox` settings are independent.
+[Package sources and caches](RESOLVER.md) explains how to change preparation permissions and download sources.
 
-`--no-sandbox` removes native enforcement and native descendant cleanup.
-It also omits general-purpose managed storage and temporary-environment redirection.
-Console guarantees temporary-storage cleanup only with an active sandbox and managed storage.
-Other modes use normal runtime cleanup without an added Console guarantee; R performs best-effort session-tempdir cleanup.
-Native Python DuckDB retains its normal storage defaults and lifetime, including persistent secrets.
-Normal relay shutdown still reaps its direct worker.
-Complete native unrestricted/external modes have different guarantees; see [enforcement modes](SANDBOX_CONFIGURATION.md#filesystem-and-enforcement-modes).
+## Configuration is part of the trust decision
 
-## Policy extensions and compatibility
+Console loads global and project configuration when it starts.
+A project configuration can select executables, supply credentials, and widen permissions; global settings are not an upper limit.
+Use `--no-project-config` for an unfamiliar project until you have reviewed and authorized its configuration.
+[Configuration files](CONFIGURATION.md#files-and-precedence) explains which files Console reads.
 
-See [Architecture](ARCHITECTURE.md#policy-extensions-and-compatibility) for maintenance and evidence requirements.
+When Console [inherits permissions from Codex](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex), it trusts the client to set its permissions.
+This includes disabling both the session and package-preparation sandboxes when the client supplies full access.
+
+## What remains after a session
+
+Files saved to writable project paths are your data and remain after the session ends.
+With the default managed temporary storage, Console removes its private temporary files after the sandboxed processes have stopped.
+Cleanup failures are reported as errors.
+A crashed or forcibly stopped runner can leave processes or temporary files behind; there is no separate recovery process.
+
+Alternative temporary-storage settings and `--no-sandbox` have different cleanup guarantees.
+See [Temporary storage](SANDBOX_CONFIGURATION.md#temporary-storage) and [Process cleanup](SANDBOX_CONFIGURATION.md#supported-hosts-and-lifetime-limits) for the exact behavior.
+Recordings and reports can contain code, data, and output from the session; the sandbox does not make recorded output safe to share or execute.
+
+## Further details
+
+<span id="supported-hosts-and-lifetime-limits"></span> <span id="application-policy-and-launch"></span> <span id="policy-extensions-and-compatibility"></span>
+
+Console reports sandbox setup failures without automatically retrying with weaker permissions.
+The reference covers [platform support](SANDBOX_CONFIGURATION.md#native-capabilities) and [process cleanup](SANDBOX_CONFIGURATION.md#supported-hosts-and-lifetime-limits); [Architecture](ARCHITECTURE.md#application-policy-and-launch) covers implementation ownership and [policy extensions](ARCHITECTURE.md#policy-extensions-and-compatibility).
+
+Continue to [Get started](getting-started.qmd) to connect your client, or use [Sandbox permissions](SANDBOX_CONFIGURATION.md) to configure access.

@@ -5,7 +5,7 @@ You can ask it to explore data, refine an analysis, or try another approach whil
 
 ## Work iteratively {#build-on-earlier-work}
 
-Variables, imports, functions, and database tables remain available between calls.
+Your agent can inspect or modify what's already in memory without repeating the setup.
 For example, after the agent fits a statistical model, you can ask it to inspect the residuals or plot predictions without loading the data and fitting the model again.
 An error does not undo changes made before the failure.
 
@@ -56,7 +56,7 @@ The [runtime reference](RUNTIME_REFERENCE.md#r-and-python-interoperability) desc
 <span id="r"></span> <span id="python"></span>
 
 You can tailor Console to a project's languages and dependencies.
-For example, [expose only Python and SQL](TOOL_CONFIGURATION.md#model-visible-languages), use an [existing Python environment](CONFIGURATION.md#python-environment-selection), or select a specific [R installation](CONFIGURATION.md#r-executable-selection).
+For example, [expose only Python and SQL](TOOL_CONFIGURATION.md#model-visible-languages), use an [existing Python environment](RUNTIME_CONFIGURATION.md#python-environment-selection), or select a specific [R installation](RUNTIME_CONFIGURATION.md#r-executable-selection).
 
 An existing Python environment uses the packages already installed there.
 For managed environments, you can [choose startup packages and control whether more may be prepared during the session](REQUIREMENTS.md).
@@ -79,7 +79,7 @@ The selected connection determines the SQL dialect and transaction behavior.
 Access to database files and servers depends on the session's [filesystem and network permissions](SANDBOX.md).
 
 The [SQL connection reference](RUNTIME_REFERENCE.md#select-a-native-connection) shows how to select a connection from either language.
-You can also [configure a database connection at startup](CONFIGURATION.md#session-startup-source).
+You can also [configure a database connection at startup](RUNTIME_CONFIGURATION.md#session-startup-source).
 
 ## Inspect help, plots, and results
 
@@ -108,13 +108,9 @@ The agent can use its client's file tools to inspect that log without rerunning 
 
 <span id="result-previews"></span>
 
-SQL results show a limited number of rows and columns.
-Rows that were never printed are not present in the log, so ask the agent to save the full result when you need the whole dataset.
-
-After inspecting a SQL preview, the agent can retrieve the original result in R or Python without running the query again.
-It can request a limited number of rows or consume successive chunks; omitting the limit materializes all remaining rows.
-Cleanup is automatic on exhaustion, replacement, or a retrieval error or interrupt.
-See [result retrieval](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result) for return types, conversion choices, and lifetime rules.
+SQL previews show a limited number of rows and columns, and the log records that preview.
+Your agent can [retrieve the last SQL result](RUNTIME_REFERENCE.md#retrieve-the-last-sql-result) in R or Python without rerunning the query, then analyze the data or save it to a file.
+It can retrieve all rows at once or work through the result in chunks.
 
 ## Review and reuse the work
 
@@ -124,3 +120,5 @@ The recorded Quarto document provides a starting point for a report; review its 
 
 For precise language behavior, see the [runtime reference](RUNTIME_REFERENCE.md).
 [Client integration](CLIENTS.md) covers applications that call Console directly.
+
+Continue with [Packages and environments](REQUIREMENTS.md) to learn how Console prepares the libraries your agent uses.

@@ -13,7 +13,7 @@ Submit one complete R, Python, or SQL cell, inspect its result, and then submit 
 
 ## Runtime selection
 
-[Configuration](CONFIGURATION.md#python-environment-selection) owns interpreter requirements and selection.
+[Interpreters and startup](RUNTIME_CONFIGURATION.md#python-environment-selection) owns interpreter requirements and selection.
 [Packages and environments](REQUIREMENTS.md) owns package defaults and preparation choices.
 Language visibility changes tool fields, not the availability of a SQL provider.
 Tool discovery is independent of [server readiness](SEND_OPERATIONS.md#server-readiness).
@@ -25,7 +25,7 @@ Every visible top-level expression can autoprint.
 The whole cell is parsed before evaluation, so a parse error runs none of it.
 Evaluation or print errors preserve earlier effects and normally leave the worker usable.
 
-R owns its normal startup files and workspace restoration; see [Native R startup](CONFIGURATION.md#native-r-startup).
+R owns its normal startup files and workspace restoration; see [Native R startup](RUNTIME_CONFIGURATION.md#native-r-startup).
 Console supplies transport, interrupt, graphics, and documentation output integration.
 R event handlers, including `later` callbacks, can run while idle and produce output collected by a later call.
 
@@ -185,7 +185,7 @@ The driver owns SQL dialect, transaction behavior, and type mappings.
 Console submits the complete source without retrying through another execution method.
 Use DBI's statement interface directly from R when the driver requires it.
 
-[Session startup source](CONFIGURATION.md#session-startup-source) can select a connection before cells run.
+[Session startup source](RUNTIME_CONFIGURATION.md#session-startup-source) can select a connection before cells run.
 Reset does not rerun that source; restart does and may repeat its side effects.
 
 ### Result previews
@@ -302,5 +302,5 @@ No aggregate retention quota or automatic cleanup is implemented.
 Initialize R before starting background threads that access the native process environment; concurrent native environment access during R startup is unsupported.
 Partial runtime initialization can require restart.
 
-Platform enforcement and descendant cleanup have explicit [sandbox limits](SANDBOX.md#supported-hosts-and-lifetime-limits).
+Platform enforcement and descendant cleanup have explicit [sandbox limits](SANDBOX_CONFIGURATION.md#supported-hosts-and-lifetime-limits).
 [Open work](TODO.md) distinguishes unresolved engineering items from deliberately unsupported features.
