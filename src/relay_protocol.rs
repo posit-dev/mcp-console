@@ -63,6 +63,9 @@ pub(crate) enum RelayCommand {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum RelayEvent {
+    WorkerStarted {
+        pid: u32,
+    },
     #[serde(deserialize_with = "deserialize_payload_free")]
     Ready,
     RuntimeInitialized {

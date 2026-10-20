@@ -1,3 +1,7 @@
 ---
 relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
   kind: ready

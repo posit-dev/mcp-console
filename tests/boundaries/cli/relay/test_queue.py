@@ -18,6 +18,7 @@ from boundaries.cli.relay.test_backpressure import send, stdout_backpressure_env
 from support.capture import read_lines
 from support.checkpoints import FifoCheckpoint
 from support.events import Events
+from support.capture import read_relay_ready
 from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, WORKER, requires
 from support.suites import run_this_suite
@@ -93,9 +94,7 @@ def queued_relay(
         worker_exit = Events()
         try:
             assert process.stdout is not None
-            assert read_lines(process.stdout, 1, "relay ready") == [
-                READY.decode().rstrip()
-            ]
+            assert read_relay_ready(process.stdout) == {"kind": "ready"}
             worker_pid = int((root / "worker-pid").read_text())
             worker_exit.watch_process(worker_pid)
             send(

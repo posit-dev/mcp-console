@@ -602,13 +602,18 @@ def test_custom_worker_prepares_r_and_duckdb_requirements(
             .read_text(encoding="utf-8")
             .splitlines()
         ]
-        artifact = events[-2]
-        recorded_result = events[-1]
+        artifact = next(
+            event for event in reversed(events) if event["event"] == "artifact_created"
+        )
+        recorded_result = next(
+            event for event in reversed(events) if event["event"] == "tool_result"
+        )
+        assert artifact["sequence"] < recorded_result["sequence"]
         assert artifact["event"] == "artifact_created", artifact
         assert recorded_result["event"] == "tool_result", recorded_result
         assert artifact["call_id"] is None, artifact
         call = next(
-            event for event in reversed(events[:-2]) if event["event"] == "tool_call"
+            event for event in reversed(events) if event["event"] == "tool_call"
         )
         assert recorded_result["call_id"] == call["call_id"], events[-2:]
         assert recorded_result["result"]["content"][1] == {

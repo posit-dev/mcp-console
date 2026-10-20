@@ -49,6 +49,7 @@ pub(super) fn run(mut command: Command) -> Result<(), String> {
             );
         }
     };
+    events.send(RelayEvent::WorkerStarted { pid: child.id() });
     drop(command);
     drop(child_endpoints);
 

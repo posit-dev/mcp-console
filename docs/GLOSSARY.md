@@ -8,12 +8,12 @@
 
 **MCP:** Model Context Protocol, the interface through which the client discovers and calls Console's tool.
 
-**Console instance:** One lifetime of the Console server, from startup to shutdown.
-An instance can contain multiple successive sessions.
+**Console process:** One server lifetime, from startup to shutdown.
+A process can contain multiple successive sessions.
 
 **Session:** One lifetime of a worker and its live R, Python, and SQL state.
 Objects remain available between calls.
-Restarting replaces the worker, clears its live state, and starts a new session within the same Console instance.
+Restarting replaces the worker, clears its live state, and starts a new session within the same Console process.
 
 **Cell:** One complete block of R, Python, or SQL code submitted for execution.
 Interactive input is supplied separately.
@@ -33,11 +33,15 @@ Code still needs to import a Python module, attach an R package, or load an exte
 
 **Requirements:** The requested dependencies.
 They are not an inventory of installed packages or a lockfile.
-Accepted requirements survive session restarts within the same Console instance.
+Accepted requirements survive session restarts within the same Console process.
 
 **Recording:** Local files containing calls, source, input, output, and artifacts.
-They are unredacted records, not live-state checkpoints.
-A recording belongs to one Console instance and can include multiple sessions.
+A recording belongs to one Console process and can include multiple sessions.
+Recordings are unredacted and do not preserve live state.
+
+**Capture:** The authoritative retained events, text, and images in a recording.
+
+**Transcript:** The human-readable account derived from capture.
 
 **Sandbox:** Operating-system restrictions on the code Console runs.
 Default permissions restrict writes and direct networking but allow host-file reads, including readable secrets.

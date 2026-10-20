@@ -277,7 +277,7 @@ def test_configured_mixed_startup_additions_restart_reset_and_recording(
         (recorded,) = [
             event["startup_requirements"]
             for event in events
-            if event["event"] in ("session_started", "environment_discovered")
+            if event["event"] in ("recording_started", "environment_discovered")
             and event["startup_requirements"] is not None
         ]
         assert recorded == startup["requirements"], recorded

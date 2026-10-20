@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.capture import read_lines
+from support.capture import read_relay_ready
 from support.records import Transcript
 from support.relay_commands import (
     SHUTDOWN,
@@ -45,9 +46,7 @@ def test_forwards_worker_commands_and_keeps_controls_local(binary: Path) -> Tran
             ),
         )
         try:
-            assert json.loads(read_lines(process.stdout, 1, "ready")[0]) == {
-                "kind": "ready"
-            }
+            assert read_relay_ready(process.stdout) == {"kind": "ready"}
             process.stdin.write(command_batch())
             process.stdin.flush()
             receipts = [

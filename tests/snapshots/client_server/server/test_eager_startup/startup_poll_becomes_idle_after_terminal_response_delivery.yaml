@@ -1,27 +1,14 @@
 ---
-scenario: An admitted startup poll follows another call's terminal delivery.
+scenario: >-
+  An admitted poll follows another call's terminal delivery and preserves
+  its input.
 fixture: >-
-  Pause the earlier poll before execution, let a later cell publish its
-  complete response, then resume the poll while that response's transport
-  write is still held.
+  Admit a cell during blocked discovery, give one poll its terminal
+  result, then submit another poll while the completed response's
+  transport write is held. Observe its receipt in capture before releasing
+  the write.
 ---
 !same-as MCP initialization for this execution mode
----
-send:
-  timeout_ms: 600000
-  stdin: |
-    retained input
-result:
-  content:
-    - type: text
-      text: |-
-
-        [idle]
-  isError: false
----
-input:
-  method: ping
-result: {}
 ---
 send:
   r: cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L
@@ -44,6 +31,18 @@ result:
     - type: text
       text: |
         [1] 42
+  isError: false
+---
+send:
+  stdin: |
+    retained input
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
   isError: false
 ---
 send:

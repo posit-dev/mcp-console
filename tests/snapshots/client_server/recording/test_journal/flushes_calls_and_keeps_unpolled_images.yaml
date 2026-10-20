@@ -32,10 +32,10 @@ result:
 ---
 live journal:
   while first call was running:
-    - session_started
+    - recording_started
     - tool_call
   after first call completed:
-    - session_started
+    - recording_started
     - tool_call
     - cell_output
     - tool_result

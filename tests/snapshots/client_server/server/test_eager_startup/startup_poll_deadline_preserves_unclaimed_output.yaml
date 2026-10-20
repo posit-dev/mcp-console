@@ -1,5 +1,5 @@
 ---
-!same-as MCP initialization for this execution mode
+!same-as r-only MCP initialization for this execution mode
 ---
 send:
   timeout_ms: 10000
@@ -15,8 +15,6 @@ result: {}
 ---
 send:
   r: cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L
-  requirements:
-    action: set
   timeout_ms: 0
 result:
   content:
@@ -34,4 +32,13 @@ result:
     - type: text
       text: |
         [1] 42
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
   isError: false

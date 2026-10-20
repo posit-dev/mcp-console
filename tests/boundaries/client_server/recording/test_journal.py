@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, closing, contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -36,6 +36,23 @@ from support.records import Transcript, TranscriptWithCompanions
 from support.resolvers import bare_runtime_environment, record_resolved_r_library
 from support.suites import run_this_suite
 from boundaries.client_server.server.test_startup import discovery_environment
+
+
+def call_events(events: list[dict]) -> list[dict]:
+    """The canonical call/output records, excluding protocol and lifecycle evidence."""
+    return [
+        event
+        for event in events
+        if event["event"]
+        in {
+            "recording_started",
+            "tool_call",
+            "tool_result",
+            "artifact_created",
+            "cell_output",
+        }
+    ]
+
 
 CELL_OUTPUT_RETENTION_LIMIT = 1024 * 1024 * 1024
 
@@ -118,8 +135,9 @@ def test_materializes_records_only_for_console_use(
             .read_text(encoding="utf-8")
             .splitlines()
         ]
+        events = call_events(events)
         assert [event["event"] for event in events] == [
-            "session_started",
+            "recording_started",
             "tool_call",
             "cell_output",
             "tool_result",
@@ -409,8 +427,9 @@ def test_records_tool_calls_and_images(
         assert PNG_1X1 not in markdown_text, markdown_text
         assert PNG_1X1 not in quarto_text, quarto_text
         events = [json.loads(line) for line in journal_text.splitlines()]
+        events = call_events(events)
         assert [event["event"] for event in events] == [
-            "session_started",
+            "recording_started",
             "tool_call",
             "artifact_created",
             "cell_output",
@@ -423,11 +442,24 @@ def test_records_tool_calls_and_images(
         run_id = events[0]["run_id"]
         assert run_id.endswith(f"-{client.process.pid:010d}"), run_id
         assert session.name == run_id, (session, run_id)
-        assert events[0]["session"] == "default", events[0]
         assert Path(events[0]["working_directory"]).samefile(workspace), events[0]
         assert all(event["run_id"] == run_id for event in events), events
         assert all("schema_version" not in event for event in events), events
-        assert [event["sequence"] for event in events] == list(range(1, 10)), events
+        complete_events = [json.loads(line) for line in journal_text.splitlines()]
+        assert [event["sequence"] for event in complete_events] == list(
+            range(1, len(complete_events) + 1)
+        ), complete_events
+        assert (
+            len(
+                [
+                    event
+                    for event in complete_events
+                    if event["event"] == "worker_started"
+                ]
+            )
+            == 1
+        )
+        assert any(event["event"] == "protocol" for event in complete_events)
         assert events[1]["call_id"] == events[2]["call_id"] == 1, events
         assert events[3]["call_id"] == events[2]["call_id"], events
         assert events[1]["request_id"] == image_request_id, events[1]
@@ -548,6 +580,7 @@ def test_records_tool_calls_and_images(
             datetime.fromisoformat(event["at"])
             event["at"] = "<UTC timestamp>"
             event["run_id"] = "<run ID>"
+            event["sequence"] = "<capture sequence>"
             if "request_id" in event:
                 event["request_id"] = "<request ID>"
         events[0]["working_directory"] = "<workspace>"
@@ -625,8 +658,9 @@ def test_disables_recording_after_transcript_failure(
         journal = session / "internal" / "events.jsonl"
         journal_after_failure = journal.read_text(encoding="utf-8")
         events = [json.loads(line) for line in journal_after_failure.splitlines()]
+        events = call_events(events)
         assert [event["event"] for event in events] == [
-            "session_started",
+            "recording_started",
             "tool_call",
             "cell_output",
             "tool_result",
@@ -712,8 +746,9 @@ def test_keeps_recording_after_cell_output_failure(
             .read_text(encoding="utf-8")
             .splitlines()
         ]
+        events = call_events(events)
         assert [event["event"] for event in events] == [
-            "session_started",
+            "recording_started",
             "tool_call",
             "cell_output",
             "tool_result",
@@ -766,8 +801,9 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
+        before_release = call_events(before_release)
         assert [event["event"] for event in before_release] == [
-            "session_started",
+            "recording_started",
             "tool_call",
         ], before_release
         before_release_markdown = markdown.read_text(encoding="utf-8")
@@ -785,8 +821,9 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
+        after_release = call_events(after_release)
         assert [event["event"] for event in after_release] == [
-            "session_started",
+            "recording_started",
             "tool_call",
             "cell_output",
             "tool_result",
@@ -826,8 +863,9 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
+        final_events = call_events(final_events)
         assert [event["event"] for event in final_events] == [
-            "session_started",
+            "recording_started",
             "tool_call",
             "cell_output",
             "tool_result",
@@ -882,6 +920,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
+        completed_events = call_events(completed_events)
         assert [event["event"] for event in completed_events] == [
             *[event["event"] for event in final_events],
             "cell_output",
@@ -897,6 +936,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
+        polled_events = call_events(polled_events)
         assert [event["event"] for event in polled_events] == [
             *[event["event"] for event in completed_events],
             "tool_call",
@@ -1027,17 +1067,7 @@ def test_records_early_calls_before_discovery(binary: Path) -> Transcript:
                 reached.wait("discovery diagnostic emitted")
                 assert os.read(alive, 1) == b"1"
                 sessions = root / ".agents/console/sessions"
-                wait_for_checkpoint(
-                    lambda: next(sessions.glob("*/outputs/session.log"), None),
-                    "startup recording materialized",
-                    root=sessions,
-                    recursive=True,
-                    client=client,
-                )
-                (quarto_path,) = sessions.glob("*/transcript.qmd")
-                pending_quarto = quarto_path.read_text()
-                assert "execute:\n  eval: false\n" in pending_quarto, pending_quarto
-                assert "environment: unknown" in pending_quarto, pending_quarto
+                assert not sessions.exists(), sessions
                 client.expect(
                     "\n[phase: startup]\n[worker starting]",
                     requirements={"action": "get"},
@@ -1051,7 +1081,12 @@ def test_records_early_calls_before_discovery(binary: Path) -> Transcript:
                 json.loads(line)
                 for line in (session / "internal/events.jsonl").read_text().splitlines()
             ]
-            early = [event for event in events if event.get("call_id") == 1]
+            early = [
+                event
+                for event in events
+                if event.get("call_id") == 1
+                and event["event"] in {"tool_call", "tool_result"}
+            ]
             (discovered,) = [
                 event for event in events if event["event"] == "environment_discovered"
             ]
@@ -1067,9 +1102,7 @@ def test_records_early_calls_before_discovery(binary: Path) -> Transcript:
             )
             assert all(event["at"] < discovered["at"] for event in early), events
             markdown = (session / "transcript.md").read_text()
-            assert markdown.index("## Call 1:") < markdown.index(
-                "## Runtime discovery"
-            ), markdown
+            assert "## Call 1:" in markdown, markdown
             quarto = (session / "transcript.qmd").read_text()
             assert "environment: unknown" not in quarto, quarto
             assert "eval: false" not in quarto, quarto
@@ -1132,7 +1165,12 @@ def test_records_early_calls_before_startup_artifacts(binary: Path) -> Transcrip
             (artifact,) = [
                 event for event in events if event["event"] == "artifact_created"
             ]
-            early = [event for event in events if event.get("call_id") == 1]
+            early = [
+                event
+                for event in events
+                if event.get("call_id") == 1
+                and event["event"] in {"tool_call", "tool_result"}
+            ]
             assert [event["event"] for event in early] == [
                 "tool_call",
                 "tool_result",
@@ -1141,7 +1179,7 @@ def test_records_early_calls_before_startup_artifacts(binary: Path) -> Transcrip
                 events
             )
             assert all(event["at"] < artifact["at"] for event in early), events
-            assert events[0]["event"] == "session_started", events
+            assert events[0]["event"] == "recording_started", events
             assert all(events[0]["at"] <= event["at"] for event in events), events
             assert artifact["call_id"] is None, artifact
             assert image.read_bytes() == expected_image
@@ -1190,7 +1228,7 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
             ]
             calls = [event for event in events if event["event"] == "tool_call"]
             results = [event for event in events if event["event"] == "tool_result"]
-            assert events[0]["event"] == "session_started", events
+            assert events[0]["event"] == "recording_started", events
             assert all(events[0]["at"] <= event["at"] for event in events), events
             assert len(calls) == len(results) == 3, events
             assert [event["call_id"] for event in calls] == [1, 2, 3], calls
@@ -1221,7 +1259,7 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
 
 @requires(POSIX)
 @executions(DIRECT, SANDBOXED)
-def test_reports_startup_recording_failure_without_a_tool_call(
+def test_does_not_attempt_recording_without_a_tool_call(
     binary: Path, execution: Execution
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
@@ -1264,16 +1302,13 @@ def test_reports_startup_recording_failure_without_a_tool_call(
                     reached.wait("startup text emitted", timeout=60)
                     client.request("ping")
                     _, stderr = client.finish_with_standard_error()
-                    assert stderr.startswith(
-                        "mcp-console: transcript recording disabled: failed to create "
-                    ), stderr
-                    assert stderr.count("\n") == 1, stderr
+                    assert stderr == "", stderr
                     assert not any(
                         entry.get("method") == "tools/call"
                         for entry in client.transcript
                     ), client.transcript
                 assert (root / ".agents/console/sessions").read_text() == "occupied"
-            return [{"startup_recording_failure_reported_without_send": True}]
+            return [{"recording_attempted_without_send": False}]
         finally:
             reached.close()
             release.close()
@@ -1281,7 +1316,7 @@ def test_reports_startup_recording_failure_without_a_tool_call(
 
 @requires(POSIX, R, SQL, command("ir"))
 @executions(DIRECT, SANDBOXED)
-def test_records_startup_without_a_tool_call(
+def test_discards_startup_capture_without_a_tool_call(
     binary: Path, execution: Execution
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
@@ -1315,14 +1350,6 @@ def test_records_startup_without_a_tool_call(
             MCP_CONSOLE_TEST_STARTUP_OUTPUT=str(reached.path),
             MCP_CONSOLE_TEST_STARTUP_RELEASE=str(release.path),
         )
-        # fmt: r
-        plots = code("""
-            graphics::plot(1:3)
-            graphics::plot(3:1)
-            """)
-        expected_images = reference_plots(
-            rscript, env, plots, width=800 / 96, height=600 / 96, dpi=96, pages=2
-        )
         try:
             args = (
                 execution.serve("--writable-root", str(root))
@@ -1337,41 +1364,79 @@ def test_records_startup_without_a_tool_call(
                 assert client.process.wait(timeout=12) == 0
                 assert client.stdout.read() == ""
                 assert client.stderr.read() == ""
-            (session,) = (root / ".agents/console/sessions").iterdir()
-            assert (
-                session / "outputs/session.log"
-            ).read_text() == "startup text\n" * 20000
-            events = [
-                json.loads(line)
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
-            ]
-            assert not any(
-                event["event"] in ("tool_call", "tool_result", "cell_output")
-                for event in events
-            ), events
-            artifacts = [
-                event for event in events if event["event"] == "artifact_created"
-            ]
-            assert len(artifacts) == 2, artifacts
-            for artifact, expected_image in zip(artifacts, expected_images):
-                assert artifact["call_id"] is None, artifact
-                assert (session / artifact["path"]).read_bytes() == expected_image
-            assert all("schema_version" not in event for event in events), events
-            assert any(
-                event["event"] == "session_output" and event["retained_bytes"] == 260000
-                for event in events
-            )
-            return [
-                {
-                    "startup_text_retained_bytes": 260000,
-                    "startup_images": 2,
-                    "tool_calls": 0,
-                    "eof_retired_startup": True,
-                }
-            ]
+            assert not (root / ".agents/console/sessions").exists()
+            return [{"startup_capture_discarded_without_send": True}]
         finally:
             reached.close()
             release.close()
+
+
+@requires(NATIVE_FIXTURES, PROCESS_EVENTS, R, command("ir"))
+def test_preserves_early_requirements_in_published_quarto(binary: Path) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory, ExitStack() as resources:
+        root = Path(directory)
+        environment, reached, release, alive = resources.enter_context(
+            local_discovery(root)
+        )
+        try:
+            with McpClient(binary, DIRECT.serve(), environment, root) as client:
+                client.initialize_and_list_tools()
+                reached.wait("discovery is held before recording metadata is known")
+                assert os.read(alive, 1) == b"1"
+                admitted = client.send(
+                    r="42L", requirements={"r": ["praise"]}, timeout_ms=0
+                )
+                assert not admitted["isError"], admitted
+                assert last_tool_text(client).endswith(
+                    "[running; poll with an empty send]"
+                ), admitted
+                release.release()
+                result = client.send()
+                assert not result["isError"], result
+                assert last_tool_text(client).endswith("[1] 42\n")
+                transcript = client.finish()
+            (recording,) = (root / ".agents/console/sessions").iterdir()
+            quarto = (recording / "transcript.qmd").read_text()
+            assert "    - praise\n" in quarto, quarto
+            assert "```{r}\n42L\n```" in quarto, quarto
+            assert "eval: false" not in quarto, quarto
+            return transcript
+        finally:
+            release.release()
+
+
+@requires(NATIVE_FIXTURES, R)
+def test_discards_startup_failure_without_send(binary: Path) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory, ExitStack() as resources:
+        root = Path(directory)
+        environment, reached, release, alive = resources.enter_context(
+            local_discovery(root, fail=True)
+        )
+        recorded = resources.enter_context(
+            closing(FifoCheckpoint.create(root / "failure-recorded"))
+        )
+        environment["MCP_CONSOLE_TEST_STARTUP_FAILURE_RECORDED"] = str(recorded.path)
+        try:
+            with McpClient(binary, DIRECT.serve(), environment, root) as client:
+                client.initialize_and_list_tools()
+                reached.wait("discovery ready to fail without send")
+                assert os.read(alive, 1) == b"1"
+                client.request("ping")
+                release.release()
+                # The discovery process has emitted its failure before shutdown;
+                # no send is used to observe or activate the recording.
+                recorded.wait(
+                    "server recorded the completed startup failure", client=client
+                )
+                _, stderr = client.finish_with_standard_error(expected_exit_status=1)
+                assert "fixture R discovery failed" in stderr
+                assert not (root / ".agents/console/sessions").exists()
+                assert not any(
+                    entry.get("method") == "tools/call" for entry in client.transcript
+                )
+            return [{"startup_failure_without_send": "capture discarded"}]
+        finally:
+            release.release()
 
 
 if __name__ == "__main__":

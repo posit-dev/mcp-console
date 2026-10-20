@@ -1,8 +1,16 @@
 ---
 relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
   kind: ready
 ---
 server_raw: <partial stdin frame>
+---
+relay:
+  kind: worker_started
+  pid: 42
 ---
 relay:
   kind: ready

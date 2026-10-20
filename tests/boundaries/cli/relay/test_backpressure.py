@@ -20,6 +20,7 @@ from support.events import Events
 from support.native import SHARED_LIBRARY_FLAG
 from support.native import LOADER_VARIABLE
 from support.normalization import code
+from support.capture import read_relay_ready, assert_worker_started
 from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, WORKER, requires
 from support.suites import run_this_suite
@@ -89,8 +90,7 @@ def backpressured_relay(
         worker_exit = Events()
         try:
             assert process.stdin is not None and process.stdout is not None
-            ready = read_lines(process.stdout, 1, "relay ready")
-            assert [json.loads(line) for line in ready] == [{"kind": "ready"}]
+            assert read_relay_ready(process.stdout) == {"kind": "ready"}
             worker_pid = int((root / "worker-pid").read_text())
             worker_exit.watch_process(worker_pid)
             send(process, {"kind": "evaluate", "language": "r", "source": "output"})
@@ -356,6 +356,7 @@ def test_succeeds_when_deadline_passes_after_final_output(binary: Path) -> Trans
             ready.close()
         completed.wait("retirement clock advanced after final output")
         events = [json.loads(line) for line in stdout.splitlines()]
+        assert_worker_started(events.pop(0))
         assert events == [
             {"kind": "ready"},
             {"kind": "stdout_closed"},
@@ -409,6 +410,7 @@ def test_writes_regular_file_after_retirement_deadline(binary: Path) -> Transcri
         assert process.returncode == 0, stderr
         assert stderr == "", stderr
         events = [json.loads(line) for line in destination.read_text().splitlines()]
+        assert_worker_started(events.pop(0))
         assert events == [
             {"kind": "ready"},
             {"kind": "stdout_closed"},

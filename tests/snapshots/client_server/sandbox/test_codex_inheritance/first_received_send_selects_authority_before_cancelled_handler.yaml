@@ -13,7 +13,9 @@ input:
   params:
     name: send
     arguments:
-      python: raise AssertionError('cancelled first handler ran')
+      python: |
+        cancelled_first_handler_ran = True
+        raise AssertionError("cancelled first handler ran")
     _meta:
       codex/sandbox-state:
         permissionProfile:
@@ -57,6 +59,7 @@ send:
     import os
     from pathlib import Path
 
+    assert "cancelled_first_handler_ran" not in globals()
     assert os.environ["MCP_CONSOLE_SANDBOX"] == "1"
     try:
         _ = Path("created").write_text("denied")

@@ -878,6 +878,9 @@ impl Client {
             |stop_handle| self.register_restart_stop_handle(stop_handle),
             || self.finish_restart(&completion_generation),
         ) {
+            if let Some(recording) = self.0.recording.lock().expect("recording lock").as_ref() {
+                recording.startup_failed(&failure.message);
+            }
             if let Err(clear_error) = self.clear_restart_stop_handle() {
                 failure.message.push_str(&format!(
                     "; additionally failed to clear the worker shutdown handle: {clear_error}"
@@ -1517,7 +1520,7 @@ impl Client {
     pub(crate) async fn shutdown(&self, deadline: Instant) -> Result<(), String> {
         let stop_handles = self.close_lifecycle(deadline)?.unwrap_or_default();
         let client = self.clone();
-        let result = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             let preparation = client
                 .0
                 .resolver_preparation
@@ -1566,9 +1569,7 @@ impl Client {
             }
         })
         .await
-        .map_err(|error| format!("process shutdown task failed: {error}"))?;
-        self.finish_recording();
-        result
+        .map_err(|error| format!("process shutdown task failed: {error}"))?
     }
 }
 

@@ -17,6 +17,7 @@ from support.events import Events
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
 from support.processes import stop_process_group
+from support.capture import assert_worker_started
 from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, requires
 from support.suites import run_this_suite
@@ -88,9 +89,10 @@ def observe_relay(binary: Path, *, fail: bool, fail_probe: bool = False) -> Tran
             initial = [
                 json.loads(line)
                 for line in read_lines(
-                    process.stdout, 2, "worker ready and final output"
+                    process.stdout, 3, "worker launch, ready and final output"
                 )
             ]
+            assert_worker_started(initial.pop(0))
             assert {event["kind"] for event in initial} == {"ready", "stdout"}, initial
             checkpoints["entered"].wait("direct-child observation entered")
             if fail:

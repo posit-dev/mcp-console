@@ -20,6 +20,7 @@ from support.processes import (
     live_processes,
     stop_process_group,
 )
+from support.capture import read_relay_ready, assert_worker_started
 from support.records import Transcript
 from support.relay_lifecycle import (
     LIFECYCLE_COMMANDS,
@@ -92,7 +93,7 @@ def shutdown_admission(binary: Path, scenario: str) -> Transcript:
                 with connection.makefile("rb") as checkpoint:
                     worker = capture_process_identity(int(checkpoint.readline()))
                     exits.watch_process(worker[0])
-                    assert json.loads(process.stdout.readline()) == {"kind": "ready"}
+                    assert read_relay_ready(process.stdout) == {"kind": "ready"}
 
                     def wait_worker(timeout: float) -> None:
                         assert exits.wait(timeout) == {worker[0]}, (
@@ -189,6 +190,7 @@ def test_setup_failure_reaps_child_before_terminal_publication(
             )
             assert live_processes([worker]) == [], "setup failure did not reap worker"
             events = [json.loads(line) for line in output.splitlines()]
+            assert_worker_started(events.pop(0))
             # Unstarted raw readers still drain; the unstarted sideband reader
             # contributes no Ready or other semantic frames.
             assert events[:2] == [
@@ -232,9 +234,7 @@ def lifecycle_events(binary: Path, scenario: str) -> list[dict]:
             start_new_session=True,
         )
         try:
-            assert json.loads(read_lines(process.stdout, 1, "worker ready")[0]) == {
-                "kind": "ready"
-            }
+            assert read_relay_ready(process.stdout) == {"kind": "ready"}
             worker = capture_process_identity(int(pid_path.read_text()))
             exits.watch_process(worker[0])
             process.stdin.write(

@@ -109,6 +109,7 @@ fn dispatch_worker_events(
     let stdout = output.direct_stdout();
     let stderr = output.direct_stderr();
     let mut candidates = RuntimeCandidates::default();
+    let mut worker_acquired = false;
     let mut runtime_started = false;
     let mut semantic_failure = false;
     let mut stdout_closed = false;
@@ -171,6 +172,24 @@ fn dispatch_worker_events(
                     continue;
                 }
                 let result = match event {
+                    RelayEvent::WorkerStarted { .. } if worker_acquired => {
+                        Err("worker relay sent an unexpected worker start".to_string())
+                    }
+                    RelayEvent::WorkerStarted { pid } => {
+                        worker_acquired = true;
+                        let retained = callbacks.client.inspect_requirements();
+                        if let Some(recording) = callbacks
+                            .client
+                            .0
+                            .recording
+                            .lock()
+                            .expect("recording lock")
+                            .as_ref()
+                        {
+                            recording.worker_started(pid, &retained["requirements"]);
+                        }
+                        Ok(())
+                    }
                     RelayEvent::Stdout { data } => {
                         if stdout_closed {
                             Err("worker relay sent stdout after closing the stream".to_string())
@@ -249,10 +268,30 @@ fn dispatch_worker_events(
                         shutdown_started.observe()
                     }
                     RelayEvent::WorkerExited { code } => {
+                        if let Some(recording) = callbacks
+                            .client
+                            .0
+                            .recording
+                            .lock()
+                            .expect("recording lock")
+                            .as_ref()
+                        {
+                            recording.worker_ended(&format!("exited with code {code}"));
+                        }
                         process_outcome = Some(WorkerProcessOutcome::Exited(code));
                         Ok(())
                     }
                     RelayEvent::WorkerSignaled { signal } => {
+                        if let Some(recording) = callbacks
+                            .client
+                            .0
+                            .recording
+                            .lock()
+                            .expect("recording lock")
+                            .as_ref()
+                        {
+                            recording.worker_ended(&format!("terminated by signal {signal}"));
+                        }
                         process_outcome = Some(WorkerProcessOutcome::Signaled(signal));
                         Ok(())
                     }
@@ -295,7 +334,7 @@ fn dispatch_worker_events(
                     _ if semantic_failure => Ok(()),
                     semantic if retiring && ignored_during_retirement(&semantic) => Ok(()),
                     RelayEvent::Ready => {
-                        if runtime_started || startup.is_none() {
+                        if !worker_acquired || runtime_started || startup.is_none() {
                             Err("worker sent an unexpected ready message".to_string())
                         } else {
                             if let Some(startup) = startup.take() {
@@ -306,6 +345,16 @@ fn dispatch_worker_events(
                             // callback could mutate state for a worker not yet admitted.
                             match ready_commit.recv() {
                                 Ok(ReadyCommitOutcome::Committed) => {
+                                    if let Some(recording) = callbacks
+                                        .client
+                                        .0
+                                        .recording
+                                        .lock()
+                                        .expect("recording lock")
+                                        .as_ref()
+                                    {
+                                        recording.worker_ready();
+                                    }
                                     runtime_started = true;
                                     Ok(())
                                 }
@@ -421,7 +470,8 @@ fn bootstrap_callback(event: &RelayEvent) -> bool {
 fn sideband_semantic(event: &RelayEvent) -> bool {
     !matches!(
         event,
-        RelayEvent::Stdout { .. }
+        RelayEvent::WorkerStarted { .. }
+            | RelayEvent::Stdout { .. }
             | RelayEvent::RInitialization { .. }
             | RelayEvent::StdoutBytes { .. }
             | RelayEvent::Stderr { .. }
@@ -721,6 +771,7 @@ fn handle_semantic_event(
             operation.complete(event, &mut candidates.r, &mut candidates.python)
         }
         RelayEvent::Ready
+        | RelayEvent::WorkerStarted { .. }
         | RelayEvent::Stdout { .. }
         | RelayEvent::StdoutBytes { .. }
         | RelayEvent::Stderr { .. }

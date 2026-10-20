@@ -1,2 +1,6 @@
 ---
+relay:
+  kind: worker_started
+  pid: 42
+---
 relay_raw: eyJraW5kIjoiY29uc29sZV9vdXRwdXQi

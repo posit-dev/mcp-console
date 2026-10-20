@@ -115,6 +115,7 @@ class ScriptedRelay:
         self.root = Path(self.temporary.name)
         self.capture = (self.root / CAPTURE_NAME).open("w", encoding="utf-8")
         self.checkpoints: dict[str, int] = {}
+        self.send({"kind": "worker_started", "pid": 42})
 
     def close(self) -> None:
         for checkpoint in self.checkpoints.values():
@@ -1232,6 +1233,28 @@ def run_fatal(relay: ScriptedRelay) -> None:
     )
 
 
+def run_duplicate_worker_started(relay: ScriptedRelay) -> None:
+    if os.environ[SCENARIO_ENV] == "worker_started_after_ready":
+        relay.ready()
+        command = relay.receive()
+        if command.get("kind") == "shutdown":
+            relay.retire(command)
+            return
+        assert command == EVALUATION, command
+    relay.wait_for_release()
+    relay.send({"kind": "worker_started", "pid": 43})
+    if os.environ[SCENARIO_ENV] == "duplicate_worker_started":
+        relay.ready()
+        command = relay.receive()
+    else:
+        command = EVALUATION
+    if command == EVALUATION:
+        relay.complete()
+        relay.retire()
+    else:
+        relay.retire(command)
+
+
 def run_fatal_exit(relay: ScriptedRelay) -> None:
     relay.ready()
     command = relay.receive()
@@ -1559,6 +1582,8 @@ def main() -> None:
         "completion_before_r_activation": run_completion_before_r_activation,
         "cancelled_waiting_send": run_cancelled_waiting_send,
         "fatal": run_fatal,
+        "duplicate_worker_started": run_duplicate_worker_started,
+        "worker_started_after_ready": run_duplicate_worker_started,
         "fatal_status_137": run_fatal_exit,
         "fatal_sigterm": run_fatal_exit,
         "truncated": run_truncated,

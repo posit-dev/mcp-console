@@ -36,7 +36,7 @@ result:
 ---
 recording:
   events:
-    - session_started
+    - recording_started
     - tool_call
     - cell_output
     - tool_result

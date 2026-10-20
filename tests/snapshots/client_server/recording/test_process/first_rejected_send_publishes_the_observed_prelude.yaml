@@ -1,0 +1,40 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: must not execute
+  python: must not execute
+result:
+  content:
+    - type: text
+      text: only one of `r`, `python`, or `sql` may be supplied
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        retained startup text
+    - type: image
+      data: <verified startup PNG>
+      mimeType: image/png
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  stdin: unused input
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

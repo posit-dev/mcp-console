@@ -71,6 +71,7 @@ pub(super) fn run(command: Command) -> Result<(), String> {
             return lifecycle::report_startup_failure(&events, event_writer, message);
         }
     };
+    events.send(RelayEvent::WorkerStarted { pid: child.id() });
     let input_controls = controls.clone();
     // This sole inherited-stdin reader ends with the relay process if the worker
     // exits while its caller still owns stdin. It never outlives a generation.

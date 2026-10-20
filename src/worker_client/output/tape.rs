@@ -61,6 +61,14 @@ impl OutputTape {
             state.recording_notice(output.finish());
             record.publish();
         }
+        // EOF need not poll completed output. Retained response receipts must
+        // reach the journal before its owner emits recording_ended.
+        for (_, response) in &state.sealed {
+            response.preview.publish_output_records();
+        }
+        if let Some(response) = &state.recovered {
+            response.preview.publish_output_records();
+        }
     }
 
     pub(in crate::worker_client) fn direct_stdout(&self) -> DirectOutput {
@@ -149,6 +157,9 @@ impl OutputTape {
         state.worker_revision += 1;
         state.flush_decoders();
         state.flush_terminal();
+        // Before the first send, startup images share this preview. Apply its
+        // budget before retaining artifacts, so omitted startup images never
+        // acquire receipts that could advertise unpublished paths.
         if state
             .current
             .response

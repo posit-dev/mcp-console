@@ -229,11 +229,14 @@ def test_stdin_forwarding_failure_does_not_execute_cell(
             ), output
 
             transcript = client._read_open_capture(capture, allow_raw=True)
-            assert transcript[0] == {"relay": {"kind": "ready"}}, transcript
-            assert transcript[1].keys() == {"server_raw"}, transcript
-            raw = base64.b64decode(transcript[1]["server_raw"], validate=True)
+            assert transcript[:2] == [
+                {"relay": {"kind": "worker_started", "pid": 42}},
+                {"relay": {"kind": "ready"}},
+            ], transcript
+            assert transcript[2].keys() == {"server_raw"}, transcript
+            raw = base64.b64decode(transcript[2]["server_raw"], validate=True)
             assert raw.startswith(b'{"kind":"stdin","data":"'), raw
-            transcript[1]["server_raw"] = "<partial stdin frame>"
+            transcript[2]["server_raw"] = "<partial stdin frame>"
             assert not any(entry.keys() == {"server"} for entry in transcript), (
                 transcript
             )

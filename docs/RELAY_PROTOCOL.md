@@ -39,15 +39,16 @@ The outer transport adds these commands:
 
 Additional relay events are:
 
-| Events                                                     | Payload                                      |
-| ---------------------------------------------------------- | -------------------------------------------- |
-| `stdout`, `stderr`                                         | UTF-8 `data`.                                |
-| `stdout_bytes`, `stderr_bytes`                             | Base64 `data`.                               |
-| `stdout_closed`, `stderr_closed`, `worker_sideband_closed` | None.                                        |
-| `interrupt_result`                                         | Matching `request_id`, optional `error`.     |
-| `shutdown_started`                                         | None; acceptance of the registered shutdown. |
-| `worker_exited`, `worker_signaled`                         | Exit `code` or termination `signal`.         |
-| `fatal`                                                    | Diagnostic `message`.                        |
+| Events                                                     | Payload                                            |
+| ---------------------------------------------------------- | -------------------------------------------------- |
+| `worker_started`                                           | Direct worker `pid`, after successful acquisition. |
+| `stdout`, `stderr`                                         | UTF-8 `data`.                                      |
+| `stdout_bytes`, `stderr_bytes`                             | Base64 `data`.                                     |
+| `stdout_closed`, `stderr_closed`, `worker_sideband_closed` | None.                                              |
+| `interrupt_result`                                         | Matching `request_id`, optional `error`.           |
+| `shutdown_started`                                         | None; acceptance of the registered shutdown.       |
+| `worker_exited`, `worker_signaled`                         | Exit `code` or termination `signal`.               |
+| `fatal`                                                    | Diagnostic `message`.                              |
 
 Payload-free frames contain only `kind`.
 A successful interrupt receipt means delivery was accepted, not that execution stopped.
@@ -58,6 +59,11 @@ Resolver-targeted interrupts do not cross this boundary.
 Sideband, stdout, stderr, and lifecycle producers publish complete frames through one ordered writer.
 Each producer preserves its own order; no cross-stream chronology is inferred.
 Output written before a semantic completion can be observed afterward.
+
+The first lifecycle event after successful child acquisition is `worker_started`, before output readers start.
+A launch failure before acquisition emits no such event.
+Readiness remains a separate worker event, and the final exit/signal frame describes the actual child's outcome.
+These observations establish recording sessions independently of generation identity.
 
 The relay continues reading after operation results without an acknowledgment.
 It does not wait for MCP polls, divide output into responses, or decide environment acceptance.

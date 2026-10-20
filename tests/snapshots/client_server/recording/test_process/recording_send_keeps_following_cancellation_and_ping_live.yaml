@@ -1,0 +1,57 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: echo cancelled cell must not run
+id: <cancelled request 1>
+---
+send:
+  control: restart
+  r: echo cancelled restart must not run
+id: <cancelled request 2>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 2>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: echo after
+result:
+  content:
+    - type: text
+      text: |
+        zod: after
+  isError: false

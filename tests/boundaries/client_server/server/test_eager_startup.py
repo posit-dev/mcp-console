@@ -24,7 +24,6 @@ from support.requirements import (
     NATIVE_FIXTURES,
     POSIX,
     PROCESS_EVENTS,
-    PTHREAD_MUTEX_INTERPOSITION,
     R,
     command,
     requires,
@@ -529,7 +528,7 @@ def test_early_replacement_requirements_withholds_cell_until_prepared(
 def test_early_requirements_select_candidate_before_default_preparation(
     binary: Path, execution: Execution
 ) -> Transcript:
-    return early_requirements_with_pending_poll(binary, execution, expire=False)
+    return early_requirements_with_pending_poll(binary, execution)
 
 
 @execution_snapshots
@@ -538,18 +537,148 @@ def test_early_requirements_select_candidate_before_default_preparation(
 def test_startup_poll_deadline_preserves_unclaimed_output(
     binary: Path, execution: Execution
 ) -> Transcript:
-    return early_requirements_with_pending_poll(binary, execution, expire=True)
+    # Finish cold preparation first, but hold the relay's actual Ready frame.
+    # The finite poll deadline then covers delivery ownership, not downloads.
+    with tempfile.TemporaryDirectory() as temporary, ExitStack() as resources:
+        root = Path(temporary).resolve()
+        ready = resources.enter_context(closing(FifoCheckpoint.create(root / "ready")))
+        proceed = resources.enter_context(
+            closing(FifoCheckpoint.create(root / "proceed"))
+        )
+        write_reached = resources.enter_context(
+            closing(FifoCheckpoint.create(root / "write-reached"))
+        )
+        write_release = resources.enter_context(
+            closing(FifoCheckpoint.create(root / "write-release"))
+        )
+        evaluated = root / "evaluated"
+        environment, _ = r_test_environment()
+        environment.update(
+            {
+                "MCP_CONSOLE_LANGUAGES": "r",
+                "MCP_CONSOLE_TEST_RELAY_READ_DYLIB": os.pathsep.join(
+                    str(build_interposer(root, fixture))
+                    for fixture in (
+                        "relay_stdout_read_interposer",
+                        "response_write_interposer",
+                    )
+                ),
+                "MCP_CONSOLE_TEST_RELAY_READ_MATCH": '"kind":"ready"',
+                "MCP_CONSOLE_TEST_RELAY_READ_BLOCKED": str(ready.path),
+                "MCP_CONSOLE_TEST_RELAY_READ_RELEASE": str(proceed.path),
+                "MCP_CONSOLE_TEST_RESPONSE_WRITE_REACHED": str(write_reached.path),
+                "MCP_CONSOLE_TEST_RESPONSE_WRITE_RELEASE": str(write_release.path),
+                "MCP_CONSOLE_TEST_RESPONSE_WRITE_MATCH": "[running; poll with an empty send]",
+                "MCP_CONSOLE_TEST_RESPONSE_WRITE_COMPLETE": "1",
+                "MCP_CONSOLE_TEST_RESPONSE_WRITE_ARMED": str(root / "write-armed"),
+                "MCP_CONSOLE_TEST_EVALUATED": str(evaluated),
+            }
+        )
+        launcher = code("""
+            import os
+            import sys
+
+            os.environ["MCP_CONSOLE_TEST_RELAY_READ_PID"] = str(os.getpid())
+            loader = "DYLD_INSERT_LIBRARIES" if sys.platform == "darwin" else "LD_PRELOAD"
+            os.environ[loader] = os.environ.pop("MCP_CONSOLE_TEST_RELAY_READ_DYLIB")
+            os.execv(sys.argv[1], sys.argv[1:])
+            """)
+        with McpClient(
+            Path(sys.executable),
+            (
+                "-c",
+                launcher,
+                str(binary),
+                *execution.serve(
+                    "-c",
+                    "cache=host",
+                    "-c",
+                    "r.packages=[]",
+                    *(("--writable-root", str(root)) if execution == SANDBOXED else ()),
+                ),
+            ),
+            environment,
+            root,
+            response_timeout=600,
+        ) as client:
+            try:
+                ready.wait(
+                    "prepared worker's Ready frame is held", timeout=600, client=client
+                )
+                client.initialize_and_list_tools()
+                pending = client.start_send(timeout_ms=10_000)
+                client.request("ping")
+                (root / "write-armed").touch()
+                submitted = client.start_send(
+                    r='cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L',
+                    timeout_ms=0,
+                )
+                write_reached.wait(
+                    "early cell's running response write is held", client=client
+                )
+                client.receive(submitted)
+                assert without_elapsed(last_result_text(client)) == RUNNING
+                assert phase_progress(last_result_text(client)) == "startup"
+                proceed.release()
+                wait_for_path(evaluated, "accepted cell ran", client=client)
+                journal = next(
+                    root.glob(".agents/console/sessions/*/internal/events.jsonl")
+                )
+
+                def poll_result_recorded() -> Path | None:
+                    lines = journal.read_text().rpartition("\n")[0].splitlines()
+                    events = [json.loads(line) for line in lines]
+                    poll_call = next(
+                        event
+                        for event in events
+                        if event["event"] == "tool_call"
+                        and event["request_id"] == pending["id"]
+                    )
+                    return (
+                        journal
+                        if any(
+                            event["event"] == "tool_result"
+                            and event["call_id"] == poll_call["call_id"]
+                            for event in events
+                        )
+                        else None
+                    )
+
+                wait_for_checkpoint(
+                    poll_result_recorded,
+                    "startup poll deadline expires before response delivery",
+                    root=journal.parent,
+                    client=client,
+                    timeout=15,
+                )
+                write_release.release()
+                client.receive(pending)
+                assert pending["result"] == {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "[previous send response delivery is still pending]",
+                        }
+                    ],
+                    "isError": True,
+                }, pending
+                client.expect("[1] 42\n", timeout_ms=0)
+                client.expect("\n[idle]")
+                return client.finish()
+            finally:
+                write_release.release()
+                proceed.release()
 
 
 @execution_snapshots
 @executions(DIRECT, SANDBOXED)
 @requires(R, NATIVE_FIXTURES, PROCESS_EVENTS, command("ir"), command("uv"))
-@requires(POSIX, PTHREAD_MUTEX_INTERPOSITION)
+@requires(POSIX)
 def test_startup_poll_becomes_idle_after_terminal_response_delivery(
     binary: Path, execution: Execution
 ) -> Transcript:
     return early_requirements_with_pending_poll(
-        binary, execution, expire=False, completed_response=True
+        binary, execution, completed_response=True
     )
 
 
@@ -557,7 +686,6 @@ def early_requirements_with_pending_poll(
     binary: Path,
     execution: Execution,
     *,
-    expire: bool,
     completed_response: bool = False,
 ) -> Transcript:
     r_environment, _ = r_test_environment()
@@ -607,26 +735,6 @@ def early_requirements_with_pending_poll(
                 "MCP_CONSOLE_TEST_EVALUATED": str(evaluated),
             }
         )
-        if completed_response:
-            request_paused, request_release, request_recorded, request_dispatched = [
-                resources.enter_context(closing(FifoCheckpoint.create(root / name)))
-                for name in (
-                    "request-paused",
-                    "request-release",
-                    "request-recorded",
-                    "request-dispatched",
-                )
-            ]
-            environment[LOADER_VARIABLE] += os.pathsep + str(
-                build_interposer(root, "startup_request_recorded")
-            )
-            environment.update(
-                MCP_CONSOLE_TEST_REQUEST_ARMED=str(root / "request-armed"),
-                MCP_CONSOLE_TEST_REQUEST_PAUSED=str(request_paused.path),
-                MCP_CONSOLE_TEST_REQUEST_RELEASE=str(request_release.path),
-                MCP_CONSOLE_TEST_REQUEST_RECORDED=str(request_recorded.path),
-                MCP_CONSOLE_TEST_REQUEST_DISPATCHED=str(request_dispatched.path),
-            )
         with McpClient(
             binary,
             execution.serve(
@@ -643,20 +751,14 @@ def early_requirements_with_pending_poll(
             if completed_response:
                 client.transcript.append(
                     {
-                        "scenario": "An admitted startup poll follows another call's terminal delivery.",
-                        "fixture": "Pause the earlier poll before execution, let a later cell publish its complete response, then resume the poll while that response's transport write is still held.",
+                        "scenario": "An admitted poll follows another call's terminal delivery and preserves its input.",
+                        "fixture": "Admit a cell during blocked discovery, give one poll its terminal result, then submit another poll while the completed response's transport write is held. Observe its receipt in capture before releasing the write.",
                     }
                 )
             client.initialize_and_list_tools()
-            if completed_response:
-                (root / "request-armed").touch()
-            pending = client.start_send(
-                timeout_ms=10_000 if expire else 600_000,
-                **({"stdin": "retained input\n"} if completed_response else {}),
-            )
-            if completed_response:
-                request_paused.wait("startup poll admitted before its handler resumes")
-            client.request("ping")
+            if not completed_response:
+                pending = client.start_send(timeout_ms=600_000)
+                client.request("ping")
             (root / "write-armed").touch()
             try:
                 submitted = client.start_send(
@@ -688,11 +790,33 @@ def early_requirements_with_pending_poll(
                 client.receive(submitted)
                 if completed_response:
                     assert last_result_text(client) == "[1] 42\n"
-                    request_release.release()
-                    request_recorded.wait("startup poll recording task returned")
-                    request_dispatched.wait(
-                        "startup poll waits for terminal response delivery"
+                    pending = client.start_send(
+                        stdin="retained input\n", timeout_ms=600_000
                     )
+                    journal = next(
+                        root.glob(".agents/console/sessions/*/internal/events.jsonl")
+                    )
+
+                    def pending_received() -> Path | None:
+                        lines = journal.read_text().rpartition("\n")[0].splitlines()
+                        return (
+                            journal
+                            if any(
+                                event["event"] == "protocol"
+                                and event["direction"] == "received"
+                                and event["message"].get("id") == pending["id"]
+                                for event in map(json.loads, lines)
+                            )
+                            else None
+                        )
+
+                    wait_for_checkpoint(
+                        pending_received,
+                        "poll received while terminal response delivery is held",
+                        root=journal.parent,
+                        client=client,
+                    )
+                    assert "result" not in pending and "error" not in pending, pending
                 else:
                     assert without_elapsed(last_result_text(client)) == RUNNING
                     assert phase_progress(last_result_text(client)) == "startup"
@@ -710,53 +834,9 @@ def early_requirements_with_pending_poll(
                     client=client,
                     timeout=max(0, client.response_deadline() - time.monotonic()),
                 )
-                if expire:
-                    journal = next(
-                        root.glob(".agents/console/sessions/*/internal/events.jsonl")
-                    )
-
-                    def poll_result_recorded() -> Path | None:
-                        # Observe completed journal lines while stdout remains
-                        # held. A stalled transport cannot hide an expired wait.
-                        lines = journal.read_text().rpartition("\n")[0].splitlines()
-                        events = [json.loads(line) for line in lines]
-                        poll_call = next(
-                            event
-                            for event in events
-                            if event["event"] == "tool_call"
-                            and event["request_id"] == pending["id"]
-                        )
-                        return (
-                            journal
-                            if any(
-                                event["event"] == "tool_result"
-                                and event["call_id"] == poll_call["call_id"]
-                                for event in events
-                            )
-                            else None
-                        )
-
-                    wait_for_checkpoint(
-                        poll_result_recorded,
-                        "startup poll deadline expires before response delivery",
-                        root=journal.parent,
-                        client=client,
-                        timeout=15,
-                    )
                 write_release.release()
                 client.receive(pending)
-                if expire:
-                    assert pending["result"] == {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "[previous send response delivery is still pending]",
-                            }
-                        ],
-                        "isError": True,
-                    }, pending
-                    client.expect("[1] 42\n", timeout_ms=0)
-                elif completed_response:
+                if completed_response:
                     assert pending["result"] == {
                         "content": [{"type": "text", "text": "\n[idle]"}],
                         "isError": False,
@@ -783,8 +863,6 @@ def early_requirements_with_pending_poll(
                 )
                 return client.finish()
             finally:
-                if completed_response:
-                    request_release.release()
                 write_release.release()
                 proceed.release()
 

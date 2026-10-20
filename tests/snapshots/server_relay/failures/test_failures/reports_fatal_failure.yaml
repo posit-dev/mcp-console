@@ -1,5 +1,9 @@
 ---
 relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
   kind: fatal
   message: scripted relay failure
 ---

@@ -435,7 +435,11 @@ def test_first_received_send_selects_authority_before_cancelled_handler(
                         "params": {
                             "name": "send",
                             "arguments": {
-                                "python": "raise AssertionError('cancelled first handler ran')"
+                                # fmt: python
+                                "python": code("""
+                                    cancelled_first_handler_ran = True
+                                    raise AssertionError("cancelled first handler ran")
+                                    """),
                             },
                             "_meta": {
                                 STATE: {
@@ -491,6 +495,7 @@ def test_first_received_send_selects_authority_before_cancelled_handler(
                     import os
                     from pathlib import Path
 
+                    assert "cancelled_first_handler_ran" not in globals()
                     assert os.environ["MCP_CONSOLE_SANDBOX"] == "1"
                     try:
                         _ = Path("created").write_text("denied")
@@ -503,10 +508,6 @@ def test_first_received_send_selects_authority_before_cancelled_handler(
             )
             assert not (root / "created").exists()
             transcript = finish(client, root)
-            projection = next(root.glob(".agents/console/sessions/*/transcript.qmd"))
-            assert "cancelled first handler ran" not in projection.read_text(), (
-                "the fixture must cancel the first handler before execution admission"
-            )
             return transcript
 
 

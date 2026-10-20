@@ -149,9 +149,9 @@ impl Summary {
     }
 
     pub(super) fn source(&mut self, source: &Source) {
-        if let Some(file) = &source.file {
+        if let Some(path) = source.file.as_ref().and_then(|file| file.public_path()) {
             if source.retained_bytes != 0 {
-                self.logs.add(file.public_path(), false);
+                self.logs.add(&path, false);
             }
             self.partial |= source.discarded_bytes != 0;
         } else {

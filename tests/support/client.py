@@ -205,7 +205,7 @@ class McpClient:
         self.stderr = TextReader(process.stderr)
         self.transcript: Transcript = []
         self._next_request_id = 1
-        self._issued_request_ids: set[int] = set()
+        self._issued_request_ids: set[int | str] = set()
         self._last_serialized_message: str | None = None
 
     def send(self, **arguments: Any) -> ToolResult:
@@ -245,7 +245,7 @@ class McpClient:
             entry = {}
             if "id" in recorded_message:
                 request_id = recorded_message.pop("id")
-                assert isinstance(request_id, int), message
+                assert isinstance(request_id, (int, str)), message
                 assert request_id not in self._issued_request_ids, (
                     f"JSON-RPC request ID was reused: {request_id}"
                 )

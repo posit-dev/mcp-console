@@ -1,0 +1,26 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  r: 42L
+  requirements:
+    r:
+      - praise
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        preparation detail
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

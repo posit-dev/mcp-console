@@ -15,7 +15,7 @@ recording:
   initialization and removed session tool only: absent
   materialized by:
     send:
-      - session_started
+      - recording_started
       - tool_call
       - cell_output
       - tool_result

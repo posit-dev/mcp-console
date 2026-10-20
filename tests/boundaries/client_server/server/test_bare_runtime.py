@@ -86,8 +86,11 @@ def test_runs_without_a_resolver_bootstrap(
             .read_text(encoding="utf-8")
             .splitlines()
         ]
-        assert events[0]["event"] == "session_started", events[0]
-        assert events[0]["dynamic_resolution"] is False, events[0]
+        assert events[0]["event"] == "recording_started", events[0]
+        discovered = next(
+            event for event in events if event["event"] == "environment_discovered"
+        )
+        assert discovered["dynamic_resolution"] is False, discovered
 
         quarto = (session / "transcript.qmd").read_text(encoding="utf-8")
         assert "tidyverse" not in quarto, quarto
@@ -101,8 +104,8 @@ def test_runs_without_a_resolver_bootstrap(
             companions={
                 "events.yaml": [
                     {
-                        "session_started": {
-                            "dynamic_resolution": events[0]["dynamic_resolution"]
+                        "recording_started": {
+                            "dynamic_resolution": discovered["dynamic_resolution"]
                         }
                     }
                 ],

@@ -165,6 +165,8 @@ class WindowsRelay(unittest.TestCase):
         ready.sendall(b"1")
         if not scenario.startswith(("framing_", "retirement_")):
             ready.close()
+        started = json.loads(process.stdout.readline())
+        self.assertEqual(started, {"kind": "worker_started", "pid": pid})
         self.assertEqual(json.loads(process.stdout.readline()), {"kind": "ready"})
         return process, kernel, owned_worker, marker
 
@@ -658,6 +660,9 @@ class WindowsRelay(unittest.TestCase):
                     reader = Thread(target=read, daemon=True)
                     reader.start()
                     try:
+                        started = events.get(timeout=15)
+                        self.assertEqual(started["kind"], "worker_started")
+                        self.assertGreater(started["pid"], 0)
                         self.assertEqual(events.get(timeout=15), {"kind": "ready"})
                         # fmt: r
                         source = dedent("""

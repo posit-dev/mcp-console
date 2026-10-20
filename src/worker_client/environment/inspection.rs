@@ -168,10 +168,19 @@ impl Client {
     /// Publish only at existing generation-checked commit points. Inspection
     /// never acquires the environment lock held across resolver execution.
     pub(in crate::worker_client) fn publish_requirements(&self, environment: &Environment) {
-        *self
+        let snapshot = environment.inspection();
+        let mut retained = self
             .0
             .requirements_snapshot
             .lock()
-            .expect("requirements snapshot lock") = environment.inspection();
+            .expect("requirements snapshot lock");
+        let changed = retained["requirements"] != snapshot["requirements"];
+        *retained = snapshot.clone();
+        drop(retained);
+        if changed
+            && let Some(recording) = self.0.recording.lock().expect("recording lock").as_ref()
+        {
+            recording.requirements_accepted(&snapshot["requirements"]);
+        }
     }
 }

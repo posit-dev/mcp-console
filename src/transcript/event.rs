@@ -17,12 +17,37 @@ pub(super) struct Envelope<'a> {
 #[derive(Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub(super) enum Event<'a> {
-    SessionStarted {
-        session: &'a str,
+    RecordingStarted {
         working_directory: &'a str,
         dynamic_resolution: Option<bool>,
         python_preparation: Option<bool>,
         startup_requirements: Option<&'a crate::worker_client::Declaration>,
+    },
+    RecordingActivated,
+    RecordingEnded,
+    Protocol {
+        direction: &'a str,
+        message: Value,
+    },
+    Delivery {
+        request_id: Value,
+        call_id: Option<u64>,
+        delivered: bool,
+    },
+    WorkerStarted {
+        session_id: u64,
+        pid: u32,
+        requirements: &'a Value,
+    },
+    WorkerReady {
+        session_id: u64,
+    },
+    WorkerEnded {
+        session_id: u64,
+        outcome: &'a str,
+    },
+    RequirementsAccepted {
+        requirements: &'a Value,
     },
     EnvironmentDiscovered {
         dynamic_resolution: bool,
@@ -31,6 +56,7 @@ pub(super) enum Event<'a> {
         startup_requirements: &'a crate::worker_client::Declaration,
     },
     StartupFailed {
+        session_id: Option<u64>,
         message: &'a str,
     },
     PythonEnvironmentAccepted {

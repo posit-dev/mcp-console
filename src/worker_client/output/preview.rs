@@ -198,7 +198,7 @@ impl Preview {
         if !self.admits_image(data, mime_type) {
             self.recorded_omitted_images += u64::from(artifact.is_some());
             if let Some(artifact) = artifact {
-                self.omitted_artifacts.add(&artifact.public_path, false);
+                self.omitted_artifacts.add(&artifact.public_path(), false);
             }
             self.omit_image(data.len());
             return;
@@ -450,6 +450,17 @@ impl Preview {
         }
     }
 
+    pub(super) fn publish_output_records(&self) {
+        for part in &self.parts {
+            if let Part::Source(Source {
+                file: Some(file), ..
+            }) = part
+            {
+                file.publish();
+            }
+        }
+    }
+
     fn project(&self, account: bool) -> Projection {
         let mut projection = Projection {
             content: account.then(Vec::new),
@@ -549,14 +560,7 @@ impl Preview {
             start = end + 1;
         }
         if account {
-            for part in &self.parts {
-                if let Part::Source(Source {
-                    file: Some(file), ..
-                }) = part
-                {
-                    file.publish();
-                }
-            }
+            self.publish_output_records();
         }
         projection
     }

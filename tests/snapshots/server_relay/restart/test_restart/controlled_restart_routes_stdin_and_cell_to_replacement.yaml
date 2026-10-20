@@ -1,5 +1,9 @@
 ---
 relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
   kind: ready
 ---
 server:
@@ -26,6 +30,10 @@ relay:
 relay:
   kind: worker_exited
   code: 0
+---
+relay:
+  kind: worker_started
+  pid: 42
 ---
 relay:
   kind: ready

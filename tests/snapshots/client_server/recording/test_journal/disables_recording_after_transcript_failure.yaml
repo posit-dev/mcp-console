@@ -35,7 +35,7 @@ result:
   isError: false
 ---
 journal after failure:
-  - session_started
+  - recording_started
   - tool_call
   - cell_output
   - tool_result

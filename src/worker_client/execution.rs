@@ -366,6 +366,9 @@ impl Client {
             || Ok(()),
         )
         .map_err(|mut failure| {
+            if let Some(recording) = self.0.recording.lock().expect("recording lock").as_ref() {
+                recording.startup_failed(&failure.message);
+            }
             if let Err(clear_error) = self.clear_worker_stop_handle(generation) {
                 failure.message.push_str(&format!(
                     "; additionally failed to clear the worker shutdown handle: {clear_error}"
@@ -385,6 +388,9 @@ impl Client {
     ) -> Result<(), SendFailure> {
         let replacing = matches!(&*worker, WorkerState::Stopped);
         if !matches!(&*worker, WorkerState::Running(_)) {
+            if let Some(recording) = self.0.recording.lock().expect("recording lock").as_ref() {
+                recording.worker_starting();
+            }
             #[cfg(any(unix, windows))]
             if let Some(preparation) = &*self
                 .0

@@ -31,3 +31,24 @@ class AllocationProfile:
 
     def close(self) -> None:
         self.mapping.close()
+
+
+class RetentionProfile:
+    """Live large server allocations, independent of allocator caches."""
+
+    def __init__(self, root: Path) -> None:
+        path = root / "retained-allocations"
+        path.write_bytes(bytes(8))
+        with path.open("r+b") as stream:
+            self.mapping = mmap.mmap(stream.fileno(), 8)
+        self.environment = {
+            LOADER_VARIABLE: str(build_interposer(root, "recording_retention")),
+            "MCP_CONSOLE_TEST_RETENTION_PROFILE": str(path),
+        }
+
+    @property
+    def live(self) -> int:
+        return struct.unpack_from("=q", self.mapping)[0]
+
+    def close(self) -> None:
+        self.mapping.close()

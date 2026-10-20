@@ -20,4 +20,6 @@ result:
         zod: echo
   isError: false
 ---
-stderr: ""
+stderr: >
+  mcp-console: transcript recording disabled: failed to create temporary
+  capture: Not a directory (os error 20) at path "<temporary capture>"

@@ -16,6 +16,7 @@ from support.requirements import NATIVE_FIXTURES, POSIX, WORKER, requires
 from support.capture import read_lines
 from support.checkpoints import FifoCheckpoint
 from support.native import LOADER_VARIABLE, build_interposer
+from support.capture import read_relay_ready
 from support.records import Transcript
 from support.suites import run_this_suite
 
@@ -55,9 +56,7 @@ def framing_relay(
             env=environment,
         )
         try:
-            assert json.loads(read_lines(process.stdout, 1, "ready")[0]) == {
-                "kind": "ready"
-            }
+            assert read_relay_ready(process.stdout) == {"kind": "ready"}
             yield process, root, gates
         finally:
             holder = root / "holder-pid"
