@@ -272,7 +272,7 @@ def test_configured_mixed_startup_additions_restart_reset_and_recording(
         (session,) = (root / ".agents/console/sessions").iterdir()
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         (recorded,) = [
             event["startup_requirements"]

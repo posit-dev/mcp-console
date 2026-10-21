@@ -1621,7 +1621,7 @@ def test_records_managed_sql_cells(
         quarto = (session / "transcript.qmd").read_text()
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         additions = [
             event

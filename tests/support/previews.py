@@ -1,5 +1,6 @@
 """Assertions on public previews and their separately retained raw files."""
 
+import json
 import re
 from pathlib import Path
 
@@ -45,7 +46,7 @@ def session_directory(client: McpClient) -> Path:
 
 def cell_text(client: McpClient, call_id: int) -> str:
     return (
-        (session_directory(client) / f"outputs/call-{call_id:06}.log")
+        cell_output_path(session_directory(client), call_id)
         .read_bytes()
         .decode("utf-8", errors="replace")
     )
@@ -88,3 +89,24 @@ def compact_previews(client: McpClient, *units: str) -> None:
         for block in entry.get("result", {}).get("content", []):
             if block["type"] == "text" and isinstance(block["text"], str):
                 block["text"] = compact_text(normalize_elapsed(block["text"]), *units)
+
+
+def recording_events(recording: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in (recording / "capture/events.jsonl").read_text().splitlines()
+    ]
+
+
+def cell_output_path(recording: Path, call_id: int) -> Path:
+    """Resolve public call/cell associations, including polls and replacements."""
+    (event,) = [
+        event
+        for event in recording_events(recording)
+        if event["event"] == "cell_started" and event["call_id"] == call_id
+    ]
+    owner = event["owner"]
+    return (
+        recording
+        / f"capture/sessions/{owner['session_id']:03}/cell-{owner['cell_id']:03}.txt"
+    )

@@ -63,6 +63,8 @@ pub(crate) enum RelayCommand {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum RelayEvent {
+    #[serde(deserialize_with = "deserialize_payload_free")]
+    CellStarted,
     WorkerStarted {
         pid: u32,
     },
@@ -168,6 +170,7 @@ pub(crate) enum RelayEvent {
 impl From<WorkerMessage> for RelayEvent {
     fn from(message: WorkerMessage) -> Self {
         match message {
+            WorkerMessage::CellStarted => Self::CellStarted,
             WorkerMessage::Ready => Self::Ready,
             WorkerMessage::RuntimeInitialized { interrupted } => {
                 Self::RuntimeInitialized { interrupted }

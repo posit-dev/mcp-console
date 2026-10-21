@@ -7,14 +7,14 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8087
+        text_bytes: 8097
         concat:
           - "zod invalid stdout: � trailing: �"
           - repeat: x
             count: 3867
           - |
 
-            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000001.log]
+            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
           - repeat: z
             count: 3862
           - |-
@@ -32,14 +32,14 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8087
+        text_bytes: 8097
         concat:
           - "zod invalid stderr: � trailing: �"
           - repeat: x
             count: 3867
           - |
 
-            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000002.log]
+            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/002/cell-001.txt]
           - repeat: z
             count: 3862
           - |-

@@ -1,0 +1,43 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: answer = input("x> ")
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "x> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: print("before"); answer = input("x> ")
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        before
+        [input requested: "x> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

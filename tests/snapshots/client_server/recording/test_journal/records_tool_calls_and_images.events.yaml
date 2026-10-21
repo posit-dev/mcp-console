@@ -22,18 +22,26 @@
   run_id: <run ID>
   sequence: <capture sequence>
   at: <UTC timestamp>
-- event: artifact_created
+- event: image_retained
+  owner:
+    session_id: 1
+    cell_id: 1
+    interval: cell
   artifact_id: 1
   call_id: 1
-  path: artifacts/call-000001-image-000001.png
+  path: capture/sessions/001/cell-001-001.png
   mime_type: image/png
   bytes: 68
   run_id: <run ID>
   sequence: <capture sequence>
   at: <UTC timestamp>
 - event: cell_output
+  owner:
+    session_id: 1
+    cell_id: 1
+    interval: cell
   call_id: 1
-  path: outputs/call-000001.log
+  path: capture/sessions/001/cell-001.txt
   retained_bytes: 25
   inline_omitted_bytes: 0
   discarded_bytes: 0
@@ -43,6 +51,28 @@
   at: <UTC timestamp>
 - event: tool_result
   call_id: 1
+  parts:
+  - block: 0
+    start: 0
+    end: 13
+    owner:
+      session_id: 1
+      cell_id: 1
+      interval: cell
+  - block: 1
+    start: 0
+    end: 0
+    owner:
+      session_id: 1
+      cell_id: 1
+      interval: cell
+  - block: 2
+    start: 0
+    end: 12
+    owner:
+      session_id: 1
+      cell_id: 1
+      interval: cell
   result:
     content:
       - type: text
@@ -51,7 +81,7 @@
       - type: image
         mimeType: image/png
         artifactId: 1
-        path: artifacts/call-000001-image-000001.png
+        path: capture/sessions/001/cell-001-001.png
       - type: text
         text: |
           after image
@@ -74,6 +104,7 @@
   at: <UTC timestamp>
 - event: tool_result
   call_id: 2
+  parts: []
   result:
     content:
       - type: text
@@ -96,6 +127,11 @@
   at: <UTC timestamp>
 - event: tool_result
   call_id: 3
+  parts:
+  - block: 0
+    start: 0
+    end: 56
+    owner: ~
   result:
     content:
       - type: text
@@ -108,8 +144,8 @@
 produced session:
   root: .agents/console/sessions/<run ID>
   files:
-    - internal/events.jsonl
+    - capture/events.jsonl
     - transcript.md
     - transcript.qmd
-    - artifacts/call-000001-image-000001.png
-    - outputs/call-000001.log
+    - capture/sessions/001/cell-001-001.png
+    - capture/sessions/001/cell-001.txt

@@ -1,6 +1,8 @@
 ---
 kind: ready
 ---
+kind: cell_started
+---
 kind: console_output
 data: |
   zod waiting for shutdown

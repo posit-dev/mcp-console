@@ -255,7 +255,9 @@ def test_relay_protocol_is_independent_of_sandbox_launch(
             process.stdin.flush()
             events.extend(
                 json.loads(line)
-                for line in read_lines(process.stdout, 3, "evaluation completion")
+                for line in read_lines(
+                    process.stdout, 4, "cell start and evaluation completion"
+                )
             )
             shutdown = {"kind": "shutdown", "grace_millis": 1000}
             stdout, stderr = process.communicate(
@@ -266,6 +268,7 @@ def test_relay_protocol_is_independent_of_sandbox_launch(
             assert stderr == "", stderr
             assert events == [
                 {"kind": "ready"},
+                {"kind": "cell_started"},
                 {"kind": "console_output", "data": "zod: "},
                 {"kind": "console_output", "data": "hello\n"},
                 {"kind": "completed"},

@@ -98,6 +98,15 @@ def preview_allocation_image(context: WorkerContext, source: str) -> None:
     send(context.writer, {"kind": "completed"})
 
 
+def overflow_image_retention(context: WorkerContext, source: str) -> None:
+    data = base64.b64encode(b"\0" * (6 * 1024 * 1024 + 3)).decode("ascii")
+    for _ in range(10):
+        send(context.writer, {"kind": "image", "data": data, "mime_type": "image/png"})
+    data = base64.b64encode(b"\0" * (4 * 1024 * 1024)).decode("ascii")
+    send(context.writer, {"kind": "image", "data": data, "mime_type": "image/png"})
+    send(context.writer, {"kind": "completed"})
+
+
 def preview_rejected_image(context: WorkerContext, source: str) -> None:
     send(context.writer, {"kind": "image", "data": "AAAA", "mime_type": "m" * 65537})
     send(context.writer, {"kind": "completed"})
@@ -186,6 +195,9 @@ def preview_large_output(context: WorkerContext, source: str) -> None:
 
 
 def emit_stdout(context: WorkerContext, source: str) -> None:
+    # Native stdout must follow observed cell entry before the test can expect
+    # its entire payload in that cell's log. The streams have no shared order.
+    wait_for_server_to_process_sideband(context.reader, context.writer)
     release = context.root / "zod-release-stdout-completion"
     os.mkfifo(release)
     write_all(1, b"zod stdout ")
@@ -315,3 +327,23 @@ def echo(context: WorkerContext, source: str) -> None:
         wait_for_server_to_process_sideband(context.reader, context.writer)
         publish_marker(context.root / "zod-idle-input-received")
         context.idle_input_received = False
+
+
+def recording_intervals(context: WorkerContext, source: str) -> None:
+    for text in ("before image\n", "after image\n"):
+        send_output(context.writer, text)
+        send(
+            context.writer, {"kind": "image", "data": PNG_1X1, "mime_type": "image/png"}
+        )
+    send(context.writer, {"kind": "completed"})
+    wait_for_server_to_process_sideband(context.reader, context.writer)
+    # The client releases post output only after receiving the completed cell.
+    # Its response cut must not race the idle interval's publications.
+    release = context.root / "zod-recording-post-release"
+    os.mkfifo(release)
+    with release.open("rb", buffering=0) as gate:
+        assert gate.read(1) == b"1"
+    send_output(context.writer, "between cells\n")
+    send(context.writer, {"kind": "image", "data": PNG_1X1, "mime_type": "image/png"})
+    wait_for_server_to_process_sideband(context.reader, context.writer)
+    publish_marker(context.root / "zod-recording-post-observed")

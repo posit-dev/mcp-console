@@ -185,6 +185,11 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                         e["call_id"] for e in events if e["event"] == "tool_call"
                     ] == [1]
                     assert not any(e["event"] == "recording_ended" for e in events)
+                    # Capture failure does not keep completed managed files writable.
+                    for path in recording.rglob("*"):
+                        if path.is_file():
+                            assert path.stat().st_mode & 0o222 == 0, path
+
                 else:
                     assert not (root / ".agents/console/sessions").exists()
                 return [

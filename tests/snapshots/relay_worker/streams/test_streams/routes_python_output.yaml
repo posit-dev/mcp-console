@@ -11,6 +11,9 @@ relay:
     )
 ---
 worker:
+  kind: cell_started
+---
+worker:
   kind: r_initialization
   complete: false
 ---
@@ -44,6 +47,9 @@ relay:
     assert sys.stderr.write("🐍\n") == 2
     sys.setprofile(None)
     raise ValueError("boom")
+---
+worker:
+  kind: cell_started
 ---
 worker:
   kind: console_output
@@ -97,6 +103,9 @@ relay:
         [sys.executable, "-c", descendant_source],
         check=True,
     )
+---
+worker:
+  kind: cell_started
 ---
 stdout: |
   buffer stdout

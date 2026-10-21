@@ -1616,18 +1616,18 @@ mod tests {
             };
         assert_eq!(failure.message, "worker restart state changed");
         assert!(reservation.is_some());
-        let (_, _, delivery) = response.into_parts();
+        let (_, _, delivery, _) = response.into_parts();
         delivery.unwrap().unclaimed();
 
         let recovered = client
             .settle_reserved_evaluation(reservation.take(), false)
             .unwrap_or_else(|failure| panic!("{}", failure.message));
-        let (content, is_error, delivery) = recovered.into_parts();
+        let (content, is_error, delivery, _) = recovered.into_parts();
 
         assert!(!is_error);
         assert!(delivery.is_none());
         assert!(matches!(content.as_slice(), [Content::Text(text)] if text == "[done]"));
-        let (remaining, is_error, delivery) = client.0.output.take().into_parts();
+        let (remaining, is_error, delivery, _) = client.0.output.take().into_parts();
         assert!(remaining.is_empty());
         assert!(!is_error);
         assert!(delivery.is_none());
@@ -1666,18 +1666,18 @@ mod tests {
             .output
             .push_console_text(ConsoleChannel::Output, "later output".to_string());
         let reservation = evaluation.reserve_for_restart().unwrap();
-        let (_, _, delivery) = response.into_parts();
+        let (_, _, delivery, _) = response.into_parts();
         delivery.unwrap().delivered();
 
         let recovered = client
             .settle_reserved_evaluation(Some(reservation), false)
             .unwrap_or_else(|failure| panic!("{}", failure.message));
-        let (content, is_error, delivery) = recovered.into_parts();
+        let (content, is_error, delivery, _) = recovered.into_parts();
 
         assert!(!is_error);
         assert!(delivery.is_none());
         assert!(matches!(content.as_slice(), [Content::Text(text)] if text == "later output"));
-        let (remaining, is_error, delivery) = client.0.output.take().into_parts();
+        let (remaining, is_error, delivery, _) = client.0.output.take().into_parts();
         assert!(remaining.is_empty());
         assert!(!is_error);
         assert!(delivery.is_none());

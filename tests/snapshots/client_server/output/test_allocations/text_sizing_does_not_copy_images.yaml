@@ -45,7 +45,7 @@ result:
       mimeType: image/png
     - type: text
       text:
-        text_bytes: 8041
+        text_bytes: 8051
         concat:
           - |
             preview head
@@ -53,7 +53,7 @@ result:
             count: 3955
           - |
 
-            [output omitted: 24859 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000004.log]
+            [output omitted: 24859 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-004.txt]
           - repeat: x
             count: 3954
           - |

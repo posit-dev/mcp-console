@@ -12,6 +12,9 @@ relay:
     suppressWarnings(invisible(reticulate::py_run_string("fork_ready = True")))
 ---
 worker:
+  kind: cell_started
+---
+worker:
   kind: r_initialization
   complete: false
 ---
@@ -96,6 +99,9 @@ relay:
         assert os.waitstatus_to_exitcode(status) == 0, status
 ---
 worker:
+  kind: cell_started
+---
+worker:
   kind: completed
 ---
 relay:
@@ -109,6 +115,9 @@ relay:
 
 
     run_child(child_output)
+---
+worker:
+  kind: cell_started
 ---
 stdout: |
   fork child stdout
@@ -129,6 +138,9 @@ relay:
     parent_stdout = sys.stdout.write("parent stdout\n")
     parent_stderr = sys.stderr.write("parent stderr\n")
     logger.warning("parent log")
+---
+worker:
+  kind: cell_started
 ---
 worker:
   kind: console_output
@@ -152,6 +164,9 @@ relay:
   kind: evaluate
   language: r
   source: 6 * 7
+---
+worker:
+  kind: cell_started
 ---
 worker:
   kind: console_output

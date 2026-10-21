@@ -21,6 +21,9 @@ server:
   source: "42"
 ---
 relay:
+  kind: cell_started
+---
+relay:
   kind: r_activated
   library: <automatic-candidate>
 ---

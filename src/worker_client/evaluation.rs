@@ -38,6 +38,8 @@ struct EvaluationState {
     /// Whether successful cell completion must end with an explicit final marker.
     controlled_completion: bool,
     input_request: Option<InputRequest>,
+    /// Worker entry remains observed after restart closes response capture.
+    cell_entered: bool,
     /// Whether one `send` currently owns the right to drain this evaluation's response.
     waiting: bool,
     /// Restart or controlled handoff permanently retires this evaluation.
@@ -145,6 +147,7 @@ impl Evaluation {
                 completion_collected: false,
                 controlled_completion,
                 input_request: None,
+                cell_entered: false,
                 waiting: false,
                 retired: false,
                 restart_handoff: None,
@@ -311,30 +314,43 @@ impl Evaluation {
         capture_idle_prelude: bool,
         boundary: impl FnOnce(),
     ) -> Result<(), String> {
-        let (cell_output, failure) = match self.transcript.create_cell_output(self.call_id) {
-            Ok(cell_output) => (cell_output, None),
-            Err(error) => (
-                None,
-                Some(format!(
-                    "cell output file was not created: {error}; text omitted from inline responses will be permanently discarded"
-                )),
-            ),
-        };
         let mut state = self
             .state
             .lock()
             .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        let additional =
-            self.output
-                .begin_cell_output_before(cell_output, capture_idle_prelude, boundary);
+        let additional = self
+            .output
+            .adopt_prelude_before(capture_idle_prelude, boundary);
         if let Some(prelude) = state.idle_prelude.as_mut() {
             prelude.extend(additional);
         } else {
             state.idle_prelude = Some(additional);
         }
         drop(state);
-        if let Some(failure) = failure {
-            self.output.push_notice_line(failure);
+        Ok(())
+    }
+
+    pub(super) fn start_cell_capture(&self) -> Result<(), String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
+        if state.cell_entered {
+            return Err("worker sent a duplicate cell start".into());
+        }
+        self.output
+            .begin_cell_output(&self.transcript, self.call_id)?;
+        state.cell_entered = true;
+        Ok(())
+    }
+
+    pub(super) fn require_cell_entry(&self) -> Result<(), String> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
+        if !state.cell_entered {
+            return Err("worker completed a cell before reporting its start".into());
         }
         Ok(())
     }
@@ -394,10 +410,13 @@ impl Evaluation {
     pub(super) fn image(&self, data: String, mime_type: String) -> Result<(), String> {
         let bytes = crate::transcript::decode_image_data(&data)?;
         self.output
-            .push_image_with_artifact(data, mime_type, |_, mime_type| {
-                Ok(self
-                    .transcript
-                    .persist_decoded_image(self.call_id, &bytes, mime_type))
+            .push_image_with_artifact(data, mime_type, |data, mime_type| {
+                Ok(self.transcript.persist_decoded_image(
+                    self.call_id,
+                    &bytes,
+                    mime_type,
+                    data.len(),
+                ))
             })
     }
 
@@ -585,7 +604,7 @@ impl Evaluation {
     }
 
     fn finish_cell_output(&self) -> OutputCut {
-        self.output.finish_cell_output()
+        self.output.finish_cell_output(false)
     }
 
     pub(super) fn claim(self: &Arc<Self>) -> Result<WaitClaim, String> {
@@ -952,7 +971,7 @@ mod tests {
     }
 
     fn response_text(response: Response) -> String {
-        let (content, is_error, delivery) = response.into_parts();
+        let (content, is_error, delivery, _) = response.into_parts();
         assert!(!is_error);
         assert!(delivery.is_none());
         let [Content::Text(text)] = content.as_slice() else {
@@ -966,7 +985,7 @@ mod tests {
         let (evaluation, response) = completed_response().await;
         assert!(!evaluation.reap_delivered_completion().unwrap());
 
-        let (_, _, delivery) = response.into_parts();
+        let (_, _, delivery, _) = response.into_parts();
         delivery.unwrap().delivered();
 
         assert!(evaluation.reap_delivered_completion().unwrap());
@@ -975,7 +994,7 @@ mod tests {
     #[tokio::test]
     async fn unclaimed_completed_response_is_replayed_once() {
         let (evaluation, response) = completed_response().await;
-        let (_, _, delivery) = response.into_parts();
+        let (_, _, delivery, _) = response.into_parts();
         delivery.unwrap().unclaimed();
         assert!(!evaluation.reap_delivered_completion().unwrap());
 
@@ -986,7 +1005,7 @@ mod tests {
             panic!("unclaimed response was not replayed")
         };
         let response = render_response(SendResponse::Restarted(response));
-        let (content, is_error, delivery) = response.into_parts();
+        let (content, is_error, delivery, _) = response.into_parts();
         assert!(!is_error);
         assert!(matches!(content.as_slice(), [Content::Text(text)] if text == "[done]"));
         delivery.unwrap().delivered();
@@ -999,7 +1018,7 @@ mod tests {
         let (evaluation, response) = completed_response().await;
         let mut restart = evaluation.reserve_for_restart().unwrap();
         let (_, post_completion) = restart.take_output(&evaluation.output);
-        let (post_completion, is_error, delivery) = post_completion.into_parts();
+        let (post_completion, is_error, delivery, _) = post_completion.into_parts();
         assert!(post_completion.is_empty());
         assert!(!is_error);
         assert!(delivery.is_none());
@@ -1009,7 +1028,7 @@ mod tests {
             Err(mpsc::TryRecvError::Empty)
         ));
 
-        let (_, _, delivery) = response.into_parts();
+        let (_, _, delivery, _) = response.into_parts();
         delivery.unwrap().unclaimed();
         let ResponseAcknowledgment::Unclaimed(response) = delivery_result.recv().unwrap() else {
             panic!("cancelled response was reported as delivered")

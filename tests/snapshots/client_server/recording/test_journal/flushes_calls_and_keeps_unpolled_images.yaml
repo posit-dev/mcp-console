@@ -40,15 +40,15 @@ live journal:
     - cell_output
     - tool_result
   unpolled image:
-    event: artifact_created
-    path: artifacts/call-000002-image-000001.png
+    event: image_retained
+    path: capture/sessions/001/cell-002-001.png
     data: <byte-identical decoded PNG>
   later poll result:
     content:
       - type: image
         mimeType: image/png
         artifactId: 1
-        path: artifacts/call-000002-image-000001.png
+        path: capture/sessions/001/cell-002-001.png
     isError: false
   Markdown projection:
     live before result: true

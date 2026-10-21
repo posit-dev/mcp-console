@@ -17,4 +17,7 @@ server:
   source: "42"
 ---
 relay:
+  kind: cell_started
+---
+relay:
   kind: completed

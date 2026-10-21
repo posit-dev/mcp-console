@@ -65,7 +65,7 @@ def test_eof_publishes_unpolled_output_receipts(binary: Path) -> Transcript:
                     release.release()
             (recording,) = (root / ".agents/console/sessions").iterdir()
             assert (
-                recording / "outputs/call-000001.log"
+                recording / "capture/sessions/001/cell-001.txt"
             ).read_text() == "unpolled retained text\n"
             events = recording_events(recording)
             output = [e for e in events if e["event"] == "cell_output"]
@@ -211,6 +211,41 @@ def test_failed_publication_does_not_advertise_omitted_startup_images(
 def test_worker_replacement_does_not_join_a_stalled_lifecycle_writer(
     binary: Path,
 ) -> Transcript:
+    return replacement_with_stalled_journal(
+        binary, "worker_ended", {"control": "restart"}
+    )
+
+
+@requires(NATIVE_FIXTURES, POSIX)
+def test_worker_replacement_does_not_join_a_stalled_cell_start(
+    binary: Path,
+) -> Transcript:
+    return replacement_with_stalled_journal(
+        binary, "cell_started", {"r": "exit unexpectedly"}
+    )
+
+
+@requires(NATIVE_FIXTURES, POSIX)
+def test_worker_replacement_does_not_join_a_stalled_text_event(
+    binary: Path,
+) -> Transcript:
+    return replacement_with_stalled_journal(
+        binary, "output_text", {"r": "exit after output"}
+    )
+
+
+@requires(NATIVE_FIXTURES, POSIX)
+def test_worker_replacement_does_not_join_a_stalled_cell_end(
+    binary: Path,
+) -> Transcript:
+    return replacement_with_stalled_journal(
+        binary, "cell_ended", {"r": "exit unexpectedly"}
+    )
+
+
+def replacement_with_stalled_journal(
+    binary: Path, event: str, arguments: dict
+) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         with (
@@ -220,7 +255,7 @@ def test_worker_replacement_does_not_join_a_stalled_lifecycle_writer(
             environment = {
                 **os.environ,
                 LOADER_VARIABLE: str(build_interposer(root, "recording_observation")),
-                "MCP_CONSOLE_TEST_OBSERVED_EVENT": "worker_ended",
+                "MCP_CONSOLE_TEST_OBSERVED_EVENT": event,
                 "MCP_CONSOLE_TEST_JOURNAL_OBSERVED": str(ended.path),
                 "MCP_CONSOLE_TEST_JOURNAL_RELEASE": str(release.path),
                 "TMPDIR": str(root),
@@ -236,15 +271,15 @@ def test_worker_replacement_does_not_join_a_stalled_lifecycle_writer(
                 root,
             ) as client:
                 client.initialize_and_list_tools()
-                client.send(r="echo ready")
+                assert not client.send(control="restart")["isError"]
                 pid = root / "zod-worker-pid"
                 previous = pid.read_text()
-                restart = client.start_send(control="restart")
+                restart = client.start_send(**arguments)
                 try:
-                    ended.wait("old worker exit is awaiting journal I/O", client=client)
+                    ended.wait(f"{event} journal write is stalled", client=client)
                     wait_for_checkpoint(
                         lambda: pid if pid.read_text() != previous else None,
-                        "replacement acquired while exit journal write is stalled",
+                        f"replacement acquired while {event} journal write is stalled",
                         root=root,
                         client=client,
                     )
@@ -252,7 +287,7 @@ def test_worker_replacement_does_not_join_a_stalled_lifecycle_writer(
                 finally:
                     release.release()
                 client.receive(restart)
-                assert not restart["result"]["isError"], restart
+                assert restart["result"]["isError"] == ("r" in arguments), restart
                 transcript = client.finish()
             (recording,) = (root / ".agents/console/sessions").iterdir()
             events = recording_events(recording)
@@ -270,7 +305,7 @@ def test_worker_replacement_does_not_join_a_stalled_lifecycle_writer(
             return [
                 *transcript[:3],
                 {
-                    "capture": "worker retirement and replacement do not wait for lifecycle journal I/O"
+                    "capture": f"worker retirement and replacement do not wait for {event} journal I/O"
                 },
             ]
 

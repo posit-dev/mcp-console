@@ -40,7 +40,7 @@ The source enums are the complete schema; these are the principal message famili
 | To worker   | Evaluation/control   | `evaluate`, `shutdown`                                                                                                                            |
 | To worker   | Explicit preparation | `prepare_r`, `prepare_python`                                                                                                                     |
 | To worker   | Resolver replies     | `r_resolved`, `r_resolution_failed`, `python_resolved`, `python_resolution_failed`, `python_version_resolved`, `python_version_resolution_failed` |
-| From worker | Readiness/lifecycle  | `ready`, `runtime_initialized`, `r_initialization`, `completed`                                                                                   |
+| From worker | Readiness/lifecycle  | `ready`, `runtime_initialized`, `r_initialization`, `cell_started`, `completed`                                                                   |
 | From worker | Output/input         | `console_output`, `console_diagnostic`, `image`, `input_requested`, `input_received`, `input_cancelled`                                           |
 | From worker | Preparation results  | `r_prepared`, `r_preparation_failed`, `python_prepared`, `python_preparation_failed`, `python_preparation_rejected`                               |
 | From worker | Resolver requests    | `resolve_r`, `resolve_python`, `resolve_python_version`                                                                                           |
@@ -50,6 +50,10 @@ For example:
 
 ```json
 { "kind": "evaluate", "language": "python", "source": "2 + 2" }
+```
+
+```json
+{ "kind": "cell_started" }
 ```
 
 ```json
@@ -85,6 +89,11 @@ Later cells do not inherit that withholding.
 These transitions enqueue commands without waiting for pipe I/O or signal acknowledgment; acknowledgment confirms dispatch, not worker-side interruption or cell completion.
 Native R startup reports its admission and successful completion through `r_initialization`; failed or interrupted R initialization requires explicit restart rather than in-place or automatic retry.
 Test worker fixtures need not send built-in bootstrap events.
+
+`cell_started` marks entry into an evaluated cell and must appear exactly once before its `completed` receipt, including during retirement.
+Completion without entry or duplicate entry fails the protocol.
+The controller uses this receipt to start its numbered output interval; admission alone does not create a cell log.
+`completed` closes the interval, while output observed afterward belongs to the post-cell interval.
 
 Each admitted ordinary operation has one matching terminal result:
 

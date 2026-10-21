@@ -464,7 +464,7 @@ def test_compacts_native_duckdb_progress_bar(
 
                 progress = (root / "progress.bin").read_bytes()
                 session = next((root / ".agents/console/sessions").iterdir())
-                raw = session / "outputs/call-000002.log"
+                raw = session / "capture/sessions/001/cell-002.txt"
                 events.watch_file(raw)
                 response = client.start_send(timeout_ms=220_000)
                 release.release()

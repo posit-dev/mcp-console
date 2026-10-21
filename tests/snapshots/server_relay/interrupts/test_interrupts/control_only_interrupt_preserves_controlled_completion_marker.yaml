@@ -12,6 +12,9 @@ server:
   source: controlled cell completed before later interrupt
 ---
 relay:
+  kind: cell_started
+---
+relay:
   kind: console_output
   data: |
     controlled cell completed before later interrupt

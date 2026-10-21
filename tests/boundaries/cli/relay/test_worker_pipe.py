@@ -64,24 +64,30 @@ def test_worker_reports_closed_output_pipe_without_r_sigpipe_handler(
                 commands.flush()
                 assert [
                     json.loads(line)
-                    for line in read_lines(output, 3, "R initialization")
+                    for line in read_lines(output, 4, "cell start and R initialization")
                 ] == [
+                    {"kind": "cell_started"},
                     {"kind": "r_initialization", "complete": False},
                     {"kind": "r_initialization", "complete": True},
                     {"kind": "completed"},
                 ]
-                output.close()
                 commands.write(
                     json.dumps(
                         {
                             "kind": "evaluate",
                             "language": "r",
-                            "source": "cat('closed pipe\\n')",
+                            "source": "readBin(file('/dev/stdin', 'rb'), 'raw', 1L); cat('closed pipe\\n')",
                         }
                     )
                     + "\n"
                 )
                 commands.flush()
+                assert json.loads(read_lines(output, 1, "second cell started")[0]) == {
+                    "kind": "cell_started"
+                }
+                output.close()
+                process.stdin.write("1")
+                process.stdin.flush()
                 # Keep stdin and the command pipe open until failure is observed.
                 # Their EOF must not cause ordinary worker retirement first.
                 assert process.wait(timeout=5) == 1

@@ -363,8 +363,9 @@ class WindowsRelay(unittest.TestCase):
         )
         process.stdin.flush()
         self.assertEqual(
-            [events.get(timeout=15) for _ in range(2)],
+            [events.get(timeout=15) for _ in range(3)],
             [
+                {"kind": "cell_started"},
                 {"kind": "r_initialization", "complete": False},
                 {"kind": "r_initialization", "complete": True},
             ],
@@ -384,6 +385,7 @@ class WindowsRelay(unittest.TestCase):
             events.get(timeout=15), {"kind": "console_diagnostic", "data": "\n"}
         )
         self.framing_control.sendall(b"1")
+        self.assertEqual(events.get(timeout=15), {"kind": "cell_started"})
         output = []
         while (event := events.get(timeout=15))["kind"] != "completed":
             self.assertEqual(event["kind"], "console_output", event)
@@ -443,8 +445,9 @@ class WindowsRelay(unittest.TestCase):
         )
         process.stdin.flush()
         self.assertEqual(
-            [events.get(timeout=15) for _ in range(2)],
+            [events.get(timeout=15) for _ in range(3)],
             [
+                {"kind": "cell_started"},
                 {"kind": "r_initialization", "complete": False},
                 {"kind": "r_initialization", "complete": True},
             ],
@@ -466,6 +469,7 @@ class WindowsRelay(unittest.TestCase):
             {"kind": "console_output", "data": "idle callback\n"},
         )
         self.framing_control.sendall(b"1")
+        self.assertEqual(events.get(timeout=15), {"kind": "cell_started"})
         output = []
         while (event := events.get(timeout=15))["kind"] != "completed":
             self.assertEqual(event["kind"], "console_output", event)

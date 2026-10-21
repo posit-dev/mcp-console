@@ -10,6 +10,8 @@ Review them before sharing.
 
 Ask the agent for the recording's path, then open `transcript.md` in that directory.
 It shows calls and results with links to retained plots and other artifacts.
+Raw text and images are grouped under `capture/sessions/NNN/` by worker session and observed startup, cell, or post-cell interval.
+Completed files are read-only; copy a file before editing it.
 For the dice example in [Get started](getting-started.qmd), you can inspect both the simulation and the later comparison that reused its results.
 
 The recording documents what happened; it does not save the live Python objects, R objects, or in-memory database for a later session.

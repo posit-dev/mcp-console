@@ -1,0 +1,29 @@
+---
+fixture: "Gated relay: late entry."
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: enter after retirement
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        entered during retirement
+        [stopped by session restart request before evaluation finished]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  control: restart
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false

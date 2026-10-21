@@ -124,6 +124,7 @@ struct RelayTasks {
 /// One operation for this launch, shared by lifecycle, startup and failure
 /// consumers. Reserving it never blocks on a callback, child or task join.
 struct GenerationRetirement {
+    output: super::OutputTape,
     state: Mutex<RetirementState>,
     changed: Condvar,
 }
@@ -393,6 +394,7 @@ impl WorkerRuntime {
             child,
             commands: commands.clone(),
             retirement: Arc::new(GenerationRetirement {
+                output,
                 state: Mutex::new(RetirementState {
                     tasks: Some(Box::new(RelayTasks {
                         dispatcher,
@@ -1416,6 +1418,11 @@ impl WorkerShutdownHandle {
             (Err(error), Ok(_)) => Err(error),
             (Err(error), Err(outcome)) => Err(format!("{error}; additionally {outcome}")),
         };
+        if launcher_exit.is_some() {
+            // All local output producers have joined. Relay loss can omit the
+            // worker outcome, but replacement must not inherit its interval.
+            self.retirement.output.finish_session_output();
+        }
         let result = RetirementResult {
             normal,
             cleanup,

@@ -7,13 +7,13 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8043
+        text_bytes: 8053
         concat:
           - repeat: ab
             count: 1984
           - |
 
-            [output omitted: 8380690 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000001.log]
+            [output omitted: 8380690 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
           - repeat: ab
             count: 1975
           - |
@@ -31,13 +31,13 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8043
+        text_bytes: 8053
         concat:
           - repeat: ab
             count: 1984
           - |
 
-            [output omitted: 8380690 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000002.log]
+            [output omitted: 8380690 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-002.txt]
           - repeat: ab
             count: 1975
           - |
@@ -55,13 +55,13 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8043
+        text_bytes: 8053
         concat:
           - repeat: ab
             count: 1984
           - |
 
-            [output omitted: 8380690 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000003.log]
+            [output omitted: 8380690 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-003.txt]
           - repeat: ab
             count: 1975
           - |

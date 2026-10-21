@@ -48,7 +48,7 @@ def test_records_existing_python_startup_declaration(
         assert "    - jsonlite\n" in quarto, quarto
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         (startup,) = [
             event["startup_requirements"]
@@ -139,11 +139,11 @@ def test_records_real_mixed_language_session(
         session = next((workspace / ".agents/console" / "sessions").iterdir())
         events = [
             json.loads(line)
-            for line in (session / "internal" / "events.jsonl")
+            for line in (session / "capture" / "events.jsonl")
             .read_text(encoding="utf-8")
             .splitlines()
         ]
-        artifacts = [event for event in events if event["event"] == "artifact_created"]
+        artifacts = [event for event in events if event["event"] == "image_retained"]
         assert len(artifacts) == 1, artifacts
         artifact = artifacts[0]
         assert (session / artifact["path"]).read_bytes() == expected_plot[0]

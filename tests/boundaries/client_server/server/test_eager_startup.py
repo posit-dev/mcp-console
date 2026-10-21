@@ -622,7 +622,7 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
                 proceed.release()
                 wait_for_path(evaluated, "accepted cell ran", client=client)
                 journal = next(
-                    root.glob(".agents/console/sessions/*/internal/events.jsonl")
+                    root.glob(".agents/console/sessions/*/capture/events.jsonl")
                 )
 
                 def poll_result_recorded() -> Path | None:
@@ -794,7 +794,7 @@ def early_requirements_with_pending_poll(
                         stdin="retained input\n", timeout_ms=600_000
                     )
                     journal = next(
-                        root.glob(".agents/console/sessions/*/internal/events.jsonl")
+                        root.glob(".agents/console/sessions/*/capture/events.jsonl")
                     )
 
                     def pending_received() -> Path | None:

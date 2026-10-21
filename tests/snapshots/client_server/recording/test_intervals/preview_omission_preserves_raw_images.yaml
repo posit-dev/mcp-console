@@ -1,0 +1,29 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: preview image limit
+result:
+  content:
+    - type: text
+      text: |
+        before oversized image
+
+        [output omitted: 1 image (8388612 encoded bytes); retained image: .agents/console/sessions/<recording ID>/capture/sessions/001/cell-001-001.png]
+        before accepted image
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+    - type: text
+      text: |
+        after accepted image
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

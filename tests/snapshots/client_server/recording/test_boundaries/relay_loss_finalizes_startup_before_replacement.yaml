@@ -1,0 +1,19 @@
+---
+fixture: "Gated relay: lost startup owner."
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: lose relay
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        before relay loss
+        [worker relay stdout closed before retirement completed]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        replacement launch diagnostic
+        [idle]
+  isError: true

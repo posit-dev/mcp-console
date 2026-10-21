@@ -22,6 +22,7 @@ from support.previews import (
     compact_previews,
     cell_text,
     normalize_preview_paths,
+    recording_events,
     session_directory,
     TEXT_BUDGET,
 )
@@ -102,6 +103,22 @@ def cancelled_control_recovery(
 [starting new worker]
 [done]""",
                 "x",
+            )
+            received = [
+                event["message"]["method"]
+                for event in recording_events(session_directory(client))
+                if event["event"] == "protocol" and event["direction"] == "received"
+            ]
+            # Protocol capture must retain the cancellation and ping exchanges
+            # that completed while each result's journal writer was paused.
+            assert (
+                received[4 : 4 + 3 * count]
+                == [
+                    "tools/call",
+                    "notifications/cancelled",
+                    "ping",
+                ]
+                * count
             )
             return client.finish()
 
@@ -188,7 +205,7 @@ def recovered_recorded_cells(
             assert text.endswith("[done]"), repr(text[-200:])
             events = [
                 json.loads(line)
-                for line in (session_directory(client) / "internal/events.jsonl")
+                for line in (session_directory(client) / "capture/events.jsonl")
                 .read_text()
                 .splitlines()
             ]
@@ -206,7 +223,7 @@ def recovered_recorded_cells(
                 assert text.count("[output omitted:") == 1, text
                 assert (
                     text.count(
-                        f".agents/console/sessions/{session_directory(client).name}/outputs/"
+                        f".agents/console/sessions/{session_directory(client).name}/capture/sessions/"
                     )
                     == 1
                 )
@@ -388,7 +405,7 @@ def test_cancelled_active_polls_replay_before_later_output(binary: Path) -> Tran
                 assert not result["isError"], result
                 recorded = next(
                     event["result"]
-                    for line in (session_directory(client) / "internal/events.jsonl")
+                    for line in (session_directory(client) / "capture/events.jsonl")
                     .read_text()
                     .splitlines()
                     if (event := json.loads(line))["event"] == "tool_result"
@@ -401,8 +418,8 @@ def test_cancelled_active_polls_replay_before_later_output(binary: Path) -> Tran
                 state = "\n[running; poll with an empty send]"
                 assert text.endswith(state)
                 assert_preview(without_elapsed(text).removesuffix(state), emitted[0])
-                assert "internal/events.jsonl" not in text
-                assert "outputs/call-000002.log" in text
+                assert "capture/events.jsonl" not in text
+                assert "capture/sessions/001/cell-002.txt" in text
                 assert cell_text(client, 2) == "".join(emitted)
                 client.send(timeout_ms=0)
                 later = last_tool_text(client)
@@ -411,7 +428,7 @@ def test_cancelled_active_polls_replay_before_later_output(binary: Path) -> Tran
                 assert_preview(
                     without_elapsed(later).removesuffix(state), "".join(emitted[1:])
                 )
-                assert "outputs/call-000002.log" in later
+                assert "capture/sessions/001/cell-002.txt" in later
                 worker_release.release()
                 client.send()
                 assert last_tool_text(client) == "[done]"
@@ -460,9 +477,9 @@ def test_image_recovery_moves_the_retained_preview(binary: Path) -> Transcript:
         session = session_directory(client)
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
-        artifacts = [event for event in events if event["event"] == "artifact_created"]
+        artifacts = [event for event in events if event["event"] == "image_retained"]
         assert len(artifacts) == 1, artifacts
         artifact = artifacts[0]
         assert artifact["mime_type"] == "image/png"
@@ -564,15 +581,15 @@ def test_composed_image_omission_names_existing_artifact(binary: Path) -> Transc
         assert "1 image" in text and "retained output:" in text
         session = session_directory(client)
         assert text.count(f".agents/console/sessions/{session.name}") == 1
-        assert "logs: outputs/" in text
-        artifacts = sorted((session / "artifacts").iterdir())
+        assert "logs: capture/sessions/001/" in text
+        artifacts = sorted((session / "capture/sessions/001").glob("*.png"))
         assert len(artifacts) == 2, artifacts
         omitted = artifacts[1]
         assert omitted.read_bytes() == bytes(6 * 1024 * 1024)
-        assert f"images: artifacts/{omitted.name}" in text
+        assert f"images: capture/sessions/001/{omitted.name}" in text
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         summaries = {
             event["call_id"]: event
@@ -590,6 +607,7 @@ def test_composed_image_omission_names_existing_artifact(binary: Path) -> Transc
                 == "preview head\n" + "x" * 32768 + "\npreview tail\n"
             )
         assert sum(block["type"] == "image" for block in result["content"]) == 1
+        assert recorded_omission_owners(client) == [None]
         client.send()
         assert last_tool_text(client) == "\n[idle]"
         client.finish()
@@ -600,6 +618,64 @@ def test_composed_image_omission_names_existing_artifact(binary: Path) -> Transc
             "poll_consumed_notice": True,
         }
     ]
+
+
+def recorded_omission_owners(client: McpClient) -> list[dict | None]:
+    result = next(
+        event
+        for event in reversed(recording_events(session_directory(client)))
+        if event["event"] == "tool_result"
+    )
+    return [
+        part["owner"]
+        for part in result["parts"]
+        if "output omitted:"
+        in result["result"]["content"][part["block"]]
+        .get("text", "")
+        .encode()[part["start"] : part["end"]]
+        .decode()
+    ]
+
+
+def composed_image_omission_ownership(
+    binary: Path, *, count: int, text: bool = False
+) -> Transcript:
+    with recovery_client(binary) as (client, profile, reached, release):
+        for index in range(count):
+            pending = client.start_send(
+                control="interrupt",
+                r="preview allocation image and text"
+                if text and index
+                else "preview allocation image",
+            )
+            cancel_result(client, pending, reached, release)
+        profile.pause_results(False)
+        result = client.send(control="interrupt")
+        assert not result["isError"], result
+        assert sum(block["type"] == "image" for block in result["content"]) == 1
+        expected = (
+            {"session_id": 1, "cell_id": 3, "interval": "cell"} if count == 2 else None
+        )
+        assert recorded_omission_owners(client) == [expected]
+        client.finish()
+    return [{"omitted_images": count - 1, "owner": expected}]
+
+
+@requires(NATIVE_FIXTURES)
+def test_composed_image_omission_preserves_single_interval(binary: Path) -> Transcript:
+    return composed_image_omission_ownership(binary, count=2)
+
+
+@requires(NATIVE_FIXTURES)
+def test_composed_text_and_image_omission_preserves_single_interval(
+    binary: Path,
+) -> Transcript:
+    return composed_image_omission_ownership(binary, count=2, text=True)
+
+
+@requires(NATIVE_FIXTURES)
+def test_composed_image_omission_clears_mixed_intervals(binary: Path) -> Transcript:
+    return composed_image_omission_ownership(binary, count=3)
 
 
 @requires(NATIVE_FIXTURES)
@@ -635,7 +711,7 @@ def test_long_recording_paths_keep_image_omissions_readable(binary: Path) -> Tra
                 assert len(text.encode()) <= TEXT_BUDGET
                 assert text.count("[output omitted:") == 1, text
                 session = next((recording / "sessions").iterdir())
-                artifacts = sorted((session / "artifacts").iterdir())
+                artifacts = sorted((session / "capture/sessions/001").glob("*.png"))
                 assert len(artifacts) == 2, artifacts
                 omitted = artifacts[1]
                 assert omitted.read_bytes() == bytes(6 * 1024 * 1024)
@@ -645,8 +721,8 @@ def test_long_recording_paths_keep_image_omissions_readable(binary: Path) -> Tra
                         " (relative to Console recording directory)"
                     )
                     assert location in text
-                    assert "logs: outputs/" in text
-                    assert f"images: artifacts/{omitted.name}" in text
+                    assert "logs: capture/sessions/001/" in text
+                    assert f"images: capture/sessions/001/{omitted.name}" in text
                 else:
                     marker = re.search(r"\n\[output omitted: [^\n]*\]\n", text)
                     assert marker is not None, text
@@ -667,6 +743,11 @@ def test_long_recording_paths_keep_image_omissions_readable(binary: Path) -> Tra
             "poll_consumed_notice": True,
         }
     ]
+
+
+@requires(NATIVE_FIXTURES)
+def test_unretained_image_omission_preserves_interval(binary: Path) -> Transcript:
+    return recovered_image_omissions(binary, count=1)
 
 
 @requires(NATIVE_FIXTURES)
@@ -692,7 +773,8 @@ def recovered_image_omissions(
             # reusing the worker, preserving all image-admission cycles.
             pending = client.start_send(control="interrupt", r="preview rejected image")
             cancel_result(client, pending, reached, release)
-        compact_cancelled_exchanges(client, start, count=count - 1)
+        if count > 1:
+            compact_cancelled_exchanges(client, start, count=count - 1)
         profile.pause_results(False)
         # Measure recovery after image parsing and admission have completed.
         profile.start()
@@ -704,10 +786,15 @@ def recovered_image_omissions(
         assert not result["isError"], result
         text = result["content"][0]["text"]
         assert text.count("[output omitted:") == 1
+        noun = "image" if count == 1 else "images"
         assert (
-            f"output omitted: {count} images ({4 * count} encoded bytes); "
-            f"{count} images not retained"
+            f"output omitted: {count} {noun} ({4 * count} encoded bytes); "
+            f"{count} {noun} not retained"
         ) in text
+        expected = (
+            {"session_id": 1, "cell_id": 2, "interval": "cell"} if count == 1 else None
+        )
+        assert recorded_omission_owners(client) == [expected]
         client.send()
         assert last_tool_text(client) == "\n[idle]"
         compact_previews(client, "\n[done]")

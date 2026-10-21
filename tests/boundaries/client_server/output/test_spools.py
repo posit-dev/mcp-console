@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from support.previews import cell_output_path
 from support.progress import without_elapsed
 from support.assertions import last_tool_text
 from support.checkpoints import (
@@ -62,14 +63,16 @@ def test_separates_startup_omissions_from_retained_cell_text(
         assert client.temporary_directory is not None
         workspace = Path(client.temporary_directory.name)
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        path = f".agents/console/sessions/{session.name}/outputs/call-000001.log"
+        path = (
+            f".agents/console/sessions/{session.name}/capture/sessions/001/cell-001.txt"
+        )
         assert (workspace / path).read_bytes() == b"cell output\n"
         assert len(output.encode()) <= TEXT_BUDGET
         assert output.endswith("cell output\n"), output[-1000:]
         marker = OMISSION.search(output)
         assert marker is not None
-        assert "outputs/session.log" in marker[0]
-        assert (session / "outputs/session.log").read_text() == "s" * (
+        assert "capture/sessions/001/startup.txt" in marker[0]
+        assert (session / "capture/sessions/001/startup.txt").read_text() == "s" * (
             PENDING_TEXT_BUDGET + 7
         )
         assert path not in marker[0]
@@ -145,8 +148,8 @@ def test_reports_partial_retention_and_later_unretained_output(
                 second_text = last_tool_text(client)
 
             session = next((workspace / ".agents/console" / "sessions").iterdir())
-            path = f".agents/console/sessions/{session.name}/outputs/call-000003.log"
-            assert (workspace / path).read_bytes() == b"x" * file_limit
+            path = cell_output_path(session, 3)
+            assert path.read_bytes() == b"x" * file_limit
             assert f"stopped after {file_limit} retained bytes" in first_text
             assert "later text is not retained in this file" in first_text
             assert "logs contain prefixes" in first_text
@@ -175,11 +178,11 @@ def test_reports_partial_retention_and_later_unretained_output(
             client.send(r="echo after failure")
             assert last_tool_text(client) == "zod: after failure\n"
             assert (
-                session / "outputs/call-000006.log"
+                cell_output_path(session, 6)
             ).read_bytes() == b"zod: after failure\n"
             events = [
                 json.loads(line)
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
+                for line in (session / "capture/events.jsonl").read_text().splitlines()
             ]
             output_event = next(
                 event for event in events if event["event"] == "cell_output"
@@ -240,7 +243,9 @@ def test_reports_omitted_bytes_retained_at_the_file_limit(
         assert client.temporary_directory is not None
         workspace = Path(client.temporary_directory.name)
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        path = f".agents/console/sessions/{session.name}/outputs/call-000002.log"
+        path = (
+            f".agents/console/sessions/{session.name}/capture/sessions/001/cell-002.txt"
+        )
         limit = 1024 * 1024 * 1024
         assert (workspace / path).stat().st_size == limit, (
             (workspace / path).stat().st_size,
@@ -258,7 +263,7 @@ def test_reports_omitted_bytes_retained_at_the_file_limit(
         omitted = sum(int(match[1]) for match in OMISSION.finditer(output))
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         summary = next(
             event

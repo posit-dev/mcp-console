@@ -150,35 +150,18 @@ impl Response {
         response
     }
 
-    pub(crate) fn persist_images(
-        &mut self,
-        transcript: &crate::transcript::Transcript,
-        call_id: Option<u64>,
-    ) -> Result<(), String> {
-        for part in &mut self.preview.parts {
-            let Part::Image(content) = part else {
-                continue;
-            };
-            let Content::Image {
-                data,
-                mime_type,
-                artifact,
-            } = Arc::get_mut(content).expect("retained image has one owner before projection")
-            else {
-                continue;
-            };
-            if artifact.is_none() {
-                *artifact = transcript.persist_image(call_id, data, mime_type)?;
-            }
-        }
-        Ok(())
-    }
-
     /// Consumes the response for the MCP adapter.
-    pub(crate) fn into_parts(mut self) -> (Vec<Content>, bool, Option<ResponseDelivery>) {
+    pub(crate) fn into_parts(
+        mut self,
+    ) -> (
+        Vec<Content>,
+        bool,
+        Option<ResponseDelivery>,
+        Vec<crate::transcript::ResultPart>,
+    ) {
         // Phase observations are rendered inside the ordinary complete-response
         // budget, but never enter retained output or delivery recovery history.
-        let content = match self
+        let (content, recorded_parts) = match self
             .phase
             .as_ref()
             .filter(|_| self.phase_terminal.is_some())
@@ -191,9 +174,9 @@ impl Response {
                     phase,
                     matches!(self.phase_terminal, Some(TerminalState::Running)),
                 );
-                preview.render()
+                preview.render_recorded()
             }
-            None => self.preview.render(),
+            None => self.preview.render_recorded(),
         };
         let is_error = self.is_error;
         let delivery = self.delivery.take().map(|target| ResponseDelivery {
@@ -206,7 +189,7 @@ impl Response {
                 phase: self.phase.take(),
             }),
         });
-        (content, is_error, delivery)
+        (content, is_error, delivery, recorded_parts)
     }
 
     pub(super) fn observe_phase(&mut self, source: Option<super::status::Source>) {

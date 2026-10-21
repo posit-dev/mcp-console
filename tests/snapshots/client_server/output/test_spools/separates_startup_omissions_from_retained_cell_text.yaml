@@ -7,13 +7,13 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8039
+        text_bytes: 8052
         concat:
           - repeat: s
             count: 3968
           - |
 
-            [output omitted: 8380691 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/session.log]
+            [output omitted: 8380691 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/startup.txt]
           - repeat: s
             count: 3956
           - |

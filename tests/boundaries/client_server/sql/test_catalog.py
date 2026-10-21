@@ -1138,7 +1138,7 @@ def test_keeps_repeated_previews_deterministic(
         raw = cell_text(client, call_id)
         assert_preview(output, raw)
         retained.append(raw)
-        outputs.append(output.replace(f"call-{call_id:06}.log", "call-<cell>.log"))
+        outputs.append(output.replace(f"cell-{call_id:03}.txt", "cell-<cell>.txt"))
 
     assert retained[0] == retained[1] == retained[2]
     assert outputs[0] == outputs[1] == outputs[2]

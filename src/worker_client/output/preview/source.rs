@@ -1,5 +1,6 @@
 use super::Gap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 const LOCATION_BYTES: usize = super::TEXT_BYTES / 16;
 
@@ -30,25 +31,50 @@ fn recording_location(path: &Path, session: &Path, directory: bool) -> String {
 
 #[derive(Clone, Default)]
 pub(in crate::worker_client::output) struct Source {
+    pub(in crate::worker_client::output) owner: Option<crate::transcript::Owner>,
     pub(in crate::worker_client::output) file: Option<crate::transcript::OutputRecord>,
+    pub(in crate::worker_client::output) journal: Option<Arc<Mutex<PathBuf>>>,
     pub(in crate::worker_client::output) raw_bytes: u64,
     pub(in crate::worker_client::output) retained_bytes: u64,
     pub(in crate::worker_client::output) discarded_bytes: u64,
 }
 
 /// A single file, or its directory when several retained files contribute.
-/// All receipts in a Console response belong to the same recording session.
+/// All receipts in a Console response belong to the same recording.
 #[derive(Clone, Default)]
 pub(super) struct Location {
     path: Option<String>,
     directory: bool,
+    public_directory: Option<Arc<Mutex<PathBuf>>>,
 }
 
 impl Location {
     pub(super) fn extend(&mut self, other: Self) {
+        if self.public_directory.is_none() {
+            self.public_directory = other.public_directory.clone();
+        }
         if let Some(path) = other.path {
             self.add(&path, other.directory);
         }
+    }
+
+    pub(super) fn add_artifact(&mut self, artifact: &crate::transcript::Artifact) {
+        self.public_directory = Some(artifact.public_directory.clone());
+        self.add(&artifact.path, false);
+    }
+
+    fn resolved_path(&self) -> Option<PathBuf> {
+        let path = PathBuf::from(self.path.as_ref()?);
+        Some(match &self.public_directory {
+            Some(directory) => {
+                let directory = directory.lock().expect("recording path lock");
+                if directory.as_os_str().is_empty() {
+                    return None;
+                }
+                directory.join(path)
+            }
+            None => path,
+        })
     }
 
     pub(super) fn add(&mut self, path: &str, directory: bool) {
@@ -57,52 +83,48 @@ impl Location {
                 self.path = Some(path.to_owned());
                 self.directory = directory;
             }
-            Some(previous) if !self.directory && (directory || previous != path) => {
-                self.path = Some(
-                    Path::new(previous)
-                        .parent()
-                        .expect("recorded file directory")
-                        .display()
-                        .to_string(),
-                );
+            Some(previous) if previous == path && self.directory == directory => {}
+            Some(previous) => {
+                let previous = Path::new(previous);
+                let incoming = Path::new(path);
+                let mut common = if self.directory {
+                    previous
+                } else {
+                    previous.parent().expect("recorded file parent")
+                };
+                let incoming = if directory {
+                    incoming
+                } else {
+                    incoming.parent().expect("recorded file parent")
+                };
+                while !incoming.starts_with(common) {
+                    common = common.parent().expect("one recording owns retained paths");
+                }
+                self.path = Some(common.display().to_string());
                 self.directory = true;
             }
-            _ => {}
         }
     }
 
     pub(super) fn describe(&self, singular: &str, plural: &str) -> Option<String> {
-        self.path.as_ref().map(|path| {
-            let path = Path::new(path);
-            let directory = if self.directory {
-                path
-            } else {
-                path.parent().expect("recorded file directory")
-            };
-            let session = directory.parent().expect("recording session directory");
+        self.resolved_path().map(|path| {
             format!(
                 "{}: {}",
                 if self.directory { plural } else { singular },
-                recording_location(path, session, self.directory)
+                recording_location(&path, recording_root(&path), self.directory)
             )
         })
     }
 
     fn shared_recording(&self, images: &Self) -> Option<String> {
-        let logs = Path::new(self.path.as_ref()?);
-        let images_path = Path::new(images.path.as_ref()?);
-        let directory = logs.parent().expect("recorded output directory");
-        let session = if self.directory {
-            directory
-        } else {
-            directory.parent().expect("recording session directory")
-        };
-        // Share and bound the session prefix once; filenames stay exact.
+        let logs = self.resolved_path()?;
+        let images_path = images.resolved_path()?;
+        let recording = recording_root(&logs);
         Some(format!(
             "retained output: {}; logs: {}{}; images: {}{}",
-            recording_location(session, session, true),
-            logs.strip_prefix(session)
-                .expect("session-owned logs")
+            recording_location(recording, recording, true),
+            logs.strip_prefix(recording)
+                .expect("recording-owned logs")
                 .display(),
             if self.directory {
                 std::path::MAIN_SEPARATOR_STR
@@ -110,16 +132,23 @@ impl Location {
                 ""
             },
             images_path
-                .strip_prefix(session)
-                .expect("session-owned artifacts")
+                .strip_prefix(recording)
+                .expect("recording-owned images")
                 .display(),
             if images.directory {
                 std::path::MAIN_SEPARATOR_STR
             } else {
                 ""
-            }
+            },
         ))
     }
+}
+
+fn recording_root(path: &Path) -> &Path {
+    path.ancestors()
+        .find(|p| p.file_name().is_some_and(|name| name == "capture"))
+        .and_then(Path::parent)
+        .expect("capture belongs to a recording")
 }
 
 /// Constant-size accounting for fully omitted response intervals. Individual
@@ -127,7 +156,13 @@ impl Location {
 #[derive(Clone, Default)]
 pub(in crate::worker_client::output) struct Summary {
     pub(super) gap: Gap,
+    pub(super) owner: Option<crate::transcript::Owner>,
+    has_source: bool,
     logs: Location,
+    // Keep the uncommon process-output location off the inline Part size;
+    // every retained control and text fragment shares that enum's allocation.
+    journal: Option<Box<Location>>,
+    journal_partial: bool,
     partial: bool,
     unavailable: bool,
 }
@@ -149,24 +184,48 @@ impl Summary {
     }
 
     pub(super) fn source(&mut self, source: &Source) {
-        if let Some(path) = source.file.as_ref().and_then(|file| file.public_path()) {
+        if !self.has_source {
+            self.owner = source.owner;
+            self.has_source = true;
+        } else if self.owner != source.owner {
+            self.owner = None;
+        }
+        if let Some(file) = &source.file {
             if source.retained_bytes != 0 {
-                self.logs.add(&path, false);
+                self.logs.public_directory = Some(file.public_directory.clone());
+                self.logs.add(&file.path, false);
             }
             self.partial |= source.discarded_bytes != 0;
+        } else if let Some(directory) = &source.journal {
+            if source.retained_bytes != 0 {
+                let journal = self.journal.get_or_insert_default();
+                journal.public_directory = Some(directory.clone());
+                journal.add("capture/events.jsonl", false);
+            }
+            self.journal_partial |= source.discarded_bytes != 0;
         } else {
             self.unavailable |= source.raw_bytes != 0;
         }
     }
 
     pub(super) fn extend(&mut self, other: Self) {
+        if other.has_source {
+            if !self.has_source {
+                self.owner = other.owner;
+                self.has_source = true;
+            } else if self.owner != other.owner {
+                self.owner = None;
+            }
+        }
         self.gap.bytes += other.gap.bytes;
         self.gap.notices += other.gap.notices;
         self.partial |= other.partial;
         self.unavailable |= other.unavailable;
-        if let Some(path) = other.logs.path {
-            self.logs.add(&path, other.logs.directory);
+        self.logs.extend(other.logs);
+        if let Some(journal) = other.journal {
+            self.journal.get_or_insert_default().extend(*journal);
         }
+        self.journal_partial |= other.journal_partial;
     }
 
     pub(super) fn notice(
@@ -194,14 +253,26 @@ impl Summary {
             details.push(location);
         }
         if self.gap.bytes != 0 {
+            let journal = self
+                .journal
+                .as_ref()
+                .and_then(|journal| journal.describe("capture journal", "capture journals"));
             if !shared_location {
-                details.push(
-                    self.logs
-                        .describe("raw log", "retained logs")
-                        .unwrap_or_else(|| "no retained log; omitted text unavailable".to_owned()),
-                );
+                if let Some(logs) = self.logs.describe("raw log", "retained logs") {
+                    details.push(logs);
+                } else if journal.is_none() {
+                    details.push("no retained log; omitted text unavailable".to_owned());
+                }
             }
-            if self.logs.path.is_some() {
+            if let Some(journal) = journal {
+                details.push(journal);
+                if self.journal_partial {
+                    details.push(
+                        "journal contains prefixes; later process text unavailable".to_owned(),
+                    );
+                }
+            }
+            if self.logs.path.is_some() || self.journal.is_some() {
                 if self.partial {
                     details.push("logs contain prefixes; later raw text unavailable".to_owned());
                 }
@@ -221,7 +292,12 @@ impl Summary {
         {
             details.push(location);
         }
-        let unretained_images = images - recorded_images;
+        let unretained_images = images
+            - if artifacts.resolved_path().is_some() {
+                recorded_images
+            } else {
+                0
+            };
         if unretained_images != 0 {
             details.push(format!(
                 "{unretained_images} {} not retained",

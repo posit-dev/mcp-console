@@ -213,8 +213,13 @@ impl QuartoWriter {
             | Event::WorkerStarted { .. }
             | Event::WorkerReady { .. }
             | Event::WorkerEnded { .. }
+            | Event::CellStarted { .. }
+            | Event::CellEnded { .. }
+            | Event::OutputText { .. }
+            | Event::ImageOmitted { .. }
+            | Event::ProcessOutput { .. }
             | Event::RequirementsAccepted { .. }
-            | Event::ArtifactCreated { .. }
+            | Event::ImageRetained { .. }
             | Event::CellOutput { .. }
             | Event::SessionOutput { .. }
             | Event::StartupFailed { .. }
@@ -272,7 +277,7 @@ ir:
             document.push_str(
                 r#"Recreate the environments at the recorded boundaries before enabling execution.
 Cells may require incompatible declarations; the header is not a replay manifest.
-See transcript.md and internal/events.jsonl for requests, committed selections, and failures.
+See transcript.md and capture/events.jsonl for requests, committed selections, and failures.
 
 "#,
             );
@@ -437,6 +442,11 @@ fn render_event(document: &mut String, envelope: &Envelope<'_>) -> Result<(), St
         | Event::WorkerStarted { .. }
         | Event::WorkerReady { .. }
         | Event::WorkerEnded { .. }
+        | Event::CellStarted { .. }
+        | Event::CellEnded { .. }
+        | Event::OutputText { .. }
+        | Event::ImageOmitted { .. }
+        | Event::ProcessOutput { .. }
         | Event::RequirementsAccepted { .. } => Ok(()),
         Event::EnvironmentDiscovered { .. } => Ok(()),
         Event::PythonEnvironmentAccepted { packages } => {
@@ -468,7 +478,7 @@ fn render_event(document: &mut String, envelope: &Envelope<'_>) -> Result<(), St
         Event::ToolCall {
             call_id, request, ..
         } => render_tool_call(document, *call_id, request),
-        Event::ArtifactCreated {
+        Event::ImageRetained {
             artifact_id,
             call_id,
             path,
@@ -524,7 +534,9 @@ fn render_event(document: &mut String, envelope: &Envelope<'_>) -> Result<(), St
             }
             Ok(())
         }
-        Event::ToolResult { call_id, outcome } => render_tool_result(document, *call_id, outcome),
+        Event::ToolResult {
+            call_id, outcome, ..
+        } => render_tool_result(document, *call_id, outcome),
     }
 }
 
@@ -704,11 +716,14 @@ fn render_result(
         match block {
             RecordedContent::Text(text) => push_fence(document, "text", &text.text),
             RecordedContent::Image {
-                artifact_id, path, ..
+                artifact_id: Some(artifact_id),
+                path: Some(path),
+                ..
             } => {
                 writeln!(document, "![Artifact {artifact_id}](<{path}>)\n")
                     .expect("writing to a String cannot fail");
             }
+            RecordedContent::Image { .. } => document.push_str("_Image not retained._\n\n"),
             RecordedContent::Other(content) => {
                 let kind = match content {
                     ContentBlock::Text(_) => "text",

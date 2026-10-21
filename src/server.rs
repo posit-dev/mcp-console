@@ -324,16 +324,14 @@ impl ConsoleServer {
 }
 
 fn response_to_tool_result(
-    mut response: crate::worker_client::Response,
+    response: crate::worker_client::Response,
     call: &crate::transcript::Call,
     transcript: &crate::transcript::Transcript,
     deliveries: &crate::server_transport::ResponseDeliveries,
     delivery: &crate::server_transport::ResponseDeliveryCall,
 ) -> CallToolResult {
-    if let Err(error) = response.persist_images(transcript, call.id()) {
-        transcript.disable(error);
-    }
-    let (content, is_error, response_delivery) = response.into_parts();
+    let (content, is_error, response_delivery, parts) = response.into_parts();
+    call.record_result_parts(parts);
     let mut result_images = Vec::new();
     let content = content
         .into_iter()
@@ -344,7 +342,7 @@ fn response_to_tool_result(
                 mime_type,
                 artifact,
             } => {
-                result_images.extend(artifact);
+                result_images.push(artifact);
                 ContentBlock::image(data, mime_type)
             }
         })
@@ -436,7 +434,9 @@ impl ServerHandler for ConsoleServer {
             Err(error) => {
                 let recorder = transcript.clone();
                 let recorded_error = error.clone();
+                let completion = recording.clone();
                 if let Err(error) = tokio::task::spawn_blocking(move || {
+                    let _completion = completion;
                     recorder.finish(call, &Err(recorded_error));
                 })
                 .await
@@ -523,7 +523,9 @@ impl ServerHandler for ConsoleServer {
         let result = Arc::new(result);
         let recorder = transcript.clone();
         let recording_result = Arc::clone(&result);
+        let completion = recording.clone();
         if let Err(error) = tokio::task::spawn_blocking(move || {
+            let _completion = completion;
             recorder.finish(call, recording_result.as_ref());
         })
         .await

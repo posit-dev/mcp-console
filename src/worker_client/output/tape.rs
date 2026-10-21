@@ -15,10 +15,15 @@ pub(super) struct OutputTapeState {
     sealed: VecDeque<(u64, Response)>,
     next_cut: u64,
     cell_active: bool,
+    // Response attribution follows observed interval boundaries, without taking
+    // the journal mutex while restart collects already retained output.
+    owner: Option<crate::transcript::Owner>,
     cell_output: Option<crate::transcript::CellOutput>,
     session_output: Option<crate::transcript::CellOutput>,
+    idle_recording_attempted: bool,
     session_recording: Option<crate::transcript::Transcript>,
     raw_bytes: u64,
+    process_output: Source,
     /// Worker publications before decoding, projection, or image admission.
     /// Native diagnostics and server notices do not advance this revision.
     worker_revision: u64,
@@ -48,7 +53,7 @@ impl OutputTape {
         transcript: crate::transcript::Transcript,
     ) {
         let mut state = self.lock();
-        if state.session_output.is_none() && state.session_recording.is_none() {
+        if state.session_recording.is_none() {
             state.session_recording = Some(transcript);
         }
     }
@@ -56,10 +61,17 @@ impl OutputTape {
     pub(in crate::worker_client) fn finish_session_output(&self) {
         let mut state = self.lock();
         state.seal(true);
-        if let Some(output) = state.session_output.take() {
+        if let Some(output) = state.cell_output.take() {
             let record = output.record();
             state.recording_notice(output.finish());
             record.publish();
+        }
+        state.cell_active = false;
+        state.finish_idle_interval();
+        state.owner = None;
+        if let Some(transcript) = &state.session_recording {
+            transcript.end_cell(false);
+            transcript.worker_retired();
         }
         // EOF need not poll completed output. Retained response receipts must
         // reach the journal before its owner emits recording_ended.
@@ -68,6 +80,37 @@ impl OutputTape {
         }
         if let Some(response) = &state.recovered {
             response.preview.publish_output_records();
+        }
+    }
+
+    pub(in crate::worker_client) fn worker_started(
+        &self,
+        pid: u32,
+        requirements: &serde_json::Value,
+    ) {
+        let mut state = self.lock();
+        state.seal(true);
+        state.finish_idle_interval();
+        state.owner = state.session_recording.as_ref().and_then(|transcript| {
+            transcript.worker_started(pid, requirements);
+            transcript.owner()
+        });
+    }
+
+    pub(in crate::worker_client) fn worker_ended(&self, outcome: &str) {
+        let mut state = self.lock();
+        state.seal(true);
+        if let Some(output) = state.cell_output.take() {
+            let record = output.record();
+            state.recording_notice(output.finish());
+            record.publish();
+        }
+        state.cell_active = false;
+        state.finish_idle_interval();
+        state.owner = None;
+        if let Some(transcript) = &state.session_recording {
+            transcript.end_cell(false);
+            transcript.worker_ended(outcome);
         }
     }
 
@@ -157,20 +200,10 @@ impl OutputTape {
         state.worker_revision += 1;
         state.flush_decoders();
         state.flush_terminal();
-        // Before the first send, startup images share this preview. Apply its
-        // budget before retaining artifacts, so omitted startup images never
-        // acquire receipts that could advertise unpublished paths.
-        if state
-            .current
-            .response
-            .preview
-            .admits_image(&data, &mime_type)
-        {
-            let artifact = make_artifact(&data, &mime_type)?;
-            state.current.image(data, mime_type, artifact);
-        } else {
-            state.current.response.preview.omit_image(data.len());
-        }
+        // Raw capture has its own interval budget. Preview admission may drop
+        // the payload while keeping its file receipt and omission accounting.
+        let artifact = make_artifact(&data, &mime_type)?;
+        state.current.image(data, mime_type, artifact);
         Ok(())
     }
 
@@ -229,42 +262,60 @@ impl OutputTape {
         &self,
         boundary: impl FnOnce(),
     ) -> Response {
-        let mut state = self.lock();
-        let cut = state.seal(true);
-        let response = state.drain(cut);
-        boundary();
-        response
+        self.adopt_prelude_before(true, boundary)
     }
 
-    pub(in crate::worker_client) fn begin_cell_output_before(
+    pub(in crate::worker_client) fn adopt_prelude_before(
         &self,
-        cell_output: Option<crate::transcript::CellOutput>,
-        capture_prelude: bool,
+        capture: bool,
         boundary: impl FnOnce(),
     ) -> Response {
         let mut state = self.lock();
-        assert!(
-            !state.cell_active,
-            "only one cell output file can be active"
-        );
-        // Always seal the preceding source, even if this caller does not own it.
         let cut = state.seal(true);
-        let response = if capture_prelude {
+        let response = if capture {
             state.drain(cut)
         } else {
             Response::default()
         };
-        state.cell_active = true;
-        state.cell_output = cell_output;
         boundary();
         response
     }
 
-    pub(in crate::worker_client) fn finish_cell_output(&self) -> OutputCut {
+    pub(in crate::worker_client) fn begin_cell_output(
+        &self,
+        transcript: &crate::transcript::Transcript,
+        call_id: Option<u64>,
+    ) -> Result<(), String> {
+        let mut state = self.lock();
+        if state.cell_active {
+            return Err("worker sent a duplicate cell start".into());
+        }
+        // Idle response ownership was captured when the operation attached.
+        // Cell entry only changes raw capture ownership; startup/preparation
+        // output arriving in that gap stays in the call's ordinary response.
+        state.seal(true);
+        state.finish_idle_interval();
+        state.cell_active = true;
+        match transcript.create_cell_output(call_id) {
+            Ok(output) => state.cell_output = output,
+            Err(error) => state.recording_notice(Some(format!("cell output file was not created: {error}; text omitted from inline responses will be permanently discarded"))),
+        }
+        state.owner = transcript.owner();
+        Ok(())
+    }
+
+    pub(in crate::worker_client) fn finish_cell_output(
+        &self,
+        completion_confirmed: bool,
+    ) -> OutputCut {
         let mut state = self.lock();
         let cut = state.seal(true);
         let notice = state.cell_output.take().and_then(|output| output.finish());
         state.cell_active = false;
+        state.owner = state.session_recording.as_ref().and_then(|transcript| {
+            transcript.end_cell(completion_confirmed);
+            transcript.owner()
+        });
         if notice.is_some() {
             state.recording_notice(notice);
             return state.seal(false);
@@ -333,11 +384,34 @@ impl DirectOutput {
 }
 
 impl OutputTapeState {
+    fn finish_idle_interval(&mut self) {
+        self.idle_recording_attempted = false;
+        if let Some(output) = self.session_output.take() {
+            let record = output.record();
+            self.recording_notice(output.finish());
+            record.publish();
+        }
+    }
+
     fn spool(&mut self, bytes: &[u8]) -> Option<String> {
         self.raw_bytes = self.raw_bytes.saturating_add(bytes.len() as u64);
         if !self.cell_active
-            && let Some(transcript) = self.session_recording.take()
+            && !self.idle_recording_attempted
+            && self.session_output.is_none()
+            && let Some(transcript) = &self.session_recording
         {
+            if self.owner.is_none() {
+                if let Some(retained) = transcript.unowned_text(bytes) {
+                    self.process_output.journal = Some(retained.public_directory);
+                    self.process_output.retained_bytes += retained.retained_bytes as u64;
+                    self.process_output.discarded_bytes +=
+                        (bytes.len() - retained.retained_bytes) as u64;
+                } else {
+                    self.process_output.discarded_bytes += bytes.len() as u64;
+                }
+                return None;
+            }
+            self.idle_recording_attempted = true;
             match transcript.create_session_output() {
                 Ok(output) => self.session_output = output,
                 Err(error) => return Some(error),
@@ -413,21 +487,27 @@ impl OutputTapeState {
         let raw_bytes = self.raw_bytes;
         let source = match self.current_output() {
             Some(output) => Source {
+                owner: None,
                 file: Some(output.record()),
+                journal: None,
                 raw_bytes,
                 retained_bytes: output.retained_bytes(),
                 discarded_bytes: output.discarded_bytes(),
             },
             None => Source {
                 raw_bytes,
-                ..Source::default()
+                ..std::mem::take(&mut self.process_output)
             },
         };
-        self.current.response.preview.source(source);
+        let owner = self.owner;
+        self.current
+            .response
+            .preview
+            .source(Source { owner, ..source });
         let response = std::mem::take(&mut self.current).finish();
         let cut = self.next_cut;
         self.next_cut += 1;
-        // Only intervals with rendered text need a receipt for later accounting.
+        // Visible text, notices, and images retain their observed interval.
         self.sealed.push_back((cut, response));
         self.raw_bytes = 0;
         OutputCut {

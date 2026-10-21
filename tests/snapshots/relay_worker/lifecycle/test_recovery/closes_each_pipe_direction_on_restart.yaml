@@ -8,6 +8,9 @@ relay:
   source: invisible(NULL)
 ---
 worker:
+  kind: cell_started
+---
+worker:
   kind: r_initialization
   complete: false
 ---
@@ -31,6 +34,9 @@ relay:
   kind: evaluate
   language: r
   source: cat('replacement ready\n')
+---
+worker:
+  kind: cell_started
 ---
 worker:
   kind: r_initialization

@@ -807,6 +807,9 @@ type SendObserver = dyn Fn(&mut CallToolRequest) + Send;
 pub(crate) struct RecordingCall {
     id: u64,
     ready: tokio::sync::watch::Receiver<Option<crate::transcript::Call>>,
+    // Closing the last sender releases capture ownership, independently of
+    // cancelled delivery admission. Blocking result writers retain a clone.
+    _completion: Arc<tokio::sync::oneshot::Sender<()>>,
 }
 
 impl RecordingCall {
@@ -871,25 +874,31 @@ impl RecordingCall {
     }
 }
 
-/// The receive-order capture tail survives cancellation of individual deliveries.
+/// Receive-order capture and result writers survive delivery cancellation.
 #[derive(Clone, Default)]
 pub(crate) struct RecordingQueue(Arc<Mutex<RecordingQueueState>>);
 
 #[derive(Default)]
 struct RecordingQueueState {
     closed: bool,
-    tail: Option<RecordingCall>,
+    tail: Option<tokio::sync::watch::Receiver<Option<crate::transcript::Call>>>,
+    pending: Vec<tokio::sync::oneshot::Receiver<()>>,
 }
 
 impl RecordingQueue {
     pub(crate) async fn close_and_settle(&self) {
-        let tail = {
+        let (tail, pending) = {
             let mut queue = self.0.lock().expect("recording queue lock");
             queue.closed = true;
-            queue.tail.take()
+            (queue.tail.take(), std::mem::take(&mut queue.pending))
         };
-        if let Some(tail) = tail {
-            tail.recorded().await;
+        if let Some(mut tail) = tail {
+            let _ = tail.wait_for(Option::is_some).await;
+        }
+        for completion in pending {
+            // Sender closure means all handler/writer owners have retired; it
+            // does not fabricate a successful tool result for an abandoned call.
+            let _ = completion.await;
         }
     }
 }
@@ -1056,7 +1065,13 @@ where
             }
             // Apply the existing transport backlog bound to journal waits too.
             // A stalled recorder must not grow an unbounded queue of handlers.
-            if self.recording_tasks.len() >= MAX_RESPONSE_GATED_CALLS {
+            queue.pending.retain_mut(|completion| {
+                matches!(
+                    completion.try_recv(),
+                    Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+                )
+            });
+            if queue.pending.len() >= MAX_RESPONSE_GATED_CALLS {
                 // No capture slot remains for a canonical call. Preserve this
                 // final received frame in the bounded protocol queue instead.
                 match serde_json::to_value(&message) {
@@ -1080,13 +1095,19 @@ where
                 .cloned()
                 .unwrap_or_default();
             let (completed, ready) = tokio::sync::watch::channel(None);
-            let pending = RecordingCall { id: call_id, ready };
-            let predecessor = queue.tail.replace(pending.clone());
+            let predecessor = queue.tail.replace(ready.clone());
+            let (completion, finished) = tokio::sync::oneshot::channel();
+            queue.pending.push(finished);
+            let pending = RecordingCall {
+                id: call_id,
+                ready,
+                _completion: Arc::new(completion),
+            };
             call.extensions.insert(pending);
             received_call_id = Some(call_id);
             capture = Some(async move {
-                if let Some(predecessor) = predecessor {
-                    predecessor.recorded().await;
+                if let Some(mut predecessor) = predecessor {
+                    let _ = predecessor.wait_for(Option::is_some).await;
                 }
                 let diagnostics = recorder.clone();
                 let recorded = match tokio::task::spawn_blocking(move || {

@@ -16,7 +16,7 @@ result:
   content:
     - type: text
       text: |
-        [cell output file was not created: <output path is not a directory>; text omitted from inline responses will be permanently discarded]
+        [cell output file was not created: <output file creation failed>; text omitted from inline responses will be permanently discarded]
         zod: second
   isError: false
 ---

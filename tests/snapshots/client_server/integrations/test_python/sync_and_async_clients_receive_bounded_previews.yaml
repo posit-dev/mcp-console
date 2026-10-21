@@ -1,22 +1,22 @@
 ---
 preview:
-  text_bytes: 8043
+  text_bytes: 8053
   concat:
     - repeat: x
       count: 3968
     - |
 
-      [output omitted: 8380679 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000001.log]
+      [output omitted: 8380679 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
     - repeat: x
       count: 3968
 ---
 preview:
-  text_bytes: 8043
+  text_bytes: 8053
   concat:
     - repeat: x
       count: 3968
     - |
 
-      [output omitted: 8380679 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000001.log]
+      [output omitted: 8380679 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
     - repeat: x
       count: 3968

@@ -82,7 +82,7 @@ def test_runs_without_a_resolver_bootstrap(
         session = next((workspace / ".agents/console" / "sessions").iterdir())
         events = [
             json.loads(line)
-            for line in (session / "internal" / "events.jsonl")
+            for line in (session / "capture" / "events.jsonl")
             .read_text(encoding="utf-8")
             .splitlines()
         ]

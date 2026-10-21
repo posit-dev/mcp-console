@@ -162,7 +162,7 @@ class Session:
                 recorded = []
                 try:
                     journals = Path(self.directory.name).glob(
-                        ".agents/console/sessions/*/internal/events.jsonl"
+                        ".agents/console/sessions/*/capture/events.jsonl"
                     )
                     for journal in journals:
                         for line in journal.read_text(encoding="utf-8").splitlines():
@@ -634,6 +634,31 @@ class WindowsPackaging(unittest.TestCase):
 
 @unittest.skipUnless(os.name == "nt", "native Windows acceptance")
 class WindowsConsole(unittest.TestCase):
+    def test_completed_recording_in_inherited_acl_workspace(self):
+        from support.client import McpClient
+        from support.execution import DIRECT
+        from windows_sandbox import workspace
+
+        with workspace() as root:
+            with McpClient(
+                BINARY,
+                DIRECT.serve(
+                    "-c", "r=null", "-c", "python=" + json.dumps(sys.executable)
+                ),
+                os.environ.copy(),
+                root,
+            ) as client:
+                client.initialize_and_list_tools()
+                client.expect("42\n", python="print(42)")
+                client.finish()
+            (recording,) = (root / ".agents/console/sessions").iterdir()
+            self.assertEqual(
+                (recording / "capture/sessions/001/cell-001.txt").read_text(), "42\n"
+            )
+            for path in recording.rglob("*"):
+                if path.is_file():
+                    self.assertFalse(path.stat().st_mode & 0o222, path)
+
     def test_tilde_paths_use_profile_and_explicit_home(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
@@ -1871,16 +1896,38 @@ class WindowsConsole(unittest.TestCase):
                 result = session.send(control="restart", r="42", timeout_ms=10000)
                 self.assertFalse(result.get("isError"), result)
                 self.assertIn("42", json.dumps(result))
-
         (recording,) = (
             Path(session.directory.name) / ".agents/console/sessions"
         ).iterdir()
+        for name in ("capture/events.jsonl", "transcript.md", "transcript.qmd"):
+            self.assertTrue((recording / name).stat().st_mode & 0o222, name)
+        session.process.stdin.close()
+        self.assertEqual(session.process.wait(timeout=15), 0)
         events = [
             json.loads(line)
-            for line in (recording / "internal/events.jsonl")
+            for line in (recording / "capture/events.jsonl")
             .read_text(encoding="utf-8")
             .splitlines()
         ]
+        workers = [event for event in events if event["event"] == "worker_started"]
+        cells = [event["owner"] for event in events if event["event"] == "cell_started"]
+        self.assertEqual(len(workers), 13)
+        self.assertEqual(
+            [(owner["session_id"], owner["cell_id"]) for owner in cells],
+            [(session_id, 1) for session_id in range(1, 14)],
+        )
+        for session_id in range(1, 14):
+            self.assertEqual(
+                (
+                    recording / f"capture/sessions/{session_id:03}/cell-001.txt"
+                ).read_text(),
+                "42\n",
+            )
+
+        for path in recording.rglob("*"):
+            if path.is_file():
+                self.assertFalse(path.stat().st_mode & 0o222, path)
+
         for transition in ("worker_started", "worker_ready"):
             self.assertEqual(
                 [
@@ -2284,7 +2331,7 @@ class WindowsConsole(unittest.TestCase):
                 deadline = time.monotonic() + session.timeout
                 while True:
                     session.send(requirements={"action": "get"})
-                    logs = list(sessions.glob("*/outputs/session.log"))
+                    logs = list(sessions.glob("*/capture/sessions/001/startup.txt"))
                     if logs and logs[0].read_text() == raw:
                         break
                     self.assertLess(
@@ -2300,10 +2347,10 @@ class WindowsConsole(unittest.TestCase):
                     Path(session.directory.name) / ".agents/console/sessions"
                 ).iterdir()
                 self.assertEqual(
-                    (recording / "outputs/session.log").read_text(),
+                    (recording / "capture/sessions/001/startup.txt").read_text(),
                     raw,
                 )
-                (cell_log,) = (recording / "outputs").glob("call-*.log")
+                (cell_log,) = (recording / "capture/sessions/001").glob("cell-*.txt")
                 self.assertEqual(cell_log.read_bytes(), b"")
                 self.assertIn("42", json.dumps(session.send(python="42")))
             finally:

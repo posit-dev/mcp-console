@@ -178,16 +178,7 @@ fn dispatch_worker_events(
                     RelayEvent::WorkerStarted { pid } => {
                         worker_acquired = true;
                         let retained = callbacks.client.inspect_requirements();
-                        if let Some(recording) = callbacks
-                            .client
-                            .0
-                            .recording
-                            .lock()
-                            .expect("recording lock")
-                            .as_ref()
-                        {
-                            recording.worker_started(pid, &retained["requirements"]);
-                        }
+                        output.worker_started(pid, &retained["requirements"]);
                         Ok(())
                     }
                     RelayEvent::Stdout { data } => {
@@ -268,30 +259,12 @@ fn dispatch_worker_events(
                         shutdown_started.observe()
                     }
                     RelayEvent::WorkerExited { code } => {
-                        if let Some(recording) = callbacks
-                            .client
-                            .0
-                            .recording
-                            .lock()
-                            .expect("recording lock")
-                            .as_ref()
-                        {
-                            recording.worker_ended(&format!("exited with code {code}"));
-                        }
+                        output.worker_ended(&format!("exited with code {code}"));
                         process_outcome = Some(WorkerProcessOutcome::Exited(code));
                         Ok(())
                     }
                     RelayEvent::WorkerSignaled { signal } => {
-                        if let Some(recording) = callbacks
-                            .client
-                            .0
-                            .recording
-                            .lock()
-                            .expect("recording lock")
-                            .as_ref()
-                        {
-                            recording.worker_ended(&format!("terminated by signal {signal}"));
-                        }
+                        output.worker_ended(&format!("terminated by signal {signal}"));
                         process_outcome = Some(WorkerProcessOutcome::Signaled(signal));
                         Ok(())
                     }
@@ -553,6 +526,10 @@ fn handle_semantic_event(
     use crate::worker_protocol::ConsoleChannel::{Diagnostic, Output};
 
     match event {
+        RelayEvent::CellStarted => operation.with_route(|route| match route {
+            Route::Cell(evaluation) => evaluation.start_cell_capture(),
+            _ => Err("worker started a cell without an admitted source".into()),
+        }),
         RelayEvent::ConsoleOutput { data } => operation.with_route(|route| match route {
             Route::Cell(evaluation) => evaluation.output(Output, data),
             Route::Bootstrap | Route::Preparation | Route::Idle => {
@@ -768,7 +745,7 @@ fn handle_semantic_event(
         | RelayEvent::PythonPrepared
         | RelayEvent::PythonPreparationFailed { .. }
         | RelayEvent::PythonPreparationRejected { .. }) => {
-            operation.complete(event, &mut candidates.r, &mut candidates.python)
+            operation.complete(event, &mut candidates.r, &mut candidates.python, output)
         }
         RelayEvent::Ready
         | RelayEvent::WorkerStarted { .. }

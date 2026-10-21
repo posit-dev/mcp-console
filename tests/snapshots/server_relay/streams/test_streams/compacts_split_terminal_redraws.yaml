@@ -12,6 +12,9 @@ server:
   source: "42"
 ---
 relay:
+  kind: cell_started
+---
+relay:
   kind: stdout
   data: "ordinary stdout\r\r\n"
 ---

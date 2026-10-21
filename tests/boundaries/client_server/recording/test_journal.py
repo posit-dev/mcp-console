@@ -48,7 +48,7 @@ def call_events(events: list[dict]) -> list[dict]:
             "recording_started",
             "tool_call",
             "tool_result",
-            "artifact_created",
+            "image_retained",
             "cell_output",
         }
     ]
@@ -127,11 +127,13 @@ def test_materializes_records_only_for_console_use(
         assert not (workspace / ".mcp-console").exists(), workspace
         assert (sessions[0] / "transcript.md").is_file(), sessions
         assert (sessions[0] / "transcript.qmd").is_file(), sessions
-        assert (sessions[0] / "artifacts").is_dir(), sessions
-        assert (sessions[0] / "outputs/call-000001.log").read_text() == "zod: echo\n"
+        assert (sessions[0] / "capture/sessions/001").is_dir(), sessions
+        assert (
+            sessions[0] / "capture/sessions/001/cell-001.txt"
+        ).read_text() == "zod: echo\n"
         events = [
             json.loads(line)
-            for line in (sessions[0] / "internal" / "events.jsonl")
+            for line in (sessions[0] / "capture" / "events.jsonl")
             .read_text(encoding="utf-8")
             .splitlines()
         ]
@@ -203,11 +205,11 @@ def test_selects_existing_project_or_home_recording_directory(
                 client.send(r="preview huge line")
                 recording_root = project_console if in_project else console_home
                 (session,) = (recording_root / "sessions").iterdir()
-                log = session / "outputs/call-000001.log"
+                log = session / "capture/sessions/001/cell-001.txt"
                 assert log.is_file(), log
                 public_path = (
                     Path(
-                        f".agents/console/sessions/{session.name}/outputs/call-000001.log"
+                        f".agents/console/sessions/{session.name}/capture/sessions/001/cell-001.txt"
                     )
                     if in_project
                     else log
@@ -342,7 +344,7 @@ def test_updates_quarto_without_rereading_journal(
             client.send(r="echo first")
 
             session = next((workspace / ".agents/console" / "sessions").iterdir())
-            journal = session / "internal" / "events.jsonl"
+            journal = session / "capture" / "events.jsonl"
             journal.chmod(0o200)
             journal_read_disabled = True
 
@@ -417,7 +419,7 @@ def test_records_tool_calls_and_images(
         sessions = list((workspace / ".agents/console" / "sessions").iterdir())
         assert len(sessions) == 1, sessions
         session = sessions[0]
-        journal_text = (session / "internal" / "events.jsonl").read_text(
+        journal_text = (session / "capture" / "events.jsonl").read_text(
             encoding="utf-8"
         )
         markdown_path = session / "transcript.md"
@@ -431,7 +433,7 @@ def test_records_tool_calls_and_images(
         assert [event["event"] for event in events] == [
             "recording_started",
             "tool_call",
-            "artifact_created",
+            "image_retained",
             "cell_output",
             "tool_result",
             "tool_call",
@@ -477,7 +479,7 @@ def test_records_tool_calls_and_images(
         } == {
             "artifact_id": 1,
             "call_id": 1,
-            "path": "artifacts/call-000001-image-000001.png",
+            "path": "capture/sessions/001/cell-001-001.png",
             "mime_type": "image/png",
             "bytes": len(base64.b64decode(PNG_1X1)),
         }, events[2]
@@ -491,7 +493,7 @@ def test_records_tool_calls_and_images(
                 "retention_limit_bytes",
             )
         } == {
-            "path": "outputs/call-000001.log",
+            "path": "capture/sessions/001/cell-001.txt",
             "retained_bytes": len("before image\nafter image\n"),
             "inline_omitted_bytes": 0,
             "discarded_bytes": 0,
@@ -503,7 +505,7 @@ def test_records_tool_calls_and_images(
                 {
                     "type": "image",
                     "artifactId": 1,
-                    "path": "artifacts/call-000001-image-000001.png",
+                    "path": "capture/sessions/001/cell-001-001.png",
                     "mimeType": "image/png",
                 },
                 {"type": "text", "text": "after image\n"},
@@ -556,23 +558,28 @@ def test_records_tool_calls_and_images(
                 workspace / ".agents/console",
                 workspace / ".agents/console" / "sessions",
                 session,
-                session / "artifacts",
-                session / "internal",
-                session / "outputs",
+                session / "capture",
+                session / "capture/sessions",
+                session / "capture/sessions/001",
             )
         }
         assert set(directory_modes.values()) == {0o700}, directory_modes
         file_modes = {
             path.relative_to(workspace).as_posix(): path.stat().st_mode & 0o777
             for path in (
-                session / "internal" / "events.jsonl",
+                session / "capture" / "events.jsonl",
                 markdown_path,
                 quarto_path,
                 image_path,
                 output_path,
             )
         }
-        assert set(file_modes.values()) == {0o600}, file_modes
+        assert image_path.stat().st_mode & 0o777 == 0o400
+        assert output_path.stat().st_mode & 0o777 == 0o400
+        assert all(
+            path.stat().st_mode & 0o777 == 0o600
+            for path in (session / "capture/events.jsonl", markdown_path, quarto_path)
+        ), file_modes
         transcript = client.finish()
 
         for event in events:
@@ -611,11 +618,11 @@ def test_records_tool_calls_and_images(
                         "produced session": {
                             "root": ".agents/console/sessions/<run ID>",
                             "files": [
-                                "internal/events.jsonl",
+                                "capture/events.jsonl",
                                 "transcript.md",
                                 "transcript.qmd",
-                                "artifacts/call-000001-image-000001.png",
-                                "outputs/call-000001.log",
+                                "capture/sessions/001/cell-001-001.png",
+                                "capture/sessions/001/cell-001.txt",
                             ],
                         }
                     },
@@ -640,9 +647,7 @@ def test_disables_recording_after_transcript_failure(
         client.initialize_and_list_tools()
         client.send(r="echo echo")
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        artifacts = session / "artifacts"
-        artifacts.rmdir()
-        artifacts.write_text("not a directory", encoding="utf-8")
+        (session / "capture/sessions/001/cell-002-001.png").mkdir()
 
         client.send(r="emit image")
         image_result = client.transcript[-1]["result"]
@@ -655,7 +660,7 @@ def test_disables_recording_after_transcript_failure(
             "isError": False,
         }, image_result
 
-        journal = session / "internal" / "events.jsonl"
+        journal = session / "capture" / "events.jsonl"
         journal_after_failure = journal.read_text(encoding="utf-8")
         events = [json.loads(line) for line in journal_after_failure.splitlines()]
         events = call_events(events)
@@ -672,11 +677,17 @@ def test_disables_recording_after_transcript_failure(
         assert journal.read_text(encoding="utf-8") == journal_after_failure
 
         transcript, standard_error = client.finish_with_standard_error()
+        assert journal.read_text(encoding="utf-8") == journal_after_failure
+        for path in session.rglob("*"):
+            if path.is_file():
+                assert path.stat().st_mode & 0o222 == 0, path
         assert standard_error.count("\n") == 1, standard_error
         assert standard_error.startswith(
             "mcp-console: transcript recording disabled: failed to create "
         ), standard_error
-        assert "/artifacts/" in standard_error, standard_error
+        assert "/capture/sessions/001/cell-002-001.png" in standard_error, (
+            standard_error
+        )
         transcript.append(
             {
                 "journal after failure": [event["event"] for event in events],
@@ -708,15 +719,14 @@ def test_keeps_recording_after_cell_output_failure(
         client.send(r="echo first")
 
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        outputs = session / "outputs"
-        retained_outputs = session / "retained-outputs"
-        outputs.rename(retained_outputs)
-        outputs.write_text("not a directory", encoding="utf-8")
+        outputs = session / "capture/sessions/001"
+        collision = outputs / "cell-002.txt"
+        collision.mkdir()
 
         client.send(r="echo second")
         failure = last_tool_text(client)
         public_output = (
-            f".agents/console/sessions/{session.name}/outputs/call-000002.log"
+            f".agents/console/sessions/{session.name}/capture/sessions/001/cell-002.txt"
         )
         assert "cell output file was not created" in failure, failure
         assert public_output in failure, failure
@@ -727,22 +737,21 @@ def test_keeps_recording_after_cell_output_failure(
         )
         assert failure.endswith("zod: second\n"), failure
         client.transcript[-1]["result"]["content"][0]["text"] = (
-            "[cell output file was not created: <output path is not a directory>; "
+            "[cell output file was not created: <output file creation failed>; "
             "text omitted from inline responses will be permanently discarded]\n"
             "zod: second\n"
         )
 
-        outputs.unlink()
-        retained_outputs.rename(outputs)
+        collision.rmdir()
         client.send(r="echo third")
         assert last_tool_text(client) == "zod: third\n"
-        assert (outputs / "call-000003.log").read_text(encoding="utf-8") == (
+        assert (outputs / "cell-003.txt").read_text(encoding="utf-8") == (
             "zod: third\n"
         )
 
         events = [
             json.loads(line)
-            for line in (session / "internal" / "events.jsonl")
+            for line in (session / "capture" / "events.jsonl")
             .read_text(encoding="utf-8")
             .splitlines()
         ]
@@ -794,7 +803,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             client,
         )
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        journal = session / "internal" / "events.jsonl"
+        journal = session / "capture" / "events.jsonl"
         markdown = session / "transcript.md"
         quarto = session / "transcript.qmd"
         before_release = [
@@ -871,7 +880,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             "tool_result",
             "tool_call",
             "tool_result",
-            "artifact_created",
+            "image_retained",
         ], final_events
         artifact = final_events[-1]
         assert {
@@ -880,7 +889,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
         } == {
             "artifact_id": 1,
             "call_id": 2,
-            "path": "artifacts/call-000002-image-000001.png",
+            "path": "capture/sessions/001/cell-002-001.png",
             "mime_type": "image/png",
             "bytes": len(base64.b64decode(PNG_1X1)),
         }, artifact
@@ -1079,7 +1088,7 @@ def test_records_early_calls_before_discovery(binary: Path) -> Transcript:
             (session,) = (root / ".agents/console/sessions").iterdir()
             events = [
                 json.loads(line)
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
+                for line in (session / "capture/events.jsonl").read_text().splitlines()
             ]
             early = [
                 event
@@ -1144,12 +1153,12 @@ def test_records_early_calls_before_startup_artifacts(binary: Path) -> Transcrip
                     timeout_ms=0,
                 )
                 sessions = root / ".agents/console/sessions"
-                assert not list(sessions.glob("*/artifacts/*"))
+                assert not list(sessions.glob("*/capture/sessions/*/*.png"))
                 release.release()
                 # Discovery release still leaves host dependency preparation
                 # before startup can render its image.
                 image = wait_for_checkpoint(
-                    lambda: next(sessions.glob("*/artifacts/*.png"), None),
+                    lambda: next(sessions.glob("*/capture/sessions/*/*.png"), None),
                     "startup image retained after discovery",
                     root=sessions,
                     recursive=True,
@@ -1157,13 +1166,13 @@ def test_records_early_calls_before_startup_artifacts(binary: Path) -> Transcrip
                     timeout=client.response_timeout,
                 )
                 client.finish()
-            session = image.parent.parent
+            session = image.parents[3]
             events = [
                 json.loads(line)
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
+                for line in (session / "capture/events.jsonl").read_text().splitlines()
             ]
             (artifact,) = [
-                event for event in events if event["event"] == "artifact_created"
+                event for event in events if event["event"] == "image_retained"
             ]
             early = [
                 event
@@ -1224,7 +1233,7 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
             (session,) = (root / ".agents/console/sessions").iterdir()
             events = [
                 json.loads(line)
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
+                for line in (session / "capture/events.jsonl").read_text().splitlines()
             ]
             calls = [event for event in events if event["event"] == "tool_call"]
             results = [event for event in events if event["event"] == "tool_result"]
@@ -1236,13 +1245,11 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
             assert results[-1]["result"]["isError"], results[-1]
             assert "fixture R discovery failed" in str(results[-1]), results[-1]
             assert sum(event["event"] == "startup_failed" for event in events) == 1
-            (session_output,) = [
-                event for event in events if event["event"] == "session_output"
+            (process_output,) = [
+                event for event in events if event["event"] == "process_output"
             ]
-            raw = (session / "outputs/session.log").read_bytes()
-            assert raw == b"preparation detail\n"
-            assert session_output["retained_bytes"] == len(raw), session_output
-            assert session_output["discarded_bytes"] == 0, session_output
+            assert base64.b64decode(process_output["data"]) == b"preparation detail\n"
+            assert process_output["discarded_bytes"] == 0, process_output
             assert events[0]["dynamic_resolution"] is None, events[0]
             assert events[0]["python_preparation"] is None, events[0]
             assert events[0]["startup_requirements"] is None, events[0]

@@ -55,7 +55,7 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8073
+        text_bytes: 8092
         concat:
           - |
             idle head
@@ -63,7 +63,7 @@ result:
             count: 3958
           - |
 
-            [output omitted: 24853 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/session.log]
+            [output omitted: 24853 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001-post.txt]
           - repeat: s
             count: 3957
           - |-
@@ -83,8 +83,9 @@ result:
   isError: false
 ---
 session_output:
-  path: outputs/session.log
-  retained_bytes: 32851
+  path: capture/sessions/001/cell-001-post.txt
+  retained_bytes: 32789
   discarded_bytes: 0
   inline_omitted_bytes: 24853
-original_log_preserved: true
+startup_log_preserved: true
+preparation_capture_preserved: true

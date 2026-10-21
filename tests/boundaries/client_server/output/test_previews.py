@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import base64
 import json
 import os
 import sys
@@ -9,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from support.previews import cell_output_path
 from support.progress import without_elapsed
 from support.allocations import AllocationProfile
 from support.assertions import last_tool_text
@@ -17,6 +19,7 @@ from support.previews import (
     OMISSION,
     assert_preview,
     normalize_preview_paths,
+    recording_events,
     session_directory,
 )
 from support.client import McpClient
@@ -65,7 +68,7 @@ def check_preview(binary: Path, execution: Execution, scenario: str) -> Transcri
         assert result["content"][-1]["text"] == "after final image\n"
         assert not result.get("isError", False), result
         session = next((Path(temporary) / ".agents/console/sessions").iterdir())
-        raw = (session / "outputs/call-000001.log").read_bytes()
+        raw = (cell_output_path(session, 1)).read_bytes()
         if scenario == "preview huge line":
             body = "x" * (16 * 1024 * 1024)
         elif scenario == "preview tiny events":
@@ -87,7 +90,7 @@ after final image
         else:
             assert_preview(result["content"][0]["text"], emitted)
             assert (
-                f"raw log: .agents/console/sessions/{session.name}/outputs/call-000001.log"
+                f"raw log: .agents/console/sessions/{session.name}/capture/sessions/001/cell-001.txt"
                 in text
             )
         for block in result["content"]:
@@ -169,7 +172,9 @@ def test_summarizes_empty_cell_after_oversized_startup_output(
                             lambda: next(
                                 (
                                     path
-                                    for path in sessions.glob("*/outputs/session.log")
+                                    for path in sessions.glob(
+                                        "*/capture/sessions/001/startup.txt"
+                                    )
                                     if path.read_text() == raw
                                 ),
                                 None,
@@ -184,13 +189,13 @@ def test_summarizes_empty_cell_after_oversized_startup_output(
                         assert text.startswith("startup head\n") and text.endswith(
                             "startup tail\n"
                         ), text
-                        session = log.parent.parent
-                        assert (session / "outputs/call-000001.log").read_bytes() == b""
+                        session = log.parents[3]
+                        assert (cell_output_path(session, 1)).read_bytes() == b""
                         assert (
                             str(
                                 Path(".agents/console/sessions")
                                 / session.name
-                                / "outputs/session.log"
+                                / "capture/sessions/001/startup.txt"
                             )
                             in text
                         ), text
@@ -283,7 +288,7 @@ def test_edits_mcp_unicode_preview_without_changing_raw_stream(
                 + "preview tail: final diagnostic\n"
             ).encode()
             assert (
-                session_directory(client) / f"outputs/call-{1 + 2 * call_id:06}.log"
+                cell_output_path(session_directory(client), 1 + 2 * call_id)
             ).read_bytes() == raw
             assert client.send()["content"] == [{"type": "text", "text": "\n[idle]"}]
         normalize_preview_paths(client)
@@ -305,7 +310,7 @@ def test_records_raw_unicode_newlines_and_literal_mcp_preview(
         line = "line €🙂 " + "x" * 48 + "\r\n"
         raw = "preview head\n" + line * 512 + "preview tail 🙂\r\n"
         session = session_directory(client)
-        recorded_raw = (session / "outputs/call-000001.log").read_bytes()
+        recorded_raw = (cell_output_path(session, 1)).read_bytes()
         assert recorded_raw == raw.encode("utf-8")
         assert len(recorded_raw) == 32288
         assert recorded_raw.count(b"\r\n") == 513
@@ -315,7 +320,7 @@ def test_records_raw_unicode_newlines_and_literal_mcp_preview(
         assert "�" not in text
         assert text.count("\r\n") > 1
         assert (
-            f"raw log: .agents/console/sessions/{session.name}/outputs/call-000001.log"
+            f"raw log: .agents/console/sessions/{session.name}/capture/sessions/001/cell-001.txt"
             in text
         )
         normalize_preview_paths(client)
@@ -371,9 +376,7 @@ def test_compacts_ansi_redraws_and_discards_oversized_controls(
             + "\r\x1b[K\x1b[32mprogress final\x1b[0m\npreview tail: final diagnostic\n"
             + "\x1b]unterminated before imageafter final image\n"
         ).encode()
-        assert (
-            session_directory(client) / "outputs/call-000001.log"
-        ).read_bytes() == raw
+        assert (cell_output_path(session_directory(client), 1)).read_bytes() == raw
         return client.finish()
 
 
@@ -411,7 +414,7 @@ def test_reports_raw_and_rendered_counts_for_invalid_utf8(
                 Path(client.temporary_directory.name) / ".agents/console/sessions"
             ).iterdir()
         )
-        assert (session / "outputs/call-000001.log").read_bytes() == raw
+        assert (cell_output_path(session, 1)).read_bytes() == raw
         normalize_preview_paths(client)
         return client.finish()
 
@@ -443,7 +446,7 @@ def test_keeps_tail_when_recording_is_disabled(
             assert text.startswith("preview head\n")
             assert text.endswith("preview tail: final diagnostic\nafter final image\n")
             assert "no retained log" in text and "omitted text unavailable" in text
-            assert "outputs/call-" not in text
+            assert "cell-001.txt" not in text
             transcript, stderr = client.finish_with_standard_error()
             assert stderr.count("transcript recording disabled:") == 1, stderr
             return transcript
@@ -499,19 +502,38 @@ def test_image_overflow_preserves_later_text_and_fitting_image(
         client.send(r="preview image limit")
         content = client.transcript[-1]["result"]["content"]
         assert [block["type"] for block in content] == ["text", "image", "text"]
+        session = session_directory(client)
+        capture = recording_events(session)
+        omitted, artifact = [e for e in capture if e["event"] == "image_retained"]
+        path = Path(".agents/console/sessions") / session.name / omitted["path"]
         assert content[0]["text"] == (
             "before oversized image\n\n"
-            "[output omitted: 1 image (8388612 encoded bytes); 1 image not retained]\n"
+            f"[output omitted: 1 image (8388612 encoded bytes); retained image: {path}]\n"
             "before accepted image\n"
         )
         assert content[-1]["text"] == "after accepted image\n"
-        assert client.temporary_directory is not None
-        session = next(
-            (
-                Path(client.temporary_directory.name) / ".agents/console/sessions"
-            ).iterdir()
-        )
-        assert len(list((session / "artifacts").iterdir())) == 1
+        owner = {"session_id": 1, "cell_id": 1, "interval": "cell"}
+        assert omitted["owner"] == artifact["owner"] == owner
+        assert omitted["bytes"] == 6 * 1024 * 1024 + 3
+        assert omitted["mime_type"] == artifact["mime_type"] == "image/png"
+        assert omitted["sequence"] < artifact["sequence"]
+        assert not any(e["event"] == "image_omitted" for e in capture)
+        image = session / artifact["path"]
+        assert sorted((session / "capture/sessions").glob("*/*.png")) == [
+            session / omitted["path"],
+            image,
+        ]
+        assert image.read_bytes() == base64.b64decode(content[1]["data"])
+        (recorded_image,) = [
+            block
+            for event in capture
+            if event["event"] == "tool_result"
+            for block in event["result"]["content"]
+            if block["type"] == "image"
+        ]
+        assert recorded_image["path"] == artifact["path"]
+        assert recorded_image["artifactId"] == artifact["artifact_id"]
+        normalize_preview_paths(client)
         return client.finish()
 
 
@@ -535,7 +557,9 @@ def test_validates_images_before_omitting_them(
                 "[starting new worker]\n[idle]",
             }
         ], result
-        assert list((session_directory(client) / "artifacts").iterdir()) == []
+        assert (
+            list((session_directory(client) / "capture/sessions").glob("*/*.png")) == []
+        )
         return client.finish()
 
 
@@ -589,7 +613,7 @@ def test_combines_old_worker_and_replacement_cell_under_one_budget(
         assert text.endswith("after final image\n[done]")
         assert text.count("[output omitted:") == 1
         assert (
-            f"retained logs: .agents/console/sessions/{session_directory(client).name}/outputs"
+            f"retained logs: .agents/console/sessions/{session_directory(client).name}/capture/sessions/"
             in text
         )
         assert not result.get("isError", False), result
@@ -637,12 +661,17 @@ def test_keeps_partial_idle_utf8_out_of_cell_omission_counts(
         assert int(marker[1]) == idle_omitted + cell_omitted
         assert "retained logs:" in marker[0]
         session = session_directory(client)
-        assert f".agents/console/sessions/{session.name}/outputs/" in marker[0]
-        assert (session / "outputs/session.log").read_text(errors="replace") == idle
-        assert (session / "outputs/call-000001.log").read_text() == cell
+        assert (
+            f".agents/console/sessions/{session.name}/capture/sessions/001/"
+            in marker[0]
+        )
+        assert (session / "capture/sessions/001/startup.txt").read_text(
+            errors="replace"
+        ) == idle
+        assert (cell_output_path(session, 1)).read_text() == cell
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         cell_summaries = [event for event in events if event["event"] == "cell_output"]
         assert cell_summaries[-1]["inline_omitted_bytes"] == cell_omitted

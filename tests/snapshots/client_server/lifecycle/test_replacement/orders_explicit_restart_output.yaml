@@ -70,17 +70,17 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8162
+        text_bytes: 8053
         concat:
           - |
             zod stdin closed
           - repeat: x
-            count: 3951
+            count: 3887
           - |
 
-            [output omitted: 4186385 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/session.log]
+            [output omitted: 4186513 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001-post.txt]
           - repeat: y
-            count: 3968
+            count: 3904
           - |-
 
             [active evaluation stopped by session restart request]

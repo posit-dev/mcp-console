@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from support.previews import cell_output_path
 from support.assertions import large_output, last_tool_text
 from support.previews import (
     TEXT_BUDGET,
@@ -48,7 +49,7 @@ def test_bounds_mcp_preview_and_retains_raw_stream_after_overflow(
         overflow = client.transcript[-1]
         output = last_tool_text(client)
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        relative_output = Path("outputs/call-000001.log")
+        relative_output = Path("capture/sessions/001/cell-001.txt")
         public_output = (
             f".agents/console/sessions/{session.name}/{relative_output.as_posix()}"
         )
@@ -59,11 +60,11 @@ def test_bounds_mcp_preview_and_retains_raw_stream_after_overflow(
         assert output_path.read_text(encoding="utf-8") == "x" * (
             PENDING_TEXT_BUDGET + 7
         )
-        assert output_path.stat().st_mode & 0o777 == 0o600, output_path
+        assert output_path.stat().st_mode & 0o777 == 0o400, output_path
 
         events = [
             json.loads(line)
-            for line in (session / "internal" / "events.jsonl")
+            for line in (session / "capture" / "events.jsonl")
             .read_text(encoding="utf-8")
             .splitlines()
         ]
@@ -98,7 +99,7 @@ def test_bounds_mcp_preview_and_retains_raw_stream_after_overflow(
 
         client.send(r="echo echo")
         assert last_tool_text(client) == "zod: echo\n"
-        assert (session / "outputs" / "call-000002.log").read_text(
+        assert (cell_output_path(session, 2)).read_text(
             encoding="utf-8"
         ) == "zod: echo\n"
         return client.finish()

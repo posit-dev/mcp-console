@@ -317,7 +317,7 @@ def _wait_for_recorded_tool_result(
     assert client.temporary_directory is not None
     workspace = Path(client.temporary_directory.name)
     session = next((workspace / ".agents/console" / "sessions").iterdir())
-    journal = session / "internal" / "events.jsonl"
+    journal = session / "capture" / "events.jsonl"
     with journal.open(encoding="utf-8") as journal_stream:
         journal_events = Events()
         journal_events.watch_file(journal)

@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from support.previews import cell_output_path
 from support.snapshots import execution_snapshots
 from support.progress import without_elapsed, without_elapsed_result
 from support.assertions import (
@@ -148,7 +149,7 @@ def test_projects_ansi_across_every_byte_split(
             }, (sample, result)
             assert len(last_tool_text(client).encode()) <= TEXT_BUDGET
             assert (
-                session_directory(client) / f"outputs/call-{call_id:06}.log"
+                cell_output_path(session_directory(client), call_id)
             ).read_bytes() == sample.encode() * repetitions
         compact_previews(client, *(projected for _, projected in samples))
         assert [
@@ -213,7 +214,7 @@ def test_finishes_ansi_at_producer_image_and_cell_boundaries(
             "out31mdiag\n�31mraw\nrawerror\nstderr red\nbefore image"
         ), result
         assert result["content"][-1]["text"] == "after image\n", result
-        assert (session_directory(client) / "outputs/call-000001.log").read_bytes() == (
+        assert (cell_output_path(session_directory(client), 1)).read_bytes() == (
             b"".join(
                 base64.b64decode(event["data"])
                 if event["kind"].endswith("_bytes")
@@ -230,7 +231,7 @@ def test_finishes_ansi_at_producer_image_and_cell_boundaries(
             result = client.send(r=operation)
             assert last_tool_text(client) == expected, result
             assert (
-                session_directory(client) / f"outputs/call-{call_id:06}.log"
+                cell_output_path(session_directory(client), call_id)
             ).read_bytes() == sample.encode()
         assert [
             entry["fixture"]["events"]
@@ -319,12 +320,22 @@ def test_separates_native_diagnostics_from_worker_stderr(
                 )
 
                 def recorded() -> Path | None:
-                    for path in sessions.glob("*/outputs/call-000001.log"):
+                    for path in sessions.glob("*/capture/sessions/001/cell-001.txt"):
                         events.watch_file(path)
                         if path.read_bytes() == raw:
                             return path
                     return None
 
+                # Native stderr and CellStarted use independent relay streams.
+                # Establish the cell interval before releasing its first bytes.
+                wait_for_checkpoint(
+                    recorded,
+                    "executing cell capture ready before native diagnostics",
+                    root=sessions,
+                    recursive=True,
+                    client=client,
+                    events=events,
+                )
                 for _, data in chunks:
                     release.release()
                     raw += data
@@ -389,7 +400,7 @@ def test_projects_builtin_ansi_and_preserves_raw_bytes(
             result = client.send(**arguments)
             assert last_tool_text(client) == "styled\nshort\n", result
             assert (
-                session_directory(client) / f"outputs/call-{call_id:06}.log"
+                cell_output_path(session_directory(client), call_id)
             ).read_bytes() == raw
         client.expect(
             'before\n[input requested: "prompt> "]\n[waiting for stdin]',
@@ -402,7 +413,7 @@ def test_projects_builtin_ansi_and_preserves_raw_bytes(
         )
         client.expect("after\n", stdin="answer\n")
         assert (
-            session_directory(client) / "outputs/call-000003.log"
+            cell_output_path(session_directory(client), 3)
         ).read_bytes() == b"before\x1b]unterminatedafter\n"
         return client.finish()
 
@@ -465,7 +476,7 @@ def test_finishes_ansi_at_polls_but_preserves_split_utf8(
                         "isError": False,
                     }, result
                     assert (
-                        session_directory(client) / "outputs/call-000003.log"
+                        cell_output_path(session_directory(client), 3)
                     ).read_bytes() == raw
                 release.release()
                 assert without_elapsed(last_tool_text(client)) == "€\n" + running
@@ -539,13 +550,13 @@ def test_keeps_partial_utf8_across_polls_and_orders_stream_switches(
                     assert without_elapsed_result(client.send(timeout_ms=0))[
                         "content"
                     ] == [{"type": "text", "text": running}]
-                    assert (session / "outputs/call-000003.log").read_bytes() == raw
+                    assert (cell_output_path(session, 3)).read_bytes() == raw
                 release.release()
                 assert client.send()["content"] == [{"type": "text", "text": "�"}]
                 assert client.send(r="42")["content"] == [
                     {"type": "text", "text": "��"}
                 ]
-                assert (session / "outputs/call-000013.log").read_bytes() == b"\x82\xac"
+                assert (cell_output_path(session, 13)).read_bytes() == b"\x82\xac"
                 assert client.send()["content"] == [
                     {"type": "text", "text": "\n[idle]"}
                 ]
@@ -573,7 +584,7 @@ def test_captures_worker_stdout(binary: Path, execution: Execution) -> Transcrip
             Path(temporary), "zod-release-stdout-completion", client
         )
         expected = large_output("zod stdout 👩🏽‍💻\n")
-        recorded = session_directory(client) / "outputs/call-000001.log"
+        recorded = cell_output_path(session_directory(client), 1)
         # stdout and completion use independent transports. A completed write
         # does not prove the server has captured the pipe's remaining bytes.
         deadline = time.monotonic() + 10
@@ -869,7 +880,7 @@ def test_drains_background_stderr_while_idle(
         # The sideband round trip does not order the independent stderr stream.
         # Wait for all known bytes to reach the public log before observing it.
         expected = large_output("zod background stderr\n") + ("y" * LARGE_OUTPUT_SIZE)
-        log = session_directory(client) / "outputs/session.log"
+        log = session_directory(client) / "capture/sessions/001/cell-001-post.txt"
         wait_for_checkpoint(
             lambda: (
                 log if log.exists() and log.stat().st_size == len(expected) else None
@@ -882,8 +893,8 @@ def test_drains_background_stderr_while_idle(
         output = last_tool_text(client)
         assert output.endswith("\n[idle]"), output[-100:]
         assert len(output.encode()) <= TEXT_BUDGET
-        assert "outputs/session.log" in output
-        assert "outputs/call-" not in output
+        assert "capture/sessions/001/cell-001-post.txt" in output
+        assert "cell-001.txt" not in output
         assert cell_text(client, 1) == ""
         preview = output.removesuffix("\n[idle]")
         (marker,) = list(OMISSION.finditer(preview))
@@ -976,7 +987,7 @@ def test_drains_pending_sideband_output_while_running(
         assert client.temporary_directory is not None
         workspace = Path(client.temporary_directory.name)
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        assert (session / "outputs" / "call-000003.log").read_text(
+        assert (cell_output_path(session, 3)).read_text(
             encoding="utf-8"
         ) == "before pending image\nafter pending image\n"
 

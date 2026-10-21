@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -36,6 +37,22 @@ def workspace(parent: Path | None = None):
         parent or Path(tempfile.gettempdir())
     ) / f"console sandbox {uuid.uuid4().hex}"
     root.mkdir()
+
+    def remove_completed_file(function, path, error):
+        # Completed recording files are deliberately read-only. Clear that
+        # attribute only when deleting a regular file in this owned fixture.
+        mode = os.lstat(path).st_mode
+        if (
+            isinstance(error, PermissionError)
+            and function is os.unlink
+            and stat.S_ISREG(mode)
+            and not mode & stat.S_IWRITE
+        ):
+            os.chmod(path, mode | stat.S_IWRITE)
+            function(path)
+        else:
+            raise error
+
     try:
         yield root
     finally:
@@ -44,7 +61,7 @@ def workspace(parent: Path | None = None):
         deadline = time.monotonic() + 5
         while True:
             try:
-                shutil.rmtree(root)
+                shutil.rmtree(root, onexc=remove_completed_file)
                 break
             except OSError as error:
                 if error.winerror != 32 or time.monotonic() >= deadline:
@@ -651,8 +668,10 @@ class WindowsSandbox(unittest.TestCase):
             # Keep the failed cold startup's journal before fixture cleanup.
             recordings = Path(session.directory.name) / ".agents/console/sessions"
             for recording in sorted(recordings.glob("*")):
-                for relative in ("internal/events.jsonl", "outputs/session.log"):
-                    path = recording / relative
+                for path in [
+                    recording / "capture/events.jsonl",
+                    *sorted(recording.glob("capture/sessions/*/*.txt")),
+                ]:
                     if path.is_file():
                         sys.stderr.write(
                             f"\n{path}\n{path.read_text(encoding='utf-8')}\n"

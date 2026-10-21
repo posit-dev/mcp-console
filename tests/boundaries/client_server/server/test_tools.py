@@ -938,7 +938,7 @@ def test_bounds_argument_decoding_errors(
             session = next((workspace / ".agents/console/sessions").iterdir())
             recorded = [
                 event["result"]
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
+                for line in (session / "capture/events.jsonl").read_text().splitlines()
                 if (event := json.loads(line))["event"] == "tool_result"
             ]
             assert recorded == [*results, result]

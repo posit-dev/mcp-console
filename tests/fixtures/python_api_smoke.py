@@ -73,7 +73,7 @@ with tempfile.TemporaryDirectory(prefix="mcp-console-sdk-smoke-") as directory:
     sync_main()
     asyncio.run(main())
     journals = list(
-        (Path(directory) / "console/sessions").glob("*/internal/events.jsonl")
+        (Path(directory) / "console/sessions").glob("*/capture/events.jsonl")
     )
     assert len(journals) == 2, journals
 print(sys.version)
