@@ -1,0 +1,20 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: FAIL
+  r.executable <workspace>/missing-R: The system cannot find the file specified. (os error 2)
+  Checking Python...
+  Python: FAIL
+  r.executable <workspace>/missing-R: The system cannot find the file specified. (os error 2)
+  Checking SQL...
+  SQL: FAIL
+  r.executable <workspace>/missing-R: The system cannot find the file specified. (os error 2)
+  Shutdown: FAIL
+  server exited with status 1
+  Warmup found 4 failed checks.
+stderr: >
+  r.executable <workspace>/missing-R: The system cannot find the file
+  specified. (os error 2)

@@ -21,7 +21,8 @@ from support.processes import (
 )
 from support.normalization import code
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
-from support.requirements import POSIX, R, SANDBOX, SQL, requires
+from support.requirements import POSIX, R, SANDBOX, SQL, command, requires
+from support.snapshots import platform_snapshots
 from support.suites import run_this_suite
 from boundaries.client_server.requirements.test_cache_locations import CACHE_VARIABLES
 from boundaries.client_server.server.test_no_r import no_r_environment
@@ -288,7 +289,7 @@ def test_reports_configuration_failure(
         ]
 
 
-@requires(POSIX, SQL)
+@requires(SQL)
 @executions(RUNTIME)
 def test_reports_missing_r_and_checks_python_and_sql(
     binary: Path, execution: Execution
@@ -308,7 +309,7 @@ def test_reports_missing_r_and_checks_python_and_sql(
         return [{"exit_code": result.returncode, "stdout": result.stdout}]
 
 
-@requires(POSIX)
+@platform_snapshots("win32", reason="native missing R executable diagnostic")
 @executions(RUNTIME)
 def test_rejects_explicit_missing_r(binary: Path, execution: Execution) -> Transcript:
     with TemporaryDirectory() as temporary:
@@ -330,23 +331,33 @@ def test_rejects_explicit_missing_r(binary: Path, execution: Execution) -> Trans
         return [
             {
                 "exit_code": result.returncode,
-                "stdout": result.stdout.replace(str(workspace), "<workspace>"),
-                "stderr": result.stderr.replace(str(workspace), "<workspace>"),
+                "stdout": result.stdout.replace(str(missing), "<workspace>/missing-R"),
+                "stderr": result.stderr.replace(str(missing), "<workspace>/missing-R"),
             }
         ]
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 @executions(RUNTIME)
 def test_rejects_broken_discovered_r(binary: Path, execution: Execution) -> Transcript:
     with TemporaryDirectory() as temporary:
-        workspace = Path(temporary)
+        workspace = Path(temporary).resolve()
         environment = no_r_environment(workspace)
-        (workspace / "commands/R").write_text("not an executable R installation")
+        r = workspace / "commands" / ("R.exe" if os.name == "nt" else "R")
+        subprocess.run(
+            [
+                "rustc",
+                "--edition=2024",
+                str(Path(__file__).resolve().parents[3] / "fixtures/r_empty_home.rs"),
+                "-o",
+                str(r),
+            ],
+            check=True,
+        )
         result = warmup(binary, workspace, execution, environment=environment)
         assert result.returncode == 1, result
         assert "R: FAIL\n" in result.stdout, result
-        assert "Permission denied" in result.stdout, result
+        assert "worker R returned an empty home path" in result.stdout, result
         assert "SKIP (not installed)" not in result.stdout, result
         assert "All checks passed" not in result.stdout, result
         return [
@@ -358,7 +369,6 @@ def test_rejects_broken_discovered_r(binary: Path, execution: Execution) -> Tran
         ]
 
 
-@requires(POSIX)
 @executions(RUNTIME)
 def test_missing_r_does_not_skip_requested_packages(
     binary: Path, execution: Execution
@@ -484,7 +494,6 @@ def test_timeout_retires_the_worker(binary: Path, execution: Execution) -> Trans
         return [{"exit_code": result.returncode, "stdout": result.stdout}]
 
 
-@requires(POSIX)
 @executions(RUNTIME)
 def test_reports_interactive_input(binary: Path, execution: Execution) -> Transcript:
     with TemporaryDirectory() as temporary:

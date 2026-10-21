@@ -63,7 +63,8 @@ A copied uv launcher also needs `MCP_CONSOLE_TEST_NATIVE_BINARY` for fixtures re
 
 The shared suite runs portable R/Python/SQL behavior in addition to Windows-specific tests.
 Shared CLI cases include configuration-conflict and startup-validation failures, plus resolver version selection and manifest handoff through a native uv fixture.
-The resolver fixture requires `rustc`.
+Warmup cases also cover missing or unusable R and interactive input during startup.
+The resolver and unusable-R fixtures require `rustc`.
 Unix namespace, signal, PTY, ELF, and procfs tests remain platform-specific.
 Some shell/FIFO/layout fixtures still exclude Windows even when the underlying behavior is supported; native counterparts do not replace every skipped scenario.
 Port those fixtures before removing capability restrictions.

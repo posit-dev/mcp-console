@@ -54,6 +54,7 @@ See [native capabilities](SANDBOX_CONFIGURATION.md#native-capabilities).
 
 **SP-3 — Reduce Windows fixture-only exclusions.** Port shell/shebang, FIFO, and Unix-layout fixtures for otherwise supported admission, resolver, client, and lifecycle behavior.
 The CLI resolver inventory/manifest fixture now uses a native executable, and CLI configuration-conflict and startup-validation cases no longer require POSIX.
+Warmup cases for missing or unusable R and interactive input also run on Windows.
 Other fixture exclusions remain.
 Keep genuinely OS-specific contracts on their owning platform.
 Native Windows acceptance does not cover every skipped shared case.
