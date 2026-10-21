@@ -26,7 +26,13 @@ from support.processes import (
     kill_processes,
     stop_process_group,
 )
-from support.requirements import NATIVE_FIXTURES, POSIX, PROCESS_EVENTS, requires
+from support.requirements import (
+    NATIVE_FIXTURES,
+    POSIX,
+    PROCESS_EVENTS,
+    command,
+    requires,
+)
 from support.suites import run_this_suite
 
 
@@ -124,32 +130,36 @@ def test_opens_and_closes_with_batched_frames(binary: Path) -> Transcript:
                     stream.close()
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 def test_resolves_python_version_over_json(binary: Path) -> Transcript:
-    with TemporaryDirectory() as temporary:
-        uv = Path(temporary) / "uv"
-        uv.write_text(
-            """#!/bin/sh
-case "$1 $2" in
-  'python list')
-    printf '%s\\n' '[{"version":"3.12.7","version_parts":{"major":3,"minor":12,"patch":7},"symlink":null,"variant":"default","implementation":"cpython"}]'
-    ;;
-  'tool run')
-    for last in "$@"; do :; done
-    printf '%s' /usr/bin/true > "$last"
-    ;;
-  *) exit 90 ;;
-esac
-"""
+    with TemporaryDirectory(prefix="console resolver ") as temporary:
+        uv = Path(temporary) / ("uv.exe" if os.name == "nt" else "uv")
+        subprocess.run(
+            [
+                "rustc",
+                "--edition=2024",
+                str(
+                    Path(__file__).resolve().parents[2]
+                    / "fixtures/resolver/uv_inventory.rs"
+                ),
+                "-o",
+                str(uv),
+            ],
+            check=True,
         )
-        uv.chmod(0o755)
         process = subprocess.Popen(
             [binary, "resolve"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env={**os.environ, "PATH": str(uv.parent)},
+            env={
+                **os.environ,
+                "PATH": str(uv.parent),
+                "MCP_CONSOLE_HOME": str(uv.parent / "console-home"),
+                "MCP_CONSOLE_TEST_RESOLVED_PYTHON": sys.executable,
+            },
+            cwd=temporary,
         )
         assert process.stdin is not None
         assert process.stdout is not None
@@ -194,7 +204,7 @@ esac
             )
             prepared = receive()
             assert prepared["Completed"]["result"] == {
-                "Ok": {"python": "/usr/bin/true", "requirements": manifest}
+                "Ok": {"python": sys.executable, "requirements": manifest}
             }, prepared
             assert prepared["Completed"]["confirmed"] is True, prepared
             send("Close")

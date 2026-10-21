@@ -15,7 +15,8 @@ arguments:
   - --runner-config-env
   - TEST_POLICY
   - --
-  - /usr/bin/true
+  - <console>
+  - --version
 stderr: |
   configuration overrides cannot be combined with --runner-config-env
 ---
@@ -26,6 +27,7 @@ arguments:
   - -c
   - extends=:workspace
   - --
-  - /usr/bin/true
+  - <console>
+  - --version
 stderr: |
   configuration overrides cannot be combined with --settings-env

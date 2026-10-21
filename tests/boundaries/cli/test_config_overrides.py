@@ -509,7 +509,6 @@ def test_validates_effective_configuration(binary: Path) -> Transcript:
     return records
 
 
-@requires(POSIX)
 def test_overrides_do_not_bypass_file_errors_or_explicit_inputs(
     binary: Path,
 ) -> Transcript:
@@ -529,7 +528,8 @@ def test_overrides_do_not_bypass_file_errors_or_explicit_inputs(
                     "--runner-config-env",
                     "TEST_POLICY",
                     "--",
-                    "/usr/bin/true",
+                    str(binary),
+                    "--version",
                 ],
                 "cannot be combined",
             ),
@@ -541,7 +541,8 @@ def test_overrides_do_not_bypass_file_errors_or_explicit_inputs(
                     "-c",
                     "extends=:workspace",
                     "--",
-                    "/usr/bin/true",
+                    str(binary),
+                    "--version",
                 ],
                 "cannot be combined",
             ),
@@ -557,11 +558,18 @@ def test_overrides_do_not_bypass_file_errors_or_explicit_inputs(
             )
             assert result.returncode == 1 and result.stdout == "", result
             assert expected in result.stderr, result.stderr
-            records.append({"arguments": arguments, "stderr": result.stderr})
+            records.append(
+                {
+                    "arguments": [
+                        "<console>" if argument == str(binary) else argument
+                        for argument in arguments
+                    ],
+                    "stderr": result.stderr,
+                }
+            )
     return records
 
 
-@requires(POSIX)
 def test_rejects_oversized_startup_before_launch(binary: Path) -> Transcript:
     limit = 32 * 1024
 
@@ -624,7 +632,6 @@ def test_rejects_oversized_startup_before_launch(binary: Path) -> Transcript:
     return records
 
 
-@requires(POSIX)
 def test_rejects_invalid_startup(binary: Path) -> Transcript:
     cases = (
         ("startup.language=sql", "startup.language"),
