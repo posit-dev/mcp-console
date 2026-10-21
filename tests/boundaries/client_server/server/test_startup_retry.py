@@ -526,7 +526,6 @@ def test_restart_refreshes_failed_inspection_evidence(
             return transcript + [{"stderr": stderr, "inspection_attempts": 2}]
 
 
-@execution_snapshots
 @requires(POSIX, command("uv"), command("rustc"))
 @executions(DIRECT, SANDBOXED)
 def test_retry_discards_failed_cell_requirements(
@@ -537,17 +536,8 @@ def test_retry_discards_failed_cell_requirements(
         expose_uv(root)
         environment.update(managed_python_environment(root))
         environment["UV_TOOL_DIR"] = str(root)
-        # The discovery descendant acknowledges its lifetime over host TCP.
-        # This requirements-retention case does not exercise network denial.
         with McpClient(
-            binary,
-            execution.serve(
-                "-c",
-                "cache=host",
-                *(("-c", "sandbox.network=enabled") if execution == SANDBOXED else ()),
-            ),
-            environment,
-            root,
+            binary, execution.serve("-c", "cache=host"), environment, root
         ) as client:
             discovery.wait("initial discovery is blocked before cell admission")
             client.initialize_and_list_tools()
