@@ -38,10 +38,16 @@ pub(super) const R_SCRIPT: &str = r#"For a reusable R script, include imports, d
 pub(super) const PYTHON_SELECTION: &str =
     "Use Python when its libraries or format-specific parsing simplify the task. ";
 
-pub(super) const SWITCHING: &str = "Switch languages when useful.";
+pub(super) const SWITCHING: &str = "Choose whichever language makes each step easiest to express, even when earlier steps used another language.";
+
+pub(super) const R_PYTHON_CELLS: &str = " Switch between R and Python cells";
+
+pub(super) const R_PYTHON_SQL_CELLS: &str = " Switch between R, Python, and SQL cells";
+
+pub(super) const R_PYTHON_WORKFLOW: &str = ", reusing results through the language bridges, or use reticulate within an R cell to combine R expressions with Python objects and function calls. For example, read a specialized format with a Python library, then continue with an R data frame to transform or summarize the data, fit a statistical model, or make a plot.";
 
 pub(super) const SQL_FILES: &str =
-    "DuckDB can query CSV, Parquet, JSON, and JSONL directly, including nested JSON. ";
+    "DuckDB can query CSV, Parquet, JSON/JSONL file globs, and databases via extensions. ";
 
 pub(super) const CUSTOM_R: &str = "Evaluate one complete R cell in the custom worker.";
 
@@ -102,7 +108,7 @@ pub(super) const SQL_R_STATEMENTS: &str =
 
 pub(super) const TIMEOUT: &str = r#"Wait for output for up to this many milliseconds (default 60,000). When waiting for completion, use `timeout_ms=300000` for a long poll; it returns early when work finishes or needs input. Avoid repeated short polls such as `timeout_ms=1000`. `0` returns without waiting for completion. Expiry returns available output while work continues. This is a wait budget, not cancellation or a whole-call deadline: preparation and control can exceed it; standalone preparation has no timeout."#;
 
-pub(super) const SQL_OPERATIONS: &str = r#" Managed conveniences/extensions apply only to DuckDB. Read SQLite with `ATTACH 'path' AS name (TYPE sqlite, READ_ONLY)`. With a sandbox, attach existing DuckDB databases outside writable paths using `ATTACH 'path' AS name (READ_ONLY)`. Use `SHOW TABLES`, `DESCRIBE`, `SUMMARIZE`, or `EXPLAIN`; CLI dot commands are not supported."#;
+pub(super) const SQL_OPERATIONS: &str = r#" Managed conveniences/extensions apply only to DuckDB. Read JSON/JSONL file globs as tables, including nested fields, with `read_json('data/*.json*')`. Read SQLite with `ATTACH 'path' AS name (TYPE sqlite, READ_ONLY)`. With a sandbox, attach existing DuckDB databases outside writable paths using `ATTACH 'path' AS name (READ_ONLY)`. Use `SHOW TABLES`, `DESCRIBE`, `SUMMARIZE`, or `EXPLAIN`; CLI dot commands are not supported."#;
 
 pub(super) const STDIN_START: &str =
     "Send stdin alone to answer an active read, prompt, or debugger. ";

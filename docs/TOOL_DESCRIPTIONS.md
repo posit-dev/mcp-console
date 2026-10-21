@@ -54,6 +54,26 @@ Detailed budget allocation and client feature flags do not belong in Console's p
 Lead with tasks: calculations, data analysis, simulations, debugging, queries, plots, and comparing approaches with retained state.
 Follow with complete-cell and automatic-display guidance.
 
+Language-selection guidance encourages choosing a language for each step, including continuing in R after Python and combining R expressions with Python calls through reticulate.
+When R, Python, and SQL are exposed, use:
+
+> Choose whichever language makes each step easiest to express, even when earlier steps used another language.
+> Switch between R, Python, and SQL cells, reusing results through the language bridges, or use reticulate within an R cell to combine R expressions with Python objects and function calls.
+> For example, read a specialized format with a Python library, then continue with an R data frame to transform or summarize the data, fit a statistical model, or make a plot.
+
+The R/Python interface uses the same paragraph with SQL omitted from the list.
+Other interfaces with multiple languages retain the first sentence; single-language interfaces omit switching guidance.
+Custom workers describe switching through their own capabilities without promising the built-in language bridges.
+The paragraph replaces the separate R/Python/SQL selection advice when both R and Python are exposed.
+Reusable R script instructions belong in the R parameter description.
+
+When SQL is exposed, follow with a short reminder of DuckDB's file and database access:
+
+> DuckDB can query CSV, Parquet, JSON/JSONL file globs, and databases via extensions.
+
+The SQL field illustrates reading file sets as tables, including nested fields, with `read_json('data/*.json*')`.
+Keep the result-retrieval helpers and connection ownership rules in the language fields.
+
 Give each fact one primary home:
 
 | Location        | Information                                                                                            |

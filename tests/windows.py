@@ -1422,14 +1422,10 @@ class WindowsConsole(unittest.TestCase):
                         )
                         self.assertNotIn("SIGINT", properties["control"]["description"])
                         self.assertEqual(
-                            script_guidance in tool["description"],
+                            script_guidance
+                            in properties.get("r", {}).get("description", ""),
                             not custom and "r" in fields,
                         )
-                        if script_guidance in tool["description"]:
-                            self.assertLess(
-                                tool["description"].index("Send one complete"),
-                                tool["description"].index(script_guidance),
-                            )
                         if custom:
                             self.assertIn(
                                 "Persistent custom-worker",
@@ -1456,10 +1452,11 @@ class WindowsConsole(unittest.TestCase):
                             )
                             self.assertEqual(
                                 "consider DuckDB SQL first" in tool["description"],
-                                "sql" in fields,
+                                "sql" in fields and not {"r", "python"} <= fields,
                             )
                             self.assertEqual(
-                                "Switch languages when useful" in tool["description"],
+                                "Choose whichever language makes each step"
+                                in tool["description"],
                                 len(fields) > 1,
                             )
                         self.assertEqual(
