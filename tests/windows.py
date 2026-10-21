@@ -442,6 +442,14 @@ def exercise_later_callbacks(session: Session) -> None:
 
 @unittest.skipUnless(os.name == "nt", "native Windows packaging")
 class WindowsPackaging(unittest.TestCase):
+    def test_relocated_distribution_preserves_sandbox_startup(self):
+        from support.installation import installed_console
+        from support.windows_mxc import mxc_requirement
+
+        original = mxc_requirement(BINARY)
+        relocated = mxc_requirement(installed_console(NATIVE_BINARY))
+        self.assertEqual(relocated.available, original.available)
+
     def test_native_distribution_has_no_redistributable_vc_runtime(self):
         paths = {NATIVE_BINARY} | {
             path
@@ -1729,9 +1737,23 @@ class WindowsConsole(unittest.TestCase):
             python="import six; saved = 42; print(six.__version__)",
         )
         self.assertIn("1.", json.dumps(result))
-        result = completed(python="import sniffio; print(sniffio.__version__)")
+        result = completed(
+            # fmt: python
+            python=code("""
+                try:
+                    import sniffio
+                except ModuleNotFoundError as error:
+                    assert type(error) is ModuleNotFoundError
+                    assert error.args == ("No module named 'sniffio'",), error.args
+                    assert error.name == "sniffio", error.name
+                    assert error.path is None, error.path
+                    print("undeclared import preserves native ModuleNotFoundError")
+                else:
+                    raise AssertionError("undeclared dependency imported")
+                """),
+        )
         self.assertIn(
-            "ModuleNotFoundError: No module named 'sniffio'", json.dumps(result)
+            "undeclared import preserves native ModuleNotFoundError", json.dumps(result)
         )
         inspection = session.send(requirements={"action": "get"})
         self.assertEqual(

@@ -27,11 +27,13 @@ def _installed_console(binary: Path) -> tuple[tempfile.TemporaryDirectory, Path]
             prefix / "bin" / ("mcp-console.exe" if os.name == "nt" else "mcp-console")
         )
         shutil.copy2(binary, installed)
-        # Native Windows builds keep licenses inside the immutable libexec bundle.
+        # Windows builds keep licenses inside the immutable libexec bundle;
+        # installed wheels use the flat license directory on every platform.
+        licenses = "share/licenses/mcp-console"
         directories = (
             ("libexec",)
-            if os.name == "nt"
-            else ("libexec", "share/licenses/mcp-console")
+            if os.name == "nt" and not (binary.parent.parent / licenses).is_dir()
+            else ("libexec", licenses)
         )
         for relative in directories:
             shutil.copytree(binary.parent.parent / relative, prefix / relative)

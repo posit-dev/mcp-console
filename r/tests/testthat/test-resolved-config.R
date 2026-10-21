@@ -24,23 +24,26 @@ test_that("resolving configuration retains the complete editable defaults", {
   )
 })
 
-test_that("materialization and pruning retain a custom cache directory", {
+test_that("materialization and pruning retain relative and absolute cache directories", {
   binary <- Sys.getenv("MCP_CONSOLE_TEST_BINARY")
   skip_if(!nzchar(binary), "Set MCP_CONSOLE_TEST_BINARY to the checkout binary")
   project <- tempfile("console-config-")
   dir.create(project)
   project <- normalizePath(project, winslash = "/")
   on.exit(unlink(project, recursive = TRUE), add = TRUE)
-  cache <- file.path(project, "cache")
-  config <- materialize_console_config(
-    ConsoleConfig(cache = list(directory = cache)),
-    path = binary,
-    project = project
-  )
-  expect_identical(config@cache, list(directory = cache))
-  pruned <- prune_console_config(config, path = binary, project = project)
-  expect_identical(as.list(pruned), list(cache = list(directory = cache)))
-  expect_false(dir.exists(cache))
+  # Resolution returns native absolute paths without creating the cache.
+  cache <- normalizePath(file.path(project, "cache"), mustWork = FALSE)
+  for (directory in unique(c("cache", file.path(project, "cache"), cache))) {
+    config <- materialize_console_config(
+      ConsoleConfig(cache = list(directory = directory)),
+      path = binary,
+      project = project
+    )
+    expect_identical(config@cache, list(directory = cache))
+    pruned <- prune_console_config(config, path = binary, project = project)
+    expect_identical(as.list(pruned), list(cache = list(directory = cache)))
+    expect_false(dir.exists(cache))
+  }
 })
 
 test_that("materialization and pruning retain client sandbox inheritance", {

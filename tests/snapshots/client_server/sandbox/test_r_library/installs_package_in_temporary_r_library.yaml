@@ -13,14 +13,36 @@ send:
       dir.exists(library),
       file.access(library, 2L) == 0L
     )
-    install.packages(
-      "mcpconsolelocalpkg_0.0.1.tar.gz",
-      repos = NULL,
-      type = "source",
-      # Request the same help output across R installations.
-      INSTALL_opts = "--html"
+    installer_stdout <- file.path(tempdir(), "mcpconsolelocalpkg.out")
+    installer_stderr <- file.path(tempdir(), "mcpconsolelocalpkg.err")
+    # Local installs ignore keep_outputs. Record complete streams
+    # separately because their interleaving is unspecified.
+    installer_status <- system2(
+      file.path(R.home("bin"), "R"),
+      c(
+        "CMD",
+        "INSTALL",
+        # Request the same help output across R installations.
+        "--html",
+        "-l",
+        shQuote(library),
+        "mcpconsolelocalpkg_0.0.1.tar.gz"
+      ),
+      stdout = installer_stdout,
+      stderr = installer_stderr
     )
     stopifnot(
+      file.exists(installer_stdout),
+      file.exists(installer_stderr)
+    )
+    writeLines(c(
+      "installer stdout:",
+      readLines(installer_stdout),
+      "installer stderr:",
+      readLines(installer_stderr)
+    ))
+    stopifnot(
+      installer_status == 0L,
       identical(dirname(find.package("mcpconsolelocalpkg")), library),
       identical(mcpconsolelocalpkg::answer(), 42L)
     )
@@ -28,8 +50,10 @@ result:
   content:
     - type: text
       text: |
-        Installing package into ‘<sandbox R library>’
-        (as ‘lib’ is unspecified)
+        installer stdout:
+          converting help for package ‘mcpconsolelocalpkg’
+            answer                                  html  
+        installer stderr:
         * installing *source* package ‘mcpconsolelocalpkg’ ...
         ** this is package ‘mcpconsolelocalpkg’ version ‘0.0.1’
         ** using staged installation
@@ -37,9 +61,7 @@ result:
         ** byte-compile and prepare package for lazy loading
         ** help
         *** installing help indices
-          converting help for package ‘mcpconsolelocalpkg’
             finding HTML links ... done
-            answer                                  html  
         ** building package indices
         ** testing if installed package can be loaded from temporary location
         ** testing if installed package can be loaded from final location

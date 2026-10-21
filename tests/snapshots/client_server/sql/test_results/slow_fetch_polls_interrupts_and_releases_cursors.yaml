@@ -89,16 +89,6 @@ result:
   content:
     - type: text
       text: |-
-
-        [elapsed: <elapsed>s since admission; no new output]
-        [running; poll with an empty send]
-  isError: false
----
-send: {}
-result:
-  content:
-    - type: text
-      text: |-
         [input requested: "fetch> "]
         [waiting for stdin]
   isError: false
@@ -163,16 +153,6 @@ result:
 send:
   python: _console.sql_last_result(30)
   timeout_ms: 0
-result:
-  content:
-    - type: text
-      text: |-
-
-        [elapsed: <elapsed>s since admission; no new output]
-        [running; poll with an empty send]
-  isError: false
----
-send: {}
 result:
   content:
     - type: text

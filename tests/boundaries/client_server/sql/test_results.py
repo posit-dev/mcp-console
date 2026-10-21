@@ -585,11 +585,12 @@ def test_dbi_bounds_fetches_and_preserves_transactions(
         ) SELECT i FROM rows"""
         client.send(sql=query)
         client.expect(r="metrics$gate <- TRUE")
-        client.send(r=".console$sql_last_result(30L)", timeout_ms=0)
         wait_for_evaluation_output(
             client,
             '[input requested: "fetch> "]\n[waiting for stdin]',
             "DBI retrieval reached its interrupt gate",
+            r=".console$sql_last_result(30L)",
+            timeout_ms=0,
         )
         client.expect("\n", control="interrupt")
         client.expect(
@@ -878,11 +879,12 @@ def test_slow_fetch_polls_interrupts_and_releases_cursors(
             VALUES (0) UNION ALL SELECT i + 1 FROM rows WHERE i < 56
         ) SELECT i FROM rows"""
         client.send(sql=query)
-        client.send(python="data = _console.sql_last_result(30)", timeout_ms=0)
         wait_for_evaluation_output(
             client,
             '[input requested: "fetch> "]\n[waiting for stdin]',
             "retrieval entered its native fetch gate",
+            python="data = _console.sql_last_result(30)",
+            timeout_ms=0,
         )
         client.expect(stdin="continue\n")
         client.expect(
@@ -897,11 +899,12 @@ def test_slow_fetch_polls_interrupts_and_releases_cursors(
                 """),
         )
         client.send(sql=query)
-        client.send(python="_console.sql_last_result(30)", timeout_ms=0)
         wait_for_evaluation_output(
             client,
             '[input requested: "fetch> "]\n[waiting for stdin]',
             "retrieval entered its interrupt gate",
+            python="_console.sql_last_result(30)",
+            timeout_ms=0,
         )
         client.send(control="interrupt")
         assert "KeyboardInterrupt" in last_tool_text(client)
