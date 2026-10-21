@@ -328,7 +328,7 @@ def test_no_r_sql_interrupt_and_worker_crash(
 
 
             _ = _console.sql_connection().create_function(
-                "sql_gate", sql_gate, ["BIGINT"], "BIGINT"
+                "sql_gate", sql_gate, ["BIGINT"], "BIGINT", side_effects=True
             )
             """)
         client.send(python=python)
@@ -337,7 +337,7 @@ def test_no_r_sql_interrupt_and_worker_crash(
             client
         )
         client.send(control="interrupt")
-        assert "KeyboardInterrupt" in last_result_text(client)
+        assert "KeyboardInterrupt" in last_result_text(client), last_result_text(client)
         client.send(sql="SELECT answer FROM answers")
         assert "42" in last_result_text(client), last_result_text(client)
         client.send(

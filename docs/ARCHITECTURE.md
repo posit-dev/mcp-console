@@ -109,7 +109,9 @@ Successive calls advance the result; repeatedly returning a prefix would require
 Native DBI/DB-API queries remain available when callers want to own their result lifecycle directly.
 R DBI connections use `dbSendQuery()` and bounded `dbFetch(n)` calls and retain the driver's data frames unchanged, apart from the managed DuckDB workaround below.
 Python returns driver rows with ordered column names and closes only result objects distinct from the selected connection.
-When a DB-API connection is itself the cursor, Console can release its references but cannot independently clear the driver's result without affecting the connection.
+When a DB-API connection is itself the cursor, generic cleanup releases Console's references without closing the connection.
+For Python DuckDB, an empty `execute("")` also supersedes the native result on both 1.x and 2.x: the driver releases unfinished reads and completes pending writes without returning their rows or committing the transaction.
+This keeps DuckDB 2.x connection operations usable after Console discards a result; `abort()` would instead invalidate an open transaction whose unfinished statement writes.
 Each provider initially fetches at most 21 preview/lookahead rows and requests only the remaining row allowance on later bounded fetches.
 Console does not eagerly fetch, copy, count, or spool the complete result; engines and drivers still own their internal buffering.
 An empty fetch or `fetchall()` establishes DB-API exhaustion; a short nonempty batch does not.

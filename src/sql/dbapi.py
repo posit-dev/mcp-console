@@ -23,10 +23,13 @@ _result_epoch = 0
 def _close_candidates(connection: object, candidates: tuple) -> None:
     seen = set()
     for candidate in candidates:
-        if candidate is None or candidate is connection or id(candidate) in seen:
+        if candidate is None or id(candidate) in seen:
             continue
         seen.add(id(candidate))
         try:
+            if candidate is connection:
+                _clear_duckdb_result(connection)
+                continue
             close = getattr(candidate, "close", None)
             if callable(close):
                 close()
@@ -498,3 +501,16 @@ def initialize_connection(source: str) -> int:
 
 def r_connection_selected() -> bool:
     return _r_selected and not _restore_managed
+
+
+def _clear_duckdb_result(connection: object) -> None:
+    import sys
+
+    duckdb = sys.modules.get("duckdb")
+    if duckdb is not None and isinstance(connection, duckdb.DuckDBPyConnection):
+        # DuckDB 2 keeps unfinished execute() results attached to the connection.
+        # An empty execute supersedes the result on both 1.x and 2.x: it releases
+        # reads and completes pending writes without fetching rows, closing the
+        # connection, or committing/rolling back its transaction. abort() would
+        # instead invalidate a transaction whose unfinished statement writes.
+        connection.execute("")

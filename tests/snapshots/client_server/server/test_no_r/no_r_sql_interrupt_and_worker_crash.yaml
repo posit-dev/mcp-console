@@ -41,7 +41,7 @@ send:
 
 
     _ = _console.sql_connection().create_function(
-        "sql_gate", sql_gate, ["BIGINT"], "BIGINT"
+        "sql_gate", sql_gate, ["BIGINT"], "BIGINT", side_effects=True
     )
 result:
   content:
@@ -64,17 +64,8 @@ send:
 result:
   content:
     - type: text
-      text: |+
-        Error: Invalid Input Error: Python exception occurred while executing the UDF: KeyboardInterrupt: <EMPTY MESSAGE>
-
-        At:
-          <string>(50): _console_input
-          <mcp-console:python:e1>(2): sql_gate
-          <string>(315): _evaluate
-          <string>(351): _dispatch
-          <string>(751): _mcp_console_without_automatic_resolution
-          <string>(360): dispatch
-
+      text: |
+        Error: Invalid Input Error: Python exception occurred while executing the UDF: KeyboardInterrupt: 
   isError: false
 ---
 send:

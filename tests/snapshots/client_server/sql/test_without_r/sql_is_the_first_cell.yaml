@@ -26,7 +26,7 @@ send:
     import pandas as pd
 
     managed = _console.sql_connection()
-    assert managed.execute("SELECT value FROM retained").fetchone() == (7,)
+    assert managed.execute("SELECT value FROM retained").fetchall() == [(7,)]
     frame = pd.DataFrame({"value": [3, 4]})
     managed.register("registered", frame)
     unregistered = pd.DataFrame({"value": [99]})
@@ -59,7 +59,7 @@ result:
         Did you mean "registered"?
 
         LINE 1: SELECT * FROM unregistered
-                              ^
+                              ^^^^^^^^^^^^
   isError: false
 ---
 send:
@@ -158,7 +158,7 @@ result:
         Did you mean "pg_tables"?
 
         LINE 1: SELECT * FROM missing_table
-                              ^
+                              ^^^^^^^^^^^^^
   isError: false
 ---
 send:
@@ -245,5 +245,5 @@ result:
         Did you mean "pg_settings"?
 
         LINE 1: SELECT value FROM retained
-                                  ^
+                                  ^^^^^^^^
   isError: false

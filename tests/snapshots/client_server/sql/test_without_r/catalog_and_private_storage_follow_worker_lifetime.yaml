@@ -65,7 +65,7 @@ result:
         Did you mean "pg_attrdef"?
 
         LINE 1: SELECT * FROM state
-                              ^
+                              ^^^^^
         [done]
   isError: false
 ---
@@ -118,7 +118,7 @@ result:
         Did you mean "sqlite_master"?
 
         LINE 1: SELECT * FROM crash_state
-                              ^
+                              ^^^^^^^^^^^
   isError: false
 ---
 send:

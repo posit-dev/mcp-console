@@ -711,8 +711,7 @@ def test_reports_python_dbapi_cursor_cleanup_failures(
 
         _console.sql_connection(CleanupConnection())
         """)
-    client.send(python=python)
-    assert last_tool_text(client) == "[done]"
+    client.expect(python=python)
 
     client.send(sql="ANSWER")
     output = last_tool_text(client)

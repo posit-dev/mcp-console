@@ -22,7 +22,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.linux_sandbox import retain_system_bwrap
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code, normalize_python_resolution_error
-from support.records import Transcript, TranscriptWithCompanions
+from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.snapshots import execution_snapshots
 from support.resolvers import expose_uv, write_python_executable
 
@@ -151,6 +151,112 @@ def extension_cache(root: Path, execution: Execution) -> Path:
         root / "home/.duckdb/extensions"
         if execution is DIRECT
         else root / "cache-base/mcp-console/dependencies/duckdb/extensions"
+    )
+
+
+@requires(SQL)
+@executions(DIRECT, SANDBOXED)
+def test_duckdb_major_versions(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    transcripts = {}
+    for version in ("1.5.6", "2.0.0"):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            env = managed_environment(root)
+            with sql_client(
+                binary,
+                execution,
+                env,
+                root,
+                arguments=("-c", f"python.managed.packages=[duckdb=={version}]"),
+            ) as client:
+                client.expect(
+                    version + "\n",
+                    python="import duckdb; print(duckdb.__version__)",
+                )
+                client.expect("[prepared]", requirements={"duckdb": ["fts", "parquet"]})
+                client.send(
+                    sql="CREATE TABLE documents AS SELECT 1 AS id, 'duckdb compatibility' AS body"
+                )
+                client.send(
+                    sql=code("""
+                    SET autoinstall_known_extensions = false;
+                    LOAD fts; LOAD parquet;
+                    PRAGMA create_fts_index('documents', 'id', 'body');
+                    SELECT id, NULL AS missing FROM documents
+                    WHERE fts_main_documents.match_bm25(id, 'compatibility') IS NOT NULL
+                    """)
+                )
+                assert "Error:" not in last_tool_text(client), last_tool_text(client)
+                client.expect(
+                    "extensions and native results work\n",
+                    # fmt: python
+                    python=code("""
+                        result = _console.sql_last_result()
+                        assert result == {"columns": ("id", "missing"), "rows": [(1, None)]}
+                        assert _console.sql_last_result()["rows"] == []
+                        print("extensions and native results work")
+                        """),
+                )
+                client.send(
+                    sql=code("""
+                    BEGIN;
+                    CREATE TEMP TABLE transient AS SELECT 42 AS answer;
+                    SELECT i FROM range(1000000) AS rows(i)
+                    """)
+                )
+                assert "additional rows omitted" in last_tool_text(client)
+                client.expect(
+                    "discarding unread rows frees the connection\n",
+                    # fmt: python
+                    python=code("""
+                        import sqlite3
+
+                        managed = _console.sql_connection()
+                        first = _console.sql_last_result(5)
+                        assert first["rows"] == [(i,) for i in range(5)]
+                        selected = sqlite3.connect(":memory:")
+                        _console.sql_connection(selected)
+                        assert managed.sql("SELECT answer FROM transient").fetchall() == [(42,)]
+                        managed.execute("ROLLBACK")
+                        assert managed.execute(
+                            "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'transient'"
+                        ).fetchall() == [(0,)]
+                        _console.sql_connection(managed)
+                        print("discarding unread rows frees the connection")
+                        """),
+                )
+                client.send(sql="SELECT 42 AS answer")
+                client.expect(
+                    "selected connection stays open\n",
+                    # fmt: python
+                    python=code("""
+                        assert _console.sql_last_result() == {"columns": ("answer",), "rows": [(42,)]}
+                        print("selected connection stays open")
+                        """),
+                )
+                client.send(
+                    sql=code("""
+                    CREATE SEQUENCE writes;
+                    BEGIN;
+                    SELECT nextval('writes') AS written FROM range(10000)
+                    """)
+                )
+                client.expect(
+                    "discarding a write result completes its effects\n",
+                    # fmt: python
+                    python=code("""
+                        _console.sql_connection(managed)
+                        assert managed.sql("SELECT currval('writes')").fetchall() == [(10000,)]
+                        managed.execute("COMMIT")
+                        print("discarding a write result completes its effects")
+                        """),
+                )
+                transcripts[version] = McpTranscript(client.finish())
+    return TranscriptWithCompanions(
+        transcripts["2.0.0"].transcript,
+        {"duckdb-1.yaml": transcripts["1.5.6"]},
     )
 
 
@@ -354,7 +460,9 @@ def test_default_extension_failure_preserves_close_failure(
                 assert diagnostic.startswith(
                     "skipping default DuckDB extension `sqlite`: DuckDB extension resolution failed"
                 ), diagnostic
-                assert "path exists but is not a directory!" in diagnostic, diagnostic
+                assert (
+                    f'Failed to create directory "{cache}": File exists' in diagnostic
+                ), diagnostic
                 assert diagnostic.endswith("answer\n------\n42\n"), diagnostic
                 transcript, errors = client.finish_with_standard_error(
                     expected_exit_status=1
@@ -938,7 +1046,10 @@ def test_interrupts_extension_preparation_before_worker_retirement(
             with sql_client(
                 binary, execution, env, arguments=("-c", "cache=host")
             ) as client:
-                client.send(sql="CREATE TABLE retained AS SELECT 42 AS value")
+                client.expect(
+                    "Count\n-----\n1\n",
+                    sql="CREATE TABLE retained AS SELECT 42 AS value",
+                )
                 client.send(
                     python="import os, sysconfig; site = sysconfig.get_paths()['purelib']; identity = object(); identity_id = id(identity); pid = os.getpid(); print(site)"
                 )
@@ -1026,7 +1137,7 @@ def test_sql_is_the_first_cell(binary: Path, execution: Execution) -> Transcript
                     import pandas as pd
 
                     managed = _console.sql_connection()
-                    assert managed.execute("SELECT value FROM retained").fetchone() == (7,)
+                    assert managed.execute("SELECT value FROM retained").fetchall() == [(7,)]
                     frame = pd.DataFrame({"value": [3, 4]})
                     managed.register("registered", frame)
                     unregistered = pd.DataFrame({"value": [99]})

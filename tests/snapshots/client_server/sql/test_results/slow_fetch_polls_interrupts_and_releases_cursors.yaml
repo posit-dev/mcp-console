@@ -169,7 +169,7 @@ result:
       text: |
         Traceback (most recent call last):
           File "<mcp-console:python:e4>", line 1, in <module>
-          File "<string>", line 76, in sql_last_result
+          File "<string>", line 79, in sql_last_result
           File "<mcp-console:python:e1>", line 22, in fetchmany
         KeyboardInterrupt
   isError: false

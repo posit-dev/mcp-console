@@ -10,7 +10,7 @@ result:
           File "<string>", line 56, in <module>
             connection.install_extension(extension)
             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
-        _duckdb.IOException: IO Error: Failed to create directory "<temporary>/invalid-cache": path exists but is not a directory!
+        _duckdb.IOException: IO Error: Failed to create directory "<temporary>/invalid-cache": File exists
         [output produced while idle]
         answer
         ------

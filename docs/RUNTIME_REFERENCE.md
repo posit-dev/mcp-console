@@ -131,6 +131,9 @@ No setup cell is required.
 Missing optional providers can be prepared on demand in managed sessions.
 A user-selected connection can provide SQL without DuckDB.
 
+Console supports DuckDB 1.x and 2.x.
+The default package request is bare `duckdb`, so the selected R or Python package resolver chooses the release; Console does not pin a major version.
+
 With R-owned DuckDB, unqualified names can refer to R global data frames; a table or view with the same name takes precedence.
 Views can observe later rebinding of an R name.
 To query a Python frame through this provider, first assign it to an R global.
@@ -251,9 +254,10 @@ Cleanup does not close a selected connection or commit or roll back its transact
 
 Unread results can hold database resources and locks until exhaustion, replacement, or restart; dropping returned data does not discard unread rows.
 Some drivers need an additional fetch to establish exhaustion.
-Python DuckDB may retain native result buffers until another query or connection closure.
+Python DuckDB releases its native result when Console discards it, completing any pending writes without fetching their remaining rows.
 
 Before using the connection directly from R or Python, finish retrieval or select the same connection again to discard unread rows.
+For queries submitted directly through Python DuckDB 2.x, fetch until no rows remain (or use `fetchall()`) before other operations such as registering a frame on that connection.
 Direct connection use while a result is pending is unsupported: it can invalidate the result without Console detecting the change.
 
 ## Plots and images
