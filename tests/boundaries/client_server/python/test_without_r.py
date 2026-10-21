@@ -921,7 +921,7 @@ def test_adds_python_packages_to_idle_managed_worker(
         (session,) = (Path(workspace) / ".agents/console/sessions").iterdir()
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         accepted = [
             event["packages"]
@@ -1045,7 +1045,7 @@ def test_resolves_reached_import_in_managed_worker(
         (session,) = (root / ".agents/console/sessions").iterdir()
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         assert any(
             event["event"] == "python_environment_accepted"
@@ -1903,7 +1903,7 @@ def test_failed_managed_preparation_preserves_worker_and_input(
             (session,) = (workspace / ".agents/console/sessions").iterdir()
             events = [
                 json.loads(line)
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
+                for line in (session / "capture/events.jsonl").read_text().splitlines()
             ]
             accepted = [
                 event
@@ -2089,7 +2089,7 @@ def test_shutdown_cancels_sans_r_python_preparation(
                 (session,) = (workspace / ".agents/console/sessions").iterdir()
                 events = [
                     json.loads(line)
-                    for line in (session / "internal/events.jsonl")
+                    for line in (session / "capture/events.jsonl")
                     .read_text()
                     .splitlines()
                 ]
@@ -2595,10 +2595,10 @@ False
                 in quarto
             )
             assert "ValueError: recorded failure" in markdown
-            assert (session / "outputs/call-000001.log").read_text() == "42\n"
+            assert (session / "capture/sessions/001/cell-001.txt").read_text() == "42\n"
             events = [
                 json.loads(line)
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
+                for line in (session / "capture/events.jsonl").read_text().splitlines()
             ]
             assert events[0]["event"] == "recording_started"
             assert sum(event["event"] == "tool_call" for event in events) == 3
@@ -3225,7 +3225,7 @@ def test_records_managed_python_defaults(
         assert "six" not in quarto, quarto
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         discovered = next(
             event for event in events if event["event"] == "environment_discovered"

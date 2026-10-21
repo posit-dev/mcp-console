@@ -1,5 +1,6 @@
 """Explicit restart retries failed initial setup without replaying rejected cells."""
 
+import base64
 import json
 import os
 import shlex
@@ -17,7 +18,6 @@ from boundaries.client_server.python.test_startup import selected_python
 from support.python import isolated_python
 from boundaries.client_server.python.test_without_r import environment as without_r
 from boundaries.client_server.server.test_startup import (
-    discovery_environment,
     wait_for_send_admission,
 )
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
@@ -28,9 +28,10 @@ from support.assertions import (
     wait_for_idle_output,
 )
 from support.client import McpClient
+from support.discovery import discovery_environment
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
-from support.normalization import code
+from support.normalization import code, normalize_process_diagnostic
 from support.previews import assert_preview, compact_previews
 from support.progress import without_elapsed
 from support.snapshots import execution_snapshots
@@ -126,17 +127,26 @@ def test_retry_retains_preparation_startup_and_idle_output(
             failure = client.send()
             assert failure.get("isError"), failure
             assert "selected Python executable is not an absolute file" in str(failure)
-            (log,) = (root / ".agents/console/sessions").glob("*/outputs/session.log")
+            (recording,) = (root / ".agents/console/sessions").iterdir()
+            journal = recording / "capture/events.jsonl"
             preparation = b"preparation detail\n"
-            assert log.read_bytes() == preparation
-            inode = log.stat().st_ino
+
+            def preparation_capture() -> bytes:
+                return b"".join(
+                    base64.b64decode(event["data"])
+                    for line in journal.read_text().splitlines()
+                    if (event := json.loads(line))["event"] == "process_output"
+                )
+
+            assert preparation_capture() == preparation
+            assert not (recording / "capture/sessions/001").exists()
 
             python.symlink_to(sys.executable)
             restart = client.start_send(control="restart", timeout_ms=60_000)
             wait_for_checkpoint(
-                lambda: log if log.read_bytes() == preparation * 2 else None,
-                "retry preparation appends to the original session log",
-                root=log.parent,
+                lambda: journal if preparation_capture() == preparation * 2 else None,
+                "retry preparation remains process output before worker launch",
+                root=recording,
                 client=client,
             )
             client.receive(restart)
@@ -147,7 +157,9 @@ def test_retry_retains_preparation_startup_and_idle_output(
             wait_for_idle_output(
                 client, startup_text + "\n[idle]", "repaired startup output"
             )
-            assert log.read_bytes() == preparation * 2 + startup_text.encode()
+            startup_log = recording / "capture/sessions/001/startup.txt"
+            assert startup_log.read_bytes() == startup_text.encode()
+            inode = startup_log.stat().st_ino
 
             client.expect(
                 "[done]",
@@ -166,9 +178,12 @@ def test_retry_retains_preparation_startup_and_idle_output(
                     """),
             )
             idle.release()
-            expected_raw = preparation * 2 + startup_text.encode() + idle_text.encode()
+            log = recording / "capture/sessions/001/cell-001-post.txt"
+            expected_raw = idle_text.encode()
             wait_for_checkpoint(
-                lambda: log if log.read_bytes() == expected_raw else None,
+                lambda: (
+                    log if log.exists() and log.read_bytes() == expected_raw else None
+                ),
                 "post-repair idle text is retained outside the completed cell",
                 root=log.parent,
                 client=client,
@@ -178,22 +193,22 @@ def test_retry_retains_preparation_startup_and_idle_output(
             assert preview.endswith("\n[idle]"), preview
             omitted = assert_preview(preview.removesuffix("\n[idle]"), idle_text)
             assert (
-                f"raw log: .agents/console/sessions/{log.parent.parent.name}/outputs/session.log"
+                f"raw log: .agents/console/sessions/{recording.name}/capture/sessions/001/cell-001-post.txt"
                 in preview
             )
             client.expect("42\n", python="thread.join(); 42")
-            assert log.stat().st_ino == inode
+            assert startup_log.stat().st_ino == inode
+            assert startup_log.read_bytes() == startup_text.encode()
+            assert preparation_capture() == preparation * 2
             compact_previews(client, "s")
             transcript = client.finish()
             assert log.read_bytes() == expected_raw
-            events = [
-                json.loads(line)
-                for line in (log.parent.parent / "internal/events.jsonl")
-                .read_text()
-                .splitlines()
-            ]
+            events = [json.loads(line) for line in journal.read_text().splitlines()]
             (summary,) = [
-                event for event in events if event["event"] == "session_output"
+                event
+                for event in events
+                if event["event"] == "session_output"
+                and event["path"] == "capture/sessions/001/cell-001-post.txt"
             ]
             assert summary["retained_bytes"] == len(expected_raw), summary
             assert summary["discarded_bytes"] == 0, summary
@@ -201,7 +216,7 @@ def test_retry_retains_preparation_startup_and_idle_output(
             return json.loads(
                 json.dumps(transcript)
                 .replace(str(root), "<workspace>")
-                .replace(log.parent.parent.name, "<run ID>")
+                .replace(recording.name, "<run ID>")
             ) + [
                 {
                     "session_output": {
@@ -213,7 +228,8 @@ def test_retry_retains_preparation_startup_and_idle_output(
                             "inline_omitted_bytes",
                         )
                     },
-                    "original_log_preserved": True,
+                    "startup_log_preserved": True,
+                    "preparation_capture_preserved": True,
                 }
             ]
 
@@ -439,22 +455,18 @@ def test_restart_repairs_missing_selected_python(
             )
 
 
-@requires(POSIX, R)
+@requires(R, command("rustc"))
 def test_restart_repairs_failed_r_discovery(binary: Path) -> Transcript:
     r_environment, _ = r_test_environment()
-    with discovery_environment() as (environment, reached, release, alive):
+    with discovery_environment() as (environment, discovery):
         with McpClient(binary, DIRECT.serve(), environment) as client:
-            reached.wait("initial R discovery is blocked")
-            assert os.read(alive, 1) == b"1"
+            discovery.wait("initial R discovery is blocked")
             client.initialize_and_list_tools()
-            release.release()
+            discovery.release()
             failure = client.send(r="stop('rejected cell must not run')")
             assert failure.get("isError"), failure
-            probe = reached.path.parent / "R"
-            probe.write_text(
-                "#!/bin/sh\nprintf '%s\\n' "
-                + shlex.quote(r_environment["R_HOME"])
-                + "\n"
+            (discovery.root / "r-home").write_text(
+                r_environment["R_HOME"], encoding="utf-8"
             )
             assert client.send(r="stop('ordinary send must not retry')") == failure
             repaired = client.send(control="restart", r="answer <- 42; answer")
@@ -462,7 +474,7 @@ def test_restart_repairs_failed_r_discovery(binary: Path) -> Transcript:
             assert repaired["content"] == [
                 {"type": "text", "text": "[runtime discovery retried]\n[1] 42\n[done]"}
             ], repaired
-            return client.finish()
+            return json.loads(normalize_process_diagnostic(json.dumps(client.finish())))
 
 
 @requires(POSIX)
@@ -514,28 +526,27 @@ def test_restart_refreshes_failed_inspection_evidence(
             return transcript + [{"stderr": stderr, "inspection_attempts": 2}]
 
 
-@requires(POSIX, command("uv"))
+@requires(POSIX, command("uv"), command("rustc"))
 @executions(DIRECT, SANDBOXED)
 def test_retry_discards_failed_cell_requirements(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with discovery_environment() as (environment, reached, release, alive):
-        root = reached.path.parent
+    with discovery_environment() as (environment, discovery):
+        root = discovery.root
         expose_uv(root)
         environment.update(managed_python_environment(root))
         environment["UV_TOOL_DIR"] = str(root)
         with McpClient(
             binary, execution.serve("-c", "cache=host"), environment, root
         ) as client:
-            reached.wait("initial discovery is blocked before cell admission")
-            assert os.read(alive, 1) == b"1"
+            discovery.wait("initial discovery is blocked before cell admission")
             client.initialize_and_list_tools()
             pending = client.start_send(
                 python="rejected_cell = True",
                 requirements={"action": "set", "python": ["six"]},
             )
             wait_for_send_admission(client)
-            release.release()
+            discovery.release()
             # Keep the accepted cell's response owner until discovery fails;
             # a readiness inspection can otherwise drain its shared output.
             client.receive(pending)
@@ -545,7 +556,7 @@ def test_retry_discards_failed_cell_requirements(
             failure = client.send(requirements={"action": "get"})
             assert failure.get("isError"), failure
             assert "fixture R discovery failed" in str(failure), failure
-            (root / "R").unlink()
+            discovery.executable.unlink()
             client.expect("\n[idle]", control="restart")
             inspection = client.send(requirements={"action": "get"})
             assert not inspection.get("isError"), inspection
@@ -758,7 +769,7 @@ def test_cancelled_restart_shares_retry_and_preserves_next_cell(
         client.notify("notifications/cancelled", requestId=pending["id"])
         client.request("ping")
         (journal,) = attempts.parent.glob(
-            ".agents/console/sessions/*/internal/events.jsonl"
+            ".agents/console/sessions/*/capture/events.jsonl"
         )
 
         def cancellation_recorded() -> Path | None:
@@ -892,7 +903,7 @@ def cancelled_retry_preparation(
             )
             client.notify("notifications/cancelled", requestId=pending["id"])
             client.request("ping")
-            (journal,) = root.glob(".agents/console/sessions/*/internal/events.jsonl")
+            (journal,) = root.glob(".agents/console/sessions/*/capture/events.jsonl")
 
             def cancellation_recorded() -> Path | None:
                 events = [

@@ -35,13 +35,13 @@ result:
       mimeType: image/png
     - type: text
       text:
-        text_bytes: 8049
+        text_bytes: 8059
         concat:
           - repeat: x
             count: 3851
           - |
 
-            [output omitted: 8380860 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000002.log]
+            [output omitted: 8380860 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
           - repeat: x
             count: 3904
           - |-

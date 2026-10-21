@@ -123,10 +123,8 @@ def test_keeps_mapped_resolution_notice_atomic_at_output_limit(
     assert client.temporary_directory is not None
     workspace = Path(client.temporary_directory.name)
     session = next((workspace / ".agents/console" / "sessions").iterdir())
-    relative_output = Path("outputs/call-000001.log")
-    public_output = (
-        f".agents/console/sessions{os.sep}{session.name}{os.sep}outputs/call-000001.log"
-    )
+    relative_output = Path("capture/sessions/001/cell-001.txt")
+    public_output = f".agents/console/sessions{os.sep}{session.name}{os.sep}capture/sessions/001/cell-001.txt"
     assert f"raw log: {public_output}" in output, output[len(prefix) :]
     assert (session / relative_output).read_text(encoding="utf-8") == (
         prefix + "'yaml12'\n"
@@ -173,8 +171,10 @@ def test_distinguishes_omitted_resolution_notice_from_retained_raw_text(
                 Path(client.temporary_directory.name) / ".agents/console/sessions"
             ).iterdir()
         )
-        assert (session / "outputs/call-000001.log").read_text() == head + tail
-        public_output = f".agents/console/sessions{os.sep}{session.name}{os.sep}outputs/call-000001.log"
+        assert (
+            session / "capture/sessions/001/cell-001.txt"
+        ).read_text() == head + tail
+        public_output = f".agents/console/sessions{os.sep}{session.name}{os.sep}capture/sessions/001/cell-001.txt"
         assert f"raw log: {public_output}" in output
         client.transcript[-1]["result"]["content"][0]["text"] = output.replace(
             public_output, public_output.replace(os.sep, "/")

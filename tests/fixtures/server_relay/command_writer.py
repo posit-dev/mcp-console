@@ -44,9 +44,11 @@ def receive() -> dict:
     return json.loads(sys.stdin.buffer.readline())
 
 
+# This fixture stands in for both relay and worker lifetime.
 send("worker_started", pid=os.getpid())
 send("ready")
 assert receive() == {"kind": "evaluate", "language": "r", "source": "writer-probe"}
+send("cell_started")
 send("completed")
 
 if generation <= int(os.environ["MCP_CONSOLE_TEST_WRITER_RESTARTS"]):

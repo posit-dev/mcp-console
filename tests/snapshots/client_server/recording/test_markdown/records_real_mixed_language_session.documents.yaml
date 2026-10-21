@@ -60,11 +60,11 @@ md: |+
 
   ## Artifact 1 for call 2
 
-  [Artifact 1 from call 2](<artifacts/call-000002-image-000001.png>)
+  [Artifact 1 from call 2](<capture/sessions/002/cell-001-001.png>)
 
   ## Result for call 2
 
-  ![Artifact 1](<artifacts/call-000002-image-000001.png>)
+  ![Artifact 1](<capture/sessions/002/cell-001-001.png>)
 
   ## Call 3: Python
 

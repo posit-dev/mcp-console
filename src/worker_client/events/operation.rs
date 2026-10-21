@@ -624,6 +624,7 @@ impl WorkerOperationState {
         event: RelayEvent,
         r_candidates: &mut Vec<crate::resolver::ManagedR>,
         python_candidates: &mut Vec<PendingPythonCandidate>,
+        output: &OutputTape,
     ) -> Result<(), String> {
         let Operation { kind, result } = {
             let mut state = self.lock()?;
@@ -639,6 +640,12 @@ impl WorkerOperationState {
         };
 
         if result.is_none() && kind.matches_result(&event) {
+            // Retirement suppresses callback delivery, but a matching worker
+            // completion still closes any observed execution interval.
+            if let OperationKind::Cell(evaluation) = &kind {
+                evaluation.require_cell_entry()?;
+                output.finish_cell_output(true);
+            }
             r_candidates.clear();
             python_candidates.clear();
             return Ok(());
@@ -653,8 +660,12 @@ impl WorkerOperationState {
         );
         let committed = match (kind, event) {
             (OperationKind::Cell(evaluation), RelayEvent::Completed) => {
-                match evaluation.input_complete() {
+                match evaluation
+                    .require_cell_entry()
+                    .and_then(|()| evaluation.input_complete())
+                {
                     Ok(()) => {
+                        output.finish_cell_output(true);
                         r_candidates.clear();
                         python_candidates.clear();
                         evaluation.complete_cell_after_grace();
@@ -885,7 +896,7 @@ mod tests {
             panic!("cell did not complete")
         };
         let response = render_response(SendResponse::Completed(response));
-        let (content, is_error, delivery) = response.into_parts();
+        let (content, is_error, delivery, _) = response.into_parts();
         assert!(!is_error);
         assert!(matches!(
             content.as_slice(),

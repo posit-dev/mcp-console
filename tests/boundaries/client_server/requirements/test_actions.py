@@ -627,7 +627,7 @@ def test_records_requirement_boundaries(
         session = next((workspace / ".agents/console/sessions").iterdir())
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         boundaries = [
             event for event in events if event["event"] == "requirements_selected"
@@ -644,6 +644,7 @@ def test_records_requirement_boundaries(
         quarto = (session / "transcript.qmd").read_text()
         assert "execute:\n  eval: false" in quarto
         assert "Recreate the environments at the recorded boundaries" in quarto
+        assert "See transcript.md and capture/events.jsonl" in quarto
         assert quarto.index('"python": []') < quarto.index("first_environment = 1")
         assert quarto.index('"six"') < quarto.index("second_environment = 2")
         markdown = (session / "transcript.md").read_text()

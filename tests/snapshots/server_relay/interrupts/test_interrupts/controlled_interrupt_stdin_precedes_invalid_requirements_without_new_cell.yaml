@@ -11,6 +11,9 @@ server:
   language: r
   source: old evaluation before invalid requirements
 ---
+relay:
+  kind: cell_started
+---
 server:
   kind: interrupt
   request_id: 0

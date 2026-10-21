@@ -277,18 +277,28 @@ impl Profile {
 
     fn language_guidance(&self) -> String {
         let mut guidance = String::new();
-        for (enabled, section) in [
-            (self.languages.sql, sections::SQL_SELECTION),
-            (self.languages.r, sections::R_SELECTION),
-            (self.languages.r, sections::R_SCRIPT),
-            (self.languages.python, sections::PYTHON_SELECTION),
-        ] {
-            if enabled {
-                guidance.push_str(section);
-            }
-        }
         if self.multiple_languages() {
             guidance.push_str(sections::SWITCHING);
+            if self.languages.r && self.languages.python {
+                guidance.push_str(if self.languages.sql {
+                    sections::R_PYTHON_SQL_CELLS
+                } else {
+                    sections::R_PYTHON_CELLS
+                });
+                guidance.push_str(sections::R_PYTHON_WORKFLOW);
+            }
+            guidance.push(' ');
+        }
+        if !(self.languages.r && self.languages.python) {
+            for (enabled, section) in [
+                (self.languages.sql, sections::SQL_SELECTION),
+                (self.languages.r, sections::R_SELECTION),
+                (self.languages.python, sections::PYTHON_SELECTION),
+            ] {
+                if enabled {
+                    guidance.push_str(section);
+                }
+            }
         }
         guidance.truncate(guidance.trim_end().len());
         if self.languages.sql {
@@ -351,6 +361,8 @@ fn r_description_for(languages: Languages) -> String {
         description.push_str(sections::R_SQL);
     }
     description.push_str(sections::R_PLOTS);
+    description.push(' ');
+    description.push_str(sections::R_SCRIPT.trim_end());
     description
 }
 

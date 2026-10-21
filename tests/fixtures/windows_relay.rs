@@ -52,6 +52,7 @@ fn main() -> io::Result<()> {
                     }
                     std::thread::sleep(Duration::from_secs(60));
                 } else if line.contains(r#""kind":"evaluate""#) {
+                    println!(r#"{{"kind":"cell_started"}}"#);
                     println!(r#"{{"kind":"console_output","data":"42\n"}}"#);
                     println!(r#"{{"kind":"completed"}}"#);
                     io::stdout().flush()?;

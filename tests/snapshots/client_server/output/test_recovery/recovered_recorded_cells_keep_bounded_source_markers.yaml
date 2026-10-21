@@ -39,17 +39,191 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8048
+        text_bytes: 8161
         concat:
           - |
             [worker stopped: in-memory state lost]
             [starting new worker]
             cell 0 head
           - repeat: x
-            count: 2868
-          - |-
+            count: 2804
+          - |
 
-            [output omitted: 1043660 UTF-8 bytes; retained logs: .agents/console/sessions/<run ID>/outputs/]
+            [output omitted: 1043788 UTF-8 bytes; retained logs: .agents/console/sessions/<run ID>/capture/sessions/]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
 
             [done]
             [worker stopped: in-memory state lost]
@@ -57,20 +231,12 @@ result:
 
             […]
             [done]
-          - repeat: |-
-
-              [worker stopped: in-memory state lost]
-              [starting new worker]
-              [done]
-            count: 29
-          - |
-
             [worker stopped: in-memory state lost]
             [starting new worker]
 
             […]
           - repeat: x
-            count: 2866
+            count: 2802
           - |-
 
             cell 31 tail

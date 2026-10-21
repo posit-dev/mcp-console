@@ -10,6 +10,9 @@ relay:
     cat("before crash\n")
 ---
 worker:
+  kind: cell_started
+---
+worker:
   kind: r_initialization
   complete: false
 ---
@@ -33,6 +36,9 @@ relay:
 
     ctypes.string_at(0)
 ---
+worker:
+  kind: cell_started
+---
 worker_sideband:
   closed: true
 ---
@@ -45,6 +51,9 @@ relay:
   source: |
     stopifnot(!exists("crash_marker", inherits = FALSE))
     cat("after crash\n")
+---
+worker:
+  kind: cell_started
 ---
 worker:
   kind: r_initialization

@@ -409,9 +409,21 @@ def _initializes_and_lists_tools(
                     not in python_guidance
                 ) == (python_resolution != "implicit")
             description = send["description"]
-            assert ("ir run script.R" in description) == (
-                not custom and "r" in send["inputSchema"]["properties"]
-            ), description
+            if not custom and {"r", "python", "sql"} <= properties.keys():
+                assert (
+                    "Choose whichever language makes each step easiest to express, "
+                    "even when earlier steps used another language. "
+                    "Switch between R, Python, and SQL cells, reusing results "
+                    "through the language bridges, or use reticulate within an "
+                    "R cell to combine R expressions with Python objects and "
+                    "function calls. For example, read a specialized format "
+                    "with a Python library, then continue with an R data frame "
+                    "to transform or summarize the data, fit a statistical "
+                    "model, or make a plot."
+                ) in description, description
+            assert (
+                "ir run script.R" in properties.get("r", {}).get("description", "")
+            ) == (not custom and "r" in send["inputSchema"]["properties"]), description
             assert "Run one cell at a time" in description
             assert "An error can leave earlier changes in place" in description
             assert f"`timeout_ms={properties['timeout_ms']['default']}`" in description
@@ -427,14 +439,18 @@ def _initializes_and_lists_tools(
                 assert "does not supply built-in runtime packages" in description
                 assert "defaults include SQLite" not in description
             elif SQL.available and "sql" in properties:
-                assert description.index("Send one complete") < description.index(
-                    "consider DuckDB SQL first"
-                )
+                if not {"r", "python"} <= properties.keys():
+                    assert description.index("Send one complete") < description.index(
+                        "consider DuckDB SQL first"
+                    )
                 assert "Results display automatically" in description
-                assert "CSV, Parquet, JSON, and JSONL directly" in description
+                assert "CSV, Parquet, JSON/JSONL file globs" in description
+                assert "databases via extensions" in description
                 sql_description = send["inputSchema"]["properties"]["sql"][
                     "description"
                 ]
+                assert "read_json('data/*.json*')" in sql_description
+                assert "as tables, including nested fields" in sql_description
                 assert (
                     "bounded table previews that abbreviate long text cells"
                     in sql_description
@@ -443,9 +459,11 @@ def _initializes_and_lists_tools(
                 assert "missing-provider" not in description
                 assert "Language fields describe" not in description
                 if "r" in send["inputSchema"]["properties"]:
-                    assert (
-                        "Use R for vectorized data and string operations" in description
-                    )
+                    if "python" not in properties:
+                        assert (
+                            "Use R for vectorized data and string operations"
+                            in description
+                        )
                     r_description = properties["r"]["description"]
                     assert ".console$sql_last_result(n = 100)" in r_description
                     assert "returns a data frame" in r_description
@@ -938,7 +956,7 @@ def test_bounds_argument_decoding_errors(
             session = next((workspace / ".agents/console/sessions").iterdir())
             recorded = [
                 event["result"]
-                for line in (session / "internal/events.jsonl").read_text().splitlines()
+                for line in (session / "capture/events.jsonl").read_text().splitlines()
                 if (event := json.loads(line))["event"] == "tool_result"
             ]
             assert recorded == [*results, result]

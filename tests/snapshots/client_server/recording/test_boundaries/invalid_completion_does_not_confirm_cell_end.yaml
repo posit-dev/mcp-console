@@ -1,0 +1,28 @@
+---
+fixture: "Gated relay: invalid completion."
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: invalid completion
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "pending> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        [worker completed with an outstanding input request]
+        [worker exited with status 0]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true

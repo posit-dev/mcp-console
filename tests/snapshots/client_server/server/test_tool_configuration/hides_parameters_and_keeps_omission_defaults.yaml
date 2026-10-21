@@ -39,11 +39,13 @@ result:
         automatically; supported plots return as images.
 
 
-        Use R for vectorized data and string operations, statistics, and plots.
-        For a reusable R script, include imports, data inputs, and `#|
-        packages:`/`#| r-version:` metadata for `ir run script.R`, which starts
-        without live Console objects. Use Python when its libraries or
-        format-specific parsing simplify the task. Switch languages when useful.
+        Choose whichever language makes each step easiest to express, even when
+        earlier steps used another language. Switch between R and Python cells,
+        reusing results through the language bridges, or use reticulate within
+        an R cell to combine R expressions with Python objects and function
+        calls. For example, read a specialized format with a Python library,
+        then continue with an R data frame to transform or summarize the data,
+        fit a statistical model, or make a plot.
 
 
         Run one cell at a time. Wait for its `send` to return before another
@@ -85,7 +87,9 @@ result:
               after errors; draw each plot in one cell. Explicit devices are not
               captured. Set persistent dimensions in inches and DPI with
               `options(console.plot.width_in = ..., console.plot.height_in = ...,
-              console.plot.dpi = ...)`.
+              console.plot.dpi = ...)`. For a reusable R script, include imports, data
+              inputs, and `#| packages:`/`#| r-version:` metadata for `ir run
+              script.R`, which starts without live Console objects.
             type:
               - string
               - "null"
@@ -293,11 +297,13 @@ result:
         automatically; supported plots return as images.
 
 
-        Use R for vectorized data and string operations, statistics, and plots.
-        For a reusable R script, include imports, data inputs, and `#|
-        packages:`/`#| r-version:` metadata for `ir run script.R`, which starts
-        without live Console objects. Use Python when its libraries or
-        format-specific parsing simplify the task. Switch languages when useful.
+        Choose whichever language makes each step easiest to express, even when
+        earlier steps used another language. Switch between R and Python cells,
+        reusing results through the language bridges, or use reticulate within
+        an R cell to combine R expressions with Python objects and function
+        calls. For example, read a specialized format with a Python library,
+        then continue with an R data frame to transform or summarize the data,
+        fit a statistical model, or make a plot.
 
 
         Run one cell at a time. Wait for its `send` to return before another
@@ -339,7 +345,9 @@ result:
               after errors; draw each plot in one cell. Explicit devices are not
               captured. Set persistent dimensions in inches and DPI with
               `options(console.plot.width_in = ..., console.plot.height_in = ...,
-              console.plot.dpi = ...)`.
+              console.plot.dpi = ...)`. For a reusable R script, include imports, data
+              inputs, and `#| packages:`/`#| r-version:` metadata for `ir run
+              script.R`, which starts without live Console objects.
             type:
               - string
               - "null"

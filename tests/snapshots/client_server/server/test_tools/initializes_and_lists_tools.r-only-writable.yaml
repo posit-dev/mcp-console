@@ -40,9 +40,6 @@ result:
 
 
         Use R for vectorized data and string operations, statistics, and plots.
-        For a reusable R script, include imports, data inputs, and `#|
-        packages:`/`#| r-version:` metadata for `ir run script.R`, which starts
-        without live Console objects.
 
 
         Run one cell at a time. Wait for its `send` to return before another
@@ -85,7 +82,9 @@ result:
               cell end, including after errors; draw each plot in one cell. Explicit
               devices are not captured. Set persistent dimensions in inches and DPI
               with `options(console.plot.width_in = ..., console.plot.height_in = ...,
-              console.plot.dpi = ...)`.
+              console.plot.dpi = ...)`. For a reusable R script, include imports, data
+              inputs, and `#| packages:`/`#| r-version:` metadata for `ir run
+              script.R`, which starts without live Console objects.
             type:
               - string
               - "null"

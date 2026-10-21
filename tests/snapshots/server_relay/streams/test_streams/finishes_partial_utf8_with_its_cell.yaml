@@ -12,6 +12,9 @@ server:
   source: "42"
 ---
 relay:
+  kind: cell_started
+---
+relay:
   kind: stdout_bytes
   data: 4g==
 ---
@@ -22,6 +25,9 @@ server:
   kind: evaluate
   language: r
   source: "42"
+---
+relay:
+  kind: cell_started
 ---
 relay:
   kind: stdout_bytes
@@ -36,6 +42,9 @@ server:
   source: "42"
 ---
 relay:
+  kind: cell_started
+---
+relay:
   kind: stderr_bytes
   data: 4g==
 ---
@@ -46,6 +55,9 @@ server:
   kind: evaluate
   language: r
   source: "42"
+---
+relay:
+  kind: cell_started
 ---
 relay:
   kind: stderr_bytes

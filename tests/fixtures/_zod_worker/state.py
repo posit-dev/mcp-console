@@ -30,6 +30,7 @@ class WorkerContext:
     idle_input_received: bool = False
     block_next_sideband_write: int | None = None
     retain_blocked_sideband: bool = False
+    recording_startup_pending: bool = False
 
     # Opened by control.py; closed only by scenarios that explicitly do so.
     test_event_descriptor: int | None = None

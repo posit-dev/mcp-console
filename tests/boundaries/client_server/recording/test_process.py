@@ -3,6 +3,7 @@
 import json
 import base64
 import os
+import select
 import sys
 import tempfile
 from contextlib import ExitStack, closing
@@ -11,7 +12,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.checkpoints import FifoCheckpoint, wait_for_worker_file
+from support.checkpoints import (
+    FifoCheckpoint,
+    wait_for_worker_file,
+    wait_for_checkpoint,
+)
 from support.client import McpClient
 from support.events import Events
 from support.execution import DIRECT, SANDBOXED, Execution, executions
@@ -37,7 +42,7 @@ from boundaries.client_server.output.test_recovery import recovery_client
 def recording_events(recording: Path) -> list[dict]:
     return [
         json.loads(line)
-        for line in (recording / "internal/events.jsonl").read_text().splitlines()
+        for line in (recording / "capture/events.jsonl").read_text().splitlines()
     ]
 
 
@@ -182,13 +187,17 @@ def test_settles_cancelled_capture_before_finalization(
         (recording,) = (workspace / ".agents/console/sessions").iterdir()
         events = [
             json.loads(line)
-            for line in (recording / "internal/events.jsonl").read_text().splitlines()
+            for line in (recording / "capture/events.jsonl").read_text().splitlines()
         ]
         calls = [event for event in events if event["event"] == "tool_call"]
         assert [event["call_id"] for event in calls] == list(range(1, 19)), calls
         assert [event["request"]["arguments"]["r"] for event in calls[2:]] == [
             f"echo cancelled queued source {index}" for index in range(16)
         ], calls
+        results = [event for event in events if event["event"] == "tool_result"]
+        assert sorted(event["call_id"] for event in results) == list(range(1, 19)), (
+            results
+        )
         assert events[-1]["event"] == "recording_ended", events[-1]
         return [
             *client.transcript[:3],
@@ -274,6 +283,25 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                     "content": [{"type": "text", "text": "first response\n"}],
                     "isError": False,
                 }
+                # A received frame can precede completion of its local write.
+                # Establish delivery before releasing the second handler.
+                (recording,) = (workspace / ".agents/console/sessions").iterdir()
+                wait_for_checkpoint(
+                    lambda: (
+                        recording
+                        if any(
+                            event["event"] == "delivery"
+                            and event["call_id"] == 1
+                            and event["delivered"]
+                            for event in recording_events(recording)
+                        )
+                        else None
+                    ),
+                    "first response transport write settled",
+                    root=recording,
+                    recursive=True,
+                    client=client,
+                )
                 gates["recording-release"].release()
                 client.receive(second)
                 assert second["result"] == {
@@ -328,9 +356,13 @@ def test_recording_send_keeps_following_cancellation_and_ping_live(
         assert (
             len([event for event in events if event["event"] == "worker_started"]) == 1
         )
-        assert (recording / "outputs/call-000005.log").read_text() == "zod: after\n"
-        assert not (recording / "outputs/call-000003.log").exists()
-        assert not (recording / "outputs/call-000004.log").exists()
+        assert (
+            recording / "capture/sessions/001/cell-002.txt"
+        ).read_text() == "zod: after\n"
+        assert [
+            event["call_id"] for event in events if event["event"] == "cell_started"
+        ] == [1, 5]
+        assert not (recording / "capture/sessions/001/cell-003.txt").exists()
         received = [
             event["message"]
             for event in events
@@ -379,7 +411,7 @@ def test_first_rejected_send_publishes_the_observed_prelude(
                     LOADER_VARIABLE: str(
                         build_interposer(root, "recording_observation")
                     ),
-                    "MCP_CONSOLE_TEST_OBSERVED_EVENT": "artifact_created",
+                    "MCP_CONSOLE_TEST_OBSERVED_EVENT": "image_retained",
                     "MCP_CONSOLE_TEST_JOURNAL_OBSERVED": str(observed.path),
                 }
             )
@@ -405,14 +437,14 @@ def test_first_rejected_send_publishes_the_observed_prelude(
                         "recording_started",
                         "worker_started",
                         "worker_ready",
-                        "artifact_created",
+                        "image_retained",
                     }
                 ]
                 assert [e["event"] for e in prelude] == [
                     "recording_started",
                     "worker_started",
                     "worker_ready",
-                    "artifact_created",
+                    "image_retained",
                 ]
                 assert all(
                     datetime.fromisoformat(e["at"]) < before_send for e in prelude
@@ -422,9 +454,9 @@ def test_first_rejected_send_publishes_the_observed_prelude(
                 )
                 assert datetime.fromisoformat(activation["at"]) >= before_send
                 assert (
-                    recording / "outputs/session.log"
+                    recording / "capture/sessions/001/startup.txt"
                 ).read_text() == "retained startup text\n"
-                image = next(e for e in prelude if e["event"] == "artifact_created")
+                image = next(e for e in prelude if e["event"] == "image_retained")
                 assert (recording / image["path"]).read_bytes() == expected_image
                 assert not client.send()["isError"]
                 assert not client.send(stdin="unused input")["isError"]
@@ -516,6 +548,76 @@ def test_sessions_follow_actual_worker_lifetimes(
         assert not any(e["event"] == "startup_failed" for e in events)
         assert len(list((root / ".agents/console/sessions").iterdir())) == 1
         return client.transcript
+
+
+@requires(NATIVE_FIXTURES, PTHREAD_MUTEX_INTERPOSITION, PROCESS_EVENTS)
+@executions(DIRECT)
+def test_finalization_waits_for_result_task_completion(
+    binary: Path, execution: Execution
+) -> Transcript:
+    worker = Path(__file__).resolve().parents[3] / "fixtures/zod"
+    with tempfile.TemporaryDirectory() as directory, ExitStack() as resources:
+        workspace = Path(directory)
+        reached, release, finalized = [
+            resources.enter_context(closing(FifoCheckpoint.create(workspace / name)))
+            for name in ("reached", "release", "finalized")
+        ]
+        exits = resources.enter_context(Events())
+        environment = {
+            **os.environ,
+            LOADER_VARIABLE: str(
+                build_interposer(workspace, "recording_receive_checkpoint")
+            ),
+            "MCP_CONSOLE_TEST_RECORDING_REACHED": str(reached.path),
+            "MCP_CONSOLE_TEST_RECORDING_RELEASE": str(release.path),
+            "MCP_CONSOLE_TEST_RECORDING_FINALIZED": str(finalized.path),
+            "MCP_CONSOLE_TEST_HOLD_RESULT": "1",
+            "TMPDIR": str(workspace),
+            "ZOD_REPORT_PID": "1",
+        }
+        with McpClient(
+            binary, execution.serve("--worker", str(worker)), environment, workspace
+        ) as client:
+            client.initialize_and_list_tools()
+            client.send(r="echo ready")
+            worker_pid = host_process_id(
+                int(
+                    wait_for_worker_file(
+                        workspace, "zod-worker-pid", client
+                    ).read_text()
+                ),
+                client.process.pid,
+            )
+            exits.watch_process(worker_pid)
+            try:
+                held = client.start_send(r="echo completed result")
+                reached.wait(
+                    "result task paused after releasing its journal mutex",
+                    client=client,
+                )
+                client.notify("notifications/cancelled", requestId=held["id"])
+                assert client.request("ping")["result"] == {}
+                client.stdin.close()
+                assert exits.wait(5) == {worker_pid}
+                # Cancellation removed delivery ownership, and worker retirement
+                # is proven. Keep observing beyond the one-second delivery deadline;
+                # expiry must not release the result-completion barrier.
+                assert not select.select([finalized.descriptor], [], [], 3)[0], (
+                    "recording finalized while result task was still active"
+                )
+            finally:
+                release.release()
+            client.finish()
+        (recording,) = (workspace / ".agents/console/sessions").iterdir()
+        events = recording_events(recording)
+        assert [e["call_id"] for e in events if e["event"] == "tool_result"] == [1, 2]
+        assert events[-1]["event"] == "recording_ended"
+        return [
+            *client.transcript[:3],
+            {
+                "capture": "result task settles before finalization after cancellation and EOF"
+            },
+        ]
 
 
 if __name__ == "__main__":

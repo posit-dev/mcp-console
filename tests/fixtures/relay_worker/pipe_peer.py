@@ -49,6 +49,7 @@ if mode == "exchange":
             "language": "r",
             "source": "precise 👩🏽‍💻" * 8192,
         }
+        send({"kind": "cell_started"})
         send({"kind": "console_output", "data": message["source"]})
         send({"kind": "completed"})
         assert json.loads(source.readline()) == {"kind": "shutdown"}

@@ -46,8 +46,32 @@ pub(super) enum Event<'a> {
         session_id: u64,
         outcome: &'a str,
     },
-    RequirementsAccepted {
-        requirements: &'a Value,
+    CellStarted {
+        call_id: u64,
+        owner: super::Owner,
+    },
+    CellEnded {
+        call_id: u64,
+        owner: super::Owner,
+        completion_confirmed: bool,
+    },
+    OutputText {
+        owner: super::Owner,
+        path: &'a str,
+        offset: u64,
+        bytes: usize,
+        discarded_bytes: usize,
+    },
+    /// Rejected by raw image retention limits: no image file was created.
+    /// Retained images have an ImageRetained event with their file path.
+    ImageOmitted {
+        owner: Option<super::Owner>,
+        encoded_bytes: usize,
+        mime_type: &'a str,
+    },
+    ProcessOutput {
+        data: &'a str,
+        discarded_bytes: usize,
     },
     EnvironmentDiscovered {
         dynamic_resolution: bool,
@@ -62,6 +86,9 @@ pub(super) enum Event<'a> {
     PythonEnvironmentAccepted {
         packages: &'a [String],
     },
+    RequirementsAccepted {
+        requirements: &'a Value,
+    },
     RequirementsSelected {
         call_id: Option<u64>,
         action: &'a str,
@@ -72,7 +99,8 @@ pub(super) enum Event<'a> {
         request_id: &'a RequestId,
         request: &'a CallToolRequestParams,
     },
-    ArtifactCreated {
+    ImageRetained {
+        owner: super::Owner,
         artifact_id: u64,
         call_id: Option<u64>,
         path: &'a str,
@@ -80,6 +108,7 @@ pub(super) enum Event<'a> {
         bytes: usize,
     },
     CellOutput {
+        owner: super::Owner,
         call_id: u64,
         path: &'a str,
         retained_bytes: u64,
@@ -88,6 +117,7 @@ pub(super) enum Event<'a> {
         retention_limit_bytes: u64,
     },
     SessionOutput {
+        owner: super::Owner,
         path: &'a str,
         retained_bytes: u64,
         inline_omitted_bytes: u64,
@@ -96,6 +126,7 @@ pub(super) enum Event<'a> {
     },
     ToolResult {
         call_id: u64,
+        parts: &'a [super::ResultPart],
         #[serde(flatten)]
         outcome: Outcome<'a>,
     },
@@ -133,8 +164,12 @@ pub(super) enum RecordedContent<'a> {
         #[serde(skip_serializing_if = "Option::is_none")]
         annotations: Option<&'a Annotations>,
         #[serde(rename = "artifactId")]
-        artifact_id: u64,
-        path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        artifact_id: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retained: Option<bool>,
     },
     #[serde(untagged)]
     Other(&'a ContentBlock),

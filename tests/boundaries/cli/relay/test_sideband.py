@@ -87,8 +87,14 @@ def test_two_pipe_exchange_survives_short_and_interrupted_io(
         send(process, {"kind": "evaluate", "language": "r", "source": source})
         assert [
             json.loads(line)
-            for line in read_lines(process.stdout, 2, "echo and completion")
-        ] == [{"kind": "console_output", "data": source}, {"kind": "completed"}]
+            for line in read_lines(
+                process.stdout, 3, "cell entry, echo, and completion"
+            )
+        ] == [
+            {"kind": "cell_started"},
+            {"kind": "console_output", "data": source},
+            {"kind": "completed"},
+        ]
         send(process, {"kind": "shutdown", "grace_millis": 1000})
         stdout, stderr = process.communicate(timeout=5)
         assert process.returncode == 0 and stderr == "", (process.returncode, stderr)

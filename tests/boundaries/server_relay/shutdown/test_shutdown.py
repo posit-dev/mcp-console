@@ -192,7 +192,7 @@ cell before image
         assert client.client.temporary_directory is not None
         workspace = Path(client.client.temporary_directory.name)
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        relative_output = Path("outputs/call-000002.log")
+        relative_output = Path("capture/sessions/001/cell-001.txt")
         public_output = (
             f".agents/console/sessions/{session.name}/{relative_output.as_posix()}"
         )
@@ -218,7 +218,7 @@ cell before image
         )
         events = [
             json.loads(line)
-            for line in (session / "internal/events.jsonl").read_text().splitlines()
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
         summary = [
             event

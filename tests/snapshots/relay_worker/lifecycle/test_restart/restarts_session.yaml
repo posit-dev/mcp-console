@@ -10,6 +10,9 @@ relay:
     cat("before restart\n")
 ---
 worker:
+  kind: cell_started
+---
+worker:
   kind: r_initialization
   complete: false
 ---
@@ -43,6 +46,9 @@ relay:
   source: |
     stopifnot(!exists("restart_marker", inherits = FALSE))
     cat("after restart\n")
+---
+worker:
+  kind: cell_started
 ---
 worker:
   kind: r_initialization

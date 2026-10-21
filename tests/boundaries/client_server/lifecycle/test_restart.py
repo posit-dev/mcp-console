@@ -20,7 +20,7 @@ from support.previews import (
     session_directory,
 )
 from support.client import McpClient
-from support.checkpoints import FifoCheckpoint
+from support.checkpoints import FifoCheckpoint, wait_for_path
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
 from support.processes import (
@@ -58,7 +58,9 @@ def test_restart_closes_worker_stdin(binary: Path, execution: Execution) -> Tran
             build_interposer(temporary_path, "cell_output_close_interposer")
         )
         environment["MCP_CONSOLE_TEST_CELL_OUTPUT_CLOSED"] = str(output_closed.path)
-        environment["MCP_CONSOLE_TEST_CELL_OUTPUT_SUFFIX"] = "/outputs/call-000003.log"
+        environment["MCP_CONSOLE_TEST_CELL_OUTPUT_SUFFIX"] = (
+            "/capture/sessions/001/cell-001.txt"
+        )
         environment["ZOD_STDIN_CLOSE_RELEASE"] = str(output_closed.path)
         client = McpClient(
             binary,
@@ -80,13 +82,20 @@ def test_restart_closes_worker_stdin(binary: Path, execution: Execution) -> Tran
             "zod-waiting-for-stdin-close",
             client,
         )
+        wait_for_path(
+            session_directory(client) / "capture/sessions/001/cell-001.txt",
+            "server observed the executing cell before restart",
+            client=client,
+        )
 
         client.send(control="restart")
         output = last_tool_text(client)
         raw = cell_text(client, 3)
         assert raw == "", "output after the restart cut does not belong to the cell log"
-        assert "outputs/session.log" in output, output
-        recorded = (session_directory(client) / "outputs/session.log").read_text()
+        assert "capture/sessions/001/cell-001-post.txt" in output, output
+        recorded = (
+            session_directory(client) / "capture/sessions/001/cell-001-post.txt"
+        ).read_text()
         prefix = "zod stdin closed\n" + "x" * LARGE_OUTPUT_SIZE
         observed = len(recorded)
         assert observed > len(prefix), observed

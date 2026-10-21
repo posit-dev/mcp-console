@@ -49,6 +49,9 @@ server:
   source: replacement cell
 ---
 relay:
+  kind: cell_started
+---
+relay:
   kind: console_output
   data: |
     replacement cell consumed stdin: fresh

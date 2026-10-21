@@ -146,7 +146,8 @@ thread log
         == "thread stderr\nthread log\n"
     )
     assert all(
-        event["worker"]["kind"] in {"ready", "r_initialization", "completed"}
+        event["worker"]["kind"]
+        in {"ready", "r_initialization", "cell_started", "completed"}
         for event in transcript
         if "worker" in event
     )
@@ -297,6 +298,7 @@ parent log
         event["kind"]
         in {
             "ready",
+            "cell_started",
             "r_initialization",
             "completed",
             "console_output",
@@ -304,6 +306,9 @@ parent log
         }
         for event in worker
     ), worker
+    assert sum(event["kind"] == "cell_started" for event in worker) == sum(
+        event["kind"] == "completed" for event in worker
+    )
     assert [
         event["complete"] for event in worker if event["kind"] == "r_initialization"
     ] == [False, True]

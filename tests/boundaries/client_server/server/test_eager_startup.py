@@ -12,7 +12,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.server.test_startup import (
-    discovery_environment,
     gated_discovery,
 )
 from boundaries.client_server.lifecycle.test_startup import startup_fixture
@@ -32,6 +31,7 @@ from support.assertions import last_result_text
 from support.allocations import AllocationProfile
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint, wait_for_path
 from support.client import McpClient
+from support.discovery import discovery_environment
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.processes import (
     capture_process_identity,
@@ -308,8 +308,7 @@ def test_invalid_early_cell_does_not_poison_default_startup(
                 release.release()
 
 
-@requires(POSIX)
-@requires(R)
+@requires(command("rustc"), R)
 def test_accepts_zero_timeout_cell_during_discovery(binary: Path) -> Transcript:
     environment, _ = r_test_environment()
     with gated_discovery(binary, r_home=Path(environment["R_HOME"])) as (
@@ -525,6 +524,7 @@ def test_early_replacement_requirements_withholds_cell_until_prepared(
 @execution_snapshots
 @executions(DIRECT, SANDBOXED)
 @requires(R, NATIVE_FIXTURES, PROCESS_EVENTS, command("ir"), command("uv"))
+@requires(command("rustc"))
 def test_early_requirements_select_candidate_before_default_preparation(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -622,7 +622,7 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
                 proceed.release()
                 wait_for_path(evaluated, "accepted cell ran", client=client)
                 journal = next(
-                    root.glob(".agents/console/sessions/*/internal/events.jsonl")
+                    root.glob(".agents/console/sessions/*/capture/events.jsonl")
                 )
 
                 def poll_result_recorded() -> Path | None:
@@ -674,6 +674,7 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
 @executions(DIRECT, SANDBOXED)
 @requires(R, NATIVE_FIXTURES, PROCESS_EVENTS, command("ir"), command("uv"))
 @requires(POSIX)
+@requires(command("rustc"))
 def test_startup_poll_becomes_idle_after_terminal_response_delivery(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -692,18 +693,18 @@ def early_requirements_with_pending_poll(
     with (
         ExitStack() as resources,
         discovery_environment(r_home=Path(r_environment["R_HOME"])) as (
+            probe_environment,
             discovery,
-            reached,
-            release,
-            alive,
         ),
     ):
-        root = reached.path.parent
+        root = discovery.root
         environment, record = recording_ir_environment(
             root, fail_requirement="tidyverse"
         )
         environment.pop("R_HOME", None)
-        environment["PATH"] = os.pathsep.join((discovery["PATH"], environment["PATH"]))
+        environment["PATH"] = os.pathsep.join(
+            (probe_environment["PATH"], environment["PATH"])
+        )
         prepared = FifoCheckpoint.create(root / "prepared")
         proceed = FifoCheckpoint.create(root / "proceed")
         resources.callback(prepared.close)
@@ -746,8 +747,7 @@ def early_requirements_with_pending_poll(
             root,
             response_timeout=600,
         ) as client:
-            reached.wait("runtime discovery is blocked", client=client)
-            assert os.read(alive, 1) == b"1"
+            discovery.wait("runtime discovery is blocked")
             if completed_response:
                 client.transcript.append(
                     {
@@ -774,7 +774,7 @@ def early_requirements_with_pending_poll(
                     assert without_elapsed(last_result_text(client)) == RUNNING
                     assert phase_progress(last_result_text(client)) == "startup"
                     submitted = client.start_send(timeout_ms=600_000)
-                    release.release()
+                    discovery.release()
                     prepared.wait(
                         "initial polling does not block candidate preparation"
                     )
@@ -794,7 +794,7 @@ def early_requirements_with_pending_poll(
                         stdin="retained input\n", timeout_ms=600_000
                     )
                     journal = next(
-                        root.glob(".agents/console/sessions/*/internal/events.jsonl")
+                        root.glob(".agents/console/sessions/*/capture/events.jsonl")
                     )
 
                     def pending_received() -> Path | None:
@@ -820,7 +820,7 @@ def early_requirements_with_pending_poll(
                 else:
                     assert without_elapsed(last_result_text(client)) == RUNNING
                     assert phase_progress(last_result_text(client)) == "startup"
-                    release.release()
+                    discovery.release()
                     prepared.wait(
                         "initial polling does not block candidate preparation"
                     )
@@ -888,18 +888,18 @@ def test_idle_stdin_preserves_used_worker_and_input(
 
 
 @requires(NATIVE_FIXTURES)
+@requires(command("rustc"))
 def test_failed_discovery_discards_pending_recording(binary: Path) -> Transcript:
     with (
         tempfile.TemporaryDirectory() as directory,
         closing(AllocationProfile(Path(directory))) as profile,
-        discovery_environment() as (environment, reached, release, alive),
+        discovery_environment() as (environment, discovery),
     ):
         environment.update(profile.environment)
         with McpClient(binary, DIRECT.serve(), environment) as client:
-            reached.wait("runtime discovery is blocked")
-            assert os.read(alive, 1) == b"1"
+            discovery.wait("runtime discovery is blocked")
             client.initialize_and_list_tools()
-            release.release()
+            discovery.release()
             failure = client.send(r="stop('must not execute')")
             assert failure["isError"] is True, failure
             profile.start()

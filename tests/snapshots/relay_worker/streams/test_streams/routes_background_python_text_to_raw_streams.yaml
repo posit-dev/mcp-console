@@ -28,6 +28,9 @@ relay:
     thread.join()
 ---
 worker:
+  kind: cell_started
+---
+worker:
   kind: r_initialization
   complete: false
 ---

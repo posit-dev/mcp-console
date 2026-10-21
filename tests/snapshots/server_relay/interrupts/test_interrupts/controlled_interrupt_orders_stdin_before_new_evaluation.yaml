@@ -11,6 +11,9 @@ server:
   language: r
   source: old evaluation
 ---
+relay:
+  kind: cell_started
+---
 server:
   kind: interrupt
   request_id: 0
@@ -36,6 +39,9 @@ server:
   kind: evaluate
   language: r
   source: new evaluation
+---
+relay:
+  kind: cell_started
 ---
 relay:
   kind: console_output

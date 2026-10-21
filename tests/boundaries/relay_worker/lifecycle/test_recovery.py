@@ -59,8 +59,9 @@ def test_closes_pipes_with_unread_shutdown(
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
+            # select observes the pipe, so readline must not hide the following
+            # event in a TextIOWrapper's read-ahead buffer.
+            bufsize=0,
             start_new_session=True,
         )
         assert process.stdin is not None
@@ -77,7 +78,9 @@ def test_closes_pipes_with_unread_shutdown(
             return event
 
         def send(message: dict[str, object]) -> None:
-            process.stdin.write(json.dumps(message, separators=(",", ":")) + "\n")
+            process.stdin.write(
+                (json.dumps(message, separators=(",", ":")) + "\n").encode("utf-8")
+            )
             process.stdin.flush()
 
         passed = False
@@ -92,6 +95,8 @@ def test_closes_pipes_with_unread_shutdown(
                     "source": "close sideband with unread shutdown",
                 }
             )
+            events.append(receive())
+            assert events[-1] == {"kind": "cell_started"}, events
             events.append(receive())
             assert events[-1] == {
                 "kind": "console_output",
@@ -111,7 +116,7 @@ def test_closes_pipes_with_unread_shutdown(
                     assert isinstance(event, dict), event
                     events.append(event)
             events.extend(json.loads(line) for line in process.stdout)
-            standard_error = process.stderr.read()
+            standard_error = process.stderr.read().decode("utf-8")
 
             assert process.returncode == 0, standard_error
             assert standard_error == ""

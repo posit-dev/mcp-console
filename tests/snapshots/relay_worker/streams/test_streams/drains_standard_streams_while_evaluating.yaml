@@ -19,6 +19,9 @@ relay:
     write_all(2, b"y" * 4194304)
 ---
 worker:
+  kind: cell_started
+---
+worker:
   kind: r_initialization
   complete: false
 ---

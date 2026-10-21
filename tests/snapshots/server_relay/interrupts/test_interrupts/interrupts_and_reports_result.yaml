@@ -11,6 +11,9 @@ server:
   language: r
   source: "42"
 ---
+relay:
+  kind: cell_started
+---
 server:
   kind: interrupt
   request_id: 0

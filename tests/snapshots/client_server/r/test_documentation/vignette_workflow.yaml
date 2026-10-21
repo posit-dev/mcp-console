@@ -77,7 +77,7 @@ result:
 
         Note that each cpp11 vector class has a read-only and writeable version. The
         default clas
-        [output omitted: 4180 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000002.log]
+        [output omitted: 4180 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-002.txt]
          R functions from C++ is similar to using Rcpp.
 
         `// Rcpp -----------------------------------------------

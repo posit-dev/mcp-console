@@ -2,9 +2,7 @@ use std::io::Write;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use super::{CaptureFile, Event, Transcript, create_private_file};
-use chrono::Utc;
-use std::path::PathBuf;
+use super::{CaptureFile, Owner, Transcript, queue::QueuedEvent};
 
 pub(super) const MAX_CELL_OUTPUT_BYTES: u64 = 1024 * 1024 * 1024;
 
@@ -14,34 +12,38 @@ pub(super) const MAX_CELL_OUTPUT_BYTES: u64 = 1024 * 1024 * 1024;
 /// This file retains console text and direct stdout/stderr bytes before that
 /// projection discards overflow. Images remain separate transcript artifacts.
 pub(crate) struct CellOutput {
-    writer: Option<Arc<Mutex<CaptureFile>>>,
-    public_directory: Arc<Mutex<PathBuf>>,
+    file: Arc<Mutex<CaptureFile>>,
     path: String,
+    public_directory: Arc<Mutex<std::path::PathBuf>>,
+    owner: Owner,
+    transcript: Transcript,
+    failed: bool,
     retained_bytes: u64,
     record: Arc<Mutex<OutputRecordState>>,
     discarded_bytes: u64,
     retention_limit_reported: bool,
 }
 
-#[derive(Clone, Copy, Default, PartialEq)]
-struct CellOutputSummary {
-    retained_bytes: u64,
-    inline_omitted_bytes: u64,
-    discarded_bytes: u64,
+#[derive(Clone, Copy, Default, PartialEq, serde::Serialize)]
+pub(super) struct CellOutputSummary {
+    pub(super) retained_bytes: u64,
+    pub(super) inline_omitted_bytes: u64,
+    pub(super) discarded_bytes: u64,
 }
 
 /// One response interval's accounting receipt, shared with delivery recovery.
 #[derive(Clone)]
 pub(crate) struct OutputRecord {
     state: Arc<Mutex<OutputRecordState>>,
-    public_directory: Arc<Mutex<PathBuf>>,
-    path: Arc<str>,
+    pub(crate) public_directory: Arc<Mutex<std::path::PathBuf>>,
+    pub(crate) path: Arc<str>,
     accounted: Arc<AtomicU64>,
 }
 
 struct OutputRecordState {
     transcript: Transcript,
     call_id: Option<u64>,
+    owner: Owner,
     path: String,
     summary: CellOutputSummary,
     finished: bool,
@@ -52,7 +54,7 @@ impl OutputRecordState {
     fn publish(&mut self) {
         if self.finished && self.published != Some(self.summary) {
             self.transcript
-                .record_cell_output(self.call_id, &self.path, self.summary);
+                .record_cell_output(self.call_id, self.owner, &self.path, self.summary);
             self.published = Some(self.summary);
         }
     }
@@ -65,12 +67,6 @@ impl Drop for OutputRecordState {
 }
 
 impl OutputRecord {
-    pub(crate) fn public_path(&self) -> Option<String> {
-        let directory = self.public_directory.lock().expect("recording path lock");
-        (!directory.as_os_str().is_empty())
-            .then(|| directory.join(self.path.as_ref()).display().to_string())
-    }
-
     pub(crate) fn note_inline_omission(&self, bytes: u64) {
         let previous = self.accounted.fetch_max(bytes, Ordering::Relaxed);
         if bytes > previous {
@@ -92,104 +88,61 @@ impl OutputRecord {
 
 impl Transcript {
     pub(crate) fn create_session_output(&self) -> Result<Option<CellOutput>, String> {
-        let result = self.create_output(None);
-        if let Err(error) = &result {
-            self.disable(error.clone());
-        }
-        result
+        self.create_output(None)
     }
-
     pub(crate) fn create_cell_output(
         &self,
         call_id: Option<u64>,
     ) -> Result<Option<CellOutput>, String> {
-        let Some(call_id) = call_id else {
+        if self.start_cell(call_id).is_none() {
+            return Ok(None);
+        }
+        self.create_output(call_id)
+    }
+    fn create_output(&self, call_id: Option<u64>) -> Result<Option<CellOutput>, String> {
+        let Some(owner) = self.owner() else {
             return Ok(None);
         };
-        self.create_output(Some(call_id))
-    }
-
-    fn create_output(&self, call_id: Option<u64>) -> Result<Option<CellOutput>, String> {
-        let (mut state, poisoned) = self.lock();
-        if poisoned {
-            return Err("transcript lock poisoned while creating cell output".to_string());
-        }
-        if state.failure.is_some() {
-            return Ok(None);
-        }
-        let active = state.capture()?;
-        let filename =
-            call_id.map_or_else(|| "session.log".into(), |id| format!("call-{id:06}.log"));
-        let relative_path = format!("outputs/{filename}");
-        let file_path = active.directory.join(&relative_path);
-        let public_directory = active.public_directory.clone();
-        let public_path = public_directory
-            .lock()
-            .expect("recording path lock")
-            .join(&relative_path)
-            .display()
-            .to_string();
-        let writer = create_private_file(&file_path)
-            .map_err(|error| format!("failed to create {public_path}: {error}"))?;
-        let writer = Arc::new(Mutex::new(CaptureFile {
-            writer,
-            path: file_path,
-        }));
-        if active.temporary.is_some() {
-            active.files.insert(relative_path.clone(), writer.clone());
-        }
+        let path = owner.path(".txt");
+        let file = self.3.create_file(&path)?;
         Ok(Some(CellOutput {
-            writer: Some(writer),
+            file,
+            path: path.clone(),
+            public_directory: self.3.public_directory.clone(),
+            owner,
+            transcript: self.clone(),
+            failed: false,
             record: Arc::new(Mutex::new(OutputRecordState {
                 transcript: self.clone(),
                 call_id,
-                path: relative_path.clone(),
+                owner,
+                path,
                 summary: CellOutputSummary::default(),
                 finished: false,
                 published: None,
             })),
-            public_directory,
-            path: relative_path,
             retained_bytes: 0,
             discarded_bytes: 0,
             retention_limit_reported: false,
         }))
     }
-
-    fn record_cell_output(&self, call_id: Option<u64>, path: &str, summary: CellOutputSummary) {
-        self.update(|state| {
-            let event = match call_id {
-                Some(call_id) => Event::CellOutput {
-                    call_id,
-                    path,
-                    retained_bytes: summary.retained_bytes,
-                    inline_omitted_bytes: summary.inline_omitted_bytes,
-                    discarded_bytes: summary.discarded_bytes,
-                    retention_limit_bytes: MAX_CELL_OUTPUT_BYTES,
-                },
-                None => Event::SessionOutput {
-                    path,
-                    retained_bytes: summary.retained_bytes,
-                    inline_omitted_bytes: summary.inline_omitted_bytes,
-                    discarded_bytes: summary.discarded_bytes,
-                    retention_limit_bytes: MAX_CELL_OUTPUT_BYTES,
-                },
-            };
-            state.active()?.append(event, Utc::now())
+    fn record_cell_output(
+        &self,
+        call_id: Option<u64>,
+        owner: Owner,
+        path: &str,
+        summary: CellOutputSummary,
+    ) {
+        self.queue_event(QueuedEvent::OutputSummary {
+            call_id,
+            owner,
+            path: path.to_owned(),
+            summary,
         });
     }
 }
 
 impl CellOutput {
-    fn public_path(&self) -> String {
-        self.public_directory
-            .lock()
-            .expect("recording path lock")
-            .join(&self.path)
-            .display()
-            .to_string()
-    }
-
     pub(crate) fn record(&self) -> OutputRecord {
         OutputRecord {
             state: self.record.clone(),
@@ -214,52 +167,40 @@ impl CellOutput {
         if bytes.is_empty() {
             return (0, None);
         }
-        if self.writer.is_none() {
+        if self.failed {
             self.discarded_bytes = self.discarded_bytes.saturating_add(bytes.len() as u64);
             return (0, None);
         }
-
         let remaining = MAX_CELL_OUTPUT_BYTES.saturating_sub(self.retained_bytes);
         let retained = bytes
             .len()
             .min(usize::try_from(remaining).unwrap_or(usize::MAX));
-        let write_result = (retained > 0).then(|| {
-            self.writer
+        let offset = self.retained_bytes;
+        let result = {
+            let mut file = self.file.lock().expect("capture file lock");
+            file.writer
                 .as_mut()
-                .expect("cell output writer presence was checked")
-                .lock()
-                .expect("capture file lock")
-                .writer
+                .expect("open output interval")
                 .write_all(&bytes[..retained])
-        });
-        if let Some(Err(error)) = write_result {
-            let observed = self
-                .writer
-                .as_ref()
-                .expect("failed cell output writer must remain available for inspection")
-                .lock()
-                .expect("capture file lock")
-                .writer
-                .metadata()
-                .map(|metadata| metadata.len())
-                .unwrap_or(self.retained_bytes);
-            let seen = self
-                .retained_bytes
-                .saturating_add(self.discarded_bytes)
-                .saturating_add(bytes.len() as u64);
-            let appended = (observed - self.retained_bytes) as usize;
+        };
+        if let Err(error) = result {
+            let observed = std::fs::metadata(&self.file.lock().expect("capture file lock").path)
+                .map(|m| m.len())
+                .unwrap_or(offset);
+            let appended = observed.saturating_sub(offset) as usize;
             self.retained_bytes = observed;
-            self.discarded_bytes = seen.saturating_sub(observed);
-            self.writer = None;
+            self.discarded_bytes += (bytes.len() - appended) as u64;
+            self.failed = true;
+            self.text_event(offset, appended, bytes.len() - appended);
             return (
                 appended,
                 Some(format!(
-                    "cell output file {} stopped after {} retained bytes: {error}; later text is not retained in this file",
-                    self.public_path(),
-                    self.retained_bytes
+                    "cell output file {} (relative to recording) stopped after {} retained bytes: {error}; later text is not retained in this file",
+                    self.path, observed
                 )),
             );
         }
+        self.text_event(offset, retained, bytes.len() - retained);
         self.retained_bytes = self.retained_bytes.saturating_add(retained as u64);
 
         let discarded = bytes.len() - retained;
@@ -274,29 +215,45 @@ impl CellOutput {
         (
             retained,
             Some(format!(
-                "cell output retention limit reached at {MAX_CELL_OUTPUT_BYTES} bytes for {}; later text is not retained in this file",
-                self.public_path()
+                "cell output retention limit reached at {MAX_CELL_OUTPUT_BYTES} bytes for {} (relative to recording); later text is not retained in this file",
+                self.path
             )),
         )
     }
 
+    fn text_event(&self, offset: u64, bytes: usize, discarded_bytes: usize) {
+        self.transcript.queue_event(QueuedEvent::OutputText {
+            owner: self.owner,
+            path: self.path.clone(),
+            offset,
+            bytes,
+            discarded_bytes,
+        });
+    }
     pub(crate) fn flush(&mut self) -> Option<String> {
-        let writer = self.writer.as_mut()?;
-        let result = writer.lock().expect("capture file lock").writer.flush();
+        if self.failed {
+            return None;
+        }
+        let result = self
+            .file
+            .lock()
+            .expect("capture file lock")
+            .writer
+            .as_mut()
+            .expect("open output interval")
+            .flush();
         if let Err(error) = result {
-            self.writer = None;
+            self.failed = true;
             return Some(format!(
-                "cell output file {} stopped after {} retained bytes: {error}; later text is not retained in this file",
-                self.public_path(),
-                self.retained_bytes
+                "cell output file {} (relative to recording) stopped after {} retained bytes: {error}; later text is not retained in this file",
+                self.path, self.retained_bytes
             ));
         }
         None
     }
-
     pub(crate) fn finish(mut self) -> Option<String> {
         let notice = self.flush();
-        self.writer = None;
+        let permission_error = self.file.lock().expect("capture file lock").finish().err();
         let mut record = self
             .record
             .lock()
@@ -304,6 +261,6 @@ impl CellOutput {
         record.summary.retained_bytes = self.retained_bytes;
         record.summary.discarded_bytes = self.discarded_bytes;
         record.finished = true;
-        notice
+        notice.or(permission_error)
     }
 }

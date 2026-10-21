@@ -48,6 +48,7 @@ def evaluate_echo(message: dict[str, str], writer: TextIO) -> None:
         "language": "r",
         "source": "echo echo",
     }, message
+    send(writer, {"kind": "cell_started"})
     send(writer, {"kind": "console_output", "data": "zod: echo\n"})
     send(writer, {"kind": "completed"})
 

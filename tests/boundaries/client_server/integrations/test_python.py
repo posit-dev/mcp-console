@@ -246,7 +246,9 @@ def test_sync_and_async_clients_receive_bounded_previews(
                 (Path(temporary) / ".agents/console/sessions").iterdir(),
                 key=lambda path: path.name,
             )
-            assert (session / "outputs/call-000001.log").read_text() == emitted
+            assert (
+                session / "capture/sessions/001/cell-001.txt"
+            ).read_text() == emitted
             results.append(
                 {"preview": compact_text(text.replace(session.name, "<run ID>"), "x")}
             )

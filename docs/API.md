@@ -88,6 +88,7 @@ Requirements inspection is different: its complete declaration is available in M
 | SQL preview                                       | 20 rows and 12 columns; the response text budget still applies   |
 
 Images are admitted whole, not partially returned.
+These response limits are independent of raw image capture; [recordings](RECORDING_REFERENCE.md#output-intervals) can retain images omitted from a response.
 Omission notices identify retained logs or artifacts, and say when omitted content was not retained.
 Polling consumes the observed interval, including its omitted middle; use the named files rather than another poll to retrieve that text.
 [Recording reference](RECORDING_REFERENCE.md) owns on-disk limits and failure behavior.

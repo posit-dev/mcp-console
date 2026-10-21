@@ -17,12 +17,18 @@ server:
   source: "42"
 ---
 relay:
+  kind: cell_started
+---
+relay:
   kind: completed
 ---
 server:
   kind: evaluate
   language: r
   source: "43"
+---
+relay:
+  kind: cell_started
 ---
 relay:
   kind: completed

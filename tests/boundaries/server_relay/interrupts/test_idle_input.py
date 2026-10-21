@@ -37,9 +37,6 @@ def test_withholding_attached_cell_preserves_idle_input(
         release = resources.enter_context(
             closing(FifoCheckpoint.create(root / "release"))
         )
-        completed = resources.enter_context(
-            closing(FifoCheckpoint.create(root / "completed"))
-        )
         environment = os.environ.copy()
         environment.update(
             {
@@ -47,8 +44,8 @@ def test_withholding_attached_cell_preserves_idle_input(
                     build_interposer(root, "cell_attachment_checkpoint")
                 ),
                 "MCP_CONSOLE_TEST_CELL_ATTACHED": str(attached.path),
+                "MCP_CONSOLE_TEST_ADMISSION_SOURCE": "withheld cell",
                 "MCP_CONSOLE_TEST_CELL_RELEASE": str(release.path),
-                "MCP_CONSOLE_TEST_CELL_COMPLETED": str(completed.path),
             }
         )
         client = ServerRelayClient(
@@ -86,8 +83,9 @@ def test_withholding_attached_cell_preserves_idle_input(
             assert tool_text(client.send()) == "\n[waiting for stdin]"
             client.send(control="interrupt", timeout_ms=0)
             release.release()
-            completed.wait("the withheld cell detached and closed its output")
-            settled = client.send()
+            # A withheld source has no executed-cell log. The public completion
+            # wait proves detachment before returning the idle callback's input.
+            settled = client.send(timeout_ms=60000)
             assert tool_text(settled) == "[done]", settled
             reply = client.send(stdin="answer\n")
             assert reply["isError"] is False, reply

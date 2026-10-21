@@ -96,7 +96,7 @@ result:
              specification of the form 'first:second' indicates the set of
              terms obtained by taking the interactions of all terms in 'first'
              with all t
-        [output omitted: 2985 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000001.log]
+        [output omitted: 2985 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
         s.
 
             rank: the numeric rank of the fitted linear model.

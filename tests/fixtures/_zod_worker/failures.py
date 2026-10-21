@@ -14,6 +14,7 @@ from .io import (
 from .protocol import (
     send,
     send_output,
+    wait_for_server_to_process_sideband,
 )
 from .state import WorkerContext
 
@@ -35,6 +36,7 @@ def violate_protocol(context: WorkerContext, source: str) -> None:
 
 
 def violate_protocol_after_stdout(context: WorkerContext, source: str) -> None:
+    wait_for_server_to_process_sideband(context.reader, context.writer)
     observed = os.open(os.environ["MCP_CONSOLE_TEST_RELAY_READ_BLOCKED"], os.O_RDWR)
     emit_large_output(1, b"zod old stdout\n")
     write_all(1, b"zod stdout tail\n")
@@ -46,6 +48,7 @@ def violate_protocol_after_stdout(context: WorkerContext, source: str) -> None:
 
 
 def unexpected_input_receipt_after_stdout(context: WorkerContext, source: str) -> None:
+    wait_for_server_to_process_sideband(context.reader, context.writer)
     emit_large_output(1, b"zod unexpected input receipt: ")
     tail_size = fill_nonblocking(1, b"z" * LARGE_OUTPUT_SIZE)
     write_all(1, f"zod expected semantic tail: {tail_size:010d}\n".encode())
@@ -55,6 +58,9 @@ def unexpected_input_receipt_after_stdout(context: WorkerContext, source: str) -
 
 
 def malformed_sideband_after_raw_output(context: WorkerContext, source: str) -> None:
+    # Cell entry and raw streams travel independently. Establish the observed
+    # cell interval before testing retention through a protocol failure.
+    wait_for_server_to_process_sideband(context.reader, context.writer)
     stream = source.removeprefix("malformed sideband after ")
     descriptor = 1 if stream == "stdout" else 2
     observed = os.open(os.environ["MCP_CONSOLE_TEST_RELAY_READ_BLOCKED"], os.O_RDWR)
@@ -75,6 +81,7 @@ def malformed_sideband_after_raw_output(context: WorkerContext, source: str) -> 
 
 
 def force_stop_after_raw_output(context: WorkerContext, source: str) -> None:
+    wait_for_server_to_process_sideband(context.reader, context.writer)
     stream = source.removeprefix("force stop after raw ")
     descriptor = 1 if stream == "stdout" else 2
     write_all(
@@ -107,6 +114,7 @@ def preview_invalid_oversized_image(context: WorkerContext, source: str) -> None
 
 
 def exit_after_invalid_raw_output(context: WorkerContext, source: str) -> None:
+    wait_for_server_to_process_sideband(context.reader, context.writer)
     stream = source.removeprefix("exit after invalid ")
     descriptor = 1 if stream == "stdout" else 2
     emit_large_output(

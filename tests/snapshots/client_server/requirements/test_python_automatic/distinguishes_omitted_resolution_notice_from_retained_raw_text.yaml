@@ -12,7 +12,7 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8080
+        text_bytes: 8090
         concat:
           - |
             notice head
@@ -20,7 +20,7 @@ result:
             count: 3956
           - |
 
-            [output omitted: 12158 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000001.log; 69 generated notice bytes unavailable]
+            [output omitted: 12158 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt; 69 generated notice bytes unavailable]
           - repeat: y
             count: 3955
           - |

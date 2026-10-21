@@ -43,6 +43,7 @@ def run_worker() -> None:
         if message == {"kind": "shutdown"}:
             return
         assert message.get("kind") == "evaluate", message
+        send(writer, {"kind": "cell_started"})
         send(writer, {"kind": "console_output", "data": "closed\n"})
         send(writer, {"kind": "completed"})
 

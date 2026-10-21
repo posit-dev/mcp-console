@@ -70,18 +70,18 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8099
+        text_bytes: 8109
         concat:
           - repeat: x
             count: 3840
           - |
 
-            [output omitted: 25158151 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000003.log; logs contain prefixes; later raw text unavailable]
+            [output omitted: 25158151 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt; logs contain prefixes; later raw text unavailable]
           - repeat: x
             count: 3840
           - |-
 
-            [cell output file .agents/console/sessions/<run ID>/outputs/call-000003.log stopped after 25165827 retained bytes: File too large (os error 27); later text is not retained in this file]
+            [cell output file capture/sessions/001/cell-001.txt (relative to recording) stopped after 25165827 retained bytes: File too large (os error 27); later text is not retained in this file]
 
             [elapsed: <elapsed>s since admission]
             [running; poll with an empty send]
@@ -93,13 +93,13 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8094
+        text_bytes: 8104
         concat:
           - repeat: y
             count: 3968
           - |
 
-            [output omitted: 8380679 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/outputs/call-000003.log; logs contain prefixes; later raw text unavailable]
+            [output omitted: 8380679 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt; logs contain prefixes; later raw text unavailable]
           - repeat: y
             count: 3968
   isError: false

@@ -159,6 +159,8 @@ pub(crate) enum ConsoleChannel {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WorkerMessage {
     #[serde(deserialize_with = "deserialize_payload_free")]
+    CellStarted,
+    #[serde(deserialize_with = "deserialize_payload_free")]
     Ready,
     RuntimeInitialized {
         interrupted: bool,

@@ -108,14 +108,15 @@ PNG_1X1 = (
 
 
 class ScriptedRelay:
-    def __init__(self) -> None:
+    def __init__(self, *, acquired: bool = True) -> None:
         self.temporary = tempfile.TemporaryDirectory(
             prefix="scripted-relay-", dir=os.environ["TMPDIR"]
         )
         self.root = Path(self.temporary.name)
         self.capture = (self.root / CAPTURE_NAME).open("w", encoding="utf-8")
         self.checkpoints: dict[str, int] = {}
-        self.send({"kind": "worker_started", "pid": 42})
+        if acquired:
+            self.send({"kind": "worker_started", "pid": 42})
 
     def close(self) -> None:
         for checkpoint in self.checkpoints.values():
@@ -127,13 +128,15 @@ class ScriptedRelay:
         self.capture.write(json.dumps(entry, separators=(",", ":")) + "\n")
         self.capture.flush()
 
-    def receive(self) -> dict[str, Any]:
+    def receive(self, *, cell_started: bool = True) -> dict[str, Any]:
         line = sys.stdin.buffer.readline()
         assert line, "server closed relay stdin before sending the expected command"
         assert line.endswith(b"\n"), "server command ended midway through a frame"
         message = json.loads(line)
         assert isinstance(message, dict), message
         self.record({"server": message})
+        if cell_started and message.get("kind") == "evaluate":
+            self.send({"kind": "cell_started"})
         return message
 
     def expect(self, expected: dict[str, Any]) -> None:
@@ -1255,6 +1258,18 @@ def run_duplicate_worker_started(relay: ScriptedRelay) -> None:
         relay.retire(command)
 
 
+def run_duplicate_cell_started(relay: ScriptedRelay) -> None:
+    relay.ready()
+    command = relay.receive()
+    if command.get("kind") == "shutdown":
+        relay.retire(command)
+        return
+    assert command == EVALUATION, command
+    relay.wait_for_release()
+    relay.send({"kind": "cell_started"})
+    relay.retire()
+
+
 def run_fatal_exit(relay: ScriptedRelay) -> None:
     relay.ready()
     command = relay.receive()
@@ -1583,6 +1598,7 @@ def main() -> None:
         "cancelled_waiting_send": run_cancelled_waiting_send,
         "fatal": run_fatal,
         "duplicate_worker_started": run_duplicate_worker_started,
+        "duplicate_cell_started": run_duplicate_cell_started,
         "worker_started_after_ready": run_duplicate_worker_started,
         "fatal_status_137": run_fatal_exit,
         "fatal_sigterm": run_fatal_exit,
