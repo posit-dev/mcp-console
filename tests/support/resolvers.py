@@ -87,11 +87,18 @@ def probing_uv(directory: Path, python: Path, probe: str) -> None:
             import json
             import os
             import runpy
+            import subprocess
             import sys
+
+            def delegate(executable, arguments):
+                if os.name == "nt":
+                    # execv neither quotes Windows argv nor waits for its child.
+                    raise SystemExit(subprocess.call([executable, *arguments]))
+                os.execv(executable, [executable, *arguments])
 
             arguments = sys.argv[1:]
             if arguments[0] == "--no-config":
-                os.execv({shutil.which("uv")!r}, [{shutil.which("uv")!r}, *arguments])
+                delegate({shutil.which("uv")!r}, arguments)
             if arguments[:2] == ["python", "list"]:
                 major, minor, patch = sys.version_info[:3]
                 print(json.dumps([{{"version": f"{{major}}.{{minor}}.{{patch}}", "version_parts": {{"major": major, "minor": minor, "patch": patch}}, "variant": "default", "implementation": "cpython"}}]))
@@ -100,7 +107,7 @@ def probing_uv(directory: Path, python: Path, probe: str) -> None:
                 runpy.run_path({str(source)!r})
                 command = arguments[arguments.index("--") + 1:]
                 assert command[0] == "python", command
-                os.execv({str(python)!r}, [{str(python)!r}, *command[1:]])
+                delegate({str(python)!r}, command[1:])
             """),
         encoding="utf-8",
     )

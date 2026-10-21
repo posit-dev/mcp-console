@@ -583,9 +583,13 @@ if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
                 "XDG_CACHE_HOME": str(root / "cache"),
                 "UV_CACHE_DIR": str(root / "host-cache"),
                 "MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION": "project",
-                "TMPDIR": str(root)
-                if execution is DIRECT
-                else "/invalid/configured-temp",
+                # Windows also needs TEMP/TMP when ambient inheritance is off.
+                **{
+                    name: str(root)
+                    if execution is DIRECT
+                    else "/invalid/configured-temp"
+                    for name in ("TMPDIR", "TEMP", "TMP")
+                },
             }
             configure(
                 root,
@@ -598,7 +602,11 @@ if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
                     "resolver": {
                         "environment": {
                             "ROLE": "resolver",
-                            **({"TMPDIR": str(root)} if execution is DIRECT else {}),
+                            **(
+                                {name: str(root) for name in ("TMPDIR", "TEMP", "TMP")}
+                                if execution is DIRECT
+                                else {}
+                            ),
                         },
                         **(
                             {"inherit_environment": resolver_inherit}
