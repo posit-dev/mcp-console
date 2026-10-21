@@ -771,7 +771,9 @@ def early_requirements_with_pending_poll(
                     # running response proves admission before discovery can
                     # launch default preparation and consume the DBI gate.
                     client.receive(submitted)
-                    assert without_elapsed(last_result_text(client)) == RUNNING
+                    assert without_elapsed(last_result_text(client)) == RUNNING, (
+                        submitted
+                    )
                     assert phase_progress(last_result_text(client)) == "startup"
                     submitted = client.start_send(timeout_ms=600_000)
                     discovery.release()
@@ -781,6 +783,7 @@ def early_requirements_with_pending_poll(
                     proceed.release()
                 write_reached.wait(
                     "cell response is visible before its write settles",
+                    client=client,
                     timeout=(
                         max(0, client.response_deadline() - time.monotonic())
                         if completed_response
@@ -818,7 +821,9 @@ def early_requirements_with_pending_poll(
                     )
                     assert "result" not in pending and "error" not in pending, pending
                 else:
-                    assert without_elapsed(last_result_text(client)) == RUNNING
+                    assert without_elapsed(last_result_text(client)) == RUNNING, (
+                        submitted
+                    )
                     assert phase_progress(last_result_text(client)) == "startup"
                     discovery.release()
                     prepared.wait(
