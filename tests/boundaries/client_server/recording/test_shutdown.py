@@ -23,7 +23,7 @@ from support.client import McpClient, stop_client
 from support.execution import DIRECT
 from support.native import LOADER_VARIABLE, build_interposer, compile_interposer
 from support.records import Transcript
-from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, R, requires
+from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, R, command, requires
 from support.suites import run_this_suite
 
 
@@ -183,10 +183,11 @@ def failed_write_before_finalization(binary: Path, *, ping: bool) -> Transcript:
 
 
 @requires(NATIVE_FIXTURES, PROCESS_EVENTS, R)
+@requires(command("rustc"))
 def test_startup_failure_journaling_keeps_ping_live(binary: Path) -> Transcript:
     with tempfile.TemporaryDirectory() as directory, ExitStack() as resources:
         root = Path(directory)
-        environment, reached, release, alive = resources.enter_context(
+        environment, discovery = resources.enter_context(
             local_discovery(root, fail=True)
         )
         observed = resources.enter_context(
@@ -208,13 +209,12 @@ def test_startup_failure_journaling_keeps_ping_live(binary: Path) -> Transcript:
         ) as client:
             try:
                 client.initialize_and_list_tools()
-                reached.wait("discovery ready to fail", client=client)
-                assert os.read(alive, 1) == b"1"
-                release.release()
+                discovery.wait("discovery ready to fail")
+                discovery.release()
                 observed.wait("startup failure journal writer stalled", client=client)
                 assert client.request("ping")["result"] == {}
             finally:
-                release.release()
+                discovery.release()
                 journal_release.release()
             _, stderr = client.finish_with_standard_error(expected_exit_status=1)
             assert "fixture R discovery failed" in stderr
