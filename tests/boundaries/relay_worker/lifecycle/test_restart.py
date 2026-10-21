@@ -20,7 +20,6 @@ def test_restarts_session(binary: Path, execution: Execution) -> Transcript:
     client = RelayWorkerClient(
         binary,
         capture_stdin_close=True,
-        capture_worker_sideband_close=True,
         execution=execution,
     )
     # fmt: r
@@ -43,7 +42,6 @@ def test_restarts_session(binary: Path, execution: Execution) -> Transcript:
 
     transcript = client._finish_replacement(old_path, old_capture)
     assert {"stdin": {"closed": True}} in transcript, transcript
-    assert {"worker_sideband": {"closed": True}} in transcript, transcript
     return transcript
 
 

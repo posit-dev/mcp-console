@@ -27,19 +27,28 @@ from support.suites import run_this_suite
 def test_closes_each_pipe_direction_on_restart(
     binary: Path, execution: Execution
 ) -> Transcript:
+    worker = Path(__file__).resolve().parents[3] / "fixtures" / "zod"
     client = RelayWorkerClient(
-        binary, capture_worker_sideband_close=True, execution=execution
+        binary,
+        worker_command=(str(worker),),
+        capture_stdin_close=True,
+        capture_worker_sideband_close=True,
+        execution=execution,
     )
-    assert _tool_text(client.send(r="invisible(NULL)")) == "[done]"
+    # Observe both pipe closures with the protocol fixture. R finalizers can
+    # exhaust the shutdown grace, which permits forced retirement without a
+    # sideband acknowledgment; the restart case checks R state separately.
+    assert _tool_text(client.send(r="echo ready")) == "zod: ready\n"
     old_path, old_capture = client._open_capture()
     result = _tool_text(client.send(control="restart"))
     assert result == (
         "[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]"
     ), result
-    assert _tool_text(client.send(r="cat('replacement ready\\n')")) == (
-        "replacement ready\n"
+    assert _tool_text(client.send(r="echo replacement ready")) == (
+        "zod: replacement ready\n"
     )
     transcript = client._finish_replacement(old_path, old_capture)
+    assert {"stdin": {"closed": True}} in transcript, transcript
     assert {"worker_sideband": {"closed": True}} in transcript, transcript
     return transcript
 
