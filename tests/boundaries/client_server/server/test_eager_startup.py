@@ -716,13 +716,16 @@ def early_requirements_with_pending_poll(
             closing(FifoCheckpoint.create(root / "write-release"))
         )
         evaluated = root / "evaluated"
+        # Linux LD_PRELOAD splits on spaces, while the discovery executable
+        # deliberately lives in a path containing spaces.
+        interposers = Path(resources.enter_context(tempfile.TemporaryDirectory()))
         environment.update(
             {
                 "MCP_CONSOLE_TEST_IR_BLOCK_REQUIREMENT": "DBI",
                 "MCP_CONSOLE_TEST_IR_STARTED": str(prepared.path),
                 "MCP_CONSOLE_TEST_IR_RELEASE": str(proceed.path),
                 LOADER_VARIABLE: str(
-                    build_interposer(root, "response_write_interposer")
+                    build_interposer(interposers, "response_write_interposer")
                 ),
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_REACHED": str(write_reached.path),
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_RELEASE": str(write_release.path),

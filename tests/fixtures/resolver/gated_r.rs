@@ -1,5 +1,6 @@
-//! Hold R discovery with a descendant whose socket records its lifetime.
+//! Hold R discovery with a descendant whose pipe/socket records its lifetime.
 use std::io::{self, Read, Write};
+#[cfg(windows)]
 use std::net::TcpStream;
 use std::process::{Command, exit};
 
@@ -7,10 +8,19 @@ fn main() -> io::Result<()> {
     let executable = std::env::current_exe()?;
     let root = executable.parent().unwrap();
     if std::env::args().nth(1).as_deref() == Some("--discovery-child") {
+        #[cfg(windows)]
         let mut lifetime = TcpStream::connect(std::fs::read_to_string(root.join("address"))?)?;
+        #[cfg(unix)]
+        let mut lifetime = std::fs::OpenOptions::new()
+            .write(true)
+            .open(root.join("lifetime"))?;
         lifetime.write_all(&std::process::id().to_be_bytes())?;
+        #[cfg(windows)]
+        let mut gate = &lifetime;
+        #[cfg(unix)]
+        let mut gate = std::fs::File::open(root.join("release"))?;
         let mut release = [0];
-        lifetime.read_exact(&mut release)?;
+        gate.read_exact(&mut release)?;
         assert_eq!(release, [b'1']);
         return Ok(());
     }
