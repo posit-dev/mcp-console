@@ -62,23 +62,33 @@ def test_preparation_defaults_match_public_configuration(binary: Path) -> Transc
 def test_current_companion_links_match_pin(binary: Path) -> Transcript:
     pin = json.loads((ROOT / "sandbox-runner.json").read_text(encoding="utf-8"))
     reference = re.compile(
-        rf"https://github\.com/{re.escape(pin['repository'])}/(?:blob|tree)/([^/\s)#]+)"
+        r"https://github\.com/([^/\s]+/[^/\s]+)/(?:blob|tree)/([^/\s)#]+)"
     )
+    # Retain the original companion name after a repository migration. Other
+    # GitHub source citations, including upstream references, own their revisions.
+    companion_names = {"cobox", pin["repository"].split("/")[-1]}
+    docs = ROOT / "docs"
     documents = [ROOT / "README.md", ROOT / "RELEASE.md"]
-    documents += sorted((ROOT / "docs").glob("*.md"))
-    documents += sorted((ROOT / "docs").glob("*.qmd"))
+    documents += sorted(
+        path
+        for path in docs.rglob("*")
+        if path.suffix in {".md", ".qmd"}
+        # Dated evidence retains its revision; rendered output is not source.
+        and path.relative_to(docs).parts[0] not in {"benchmarks", "_site", ".quarto"}
+        and path != docs / "RESOLVER_RELEASE_AUDIT.md"
+    )
     for document in documents:
-        # Dated audit/benchmark evidence retains the revision it evaluated.
-        # Benchmarks live below docs/benchmarks, outside this current-guide scan.
-        if document.name == "RESOLVER_RELEASE_AUDIT.md":
-            continue
         for line_number, line in enumerate(
             document.read_text(encoding="utf-8").splitlines(), 1
         ):
             for match in reference.finditer(line):
-                assert match[1] == pin["commit"], (
+                repository, revision = match.groups()
+                if repository.split("/")[-1] not in companion_names:
+                    continue
+                assert (repository, revision) == (pin["repository"], pin["commit"]), (
                     f"{document.relative_to(ROOT)}:{line_number}: companion reference "
-                    f"{match[1]!r} differs from sandbox-runner.json ({pin['commit']}); "
-                    "link to sandbox-runner.json or use its current commit"
+                    f"{repository}@{revision} differs from sandbox-runner.json "
+                    f"({pin['repository']}@{pin['commit']}); "
+                    "link to sandbox-runner.json or use its current repository and commit"
                 )
     return [{"current_companion_links": "match sandbox-runner.json"}]

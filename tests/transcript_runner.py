@@ -272,6 +272,68 @@ class TranscriptRunnerFixture(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def test_documentation_companion_links_check_repository_and_nested_guides(
+        self,
+    ) -> None:
+        selector = "cli/test_documentation::current_companion_links_match_pin"
+        suite = self.boundaries / "cli/test_documentation.py"
+        suite.parent.mkdir()
+        shutil.copy2(ROOT / "tests/boundaries/cli/test_documentation.py", suite)
+        snapshot = self.root / "tests/snapshots/cli/test_documentation"
+        snapshot.mkdir(parents=True)
+        shutil.copy2(
+            ROOT
+            / "tests/snapshots/cli/test_documentation/current_companion_links_match_pin.yaml",
+            snapshot,
+        )
+        for name in ("README.md", "RELEASE.md"):
+            (self.root / name).touch()
+        # A renamed companion must still reject links to its old repository.
+        repository = "new-owner/native-runner"
+        revision = "1" * 40
+        (self.root / "sandbox-runner.json").write_text(
+            json.dumps({"repository": repository, "commit": revision}),
+            encoding="utf-8",
+        )
+        for name, linked_repository, linked_revision, valid in (
+            ("README.md", "t-kalinowski/cobox", revision, False),
+            ("RELEASE.md", "old-owner/native-runner", revision, False),
+            ("docs/python/index.qmd", repository, "0" * 40, False),
+            ("docs/guides/nested/guide.md", repository, "main", False),
+            ("docs/python/index.qmd", "t-kalinowski/cobox", revision, False),
+            ("docs/python/index.qmd", repository, revision, True),
+            ("docs/guides/nested/guide.md", repository, revision, True),
+            ("docs/RESOLVER_RELEASE_AUDIT.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/benchmarks/nested/record.qmd", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/_site/python/index.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/.quarto/record.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/TOOL_DESCRIPTIONS.md", "openai/codex", "0" * 40, True),
+        ):
+            with self.subTest(document=name, repository=linked_repository):
+                document = self.root / name
+                document.parent.mkdir(parents=True, exist_ok=True)
+                (self.root / "docs").mkdir(exist_ok=True)
+                document.write_text(
+                    f"[Source](https://github.com/{linked_repository}/blob/"
+                    f"{linked_revision}/codex-rs/mcp-console-sandbox/src/main.rs)\n",
+                    encoding="utf-8",
+                )
+                try:
+                    result = self.run_runner(selector)
+                    output = result.stdout + result.stderr
+                    if valid:
+                        self.assertEqual(result.returncode, 0, output)
+                    else:
+                        self.assertNotEqual(result.returncode, 0, output)
+                        self.assertIn(
+                            f"{document.relative_to(self.root)}:1: companion reference",
+                            output,
+                        )
+                        self.assertIn(linked_repository, output)
+                        self.assertIn(linked_revision, output)
+                finally:
+                    document.write_text("", encoding="utf-8")
+
     def start_runner(self, *arguments: str) -> subprocess.Popen[str]:
         return subprocess.Popen(
             [sys.executable, self.boundaries / "_run.py", *arguments],
