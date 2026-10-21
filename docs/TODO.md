@@ -80,6 +80,11 @@ See [Tool descriptions](TOOL_DESCRIPTIONS.md).
 
 Delete completed entries and empty sections as part of the change that resolves them, and update related links.
 
+**DX-3 — Support interpreter paths containing spaces in Unix test fixtures.** Several tooling and boundary fixtures embed `sys.executable` directly in a shebang.
+When that path contains spaces, fixture commands can fail to launch or PATH search can reach a real tool instead; staging tests then report that the fake `fixture` Rust toolchain is missing.
+Use the quoted shell/Python launcher pattern already exercised by `tests/release.py`, preserving stdin and interpreter arguments, and validate through the affected public commands with an interpreter installed under a path containing spaces.
+Until this is repaired, run development checks with a Python executable whose path contains no spaces.
+
 ## Unselected proposals, not release blockers
 
 An opt-in Git-aware write policy and a separate project-configuration trust mechanism remain future design questions.
