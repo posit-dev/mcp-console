@@ -44,19 +44,19 @@ CACHE_VARIABLES = (
 )
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_default_caches_are_console_owned(binary: Path) -> Transcript:
     return cache_locations(
         binary, host=False, sources=("default", "platform", "isolated")
     )
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_absolute_xdg_cache_starts_without_home(binary: Path) -> Transcript:
     return cache_locations(binary, host=False, sources=("xdg_without_home",))
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_console_cache_directory_override(binary: Path) -> Transcript:
     return cache_locations(
         binary,
@@ -66,7 +66,7 @@ def test_console_cache_directory_override(binary: Path) -> Transcript:
     )
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_configured_cache_directory_overrides_environment(binary: Path) -> Transcript:
     return cache_locations(
         binary,
@@ -76,12 +76,12 @@ def test_configured_cache_directory_overrides_environment(binary: Path) -> Trans
     )
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_empty_console_cache_directory_uses_default(binary: Path) -> Transcript:
     return cache_locations(binary, host=False, sources=("empty",))
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_host_cache_ignores_console_cache_directory(binary: Path) -> Transcript:
     return cache_locations(
         binary,
@@ -116,17 +116,17 @@ def test_console_cache_directory_requires_absolute_path(binary: Path) -> Transcr
     return [{"relative_console_cache_directory_rejected": True}]
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_console_root_is_created_with_explicit_entries(binary: Path) -> Transcript:
     return cache_locations(binary, host=False, sources=("explicit_entries",))
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_host_cache_opt_out(binary: Path) -> Transcript:
     return cache_locations(binary, host=True, sources=("direct", "config", "cli"))
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_host_matplotlib_cache_uses_platform_default(binary: Path) -> Transcript:
     return cache_locations(binary, host=True, sources=("platform",))
 
@@ -210,7 +210,7 @@ def test_selected_python_preserves_user_site_packages(binary: Path) -> Transcrip
     ]
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_resolver_cannot_write_companion_build_cache(binary: Path) -> Transcript:
     cache_locations(binary, host=False, sources=("default", "platform"))
     cache_locations(binary, host=True, sources=("cli",))
@@ -342,14 +342,14 @@ def test_managed_python_and_duckdb_stay_in_console_cache(binary: Path) -> Transc
     ]
 
 
-@requires(SANDBOX, command("uv"))
+@requires(SANDBOX, command("uv"), command("rustc"))
 def test_resolver_cache_roots_keep_metadata_read_only(binary: Path) -> Transcript:
     for host, source in ((False, "environment"), (True, "config")):
         cache_locations(binary, host=host, sources=(source,), metadata=True)
     return [{"resolver_cache_root_metadata_read_only": True}]
 
 
-@requires(SANDBOX, command("git"), command("uv"))
+@requires(SANDBOX, command("git"), command("uv"), command("rustc"))
 def test_uv_git_cache_works_without_root_metadata_grants(binary: Path) -> Transcript:
     with TemporaryDirectory(prefix="console-git-cache-", dir=Path.home()) as temporary:
         root = Path(temporary).resolve()

@@ -77,13 +77,13 @@ def preseeded_duckdb_python(directory: Path) -> Path:
 def probing_uv(directory: Path, python: Path, probe: str) -> None:
     """Run a cache/environment probe in trusted preparation, then use seeded Python."""
     source = directory / "preparation-probe.py"
-    source.write_text(probe)
-    executable = directory / "bin/uv"
+    source.write_text(probe, encoding="utf-8")
+    executable = directory / "bin" / ("uv.exe" if os.name == "nt" else "uv")
     executable.unlink(missing_ok=True)
-    executable.write_text(
+    executable.with_suffix(".python").write_text(sys.executable, encoding="utf-8")
+    executable.with_suffix(".py").write_text(
         # fmt: python
         code(f"""
-            #!{sys.executable} -S
             import json
             import os
             import runpy
@@ -101,9 +101,19 @@ def probing_uv(directory: Path, python: Path, probe: str) -> None:
                 command = arguments[arguments.index("--") + 1:]
                 assert command[0] == "python", command
                 os.execv({str(python)!r}, [{str(python)!r}, *command[1:]])
-            """)
+            """),
+        encoding="utf-8",
     )
-    executable.chmod(0o755)
+    subprocess.run(
+        [
+            "rustc",
+            "--edition=2024",
+            str(FIXTURES / "resolver/uv_probe.rs"),
+            "-o",
+            str(executable),
+        ],
+        check=True,
+    )
 
 
 def local_resolver_owner(server: ProcessIdentity, binary: Path) -> ProcessIdentity:

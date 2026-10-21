@@ -19,7 +19,6 @@ from support.snapshots import platform_snapshots
 from support.requirements import (
     MACOS_SANDBOX,
     NATIVE_FIXTURES,
-    POSIX,
     SANDBOX,
     command,
     requires,
@@ -547,7 +546,7 @@ def test_native_domain_character_classes_are_rejected(binary: Path) -> Transcrip
 
 
 @executions(DIRECT, SANDBOXED)
-@requires(POSIX, command("uv"))
+@requires(command("uv"), command("rustc"))
 def test_shared_environment_survives_restart(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -558,7 +557,7 @@ def test_shared_environment_survives_restart(
         (False, True),
         (True, False),
     ):
-        with TemporaryDirectory() as temporary:
+        with TemporaryDirectory(prefix="console environment ") as temporary:
             root = Path(temporary).resolve()
             tools = root / "bin"
             tools.mkdir()
@@ -577,7 +576,7 @@ if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
 """,
             )
             common = {
-                "HOME": os.environ["HOME"],
+                "HOME": str(Path.home()),
                 "PATH": str(tools),
                 "ROLE": "worker",
                 "SHARED": "configured",
