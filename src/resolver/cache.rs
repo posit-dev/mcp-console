@@ -103,8 +103,6 @@ pub(crate) fn configure(
 }
 
 pub(super) fn writable_cache_entry(root: &std::path::Path) -> Result<Value, String> {
-    // Keep native metadata protections at the cache root. Tools' nested Git
-    // checkouts are covered by the ordinary cache grant.
     let path = root.to_str().ok_or("resolver policy paths must be UTF-8")?;
     Ok(json!({"path": {"type": "path", "path": path}, "access": "write"}))
 }

@@ -716,13 +716,16 @@ def early_requirements_with_pending_poll(
             closing(FifoCheckpoint.create(root / "write-release"))
         )
         evaluated = root / "evaluated"
+        # Linux LD_PRELOAD splits on spaces, while the discovery executable
+        # deliberately lives in a path containing spaces.
+        interposers = Path(resources.enter_context(tempfile.TemporaryDirectory()))
         environment.update(
             {
                 "MCP_CONSOLE_TEST_IR_BLOCK_REQUIREMENT": "DBI",
                 "MCP_CONSOLE_TEST_IR_STARTED": str(prepared.path),
                 "MCP_CONSOLE_TEST_IR_RELEASE": str(proceed.path),
                 LOADER_VARIABLE: str(
-                    build_interposer(root, "response_write_interposer")
+                    build_interposer(interposers, "response_write_interposer")
                 ),
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_REACHED": str(write_reached.path),
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_RELEASE": str(write_release.path),
@@ -771,7 +774,9 @@ def early_requirements_with_pending_poll(
                     # running response proves admission before discovery can
                     # launch default preparation and consume the DBI gate.
                     client.receive(submitted)
-                    assert without_elapsed(last_result_text(client)) == RUNNING
+                    assert without_elapsed(last_result_text(client)) == RUNNING, (
+                        submitted
+                    )
                     assert phase_progress(last_result_text(client)) == "startup"
                     submitted = client.start_send(timeout_ms=600_000)
                     discovery.release()
@@ -781,6 +786,7 @@ def early_requirements_with_pending_poll(
                     proceed.release()
                 write_reached.wait(
                     "cell response is visible before its write settles",
+                    client=client,
                     timeout=(
                         max(0, client.response_deadline() - time.monotonic())
                         if completed_response

@@ -20,8 +20,17 @@ from support.processes import (
     live_processes,
 )
 from support.normalization import code
+from support.native import LOADER_VARIABLE, build_interposer
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
-from support.requirements import POSIX, R, SANDBOX, SQL, command, requires
+from support.requirements import (
+    NATIVE_FIXTURES,
+    POSIX,
+    R,
+    SANDBOX,
+    SQL,
+    command,
+    requires,
+)
 from support.snapshots import platform_snapshots
 from support.suites import run_this_suite
 from boundaries.client_server.requirements.test_cache_locations import CACHE_VARIABLES
@@ -267,14 +276,60 @@ def test_reports_runtime_failure_and_finishes_other_checks(
 def test_reports_configuration_failure(
     binary: Path, execution: Execution
 ) -> Transcript:
+    return configuration_failure(binary, execution)
+
+
+@requires(NATIVE_FIXTURES)
+@executions(RUNTIME)
+def test_configuration_failure_before_initialize_write(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return configuration_failure(binary, execution, handshake="closed")
+
+
+@requires(NATIVE_FIXTURES)
+@executions(RUNTIME)
+def test_configuration_failure_after_initialize_write(
+    binary: Path, execution: Execution
+) -> Transcript:
+    return configuration_failure(binary, execution, handshake="written")
+
+
+def configuration_failure(
+    binary: Path, execution: Execution, *, handshake: str | None = None
+) -> Transcript:
     with TemporaryDirectory() as temporary:
+        workspace = Path(temporary)
+        environment = os.environ.copy()
+        if handshake is not None:
+            os.mkfifo(workspace / "attempt")
+            os.mkfifo(workspace / "lifetime")
+            environment.update(
+                MCP_CONSOLE_TEST_WARMUP_HANDSHAKE=handshake,
+                MCP_CONSOLE_TEST_WARMUP_HANDSHAKE_REACHED=str(workspace / "handshake"),
+                MCP_CONSOLE_TEST_WARMUP_ATTEMPT=str(workspace / "attempt"),
+                MCP_CONSOLE_TEST_WARMUP_LIFETIME=str(workspace / "lifetime"),
+            )
+            environment[LOADER_VARIABLE] = str(
+                build_interposer(workspace, "warmup_handshake")
+            )
         result = warmup(
-            binary, Path(temporary), execution, "--no-config", "-c", "unknown=true"
+            binary,
+            workspace,
+            execution,
+            "--no-config",
+            "-c",
+            "unknown=true",
+            environment=environment,
         )
         assert result.returncode == 1, result
+        if handshake is not None:
+            assert (workspace / "handshake").read_text() == "1", result
         assert "unknown" in result.stderr, result
-        assert "Server: FAIL\n" in result.stdout, result
-        assert result.stdout.endswith(
+        assert result.stdout == (
+            "MCP Console warmup\n"
+            "Server: FAIL\n"
+            "server connection closed before initialization completed\n"
             "Shutdown: FAIL\n"
             "server exited with status 1\n"
             "Warmup found 2 failed checks.\n"

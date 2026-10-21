@@ -189,6 +189,9 @@ mcp-console serve --no-sandbox -c sandbox=null -c resolver.sandbox=null
 The companion's source/build cache is separate from dependency caches.
 It is not worker-writable under the default policy.
 
+Resolver cache grants cover their complete subtrees, including Git metadata.
+Console creates the cache roots needed for native enforcement; it does not add metadata directories or read-only exceptions inside them.
+
 ## Host cache selection
 
 With `cache: host`, explicit tool variables select locations and corresponding default resolver write grants.
