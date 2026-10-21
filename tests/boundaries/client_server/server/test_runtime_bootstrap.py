@@ -180,11 +180,15 @@ def test_interrupt_before_bootstrap_publication_discards_waiting_cell(
         # The sandbox launcher deliberately removes injected loader libraries.
         with McpClient(binary, execution.serve(), environment, root) as client:
             try:
-                completing.wait("worker is publishing bootstrap completion")
+                completing.wait(
+                    "worker is publishing bootstrap completion", client=client
+                )
                 client.initialize_and_list_tools()
                 client.expect(RUNNING, python="discarded_cell = True", timeout_ms=0)
                 client.expect(RUNNING, control="interrupt", timeout_ms=0)
-                observed.wait("worker handled SIGINT before publishing completion")
+                observed.wait(
+                    "worker handled SIGINT before publishing completion", client=client
+                )
                 complete.release()
                 client.expect()
                 client.expect(

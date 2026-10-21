@@ -40,7 +40,7 @@ def test_closes_each_pipe_direction_on_restart(
         "replacement ready\n"
     )
     transcript = client._finish_replacement(old_path, old_capture)
-    assert {"worker_sideband": {"closed": True}} in transcript
+    assert {"worker_sideband": {"closed": True}} in transcript, transcript
     return transcript
 
 
