@@ -155,6 +155,7 @@ Revalidate the [resolver trust contract](docs/RESOLVER_RELEASE_AUDIT.md) at the 
 Merge only with passing CI and a verified GPT connector reviewer thumbs-up for the current head.
 Then require successful push CI on `main` for the exact merged commit.
 Compare its tree with the rehearsed tree; rehearse again if different.
+Later merges can continue: they do not cancel this commit's CI or change the chosen release revision.
 
 From a clean checkout, retain and tag the verified full SHA even if `main` advances:
 
