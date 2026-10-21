@@ -205,9 +205,13 @@ def wait_for_evaluation_output(
     completion_timeout_seconds: float = 3,
     initial_cuts: tuple[str, ...] = (),
     output_cuts: list[str] | None = None,
+    received: TranscriptEntry | None = None,
     **send_arguments: Any,
 ) -> str:
     """Accumulate exact output until the expected state; retain the submitted call."""
+    assert received is None or not send_arguments, (
+        "a received call must not be resubmitted"
+    )
     deadline = time.monotonic() + completion_timeout_seconds
     poll_start = len(client.transcript)
     running = "\n[running; poll with an empty send]"
@@ -217,7 +221,11 @@ def wait_for_evaluation_output(
     collected = "".join(cuts)
     final_progress = ""
 
-    result = _send_before(client, deadline, description, **send_arguments)
+    result = (
+        received["result"]
+        if received is not None
+        else _send_before(client, deadline, description, **send_arguments)
+    )
     while True:
         content = result["content"]
         assert len(content) == 1 and content[0]["type"] == "text", content
@@ -278,10 +286,14 @@ def wait_for_evaluation_output(
         if final_progress
         else collected
     )
-    calls = client.transcript[poll_start:]
-    submitted = calls[0]
-    submitted["result"] = calls[-1]["result"]
-    client.transcript[poll_start:] = [submitted]
+    if received is not None:
+        received["result"] = result
+        del client.transcript[poll_start:]
+    else:
+        calls = client.transcript[poll_start:]
+        submitted = calls[0]
+        submitted["result"] = calls[-1]["result"]
+        client.transcript[poll_start:] = [submitted]
     return collected
 
 
