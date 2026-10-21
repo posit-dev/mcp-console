@@ -13,10 +13,10 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 476, in initialize_connection
+          File "<string>", line 479, in initialize_connection
           File "<console startup>", line 1, in <module>
-          File "<string>", line 129, in sql_connection
-          File "<string>", line 104, in _validate_connection
+          File "<string>", line 132, in sql_connection
+          File "<string>", line 107, in _validate_connection
         TypeError: `connection` must provide a callable cursor() method or be None
         Error: configured startup did not complete; SQL withheld; explicit restart required
         Error: SQL unavailable: configured startup did not complete; explicit restart required
@@ -36,10 +36,10 @@ language: python
 failure: cursor()
 first_sql: |
   Traceback (most recent call last):
-    File "<string>", line 476, in initialize_connection
+    File "<string>", line 479, in initialize_connection
     File "<console startup>", line 1, in <module>
-    File "<string>", line 129, in sql_connection
-    File "<string>", line 104, in _validate_connection
+    File "<string>", line 132, in sql_connection
+    File "<string>", line 107, in _validate_connection
   TypeError: `connection` must provide a callable cursor() method or be None
   Error: configured startup did not complete; SQL withheld; explicit restart required
   Error: SQL unavailable: configured startup did not complete; explicit restart required
