@@ -3,7 +3,6 @@
 import json
 import os
 import select
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,77 +13,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import NATIVE_FIXTURES, POSIX, R, requires
+from support.requirements import NATIVE_FIXTURES, POSIX, R, command, requires
 from support.checkpoints import FifoCheckpoint
 from support.assertions import last_result_text
 from support.progress import elapsed_progress, without_elapsed_result
 from support.client import McpClient
 from support.execution import DIRECT, Execution, executions
-from support.normalization import code
+from support.normalization import code, normalize_process_diagnostic
 from support.native import LOADER_VARIABLE, build_interposer
 from support.records import Transcript
 from support.r import r_test_environment
-from support.resolvers import bare_runtime_environment
+from support.discovery import DiscoveryGate, discovery_environment
 from support.suites import run_this_suite
-
-
-@contextmanager
-def discovery_environment(
-    *, r_home: Path | None = None
-) -> Iterator[tuple[dict[str, str], FifoCheckpoint, FifoCheckpoint, int]]:
-    with tempfile.TemporaryDirectory() as temporary:
-        root = Path(temporary)
-        reached = FifoCheckpoint.create(root / "reached")
-        release = FifoCheckpoint.create(root / "release")
-        alive = root / "alive"
-        os.mkfifo(alive)
-        alive_reader = os.open(alive, os.O_RDONLY | os.O_NONBLOCK)
-        probe = root / "R"
-        # The blocked descendant must exist before discovery reports readiness.
-        # A shell spawning dd after the checkpoint can race cancellation.
-        probe.write_text(
-            code(f"""
-                #!{sys.executable} -S
-                import os
-                import sys
-                from pathlib import Path
-
-                home = {str(r_home) if r_home is not None else None!r}
-                with Path({str(alive)!r}).open("wb", buffering=0) as lifetime:
-                    child = os.fork()
-                    if child == 0:
-                        assert lifetime.write(b"1") == 1
-                        with Path({str(reached.path)!r}).open("wb", buffering=0) as reached:
-                            assert reached.write(b"1") == 1
-                        with Path({str(release.path)!r}).open("rb", buffering=0) as release:
-                            assert release.read(1) == b"1"
-                        os._exit(0)
-                    assert os.waitpid(child, 0) == (child, 0)
-                    if home is None:
-                        print("fixture R discovery failed", file=sys.stderr)
-                        raise SystemExit(17)
-                    print(home)
-                """)
-        )
-        probe.chmod(0o755)
-        # Keep shell launcher dependencies without exposing another R or Python.
-        # Relocatable Rscript installations use dirname and readlink as well.
-        for name in ("sh", "dirname", "readlink"):
-            (root / name).symlink_to(shutil.which(name))
-        environment = bare_runtime_environment(os.environ.copy(), root / "library")
-        environment["R_PROFILE_USER"] = os.devnull
-        environment.pop("R_HOME", None)
-        environment["PATH"] = str(root)
-        try:
-            yield environment, reached, release, alive_reader
-            assert select.select([alive_reader], [], [], 5)[0], (
-                "discovery survived MCP closure"
-            )
-            assert os.read(alive_reader, 1) == b"", "probe lifetime pipe must close"
-        finally:
-            os.close(alive_reader)
-            release.close()
-            reached.close()
 
 
 @contextmanager
@@ -93,21 +33,20 @@ def gated_discovery(
     *,
     r_home: Path | None = None,
     server_environment: dict[str, str] | None = None,
-) -> Iterator[tuple[McpClient, FifoCheckpoint]]:
-    with discovery_environment(r_home=r_home) as (environment, reached, release, alive):
+) -> Iterator[tuple[McpClient, DiscoveryGate]]:
+    with discovery_environment(r_home=r_home) as (environment, discovery):
         environment.update(server_environment or {})
         with McpClient(
             binary, ("serve", "--no-sandbox"), environment, response_timeout=5
         ) as client:
-            reached.wait("runtime discovery is blocked")
-            assert os.read(alive, 1) == b"1"
-            yield client, release
+            discovery.wait("runtime discovery is blocked")
+            yield client, discovery
 
 
 def closed_input_with_blocked_stdout(
     binary: Path, *, discover_first: bool
 ) -> Transcript:
-    with discovery_environment() as (environment, reached, release, alive):
+    with discovery_environment() as (environment, discovery):
         read_output, write_output = os.pipe()
         try:
             with tempfile.TemporaryDirectory() as directory:
@@ -122,8 +61,7 @@ def closed_input_with_blocked_stdout(
                 )
                 assert process.stdin is not None and process.stderr is not None
                 try:
-                    reached.wait("runtime discovery is blocked")
-                    assert os.read(alive, 1) == b"1"
+                    discovery.wait("runtime discovery is blocked")
                     if discover_first:
                         process.stdin.write(
                             json.dumps(
@@ -190,7 +128,7 @@ def closed_input_with_blocked_stdout(
                     )
                 finally:
                     if process.poll() is None:
-                        release.release()
+                        discovery.release()
                         process.kill()
                         process.wait(timeout=5)
                     process.stderr.close()
@@ -200,19 +138,19 @@ def closed_input_with_blocked_stdout(
     return [{"closed_input_retired_discovery_with_blocked_stdout": True}]
 
 
-@requires(POSIX)
+@requires(POSIX, command("rustc"))
 def test_closed_input_cancels_discovery_with_blocked_stdout(binary: Path) -> Transcript:
     return closed_input_with_blocked_stdout(binary, discover_first=False)
 
 
-@requires(POSIX)
+@requires(POSIX, command("rustc"))
 def test_completed_discovery_does_not_hide_cancelled_initialization(
     binary: Path,
 ) -> Transcript:
     return closed_input_with_blocked_stdout(binary, discover_first=True)
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 def test_closed_input_before_handshake_reports_cancelled_preparation(
     binary: Path,
 ) -> Transcript:
@@ -225,7 +163,7 @@ def test_closed_input_before_handshake_reports_cancelled_preparation(
         return [{"stderr": errors}]
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 def test_initializes_while_runtime_discovery_is_blocked(binary: Path) -> Transcript:
     with gated_discovery(binary) as (client, _):
         client.initialize_and_list_tools()
@@ -233,7 +171,7 @@ def test_initializes_while_runtime_discovery_is_blocked(binary: Path) -> Transcr
         return client.finish()
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 def test_reports_discovery_failure_without_losing_mcp(binary: Path) -> Transcript:
     with gated_discovery(binary) as (client, release):
         client.initialize_and_list_tools()
@@ -251,10 +189,12 @@ def test_reports_discovery_failure_without_losing_mcp(binary: Path) -> Transcrip
         assert client.request("tools/list")["result"] == client.transcript[2]["result"]
         transcript, errors = client.finish_with_standard_error(expected_exit_status=1)
         assert "fixture R discovery failed" in errors, errors
-        return transcript + [{"stderr": errors}]
+        return json.loads(
+            normalize_process_diagnostic(json.dumps(transcript + [{"stderr": errors}]))
+        )
 
 
-@requires(POSIX, NATIVE_FIXTURES)
+@requires(POSIX, NATIVE_FIXTURES, command("rustc"))
 def test_standalone_requirements_wait_for_discovery(binary: Path) -> Transcript:
     with (
         tempfile.TemporaryDirectory() as directory,
@@ -278,14 +218,14 @@ def test_standalone_requirements_wait_for_discovery(binary: Path) -> Transcript:
 
 def standalone_requirements_during_discovery(
     client: McpClient,
-    release: FifoCheckpoint,
+    release: DiscoveryGate,
     armed: Path,
     recorded: FifoCheckpoint,
 ) -> Transcript:
     client.transcript.append(
         {
             "scenario": "Standalone preparation waits for initial discovery even with timeout_ms=0.",
-            "fixture": "The R discovery probe is held at a FIFO and fails after release. A native checkpoint observes the request recorder returning to its pool before a ping acknowledges readiness-wait dispatch.",
+            "fixture": "The R discovery probe is held at a loopback socket and fails after release. A native checkpoint observes the request recorder returning to its pool before a ping acknowledges readiness-wait dispatch.",
         }
     )
     client.initialize_and_list_tools()
@@ -317,7 +257,7 @@ def standalone_requirements_during_discovery(
     return transcript + [{"stderr": errors}]
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 def test_failed_handshake_cancels_discovery_with_input_open(binary: Path) -> Transcript:
     with gated_discovery(binary) as (client, _):
         # Requests without inline metadata now receive recoverable errors.
@@ -329,23 +269,18 @@ def test_failed_handshake_cancels_discovery_with_input_open(binary: Path) -> Tra
         return [{"stderr": errors, "input_remained_open": not client.stdin.closed}]
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 def test_bounds_discovery_failure_during_requirement_inspection(
     binary: Path,
 ) -> Transcript:
-    with discovery_environment() as (environment, reached, release, alive):
-        probe = reached.path.parent / "R"
-        probe.write_text(
-            probe.read_text().replace(
-                "fixture R discovery failed",
-                "fixture R discovery failed " + "x" * (32 * 1024),
-            )
+    with discovery_environment() as (environment, discovery):
+        (discovery.root / "failure").write_text(
+            "fixture R discovery failed " + "x" * (32 * 1024)
         )
         with McpClient(binary, ("serve", "--no-sandbox"), environment) as client:
-            reached.wait("runtime discovery is blocked")
-            assert os.read(alive, 1) == b"1"
+            discovery.wait("runtime discovery is blocked")
             client.initialize_and_list_tools()
-            release.release()
+            discovery.release()
             failure = client.send(requirements={"action": "get"})
             assert failure["isError"] is True, failure
             content = failure["content"][0]["text"]
@@ -356,7 +291,7 @@ def test_bounds_discovery_failure_during_requirement_inspection(
             return [{"inspection_error": "bounded to 8 KiB", "isError": True}]
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 def test_cancelled_send_does_not_cancel_shared_discovery(binary: Path) -> Transcript:
     with gated_discovery(binary) as (client, release):
         client.initialize_and_list_tools()
@@ -372,7 +307,9 @@ def test_cancelled_send_does_not_cancel_shared_discovery(binary: Path) -> Transc
         assert "fixture R discovery failed" in str(result), result
         transcript, errors = client.finish_with_standard_error(expected_exit_status=1)
         assert "fixture R discovery failed" in errors, errors
-        return transcript + [{"stderr": errors}]
+        return json.loads(
+            normalize_process_diagnostic(json.dumps(transcript + [{"stderr": errors}]))
+        )
 
 
 def wait_for_send_admission(client: McpClient) -> None:
@@ -410,7 +347,7 @@ def wait_for_send_admission(client: McpClient) -> None:
     client.transcript[first_poll:] = [client.transcript[-1]]
 
 
-@requires(POSIX)
+@requires(POSIX, command("rustc"))
 @requires(R)
 def test_queued_r_cell_executes_once_after_discovery(binary: Path) -> Transcript:
     environment, _ = r_test_environment()
@@ -449,7 +386,7 @@ def test_queued_r_cell_executes_once_after_discovery(binary: Path) -> Transcript
         return client.finish()
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 @requires(R)
 def test_cancelled_wait_preserves_admitted_cell_after_discovery(
     binary: Path,

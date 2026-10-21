@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import json
 import os
 import sys
 import tempfile
@@ -21,7 +22,11 @@ from support.checkpoints import (
 )
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
-from support.normalization import code, normalize_python_resolution_error
+from support.normalization import (
+    code,
+    normalize_process_diagnostic,
+    normalize_python_resolution_error,
+)
 from support.native import LOADER_VARIABLE, build_interposer
 from support.progress import elapsed_progress, phase_progress, without_elapsed
 from support.previews import (
@@ -273,7 +278,7 @@ def test_phase_observation_does_not_wait_for_failed_worker_retirement(
         return client.finish()
 
 
-@requires(POSIX)
+@requires(command("rustc"))
 def test_shared_startup_phase_has_no_future_cell_clock(binary: Path) -> Transcript:
     with gated_discovery(binary) as (client, release):
         client.initialize_and_list_tools()
@@ -300,7 +305,9 @@ def test_shared_startup_phase_has_no_future_cell_clock(binary: Path) -> Transcri
         client.send(timeout_ms=0)
         assert "phase:" not in last_result_text(client)
         transcript, stderr = client.finish_with_standard_error(expected_exit_status=1)
-        return [*transcript, {"stderr": stderr}]
+        return json.loads(
+            normalize_process_diagnostic(json.dumps([*transcript, {"stderr": stderr}]))
+        )
 
 
 @requires(POSIX, PROCESS_EVENTS, command("ir"), command("uv"))

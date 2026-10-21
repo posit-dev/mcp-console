@@ -18,7 +18,6 @@ from boundaries.client_server.python.test_startup import selected_python
 from support.python import isolated_python
 from boundaries.client_server.python.test_without_r import environment as without_r
 from boundaries.client_server.server.test_startup import (
-    discovery_environment,
     wait_for_send_admission,
 )
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
@@ -29,9 +28,10 @@ from support.assertions import (
     wait_for_idle_output,
 )
 from support.client import McpClient
+from support.discovery import discovery_environment
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
-from support.normalization import code
+from support.normalization import code, normalize_process_diagnostic
 from support.previews import assert_preview, compact_previews
 from support.progress import without_elapsed
 from support.snapshots import execution_snapshots
@@ -455,22 +455,18 @@ def test_restart_repairs_missing_selected_python(
             )
 
 
-@requires(POSIX, R)
+@requires(R, command("rustc"))
 def test_restart_repairs_failed_r_discovery(binary: Path) -> Transcript:
     r_environment, _ = r_test_environment()
-    with discovery_environment() as (environment, reached, release, alive):
+    with discovery_environment() as (environment, discovery):
         with McpClient(binary, DIRECT.serve(), environment) as client:
-            reached.wait("initial R discovery is blocked")
-            assert os.read(alive, 1) == b"1"
+            discovery.wait("initial R discovery is blocked")
             client.initialize_and_list_tools()
-            release.release()
+            discovery.release()
             failure = client.send(r="stop('rejected cell must not run')")
             assert failure.get("isError"), failure
-            probe = reached.path.parent / "R"
-            probe.write_text(
-                "#!/bin/sh\nprintf '%s\\n' "
-                + shlex.quote(r_environment["R_HOME"])
-                + "\n"
+            (discovery.root / "r-home").write_text(
+                r_environment["R_HOME"], encoding="utf-8"
             )
             assert client.send(r="stop('ordinary send must not retry')") == failure
             repaired = client.send(control="restart", r="answer <- 42; answer")
@@ -478,7 +474,7 @@ def test_restart_repairs_failed_r_discovery(binary: Path) -> Transcript:
             assert repaired["content"] == [
                 {"type": "text", "text": "[runtime discovery retried]\n[1] 42\n[done]"}
             ], repaired
-            return client.finish()
+            return json.loads(normalize_process_diagnostic(json.dumps(client.finish())))
 
 
 @requires(POSIX)
@@ -530,28 +526,27 @@ def test_restart_refreshes_failed_inspection_evidence(
             return transcript + [{"stderr": stderr, "inspection_attempts": 2}]
 
 
-@requires(POSIX, command("uv"))
+@requires(POSIX, command("uv"), command("rustc"))
 @executions(DIRECT, SANDBOXED)
 def test_retry_discards_failed_cell_requirements(
     binary: Path, execution: Execution
 ) -> Transcript:
-    with discovery_environment() as (environment, reached, release, alive):
-        root = reached.path.parent
+    with discovery_environment() as (environment, discovery):
+        root = discovery.root
         expose_uv(root)
         environment.update(managed_python_environment(root))
         environment["UV_TOOL_DIR"] = str(root)
         with McpClient(
             binary, execution.serve("-c", "cache=host"), environment, root
         ) as client:
-            reached.wait("initial discovery is blocked before cell admission")
-            assert os.read(alive, 1) == b"1"
+            discovery.wait("initial discovery is blocked before cell admission")
             client.initialize_and_list_tools()
             pending = client.start_send(
                 python="rejected_cell = True",
                 requirements={"action": "set", "python": ["six"]},
             )
             wait_for_send_admission(client)
-            release.release()
+            discovery.release()
             # Keep the accepted cell's response owner until discovery fails;
             # a readiness inspection can otherwise drain its shared output.
             client.receive(pending)
@@ -561,7 +556,7 @@ def test_retry_discards_failed_cell_requirements(
             failure = client.send(requirements={"action": "get"})
             assert failure.get("isError"), failure
             assert "fixture R discovery failed" in str(failure), failure
-            (root / "R").unlink()
+            discovery.executable.unlink()
             client.expect("\n[idle]", control="restart")
             inspection = client.send(requirements={"action": "get"})
             assert not inspection.get("isError"), inspection
