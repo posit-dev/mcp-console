@@ -57,7 +57,19 @@ Extensions already built into the selected DuckDB do not need downloading.
 
 Set `r.resolution` or `python.resolution` to control Console's package preparation.
 The Python setting also applies under `python.managed` and in managed fallback candidates.
-R defaults to `implicit`; managed Python defaults to `explicit`.
+The default preparation policies are shown below.
+Managed Python adds no version constraint by default.
+
+<!-- preparation-defaults -->
+
+```yaml
+r:
+  resolution: implicit
+python:
+  managed:
+    resolution: explicit
+```
+
 For how these choices affect an analysis, read [When packages are prepared](REQUIREMENTS.md#resolution-policy-admission).
 
 | Policy              | Startup preparation                                                     | During the session                                                                                                                                                         |

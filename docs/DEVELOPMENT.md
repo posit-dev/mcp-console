@@ -66,6 +66,8 @@ The formatter's default reporting can return success despite a formatter failure
 
 On macOS/Linux, the ordinary check includes staging, embedded-source/architecture checks, Rust formatting/Clippy/tests, a release build, and the smoke transcript profile.
 On Windows it uses the staged companion, a debug build, and native acceptance.
+The smoke profile also compares documented preparation defaults with public configuration output and checks current guides' companion source links against `sandbox-runner.json`.
+Dated audit and benchmark records retain their original revisions.
 The full gate adds applicable tooling, shared functional, and installation checks; installation runs last because it can replace staging/build directories.
 
 CI runs the comprehensive profiles, including Unix allocation stress.

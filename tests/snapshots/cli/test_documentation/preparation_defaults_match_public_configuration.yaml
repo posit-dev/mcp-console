@@ -1,0 +1,7 @@
+---
+documented_preparation_defaults:
+  r:
+    resolution: implicit
+  python:
+    managed:
+      resolution: explicit

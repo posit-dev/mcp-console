@@ -13,6 +13,8 @@ SMOKE = (
     "cli/interface/test_configure_warmup::starts_one_detached_warmup_with_the_selected_launch",
     "cli/test_local_host::removed_provider_commands_are_unavailable",
     "cli/test_config_overrides::layers_project_then_cli_in_order",
+    "cli/test_documentation::preparation_defaults_match_public_configuration",
+    "cli/test_documentation::current_companion_links_match_pin",
     # Real runtimes, persistent state, and mixed-language recording with a plot.
     "client_server/r/test_runtime::rejects_incomplete_and_invalid_source",
     "client_server/python/test_runtime::evaluates_cells_in_persistent_reticulate_state",
