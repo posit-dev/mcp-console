@@ -2,7 +2,7 @@
 
 use crate::settings::{Cache, SandboxSettings, environment_path};
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn configure(
     selection: Option<Cache>,
@@ -87,8 +87,7 @@ pub(crate) fn configure(
             }
         }
     }
-    std::fs::create_dir_all(&root)
-        .map_err(|error| format!("cannot create Console cache '{}': {error}", root.display()))?;
+    create_root(&root)?;
     let filesystem = resolver.entry("filesystem").or_insert_with(|| json!({}));
     if let Value::Object(filesystem) = filesystem
         && !filesystem.contains_key("entries")
@@ -102,7 +101,36 @@ pub(crate) fn configure(
     Ok(())
 }
 
-pub(super) fn writable_cache_entry(root: &std::path::Path) -> Result<Value, String> {
+pub(super) fn create_root(root: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(root).map_err(|error| {
+        format!(
+            "cannot create dependency cache '{}': {error}",
+            root.display()
+        )
+    })?;
+    // Linux mount targets must outlive individual launches sharing this cache.
+    // Initialize protected metadata before native setup so the runner preserves
+    // existing paths instead of creating and retiring its own empty targets.
+    // Separate launchers may have independent TMPDIR ownership registries.
+    #[cfg(target_os = "linux")]
+    for name in [".git", ".agents", ".codex"] {
+        let path = root.join(name);
+        match std::fs::create_dir(&path) {
+            Ok(()) => {}
+            // Preserve existing metadata, including Git worktree files.
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(format!(
+                    "cannot initialize cache metadata '{}': {error}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn writable_cache_entry(root: &Path) -> Result<Value, String> {
     // Keep native metadata protections at the cache root. Tools' nested Git
     // checkouts are covered by the ordinary cache grant.
     let path = root.to_str().ok_or("resolver policy paths must be UTF-8")?;

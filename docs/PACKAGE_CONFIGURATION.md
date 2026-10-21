@@ -189,6 +189,10 @@ mcp-console serve --no-sandbox -c sandbox=null -c resolver.sandbox=null
 The companion's source/build cache is separate from dependency caches.
 It is not worker-writable under the default policy.
 
+On Linux, Console creates missing `.git`, `.agents`, and `.codex` directories at managed dependency roots and host-cache roots receiving generated resolver write grants.
+It retains these directories between sessions so one sandbox's cleanup cannot remove another sandbox's protected cache paths.
+Existing metadata is preserved.
+
 ## Host cache selection
 
 With `cache: host`, explicit tool variables select locations and corresponding default resolver write grants.

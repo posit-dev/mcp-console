@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -13,10 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.python.test_without_r import environment
 from support.assertions import wait_for_worker_ready
 from support.client import McpClient
+from support.checkpoints import FifoCheckpoint
 from support.normalization import code
 from support.python import write_test_wheel
 from support.records import Transcript
-from support.requirements import R, SANDBOX, command, requires
+from support.requirements import LINUX_SANDBOX, R, SANDBOX, command, requires
 from support.r import r_test_environment
 from support.resolvers import preseeded_duckdb_python, probing_uv
 
@@ -42,6 +44,113 @@ CACHE_VARIABLES = (
     "PYTHONPYCACHEPREFIX",
     "PYTHONUSERBASE",
 )
+
+
+@requires(LINUX_SANDBOX, command("uv"), command("rustc"))
+def test_overlapping_resolvers_preserve_shared_cache_metadata(
+    binary: Path,
+) -> Transcript:
+    for host in (True, False):
+        with TemporaryDirectory() as directory, ExitStack() as stack:
+            root = Path(directory).resolve()
+            (root / "bin").mkdir()
+            python = preseeded_duckdb_python(root)
+            cache = root / "cache/dependencies"
+            cache.mkdir(parents=True)
+            probing_uv(
+                root,
+                python,
+                # fmt: python
+                code("""
+                    import errno
+                    import os
+                    from pathlib import Path
+
+                    if "MCP_CONSOLE_LOCAL_RUNTIME" not in os.environ:
+                        state = Path(os.environ["CACHE_TEST_STATE"])
+                        if not (state / "seen").exists():
+                            (state / "seen").touch()
+                            with (state / "started").open("wb", buffering=0) as ready:
+                                ready.write(b"1")
+                            with (state / "release").open("rb", buffering=0) as release:
+                                assert release.read(1) == b"1"
+                        cache = Path(os.environ["CACHE_TEST_SHARED"])
+                        for name in (".git", ".agents", ".codex"):
+                            try:
+                                (cache / name / "created").mkdir(parents=True)
+                            except OSError as error:
+                                assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                            else:
+                                raise AssertionError("shared cache metadata became writable")
+                        cache.joinpath("ordinary-cache-file").write_text("prepared")
+                        temporary = Path(os.environ["TMPDIR"])
+                        assert temporary.is_relative_to(os.environ["CACHE_TEST_TEMP"])
+                        temporary.joinpath("temporary-file").write_text("private")
+                    """),
+            )
+            clients = []
+            for name in ("first", "second"):
+                workspace = root / name
+                workspace.mkdir()
+                temporary = workspace / "temporary"
+                temporary.mkdir()
+                state = cache / name
+                state.mkdir()
+                started = FifoCheckpoint.create(state / "started")
+                release = FifoCheckpoint.create(state / "release")
+                stack.callback(started.close)
+                stack.callback(release.close)
+                env = environment(root / "bin")
+                env.update({key: str(cache / "tools" / key) for key in CACHE_VARIABLES})
+                env.update(
+                    XDG_CACHE_HOME=str(cache),
+                    UV_CACHE_DIR=str(cache),
+                    TMPDIR=str(temporary),
+                    CACHE_TEST_TEMP=str(temporary),
+                    CACHE_TEST_STATE=str(state),
+                    CACHE_TEST_SHARED=str(cache),
+                )
+                config = workspace / "config.yaml"
+                config.write_text(
+                    json.dumps(
+                        {
+                            "python": {"managed": {}},
+                            "cache": "host"
+                            if host
+                            else {"directory": str(cache.parent)},
+                            "resolver": {"sandbox": {"network": "enabled"}},
+                        }
+                    )
+                )
+                client = stack.enter_context(
+                    McpClient(
+                        binary,
+                        ("serve", "--config-file", str(config)),
+                        env,
+                        workspace,
+                    )
+                )
+                client.initialize_and_list_tools()
+                started.wait("resolver reached shared cache", timeout=60, client=client)
+                clients.append((client, release))
+            first, first_release = clients[0]
+            second, second_release = clients[1]
+            first_release.release()
+            first.expect("ready\n", python="print('ready')")
+            first.finish()
+            # The second resolver is still inside the native sandbox. First
+            # retirement must preserve its mounts and their write denials.
+            for name in (".git", ".agents", ".codex"):
+                assert (cache / name).is_dir(), f"first retirement removed {name}"
+            second_release.release()
+            second.expect("ready\n", python="print('ready')")
+            second.finish()
+            for name in (".git", ".agents", ".codex"):
+                assert (cache / name).is_dir(), (
+                    f"cache metadata did not survive: {name}"
+                )
+                assert not list((cache / name).iterdir())
+    return [{"host_and_managed_cache_metadata_survives_overlapping_resolvers": True}]
 
 
 @requires(SANDBOX, command("uv"))

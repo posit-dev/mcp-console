@@ -15,8 +15,89 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.processes import capture_process_identity, child_process_identities
 from support.normalization import code
 from support.records import Transcript
-from support.requirements import FRESH_PROCFS, LINUX_SANDBOX, PROCESS_EVENTS, requires
+from support.requirements import (
+    FRESH_PROCFS,
+    LINUX_SANDBOX,
+    NESTED_NAMESPACES,
+    PROCESS_EVENTS,
+    requires,
+)
 from support.suites import run_this_suite
+
+
+@requires(LINUX_SANDBOX, NESTED_NAMESPACES)
+def test_nested_launch_uses_writable_tmpdir_with_read_only_slash_tmp(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as directory:
+        root = Path(directory).resolve()
+        temporary = root / "temporary"
+        temporary.mkdir()
+        outside = Path("/tmp") / f"{root.name}-denied"
+        # fmt: python
+        script = code("""
+            import errno
+            import os
+            import sys
+            from pathlib import Path
+
+            temporary = Path(os.environ["TMPDIR"])
+            assert temporary.is_relative_to(sys.argv[1])
+            temporary.joinpath("created").write_text("private")
+            try:
+                Path(sys.argv[2]).write_text("escaped")
+            except OSError as error:
+                assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+            else:
+                raise AssertionError("outer read-only temporary directory became writable")
+            print("nested temporary storage is writable; outer /tmp remains read-only")
+            print(temporary)
+            """)
+        result = subprocess.run(
+            [
+                shutil.which("bwrap"),
+                "--die-with-parent",
+                "--unshare-user",
+                "--unshare-pid",
+                "--ro-bind",
+                "/",
+                "/",
+                "--bind",
+                str(root),
+                str(root),
+                "--dev",
+                "/dev",
+                "--proc",
+                "/proc",
+                "--chdir",
+                str(root),
+                "--",
+                binary,
+                "sandbox",
+                "--no-config",
+                "--",
+                sys.executable,
+                "-c",
+                script,
+                str(temporary),
+                str(outside),
+            ],
+            env=dict(
+                os.environ,
+                TMPDIR=str(temporary),
+                MCP_CONSOLE_HOME=str(root / "home"),
+                MCP_CONSOLE_CACHE_DIR=str(root / "cache"),
+            ),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result
+        assert result.stderr == "", result
+        message, private = result.stdout.splitlines()
+        assert not Path(private).exists()
+        assert not outside.exists()
+    return [{"stdout": message + "\n", "private_temporary_directory_removed": True}]
 
 
 @requires(LINUX_SANDBOX, FRESH_PROCFS)

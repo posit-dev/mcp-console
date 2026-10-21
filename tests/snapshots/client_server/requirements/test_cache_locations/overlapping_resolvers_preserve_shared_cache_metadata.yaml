@@ -1,0 +1,2 @@
+---
+host_and_managed_cache_metadata_survives_overlapping_resolvers: true
