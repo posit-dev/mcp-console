@@ -221,21 +221,15 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                 "cell-release",
                 "recording-reached",
                 "recording-release",
-                "worker-ready",
             )
         }
         environment = dict(
             os.environ,
             **{
-                LOADER_VARIABLE: os.pathsep.join(
-                    str(build_interposer(workspace, fixture))
-                    for fixture in (
-                        "recording_receive_checkpoint",
-                        "recording_observation",
-                    )
+                LOADER_VARIABLE: str(
+                    build_interposer(workspace, "recording_receive_checkpoint")
                 ),
-                "MCP_CONSOLE_TEST_OBSERVED_EVENT": "worker_ready",
-                "MCP_CONSOLE_TEST_JOURNAL_OBSERVED": str(gates["worker-ready"].path),
+                "MCP_CONSOLE_TEST_RECORDING_CALL_ID": "3",
                 "MCP_CONSOLE_TEST_RECORDING_REACHED": str(
                     gates["recording-reached"].path
                 ),
@@ -251,15 +245,13 @@ def test_retains_received_send_while_an_earlier_response_finishes(
             ),
             environment,
             workspace,
-            response_timeout=10,
         ) as client:
             try:
                 client.initialize_and_list_tools()
-                # Preparation has its own checkpoint; the short cell gate below
-                # measures the capture race after the interpreter is ready.
-                gates["worker-ready"].wait(
-                    "Python worker ready", timeout=600, client=client
-                )
+                # Worker readiness precedes first-use dependency preparation.
+                # Complete a public evaluation before measuring the capture race.
+                client.expect(python="pass")
+                client.response_timeout = 10
                 first = client.start_send(
                     # fmt: python
                     python=code(f"""
@@ -291,7 +283,7 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                         recording
                         if any(
                             event["event"] == "delivery"
-                            and event["call_id"] == 1
+                            and event["call_id"] == 2
                             and event["delivered"]
                             for event in recording_events(recording)
                         )
