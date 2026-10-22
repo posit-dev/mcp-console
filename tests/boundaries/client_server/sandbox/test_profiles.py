@@ -76,7 +76,7 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
         config = host / ".agents/console/config.yaml"
         config.parent.mkdir()
         config.write_text(
-            "sandbox: {filesystem: {read_write: [.], read_only: [.claude]}}\n"
+            "sandbox: {filesystem: {read_write: [.], read_only: [.git, .agents, .codex, .claude]}}\n"
         )
         capture = root / "launches.jsonl"
         environment = os.environ | {
@@ -123,7 +123,10 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
         assert policy["network"] == "restricted"
         assert policy["filesystem"]["kind"] == "restricted"
         assert policy["filesystem"]["entries"][1:] == [
-            {"path": {"type": "path", "path": str(host / ".claude")}, "access": "read"},
+            *[
+                {"path": {"type": "path", "path": str(host / name)}, "access": "read"}
+                for name in (".git", ".agents", ".codex", ".claude")
+            ],
             {"path": {"type": "path", "path": str(host)}, "access": "write"},
         ], policy
         for entry in transcript:
@@ -141,7 +144,7 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
                         "fixed_workspace": True,
                         "identical_launches": len(launches),
                         "network": "restricted",
-                        "read_only": [".claude"],
+                        "read_only": [".git", ".agents", ".codex", ".claude"],
                     }
                 ]
             },

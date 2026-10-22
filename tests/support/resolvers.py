@@ -77,21 +77,28 @@ def preseeded_duckdb_python(directory: Path) -> Path:
 def probing_uv(directory: Path, python: Path, probe: str) -> None:
     """Run a cache/environment probe in trusted preparation, then use seeded Python."""
     source = directory / "preparation-probe.py"
-    source.write_text(probe)
-    executable = directory / "bin/uv"
+    source.write_text(probe, encoding="utf-8")
+    executable = directory / "bin" / ("uv.exe" if os.name == "nt" else "uv")
     executable.unlink(missing_ok=True)
-    executable.write_text(
+    executable.with_suffix(".python").write_text(sys.executable, encoding="utf-8")
+    executable.with_suffix(".py").write_text(
         # fmt: python
         code(f"""
-            #!{sys.executable} -S
             import json
             import os
             import runpy
+            import subprocess
             import sys
+
+            def delegate(executable, arguments):
+                if os.name == "nt":
+                    # execv neither quotes Windows argv nor waits for its child.
+                    raise SystemExit(subprocess.call([executable, *arguments]))
+                os.execv(executable, [executable, *arguments])
 
             arguments = sys.argv[1:]
             if arguments[0] == "--no-config":
-                os.execv({shutil.which("uv")!r}, [{shutil.which("uv")!r}, *arguments])
+                delegate({shutil.which("uv")!r}, arguments)
             if arguments[:2] == ["python", "list"]:
                 major, minor, patch = sys.version_info[:3]
                 print(json.dumps([{{"version": f"{{major}}.{{minor}}.{{patch}}", "version_parts": {{"major": major, "minor": minor, "patch": patch}}, "variant": "default", "implementation": "cpython"}}]))
@@ -100,10 +107,20 @@ def probing_uv(directory: Path, python: Path, probe: str) -> None:
                 runpy.run_path({str(source)!r})
                 command = arguments[arguments.index("--") + 1:]
                 assert command[0] == "python", command
-                os.execv({str(python)!r}, [{str(python)!r}, *command[1:]])
-            """)
+                delegate({str(python)!r}, command[1:])
+            """),
+        encoding="utf-8",
     )
-    executable.chmod(0o755)
+    subprocess.run(
+        [
+            "rustc",
+            "--edition=2024",
+            str(FIXTURES / "resolver/uv_probe.rs"),
+            "-o",
+            str(executable),
+        ],
+        check=True,
+    )
 
 
 def local_resolver_owner(server: ProcessIdentity, binary: Path) -> ProcessIdentity:

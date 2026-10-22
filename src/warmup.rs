@@ -5,7 +5,11 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::Duration;
 
-use rmcp::{RoleClient, ServiceExt, model::CallToolRequestParams, service::Peer};
+use rmcp::{
+    RoleClient, ServiceExt,
+    model::CallToolRequestParams,
+    service::{ClientInitializeError, Peer},
+};
 use tokio::process::Command;
 
 use crate::cli::ConfigOverrides;
@@ -119,7 +123,35 @@ fn check(mut command: Command, timeout: Duration) -> Result<bool, Box<dyn std::e
                     Err(error) => failures += report("MCP shutdown", Err(error.to_string())),
                 }
             }
-            Ok(Err(error)) => failures += report("Server", Err(error.to_string())),
+            Ok(Err(error)) => {
+                // An early server exit can close either side of initialization
+                // first. Report the same connection failure for EOF and EPIPE;
+                // stderr and the shutdown result retain the server's cause.
+                let closed = match &error {
+                    ClientInitializeError::ConnectionClosed(_) => true,
+                    ClientInitializeError::TransportError { error, .. } => error
+                        .error
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|error| {
+                            matches!(
+                                error.kind(),
+                                std::io::ErrorKind::BrokenPipe
+                                    | std::io::ErrorKind::ConnectionReset
+                                    | std::io::ErrorKind::NotConnected
+                                    | std::io::ErrorKind::UnexpectedEof
+                            )
+                        }),
+                    _ => false,
+                };
+                failures += report(
+                    "Server",
+                    Err(if closed {
+                        "server connection closed before initialization completed".into()
+                    } else {
+                        error.to_string()
+                    }),
+                );
+            }
             Err(_) => failures += report("Server", Err("initialization timed out".into())),
         }
         let shutdown = match tokio::time::timeout(SHUTDOWN_TIMEOUT, child.wait()).await {

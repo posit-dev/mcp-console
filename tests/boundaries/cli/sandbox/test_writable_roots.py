@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 
 import os
-import re
+import json
 import socket
 import subprocess
 import sys
@@ -12,8 +12,102 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.normalization import code
 from support.records import Transcript
-from support.requirements import LINUX_SANDBOX, MACOS_SANDBOX, SANDBOX, requires
+from support.requirements import SANDBOX, requires
 from support.suites import run_this_suite
+
+
+@requires(SANDBOX)
+def test_writable_roots_cover_complete_subtrees(binary: Path) -> Transcript:
+    # fmt: python
+    script = code(r"""
+        import errno
+        import sys
+        from pathlib import Path
+
+        root = Path("writable")
+        names = (".git", ".agents", ".codex", ".aws")
+        launch = int(sys.argv[1])
+        if launch == 1:
+            assert sorted(path.name for path in root.iterdir()) == ["read-only", "secret"]
+        for name in names:
+            for nested in ("ordinary", *names):
+                directory = root / name / nested
+                directory.mkdir(parents=True, exist_ok=True)
+                path = directory / "value"
+                if launch == 2:
+                    assert path.read_text() == "1"
+                path.write_text(str(launch))
+                assert path.read_text() == str(launch)
+                disposable = directory / "disposable"
+                disposable.write_text("remove")
+                disposable.unlink()
+        assert (root / "read-only").read_text() == "unchanged"
+        for path in (root / "read-only", root / "secret", Path("outside")):
+            try:
+                path.write_text("escaped")
+            except OSError as error:
+                assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS)
+            else:
+                raise AssertionError(f"unexpected write: {path}")
+        try:
+            (root / "secret").read_text()
+        except OSError as error:
+            assert error.errno in (errno.EACCES, errno.EPERM)
+        else:
+            raise AssertionError("unexpected read of denied file")
+        print("complete subtree writable; explicit exclusions retained")
+        """)
+    transcript = []
+    for source in ("--writable-root", "filesystem.read_write"):
+        with TemporaryDirectory() as directory:
+            host = Path(directory).resolve()
+            writable = host / "writable"
+            writable.mkdir()
+            (writable / "read-only").write_text("unchanged")
+            (writable / "secret").write_text("private")
+            filesystem = {
+                "read_only": [str(writable / "read-only")],
+                "deny": [str(writable / "secret")],
+            }
+            options = []
+            if source == "--writable-root":
+                options = ["--writable-root", str(writable)]
+            else:
+                filesystem["read_write"] = [str(writable)]
+            config = host / "policy.json"
+            config.write_text(json.dumps({"sandbox": {"filesystem": filesystem}}))
+            for launch in (1, 2):
+                result = subprocess.run(
+                    [
+                        binary,
+                        "sandbox",
+                        "--config-file",
+                        config,
+                        *options,
+                        "--",
+                        sys.executable,
+                        "-c",
+                        script,
+                        str(launch),
+                    ],
+                    cwd=host,
+                    env=dict(os.environ, MCP_CONSOLE_HOME=str(host / "home")),
+                    capture_output=True,
+                    text=True,
+                )
+                assert result.returncode == 0, (result.stdout, result.stderr)
+                assert result.stderr == ""
+                assert (
+                    result.stdout
+                    == "complete subtree writable; explicit exclusions retained\n"
+                )
+                assert (writable / "read-only").read_text() == "unchanged"
+                assert (writable / "secret").read_text() == "private"
+                assert not (host / "outside").exists()
+                transcript.append(
+                    {"grant": source, "launch": launch, "stdout": result.stdout}
+                )
+    return transcript
 
 
 @requires(SANDBOX)
@@ -147,7 +241,8 @@ def _augment_default_permissions(binary: Path, configured: bool = False) -> Tran
     return transcript
 
 
-def _file_and_missing_writable_roots(binary: Path, *, supported: bool) -> Transcript:
+@requires(SANDBOX)
+def test_accepts_file_and_missing_writable_roots(binary: Path) -> Transcript:
     # fmt: python
     script = code(r"""
         import errno
@@ -185,48 +280,21 @@ def _file_and_missing_writable_roots(binary: Path, *, supported: bool) -> Transc
             capture_output=True,
             text=True,
         )
-        if supported:
-            assert result.returncode == 0, result.stderr
-            assert result.stderr == ""
-        else:
-            # The pinned Linux runner treats file roots as metadata directories.
-            # Preserve its failure until a runner update adds file-root support.
-            assert result.returncode == 101, result.stderr
-            assert result.stdout == ""
-            assert "Not a directory" in result.stderr
-        assert (host / "output café 雪.txt").read_text() == (
-            "updated" if supported else "original"
-        )
+        assert result.returncode == 0, result.stderr
+        assert result.stderr == ""
+        assert (host / "output café 雪.txt").read_text() == "updated"
         assert (host / "neighbor").read_text() == "original"
         assert not (host / "future output").exists()
         assert not (host / "unlisted").exists()
-        stderr = result.stderr.replace(str(host), "<host directory>")
-        # Panic coordinates move when the pinned runner source changes.
-        stderr = re.sub(
-            r"(thread 'main' \()\d+(\) panicked at "
-            r"linux-sandbox/src/linux_run_main\.rs):\d+:\d+:",
-            r"\1<runner pid>\2:<line>:<column>:",
-            stderr,
-        )
     return [
         {
             "arguments": arguments,
             "python": script,
             "exit_code": result.returncode,
             "stdout": result.stdout,
-            "stderr": stderr,
+            "stderr": result.stderr,
         }
     ]
-
-
-@requires(MACOS_SANDBOX)
-def test_accepts_file_and_missing_writable_roots_on_macos(binary: Path) -> Transcript:
-    return _file_and_missing_writable_roots(binary, supported=True)
-
-
-@requires(LINUX_SANDBOX)
-def test_reports_linux_runner_file_root_limitation(binary: Path) -> Transcript:
-    return _file_and_missing_writable_roots(binary, supported=False)
 
 
 def test_rejects_invalid_writable_roots_before_starting(binary: Path) -> Transcript:

@@ -7,6 +7,7 @@ import shutil
 import sys
 import tempfile
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -109,131 +110,100 @@ def test_invalid_send_has_no_external_effects(binary: Path) -> Transcript:
 def test_initializes_and_lists_tools(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
-    companions = {
-        "custom.yaml": _initializes_and_lists_tools(binary, execution, custom=True),
-        "custom-sql.yaml": _initializes_and_lists_tools(
-            binary, execution, custom=True, languages=("sql",)
-        ),
-        "bare.yaml": _initializes_and_lists_tools(binary, execution, bare=True),
-        "python-only.yaml": _initializes_and_lists_tools(
-            binary, execution, python_only=True
-        ),
-        "existing-python.yaml": _initializes_and_lists_tools(
-            binary, execution, python_only=True, bootstrap_languages="python"
-        ),
-        "automatic.yaml": _initializes_and_lists_tools(
-            binary, execution, python_resolution="implicit"
-        ),
-        "configured-python-automatic.yaml": _initializes_and_lists_tools(
-            binary,
-            execution,
-            bootstrap_languages="python",
-            python_resolution="implicit",
-        ),
-        "fixed.yaml": _initializes_and_lists_tools(
-            binary, execution, python_resolution="fixed"
-        ),
-        "configured-python-fixed.yaml": _initializes_and_lists_tools(
-            binary,
-            execution,
-            bootstrap_languages="python",
-            python_resolution="fixed",
-        ),
-        "configured-python.yaml": _initializes_and_lists_tools(
-            binary, execution, bootstrap_languages="python"
-        ),
-        "python-managed.yaml": _initializes_and_lists_tools(
-            binary, execution, python_only=True, python_managed=True
-        ),
-        "r-sql.yaml": _initializes_and_lists_tools(
-            binary, execution, bootstrap_languages="r,sql"
-        ),
-        "sql.yaml": _initializes_and_lists_tools(binary, execution, languages=("sql",)),
-        "sql-python.yaml": _initializes_and_lists_tools(
-            binary, execution, languages=("sql", "python")
-        ),
-        "configured-r-sql.yaml": _initializes_and_lists_tools(
-            binary, execution, languages=("r", "sql")
-        ),
-        "r-only.yaml": _initializes_and_lists_tools(
-            binary, execution, bootstrap_languages="r"
-        ),
+    variants = {
+        "baseline": {},
+        "custom.yaml": {"custom": True},
+        "custom-sql.yaml": {"custom": True, "languages": ("sql",)},
+        "bare.yaml": {"bare": True},
+        "python-only.yaml": {"python_only": True},
+        "existing-python.yaml": {"python_only": True, "bootstrap_languages": "python"},
+        "automatic.yaml": {"python_resolution": "implicit"},
+        "configured-python-automatic.yaml": {
+            "bootstrap_languages": "python",
+            "python_resolution": "implicit",
+        },
+        "fixed.yaml": {"python_resolution": "fixed"},
+        "configured-python-fixed.yaml": {
+            "bootstrap_languages": "python",
+            "python_resolution": "fixed",
+        },
+        "configured-python.yaml": {"bootstrap_languages": "python"},
+        "python-managed.yaml": {"python_only": True, "python_managed": True},
+        "r-sql.yaml": {"bootstrap_languages": "r,sql"},
+        "sql.yaml": {"languages": ("sql",)},
+        "sql-python.yaml": {"languages": ("sql", "python")},
+        "configured-r-sql.yaml": {"languages": ("r", "sql")},
+        "r-only.yaml": {"bootstrap_languages": "r"},
     }
     if execution == SANDBOXED:
-        companions["client-sandbox.yaml"] = _initializes_and_lists_tools(
-            binary, execution, sandbox_profile="inherit_codex"
+        variants.update(
+            {
+                "client-sandbox.yaml": {"sandbox_profile": "inherit_codex"},
+                "configured-python-client-sandbox.yaml": {
+                    "bootstrap_languages": "python",
+                    "sandbox_profile": "inherit_codex",
+                },
+                "existing-python-client-sandbox.yaml": {
+                    "python_only": True,
+                    "bootstrap_languages": "python",
+                    "sandbox_profile": "inherit_codex",
+                },
+                "configured-python-writable.yaml": {
+                    "bootstrap_languages": "python",
+                    "writable": True,
+                },
+                "configured-python-workspace-writable.yaml": {
+                    "bootstrap_languages": "python",
+                    "writable": True,
+                    "sandbox_profile": "workspace",
+                },
+                "existing-python-writable.yaml": {
+                    "python_only": True,
+                    "bootstrap_languages": "python",
+                    "writable": True,
+                },
+                "existing-python-workspace-writable.yaml": {
+                    "python_only": True,
+                    "bootstrap_languages": "python",
+                    "writable": True,
+                    "sandbox_profile": "workspace",
+                },
+                "client-sandbox-python-only.yaml": {
+                    "sandbox_profile": "inherit_codex",
+                    "python_only": True,
+                },
+                "proxy.yaml": {"proxy": True},
+                "workspace.yaml": {"workspace_profile": True},
+                "writable.yaml": {"writable": True},
+                "python-only-writable.yaml": {"python_only": True, "writable": True},
+                "automatic-writable.yaml": {
+                    "python_resolution": "implicit",
+                    "writable": True,
+                },
+                "custom-writable.yaml": {"custom": True, "writable": True},
+                "r-only-writable.yaml": {"bootstrap_languages": "r", "writable": True},
+            }
         )
-        companions["configured-python-client-sandbox.yaml"] = (
-            _initializes_and_lists_tools(
-                binary,
-                execution,
-                bootstrap_languages="python",
-                sandbox_profile="inherit_codex",
+
+    # Each probe owns its workspace, client, and cleanup. Bound concurrency so
+    # this discovery matrix keeps every real probe within the case deadline.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        pending = {
+            name: pool.submit(
+                _initializes_and_lists_tools, binary, execution, **options
             )
-        )
-        companions["existing-python-client-sandbox.yaml"] = (
-            _initializes_and_lists_tools(
-                binary,
-                execution,
-                python_only=True,
-                bootstrap_languages="python",
-                sandbox_profile="inherit_codex",
-            )
-        )
-        companions["configured-python-writable.yaml"] = _initializes_and_lists_tools(
-            binary, execution, bootstrap_languages="python", writable=True
-        )
-        companions["configured-python-workspace-writable.yaml"] = (
-            _initializes_and_lists_tools(
-                binary,
-                execution,
-                bootstrap_languages="python",
-                writable=True,
-                sandbox_profile="workspace",
-            )
-        )
-        companions["existing-python-writable.yaml"] = _initializes_and_lists_tools(
-            binary,
-            execution,
-            python_only=True,
-            bootstrap_languages="python",
-            writable=True,
-        )
-        companions["existing-python-workspace-writable.yaml"] = (
-            _initializes_and_lists_tools(
-                binary,
-                execution,
-                python_only=True,
-                bootstrap_languages="python",
-                writable=True,
-                sandbox_profile="workspace",
-            )
-        )
-        companions["client-sandbox-python-only.yaml"] = _initializes_and_lists_tools(
-            binary, execution, sandbox_profile="inherit_codex", python_only=True
-        )
-        companions["proxy.yaml"] = _initializes_and_lists_tools(
-            binary, execution, proxy=True
-        )
-        companions["workspace.yaml"] = _initializes_and_lists_tools(
-            binary, execution, workspace_profile=True
-        )
-        companions["writable.yaml"] = _initializes_and_lists_tools(
-            binary, execution, writable=True
-        )
-        companions["python-only-writable.yaml"] = _initializes_and_lists_tools(
-            binary, execution, python_only=True, writable=True
-        )
-        companions["automatic-writable.yaml"] = _initializes_and_lists_tools(
-            binary, execution, python_resolution="implicit", writable=True
-        )
-        companions["custom-writable.yaml"] = _initializes_and_lists_tools(
-            binary, execution, custom=True, writable=True
-        )
-        companions["r-only-writable.yaml"] = _initializes_and_lists_tools(
-            binary, execution, bootstrap_languages="r", writable=True
-        )
-    baseline = _initializes_and_lists_tools(binary, execution)
+            for name, options in variants.items()
+        }
+        companions = {}
+        for name, future in pending.items():
+            try:
+                companions[name] = future.result()
+            except Exception as error:
+                for queued in pending.values():
+                    queued.cancel()
+                error.add_note(f"discovery variant: {name}")
+                raise
+    baseline = companions.pop("baseline")
     # Keep every real discovery probe, but compare the complete exchange
     # instead of storing another byte-identical canonical transcript.
     for name in ("bare.yaml", "python-managed.yaml"):

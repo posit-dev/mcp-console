@@ -1,0 +1,20 @@
+---
+grant: --writable-root
+launch: 1
+stdout: |
+  complete subtree writable; explicit exclusions retained
+---
+grant: --writable-root
+launch: 2
+stdout: |
+  complete subtree writable; explicit exclusions retained
+---
+grant: filesystem.read_write
+launch: 1
+stdout: |
+  complete subtree writable; explicit exclusions retained
+---
+grant: filesystem.read_write
+launch: 2
+stdout: |
+  complete subtree writable; explicit exclusions retained

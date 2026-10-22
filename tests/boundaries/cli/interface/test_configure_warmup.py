@@ -206,7 +206,7 @@ def test_starts_one_detached_warmup_with_the_selected_launch(
             "MCP Console warmup\n"
             "warmup stderr\n"
             "warmup fixture failure\n"
-            "Server: FAIL\nconnection closed: initialize response\n"
+            "Server: FAIL\nserver connection closed before initialization completed\n"
             "Shutdown: FAIL\nserver exited with status 7\n"
             "Warmup found 2 failed checks.\n"
         )

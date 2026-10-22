@@ -3,7 +3,7 @@ exit_code: 1
 stdout: |
   MCP Console warmup
   Server: FAIL
-  connection closed: initialize response
+  server connection closed before initialization completed
   Shutdown: FAIL
   server exited with status 1
   Warmup found 2 failed checks.

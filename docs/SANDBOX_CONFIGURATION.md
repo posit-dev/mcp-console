@@ -145,14 +145,15 @@ Narrower native rules take precedence.
 At equal paths, deny wins over write, then read.
 List order does not decide access.
 
-The native runner protects writes to `.git`, `.agents`, `.codex`, and `.aws` beneath writable roots by default.
-These are not unchangeable denial ceilings: explicit equal-path or narrower writes can override them, and broader ancestor grants can subsume narrower roots and their metadata defaults.
-Add fixed metadata paths to `read_only` when needed.
-`.claude` is not in this default set; use `read_only: [.claude]` to protect it explicitly.
+A writable root grants writes throughout its subtree, including metadata directories such as `.git`.
+It does not add read-only exceptions or create metadata directories.
+Use `read_only` or `deny` for exclusions, or select the workspace profile for its explicit metadata rules.
+These rules compose using the same specificity and equal-path precedence as other entries.
 
 Platform behavior matters.
-macOS can grant individual files and creation at absent granted paths.
-Linux can reject file write roots, skips absent write roots until a later launch, and cannot reliably reopen a narrower read beneath a broader denied mount.
+macOS and Linux can grant individual files.
+macOS can grant creation at absent paths; Linux skips absent write roots until a later launch.
+Linux cannot reliably reopen a narrower read beneath a broader denied mount.
 Create intended writable directories first.
 Console does not grant extra paths or switch backends to make an unsupported policy work.
 
@@ -171,7 +172,7 @@ The `read_only` base restricts ordinary workspace writes; `--writable-root` adds
 Other configured filesystem permissions still apply.
 `--writable-root PATH` may be repeated.
 It adds filesystem grants without selecting the workspace profile, does not create missing directories, and remains subject to more specific permission rules.
-See the [path rules above](#filesystem) for protected metadata and more specific permissions.
+See the [path rules above](#filesystem) for explicit exclusions and more specific permissions.
 
 ## Configure network access {#network-choices}
 

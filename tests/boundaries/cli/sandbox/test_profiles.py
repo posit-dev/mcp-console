@@ -171,7 +171,8 @@ def test_absent_metadata_stays_absent_and_git_worktree_indirection_is_native(
     with TemporaryDirectory() as directory:
         host = Path(directory).resolve()
         configure(
-            host, "sandbox: {filesystem: {read_write: [.], read_only: [.claude]}}\n"
+            host,
+            "sandbox: {filesystem: {read_write: [.], read_only: [.git, .codex, .claude]}}\n",
         )
         absent = run(
             binary,
@@ -377,7 +378,8 @@ def test_empty_protected_directories_cannot_be_removed_or_replaced(
     with TemporaryDirectory() as directory:
         host = Path(directory).resolve()
         configure(
-            host, "sandbox: {filesystem: {read_write: [.], read_only: [.claude]}}\n"
+            host,
+            "sandbox: {filesystem: {read_write: [.], read_only: [.git, .codex, .claude]}}\n",
         )
         for name in (".git", ".codex", ".claude"):
             (host / name).mkdir()
