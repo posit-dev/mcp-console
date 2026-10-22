@@ -897,7 +897,12 @@ def test_restart_discards_unactivated_r_candidate(
         package = "mcprestart"
         environment, record = recording_fixture_r_environment(directory, (package,))
         environment["TMPDIR"] = temporary
-        client = McpClient(binary, execution.serve("-c", "cache=host"), environment)
+        # Keep automatic activation focused on the R bridge and fixture package.
+        client = McpClient(
+            binary,
+            execution.serve("-c", "cache=host", "-c", 'r.packages=["reticulate"]'),
+            environment,
+        )
         passed = False
         try:
             client.initialize_and_list_tools()
