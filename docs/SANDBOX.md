@@ -34,7 +34,7 @@ uvx mcp-console config init
 
 This creates `.agents/console/config.yaml` with `sandbox.profile: workspace`.
 Restart the client to load it.
-The profile permits project writes while keeping the project's `.git`, `.agents`, `.codex`, and `.aws` paths read-only by default.
+The profile permits project writes while keeping the project's `.git`, `.agents`, `.codex`, `.aws`, and `.claude` paths read-only by default.
 The workspace is the directory where Console starts; changing directories during a session does not move that boundary.
 You can also grant writes to selected output directories or block reads from particular paths.
 

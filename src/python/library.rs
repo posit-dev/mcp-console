@@ -1399,10 +1399,33 @@ impl Configuration {
         let program_name = selected.embedding.python.replace('/', "\\");
         #[cfg(not(windows))]
         let program_name = &selected.embedding.python;
+        let program_name_wide = wide_string(program_name.as_str(), "program name")?;
+        #[cfg(windows)]
+        let program_name_wide = {
+            // CPython mistakes an 8.3 alias for an executable symlink when
+            // finding the base interpreter. Expand the startup spelling while
+            // retaining the caller's selection in sys.executable and orig_argv.
+            let mut expanded = vec![0; 32768];
+            let length = unsafe {
+                windows_sys::Win32::Storage::FileSystem::GetLongPathNameW(
+                    program_name_wide.as_ptr(),
+                    expanded.as_mut_ptr(),
+                    expanded.len() as u32,
+                )
+            } as usize;
+            if length == 0 || length >= expanded.len() {
+                return Err(format!(
+                    "cannot expand selected Python program name: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+            expanded.truncate(length + 1);
+            expanded
+        };
         Ok(Self {
             selected: selected.clone(),
             reticulate_python: std::env::var_os("RETICULATE_PYTHON"),
-            program_name_wide: wide_string(program_name.as_str(), "program name")?,
+            program_name_wide,
         })
     }
 }

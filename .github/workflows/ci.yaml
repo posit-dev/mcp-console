@@ -740,6 +740,8 @@ jobs:
 
       - name: Upload transcript measurements
         if: ${{ !cancelled() && steps.transcripts.outcome != 'skipped' }}
+        # Optional diagnostics must not block the installation checks below.
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: transcript-metrics-${{ matrix.os }}-6-workers

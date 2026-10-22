@@ -16,7 +16,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import NATIVE_FIXTURES, POSIX, SQL, requires
+from support.requirements import (
+    NATIVE_FIXTURES,
+    POSIX,
+    SQL,
+    requires,
+    windows_short_paths,
+)
 from support.assertions import (
     assert_exact_interleaving,
     assert_result_content,
@@ -30,7 +36,7 @@ from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.linux_sandbox import retain_system_bwrap
 from support.records import Transcript, TranscriptWithCompanions
 from support.snapshots import execution_snapshots
-from support.python import virtualenv_python
+from support.python import virtualenv_python, windows_short_path
 from support.resolvers import expose_uv
 from support.normalization import code, normalize_python_resolution_error
 from support.native import LOADER_VARIABLE, build_interposer
@@ -3250,6 +3256,59 @@ def test_excludes_executable_directory_from_imports(
                             sys.prefix,
                         )
                         json.dumps({"selected package": selected_package.value})
+                        """),
+                )
+            return client.finish()
+
+
+@requires(windows_short_paths())
+@executions(DIRECT)
+def test_short_executable_path_preserves_virtualenv_imports(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory(prefix="console-short-path-") as directory:
+        root = Path(directory)
+        workspace = root / "workspace"
+        workspace.mkdir()
+        venv = root / "environment"
+        subprocess.run(
+            [sys.executable, "-m", "venv", "--copies", "--without-pip", venv],
+            check=True,
+            capture_output=True,
+        )
+        selected = virtualenv_python(windows_short_path(venv))
+        assert selected != virtualenv_python(venv)
+        (venv / "Lib/site-packages/selected_package.py").write_text("value = 42\n")
+        (selected.parent / "selected_package.py").write_text("value = -1\n")
+        env = selected_environment(selected.parent)
+        env.pop("PYTHONPATH", None)
+        with McpClient(binary, execution.serve(), env, workspace) as client:
+            client.initialize_and_list_tools()
+            for control in ({}, {"control": "restart"}):
+                expected = "short executable path retained the selected environment\n"
+                if control:
+                    expected = (
+                        "[worker stopped: in-memory state lost]\n"
+                        "[starting new worker]\n" + expected + "[done]"
+                    )
+                client.expect(
+                    expected,
+                    **control,
+                    # fmt: python
+                    python=code("""
+                        import os
+                        import sys
+                        import selected_package
+
+                        assert sys.executable == os.environ["RETICULATE_PYTHON"]
+                        assert os.path.samefile(os.path.dirname(sys._base_executable), sys.base_prefix)
+                        assert all(
+                            not os.path.samefile(path, os.path.dirname(sys.executable))
+                            for path in sys.path
+                            if os.path.isdir(path)
+                        )
+                        assert selected_package.value == 42, selected_package.__file__
+                        print("short executable path retained the selected environment")
                         """),
                 )
             return client.finish()

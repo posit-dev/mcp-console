@@ -253,7 +253,7 @@ The two options are mutually exclusive.
 These files are shared by clients that launch Console with the same configuration locations.
 Client registration remains a separate operation; see [MCP client setup](CLIENTS.md).
 
-The starter selects `sandbox.profile: workspace`: ordinary workspace writes are allowed, while the project's `.git`, `.agents`, `.codex`, and `.aws` paths stay read-only.
+The starter selects `sandbox.profile: workspace`: ordinary workspace writes are allowed, while the project's `.git`, `.agents`, `.codex`, `.aws`, and `.claude` paths stay read-only.
 Other readable host files remain readable.
 It includes commented examples for permissions, packages, interpreters, environment variables, and caches.
 Lines beginning with `##` are explanations; lines beginning with `#` are YAML examples to uncomment.

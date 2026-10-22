@@ -182,6 +182,20 @@ def case_insensitive_paths() -> Requirement:
         )
 
 
+def windows_short_paths() -> Requirement:
+    available = False
+    if os.name == "nt":
+        from support.python import windows_short_path
+
+        with TemporaryDirectory(prefix="console-short-path-") as directory:
+            available = windows_short_path(Path(directory)) != Path(directory)
+    return Requirement(
+        "Windows 8.3 paths",
+        available,
+        "requires Windows short names on the temporary filesystem",
+    )
+
+
 def gnu_tar() -> Requirement:
     executable = shutil.which("tar")
     version = (

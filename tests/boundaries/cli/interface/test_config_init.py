@@ -252,7 +252,7 @@ def test_template_examples_can_be_uncommented_and_loaded(binary: Path) -> Transc
             in contents
         )
         assert (
-            "## .git, .agents, .codex, and .aws stay read-only, even when absent."
+            "## .git, .agents, .codex, .aws, and .claude stay read-only, even when absent."
             in contents
         )
         assert "## Temporary storage options:" in contents
@@ -286,6 +286,7 @@ def test_template_examples_can_be_uncommented_and_loaded(binary: Path) -> Transc
         assert value["r"]["resolution"] == "implicit"
         assert value["python"]["managed"]["resolution"] == "explicit"
         assert value["sandbox"]["network"]["allow_local_binding"] is True
+        assert value["sandbox"]["filesystem"]["read_only"] == ["./reference-data"]
         assert value["python"]["managed"]["packages"] == [
             "numpy",
             "pandas",
@@ -445,7 +446,10 @@ def test_profile_guidance_matches_the_selected_policy(binary: Path) -> Transcrip
                 "profile allows creating, editing, and deleting project files"
                 not in contents
             )
-            assert ".git, .agents, .codex, and .aws stay read-only" not in contents
+            assert (
+                ".git, .agents, .codex, .aws, and .claude stay read-only"
+                not in contents
+            )
             records.append({"profile": name, "guidance": guidance})
     return records
 

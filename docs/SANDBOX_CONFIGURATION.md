@@ -57,13 +57,13 @@ This also applies when `workspace` is the fallback for unavailable client metada
 The same root check applies to `resolver.sandbox.profile: workspace`.
 Explicit absolute write grants, network settings, and temporary-storage settings still apply.
 
-| Access             | With `profile: workspace`                                                                                                                                                                                 |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host files         | Read files allowed by the host's own permissions, including readable secrets.                                                                                                                             |
-| Workspace files    | Create, edit, and delete ordinary files throughout the workspace. These files persist after the session ends.                                                                                             |
-| Workspace metadata | Read but do not write `.git`, `.agents`, `.codex`, or `.aws` at the workspace root. Missing metadata paths are protected from creation too. Referenced Git worktree/submodule metadata is also protected. |
-| Temporary storage  | Keep the default private writable storage with `tempdir: managed`; shared host temporary directories receive no automatic write grant.                                                                    |
-| Network            | Keep restricted direct networking unless configured separately.                                                                                                                                           |
+| Access             | With `profile: workspace`                                                                                                                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host files         | Read files allowed by the host's own permissions, including readable secrets.                                                                                                                                        |
+| Workspace files    | Create, edit, and delete ordinary files throughout the workspace. These files persist after the session ends.                                                                                                        |
+| Workspace metadata | Read but do not write `.git`, `.agents`, `.codex`, `.aws`, or `.claude` at the workspace root. Missing metadata paths are protected from creation too. Referenced Git worktree/submodule metadata is also protected. |
+| Temporary storage  | Keep the default private writable storage with `tempdir: managed`; shared host temporary directories receive no automatic write grant.                                                                               |
+| Network            | Keep restricted direct networking unless configured separately.                                                                                                                                                      |
 
 For example, an agent can read `data.csv`, update `analysis.py`, and save `plot.png` in the workspace.
 It cannot edit `.agents/console/config.yaml`, delete `.git`, or write ordinary files outside the workspace and private temporary storage without another grant.
@@ -75,13 +75,12 @@ To construct the same permissions without selecting a profile, use:
 sandbox:
   filesystem:
     read_write: [.]
-    read_only: [.git, .agents, .codex, .aws]
+    read_only: [.git, .agents, .codex, .aws, .claude]
 ```
 
 The worker's default host reads, managed temporary storage, and restricted networking supply the rest.
 The explicit read-only entries protect those fixed workspace paths, including absent paths and when a broader write root is added.
 Both forms retain native Git pointer protections for the writable root.
-The profile does not protect `.claude`; add it to `filesystem.read_only` if needed.
 
 When the resolved configuration contains neither a `profile` nor explicit write grants, it retains the host-read baseline without workspace writes.
 Explicit filesystem entries compose with the profile: narrower rules override ancestors, and at the same path deny wins over write, then read.

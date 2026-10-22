@@ -15,7 +15,7 @@ preview: |
     ## The workspace profile allows creating, editing, and deleting project files.
     ## The workspace is Console's launch directory.
     ## Changing the working directory later does not change the workspace.
-    ## .git, .agents, .codex, and .aws stay read-only, even when absent.
+    ## .git, .agents, .codex, .aws, and .claude stay read-only, even when absent.
     ## .agents includes this configuration file; referenced Git metadata is protected too.
     ## Other host files remain readable when permitted by the OS.
     ## Network access and temporary storage are configured separately below.
@@ -26,7 +26,7 @@ preview: |
     ## To grant writes only to selected directories, use profile: read_only first.
     # filesystem:
     #   read_write: [/absolute/path/to/shared-output]
-    #   read_only: [.claude]
+    #   read_only: [./reference-data]
     #   deny: [./.env, ./secrets]
 
     ## Temporary storage options:
@@ -113,7 +113,7 @@ created: |
     ## The workspace profile allows creating, editing, and deleting project files.
     ## The workspace is Console's launch directory.
     ## Changing the working directory later does not change the workspace.
-    ## .git, .agents, .codex, and .aws stay read-only, even when absent.
+    ## .git, .agents, .codex, .aws, and .claude stay read-only, even when absent.
     ## .agents includes this configuration file; referenced Git metadata is protected too.
     ## Other host files remain readable when permitted by the OS.
     ## Network access and temporary storage are configured separately below.
@@ -124,7 +124,7 @@ created: |
     ## To grant writes only to selected directories, use profile: read_only first.
     # filesystem:
     #   read_write: [/absolute/path/to/shared-output]
-    #   read_only: [.claude]
+    #   read_only: [./reference-data]
     #   deny: [./.env, ./secrets]
 
     ## Temporary storage options:

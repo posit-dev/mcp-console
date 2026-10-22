@@ -4,7 +4,7 @@
 import os
 from pathlib import Path
 
-from scripted_relay import ScriptedRelay, write_all
+from scripted_relay import CAPTURE_NAME, ScriptedRelay, write_all
 
 
 def gate(name: str) -> None:
@@ -76,13 +76,22 @@ try:
         relay.send({"kind": "completed"})
         relay.send({"kind": "console_output", "data": "post-cell text\n"})
         notify("post_sent")
-        relay.retire()
+        # The worker outcome ends protocol events; its relay remains live.
+        for kind in ("stdout_closed", "stderr_closed", "worker_sideband_closed"):
+            relay.send({"kind": kind})
+        relay.send({"kind": "worker_exited", "code": 0})
         gate("release")
         write_all(2, b"after worker exit\n")
         gate("drained")
+        command = relay.receive()
+        assert command["kind"] == "shutdown", command
     else:
         assert mode == "process_output", mode
         relay.send({"kind": "completed"})
         relay.retire()
 finally:
+    if mode == "ended_owner":
+        (Path(os.environ["CAPTURE_GATES"]) / "relay-wire.jsonl").write_bytes(
+            (relay.root / CAPTURE_NAME).read_bytes()
+        )
     relay.close()

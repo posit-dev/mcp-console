@@ -44,7 +44,7 @@ mcp-console sandbox -c sandbox.profile=workspace -- python analysis.py
 ```
 
 The workspace is the directory where you start Console.
-The profile permits ordinary writes there while keeping its `.git`, `.agents`, `.codex`, and `.aws` paths read-only by default.
+The profile permits ordinary writes there while keeping its `.git`, `.agents`, `.codex`, `.aws`, and `.claude` paths read-only by default.
 Network access is configured separately.
 See [Workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile) for the complete rules.
 

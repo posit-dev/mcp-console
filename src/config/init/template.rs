@@ -63,7 +63,7 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
 ## The workspace profile allows creating, editing, and deleting project files.
 ## The workspace is Console's launch directory.
 ## Changing the working directory later does not change the workspace.
-## .git, .agents, .codex, and .aws stay read-only, even when absent.
+## .git, .agents, .codex, .aws, and .claude stay read-only, even when absent.
 ## .agents includes this configuration file; referenced Git metadata is protected too.
 ## Other host files remain readable when permitted by the OS.
 ## Network access and temporary storage are configured separately below.
@@ -127,7 +127,7 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
                 "\
 # filesystem:
 #   read_write: [/absolute/path/to/shared-output]
-#   read_only: [.claude]
+#   read_only: [./reference-data]
 #   deny: [./.env, ./secrets]
 ",
             )
@@ -147,9 +147,9 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
 ## Prevent changes to these project paths while allowing reads.
 ## .agents includes this configuration file.
 ",
-                    "# read_only: [.git, .agents, .codex, .aws]\n",
+                    "# read_only: [.git, .agents, .codex, .aws, .claude]\n",
                 )
-                .list_example("# - .claude\n"),
+                .list_example("# - ./reference-data\n"),
                 Field::new(
                     "deny",
                     "\

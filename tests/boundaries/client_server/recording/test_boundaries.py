@@ -50,7 +50,7 @@ def capture_relay(binary: Path, mode: str):
             "CAPTURE_GATES": directory,
             "CAPTURE_SCENARIO": mode,
         }
-        if mode in {"late_entry", "ended_owner"}:
+        if mode == "late_entry":
             environment.update(
                 {
                     LOADER_VARIABLE: str(
@@ -268,15 +268,13 @@ def test_cell_entry_during_retirement_retains_ownership(binary: Path) -> Transcr
         return normalize_recording(transcript, root)
 
 
-@requires(NATIVE_FIXTURES, POSIX)
+@requires(POSIX)
 def test_worker_exit_finalizes_and_clears_interval_owner(binary: Path) -> Transcript:
     with capture_relay(binary, "ended_owner") as (client, root, gates):
         client.send(r="complete before shutdown", timeout_ms=60000)
         gates["post_sent"].wait("post-cell output sent", client=client)
-        client.stdin.close()
-        gates["kill-reached-1"].wait(
-            "launcher retirement is held while observing final output", client=client
-        )
+        # Observe worker exit while its relay remains live. Holding a native
+        # retirement signal here would consume the launcher's cleanup deadline.
         await_event(client, root, "worker_ended")
         post = recording(root) / "capture/sessions/001/cell-001-post.txt"
         assert post.read_text() == "post-cell text\n"
@@ -285,9 +283,19 @@ def test_worker_exit_finalizes_and_clears_interval_owner(binary: Path) -> Transc
         event = await_event(client, root, "process_output")
         assert base64.b64decode(event["data"]) == b"after worker exit\n", event
         gates["drained"].release()
-        gates["kill-release-1"].release()
         transcript = client.finish()
         assert post.read_text() == "post-cell text\n"
+        wire = [
+            json.loads(line)
+            for line in (root / "relay-wire.jsonl").read_text().splitlines()
+        ]
+        emitted = [entry["relay"]["kind"] for entry in wire if "relay" in entry]
+        assert emitted[-4:] == [
+            "stdout_closed",
+            "stderr_closed",
+            "worker_sideband_closed",
+            "worker_exited",
+        ], emitted
         return normalize_recording(transcript, root)
 
 

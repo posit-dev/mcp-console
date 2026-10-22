@@ -545,10 +545,17 @@ def test_complete_policy_selector_bypasses_project_and_console_adjustments(
                 host,
                 # fmt: python
                 code(r"""
+                    import errno
                     from pathlib import Path
 
                     _ = Path("ordinary").write_text("native workspace")
-                    _ = Path(".claude/native").write_text("no Console adjustment")
+                    # The native workspace profile owns its metadata defaults.
+                    try:
+                        _ = Path(".claude/native").write_text("native policy")
+                    except OSError as error:
+                        assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+                    else:
+                        raise AssertionError("native workspace metadata was writable")
                     print("complete native selector bypasses project discovery and application adjustments")
                     """),
                 "--runner-config-env",

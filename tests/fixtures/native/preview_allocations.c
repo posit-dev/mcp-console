@@ -1,7 +1,9 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +40,9 @@ static struct profile *profile;
 static pid_t owner;
 static int reached = -1;
 static int release = -1;
+static const char *thread_marker;
+static pthread_t measured_thread;
+static atomic_bool thread_selected;
 
 __attribute__((constructor)) static void initialize(void) {
     RESOLVE(malloc);
@@ -54,6 +59,7 @@ __attribute__((constructor)) static void initialize(void) {
     close(descriptor);
     if (mapping == MAP_FAILED) _exit(122);
     profile = mapping;
+    thread_marker = getenv("MCP_CONSOLE_TEST_ALLOCATION_THREAD_MARKER");
     const char *checkpoint = getenv("MCP_CONSOLE_TEST_RESULT_REACHED");
     if (checkpoint != NULL) {
         reached = open(checkpoint, O_WRONLY);
@@ -64,6 +70,8 @@ __attribute__((constructor)) static void initialize(void) {
 
 static void observe(size_t size) {
     if (profile == NULL || getpid() != owner || !atomic_load(&profile->enabled)) return;
+    if (thread_marker != NULL && (!atomic_load(&thread_selected) ||
+        !pthread_equal(pthread_self(), measured_thread))) return;
     atomic_fetch_add(&profile->bytes, size);
     uint64_t previous = atomic_load(&profile->largest);
     while (size > previous &&
@@ -90,6 +98,14 @@ static void *profile_realloc(void *pointer, size_t size) {
 
 static ssize_t profile_write(int descriptor, const void *buffer, size_t size) {
     RESOLVE(write);
+    if (thread_marker != NULL && getpid() == owner && !atomic_load(&thread_selected) &&
+        size >= strlen(thread_marker) && memcmp(buffer, thread_marker, strlen(thread_marker)) == 0) {
+        // A raw-output write identifies its ingestion thread during warmup.
+        // Recorder threads may drain different batches under different loads;
+        // their allocations do not measure the direct UTF-8 decoder's copies.
+        measured_thread = pthread_self();
+        atomic_store(&thread_selected, true);
+    }
     const char marker[] = "{\"event\":\"tool_result\",";
     if (profile != NULL && getpid() == owner && atomic_load(&profile->pause_results) &&
         size >= sizeof(marker) - 1 && memcmp(buffer, marker, sizeof(marker) - 1) == 0) {

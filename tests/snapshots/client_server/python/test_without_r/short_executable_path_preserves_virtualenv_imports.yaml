@@ -1,0 +1,50 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+    import selected_package
+
+    assert sys.executable == os.environ["RETICULATE_PYTHON"]
+    assert os.path.samefile(os.path.dirname(sys._base_executable), sys.base_prefix)
+    assert all(
+        not os.path.samefile(path, os.path.dirname(sys.executable))
+        for path in sys.path
+        if os.path.isdir(path)
+    )
+    assert selected_package.value == 42, selected_package.__file__
+    print("short executable path retained the selected environment")
+result:
+  content:
+    - type: text
+      text: |
+        short executable path retained the selected environment
+  isError: false
+---
+send:
+  control: restart
+  python: |
+    import os
+    import sys
+    import selected_package
+
+    assert sys.executable == os.environ["RETICULATE_PYTHON"]
+    assert os.path.samefile(os.path.dirname(sys._base_executable), sys.base_prefix)
+    assert all(
+        not os.path.samefile(path, os.path.dirname(sys.executable))
+        for path in sys.path
+        if os.path.isdir(path)
+    )
+    assert selected_package.value == 42, selected_package.__file__
+    print("short executable path retained the selected environment")
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        short executable path retained the selected environment
+        [done]
+  isError: false

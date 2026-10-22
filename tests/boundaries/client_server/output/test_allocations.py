@@ -62,7 +62,9 @@ def test_complete_direct_chunks_do_not_add_decoder_copies(binary: Path) -> Trans
     fixtures = Path(__file__).resolve().parents[3] / "fixtures"
     with tempfile.TemporaryDirectory() as temporary:
         with (
-            closing(AllocationProfile(Path(temporary))) as profile,
+            closing(
+                AllocationProfile(Path(temporary), thread_marker="abababab")
+            ) as profile,
             McpClient(
                 binary,
                 DIRECT.serve(
@@ -97,6 +99,9 @@ def test_complete_direct_chunks_do_not_add_decoder_copies(binary: Path) -> Trans
                 assert cell_text(client, call_id).encode() == emitted.encode()
             # Both paths receive the same complete UTF-8 chunks. A direct
             # decoder must not copy another 8 MiB while ingesting them.
+            # The warmup's raw write selects their shared ingestion thread,
+            # excluding concurrent journal/projection work from this comparison.
+            assert all(allocations), allocations
             assert allocations[1] < allocations[0] + 1024 * 1024, allocations
             assert client.send()["content"] == [{"type": "text", "text": "\n[idle]"}]
             normalize_preview_paths(client)

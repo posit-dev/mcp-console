@@ -8,6 +8,25 @@ import zipfile
 from pathlib import Path
 
 
+def windows_short_path(path: Path) -> Path:
+    """Return the Windows 8.3 spelling of an existing fixture path."""
+    assert os.name == "nt"
+    import ctypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.GetShortPathNameW.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_wchar_p,
+        ctypes.c_uint32,
+    ]
+    kernel.GetShortPathNameW.restype = ctypes.c_uint32
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = kernel.GetShortPathNameW(str(path), buffer, len(buffer))
+    if not length or length >= len(buffer):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return Path(buffer.value)
+
+
 def virtualenv_python(directory: Path) -> Path:
     return directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 

@@ -78,9 +78,7 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
             (host / name / "keep").write_text("readable")
         config = host / ".agents/console/config.yaml"
         config.parent.mkdir()
-        config.write_text(
-            "sandbox: {profile: workspace, filesystem: {read_only: [.claude]}}\n"
-        )
+        config.write_text("sandbox: {profile: workspace}\n")
         capture = root / "launches.jsonl"
         environment = os.environ | {
             LOADER_VARIABLE: str(build_interposer(root, "runner_configuration")),
@@ -131,9 +129,7 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
         }, policy
         assert policy["network"] == "restricted"
         assert policy["filesystem"]["kind"] == "restricted"
-        assert policy["filesystem"]["entries"][1:] == [
-            {"path": {"type": "path", "path": str(host / ".claude")}, "access": "read"},
-        ], policy
+        assert policy["filesystem"]["entries"][1:] == [], policy
         return TranscriptWithCompanions(
             transcript,
             {
@@ -143,7 +139,7 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
                         "fixed_workspace": True,
                         "identical_launches": len(launches),
                         "network": "restricted",
-                        "read_only": [".claude"],
+                        "explicit_read_only": [],
                     }
                 ]
             },
