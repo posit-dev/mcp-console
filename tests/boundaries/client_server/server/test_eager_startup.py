@@ -537,8 +537,8 @@ def test_early_requirements_select_candidate_before_default_preparation(
 def test_startup_poll_deadline_preserves_unclaimed_output(
     binary: Path, execution: Execution
 ) -> Transcript:
-    # Finish cold preparation first, but hold the relay's actual Ready frame.
-    # The finite poll deadline then covers delivery ownership, not downloads.
+    # Read ahead through bootstrap while retaining Ready and every later byte.
+    # The finite poll deadline then covers delivery ownership after R is ready.
     with tempfile.TemporaryDirectory() as temporary, ExitStack() as resources:
         root = Path(temporary).resolve()
         ready = resources.enter_context(closing(FifoCheckpoint.create(root / "ready")))
@@ -564,6 +564,7 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
                     )
                 ),
                 "MCP_CONSOLE_TEST_RELAY_READ_MATCH": '"kind":"ready"',
+                "MCP_CONSOLE_TEST_RELAY_READ_AWAIT_MATCH": '"kind":"runtime_initialized"',
                 "MCP_CONSOLE_TEST_RELAY_READ_BLOCKED": str(ready.path),
                 "MCP_CONSOLE_TEST_RELAY_READ_RELEASE": str(proceed.path),
                 "MCP_CONSOLE_TEST_RESPONSE_WRITE_REACHED": str(write_reached.path),
@@ -603,7 +604,9 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
         ) as client:
             try:
                 ready.wait(
-                    "prepared worker's Ready frame is held", timeout=600, client=client
+                    "bootstrapped worker's Ready frame is held",
+                    timeout=600,
+                    client=client,
                 )
                 client.initialize_and_list_tools()
                 pending = client.start_send(timeout_ms=10_000)
