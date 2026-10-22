@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -26,6 +27,7 @@ class RelayWorkerClient:
         binary: Path,
         *,
         execution: Execution,
+        worker_command: tuple[str, ...] | None = None,
         capture_stdin_close: bool = False,
         capture_worker_sideband_close: bool = False,
         disable_r_segv_handler: bool = False,
@@ -34,7 +36,9 @@ class RelayWorkerClient:
         root = Path(self._temporary.name)
         environment = os.environ.copy()
         environment["TMPDIR"] = str(root)
-        environment["MCP_CONSOLE_MITM_WORKER"] = str(binary)
+        environment["MCP_CONSOLE_MITM_WORKER_COMMAND"] = json.dumps(
+            (str(binary), "worker") if worker_command is None else worker_command
+        )
         if capture_stdin_close:
             environment[CAPTURE_STDIN_CLOSE_ENV] = "1"
         if capture_worker_sideband_close:

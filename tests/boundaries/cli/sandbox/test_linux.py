@@ -53,6 +53,9 @@ def test_nested_launch_uses_writable_tmpdir_with_read_only_slash_tmp(
             print("nested temporary storage is writable; outer /tmp remains read-only")
             print(temporary)
             """)
+        # Prepare the companion's reserved socket root inside this disposable
+        # namespace before making /tmp read-only; no host directory is created.
+        daemon = f"/tmp/codex-daemon-{os.geteuid()}"
         result = subprocess.run(
             [
                 shutil.which("bwrap"),
@@ -62,9 +65,18 @@ def test_nested_launch_uses_writable_tmpdir_with_read_only_slash_tmp(
                 "--ro-bind",
                 "/",
                 "/",
+                "--tmpfs",
+                "/tmp",
+                "--dir",
+                daemon,
+                "--chmod",
+                "0700",
+                daemon,
                 "--bind",
                 str(root),
                 str(root),
+                "--remount-ro",
+                "/tmp",
                 "--dev",
                 "/dev",
                 "--proc",

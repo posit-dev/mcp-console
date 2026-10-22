@@ -1,6 +1,6 @@
 [package]
 name = "mcp-console"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2024"
 rust-version = "1.99"
 description = "Persistent R, Python, and SQL sessions for MCP clients"

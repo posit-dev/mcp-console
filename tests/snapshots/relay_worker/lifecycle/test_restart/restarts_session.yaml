@@ -34,9 +34,6 @@ relay:
 stdin:
   closed: true
 ---
-worker_sideband:
-  closed: true
----
 worker:
   kind: ready
 ---

@@ -65,6 +65,7 @@ def python_bootstrap(
     output: bool = True,
     fail_once: bool = False,
     startup_error: bool = False,
+    request_input: bool = True,
     server_environment: dict[str, str] | None = None,
 ):
     with tempfile.TemporaryDirectory() as temporary, ExitStack() as resources:
@@ -102,7 +103,8 @@ def python_bootstrap(
                         os._exit(47)
                     if {startup_error!r}:
                         raise BaseException("ordinary bootstrap failure")
-                    builtins.bootstrap_input = input("startup> ")
+                    if {request_input!r}:
+                        builtins.bootstrap_input = input("startup> ")
                 """),
         )
         environment = selected_python(root, python)
@@ -167,24 +169,33 @@ def test_interrupt_before_bootstrap_publication_discards_waiting_cell(
             for name in ("completing", "complete", "observed")
         ]
         library = build_interposer(root, "bootstrap_completion_checkpoint")
-        environment = selected_python(root, Path(sys.executable))
-        environment.update(
-            {
+        # The sandbox launcher deliberately removes injected loader libraries.
+        with python_bootstrap(
+            binary,
+            execution,
+            sans_r=True,
+            output=False,
+            request_input=False,
+            server_environment={
                 LOADER_VARIABLE: str(library),
                 "MCP_CONSOLE_LANGUAGES": "python",
                 "MCP_CONSOLE_TEST_BOOTSTRAP_COMPLETING": str(completing.path),
                 "MCP_CONSOLE_TEST_BOOTSTRAP_COMPLETE": str(complete.path),
                 "MCP_CONSOLE_TEST_BOOTSTRAP_SIGNAL": str(observed.path),
-            }
-        )
-        # The sandbox launcher deliberately removes injected loader libraries.
-        with McpClient(binary, execution.serve(), environment, root) as client:
+            },
+        ) as (client, release):
             try:
-                completing.wait("worker is publishing bootstrap completion")
                 client.initialize_and_list_tools()
+                # Establish embedded startup before measuring the completion race.
+                release.release()
+                completing.wait(
+                    "worker is publishing bootstrap completion", client=client
+                )
                 client.expect(RUNNING, python="discarded_cell = True", timeout_ms=0)
                 client.expect(RUNNING, control="interrupt", timeout_ms=0)
-                observed.wait("worker handled SIGINT before publishing completion")
+                observed.wait(
+                    "worker handled SIGINT before publishing completion", client=client
+                )
                 complete.release()
                 client.expect()
                 client.expect(

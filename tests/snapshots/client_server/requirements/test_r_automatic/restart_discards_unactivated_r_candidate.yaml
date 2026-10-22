@@ -2,19 +2,21 @@
 !same-as MCP initialization for this execution mode
 ---
 send:
-  r: invisible(NULL)
-result:
-  content:
-    - type: text
-      text: "[done]"
-  isError: false
----
-send:
   r: |
     activation_checkpoint <- base::file.path(
       base::tempdir(),
       "automatic-r-activation-before-report"
     )
+    base::cat(activation_checkpoint, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        <activation checkpoint>
+  isError: false
+---
+send:
+  r: |
     activation_gate_used <- FALSE
     invisible(suppressMessages(base::trace(
       ".libPaths",
@@ -25,7 +27,13 @@ send:
             !activation_gate_used
         ) {
           activation_gate_used <<- TRUE
-          base::stopifnot(base::file.create(activation_checkpoint))
+          checkpoint <- base::file(
+            activation_checkpoint,
+            open = "wb",
+            raw = TRUE
+          )
+          base::writeBin(base::charToRaw("1"), checkpoint)
+          base::close(checkpoint)
           gate <- base::suppressWarnings(base::file(
             "/dev/stdin",
             open = "rb"

@@ -49,7 +49,7 @@ def capture_relay(binary: Path, mode: str):
             "CAPTURE_GATES": directory,
             "CAPTURE_SCENARIO": mode,
         }
-        if mode == "late_entry":
+        if mode in {"late_entry", "ended_owner"}:
             environment.update(
                 {
                     LOADER_VARIABLE: str(
@@ -259,12 +259,15 @@ def test_cell_entry_during_retirement_retains_ownership(binary: Path) -> Transcr
         return normalized(transcript, root)
 
 
-@requires(POSIX)
+@requires(NATIVE_FIXTURES, POSIX)
 def test_worker_exit_finalizes_and_clears_interval_owner(binary: Path) -> Transcript:
     with capture_relay(binary, "ended_owner") as (client, root, gates):
         client.send(r="complete before shutdown", timeout_ms=60000)
         gates["post_sent"].wait("post-cell output sent", client=client)
         client.stdin.close()
+        gates["kill-reached-1"].wait(
+            "launcher retirement is held while observing final output", client=client
+        )
         await_event(client, root, "worker_ended")
         post = recording(root) / "capture/sessions/001/cell-001-post.txt"
         assert post.read_text() == "post-cell text\n"
@@ -273,6 +276,7 @@ def test_worker_exit_finalizes_and_clears_interval_owner(binary: Path) -> Transc
         event = await_event(client, root, "process_output")
         assert base64.b64decode(event["data"]) == b"after worker exit\n", event
         gates["drained"].release()
+        gates["kill-release-1"].release()
         transcript = client.finish()
         assert post.read_text() == "post-cell text\n"
         return normalized(transcript, root)

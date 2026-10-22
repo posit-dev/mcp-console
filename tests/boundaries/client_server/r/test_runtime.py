@@ -438,10 +438,10 @@ def test_launches_r_children_from_interpreter_identity(
                   "R interpreter and children retain executable, arguments, and environment\n"
                 )
                 """)
-        client.send(r=native_r_launchers(r))
-        assert last_tool_text(client) == (
-            "R interpreter and children retain executable, arguments, and environment\n"
-        ), last_tool_text(client)
+        client.expect(
+            "R interpreter and children retain executable, arguments, and environment\n",
+            r=native_r_launchers(r),
+        )
         return client.finish()
 
 

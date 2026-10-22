@@ -23,7 +23,7 @@ from support.client import McpClient, stop_client
 from support.execution import DIRECT
 from support.native import LOADER_VARIABLE, build_interposer, compile_interposer
 from support.records import Transcript
-from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, R, requires
+from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, R, command, requires
 from support.suites import run_this_suite
 
 
@@ -183,6 +183,7 @@ def failed_write_before_finalization(binary: Path, *, ping: bool) -> Transcript:
 
 
 @requires(NATIVE_FIXTURES, PROCESS_EVENTS, R)
+@requires(command("rustc"))
 def test_startup_failure_journaling_keeps_ping_live(binary: Path) -> Transcript:
     with tempfile.TemporaryDirectory() as directory, ExitStack() as resources:
         root = Path(directory)

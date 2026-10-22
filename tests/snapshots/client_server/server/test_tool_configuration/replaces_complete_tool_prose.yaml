@@ -13,7 +13,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    version: 0.0.5
+    version: 0.0.6
   instructions: Evaluation server.
 ---
 input:

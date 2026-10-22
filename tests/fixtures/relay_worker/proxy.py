@@ -15,7 +15,7 @@ from typing import Any, BinaryIO, TextIO
 
 READ_FD_ENV = "MCP_CONSOLE_SIDEBAND_READ_FD"
 WRITE_FD_ENV = "MCP_CONSOLE_SIDEBAND_WRITE_FD"
-WORKER_ENV = "MCP_CONSOLE_MITM_WORKER"
+WORKER_ENV = "MCP_CONSOLE_MITM_WORKER_COMMAND"
 CAPTURE_STDIN_CLOSE_ENV = "MCP_CONSOLE_MITM_CAPTURE_STDIN_CLOSE"
 CAPTURE_WORKER_SIDEBAND_CLOSE_ENV = "MCP_CONSOLE_MITM_CAPTURE_WORKER_SIDEBAND_CLOSE"
 CAPTURE_NAME = "mcp-console-worker-wire.jsonl"
@@ -171,7 +171,7 @@ def main() -> None:
         os.fdopen(proxy_write, "wb", buffering=0),
     )
     environment = os.environ.copy()
-    program = environment.pop(WORKER_ENV)
+    command = json.loads(environment.pop(WORKER_ENV))
     capture_stdin_close = environment.pop(CAPTURE_STDIN_CLOSE_ENV, None) == "1"
     capture_worker_sideband_close = (
         environment.pop(CAPTURE_WORKER_SIDEBAND_CLOSE_ENV, None) == "1"
@@ -179,7 +179,7 @@ def main() -> None:
     environment[READ_FD_ENV] = str(worker_read)
     environment[WRITE_FD_ENV] = str(worker_write)
     process = subprocess.Popen(
-        [program, "worker"],
+        command,
         env=environment,
         pass_fds=(worker_read, worker_write),
         stdout=subprocess.PIPE,

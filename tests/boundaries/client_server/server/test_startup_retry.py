@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from pathlib import Path
@@ -652,6 +653,7 @@ def test_retry_stdin_reaches_early_input_cell(
         )
         release.release()
         client.response_timeout = 15
+        deadline = client.response_deadline()
         try:
             client.receive(pending)
         except TimeoutError:
@@ -659,10 +661,13 @@ def test_retry_stdin_reaches_early_input_cell(
             interrupt = client.start_send(control="interrupt")
             client.receive_many([pending, interrupt])
             raise
-        assert pending["result"]["content"] == [
-            {"type": "text", "text": '[input requested: "retry> "]\nrepaired input\n'}
-        ], pending
-        assert not pending["result"].get("isError"), pending
+        wait_for_evaluation_output(
+            client,
+            '[input requested: "retry> "]\nrepaired input\n',
+            "retry input reaches the admitted cell",
+            received=pending,
+            completion_timeout_seconds=max(0, deadline - time.monotonic()),
+        )
         assert attempts.read_text().splitlines() == ["probe"]
         client.expect("'repaired input'\n", python="answer")
         return json.loads(
@@ -713,6 +718,7 @@ def test_requirements_retry_stdin_reaches_early_input_cell(
                 "\n[running; poll with an empty send]"
             )
             release.release()
+            deadline = client.response_deadline()
             try:
                 client.receive(pending)
             except TimeoutError:
@@ -720,13 +726,13 @@ def test_requirements_retry_stdin_reaches_early_input_cell(
                 interrupt = client.start_send(control="interrupt")
                 client.receive_many([pending, interrupt])
                 raise
-            assert pending["result"]["content"] == [
-                {
-                    "type": "text",
-                    "text": '[input requested: "retry> "]\nrepaired input\n',
-                }
-            ], pending
-            assert not pending["result"].get("isError"), pending
+            wait_for_evaluation_output(
+                client,
+                '[input requested: "retry> "]\nrepaired input\n',
+                "requirements retry input reaches the admitted cell",
+                received=pending,
+                completion_timeout_seconds=max(0, deadline - time.monotonic()),
+            )
             client.expect("'repaired input'\n", python="answer")
             return json.loads(
                 json.dumps(client.finish()).replace(str(root), "<workspace>")

@@ -751,14 +751,15 @@ def test_combined_preparation_precedes_first_sql_cell(
         env = managed_environment(root)
         cache = extension_cache(root, execution)
         with sql_client(binary, execution, env) as client:
-            result = client.send(
+            client.expect(
+                "Success\n-------\n[0 rows]\n",
                 requirements={"python": ["six"], "duckdb": ["fts"]},
                 sql="SET autoinstall_known_extensions = false; LOAD fts",
             )
-            assert not result.get("isError"), result
-            assert "Error:" not in last_tool_text(client)
-            client.send(python="import six; print('combined SQL preparation')")
-            assert last_tool_text(client) == "combined SQL preparation\n"
+            client.expect(
+                "combined SQL preparation\n",
+                python="import six; print('combined SQL preparation')",
+            )
             assert len(list(cache.glob("v*/**/fts.duckdb_extension"))) == 1
             return client.finish()[3:]
 

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -31,11 +32,14 @@ static ssize_t observed_write(int descriptor, const void *buffer, size_t length)
     const char call[] = "{\"event\":\"tool_call\",";
     if (length >= sizeof(call) - 1 && memcmp(buffer, call, sizeof(call) - 1) == 0 && held_count != 0)
         atomic_store(&journal, held[held_count - 1]);
-    const char *marker = getenv("MCP_CONSOLE_TEST_HOLD_RESULT") != NULL
-        ? "{\"event\":\"tool_result\",\"call_id\":2,"
-        : "{\"event\":\"tool_call\",\"call_id\":2,";
-    if (result == (ssize_t)length && length >= strlen(marker) &&
-        memcmp(buffer, marker, strlen(marker)) == 0)
+    const char *call_id = getenv("MCP_CONSOLE_TEST_RECORDING_CALL_ID");
+    char marker[128];
+    int size = snprintf(marker, sizeof(marker), "{\"event\":\"%s\",\"call_id\":%s,",
+                        getenv("MCP_CONSOLE_TEST_HOLD_RESULT") != NULL ? "tool_result" : "tool_call",
+                        call_id != NULL ? call_id : "2");
+    if (size < 0 || (size_t)size >= sizeof(marker)) _exit(125);
+    if (result == (ssize_t)length && length >= (size_t)size &&
+        memcmp(buffer, marker, size) == 0)
         recording = atomic_load(&journal);
     const char ended[] = "{\"event\":\"recording_ended\",";
     const char *finalized = getenv("MCP_CONSOLE_TEST_RECORDING_FINALIZED");

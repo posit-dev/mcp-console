@@ -362,7 +362,10 @@ def test_uses_reticulate_managed_uv_inside_console_cache(binary: Path) -> Transc
             # tool here; Linux exercises the cold managed installer as well.
             uv.parent.mkdir(parents=True)
             shutil.copy2(shutil.which("uv"), uv)
-        with McpClient(binary, ("serve",), env, root) as client:
+        # Reticulate owns this cache probe; DBI is added explicitly below.
+        with McpClient(
+            binary, ("serve", "-c", 'r.packages=["reticulate"]'), env, root
+        ) as client:
             client.initialize_and_list_tools()
             wait_for_worker_ready(client, "reticulate managed uv readiness")
             client.expect("[prepared]", requirements={"r": ["DBI"]})

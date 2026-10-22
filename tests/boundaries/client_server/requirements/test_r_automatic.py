@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from contextlib import ExitStack, closing
 from functools import cache
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from support.assertions import (
     last_result_text,
     wait_for_evaluation_output,
 )
-from support.checkpoints import FifoCheckpoint, wait_for_worker_file
+from support.checkpoints import FifoCheckpoint
 from support.client import McpClient, stop_client
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
@@ -891,16 +892,47 @@ def test_restart_discards_unactivated_r_candidate(
     binary: Path, execution: Execution
 ) -> Transcript:
     checkpoint_name = "automatic-r-activation-before-report"
-    with tempfile.TemporaryDirectory() as temporary:
+    with tempfile.TemporaryDirectory() as temporary, ExitStack() as resources:
         directory = Path(temporary)
         package = "mcprestart"
         environment, record = recording_fixture_r_environment(directory, (package,))
         environment["TMPDIR"] = temporary
-        client = McpClient(binary, execution.serve("-c", "cache=host"), environment)
+        # Keep automatic activation focused on the R bridge and fixture package.
+        client = McpClient(
+            binary,
+            execution.serve("-c", "cache=host", "-c", 'r.packages=["reticulate"]'),
+            environment,
+        )
         passed = False
         try:
             client.initialize_and_list_tools()
-            client.expect(r="invisible(NULL)")
+            checkpoint_text = wait_for_evaluation_output(
+                client,
+                None,
+                "R activation checkpoint path",
+                completion_timeout_seconds=client.response_timeout,
+                # fmt: r
+                r=code(f"""
+                    activation_checkpoint <- base::file.path(
+                      base::tempdir(),
+                      "{checkpoint_name}"
+                    )
+                    base::cat(activation_checkpoint, "\\n", sep = "")
+                    """),
+            )
+            checkpoint_path = Path(checkpoint_text.removesuffix("\n"))
+            assert (
+                checkpoint_path.is_absolute()
+                and checkpoint_path.name == checkpoint_name
+            ), checkpoint_text
+            client.transcript[-1]["result"]["content"][0]["text"] = (
+                "<activation checkpoint>\n"
+            )
+            # Wait on this endpoint instead of scanning the resolver's growing
+            # library views for a marker inside the worker's temporary tree.
+            checkpoint = resources.enter_context(
+                closing(FifoCheckpoint.create(checkpoint_path))
+            )
             baseline = len(ir_run_records(record))
 
             # The live .libPaths() binding is reached after RResolved and
@@ -909,10 +941,6 @@ def test_restart_discards_unactivated_r_candidate(
             # EOF releases the old worker only after its candidate is stale.
             # fmt: r
             r = code(f"""
-                activation_checkpoint <- base::file.path(
-                  base::tempdir(),
-                  "{checkpoint_name}"
-                )
                 activation_gate_used <- FALSE
                 invisible(suppressMessages(base::trace(
                   ".libPaths",
@@ -923,7 +951,13 @@ def test_restart_discards_unactivated_r_candidate(
                         !activation_gate_used
                     ) {{
                       activation_gate_used <<- TRUE
-                      base::stopifnot(base::file.create(activation_checkpoint))
+                      checkpoint <- base::file(
+                        activation_checkpoint,
+                        open = "wb",
+                        raw = TRUE
+                      )
+                      base::writeBin(base::charToRaw("1"), checkpoint)
+                      base::close(checkpoint)
                       gate <- base::suppressWarnings(base::file(
                         "/dev/stdin",
                         open = "rb"
@@ -946,7 +980,7 @@ def test_restart_discards_unactivated_r_candidate(
                 ))
                 """)
             evaluation = client.start_send(r=r, timeout_ms=0)
-            wait_for_worker_file(directory, checkpoint_name, client)
+            checkpoint.wait("R candidate awaits activation report", client=client)
             assert len(ir_run_records(record)) == baseline + 1
 
             restart = client.start_send(control="restart")

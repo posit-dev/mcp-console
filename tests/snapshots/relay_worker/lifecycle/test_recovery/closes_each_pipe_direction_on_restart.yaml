@@ -5,24 +5,28 @@ worker:
 relay:
   kind: evaluate
   language: r
-  source: invisible(NULL)
+  source: echo ready
 ---
 worker:
   kind: cell_started
 ---
 worker:
-  kind: r_initialization
-  complete: false
+  kind: console_output
+  data: "zod: "
 ---
 worker:
-  kind: r_initialization
-  complete: true
+  kind: console_output
+  data: |
+    ready
 ---
 worker:
   kind: completed
 ---
 relay:
   kind: shutdown
+---
+stdin:
+  closed: true
 ---
 worker_sideband:
   closed: true
@@ -33,18 +37,14 @@ worker:
 relay:
   kind: evaluate
   language: r
-  source: cat('replacement ready\n')
+  source: echo replacement ready
 ---
 worker:
   kind: cell_started
 ---
 worker:
-  kind: r_initialization
-  complete: false
----
-worker:
-  kind: r_initialization
-  complete: true
+  kind: console_output
+  data: "zod: "
 ---
 worker:
   kind: console_output
