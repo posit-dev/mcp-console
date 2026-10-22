@@ -173,6 +173,7 @@ def test_initializes_and_lists_tools(
                     "python_only": True,
                 },
                 "proxy.yaml": {"proxy": True},
+                "workspace-profile.yaml": {"sandbox_profile": "workspace"},
                 "workspace.yaml": {"workspace_profile": True},
                 "writable.yaml": {"writable": True},
                 "python-only-writable.yaml": {"python_only": True, "writable": True},

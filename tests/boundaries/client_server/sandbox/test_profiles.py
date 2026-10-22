@@ -40,7 +40,10 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
         ordinary.unlink()
         for path in [
             outside / "blocked",
-            *[workspace / name / "keep" for name in (".git", ".agents", ".codex", ".claude")],
+            *[
+                workspace / name / "keep"
+                for name in (".git", ".agents", ".codex", ".aws", ".claude")
+            ],
         ]:
             try:
                 _ = path.write_text("blocked")
@@ -70,13 +73,13 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
         host = root / "workspace"
         outside = root / "outside"
         outside.mkdir()
-        for name in (".git", ".agents", ".codex", ".claude"):
+        for name in (".git", ".agents", ".codex", ".aws", ".claude"):
             (host / name).mkdir(parents=True)
             (host / name / "keep").write_text("readable")
         config = host / ".agents/console/config.yaml"
         config.parent.mkdir()
         config.write_text(
-            "sandbox: {filesystem: {read_write: [.], read_only: [.git, .agents, .codex, .claude]}}\n"
+            "sandbox: {profile: workspace, filesystem: {read_only: [.claude]}}\n"
         )
         capture = root / "launches.jsonl"
         environment = os.environ | {
@@ -91,8 +94,9 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
         ) as client:
             client.initialize_and_list_tools()
             description = client.transcript[-1]["result"]["tools"][0]["description"]
-            assert "Writable locations: private `TMPDIR`" in description, description
-            assert json.dumps(str(host)) in description, description
+            assert "Writable locations: private `TMPDIR`, workspace;" in description, (
+                description
+            )
             # The trusted launch snapshot precedes even the first worker.
             config.write_text("sandbox: {}\n")
             for generation in range(4):
@@ -120,31 +124,26 @@ def test_workspace_permissions_and_description_survive_worker_replacement(
         assert len(launches) == 4, launches
         assert all(policy == launches[0] for policy in launches), launches
         policy = launches[0]
+        assert policy["extends"] == ":workspace", policy
+        assert policy["workspace_options"] == {
+            "exclude_tmpdir_env_var": True,
+            "exclude_slash_tmp": True,
+        }, policy
         assert policy["network"] == "restricted"
         assert policy["filesystem"]["kind"] == "restricted"
         assert policy["filesystem"]["entries"][1:] == [
-            *[
-                {"path": {"type": "path", "path": str(host / name)}, "access": "read"}
-                for name in (".git", ".agents", ".codex", ".claude")
-            ],
-            {"path": {"type": "path", "path": str(host)}, "access": "write"},
+            {"path": {"type": "path", "path": str(host / ".claude")}, "access": "read"},
         ], policy
-        for entry in transcript:
-            if isinstance(result := entry.get("result"), dict):
-                for tool in result.get("tools", []):
-                    tool["description"] = tool["description"].replace(
-                        json.dumps(str(host)), '"<workspace>"'
-                    )
         return TranscriptWithCompanions(
             transcript,
             {
                 "profile.yaml": [
                     {
-                        "read_write": ["."],
+                        "profile": "workspace",
                         "fixed_workspace": True,
                         "identical_launches": len(launches),
                         "network": "restricted",
-                        "read_only": [".git", ".agents", ".codex", ".claude"],
+                        "read_only": [".claude"],
                     }
                 ]
             },

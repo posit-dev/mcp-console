@@ -1,5 +1,5 @@
 ---
-!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.workspace.yaml
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.workspace-profile.yaml
 ---
 send:
   python: |
@@ -19,7 +19,10 @@ send:
     ordinary.unlink()
     for path in [
         outside / "blocked",
-        *[workspace / name / "keep" for name in (".git", ".agents", ".codex", ".claude")],
+        *[
+            workspace / name / "keep"
+            for name in (".git", ".agents", ".codex", ".aws", ".claude")
+        ],
     ]:
         try:
             _ = path.write_text("blocked")
@@ -79,7 +82,10 @@ send:
     ordinary.unlink()
     for path in [
         outside / "blocked",
-        *[workspace / name / "keep" for name in (".git", ".agents", ".codex", ".claude")],
+        *[
+            workspace / name / "keep"
+            for name in (".git", ".agents", ".codex", ".aws", ".claude")
+        ],
     ]:
         try:
             _ = path.write_text("blocked")
@@ -141,7 +147,10 @@ send:
     ordinary.unlink()
     for path in [
         outside / "blocked",
-        *[workspace / name / "keep" for name in (".git", ".agents", ".codex", ".claude")],
+        *[
+            workspace / name / "keep"
+            for name in (".git", ".agents", ".codex", ".aws", ".claude")
+        ],
     ]:
         try:
             _ = path.write_text("blocked")
@@ -204,7 +213,10 @@ send:
     ordinary.unlink()
     for path in [
         outside / "blocked",
-        *[workspace / name / "keep" for name in (".git", ".agents", ".codex", ".claude")],
+        *[
+            workspace / name / "keep"
+            for name in (".git", ".agents", ".codex", ".aws", ".claude")
+        ],
     ]:
         try:
             _ = path.write_text("blocked")
