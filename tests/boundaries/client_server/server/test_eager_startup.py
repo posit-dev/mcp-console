@@ -20,6 +20,7 @@ from support.python import isolated_python
 from support.progress import elapsed_progress, phase_progress, without_elapsed
 from support.snapshots import execution_snapshots
 from support.requirements import (
+    LINUX_SANDBOX,
     NATIVE_FIXTURES,
     POSIX,
     PROCESS_EVENTS,
@@ -32,6 +33,7 @@ from support.allocations import AllocationProfile
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint, wait_for_path
 from support.client import McpClient
 from support.discovery import discovery_environment
+from support.events import Events
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.processes import (
     capture_process_identity,
@@ -413,6 +415,10 @@ def ready_without_send(
                     children = child_process_identities(pending.pop())
                     descendants.extend(children)
                     pending.extend(children)
+                if close:
+                    retirement = resources.enter_context(Events())
+                    for pid, _, _ in descendants:
+                        retirement.watch_process(pid)
                 client.initialize_and_list_tools()
                 tools = client.transcript[-1]["result"]
                 if not sans_r:
@@ -421,7 +427,12 @@ def ready_without_send(
                 if close:
                     try:
                         client.close()
-                        survivors = live_processes(descendants)
+                        # An exited broker can await host reaping after its
+                        # owner exits. Require kernel exit evidence without
+                        # granting any additional shutdown time.
+                        survivors = sorted(
+                            {pid for pid, _, _ in descendants} - retirement.wait(0)
+                        )
                         assert not survivors, (
                             f"prelaunch resources survived MCP closure: {survivors}"
                         )
@@ -478,6 +489,30 @@ def test_connection_closure_retires_prelaunch_resources(
     binary: Path, execution: Execution
 ) -> Transcript:
     return ready_without_send(binary, execution, sans_r=True, close=True)
+
+
+@requires(LINUX_SANDBOX, NATIVE_FIXTURES, PROCESS_EVENTS)
+def test_connection_closure_retires_adopted_prelaunch_resources(
+    binary: Path,
+) -> Transcript:
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    # Adopt orphaned sandbox brokers so host reaping cannot erase their PIDs
+    # before we verify that MCP closure has stopped their execution.
+    pr_set_child_subreaper = 36
+    assert libc.prctl(pr_set_child_subreaper, 1, 0, 0, 0) == 0, ctypes.get_errno()
+    try:
+        return ready_without_send(binary, SANDBOXED, sans_r=True, close=True)
+    finally:
+        while True:
+            try:
+                pid, _ = os.waitpid(-1, os.WNOHANG)
+            except ChildProcessError:
+                break
+            if pid == 0:
+                break
+        assert libc.prctl(pr_set_child_subreaper, 0, 0, 0, 0) == 0, ctypes.get_errno()
 
 
 @execution_snapshots

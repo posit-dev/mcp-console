@@ -391,6 +391,8 @@ class WindowsRelay(unittest.TestCase):
             self.assertEqual(event["kind"], "console_output", event)
             output.append(event["data"])
         self.assertEqual("".join(output), "🦀 1")
+        self.framing_control.sendall(b"2")
+        self.assertEqual(self.framing_stream.readline(), b"worker exited\n")
         process.stdin.write(b'{"kind":"shutdown","grace_millis":1000}\n')
         process.stdin.flush()
         tail = self.framing_finish(process, events, reader)
@@ -421,7 +423,8 @@ class WindowsRelay(unittest.TestCase):
             session.close()
 
         process, kernel, _, gate = self.start("framing_later")
-        self.owned_descendant(kernel)
+        child = self.owned_descendant(kernel)
+        finalizer_release = gate.with_name("finalizer-release")
         events, reader = self.framing_reader(process)
         # fmt: r
         callback = code(r"""
@@ -434,10 +437,22 @@ class WindowsRelay(unittest.TestCase):
               cat("idle callback\n")
             }
             later::later(run_callback, delay = 0.01)
+            finalizer <- new.env()
+            invisible(reg.finalizer(
+              finalizer,
+              function(object) {
+                cat("finalizer entered\n")
+                while (!file.exists(finalizer_gate)) {
+                  Sys.sleep(0.01)
+                }
+              },
+              onexit = TRUE
+            ))
             """)
         source = (
             f".libPaths(c({library}, .libPaths()))\n"
-            f"callback_gate <- {json.dumps(str(gate))}\n" + callback
+            f"callback_gate <- {json.dumps(str(gate))}\n"
+            f"finalizer_gate <- {json.dumps(str(finalizer_release))}\n" + callback
         )
         process.stdin.write(
             json.dumps({"kind": "evaluate", "language": "r", "source": source}).encode()
@@ -475,6 +490,15 @@ class WindowsRelay(unittest.TestCase):
             self.assertEqual(event["kind"], "console_output", event)
             output.append(event["data"])
         self.assertEqual("".join(output), "🦀 1")
+        self.framing_control.sendall(b"2")
+        self.assertEqual(
+            events.get(timeout=15),
+            {"kind": "console_output", "data": "finalizer entered\n"},
+        )
+        self.assertEqual(kernel.WaitForSingleObject(child, 0), 258)
+        finalizer_release.touch()
+        self.assertEqual(self.framing_stream.readline(), b"worker exited\n")
+        self.assertEqual(kernel.WaitForSingleObject(child, 0), 0)
         process.stdin.write(b'{"kind":"shutdown","grace_millis":1000}\n')
         process.stdin.flush()
         tail = self.framing_finish(process, events, reader)

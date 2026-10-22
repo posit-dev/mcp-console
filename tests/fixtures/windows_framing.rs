@@ -215,13 +215,17 @@ fn builtin(
     control.read_exact(&mut byte)?;
     // The test releases only after real R idle interrupt/callback output.
     send_bytes(output.as_raw_handle(), &frame[split..])?;
-    loop {
-        let frame = command(read)?;
-        send_bytes(output.as_raw_handle(), &frame)?;
-        if String::from_utf8(frame).unwrap().contains("shutdown") {
-            break;
-        }
-    }
+    // The outer relay owns this wrapper. Retire the real interpreter at a
+    // separate checkpoint so its finalizers cannot consume the wrapper's
+    // shutdown budget.
+    control.read_exact(&mut byte)?;
+    assert_eq!(byte, [b'2']);
+    send(output.as_raw_handle(), "{\"kind\":\"shutdown\"}\n")?;
     assert!(child.wait()?.success());
+    writeln!(control, "worker exited")?;
+    assert_eq!(
+        String::from_utf8(command(read)?).unwrap().trim(),
+        r#"{"kind":"shutdown"}"#
+    );
     Ok(())
 }
