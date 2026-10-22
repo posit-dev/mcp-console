@@ -1,6 +1,5 @@
 ---
-read_write:
-  - .
+profile: workspace
 fixed_workspace: true
 identical_launches: 4
 network: restricted
