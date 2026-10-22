@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from contextlib import contextmanager
 from collections.abc import Iterator
+from yaml12 import parse_yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -1606,7 +1607,8 @@ def test_records_managed_sql_cells(
 ) -> TranscriptWithCompanions:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        workspace = root / "workspace"
+        # Require a quoted YAML scalar on every platform, including Unix.
+        workspace = root / "workspace # metadata"
         workspace.mkdir()
         env = managed_environment(root)
         with sql_client(binary, execution, env, workspace) as client:
@@ -1619,7 +1621,7 @@ def test_records_managed_sql_cells(
             records = client.finish()[3:]
         (session,) = (workspace / ".agents/console/sessions").iterdir()
         markdown = (session / "transcript.md").read_text()
-        quarto = (session / "transcript.qmd").read_text()
+        quarto = (session / "sessions/session-001.qmd").read_text()
         events = [
             json.loads(line)
             for line in (session / "capture/events.jsonl").read_text().splitlines()
@@ -1642,9 +1644,13 @@ def test_records_managed_sql_cells(
         assert "[prepared]" in markdown
         assert "Requirements selected" not in markdown
         assert "execute:\n  eval: false" not in quarto
-        assert "\nknitr:" in quarto and "\nir:" in quarto
+        assert "\nir:" in quarto
+        assert "root.dir:" not in quarto
+        metadata = parse_yaml(quarto.split("---\n", 2)[1])
+        recorded_directory = metadata["mcp-console"]["original-working-directory"]
+        assert Path(recorded_directory).samefile(workspace), metadata
         assert "```sql\nSELECT 42 AS recorded\n```" in markdown
-        assert "```{sql}\nSELECT 42 AS recorded\n```" in quarto
+        assert "```{sql}\n--| error: true\nSELECT 42 AS recorded\n```" in quarto
         assert (
             """  python-packages:
     - numpy
@@ -1658,8 +1664,15 @@ def test_records_managed_sql_cells(
         assert "ir:\n  isolated: true\n  packages: []\n  python-packages:\n" in quarto
         working_directory = events[0]["working_directory"]
         assert Path(working_directory).samefile(workspace)
+        # Normalize the verified scalar, including quoting, for shared snapshots.
         return TranscriptWithCompanions(
-            records, {"qmd": quarto.replace(working_directory, "<workspace>")}
+            records,
+            {
+                "qmd": quarto.replace(
+                    json.dumps(recorded_directory, ensure_ascii=False),
+                    "<workspace>",
+                )
+            },
         )
 
 

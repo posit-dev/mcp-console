@@ -1,13 +1,34 @@
 import json
 import re
+from pathlib import Path
 from textwrap import dedent
 
 from support.assertions import last_tool_text
 from support.client import McpClient
+from support.progress import normalize_elapsed
+from support.records import Transcript
 
 
 def code(source: str) -> str:
     return dedent(source).removeprefix("\n")
+
+
+def normalize_recording(transcript: Transcript, workspace: Path) -> Transcript:
+    """Normalize locations and timing only after public content assertions."""
+    for entry in transcript:
+        for block in entry.get("result", {}).get("content", []):
+            if block["type"] == "text":
+                block["text"] = normalize_elapsed(block["text"])
+    data = json.dumps(transcript)
+    recordings = workspace / ".agents/console/sessions"
+    if recordings.is_dir():
+        for recording in recordings.iterdir():
+            data = data.replace(recording.name, "<recording ID>")
+    for path in sorted(
+        {workspace, workspace.resolve()}, key=lambda p: len(str(p)), reverse=True
+    ):
+        data = data.replace(json.dumps(str(path))[1:-1], "<workspace>")
+    return json.loads(data)
 
 
 def normalize_process_diagnostic(text: str) -> str:

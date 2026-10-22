@@ -1,0 +1,35 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: print('original worker source')
+result:
+  content:
+    - type: text
+      text: |
+        original worker source
+  isError: false
+---
+send:
+  python: print('replacement worker source')
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        replacement worker source
+        [done]
+  isError: false
+---
+send:
+  python: print('surviving worker source')
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+        surviving worker source
+        [done]
+  isError: false

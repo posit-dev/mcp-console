@@ -36,12 +36,26 @@ recording/
 │       │   └── cell-002.txt
 │       └── 002/
 │           └── startup.txt
-├── transcript.md
-└── transcript.qmd
+├── sessions/
+│   ├── session-001.qmd
+│   └── session-002.qmd
+└── transcript.md
 ```
 
-`transcript.md` records calls and results with links to retained output.
-The recording-wide `transcript.qmd` contains submitted source for review, including failed and rejected calls; it omits output and images.
+`transcript.md` records calls, source, results, polls, input, controls, and worker session boundaries, with links to source documents and retained output.
+It preserves response previews and omission notices while leaving routine protocol and lifecycle details in the journal.
+Results describe response assembly; local transport delivery is recorded separately in `capture/events.jsonl`.
+
+Each `sessions/session-NNN.qmd` contains source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
+Source admitted before worker acquisition stays pending until its worker is known, even if an initial response has already returned.
+A validation-rejected restart leaves its source with the surviving addressed worker.
+A failed acquisition does not create a session, and a session without source need not create a QMD.
+Source without a worker association remains in the journal and Markdown transcript.
+
+QMD metadata records accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
+Retained R requirements carry into replacement sessions; rejected additions do not change metadata, and replacement declarations do not rewrite the retiring session's document.
+The original working directory is descriptive metadata rather than an execution root.
+QMDs omit results, images, input, polls, and control wrappers.
 Existing recordings are not migrated or rewritten.
 
 ### Output intervals
@@ -94,7 +108,7 @@ Its format may change between Console releases.
 Completed managed files become read-only while retaining their existing privacy permissions.
 Cell logs close at their cell boundary; startup and post-cell logs stay writable until their next boundary.
 Images become read-only after writing.
-The journal and recording-wide documents remain writable until worker output, queued capture, result writers, and transport settlement can no longer update them.
+The journal, Markdown transcript, and session QMDs remain writable until worker output, queued capture, source associations, result writers, and transport settlement can no longer update them.
 Directories remain writable while Console needs them.
 These permissions protect against accidental edits; abrupt termination can leave files writable.
 

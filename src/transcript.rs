@@ -1,5 +1,6 @@
 //! One Console process's capture and derived documents. Before send, capture
 //! lives in temporary storage; publication never changes event time or ownership.
+use std::collections::BTreeMap;
 use std::fs::{DirBuilder, File, OpenOptions};
 use std::io::{BufWriter, Write};
 #[cfg(unix)]
@@ -103,7 +104,14 @@ struct ActiveTranscript {
     pending_projection_failure: Option<String>,
     run_id: String,
     sequence: u64,
+    call_sessions: BTreeMap<u64, CallAssociation>,
     finished: bool,
+}
+#[derive(Default)]
+struct CallAssociation {
+    session_id: Option<u64>,
+    source_pending: bool,
+    result_finished: bool,
 }
 // One slot per assembled image; None preserves its position when raw capture
 // did not retain it. No image payload is copied into the journal.
@@ -114,6 +122,8 @@ pub(crate) struct Call {
     id: Option<u64>,
     result_images: Arc<Mutex<Option<ResultImages>>>,
     parts: Arc<Mutex<Vec<ResultPart>>>,
+    /// Actual worker addressed by a call that submitted source.
+    addressed_session: Option<u64>,
 }
 #[derive(Clone)]
 pub(crate) struct Artifact {
@@ -175,13 +185,6 @@ impl Transcript {
             state.r_available = configuration.r_available;
             state.startup_requirements = configuration.startup_requirements.clone();
             state.metadata_known = true;
-            if let Some(projections) = state.active.as_mut().and_then(|a| a.projections.as_mut()) {
-                projections.configure(
-                    configuration.dynamic_resolution,
-                    configuration.r_available,
-                    &configuration.startup_requirements,
-                );
-            }
             state.capture()?.append(
                 Event::EnvironmentDiscovered {
                     dynamic_resolution: configuration.dynamic_resolution,
@@ -241,10 +244,24 @@ impl Transcript {
                 },
                 at,
             )?;
+            // Validation can reject a restart-shaped request before retirement.
+            // finish() associates otherwise unclaimed source only if this same
+            // worker still owns output; actual replacement changes that owner.
+            let has_source = request.arguments.as_ref().is_some_and(|arguments| {
+                ["r", "python", "sql"]
+                    .iter()
+                    .any(|language| arguments.get(*language).is_some_and(Value::is_string))
+            });
+            let addressed_session = if has_source {
+                self.owner().map(|o| o.session_id)
+            } else {
+                None
+            };
             Ok(Call {
                 id: Some(call_id),
                 result_images: Arc::new(Mutex::new(None)),
                 parts: Arc::new(Mutex::new(Vec::new())),
+                addressed_session,
             })
         })
         .unwrap_or_else(Call::unrecorded)
@@ -260,6 +277,22 @@ impl Transcript {
                 .lock()
                 .map_err(|_| "tool result association lock poisoned")?;
             let active = state.capture()?;
+            if active
+                .call_sessions
+                .get(&call_id)
+                .and_then(|call| call.session_id)
+                .is_none()
+                && let Some(session_id) = call.addressed_session
+                && self.owner().is_some_and(|o| o.session_id == session_id)
+            {
+                active.append(
+                    Event::SourceAssociated {
+                        call_id,
+                        session_id,
+                    },
+                    Utc::now(),
+                )?;
+            }
             active.finish(call_id, images, &parts, response, Utc::now())
         });
     }
@@ -399,27 +432,18 @@ impl ActiveTranscript {
         let writer = create_private_file(&journal)
             .map(BufWriter::new)
             .map_err(|error| format!("failed to create {}: {error}", journal.display()))?;
-        let projections = (|| {
-            let working_directory = working_directory.to_str().ok_or_else(|| {
-                "Quarto execution root requires a UTF-8 working directory".to_string()
-            })?;
-            let markdown_path = directory.join("transcript.md");
-            let markdown = create_private_file(&markdown_path).map_err(|error| {
-                format!("failed to create {}: {error}", markdown_path.display())
-            })?;
-            let quarto_path = directory.join("transcript.qmd");
-            let quarto = create_private_file(&quarto_path)
-                .map_err(|error| format!("failed to create {}: {error}", quarto_path.display()))?;
-            drop(quarto);
-            Ok(markdown::Writers::new(
-                markdown,
-                quarto_path,
-                working_directory,
-                configuration.dynamic_resolution,
-                configuration.r_available,
-                &configuration.startup_requirements,
-            ))
-        })();
+        let projections = create_private_directory(&directory.join("sessions"), false)
+            .map_err(|e| e.to_string())
+            .and_then(|()| {
+                markdown::Writers::new(
+                    &directory,
+                    working_directory,
+                    configuration.dynamic_resolution,
+                    configuration.r_available,
+                    &configuration.startup_requirements,
+                    configuration.metadata_known,
+                )
+            });
         let (projections, pending_projection_failure) = match projections {
             Ok(projections) => (Some(projections), None),
             Err(error) => (None, Some(error)),
@@ -435,6 +459,7 @@ impl ActiveTranscript {
             pending_projection_failure,
             run_id,
             sequence: 0,
+            call_sessions: BTreeMap::new(),
             finished: false,
         };
         transcript.append(
@@ -520,6 +545,72 @@ impl ActiveTranscript {
         if self.finished {
             return Ok(());
         }
+        match &event {
+            Event::ToolCall { call_id, .. } => {
+                self.call_sessions
+                    .insert(*call_id, CallAssociation::default());
+            }
+            Event::SourceAdmitted { call_id } => {
+                self.call_sessions
+                    .get_mut(call_id)
+                    .ok_or("source admission has no recorded call")?
+                    .source_pending = true;
+            }
+            Event::SourceFinished { call_id } => {
+                let call = self
+                    .call_sessions
+                    .get_mut(call_id)
+                    .ok_or("source settlement has no recorded call")?;
+                call.source_pending = false;
+                if call.result_finished {
+                    self.call_sessions.remove(call_id);
+                }
+            }
+            Event::ToolResult { call_id, .. } => {
+                let call = self
+                    .call_sessions
+                    .get_mut(call_id)
+                    .ok_or("result settlement has no recorded call")?;
+                call.result_finished = true;
+                if !call.source_pending {
+                    self.call_sessions.remove(call_id);
+                }
+            }
+            Event::SourceAssociated {
+                call_id,
+                session_id,
+            } => {
+                let call = self
+                    .call_sessions
+                    .get_mut(call_id)
+                    .ok_or("source association has no recorded call")?;
+                if call.session_id == Some(*session_id) {
+                    return Ok(());
+                }
+                call.session_id = Some(*session_id);
+            }
+            Event::RecordingStarted { .. }
+            | Event::RecordingActivated
+            | Event::RecordingEnded
+            | Event::Protocol { .. }
+            | Event::Delivery { .. }
+            | Event::WorkerStarted { .. }
+            | Event::WorkerReady { .. }
+            | Event::WorkerEnded { .. }
+            | Event::CellStarted { .. }
+            | Event::CellEnded { .. }
+            | Event::OutputText { .. }
+            | Event::ImageOmitted { .. }
+            | Event::ProcessOutput { .. }
+            | Event::EnvironmentDiscovered { .. }
+            | Event::StartupFailed { .. }
+            | Event::PythonEnvironmentAccepted { .. }
+            | Event::RequirementsAccepted { .. }
+            | Event::RequirementsSelected { .. }
+            | Event::ImageRetained { .. }
+            | Event::CellOutput { .. }
+            | Event::SessionOutput { .. } => {}
+        }
         self.sequence += 1;
         let envelope = Envelope {
             event,
@@ -575,6 +666,8 @@ impl ActiveTranscript {
         let mut errors = Vec::new();
         self.finished = true;
         // Retirement, output producers, and queued journal writes have settled.
+        // QMD associations can settle after worker termination. Finalize their
+        // permissions with the recording, after all related updates finish.
         self.projections.take();
         if let Err(error) = self.storage.finalize() {
             errors.push(error);
@@ -638,6 +731,7 @@ impl Call {
             id: None,
             result_images: Arc::new(Mutex::new(None)),
             parts: Arc::new(Mutex::new(Vec::new())),
+            addressed_session: None,
         }
     }
 

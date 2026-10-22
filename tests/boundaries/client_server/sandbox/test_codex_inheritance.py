@@ -641,7 +641,9 @@ def test_inherits_filesystem_and_network_before_first_worker(
                 root,
                 warning="Warning: could not parse Codex sandbox settings; reconnect to apply the read_only fallback\n",
             )
-            projection = next(root.glob(".agents/console/sessions/*/transcript.qmd"))
+            projection = next(
+                root.glob(".agents/console/sessions/*/sessions/session-001.qmd")
+            )
             assert "retained = -1" in projection.read_text(), (
                 "rejected call was not recorded"
             )

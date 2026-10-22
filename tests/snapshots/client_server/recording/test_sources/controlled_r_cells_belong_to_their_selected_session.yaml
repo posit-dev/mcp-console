@@ -1,0 +1,37 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: print('original worker source')
+result:
+  content:
+    - type: text
+      text: |
+        [1] "original worker source"
+  isError: false
+---
+send:
+  r: print('replacement worker source')
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [1] "replacement worker source"
+        [done]
+  isError: false
+---
+send:
+  r: print('surviving worker source')
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        [output produced while idle]
+        [1] "surviving worker source"
+        [done]
+  isError: false

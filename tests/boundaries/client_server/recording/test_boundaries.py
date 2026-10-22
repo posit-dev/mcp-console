@@ -10,7 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from boundaries.client_server.recording.test_intervals import events, normalized
+from boundaries.client_server.recording.test_intervals import events
+from support.normalization import normalize_recording
 from support.assertions import tool_text
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import McpClient
@@ -128,7 +129,7 @@ def test_invalid_completion_does_not_confirm_cell_end(binary: Path) -> Transcrip
         ]
         assert len(ended) == 1, ended
         assert ended[0]["completion_confirmed"] is False, ended
-        return normalized(transcript, root)
+        return normalize_recording(transcript, root)
 
 
 @requires(POSIX)
@@ -152,7 +153,7 @@ def test_completion_requires_cell_entry(binary: Path) -> Transcript:
             1,
             2,
         ]
-        return normalized(transcript, root)
+        return normalize_recording(transcript, root)
 
 
 def outcome_less_retirement(binary: Path, *, interval: str) -> Transcript:
@@ -196,6 +197,9 @@ def outcome_less_retirement(binary: Path, *, interval: str) -> Transcript:
         transcript = client.finish()
         retained = recording(root)
         capture = events(retained)
+        admitted = [e["call_id"] for e in capture if e["event"] == "source_admitted"]
+        settled = [e["call_id"] for e in capture if e["event"] == "source_finished"]
+        assert settled == admitted, (admitted, settled)
         assert log.read_text() == "before relay loss\n"
         assert not any(
             e["event"] == "worker_ended" and e["session_id"] == 1 for e in capture
@@ -211,7 +215,7 @@ def outcome_less_retirement(binary: Path, *, interval: str) -> Transcript:
                     if "replacement launch diagnostic" in text:
                         owners.append(part["owner"])
         assert owners == [None], owners
-        return normalized(transcript, root)
+        return normalize_recording(transcript, root)
 
 
 @requires(POSIX)
@@ -256,7 +260,12 @@ def test_cell_entry_during_retirement_retains_ownership(binary: Path) -> Transcr
             "cell_ended",
         ], boundaries
         assert boundaries[-1]["completion_confirmed"] is True, boundaries
-        return normalized(transcript, root)
+        assert [
+            event["call_id"]
+            for event in events(retained)
+            if event["event"] == "source_finished"
+        ] == [1]
+        return normalize_recording(transcript, root)
 
 
 @requires(NATIVE_FIXTURES, POSIX)
@@ -279,7 +288,7 @@ def test_worker_exit_finalizes_and_clears_interval_owner(binary: Path) -> Transc
         gates["kill-release-1"].release()
         transcript = client.finish()
         assert post.read_text() == "post-cell text\n"
-        return normalized(transcript, root)
+        return normalize_recording(transcript, root)
 
 
 @requires(POSIX)
@@ -308,7 +317,7 @@ def test_process_output_omission_references_retained_journal(
             if event["event"] == "process_output"
         )
         assert raw == b"process head\n" + b"p" * 32768 + b"\nprocess tail\n", len(raw)
-        return normalized(transcript, root)
+        return normalize_recording(transcript, root)
 
 
 if __name__ == "__main__":

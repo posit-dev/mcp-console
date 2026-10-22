@@ -5,6 +5,8 @@ use std::sync::Mutex;
 pub(super) struct CellAdmission {
     pub(super) generation: super::lifecycle::WorkerGeneration,
     state: Mutex<CellState>,
+    transcript: crate::transcript::Transcript,
+    call_id: Option<u64>,
 }
 
 struct CellState {
@@ -25,13 +27,20 @@ pub(super) enum CellOutcome {
 }
 
 impl CellAdmission {
-    pub(super) fn new(generation: super::lifecycle::WorkerGeneration) -> Self {
+    pub(super) fn new(
+        generation: super::lifecycle::WorkerGeneration,
+        transcript: crate::transcript::Transcript,
+        call_id: Option<u64>,
+    ) -> Self {
+        transcript.source_admitted(call_id);
         Self {
             generation,
             state: Mutex::new(CellState {
                 phase: AdmissionPhase::Pending,
                 outcome: None,
             }),
+            transcript,
+            call_id,
         }
     }
 
@@ -76,11 +85,15 @@ impl CellAdmission {
         Ok(true)
     }
 
+    /// Settle recorded source at the first terminal outcome, including failures
+    /// committed by operation retirement before evaluation completion runs.
     pub(super) fn finish(&self, outcome: CellOutcome) {
-        self.state
-            .lock()
-            .expect("cell admission lock")
-            .outcome
-            .get_or_insert(outcome);
+        let mut state = self.state.lock().expect("cell admission lock");
+        if state.outcome.is_some() {
+            return;
+        }
+        state.outcome = Some(outcome);
+        drop(state);
+        self.transcript.source_finished(self.call_id);
     }
 }

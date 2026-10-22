@@ -1,0 +1,51 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: token <- new.env(); cat("ready\n")
+result:
+  content:
+    - type: text
+      text: |
+        ready
+  isError: false
+---
+send:
+  control: restart
+  requirements: {}
+  r: rejected_restart_r <- TRUE
+result:
+  content:
+    - type: text
+      text: >-
+        at least one of `requirements.r`, `requirements.python`, or
+        `requirements.duckdb` is required
+  isError: true
+---
+send:
+  control: restart
+  requirements: {}
+  python: rejected_restart_python = True
+result:
+  content:
+    - type: text
+      text: >-
+        at least one of `requirements.r`, `requirements.python`, or
+        `requirements.duckdb` is required
+  isError: true
+---
+send:
+  r: stopifnot(is.environment(token), !exists("rejected_restart_r"))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: assert 'rejected_restart_python' not in globals()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

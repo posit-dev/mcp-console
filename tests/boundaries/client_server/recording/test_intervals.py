@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.client import McpClient
 from support.checkpoints import release_fixture_checkpoint, wait_for_checkpoint
-from support.progress import normalize_elapsed
+from support.normalization import normalize_recording
 from boundaries.client_server._harness import wait_for_marker
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.requirements import POSIX, requires
@@ -24,24 +24,6 @@ def events(recording: Path) -> list[dict]:
         json.loads(line)
         for line in (recording / "capture/events.jsonl").read_text().splitlines()
     ]
-
-
-def normalized(transcript: Transcript, workspace: Path) -> Transcript:
-    """Normalize locations and timing only after public content assertions."""
-    for entry in transcript:
-        for block in entry.get("result", {}).get("content", []):
-            if block["type"] == "text":
-                block["text"] = normalize_elapsed(block["text"])
-    data = json.dumps(transcript)
-    recordings = workspace / ".agents/console/sessions"
-    if recordings.is_dir():
-        for recording in recordings.iterdir():
-            data = data.replace(recording.name, "<recording ID>")
-    for path in sorted(
-        {workspace, workspace.resolve()}, key=lambda p: len(str(p)), reverse=True
-    ):
-        data = data.replace(json.dumps(str(path))[1:-1], "<workspace>")
-    return json.loads(data)
 
 
 @executions(RUNTIME)
@@ -65,7 +47,7 @@ def test_prompt_only_fragments_keep_cell_ownership(
             ):
                 result = client.send(python=source, timeout_ms=60000)
                 assert "x> " in result["content"][0]["text"], result
-                client.send(stdin="answer\n")
+                client.expect(stdin="answer\n")
             transcript = client.finish()
         (recording,) = (workspace / ".agents/console/sessions").iterdir()
         prompts = []
@@ -81,7 +63,7 @@ def test_prompt_only_fragments_keep_cell_ownership(
         assert prompts == [
             {"session_id": 1, "cell_id": cell, "interval": "cell"} for cell in (1, 2)
         ], prompts
-        return normalized(transcript, workspace)
+        return normalize_recording(transcript, workspace)
 
 
 @requires(POSIX)
@@ -137,7 +119,7 @@ def test_preview_omission_preserves_raw_images(
         assert all(
             (recording / a["path"]).stat().st_mode & 0o222 == 0 for a in artifacts
         )
-        return normalized(transcript, workspace)
+        return normalize_recording(transcript, workspace)
 
 
 @requires(POSIX)
@@ -203,7 +185,7 @@ def test_raw_image_limit_preserves_inline_output_and_resets_at_cell_boundary(
             )
             == 2
         )
-        return normalized(transcript, workspace)
+        return normalize_recording(transcript, workspace)
 
 
 @requires(POSIX)
@@ -228,9 +210,13 @@ def test_cell_intervals_and_empty_cells(
             client.send()
             (active_recording,) = (workspace / ".agents/console/sessions").iterdir()
             active_capture = active_recording / "capture/sessions/001"
-            assert not any(
-                e["event"] == "source_attached" for e in events(active_recording)
-            )
+            capture = events(active_recording)
+            assert not any(e["event"] == "source_attached" for e in capture)
+            assert [
+                e["session_id"]
+                for e in capture
+                if e["event"] == "source_associated" and e["call_id"] == 1
+            ] == [1]
             assert (active_capture / "cell-001.txt").stat().st_mode & 0o222 == 0
             assert (active_capture / "cell-001-post.txt").stat().st_mode & 0o200
             assert (active_recording / "capture/events.jsonl").stat().st_mode & 0o200
@@ -292,8 +278,11 @@ def test_cell_intervals_and_empty_cells(
                 for part in restart["parts"]
                 if part["owner"] is not None
             } == {1, 2}, restart
-            for name in ("transcript.md", "transcript.qmd"):
+            for name in ("transcript.md", "sessions/session-002.qmd"):
                 assert (active_recording / name).stat().st_mode & 0o200
+            assert (
+                active_recording / "sessions/session-001.qmd"
+            ).stat().st_mode & 0o200
             transcript = client.finish()
         (recording,) = (workspace / ".agents/console/sessions").iterdir()
         capture = recording / "capture/sessions/001"
@@ -326,7 +315,7 @@ def test_cell_intervals_and_empty_cells(
         assert (capture / "cell-002.txt").read_bytes() == b""
         assert not (capture / "cell-003.txt").exists()
         assert (recording / "capture/sessions/002/cell-001.txt").read_bytes() == b""
-        assert "rejected source" in (recording / "transcript.qmd").read_text()
+        assert "rejected source" in (recording / "sessions/session-001.qmd").read_text()
         assert all(e["sequence"] == i + 1 for i, e in enumerate(events(recording)))
         for path in recording.rglob("*"):
             if path.is_file():
@@ -335,7 +324,7 @@ def test_cell_intervals_and_empty_cells(
                     assert path.stat().st_mode & 0o077 == 0, path
             elif path.is_dir():
                 assert path.stat().st_mode & 0o200, path
-        return normalized(transcript, workspace)
+        return normalize_recording(transcript, workspace)
 
 
 @requires(POSIX)
@@ -395,6 +384,7 @@ def test_sessions_without_cells_keep_shutdown_in_startup(
             2,
         ]
         assert not any(e["event"] == "cell_started" for e in capture)
+        assert not list((recording / "sessions").glob("*.qmd"))
         assert sorted(
             p.relative_to(recording).as_posix() for p in recording.rglob("*.txt")
         ) == ["capture/sessions/001/startup.txt", "capture/sessions/002/startup.txt"]
@@ -426,7 +416,7 @@ def test_projection_failure_preserves_capture_and_finalizes_files(
             client.initialize_and_list_tools()
             client.expect("zod: first\n", r="echo first")
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            qmd = recording / "transcript.qmd"
+            qmd = recording / "sessions/session-001.qmd"
             qmd.unlink()
             qmd.mkdir()
             client.expect("zod: second\n", r="echo second")
@@ -444,7 +434,7 @@ def test_projection_failure_preserves_capture_and_finalizes_files(
         for path in recording.rglob("*"):
             if path.is_file():
                 assert path.stat().st_mode & 0o222 == 0, path
-        return normalized(transcript, workspace)
+        return normalize_recording(transcript, workspace)
 
 
 if __name__ == "__main__":

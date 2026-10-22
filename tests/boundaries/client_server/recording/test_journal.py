@@ -15,6 +15,7 @@ from yaml12 import format_yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from support.previews import cell_output_path
 from support.progress import normalize_elapsed, without_elapsed_result
 from support.requirements import (
     NATIVE_FIXTURES,
@@ -55,6 +56,7 @@ def call_events(events: list[dict]) -> list[dict]:
 
 
 CELL_OUTPUT_RETENTION_LIMIT = 1024 * 1024 * 1024
+
 
 PNG_1X1 = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42Y"
@@ -126,32 +128,32 @@ def test_materializes_records_only_for_console_use(
         assert len(sessions) == 1, sessions
         assert not (workspace / ".mcp-console").exists(), workspace
         assert (sessions[0] / "transcript.md").is_file(), sessions
-        assert (sessions[0] / "transcript.qmd").is_file(), sessions
+        assert (sessions[0] / "sessions/session-001.qmd").is_file(), sessions
         assert (sessions[0] / "capture/sessions/001").is_dir(), sessions
-        assert (
-            sessions[0] / "capture/sessions/001/cell-001.txt"
-        ).read_text() == "zod: echo\n"
+        assert (cell_output_path(sessions[0], 1)).read_text() == "zod: echo\n"
         events = [
             json.loads(line)
             for line in (sessions[0] / "capture" / "events.jsonl")
             .read_text(encoding="utf-8")
             .splitlines()
         ]
-        events = call_events(events)
-        assert [event["event"] for event in events] == [
+        semantic_events = call_events(events)
+        assert [event["event"] for event in semantic_events] == [
             "recording_started",
             "tool_call",
             "cell_output",
             "tool_result",
         ], events
-        assert events[1]["request"]["name"] == "send", events[1]
+        assert semantic_events[1]["request"]["name"] == "send", semantic_events[1]
         client.finish()
 
         transcript.append(
             {
                 "recording": {
                     "initialization and removed session tool only": "absent",
-                    "materialized by": {"send": [event["event"] for event in events]},
+                    "materialized by": {
+                        "send": [event["event"] for event in semantic_events]
+                    },
                 }
             }
         )
@@ -349,12 +351,12 @@ def test_updates_quarto_without_rereading_journal(
             journal_read_disabled = True
 
             client.send(python="echo second")
-            quarto = (session / "transcript.qmd").read_text(encoding="utf-8")
+            quarto = (session / "sessions/session-001.qmd").read_text(encoding="utf-8")
 
             journal.chmod(0o600)
             journal_read_disabled = False
-            assert "```{r}\necho first\n```" in quarto, quarto
-            assert "```{python}\necho second\n```" in quarto, quarto
+            assert "```{r}\n#| error: true\necho first\n```" in quarto, quarto
+            assert "```{python}\n#| error: true\necho second\n```" in quarto, quarto
 
             transcript = client.finish()
             transcript.append(
@@ -380,7 +382,7 @@ def test_records_tool_calls_and_images(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
     zod = Path(__file__).resolve().parents[3] / "fixtures" / "zod"
-    with tempfile.TemporaryDirectory() as temporary_directory:
+    with tempfile.TemporaryDirectory() as temporary_directory, ExitStack() as resources:
         workspace = Path(temporary_directory)
         environment, _ = r_test_environment()
         environment["RETICULATE_PYTHON"] = ""
@@ -399,11 +401,14 @@ def test_records_tool_calls_and_images(
             requirements={"r": ["praise"]},
         )
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        quarto_path = session / "transcript.qmd"
-        quarto_before_python_requirement = quarto_path.read_text(encoding="utf-8")
-        quarto_before_inode = quarto_path.stat().st_ino
-        assert "    - praise" in quarto_before_python_requirement
-        assert "transcript-fixture" not in quarto_before_python_requirement
+        quarto_path = session / "sessions/session-001.qmd"
+        initial_quarto = quarto_path.read_text(encoding="utf-8")
+        # Retain the old inode while checking atomic replacement. An unlinked
+        # inode can otherwise be reused immediately on Linux filesystems.
+        previous_quarto = resources.enter_context(quarto_path.open("rb"))
+        quarto_before_inode = os.fstat(previous_quarto.fileno()).st_ino
+        assert "    - praise" in initial_quarto
+        assert "transcript-fixture" not in initial_quarto
         image_request_id = client.transcript[-1]["id"]
         invalid = client.request(
             "tools/call",
@@ -411,26 +416,39 @@ def test_records_tool_calls_and_images(
             arguments={"r": "1", "python": "1"},
             _meta={"progressToken": "record-me"},
         )
+        quarto_before_python_requirement = quarto_path.read_text(encoding="utf-8")
         client.send(requirements={"python": ["transcript-fixture"]})
         preparation_request_id = client.transcript[-1]["id"]
         preparation_result = client.transcript[-1]["result"]
+        assert preparation_result["isError"], preparation_result
+        assert (
+            quarto_path.read_text(encoding="utf-8") == quarto_before_python_requirement
+        )
+        accepted = client.send(requirements={"r": ["glue"]})
+        assert not accepted.get("isError"), accepted
+        accepted_request_id = client.transcript[-1]["id"]
         client.request("tools/call", name="missing", arguments={})
 
         sessions = list((workspace / ".agents/console" / "sessions").iterdir())
         assert len(sessions) == 1, sessions
         session = sessions[0]
+        markdown_path = session / "transcript.md"
+        for path in (session / "capture/events.jsonl", markdown_path, quarto_path):
+            assert path.stat().st_mode & 0o777 == 0o600, path
+        # Protocol capture continues after responses are sent. Finalize before
+        # reading the complete journal instead of racing its next append.
+        transcript = client.finish()
         journal_text = (session / "capture" / "events.jsonl").read_text(
             encoding="utf-8"
         )
-        markdown_path = session / "transcript.md"
         markdown_text = markdown_path.read_text(encoding="utf-8")
         quarto_text = quarto_path.read_text(encoding="utf-8")
         assert PNG_1X1 not in journal_text, journal_text
         assert PNG_1X1 not in markdown_text, markdown_text
         assert PNG_1X1 not in quarto_text, quarto_text
         events = [json.loads(line) for line in journal_text.splitlines()]
-        events = call_events(events)
-        assert [event["event"] for event in events] == [
+        semantic_events = call_events(events)
+        assert [event["event"] for event in semantic_events] == [
             "recording_started",
             "tool_call",
             "image_retained",
@@ -440,28 +458,28 @@ def test_records_tool_calls_and_images(
             "tool_result",
             "tool_call",
             "tool_result",
+            "tool_call",
+            "tool_result",
         ], events
+        assert [event["sequence"] for event in events] == list(
+            range(1, len(events) + 1)
+        ), events
+        assert any(event["event"] == "protocol" for event in events), events
+        assert (
+            len([event for event in events if event["event"] == "worker_started"]) == 1
+        )
+        assert [
+            event["owner"]["interval"]
+            for event in events
+            if event["event"] == "output_text"
+        ] == ["cell", "cell"]
+        events = semantic_events
         run_id = events[0]["run_id"]
         assert run_id.endswith(f"-{client.process.pid:010d}"), run_id
         assert session.name == run_id, (session, run_id)
         assert Path(events[0]["working_directory"]).samefile(workspace), events[0]
         assert all(event["run_id"] == run_id for event in events), events
         assert all("schema_version" not in event for event in events), events
-        complete_events = [json.loads(line) for line in journal_text.splitlines()]
-        assert [event["sequence"] for event in complete_events] == list(
-            range(1, len(complete_events) + 1)
-        ), complete_events
-        assert (
-            len(
-                [
-                    event
-                    for event in complete_events
-                    if event["event"] == "worker_started"
-                ]
-            )
-            == 1
-        )
-        assert any(event["event"] == "protocol" for event in complete_events)
         assert events[1]["call_id"] == events[2]["call_id"] == 1, events
         assert events[3]["call_id"] == events[2]["call_id"], events
         assert events[1]["request_id"] == image_request_id, events[1]
@@ -537,7 +555,15 @@ def test_records_tool_calls_and_images(
             },
         }, events[7]
         assert events[8]["result"] == preparation_result, events[8]
+        assert events[9]["call_id"] == events[10]["call_id"] == 4, events
+        assert events[9]["request_id"] == accepted_request_id, events[9]
+        assert events[9]["request"] == {
+            "name": "send",
+            "arguments": {"requirements": {"r": ["glue"]}},
+        }, events[9]
+        assert events[10]["result"] == accepted, events[10]
         assert [event["request"]["name"] for event in events if "request" in event] == [
+            "send",
             "send",
             "send",
             "send",
@@ -561,6 +587,7 @@ def test_records_tool_calls_and_images(
                 session / "capture",
                 session / "capture/sessions",
                 session / "capture/sessions/001",
+                session / "sessions",
             )
         }
         assert set(directory_modes.values()) == {0o700}, directory_modes
@@ -576,17 +603,15 @@ def test_records_tool_calls_and_images(
         }
         assert image_path.stat().st_mode & 0o777 == 0o400
         assert output_path.stat().st_mode & 0o777 == 0o400
-        assert all(
-            path.stat().st_mode & 0o777 == 0o600
-            for path in (session / "capture/events.jsonl", markdown_path, quarto_path)
-        ), file_modes
-        transcript = client.finish()
+        assert set(file_modes.values()) == {0o400}, file_modes
 
         for event in events:
             assert event["at"].endswith("Z"), event
             datetime.fromisoformat(event["at"])
             event["at"] = "<UTC timestamp>"
             event["run_id"] = "<run ID>"
+            # Full capture sequence continuity was checked above. Protocol and
+            # asynchronous discovery can change the gaps between this subset.
             event["sequence"] = "<capture sequence>"
             if "request_id" in event:
                 event["request_id"] = "<request ID>"
@@ -594,17 +619,18 @@ def test_records_tool_calls_and_images(
         assert journal_text.endswith("\n"), journal_text
         assert markdown_text.endswith("\n"), markdown_text
         assert quarto_text.endswith("\n"), quarto_text
-        assert "```{r}\nemit image\n```" in quarto_text
+        assert "```{r}\n#| error: true\nemit image\n```" in quarto_text
         assert quarto_path.stat().st_ino != quarto_before_inode
         assert "    - praise" in quarto_text
-        assert "    - transcript-fixture" in quarto_text
-        assert "python-version:" not in quarto_text
+        assert "    - glue" in quarto_text
+        assert "transcript-fixture" not in quarto_text
+        assert "  python-version: []" in quarto_text
         assert all(
             excluded not in quarto_text
             for excluded in (
                 "recorded stdin",
                 "before image",
-                "Artifact 1",
+                "Image 1",
                 "Result for call",
             )
         ), quarto_text
@@ -620,7 +646,7 @@ def test_records_tool_calls_and_images(
                             "files": [
                                 "capture/events.jsonl",
                                 "transcript.md",
-                                "transcript.qmd",
+                                "sessions/session-001.qmd",
                                 "capture/sessions/001/cell-001-001.png",
                                 "capture/sessions/001/cell-001.txt",
                             ],
@@ -663,8 +689,8 @@ def test_disables_recording_after_transcript_failure(
         journal = session / "capture" / "events.jsonl"
         journal_after_failure = journal.read_text(encoding="utf-8")
         events = [json.loads(line) for line in journal_after_failure.splitlines()]
-        events = call_events(events)
-        assert [event["event"] for event in events] == [
+        semantic_events = call_events(events)
+        assert [event["event"] for event in semantic_events] == [
             "recording_started",
             "tool_call",
             "cell_output",
@@ -690,7 +716,7 @@ def test_disables_recording_after_transcript_failure(
         )
         transcript.append(
             {
-                "journal after failure": [event["event"] for event in events],
+                "journal after failure": [event["event"] for event in semantic_events],
                 "complete final line": True,
                 "post-failure append": False,
                 "server stderr": (
@@ -755,8 +781,8 @@ def test_keeps_recording_after_cell_output_failure(
             .read_text(encoding="utf-8")
             .splitlines()
         ]
-        events = call_events(events)
-        assert [event["event"] for event in events] == [
+        semantic_events = call_events(events)
+        assert [event["event"] for event in semantic_events] == [
             "recording_started",
             "tool_call",
             "cell_output",
@@ -805,13 +831,12 @@ def test_flushes_calls_and_keeps_unpolled_images(
         session = next((workspace / ".agents/console" / "sessions").iterdir())
         journal = session / "capture" / "events.jsonl"
         markdown = session / "transcript.md"
-        quarto = session / "transcript.qmd"
+        quarto = session / "sessions/session-001.qmd"
         before_release = [
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
-        before_release = call_events(before_release)
-        assert [event["event"] for event in before_release] == [
+        assert [event["event"] for event in call_events(before_release)] == [
             "recording_started",
             "tool_call",
         ], before_release
@@ -820,7 +845,10 @@ def test_flushes_calls_and_keeps_unpolled_images(
         assert "## Call 1: R" in before_release_markdown
         assert "complete after release" in before_release_markdown
         assert "## Result for call 1" not in before_release_markdown
-        assert "```{r}\ncomplete after release\n```" in before_release_quarto
+        assert (
+            "```{r}\n#| error: true\ncomplete after release\n```"
+            in before_release_quarto
+        )
         markdown_inode = markdown.stat().st_ino
         quarto_inode = quarto.stat().st_ino
 
@@ -830,8 +858,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
-        after_release = call_events(after_release)
-        assert [event["event"] for event in after_release] == [
+        assert [event["event"] for event in call_events(after_release)] == [
             "recording_started",
             "tool_call",
             "cell_output",
@@ -872,8 +899,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
-        final_events = call_events(final_events)
-        assert [event["event"] for event in final_events] == [
+        assert [event["event"] for event in call_events(final_events)] == [
             "recording_started",
             "tool_call",
             "cell_output",
@@ -882,7 +908,9 @@ def test_flushes_calls_and_keeps_unpolled_images(
             "tool_result",
             "image_retained",
         ], final_events
-        artifact = final_events[-1]
+        (artifact,) = [
+            event for event in final_events if event["event"] == "image_retained"
+        ]
         assert {
             key: artifact[key]
             for key in ("artifact_id", "call_id", "path", "mime_type", "bytes")
@@ -899,10 +927,13 @@ def test_flushes_calls_and_keeps_unpolled_images(
         unpolled_quarto = quarto.read_text(encoding="utf-8")
         assert unpolled_markdown.startswith(after_release_markdown)
         assert markdown.stat().st_ino == markdown_inode
-        assert f"[Artifact {artifact['artifact_id']} from call 2]" in unpolled_markdown
+        assert f"[Image {artifact['artifact_id']} from call 2]" in unpolled_markdown
         assert artifact["path"] in unpolled_markdown
         assert unpolled_quarto.startswith(after_release_quarto)
-        assert "```{r}\nemit image before completion\n```" in unpolled_quarto
+        assert (
+            "```{r}\n#| error: true\nemit image before completion\n```"
+            in unpolled_quarto
+        )
         assert quarto.stat().st_ino != quarto_inode
         unpolled_quarto_inode = quarto.stat().st_ino
 
@@ -929,12 +960,12 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
-        completed_events = call_events(completed_events)
-        assert [event["event"] for event in completed_events] == [
-            *[event["event"] for event in final_events],
+        completed_semantic = call_events(completed_events)
+        assert [event["event"] for event in completed_semantic] == [
+            *[event["event"] for event in call_events(final_events)],
             "cell_output",
         ], completed_events
-        assert completed_events[-1]["call_id"] == 2, completed_events[-1]
+        assert completed_semantic[-1]["call_id"] == 2, completed_semantic[-1]
         client.send(timeout_ms=3_000)
         poll_result = client.transcript[-1]["result"]
         assert poll_result == {
@@ -945,14 +976,14 @@ def test_flushes_calls_and_keeps_unpolled_images(
             json.loads(line)
             for line in journal.read_text(encoding="utf-8").splitlines()
         ]
-        polled_events = call_events(polled_events)
-        assert [event["event"] for event in polled_events] == [
-            *[event["event"] for event in completed_events],
+        polled_semantic = call_events(polled_events)
+        assert [event["event"] for event in polled_semantic] == [
+            *[event["event"] for event in completed_semantic],
             "tool_call",
             "tool_result",
         ], polled_events
-        assert polled_events[-1]["call_id"] == 3, polled_events[-1]
-        assert polled_events[-1]["result"] == {
+        assert polled_semantic[-1]["call_id"] == 3, polled_semantic[-1]
+        assert polled_semantic[-1]["result"] == {
             "content": [
                 {
                     "type": "image",
@@ -962,7 +993,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
                 }
             ],
             "isError": False,
-        }, polled_events[-1]
+        }, polled_semantic[-1]
         polled_markdown = markdown.read_text(encoding="utf-8")
         polled_quarto = quarto.read_text(encoding="utf-8")
         assert polled_markdown.startswith(unpolled_markdown)
@@ -977,17 +1008,17 @@ def test_flushes_calls_and_keeps_unpolled_images(
             {
                 "live journal": {
                     "while first call was running": [
-                        event["event"] for event in before_release
+                        event["event"] for event in call_events(before_release)
                     ],
                     "after first call completed": [
-                        event["event"] for event in after_release
+                        event["event"] for event in call_events(after_release)
                     ],
                     "unpolled image": {
                         "event": artifact["event"],
                         "path": artifact["path"],
                         "data": "<byte-identical decoded PNG>",
                     },
-                    "later poll result": polled_events[-1]["result"],
+                    "later poll result": polled_semantic[-1]["result"],
                     "Markdown projection": {
                         "live before result": True,
                         "each snapshot retained as an exact prefix": True,
@@ -1075,6 +1106,7 @@ def test_records_early_calls_before_discovery(binary: Path) -> Transcript:
             ) as client:
                 client.initialize_and_list_tools()
                 discovery.wait("discovery diagnostic emitted")
+
                 sessions = root / ".agents/console/sessions"
                 assert not sessions.exists(), sessions
                 client.expect(
@@ -1084,6 +1116,7 @@ def test_records_early_calls_before_discovery(binary: Path) -> Transcript:
                 )
                 discovery.release()
                 client.send(requirements={"action": "get"})
+                client.send(r="42L")
                 client.finish()
             (session,) = (root / ".agents/console/sessions").iterdir()
             events = [
@@ -1111,8 +1144,9 @@ def test_records_early_calls_before_discovery(binary: Path) -> Transcript:
             )
             assert all(event["at"] < discovered["at"] for event in early), events
             markdown = (session / "transcript.md").read_text()
-            assert "## Call 1:" in markdown, markdown
-            quarto = (session / "transcript.qmd").read_text()
+            assert markdown.index("## Call 1:") < markdown.index("## Call 2:"), markdown
+            assert "## Runtime discovery" not in markdown, markdown
+            quarto = (session / "sessions/session-001.qmd").read_text()
             assert "environment: unknown" not in quarto, quarto
             assert "eval: false" not in quarto, quarto
             return [{"early_call_and_result_precede_discovery": True}]
@@ -1147,6 +1181,7 @@ def test_records_early_calls_before_startup_artifacts(binary: Path) -> Transcrip
             ) as client:
                 client.initialize_and_list_tools()
                 discovery.wait("discovery awaiting release")
+
                 client.expect(
                     "\n[phase: startup]\n[worker starting]",
                     requirements={"action": "get"},
@@ -1194,7 +1229,7 @@ def test_records_early_calls_before_startup_artifacts(binary: Path) -> Transcrip
             assert image.read_bytes() == expected_image
             markdown = (session / "transcript.md").read_text()
             assert markdown.index("## Call 1:") < markdown.index(
-                "## Artifact 1 for session"
+                "## Image 1 for session"
             ), markdown
             return [{"early_call_and_result_precede_startup_artifact": True}]
         finally:
@@ -1218,6 +1253,7 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
             ) as client:
                 client.initialize_and_list_tools()
                 discovery.wait("discovery awaiting failure release")
+
                 client.expect(
                     "\n[phase: startup]\n[worker starting]",
                     requirements={"action": "get"},
@@ -1245,20 +1281,26 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
             assert results[-1]["result"]["isError"], results[-1]
             assert "fixture R discovery failed" in str(results[-1]), results[-1]
             assert sum(event["event"] == "startup_failed" for event in events) == 1
-            (process_output,) = [
-                event for event in events if event["event"] == "process_output"
-            ]
-            assert base64.b64decode(process_output["data"]) == b"preparation detail\n"
-            assert process_output["discarded_bytes"] == 0, process_output
+            raw = b"".join(
+                base64.b64decode(event["data"])
+                for event in events
+                if event["event"] == "process_output"
+            )
+            assert raw == b"preparation detail\n"
+            assert all(
+                event["discarded_bytes"] == 0
+                for event in events
+                if event["event"] == "process_output"
+            )
+            assert not any(event["event"] == "worker_started" for event in events)
+            assert not list((session / "sessions").glob("*.qmd"))
+            assert (
+                "stop('failed discovery ran the cell')"
+                in (session / "transcript.md").read_text()
+            )
             assert events[0]["dynamic_resolution"] is None, events[0]
             assert events[0]["python_preparation"] is None, events[0]
             assert events[0]["startup_requirements"] is None, events[0]
-            quarto = (session / "transcript.qmd").read_text()
-            header = quarto.split("---\n", 2)[1]
-            assert "execute:\n  eval: false\n" in header, quarto
-            assert "mcp-console:\n  environment: unknown\n" in header, quarto
-            assert "ir:" not in header and "knitr:" not in header, quarto
-            assert "stop('failed discovery ran the cell')" in quarto, quarto
             return [{"early_calls_recorded": 3, "startup_failure_recorded": True}]
         finally:
             discovery.release()
@@ -1388,6 +1430,7 @@ def test_preserves_early_requirements_in_published_quarto(binary: Path) -> Trans
             with McpClient(binary, DIRECT.serve(), environment, root) as client:
                 client.initialize_and_list_tools()
                 discovery.wait("discovery is held before recording metadata is known")
+
                 admitted = client.send(
                     r="42L", requirements={"r": ["praise"]}, timeout_ms=0
                 )
@@ -1401,9 +1444,9 @@ def test_preserves_early_requirements_in_published_quarto(binary: Path) -> Trans
                 assert last_tool_text(client).endswith("[1] 42\n")
                 transcript = client.finish()
             (recording,) = (root / ".agents/console/sessions").iterdir()
-            quarto = (recording / "transcript.qmd").read_text()
+            quarto = (recording / "sessions/session-001.qmd").read_text()
             assert "    - praise\n" in quarto, quarto
-            assert "```{r}\n42L\n```" in quarto, quarto
+            assert "```{r}\n#| error: true\n42L\n```" in quarto, quarto
             assert "eval: false" not in quarto, quarto
             return transcript
         finally:
@@ -1426,6 +1469,7 @@ def test_discards_startup_failure_without_send(binary: Path) -> Transcript:
             with McpClient(binary, DIRECT.serve(), environment, root) as client:
                 client.initialize_and_list_tools()
                 discovery.wait("discovery ready to fail without send")
+
                 client.request("ping")
                 discovery.release()
                 # The discovery process has emitted its failure before shutdown;

@@ -1896,8 +1896,22 @@ class WindowsConsole(unittest.TestCase):
         (recording,) = (
             Path(session.directory.name) / ".agents/console/sessions"
         ).iterdir()
-        for name in ("capture/events.jsonl", "transcript.md", "transcript.qmd"):
-            self.assertTrue((recording / name).stat().st_mode & 0o222, name)
+        source_documents = [
+            recording / f"sessions/session-{session_id:03}.qmd"
+            for session_id in range(1, 14)
+        ]
+        self.assertEqual(
+            sorted((recording / "sessions").glob("*.qmd")), source_documents
+        )
+        self.assertFalse((recording / "transcript.qmd").exists())
+        for path in (
+            recording / "capture/events.jsonl",
+            recording / "transcript.md",
+            *source_documents,
+        ):
+            self.assertTrue(path.stat().st_mode & 0o222, path)
+        for path in source_documents:
+            self.assertIn("```{r}\n#| error: true\n42\n```", path.read_text())
         session.process.stdin.close()
         self.assertEqual(session.process.wait(timeout=15), 0)
         events = [

@@ -46,6 +46,16 @@ result:
       text: Python requirements are unavailable with a custom worker
   isError: true
 ---
+send:
+  requirements:
+    r:
+      - glue
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
 input:
   method: tools/call
   params:

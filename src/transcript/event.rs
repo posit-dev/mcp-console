@@ -46,6 +46,21 @@ pub(super) enum Event<'a> {
         session_id: u64,
         outcome: &'a str,
     },
+    /// Server admission can precede worker acquisition and an initial response.
+    /// Keep the submitted source pending until association or settlement.
+    SourceAdmitted {
+        call_id: u64,
+    },
+    /// Server admission settled, including source withheld before cell entry.
+    /// Unlike CellEnded, this does not require execution to have started.
+    SourceFinished {
+        call_id: u64,
+    },
+    /// The actual worker lifetime owning this submission, even if it never runs.
+    SourceAssociated {
+        call_id: u64,
+        session_id: u64,
+    },
     CellStarted {
         call_id: u64,
         owner: super::Owner,

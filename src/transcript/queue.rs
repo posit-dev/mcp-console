@@ -29,6 +29,10 @@ pub(super) struct ProtocolEvents {
 pub(super) enum QueuedEvent {
     Event(Event<'static>),
     WorkerStarting,
+    AssociateWaitingCall {
+        call_id: u64,
+        session_id: u64,
+    },
     WorkerStarted {
         session_id: u64,
         pid: u32,
@@ -107,6 +111,24 @@ impl QueuedEvent {
                 return active.append(event, at);
             }
             Self::WorkerStarting => return Ok(()),
+            Self::AssociateWaitingCall {
+                call_id,
+                session_id,
+            } => {
+                // Replacement readiness can arrive after a failed source and
+                // its result have both settled. Never associate that retired
+                // call with the replacement worker.
+                let Some(call) = active.call_sessions.get(call_id) else {
+                    return Ok(());
+                };
+                if call.session_id.is_some() {
+                    return Ok(());
+                }
+                Event::SourceAssociated {
+                    call_id: *call_id,
+                    session_id: *session_id,
+                }
+            }
             Self::WorkerStarted {
                 session_id,
                 pid,
@@ -393,6 +415,39 @@ impl Transcript {
         result
     }
 
+    pub(crate) fn source_admitted(&self, call_id: Option<u64>) {
+        if let Some(call_id) = call_id {
+            self.queue_event(QueuedEvent::Event(Event::SourceAdmitted { call_id }));
+        }
+    }
+    pub(crate) fn source_finished(&self, call_id: Option<u64>) {
+        if let Some(call_id) = call_id {
+            self.queue_event(QueuedEvent::Event(Event::SourceFinished { call_id }));
+        }
+    }
+    /// Bind waiting source to its first worker without replaying it onto replacement.
+    pub(crate) fn associate_waiting_call(&self, call_id: Option<u64>) {
+        self.observe(|events| {
+            Some((
+                QueuedEvent::AssociateWaitingCall {
+                    call_id: call_id?,
+                    session_id: events.owner?.session_id,
+                },
+                (),
+            ))
+        });
+    }
+    pub(crate) fn associate_current_call(&self, call_id: Option<u64>) {
+        self.observe(|events| {
+            Some((
+                QueuedEvent::Event(Event::SourceAssociated {
+                    call_id: call_id?,
+                    session_id: events.owner?.session_id,
+                }),
+                (),
+            ))
+        });
+    }
     pub(crate) fn owner(&self) -> Option<Owner> {
         let events = self.1.lock().expect("protocol capture lock");
         events.failure.is_none().then_some(events.owner).flatten()

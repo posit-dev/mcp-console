@@ -177,7 +177,10 @@ impl WorkerOperationState {
         let state = self.lock()?;
         state.ensure_running()?;
         assert!(!matches!(state.bootstrap, Bootstrap::Running));
-        evaluation.admission.dispatch(enqueue)
+        evaluation.admission.dispatch(|| {
+            evaluation.associate_session();
+            enqueue()
+        })
     }
 
     pub(in crate::worker_client) fn is_bootstrapping(&self) -> Result<bool, String> {
@@ -312,6 +315,7 @@ impl WorkerOperationState {
         evaluation.capture_prelude_before(capture_idle_prelude, || {
             state.operation = operation.take();
         })?;
+        evaluation.associate_session();
         Ok(receiver)
     }
 

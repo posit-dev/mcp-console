@@ -31,5 +31,5 @@ result:
   isError: false
 ---
 stderr: >
-  mcp-console: transcript projections disabled: Quarto execution root
-  requires a UTF-8 working directory
+  mcp-console: transcript projections disabled: source metadata requires a
+  UTF-8 working directory

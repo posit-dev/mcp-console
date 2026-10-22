@@ -3,6 +3,7 @@
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,119 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class DevelopmentTests(unittest.TestCase):
+    def test_ci_rebuilds_checkout_sources_without_rebuilding_dependencies(self) -> None:
+        if not command("cargo").available:
+            self.skipTest("Cargo is required for the CI build-cache regression")
+        self.write(
+            "Cargo.toml",
+            """[package]
+name = "mcp-console"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+cache-fixture = { path = "dependency" }
+""",
+        )
+        self.write(
+            "dependency/Cargo.toml",
+            """[package]
+name = "cache-fixture"
+version = "0.0.0"
+edition = "2021"
+""",
+        )
+        self.write("dependency/src/lib.rs", 'pub const VALUE: &str = "dependency";\n')
+        source = 'fn main() { println!("{} cached", cache_fixture::VALUE); }\n'
+        self.write("src/main.rs", source)
+        for name in (
+            "with-checkout",
+            "with-checkout.cmd",
+            "checkout_workflow.py",
+            "checkout_windows.py",
+        ):
+            target = self.root / "scripts" / name
+            target.parent.mkdir(exist_ok=True)
+            shutil.copy2(ROOT / "scripts" / name, target)
+
+        def run(*arguments: str) -> str:
+            return subprocess.check_output(
+                arguments,
+                cwd=self.root,
+                text=True,
+                stderr=subprocess.STDOUT,
+                timeout=60,
+            )
+
+        build = ("cargo", "build", "--offline", "--target-dir", "target")
+        executable = (
+            self.root
+            / "target/debug"
+            / ("mcp-console.exe" if os.name == "nt" else "mcp-console")
+        )
+        run(*build)
+        self.assertEqual(run(str(executable)), "dependency cached\n")
+        dependency = next(
+            (self.root / "target/debug/deps").glob("libcache_fixture-*.rlib")
+        )
+        dependency_time = dependency.stat().st_mtime_ns
+        modified = (self.root / "src/main.rs").stat().st_mtime_ns
+        self.write("src/main.rs", source.replace("cached", "source"))
+        # A cache restored after checkout can contain newer compiler fingerprints.
+        os.utime(self.root / "src/main.rs", ns=(modified, modified))
+        run(*build)
+        self.assertEqual(run(str(executable)), "dependency cached\n")
+
+        workflow = (ROOT / ".github/workflows/ci.yaml").read_text()
+        job = "windows" if os.name == "nt" else "check"
+        section = workflow.split(f"  {job}:\n", 1)[1]
+
+        def cache_paths(name: str) -> set[Path]:
+            step = section.split(f"      - name: {name}\n", 1)[1].split(
+                "\n      - ", 1
+            )[0]
+            paths = step.split("          path: |\n", 1)[1].split(
+                "\n          key:", 1
+            )[0]
+            return {
+                Path(path.strip())
+                for path in paths.splitlines()
+                if path.strip().startswith("target/")
+            }
+
+        restore = (
+            "Restore Windows build and dependency caches"
+            if os.name == "nt"
+            else "Restore Rust build data"
+        )
+        save = "Save Windows caches" if os.name == "nt" else "Save Rust build data"
+        cached_target = self.root / "cached-target"
+        (self.root / "target").rename(cached_target)
+        # Restore only what CI saves, including Cargo's target-directory marker.
+        for path in cache_paths(save) & cache_paths(restore):
+            source = cached_target / path.relative_to("target")
+            destination = self.root / path
+            if source.is_dir():
+                shutil.copytree(source, destination)
+            elif source.is_file():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination)
+        step = section.partition(
+            "      - name: Discard restored Console build artifacts\n"
+        )[2]
+        if step:
+            program = (
+                step.split("\n      - ", 1)[0].split("        run: ", 1)[1].strip()
+            )
+            arguments = shlex.split(program)
+            arguments[0] = str(Path(arguments[0]))
+            subprocess.run(
+                arguments, shell=os.name == "nt", cwd=self.root, check=True, timeout=60
+            )
+        run(*build)
+        self.assertEqual(run(str(executable)), "dependency source\n")
+        self.assertEqual(dependency.stat().st_mtime_ns, dependency_time)
+
     @unittest.skipUnless(os.name == "nt", "native Windows CI archive paths")
     def test_windows_ci_source_archive_round_trip(self) -> None:
         for requirement in (command("pwsh"), gnu_tar()):

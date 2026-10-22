@@ -140,12 +140,39 @@
   run_id: <run ID>
   sequence: <capture sequence>
   at: <UTC timestamp>
+- event: tool_call
+  call_id: 4
+  request_id: <request ID>
+  request:
+    name: send
+    arguments:
+      requirements:
+        r:
+          - glue
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_result
+  call_id: 4
+  parts:
+  - block: 0
+    start: 0
+    end: 10
+    owner: ~
+  result:
+    content:
+      - type: text
+        text: "[prepared]"
+    isError: false
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
 ---
 produced session:
   root: .agents/console/sessions/<run ID>
   files:
     - capture/events.jsonl
     - transcript.md
-    - transcript.qmd
+    - sessions/session-001.qmd
     - capture/sessions/001/cell-001-001.png
     - capture/sessions/001/cell-001.txt

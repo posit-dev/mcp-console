@@ -281,7 +281,7 @@ def test_configured_mixed_startup_additions_restart_reset_and_recording(
             and event["startup_requirements"] is not None
         ]
         assert recorded == startup["requirements"], recorded
-        quarto = (session / "transcript.qmd").read_text()
+        quarto = (session / "sessions/session-001.qmd").read_text()
         assert "    - praise\n" in quarto and "    - packaging\n" in quarto, quarto
         assert "    - tidyverse\n" not in quarto and "    - plotnine\n" not in quarto, (
             quarto

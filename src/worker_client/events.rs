@@ -179,6 +179,16 @@ fn dispatch_worker_events(
                         worker_acquired = true;
                         let retained = callbacks.client.inspect_requirements();
                         output.worker_started(pid, &retained["requirements"]);
+                        if let Some(active) = callbacks
+                            .client
+                            .0
+                            .evaluation
+                            .lock()
+                            .map_err(|_| "evaluation lock poisoned")?
+                            .as_ref()
+                        {
+                            active.evaluation.associate_waiting_session();
+                        }
                         Ok(())
                     }
                     RelayEvent::Stdout { data } => {

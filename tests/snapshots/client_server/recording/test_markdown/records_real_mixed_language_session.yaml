@@ -3,6 +3,106 @@
 ---
 send:
   requirements:
+    action: get
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: dependency preparation]
+        [worker starting]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  requirements:
     r:
       - graphics
       - grDevices

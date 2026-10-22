@@ -641,12 +641,16 @@ def test_records_requirement_boundaries(
             "matplotlib",
             "plotnine",
         ]
-        quarto = (session / "transcript.qmd").read_text()
-        assert "execute:\n  eval: false" in quarto
-        assert "Recreate the environments at the recorded boundaries" in quarto
-        assert "See transcript.md and capture/events.jsonl" in quarto
-        assert quarto.index('"python": []') < quarto.index("first_environment = 1")
-        assert quarto.index('"six"') < quarto.index("second_environment = 2")
+        documents = [
+            path.read_text()
+            for path in sorted((session / "sessions").glob("session-*.qmd"))
+        ]
+        assert len(documents) == 2, documents
+        first, second = documents
+        assert "first_environment = 1" in first and "second_environment" not in first
+        assert "second_environment = 2" in second and "first_environment" not in second
+        assert "    - six\n" in second
+        assert all("captured output" not in document for document in documents)
         markdown = (session / "transcript.md").read_text()
         assert "Requirements selected" in markdown
         formatting = subprocess.run(
@@ -658,7 +662,10 @@ def test_records_requirement_boundaries(
                 "sentence",
                 "--skip-embedded-formatters",
                 "transcript.md",
-                "transcript.qmd",
+                *[
+                    str(path.relative_to(session))
+                    for path in sorted((session / "sessions").glob("session-*.qmd"))
+                ],
             ],
             cwd=session,
             capture_output=True,

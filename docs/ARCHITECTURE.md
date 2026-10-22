@@ -367,6 +367,16 @@ It preserves the existing storage-root selection, identifier generation, permiss
 The output tape owns observed startup, cell, and post-cell boundaries within each worker lifetime.
 The worker's `cell_started` receipt begins execution capture at evaluator entry, after admission; a withheld source gets no executed-cell log.
 The `cell_started` capture event records the call and interval owner; withheld source remains in `tool_call` without an executed-cell association.
+Source admission, worker association, and settlement use that same bounded recorder queue without blocking MCP reception or worker event dispatch on journal I/O.
+Admitted source survives an initial response until association or evaluation settlement.
+`source_admitted` and `source_finished` follow server admission, which can begin before worker acquisition and settle without execution.
+The admission owner records settlement at its first terminal outcome, including operation failure and retirement before evaluation completion.
+They cannot be inferred from `cell_started` and `cell_ended`, which describe actual worker execution.
+`source_associated` identifies the owning worker without claiming that the source ran.
+Actual acquisition and dispatch associate source with its worker; validation rejection can associate otherwise unclaimed source only with the still-surviving addressed worker.
+Calls without source do not acquire source associations.
+Unsettled associations retain call identity and settlement flags, and the source projection retains source rather than complete requests or stdin.
+Both release settled call entries.
 Completion closes the cell interval, and the final startup or post-cell interval includes shutdown output.
 Confirmed completion follows protocol validation; cell entry observed during retirement still starts its capture interval.
 Worker termination closes the final interval and clears its owner before later process diagnostics arrive.
@@ -377,10 +387,14 @@ Combined text/image omission notices retain their common observed interval owner
 Image omission ownership is aggregated before per-interval receipts retire, with bounded state independent of the number of omitted images.
 Response assembly uses those receipts without waiting for the journal to rediscover ownership.
 
-Raw files live under `capture/sessions/NNN/`; the existing recording-wide Markdown and source-only QMD remain projections of the journal.
+Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and source-only `sessions/session-NNN.qmd` remain projections of the journal.
+Session documents follow actual worker lifetimes, including automatic replacements, and are created only when source is associated.
+Their metadata follows accepted live requirements and acquisition snapshots, including retained R declarations; replacement preparation does not rewrite a retiring session.
+The Markdown projection retains calls and assembled results, including previews and omission notices, while the journal retains routine protocol, delivery, and low-level lifecycle evidence.
 Completed interval files and images become read-only after their writers retire.
 The temporary-publication registry keeps weak references to active file handles and releases completed entries; publication copies completed files while relocating live producers.
 Process-wide files finalize only after retirement, delivery settlement, queued initial capture, and blocking result writers settle.
+Session QMD permissions finalize at that same barrier because source associations and metadata updates can follow worker termination.
 Capture completion ownership survives handler cancellation and delivery deadlines, including after a result writer releases the journal mutex.
 Finalization completes permissions on retained files even after recording or projection failure, without inventing a successful `recording_ended` event for disabled capture.
 

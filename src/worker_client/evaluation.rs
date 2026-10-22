@@ -135,7 +135,11 @@ impl Evaluation {
     ) -> Self {
         let delivery_changed = Arc::new(tokio::sync::Notify::new());
         Self {
-            admission: super::admission::CellAdmission::new(generation),
+            admission: super::admission::CellAdmission::new(
+                generation,
+                transcript.clone(),
+                call_id,
+            ),
             state: Mutex::new(EvaluationState {
                 phase: EvaluationPhase::Evaluating,
                 completion_cut: None,
@@ -353,6 +357,14 @@ impl Evaluation {
             return Err("worker completed a cell before reporting its start".into());
         }
         Ok(())
+    }
+
+    pub(super) fn associate_waiting_session(&self) {
+        self.transcript.associate_waiting_call(self.call_id);
+    }
+
+    pub(super) fn associate_session(&self) {
+        self.transcript.associate_current_call(self.call_id);
     }
 
     /// Queues text and briefly defers any outstanding input report for its receipt.

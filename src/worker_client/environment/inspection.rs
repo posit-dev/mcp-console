@@ -165,6 +165,19 @@ impl Client {
         }
     }
 
+    /// Replacement declarations belong to the next worker. Its launch event
+    /// records them without changing the retiring session's source metadata.
+    pub(in crate::worker_client) fn publish_replacement_requirements(
+        &self,
+        environment: &Environment,
+    ) {
+        *self
+            .0
+            .requirements_snapshot
+            .lock()
+            .expect("requirements snapshot lock") = environment.inspection();
+    }
+
     /// Publish only at existing generation-checked commit points. Inspection
     /// never acquires the environment lock held across resolver execution.
     pub(in crate::worker_client) fn publish_requirements(&self, environment: &Environment) {

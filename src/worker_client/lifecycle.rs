@@ -789,7 +789,7 @@ impl Client {
             .transpose()?;
         *environment = resolved;
         self.record_accepted_python(environment);
-        self.publish_requirements(environment);
+        self.publish_replacement_requirements(environment);
         let (processes, deadline, generation) =
             lifecycle.start_restart(grace, OldGenerationCommitDisposition::DiscardForReplacement);
         self.0

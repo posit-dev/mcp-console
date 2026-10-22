@@ -22,7 +22,7 @@ env:
   # Manual version used by GitHub Actions cache keys and restore prefixes.
   # Bump for build inputs outside the hashed files, such as workflow build
   # flags or native dependency setup. Cargo and Maturin do not read this value.
-  CI_BUILD_CACHE_VERSION: "3"
+  CI_BUILD_CACHE_VERSION: "4"
   IR_LATEST_RESOLUTION_MAX_AGE_SECONDS: "604800"
   # The Python inventory determines defaults recorded in transcript snapshots.
   UV_VERSION: "0.13.1"
@@ -110,12 +110,17 @@ jobs:
         id: cache
         with:
           path: |
+            target/CACHEDIR.TAG
             target/debug
             target/release
             ${{ runner.temp }}/console-windows-cache
           key: windows-v2-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.epoch.outputs.week }}-${{ steps.epoch.outputs.image }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.r.outputs.installed-r-version }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**') }}
           restore-keys: |
             windows-v2-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.epoch.outputs.week }}-${{ steps.epoch.outputs.image }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.r.outputs.installed-r-version }}-
+      - name: Discard restored Console build artifacts
+        # Cached fingerprints can be newer than this checkout's changed sources.
+        # Retain dependency builds, but compile Console from this checkout.
+        run: scripts/with-checkout.cmd cargo clean --package mcp-console --target-dir target
       - name: Restore Windows Cargo downloads
         id: cargo-downloads
         uses: actions/cache/restore@v6
@@ -257,6 +262,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: |
+            target/CACHEDIR.TAG
             target/debug
             target/release
             ${{ runner.temp }}/console-windows-cache
@@ -438,6 +444,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: |
+            target/CACHEDIR.TAG
             target/debug
             target/release
             target/libexec
@@ -449,6 +456,11 @@ jobs:
             cargo-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**') }}
           restore-keys: |
             cargo-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.setup-r.outputs.installed-r-version }}-
+
+      - name: Discard restored Console build artifacts
+        # Cached fingerprints can be newer than this checkout's changed sources.
+        # Retain dependency builds, but compile Console from this checkout.
+        run: scripts/with-checkout cargo clean --package mcp-console --target-dir target
 
       - name: Restore private sandbox runner
         id: sandbox-cache
@@ -511,7 +523,7 @@ jobs:
           # Only exact matches skip packaging. On a miss, Maturin invokes Cargo
           # using the build data restored above, including earlier revisions.
           key: >-
-            release-v1-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.setup-r.outputs.installed-r-version }}-py-${{ steps.python.outputs.python-version }}-maturin-${{ steps.tools.outputs.maturin_version }}-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ hashFiles('src/**', 'python/**', 'Cargo.toml', 'Cargo.lock', '.cargo/**', 'build.rs', 'scripts/build_backend.py', 'pyproject.toml', 'sandbox-runner.json', 'target/sandbox-runner-build.json', 'scripts/stage-sandbox-runner', 'README.md', 'LICENSE') }}
+            release-v2-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.setup-r.outputs.installed-r-version }}-py-${{ steps.python.outputs.python-version }}-maturin-${{ steps.tools.outputs.maturin_version }}-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ hashFiles('src/**', 'python/**', 'Cargo.toml', 'Cargo.lock', '.cargo/**', 'build.rs', 'scripts/build_backend.py', 'pyproject.toml', 'sandbox-runner.json', 'target/sandbox-runner-build.json', 'scripts/stage-sandbox-runner', 'README.md', 'LICENSE') }}
 
       - name: Build Rust test targets
         run: cargo test --locked --no-run --all-targets --all-features
@@ -564,6 +576,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: |
+            target/CACHEDIR.TAG
             target/debug
             target/release
             target/libexec

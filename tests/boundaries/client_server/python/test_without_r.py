@@ -770,30 +770,60 @@ def test_prepares_managed_python_at_startup_and_restart(
             )
             records = client.finish()[3:]
         (session,) = (workspace / ".agents/console/sessions").iterdir()
-        quarto = (session / "transcript.qmd").read_text()
-        assert "execute:\n  eval: false" not in quarto
-        assert "\nknitr:" in quarto and "\nir:" in quarto
-        assert "ir:\n  isolated: true\n  packages: []\n  python-packages:\n" in quarto
-        packages = [
-            "numpy",
-            "pandas",
-            "matplotlib",
-            "plotnine",
-            "py-yaml12",
-            "more-itertools",
+        capture = [
+            json.loads(line)
+            for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
-        if SQL.available:
-            packages.append("duckdb")
-        for package in packages:
-            assert f"    - {package}\n" in quarto
-    return TranscriptWithCompanions(
-        records,
-        {
-            "qmd": quarto.replace(str(workspace.resolve()), "<workspace>").replace(
-                str(workspace), "<workspace>"
+        calls = {
+            event["call_id"]: event["request"]["arguments"]
+            for event in capture
+            if event["event"] == "tool_call"
+        }
+        sources = {}
+        for event in capture:
+            if (
+                event["event"] == "source_associated"
+                and "python" in calls[event["call_id"]]
+            ):
+                sources.setdefault(event["session_id"], []).append(
+                    calls[event["call_id"]]["python"]
+                )
+        documents = []
+        for path in sorted((session / "sessions").glob("session-*.qmd")):
+            quarto = path.read_text()
+            session_id = int(path.stem.removeprefix("session-"))
+            expected = sources.pop(session_id)
+            for source in set(expected):
+                assert quarto.count(source) == expected.count(source), (
+                    path,
+                    source,
+                    quarto,
+                )
+            assert "execute:\n  eval: false" not in quarto
+            assert "original-working-directory:" in quarto and "\nir:" in quarto
+            assert (
+                "ir:\n  isolated: true\n  packages: []\n  python-packages:\n" in quarto
             )
-        },
-    )
+            started = next(
+                event
+                for event in capture
+                if event["event"] == "worker_started"
+                and event["session_id"] == session_id
+            )
+            for package in started["requirements"]["python"]:
+                assert f"    - {package}\n" in quarto, (path, package, quarto)
+            documents.append(
+                {
+                    "session": session_id,
+                    "qmd": quarto.replace(
+                        str(workspace.resolve()), "<workspace>"
+                    ).replace(str(workspace), "<workspace>"),
+                    "path": path.relative_to(session).as_posix(),
+                }
+            )
+        assert not sources, sources
+        assert len(documents) > 1, documents
+    return TranscriptWithCompanions(records, {"documents.yaml": documents})
 
 
 @requires(SQL)
@@ -930,9 +960,9 @@ def test_adds_python_packages_to_idle_managed_worker(
         ]
         assert len(accepted) >= 3, accepted
         assert {"py-yaml12", "six", "more-itertools"}.issubset(accepted[-1])
-        quarto = (session / "transcript.qmd").read_text()
+        quarto = sorted((session / "sessions").glob("session-*.qmd"))[-1].read_text()
         assert "execute:\n  eval: false" not in quarto
-        assert "\nknitr:" in quarto and "\nir:" in quarto
+        assert "original-working-directory:" in quarto and "\nir:" in quarto
         assert "ir:\n  isolated: true\n  packages: []\n  python-packages:\n" in quarto
         assert "    - more-itertools\n" in quarto
         return records
@@ -1052,9 +1082,9 @@ def test_resolves_reached_import_in_managed_worker(
             and {"py-yaml12", "pydash"}.issubset(event["packages"])
             for event in events
         )
-        quarto = (session / "transcript.qmd").read_text()
+        quarto = sorted((session / "sessions").glob("session-*.qmd"))[-1].read_text()
         assert "execute:\n  eval: false" not in quarto
-        assert "\nknitr:" in quarto and "\nir:" in quarto
+        assert "original-working-directory:" in quarto and "\nir:" in quarto
         assert "ir:\n  isolated: true\n  packages: []\n  python-packages:\n" in quarto
         assert "    - py-yaml12\n" in quarto and "    - pydash\n" in quarto
         return records
@@ -2586,10 +2616,10 @@ False
             records = client.finish()
             (session,) = (workspace / ".agents/console/sessions").iterdir()
             markdown = (session / "transcript.md").read_text()
-            quarto = (session / "transcript.qmd").read_text()
+            quarto = (session / "sessions/session-001.qmd").read_text()
             assert "recorded_value = 41" in markdown and "recorded_value = 41" in quarto
             assert "execute:\n  eval: false" not in quarto
-            assert "\nknitr:" in quarto and "\nir:" in quarto
+            assert "original-working-directory:" in quarto and "\nir:" in quarto
             assert (
                 "ir:\n  isolated: true\n  packages: []\n  python-packages: []\n"
                 in quarto
@@ -2602,10 +2632,40 @@ False
             ]
             assert events[0]["event"] == "recording_started"
             assert sum(event["event"] == "tool_call" for event in events) == 3
+            assert [event["sequence"] for event in events] == list(
+                range(1, len(events) + 1)
+            )
+            cells = [event for event in events if event["event"] == "cell_started"]
+            assert [
+                (
+                    event["call_id"],
+                    event["owner"]["session_id"],
+                    event["owner"]["cell_id"],
+                )
+                for event in cells
+            ] == [(1, 1, 1), (2, 1, 2), (3, 2, 1)]
+            for cell in cells:
+                ready = next(
+                    event
+                    for event in events
+                    if event["event"] == "worker_ready"
+                    and event["session_id"] == cell["owner"]["session_id"]
+                )
+                associated = next(
+                    event
+                    for event in events
+                    if event["event"] == "source_associated"
+                    and event["call_id"] == cell["call_id"]
+                )
+                assert ready["sequence"] < cell["sequence"]
+                assert associated["sequence"] < cell["sequence"]
+                assert associated["session_id"] == cell["owner"]["session_id"]
+            replacement = (session / "sessions/session-002.qmd").read_text()
+            assert "'recorded_value' in globals()" in replacement
+            assert "recorded_value = 41" not in replacement
             records.append(
                 {
                     "recording": {
-                        # Protocol and lifecycle order have their own recording cases.
                         "events": [
                             event["event"]
                             for event in events
@@ -3163,8 +3223,17 @@ def test_excludes_executable_directory_from_imports(
         with McpClient(binary, execution.serve(), env, workspace) as client:
             client.initialize_and_list_tools()
             for control in ({}, {"control": "restart"}):
-                client.send(
+                expected = "'{\"selected package\": 42}'\n"
+                if control:
+                    expected = (
+                        "[worker stopped: in-memory state lost]\n"
+                        "[starting new worker]\n" + expected + "[done]"
+                    )
+                # Exercise an early response and collect the completed evaluation.
+                client.expect(
+                    expected,
                     **control,
+                    timeout_ms=0,
                     # fmt: python
                     python=code("""
                         import json
@@ -3174,14 +3243,15 @@ def test_excludes_executable_directory_from_imports(
 
                         assert sys.path[0] == ""
                         assert os.path.dirname(sys.executable) not in sys.path
-                        assert selected_package.value == 42
+                        assert selected_package.value == 42, (
+                            selected_package.value,
+                            selected_package.__file__,
+                            sys.path,
+                            sys.prefix,
+                        )
                         json.dumps({"selected package": selected_package.value})
                         """),
                 )
-                assert not client.transcript[-1]["result"]["isError"], (
-                    client.transcript[-1]
-                )
-                assert "'{\"selected package\": 42}'\n" in last_result_text(client)
             return client.finish()
 
 
@@ -3211,7 +3281,7 @@ def test_records_managed_python_defaults(
             client.expect("42\n", python="retained")
             records = client.finish()
         (session,) = (workspace / ".agents/console/sessions").iterdir()
-        quarto = (session / "transcript.qmd").read_text()
+        quarto = (session / "sessions/session-001.qmd").read_text()
         defaults = ["numpy", "pandas", "matplotlib", "plotnine"]
         if SQL.available:
             defaults.append("duckdb")
@@ -3220,18 +3290,25 @@ def test_records_managed_python_defaults(
             + "".join(f"    - {package}\n" for package in defaults)
             in quarto
         ), quarto
-        assert "\nknitr:" in quarto and "\nir:" in quarto, quarto
+        assert "original-working-directory:" in quarto and "\nir:" in quarto, quarto
         assert "eval: false" not in quarto, quarto
         assert "six" not in quarto, quarto
         events = [
             json.loads(line)
             for line in (session / "capture/events.jsonl").read_text().splitlines()
         ]
-        discovered = next(
-            event for event in events if event["event"] == "environment_discovered"
+        assert (
+            next(
+                event for event in events if event["event"] == "environment_discovered"
+            )["dynamic_resolution"]
+            is False
         )
-        assert discovered["dynamic_resolution"] is False
-        assert discovered["python_preparation"] is True
+        assert (
+            next(
+                event for event in events if event["event"] == "environment_discovered"
+            )["python_preparation"]
+            is True
+        )
         return TranscriptWithCompanions(
             records,
             {

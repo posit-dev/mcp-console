@@ -73,6 +73,9 @@ The full gate adds applicable tooling, shared functional, and installation check
 
 CI runs the comprehensive profiles, including Unix allocation stress.
 CI pins uv's Python catalogue so interpreter-dependent tracebacks and debugger transcripts change only with an intentional tool update.
+After restoring shared compiler data, CI discards Console's own build artifacts so cached timestamps cannot hide source changes in the checkout.
+Compiler caches preserve Cargo's `CACHEDIR.TAG` alongside profile directories so Cargo can verify the restored target directory before cleaning.
+Dependency builds remain reusable; finished release outputs require an exact build-input cache match.
 A focused local pass or capability skip does not validate another platform.
 Report exact commands and missing coverage rather than “all tests pass.”
 

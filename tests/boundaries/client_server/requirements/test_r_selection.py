@@ -455,11 +455,11 @@ def test_selected_launcher_in_non_utf8_directory(
             client.send(control="restart")
             client.expect("42\n", r="cat(42, '\\n', sep='')")
             transcript, stderr = client.finish_with_standard_error()
-            # R selection preserves native filenames; Quarto's existing
-            # UTF-8 execution-root requirement still disables projections.
+            # R selection preserves native filenames; source metadata still
+            # requires a UTF-8 working directory and disables projections here.
             assert stderr == (
                 "mcp-console: transcript projections disabled: "
-                "Quarto execution root requires a UTF-8 working directory\n"
+                "source metadata requires a UTF-8 working directory\n"
             ), stderr
             return [*transcript, {"stderr": stderr}]
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -69,17 +70,24 @@ def test_renders_generated_document(binary: Path) -> Transcript:
         assert "<div>not markdown</div>" in python_result, python_result
         transcript = client.finish()
 
-        session = next((workspace / ".agents/console" / "sessions").iterdir())
-        document = session / "transcript.qmd"
+        (recording,) = (workspace / ".agents/console/sessions").iterdir()
+        report = workspace / "report"
+        report.mkdir()
+        document = report / "session.qmd"
+        shutil.copyfile(recording / "sessions/session-001.qmd", document)
+        shutil.copy2(
+            workspace / "render-value.txt", document.parent / "render-value.txt"
+        )
         document_text = document.read_text(encoding="utf-8")
-        assert f"```{{r}}\n\n{r_source}\n```" in document_text
-        assert f"`````{{python}}\n\n{source}\n`````" in document_text
+        assert f"```{{r}}\n#| error: true\n\n{r_source}\n```" in document_text
+        assert f"`````{{python}}\n#| error: true\n\n{source}\n`````" in document_text
         assert "zod:" not in document_text
         assert "zod python:" not in document_text
         assert "execute:" not in document_text
-        assert "python-version:" not in document_text
+        assert "  python-version: []" in document_text
         assert "  python-packages:" in document_text
-        assert f"    root.dir: {workspace.resolve()}" in document_text
+        assert f"  original-working-directory: {workspace.resolve()}" in document_text
+        assert "root.dir:" not in document_text
         render_environment = environment.copy()
         render_environment.pop("RETICULATE_UV", None)
         for name in tuple(render_environment):
@@ -100,7 +108,7 @@ def test_renders_generated_document(binary: Path) -> Transcript:
                 "prewarm.html",
                 "--no-execute",
             ],
-            cwd=session,
+            cwd=document.parent,
             env=render_environment,
             check=False,
             capture_output=True,
@@ -115,10 +123,11 @@ def test_renders_generated_document(binary: Path) -> Transcript:
 
         render_script = code(r"""
             set -eu
-            cp "$1" "$TMPDIR/transcript.qmd"
+            cp "$1" "$TMPDIR/session.qmd"
+            cp "$2" "$TMPDIR/render-value.txt"
             cd "$TMPDIR"
             export HOME="$TMPDIR"
-            exec ir render transcript.qmd --to html --output - --quiet
+            exec ir render session.qmd --to html --output - --quiet
             """)
         rendering = subprocess.run(
             [
@@ -130,8 +139,9 @@ def test_renders_generated_document(binary: Path) -> Transcript:
                 render_script,
                 "mcp-console-quarto-render",
                 document,
+                document.parent / "render-value.txt",
             ],
-            cwd=session,
+            cwd=document.parent,
             env=render_environment,
             check=False,
             capture_output=True,
@@ -147,7 +157,7 @@ def test_renders_generated_document(binary: Path) -> Transcript:
         rendered_text = RenderedText()
         rendered_text.feed(rendered)
         visible_text = "".join(rendered_text.parts)
-        assert "MCP Console code cells" in rendered
+        assert "MCP Console session" in rendered
         assert "executed-r=40" in visible_text
         assert "executed-python=42" in visible_text
         assert "not markdown" in visible_text
