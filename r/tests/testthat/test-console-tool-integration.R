@@ -360,23 +360,6 @@ test_that("console_tool works when registered with an ellmer chat", {
 })
 
 
-inspect_requirements <- function(send) {
-  deadline <- Sys.time() + 600
-  text <- send(requirements = list(action = "get"), timeout_ms = 0)@text
-  while (endsWith(text, "[worker starting]")) {
-    remaining <- as.numeric(difftime(deadline, Sys.time(), units = "secs"))
-    stopifnot(remaining > 0)
-    # This is the public readiness poll. Each call waits for startup rather
-    # than parsing a pending notice as a JSON requirements declaration.
-    text <- send(
-      requirements = list(action = "get"),
-      timeout_ms = as.integer(1000 * min(60, remaining))
-    )@text
-  }
-  jsonlite::fromJSON(text)
-}
-
-
 test_that("requirements actions preserve scalar fields and empty lists", {
   with_temp_working_directory({
     # Exercise declaration serialization without rebuilding unrelated R packages.

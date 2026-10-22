@@ -256,6 +256,7 @@ test_that("the default tool discovers once while explicit configs bypass files",
     )
     send <- console_tool(path = binary, config = config)
     expect_identical(send@description, "Explicit report tool")
+    expect_true(inspect_requirements(send)$prepared)
     expect_identical(send(r = "cat(6 * 7)")@text, "42")
     rm(send)
     invisible(gc())
