@@ -700,18 +700,23 @@ def test_prepares_managed_python_at_startup_and_restart(
             )
             assert "[waiting for stdin]" in last_result_text(client)
             shutil.copy2(shutil.which("uv"), uv)
-            client.send(
+            # Queued stdin does not acknowledge consumption. Collect the
+            # replacement across running/input-request cuts without replaying it.
+            wait_for_evaluation_output(
+                client,
+                lambda output: "replacement input\n" in output,
+                "replacement Python input",
+                completion_timeout_seconds=client.response_timeout,
                 control="restart",
                 requirements={"python": ["more-itertools"]},
                 stdin="replacement input\n",
+                timeout_ms=0,
                 # fmt: python
                 python=code("""
                     assert "identity" not in globals()
                     print(input())
                     """),
             )
-            assert not client.transcript[-1]["result"]["isError"], client.transcript[-1]
-            assert "replacement input\n" in last_result_text(client)
             assert not (workspace / "old-worker-consumed-input").exists()
             # Plain restart and crash replacement retain the accepted result.
             uv.unlink()
