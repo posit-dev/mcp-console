@@ -1,0 +1,110 @@
+---
+scenario: A published ark kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter-reticulate.direct.yaml
+---
+send:
+  r: |
+    shared <- 40L
+    r_pid <- Sys.getpid()
+    call_python <- function(f, x) f(x)
+    reticulate::py_run_string("before_python_cell = 2")
+    cat("R ready\n")
+result:
+  content:
+    - type: text
+      text: |
+        R ready
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    print("same process:", os.getpid() == r.r_pid)
+    from_python = r.shared + before_python_cell
+    from_python
+result:
+  content:
+    - type: text
+      text: |
+        same process: True
+        42
+  isError: false
+---
+send:
+  python: "r.call_python(lambda value: value + 1, 41)"
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: |
+    stopifnot(reticulate::py$from_python == 42L)
+    reticulate::py_run_string(
+      "after_python_cell = from_python + 1; print('R-driven Python', flush=True)"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        R-driven Python
+  isError: false
+---
+send:
+  r: print(reticulate::py$from_python)
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: after_python_cell
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  python: |
+    import base64
+    from IPython.display import Image, display
+
+    display(Image(data=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSuoAAAAASUVORK5CYII=")))
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to the submitted one-pixel PNG>
+      mimeType: image/png
+  isError: false
+---
+send:
+  r: |
+    par(mar = rep(0, 4), bg = "white")
+    plot.new()
+    rect(0.25, 0.25, 0.75, 0.75, col = "black", border = NA)
+result:
+  content:
+    - type: image
+      data: "<PNG: 800 x 600, black center, white corner>"
+      mimeType: image/png
+  isError: false
+---
+send:
+  code: cat(shared + 2L, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

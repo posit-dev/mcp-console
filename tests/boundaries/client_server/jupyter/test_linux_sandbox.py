@@ -12,6 +12,7 @@ from support.records import Transcript
 from support.requirements import (
     ARK,
     JUPYTER,
+    JUPYTER_RETICULATE,
     LINUX_SANDBOX,
     R,
     requires,
@@ -35,7 +36,9 @@ TCP_WARNING = (
 )
 
 
-def linux_session(binary: Path, kernel: str) -> Transcript:
+def linux_session(
+    binary: Path, kernel: str, *, reticulate_ipykernel: bool = False
+) -> Transcript:
     localinterfaces = subprocess.check_output(
         [
             os.environ["MCP_CONSOLE_TEST_JUPYTER_PYTHON"],
@@ -55,12 +58,15 @@ def linux_session(binary: Path, kernel: str) -> Transcript:
     startup_output = warning
     if kernel == "ipykernel":
         startup_output += warning + TCP_WARNING
+    elif reticulate_ipykernel:
+        startup_output += warning + TCP_WARNING.replace("[IPKernelApp]", "[SharedApp]")
     return default_sandbox_session(
         binary,
         kernel,
         network_fixture="jupyter_sandbox_network_linux.py",
         network_output=NETWORK_OUTPUT,
         startup_output=startup_output,
+        reticulate_ipykernel=reticulate_ipykernel,
         # The published `python -m ipykernel install` adds this interpreter flag.
         python_arguments=("-Xfrozen_modules=off",) if kernel == "ipykernel" else (),
     )
@@ -76,6 +82,13 @@ def test_ipykernel_private_network_preserves_default_sandbox(
 @requires(JUPYTER, ARK, R, LINUX_SANDBOX)
 def test_ark_private_network_preserves_default_sandbox(binary: Path) -> Transcript:
     return linux_session(binary, "ark")
+
+
+@requires(JUPYTER, ARK, R, JUPYTER_RETICULATE, LINUX_SANDBOX)
+def test_shared_ipykernel_private_network_preserves_default_sandbox(
+    binary: Path,
+) -> Transcript:
+    return linux_session(binary, "ark", reticulate_ipykernel=True)
 
 
 if __name__ == "__main__":

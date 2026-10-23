@@ -143,6 +143,11 @@ ARK = Requirement(
     bool(os.environ.get("MCP_CONSOLE_TEST_ARK")),
     "requires MCP_CONSOLE_TEST_ARK selecting a published ark executable",
 )
+JUPYTER_RETICULATE = Requirement(
+    "ark reticulate bridge",
+    bool(os.environ.get("MCP_CONSOLE_TEST_RETICULATE_LIBRARY")),
+    "requires MCP_CONSOLE_TEST_RETICULATE_LIBRARY with published reticulate and dependencies",
+)
 R_EVENT_LOOP = Requirement(
     "R event loop",
     WORKER.available,

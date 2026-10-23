@@ -181,6 +181,7 @@ Closure and direct-worker outcome do not prove native cleanup.
 ## Jupyter adapter
 
 The adapter maps a public `code` cell to `evaluate` with `language: "kernel"` and forwards its source to the selected kernel.
+With `--jupyter-reticulate`, R cells use the R kernel and Python cells call the published reticulate package in that same process.
 Dependency changes are rejected by the server before dispatch; the adapter implements no preparation callbacks.
 
 `ready` follows Jupyter's kernel and IOPub readiness handshake.

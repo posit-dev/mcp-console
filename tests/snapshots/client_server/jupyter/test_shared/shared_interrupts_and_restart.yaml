@@ -1,0 +1,252 @@
+---
+scenario: A published ark kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter-reticulate.direct.yaml
+---
+send:
+  python: |-
+    answer = 42
+    print("ready")
+result:
+  content:
+    - type: text
+      text: |
+        ready
+  isError: false
+---
+send:
+  python: |
+    from pathlib import Path
+
+    try:
+        Path("cpu-ready").touch()
+        while True:
+            pass
+    except KeyboardInterrupt:
+        print("CPU interrupted")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        CPU interrupted
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: reticulate::py$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    import asyncio
+
+    try:
+        Path("async-ready").touch()
+        await asyncio.Event().wait()
+    except asyncio.CancelledError:
+        print("async cancelled")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        async cancelled
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: reticulate::py$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    Path("uncaught-cpu-ready").touch()
+    while True:
+        pass
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        ---------------------------------------------------------------------------
+        KeyboardInterrupt                         Traceback (most recent call last)
+        Cell In[6], line 2
+              1 Path("uncaught-cpu-ready").touch()
+        ----> 2 while True:
+              3     pass
+
+        KeyboardInterrupt: 
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: reticulate::py$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    Path("uncaught-async-ready").touch()
+    await asyncio.Event().wait()
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        ---------------------------------------------------------------------------
+        CancelledError                            Traceback (most recent call last)
+        Cell In[8], line 2
+              1 Path("uncaught-async-ready").touch()
+        ----> 2 await asyncio.Event().wait()
+
+        File <python-stdlib>/asyncio/locks.py:213, in Event.wait(self)
+            211 self._waiters.append(fut)
+            212 try:
+        --> 213     await fut
+            214     return True
+            215 finally:
+
+        CancelledError: 
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: reticulate::py$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: '"answer" in globals()'
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  r: reticulate::py_has_attr(reticulate::py, "answer")
+result:
+  content:
+    - type: text
+      text: |
+        [1] FALSE
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

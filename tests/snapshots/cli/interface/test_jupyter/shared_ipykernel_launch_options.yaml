@@ -1,0 +1,88 @@
+---
+command: mcp-console serve --help
+stdout: |
+  Run the MCP server over standard input and output
+
+  Usage: mcp-console serve [OPTIONS]
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+        --no-sandbox
+            Run evaluated code and dependency resolution with host permissions
+
+        --writable-root <PATH>
+            Allow writes to an additional path (temporary launch option)
+
+        --jupyter-kernel <NAME>
+            Run an installed local Jupyter kernel instead of the built-in worker
+
+        --jupyter-python <PATH>
+            Python with jupyter_client installed (defaults to python3)
+
+        --jupyter-transport <JUPYTER_TRANSPORT>
+            Jupyter transport (auto selects a private sandbox transport)
+            
+            [possible values: auto, tcp, ipc]
+
+        --jupyter-reticulate
+            Enable R and Python in one ark process through reticulate
+
+        --jupyter-reticulate-ipykernel
+            Experimental ipykernel endpoint in the shared reticulate process
+
+    -h, --help
+            Print help (see a summary with '-h')
+---
+command: mcp-console serve --jupyter-reticulate-ipykernel
+exit_code: 2
+stdout: ""
+stderr: |
+  error: the following required arguments were not provided:
+    --jupyter-kernel <NAME>
+    --jupyter-reticulate
+
+  Usage: mcp-console serve --jupyter-kernel <NAME> --jupyter-reticulate --jupyter-reticulate-ipykernel
+
+  For more information, try '--help'.
+---
+command: >-
+  mcp-console serve --jupyter-kernel unused-kernel
+  --jupyter-reticulate-ipykernel
+exit_code: 2
+stdout: ""
+stderr: |
+  error: the following required arguments were not provided:
+    --jupyter-reticulate
+
+  Usage: mcp-console serve --jupyter-kernel <NAME> --jupyter-reticulate --jupyter-reticulate-ipykernel
+
+  For more information, try '--help'.

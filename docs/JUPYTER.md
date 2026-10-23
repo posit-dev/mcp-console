@@ -8,6 +8,7 @@ Windows is rejected at launch; its inherited handles, interrupt events, and proc
 The adapter uses published `jupyter_client` and the selected kernelspec.
 It does not bundle, patch, or build the kernel.
 The tested releases are ark 0.1.252, ipykernel 7.4.0, jupyter_client 8.10.0, and pyzmq 27.2.0, with Python 3.13.16 and R 4.6.1 on macOS arm64 and Linux x86_64.
+The shared R/Python endpoint was tested with published reticulate 1.47.0 on macOS arm64 and Linux x86_64.
 Ark 0.1.252 is a published prerelease.
 Other standard local kernelspecs use the same protocol, but have not been validated here.
 
@@ -44,7 +45,7 @@ The MCP client can then submit:
 ```
 
 The next call can reuse `answer`.
-Use `code` for native Python in this mode; `python`, `r`, and `sql` are hidden and rejected in this mode.
+Use `code` for native Python in this mode; `python`, `r`, and `sql` are hidden and rejected unless the reticulate option enables the first two.
 
 The Python clients accept the same field and can pass the kernel selection through their launch arguments:
 
@@ -69,9 +70,21 @@ The Python framework adapters use the discovered tool schema.
 The R `console_tool()` wrapper derives its input fields from that schema, but its constructor currently has no kernel-selection setting or extra server arguments.
 Use an MCP client that accepts the `serve` flags to select Jupyter directly; the ordinary R constructor does not yet expose this launch mode.
 
-## Start ark
+## Start ark with shared R and Python
 
 Download the matching binary from the [published ark release](https://github.com/posit-dev/ark/releases/tag/0.1.252) and install R separately.
+Install published reticulate and its dependencies in an R library visible to ark if Python interoperability is needed.
+For example, from R in the project:
+
+```r
+dir.create(".jupyter/r-library", recursive = TRUE, showWarnings = FALSE)
+install.packages(
+  "reticulate",
+  lib = ".jupyter/r-library",
+  repos = "https://cloud.r-project.org"
+)
+```
+
 Use ark's `--install` command to register its kernel, or create `.jupyter/kernels/ark/kernel.json` explicitly:
 
 ```json
@@ -96,30 +109,88 @@ Use the following launch with the manually written spec:
 
 ```sh
 JUPYTER_PATH="$PWD/.jupyter" \
+R_LIBS_USER="$PWD/.jupyter/r-library" \
+RETICULATE_PYTHON="$PWD/.venv-jupyter/bin/python" \
 mcp-console serve --no-config \
   --jupyter-python "$PWD/.venv-jupyter/bin/python" \
-  --jupyter-kernel ark
+  --jupyter-kernel ark --jupyter-reticulate
 ```
 
 No network or filesystem grants are needed for kernel startup with the default sandbox.
 Console automatically selects private communication appropriate to the platform; see [Private kernel communication](#private-kernel-communication).
 `--no-sandbox` remains available when host permissions are intended.
 
-Submit native R through `code`:
+With `--jupyter-reticulate`, `code` and `r` submit R, while `python` is evaluated with public `reticulate::py_run_string()` in the same ark process:
 
 ```json
-{ "code": "answer <- 40L; answer + 2L" }
+{ "r": "shared <- 40L; r_pid <- Sys.getpid()" }
 ```
+
+```json
+{
+  "python": "import os\nprint(os.getpid() == r.r_pid)\nfrom_python = r.shared + 2\nprint(from_python)"
+}
+```
+
+```json
+{ "r": "reticulate::py$from_python" }
+```
+
+The first Python result is `True`, and both languages observe `42`.
+The adapter honors `RETICULATE_PYTHON`; if it is absent, it selects its own Python executable for reticulate.
+It disables reticulate's Positron variable inspectors, which otherwise expect a connected Positron UI.
+The option requires the kernel to report R as its language.
+
+The default reticulate mode has one R Jupyter endpoint with a synchronous Python bridge.
+It keeps shared state without requiring ipykernel in the embedded Python environment.
+
+### Experimental shared ipykernel endpoint
+
+Add `--jupyter-reticulate-ipykernel` to the preceding launch, alongside `--jupyter-reticulate`, to start a second Jupyter endpoint inside ark's process.
+The Python interpreter selected by `RETICULATE_PYTHON` must contain ipykernel 7.4 or later; install Matplotlib there if plots are needed.
+Console uses the published packages with its own embedded integration code; no patched ark, ipykernel, reticulate, or Positron application is required.
+
+This mode supports native Python expression results, IPython displays, Matplotlib inline output, Python tracebacks, input, and top-level `await`.
+The existing R/Python namespace remains shared: Python can access `r`, R can access `reticulate::py`, and Python can call R functions that call back into Python.
+R cells retain ark's output and graphics behavior.
+Console's supported MIME types still determine which rich outputs reach the MCP client; starting ipykernel does not add an HTML or widget surface.
+
+The ipykernel transport loop runs on a background Python thread.
+Each Python request is paired with an ordinary reticulate call through ark, which runs the submitted code on R's owning thread.
+Console waits for both endpoints' execution replies and idle messages before admitting another cell.
+The integration preserves the original Python `__main__` module and restores ark's Python streams between Python cells.
+This coordination is needed for shared namespaces, R callbacks, output ownership, and interruption; starting stock ipykernel on a thread alone did not provide those properties.
+
+The mode remains experimental:
+
+- The Python asyncio loop persists across cells but advances only while a Python request runs.
+  Tasks survive between cells; they do not keep making progress while Console is idle or running R.
+- CPU loops and awaited coroutines use different interruption paths.
+  Blocking native Python calls can still delay interruption; restart discards both languages' state.
+- There is one serialized Console session.
+  Independent Jupyter clients, concurrent language execution, subshells, widgets, and debugger integration are unsupported.
+- Both kernel endpoints share one process and failure domain.
+  Losing the Python endpoint retires the shared worker rather than leaving R with an unusable Python session.
+- Python file-descriptor capture is disabled to preserve R's native output.
+  Python `print()` and rich displays use ipykernel, while direct descriptor writes and native-extension output remain on ark/process streams and may interleave.
+  Python invoked from an R cell uses ark/reticulate capture; mixing R and Python prints within that cell can change their observed order.
+- The implementation subclasses ipykernel and overrides execution and signal hooks.
+  Those integration points require compatibility testing when upgrading ipykernel, even though no dependency source is modified.
+- Worker startup eagerly loads IPython/ipykernel, R, and reticulate, even if the first cell uses only R.
+  Kernel readiness and shared bootstrap phases have separate 30-second deadlines, so the complete shared startup can take longer than 30 seconds.
+  The [matched R/Python benchmarks](benchmarks/jupyter.md#shared-r-and-python) measure this mode's startup, memory, and coordination cost against the built-in worker with both languages loaded.
 
 ## Configuration and ownership
 
-| Option                     | Meaning                                                                                                                                     |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--jupyter-kernel NAME`    | Select a locally discoverable kernelspec by name.                                                                                           |
-| `--jupyter-python PATH`    | Python 3.11+ with `jupyter_client`; defaults to `python3` on PATH. This is the adapter interpreter, not necessarily the kernel interpreter. |
-| `--jupyter-transport auto` | Default: private Unix sockets on restricted macOS; private namespace TCP on restricted Linux; ordinary loopback TCP with host permissions.  |
-| `--jupyter-transport tcp`  | Authenticated loopback TCP using the standard connection file.                                                                              |
-| `--jupyter-transport ipc`  | Unix-domain sockets in private temporary storage; requires kernel IPC support.                                                              |
+| Option                           | Meaning                                                                                                                                      |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--jupyter-kernel NAME`          | Select a locally discoverable kernelspec by name.                                                                                            |
+| `--jupyter-python PATH`          | Python 3.11+ with `jupyter_client`; defaults to `python3` on PATH. This is the adapter interpreter, not necessarily the kernel interpreter.  |
+| `--jupyter-transport auto`       | Default: private Unix sockets on restricted macOS; private namespace TCP on restricted Linux; ordinary loopback TCP with host permissions.   |
+| `--jupyter-transport tcp`        | Authenticated loopback TCP using the standard connection file.                                                                               |
+| `--jupyter-transport ipc`        | Unix-domain sockets in private temporary storage; requires kernel IPC support.                                                               |
+| `--jupyter-reticulate`           | Add R/Python source fields and evaluate Python through reticulate in an R kernel.                                                            |
+| `--jupyter-reticulate-ipykernel` | Experimental native Python endpoint in the same R process; requires `--jupyter-reticulate` and ipykernel in the embedded Python environment. |
 
 Kernel selection is currently a `serve` launch option, not a YAML setting.
 Built-in `startup`, `python`, `r`, and `languages` settings conflict with this mode rather than silently changing meaning.
@@ -137,16 +208,16 @@ Readiness requires a matching kernel-information reply and IOPub status within 3
 Replies and idle messages remain correlated across readiness retries, so a delayed channel does not invalidate an earlier request.
 Readiness forwards received startup text and errors through process stdout/stderr before announcing the worker ready.
 Messages published before subscription and startup rich displays are not guaranteed to be captured.
+Shared initialization ends with an R execution/idle barrier after Python readiness so its queued R-side startup output is drained.
 Interrupting startup retires the acquired child and discards the pending source before evaluation.
 Native sandbox supervision retains ownership of descendants.
 Outside a sandbox, neither arbitrary kernel subprocesses nor an adapter killed externally with `SIGKILL` have a general descendant-cleanup guarantee.
 
 ## Assessment
 
-Ark delegates R execution and graphics to a published kernel.
-Standalone ipykernel provides Python expression display, tracebacks, magics, and async execution.
+Ark is a useful optional execution backend: it delegates R execution and graphics to a published kernel, and the shared ipykernel mode adds standard Python expression display, tracebacks, magics, and async execution while retaining reticulate's shared objects.
 The private transports make these capabilities usable under Console's default read-only sandbox on macOS and Linux.
-The main benefit is reuse of the kernels' language behavior and ecosystem; Console still owns MCP translation, sandbox policy, and lifecycle coordination.
+The main benefit is reuse of the kernels' language behavior and ecosystem; Console still owns MCP translation, sandbox policy, lifecycle coordination, and the shared-thread integration.
 
 The built-in worker should remain the default while managed dependencies, SQL sessions, Windows support, and the existing runtime contracts matter.
 This implementation provides a practical alternative for preinstalled R/Python environments, but replacing the default would remove those features and add installation, compatibility, output-delivery, and operational costs described below.
@@ -154,21 +225,28 @@ It also increases the number of externally selected components; it does not curr
 
 ## Differences from the built-in worker
 
-| Area             | Jupyter behavior and limitation                                                                                                                                                                                                                                                                                                   |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Languages        | One kernel's native language per session. The adapter does not combine kernels or expose a cross-language bridge.                                                                                                                                                                                                                 |
-| R/Python objects | Console's custom cross-language helpers and conversion behavior are not installed. Standalone ipykernel has no automatic R bridge.                                                                                                                                                                                                |
-| Packages         | No host-side preparation, automatic missing-import installation, live dependency activation, version selection, or managed DuckDB extensions. `requirements={action: "get"}` reports an empty Console declaration, not an installed-package inventory. Mutation requests fail before code, input, or control effects.             |
-| SQL              | No `sql` source field, selected connection registry, automatic data-frame registration, or retained last-query result. Installed language packages can execute SQL explicitly.                                                                                                                                                    |
-| Startup          | Lazy kernel launch on the first operation requiring it. Kernelspec launch failures and a 30-second readiness timeout fail the worker. Built-in startup scripts and interpreter discovery do not run. `warmup` does not select or exercise this mode; a configured client's background warmup may only validate its MCP handshake. |
-| Text and errors  | Kernel streams and tracebacks are preserved. Ordinary language errors complete the cell without an MCP tool error, as in the built-in worker. Formatting, ANSI escapes, warnings, execution counts, and traceback frames differ by kernel/version.                                                                                |
-| Rich output      | PNG, JPEG, GIF, and WebP are forwarded. Otherwise the kernel's `text/plain` representation is used. HTML, SVG, PDF, JavaScript, widgets, comms, debugger/UI integrations, and shell payloads are not implemented. Displays without a supported representation produce an omission notice.                                         |
-| Display updates  | `update_display_data` appends a marked update; `clear_output` adds a notice and retains earlier output. Previously delivered MCP content cannot be replaced. There is no persistent notebook display-ID model.                                                                                                                    |
-| Input            | Jupyter `input_request` receives one newline-terminated UTF-8 reply. Partial lines wait; extra lines remain queued. Direct kernel reads from OS stdin see EOF. Password prompts use the same recorded stdin interface; it is not a secret-input channel.                                                                          |
-| Interrupt        | The adapter uses the kernelspec's signal or control-message interrupt mode. Kernel and native-library behavior determine responsiveness.                                                                                                                                                                                          |
-| Ordering         | Completion waits for the matching shell reply and IOPub idle, independent of their arrival order. Late output remains visible, but output from background work may arrive after a cell or during another cell; Jupyter does not supply a universal cross-channel chronology.                                                      |
-| Output volume    | Console's response and recording limits still apply after translation. The adapter bounds its event queue by count, but Jupyter messages, ZeroMQ queues, MIME bundles, and queued stdin have additional allocations. This is not an end-to-end bounded-memory guarantee.                                                          |
-| Platforms        | Native ark and ipykernel were tested on macOS arm64 and Linux x86_64, including the default read-only sandbox. Native Windows is unavailable. Other kernels require their own validation.                                                                                                                                         |
+| Area             | Jupyter behavior and limitation                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Languages        | One kernel's native language per session, with optional R/Python interoperability through reticulate. The experimental shared ipykernel mode adds a Python endpoint in the same process; it does not make arbitrary pairs of kernels share memory.                                                                                                                                                                              |
+| Python bridge    | The simple `py_run_string()` bridge requires explicit `print()` and lacks Python magics, top-level `await`, native IPython rich display, and automatic matplotlib capture. The experimental shared ipykernel mode supplies native Python execution with the event-loop and lifecycle limitations described above.                                                                                                               |
+| R/Python objects | Reticulate's `r`, `py`, conversions, and native APIs apply. Console's custom cross-language helpers and conversion behavior are not installed. Standalone ipykernel has no automatic R bridge.                                                                                                                                                                                                                                  |
+| Packages         | No host-side preparation, automatic missing-import installation, live dependency activation, version selection, or managed DuckDB extensions. `requirements={action: "get"}` reports an empty Console declaration, not an installed-package inventory. Mutation requests fail before code, input, or control effects.                                                                                                           |
+| SQL              | No `sql` source field, selected connection registry, automatic data-frame registration, or retained last-query result. Installed language packages can execute SQL explicitly.                                                                                                                                                                                                                                                  |
+| Startup          | Lazy kernel launch on the first operation requiring it. Kernelspec launch failures and a 30-second readiness timeout fail the worker. Built-in startup scripts and interpreter discovery do not run. `warmup` does not select or exercise this mode; a configured client's background warmup may only validate its MCP handshake.                                                                                               |
+| Text and errors  | Kernel streams and tracebacks are preserved. Ordinary language errors complete the cell without an MCP tool error, as in the built-in worker. Formatting, ANSI escapes, warnings, execution counts, and traceback frames differ by kernel/version. The simple bridge wraps Python errors in R errors; `reticulate::py_last_error()` exposes their Python details. The shared ipykernel endpoint emits native Python tracebacks. |
+| Rich output      | PNG, JPEG, GIF, and WebP are forwarded. Otherwise the kernel's `text/plain` representation is used. HTML, SVG, PDF, JavaScript, widgets, comms, debugger/UI integrations, and shell payloads are not implemented. Displays without a supported representation produce an omission notice.                                                                                                                                       |
+| Display updates  | `update_display_data` appends a marked update; `clear_output` adds a notice and retains earlier output. Previously delivered MCP content cannot be replaced. There is no persistent notebook display-ID model.                                                                                                                                                                                                                  |
+| Input            | Jupyter `input_request` receives one newline-terminated UTF-8 reply. Partial lines wait; extra lines remain queued. Direct kernel reads from OS stdin see EOF. Password prompts use the same recorded stdin interface; it is not a secret-input channel.                                                                                                                                                                        |
+| Interrupt        | The adapter uses the kernelspec's signal or control-message interrupt mode; shared Python uses its own control channel. Kernel and native-library behavior determine responsiveness. There is no per-language restart in a shared reticulate process.                                                                                                                                                                           |
+| Ordering         | Completion waits for matching shell replies and IOPub idle, from both endpoints for shared Python, independent of their arrival order. Late output remains visible, but output from background work may arrive after a cell or during another cell; Jupyter does not supply a universal cross-channel chronology.                                                                                                               |
+| Output volume    | Console's response and recording limits still apply after translation. The adapter bounds its event queue by count, but Jupyter messages, ZeroMQ queues, MIME bundles, and queued stdin have additional allocations. This is not an end-to-end bounded-memory guarantee.                                                                                                                                                        |
+| Platforms        | Native ark and ipykernel were tested on macOS arm64 and Linux x86_64, including the default read-only sandbox. The shared reticulate/ipykernel mode was also tested on both platforms. Native Windows is unavailable. Other kernels require their own validation.                                                                                                                                                               |
+
+In direct published-kernel probes, ark interrupted R `Sys.sleep()` promptly and interrupted a Python CPU loop through reticulate.
+A Python `time.sleep(4)` bridge call ran for its remaining duration despite interruption, then reported a reticulate error while unwinding; a following request succeeded.
+A separate longer sleep did not finish within a 15-second observation after interrupt.
+These observations are specific to the tested versions and host, but rule out a promise of immediate cancellation of blocking Python native calls.
+Restarting such a shared worker loses both R and Python state.
 
 Jupyter IOPub uses ZeroMQ publish/subscribe delivery.
 [ZeroMQ can drop published messages](https://libzmq.readthedocs.io/en/latest/zmq_socket.html#zmq-pub) when a subscriber's queue reaches its high-water limit; the adapter has no replay or delivery acknowledgment mechanism.
@@ -217,7 +295,7 @@ Matplotlib's default font cache is also disposable, so the first plot after rest
 ## History and exports
 
 Console retains translated text, images, source, input, and lifecycle evidence using its existing recording machinery.
-Generic `code` is saved as text.
+Generic `code` is saved as text, while reticulate submissions retain their original R/Python source rather than just the generated R wrapper.
 Jupyter session QMDs identify the kernelspec, contain non-executable source fences, and set `execute.eval: false`.
 They are source archives with no promise of IR or Quarto replay.
 They do not lock kernel versions, interpreter versions, environments, or external inputs.
@@ -228,7 +306,7 @@ That cache is separate from Console's response and recording limits and can reta
 Other kernels own their own history behavior.
 Console does not currently expose Jupyter `history_request`, export `.ipynb`, retain complete MIME bundles/raw Jupyter messages, or save widget/comm state.
 Execution counts and display metadata, including display IDs, are not retained as structured fields.
-A future notebook exporter could use source, execution replies, and display messages directly.
+A future notebook exporter could use source, execution replies, and display messages directly; a mixed R/Python bridge still needs an explicit replay convention because a standard notebook names one kernel.
 The current archives are not live-session checkpoints.
 
 ## Performance and distribution
@@ -241,8 +319,13 @@ For long computations these costs may be small relative to execution; short cell
 The reproducible [Jupyter benchmark](../benchmarks/jupyter.py) compares the completed MCP path with matched trivial assignments and records startup, warm latency, and process RSS.
 Its results are workload- and host-specific; kernel-only timings are not substitutes for an end-to-end comparison.
 The [initial October 23 comparison](benchmarks/jupyter.md) records all samples and limitations: warm medians were 3.10–3.11 ms for the built-in worker, 5.50 ms for ipykernel, and 4.27 ms for ark.
-Standalone kernels started sooner in that setup.
-Startup remains sensitive to host load: a concurrent macOS test run exceeded ark's 30-second readiness budget.
+Standalone kernels started sooner in that setup; the ark/reticulate Python bridge loaded both languages and had the largest observed memory footprint.
+The later [matched shared-endpoint comparison](benchmarks/jupyter.md#shared-r-and-python) initializes both languages in each worker and includes the default sandbox.
+Under that sandbox, shared ipykernel's warm assignments took about 1.89 times the built-in calls on macOS and 2.33 times on Linux, adding approximately 2.88 ms and 4.18 ms per trivial cell.
+Median startup was 2.65 versus 1.55 seconds on macOS and 3.54 versus 1.59 seconds on Linux.
+Summed process RSS was about 410 MiB on both shared endpoints, versus 152 MiB and 177 MiB for the built-in worker; these snapshots can double-count shared pages and are not peak memory.
+The report separates direct and sandbox execution, retains every sample, and quantifies the complete Linux sandbox path rather than attributing its cost solely to the proxy.
+Startup remains sensitive to host load: a concurrent macOS test run exceeded ark's 30-second readiness budget before the shared Python endpoint was created.
 Direct ark probes reproduced the slowdown outside Console; samples showed its R-discovery launcher stalled at the process loader before entering R.
 This observation does not establish a kernel defect or a general startup bound.
 The runtime deadline remains unchanged; the final macOS kernel verification uses limited test concurrency.
@@ -254,13 +337,14 @@ The optional Python extra moves Jupyter client dependencies into the selected Py
 
 Measured external footprints on this macOS arm64 host:
 
-| Component                                |                  Size |
-| ---------------------------------------- | --------------------: |
-| Published ark arm64 ZIP                  |       8,456,517 bytes |
-| Unpacked ark executable                  |      24,592,144 bytes |
-| `jupyter_client` 8.10.0 and dependencies |  12,448 KiB allocated |
-| ipykernel + client + NumPy               |  97,876 KiB allocated |
-| The same environment plus matplotlib     | 162,180 KiB allocated |
+| Component                                            |                  Size |
+| ---------------------------------------------------- | --------------------: |
+| Published ark arm64 ZIP                              |       8,456,517 bytes |
+| Unpacked ark executable                              |      24,592,144 bytes |
+| `jupyter_client` 8.10.0 and dependencies             |  12,448 KiB allocated |
+| ipykernel + client + NumPy                           |  97,876 KiB allocated |
+| The same environment plus matplotlib                 | 162,180 KiB allocated |
+| Published reticulate and installed CRAN dependencies |  44,992 KiB allocated |
 
 Directory figures are `du -sk` observations of temporary installations, not wheel download sizes or incremental physical disk use.
 The Python environment rows overlap: the ipykernel and matplotlib rows already include the client dependencies and should not be summed.
@@ -271,14 +355,15 @@ Keeping them external makes installation less self-contained and requires the ca
 
 ## Validation and upstream contracts
 
-Public acceptance cases exercise native ipykernel/ark evaluation, persistence, language errors and recovery, image output, prompted input, interruption, restart, unexpected kernel exit, process retirement, large cells, transport selection, and source archives.
+Public acceptance cases exercise native ipykernel/ark evaluation, persistence, language errors and recovery, image output, prompted input, interruption, restart, unexpected kernel exit, process retirement, large cells, transport selection, source archives, and shared R/Python state.
 They require explicitly supplied published installations:
 
 ```sh
 MCP_CONSOLE_TEST_JUPYTER_PYTHON=/absolute/path/to/python \
 MCP_CONSOLE_TEST_ARK=/absolute/path/to/ark \
+MCP_CONSOLE_TEST_RETICULATE_LIBRARY=/absolute/path/to/R/library \
 scripts/test client_server/jupyter/test_python client_server/jupyter/test_ark \
-  client_server/jupyter/test_macos_sandbox \
+  client_server/jupyter/test_shared client_server/jupyter/test_macos_sandbox \
   client_server/jupyter/test_linux_sandbox
 ```
 
@@ -287,4 +372,4 @@ The ordinary final gate does not substitute for these optional kernel cases or v
 
 The [Jupyter messaging specification](https://jupyter-client.readthedocs.io/en/stable/messaging.html) owns the shell, IOPub, stdin, control, history, and display contracts.
 The [kernelspec documentation](https://jupyter-client.readthedocs.io/en/stable/kernels.html) describes local launch metadata.
-Relevant published implementation details include [ark's endpoint naming](https://github.com/posit-dev/ark/blob/0.1.252/crates/amalthea/src/connection_file.rs) and [jupyter_client's process launcher](https://github.com/jupyter/jupyter_client/blob/v8.10.0/jupyter_client/launcher.py).
+Relevant published implementation details include [ark's endpoint naming](https://github.com/posit-dev/ark/blob/0.1.252/crates/amalthea/src/connection_file.rs), [ark's reticulate integration](https://github.com/posit-dev/ark/blob/0.1.252/crates/ark/src/modules/positron/reticulate.R), [reticulate's thread launcher](https://github.com/rstudio/reticulate/blob/v1.47.0/R/thread.R), and [jupyter_client's process launcher](https://github.com/jupyter/jupyter_client/blob/v8.10.0/jupyter_client/launcher.py).

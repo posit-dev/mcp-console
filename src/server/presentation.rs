@@ -221,7 +221,11 @@ impl Profile {
 
     fn summary(&self) -> String {
         if self.languages.kernel {
-            return "Persistent Jupyter kernel session. Send code in the selected kernel's language and reuse objects across calls.".into();
+            return if self.languages.r {
+                "Persistent Jupyter R and Python session in one kernel process through reticulate. Reuse objects across calls.".into()
+            } else {
+                "Persistent Jupyter kernel session. Send code in the selected kernel's language and reuse objects across calls.".into()
+            };
         }
         let names = if self.languages.r && self.languages.python && self.languages.sql {
             "R, Python, and SQL".to_string()
@@ -255,6 +259,9 @@ impl Profile {
         description.push_str(sections::SEND_WORKFLOW);
         if self.languages.kernel {
             description.push_str("\n\nThe installed kernel supplies evaluation, display, history, and packages. Console returns text and supported images; interactive displays are unavailable. Dependency preparation and Console's built-in SQL and language helpers are unavailable.");
+            if self.languages.r {
+                description.push_str(" `code` and `r` run R; `python` runs Python through reticulate in the same process.");
+            }
         } else if self.builtin {
             description.push_str(sections::DISPLAY);
             description.push_str("\n\n");
@@ -333,6 +340,20 @@ impl Profile {
 
     fn configure_fields(&self, properties: &mut Map<String, Value>) {
         if self.languages.kernel {
+            for (field, description) in [
+                (
+                    "r",
+                    "Evaluate one complete R cell in the selected R kernel.",
+                ),
+                (
+                    "python",
+                    "Evaluate one complete Python cell through reticulate in the R process.",
+                ),
+            ] {
+                if let Some(property) = properties.get_mut(field) {
+                    property["description"] = description.into();
+                }
+            }
             properties["stdin"]["description"] = "Answer Jupyter input requests with newline-terminated text. Input queues before a bundled cell; unread input can satisfy later requests. Restart discards queued input. Direct reads from the kernel process's stdin are unsupported.".into();
             properties["control"]["description"] = "Apply control before same-call input or code. interrupt requests kernel interruption; a following cell runs only if prior work stops. restart discards the kernel's live state and queued input, then sends bundled input and code to the replacement.".into();
             properties["timeout_ms"]["description"] = "Wait for output for up to this many milliseconds (default 60,000). Use 300000 for a long poll; it returns early when work finishes or needs input. 0 returns immediately. Expiry leaves execution running; poll with an empty send.".into();

@@ -10,7 +10,8 @@ Run with Python 3.11+ after building Console and installing released dependencie
 
 Setup and version probes run outside timed regions. Each sample launches a new
 Console server, negotiates MCP, completes x = 1, then completes thirty identical
-warm cells. Variants use direct execution with normal Console recording.
+warm cells. Variants select direct execution or the default read-only sandbox,
+with normal Console recording.
 Installed-runtime caches remain warm across launches; this is not a cold-cache
 or package-installation benchmark. RSS is a simultaneous process-tree snapshot,
 not peak memory or unique physical memory: shared pages can be counted repeatedly.
@@ -36,7 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
 from support.client import McpClient
-from support.execution import DIRECT
+from support.execution import DIRECT, SANDBOXED
 from support.r import r_test_environment
 from support.resolvers import bare_runtime_environment
 
@@ -47,6 +48,10 @@ class Variant:
     field: str
     kernel: str | None = None
     transport: str | None = None
+    reticulate: bool = False
+    shared_ipykernel: bool = False
+    initialize_r: bool = False
+    sandboxed: bool = False
 
 
 VARIANTS = (
@@ -54,6 +59,28 @@ VARIANTS = (
     Variant("ipykernel-ipc", "code", "ipykernel", "ipc"),
     Variant("builtin-r", "r"),
     Variant("ark-tcp", "code", "ark", "tcp"),
+    Variant("ark-reticulate-python", "python", "ark", "tcp", True),
+    Variant("builtin-r-python", "python", initialize_r=True),
+    Variant(
+        "ark-shared-ipykernel-python",
+        "python",
+        "ark",
+        "ipc",
+        True,
+        shared_ipykernel=True,
+        initialize_r=True,
+    ),
+    Variant("builtin-r-python-sandbox", "python", initialize_r=True, sandboxed=True),
+    Variant(
+        "ark-shared-ipykernel-python-sandbox",
+        "python",
+        "ark",
+        "auto",
+        True,
+        shared_ipykernel=True,
+        initialize_r=True,
+        sandboxed=True,
+    ),
 )
 
 
@@ -77,13 +104,26 @@ def launch_settings(
         workspace = root / "workspace"
         workspace.mkdir()
         environment = bare_runtime_environment(inherited, library)
-        environment["RETICULATE_PYTHON"] = str(python)
+        environment.update(
+            RETICULATE_PYTHON=str(python),
+            _RETICULATE_POSITRON_DISABLE_VARIABLE_INSPECTORS_="1",
+        )
+        if variant.sandboxed:
+            for name in (
+                "IPYTHONDIR",
+                "JUPYTER_RUNTIME_DIR",
+                "JUPYTER_CONFIG_DIR",
+                "MPLCONFIGDIR",
+            ):
+                environment.pop(name, None)
         arguments = ["--no-config"]
         if variant.kernel is None:
             arguments.extend(
                 [
                     "-c",
-                    f"languages=[{variant.field}]",
+                    "languages=[r,python]"
+                    if variant.initialize_r
+                    else f"languages=[{variant.field}]",
                     "-c",
                     "python=" + json.dumps(str(python)),
                     "-c",
@@ -123,11 +163,12 @@ def launch_settings(
                 encoding="utf-8",
             )
             environment["JUPYTER_PATH"] = str(root / "jupyter")
-            environment.update(
-                JUPYTER_CONFIG_DIR=str(root / "jupyter-config"),
-                JUPYTER_RUNTIME_DIR=str(root / "jupyter-runtime"),
-                IPYTHONDIR=str(root / "ipython"),
-            )
+            if not variant.sandboxed:
+                environment.update(
+                    JUPYTER_CONFIG_DIR=str(root / "jupyter-config"),
+                    JUPYTER_RUNTIME_DIR=str(root / "jupyter-runtime"),
+                    IPYTHONDIR=str(root / "ipython"),
+                )
             arguments.extend(
                 [
                     "--jupyter-kernel",
@@ -138,7 +179,12 @@ def launch_settings(
                     variant.transport,
                 ]
             )
-        yield DIRECT.serve(*arguments), environment, workspace
+            if variant.reticulate:
+                arguments.append("--jupyter-reticulate")
+            if variant.shared_ipykernel:
+                arguments.append("--jupyter-reticulate-ipykernel")
+        execution = SANDBOXED if variant.sandboxed else DIRECT
+        yield execution.serve(*arguments), environment, workspace
 
 
 def process_rss(root_pid: int) -> dict:
@@ -195,6 +241,9 @@ def sample(
             binary, arguments, environment, current_directory=workspace
         ) as client:
             client.initialize_and_list_tools()
+            if variant.initialize_r:
+                initialized = client.send(r="invisible(NULL)")
+                assert not initialized.get("isError"), initialized
             client.expect("[done]", **{variant.field: "x = 1"})
             first_result_seconds = time.perf_counter() - started
             warm = []
@@ -269,10 +318,11 @@ def main() -> None:
             "startup_interval": "Before MCP process launch through the first completed assignment, including MCP initialization and tool discovery.",
             "warm_interval": "One complete public send call after the first assignment.",
             "dependency_preparation": "None: existing Python executable and published R library selected; ir/uv absent from child PATH; R resolution disabled.",
-            "execution": "Direct, with normal Console recording in a new temporary workspace per launch.",
-            "cache_state": "Installed-runtime caches remain warm; each launch uses fresh Jupyter and IPython configuration directories.",
+            "execution": "Variants ending in -sandbox use the default read-only sandbox; other variants use direct execution. Normal Console recording in a new temporary workspace per launch.",
+            "cache_state": "Installed-runtime caches remain warm. Jupyter launches use fresh IPython profiles; direct launches use fresh Jupyter configuration directories, and sandboxed launches use disposable worker caches.",
             "memory": "ps RSS after warm cells for Console and all descendants; includes shared-page double counting, excludes benchmark client, is not peak RSS.",
             "sample_order": "Round robin in listed variant order, one new launch per variant per round.",
+            "shared_initialization": "builtin-r-python and ark-shared-ipykernel-python variants execute invisible(NULL) in R before the first Python assignment, within the startup interval.",
         },
         "host": {"platform": platform.platform(), "machine": platform.machine()},
         "binary": {

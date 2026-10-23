@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import base64
 import errno
 import json
 import os
@@ -10,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.assertions import last_tool_text
+from support.assertions import assert_result_content, last_tool_text
 from support.client import McpClient
 from support.execution import SANDBOXED
 from support.jupyter import normalize_jupyter_paths
@@ -27,7 +28,9 @@ def default_sandbox_session(
     startup_output: str = "",
     shutdown_output: str = "",
     python_arguments: tuple[str, ...] = ("-Xfrozen_modules=off",),
+    reticulate_ipykernel: bool = False,
 ) -> Transcript:
+    assert not reticulate_ipykernel or kernel == "ark"
     python = Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_PYTHON"])
     assert python.is_absolute() and python.is_file(), python
     probe = Path(__file__).resolve().parents[3] / "fixtures" / network_fixture
@@ -108,6 +111,14 @@ def default_sandbox_session(
                 {"tcp_port": tcp.getsockname()[1], "unix_path": str(unix_path)}
             ),
         )
+        if reticulate_ipykernel:
+            library = Path(os.environ["MCP_CONSOLE_TEST_RETICULATE_LIBRARY"])
+            assert library.is_absolute() and library.is_dir(), library
+            environment.update(
+                R_LIBS_USER=str(library),
+                RETICULATE_PYTHON=str(python),
+                _RETICULATE_POSITRON_DISABLE_VARIABLE_INSPECTORS_="1",
+            )
         with McpClient(
             binary,
             SANDBOXED.serve(
@@ -116,13 +127,18 @@ def default_sandbox_session(
                 name,
                 "--jupyter-python",
                 str(python),
+                *(
+                    ("--jupyter-reticulate", "--jupyter-reticulate-ipykernel")
+                    if reticulate_ipykernel
+                    else ()
+                ),
             ),
             environment,
             current_directory=workspace,
         ) as client:
             client.transcript.append(
                 {
-                    "scenario": f"The published {kernel} kernel works in the default read-only sandbox.",
+                    "scenario": f"The published {kernel + '+ipykernel' if reticulate_ipykernel else kernel} kernel works in the default read-only sandbox.",
                     "fixture": "No transport or sandbox permissions are configured. Host TCP and Unix listeners accept baseline connections outside the sandbox; a host file contains a protected sentinel.",
                 }
             )
@@ -149,6 +165,42 @@ def default_sandbox_session(
                     + ("42\n" if kernel == "ipykernel" else "[1] 42\n"),
                     code="answer = 42\nprint(answer)",
                 )
+                if reticulate_ipykernel:
+                    client.expect("[done]", r="r_pid <- Sys.getpid()")
+                    client.expect(
+                        "same process: True\n42\n",
+                        # fmt: python
+                        python=code("""
+                            import os
+                            from pathlib import Path
+
+                            print("same process:", os.getpid() == r.r_pid)
+                            from_python = int(r.answer)
+                            from_python
+                            """),
+                    )
+                    client.expect(
+                        "[1] 42\n",
+                        r="stopifnot(reticulate::py$from_python == answer); print(reticulate::py$from_python)",
+                    )
+                    encoded = (
+                        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8"
+                        "/x8AAwMCAO+aSuoAAAAASUVORK5CYII="
+                    )
+                    client.send(
+                        # fmt: python
+                        python=code(f"""
+                            import base64
+                            from IPython.display import Image, display
+
+                            display(Image(data=base64.b64decode("{encoded}")))
+                            """),
+                    )
+                    assert_result_content(
+                        client,
+                        [base64.b64decode(encoded)],
+                        image_reference="the submitted one-pixel PNG",
+                    )
                 if kernel == "ipykernel":
                     client.send(
                         # fmt: python
@@ -222,6 +274,14 @@ def default_sandbox_session(
                     )
                 output = last_tool_text(client)
                 assert output == network_output, output
+                if reticulate_ipykernel:
+                    client.expect(
+                        network_output,
+                        # fmt: python
+                        python=code("""
+                            exec(Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"]).read_text())
+                            """),
+                    )
                 for listener in (tcp, unix):
                     try:
                         accepted, _ = listener.accept()

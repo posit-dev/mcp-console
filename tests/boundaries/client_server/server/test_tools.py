@@ -139,12 +139,18 @@ def test_initializes_and_lists_tools(
         variants.update(
             {
                 "jupyter.yaml": {"jupyter": True},
+                "jupyter-reticulate.yaml": {"jupyter": True, "reticulate": True},
             }
         )
         if execution == SANDBOXED:
             variants.update(
                 {
                     "jupyter-writable.yaml": {"jupyter": True, "writable": True},
+                    "jupyter-reticulate-writable.yaml": {
+                        "jupyter": True,
+                        "reticulate": True,
+                        "writable": True,
+                    },
                 }
             )
     if execution == SANDBOXED:
@@ -226,7 +232,7 @@ def test_initializes_and_lists_tools(
 
 
 def _jupyter_initialization(
-    binary: Path, execution: Execution, *, writable: bool
+    binary: Path, execution: Execution, *, reticulate: bool, writable: bool
 ) -> Transcript:
     # Discovery is lazy: this canonical schema needs neither installed kernels
     # nor Jupyter packages, and never asks the selected worker to start.
@@ -242,6 +248,7 @@ def _jupyter_initialization(
                 "unused-kernel",
                 "--jupyter-python",
                 sys.executable,
+                *(("--jupyter-reticulate",) if reticulate else ()),
                 *(
                     (
                         "--writable-root",
@@ -266,6 +273,7 @@ def _jupyter_initialization(
                 "stdin",
                 "timeout_ms",
                 "requirements",
+                *(("r", "python") if reticulate else ()),
             }, send
             assert (
                 client.transcript[0]["result"]["instructions"]
@@ -290,9 +298,12 @@ def _initializes_and_lists_tools(
     bootstrap_languages: str | None = None,
     languages: tuple[str, ...] | None = None,
     jupyter: bool = False,
+    reticulate: bool = False,
 ) -> Transcript:
     if jupyter:
-        return _jupyter_initialization(binary, execution, writable=writable)
+        return _jupyter_initialization(
+            binary, execution, reticulate=reticulate, writable=writable
+        )
     environment = os.environ.copy()
     environment.pop("MCP_CONSOLE_LANGUAGES", None)
     if bootstrap_languages is not None:

@@ -303,6 +303,12 @@ stdout: |
             
             [possible values: auto, tcp, ipc]
 
+        --jupyter-reticulate
+            Enable R and Python in one ark process through reticulate
+
+        --jupyter-reticulate-ipykernel
+            Experimental ipykernel endpoint in the shared reticulate process
+
     -h, --help
             Print help (see a summary with '-h')
 ---

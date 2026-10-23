@@ -53,6 +53,12 @@ stdout: |
             
             [possible values: auto, tcp, ipc]
 
+        --jupyter-reticulate
+            Enable R and Python in one ark process through reticulate
+
+        --jupyter-reticulate-ipykernel
+            Experimental ipykernel endpoint in the shared reticulate process
+
     -h, --help
             Print help (see a summary with '-h')
 ---
@@ -75,6 +81,17 @@ stderr: |
     --jupyter-kernel <NAME>
 
   Usage: mcp-console serve --jupyter-kernel <NAME> --jupyter-transport <JUPYTER_TRANSPORT>
+
+  For more information, try '--help'.
+---
+command: mcp-console serve --jupyter-reticulate
+exit_code: 2
+stdout: ""
+stderr: |
+  error: the following required arguments were not provided:
+    --jupyter-kernel <NAME>
+
+  Usage: mcp-console serve --jupyter-kernel <NAME> --jupyter-reticulate
 
   For more information, try '--help'.
 ---
