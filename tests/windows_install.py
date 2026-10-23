@@ -122,7 +122,22 @@ if __name__ == "__main__":
             "MCP_CONSOLE_TEST_BINARY": str(venv / "Scripts/mcp-console.exe"),
             "MCP_CONSOLE_TEST_NATIVE_BINARY": str(venv / "libexec/mcp-console.exe"),
         }
-        run(sys.executable, ROOT / "tests/windows.py", "-v", environment=environment)
+        # Cargo fixture builds do not use the installed executable and already
+        # run in native acceptance. Retain every installed runtime/package class.
+        run(
+            sys.executable,
+            ROOT / "tests/windows.py",
+            "-v",
+            "WindowsPackaging",
+            "WindowsConsole",
+            "WindowsRelay",
+            "WindowsResolver",
+            "WindowsResolverMaterialization",
+            "WindowsMxc",
+            "WindowsPreparation",
+            "WindowsSandbox",
+            environment=environment,
+        )
         run("uv", "pip", "install", "--reinstall", "--python", python, ROOT)
         inspect_installation(venv / "Scripts/mcp-console.exe")
         run(

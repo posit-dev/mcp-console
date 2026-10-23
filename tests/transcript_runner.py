@@ -209,6 +209,8 @@ def check_recording(*arguments: object, **keywords: object) -> object:
 
 
 class TranscriptRunnerFixture(unittest.TestCase):
+    """Shared setup only; concrete classes own each test exactly once."""
+
     def setUp(self) -> None:
         # Copied runners select fixture executables; restore caller overrides
         # after each test, including when setup or an assertion fails.
@@ -272,68 +274,6 @@ class TranscriptRunnerFixture(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def test_documentation_companion_links_check_repository_and_nested_guides(
-        self,
-    ) -> None:
-        selector = "cli/test_documentation::current_companion_links_match_pin"
-        suite = self.boundaries / "cli/test_documentation.py"
-        suite.parent.mkdir()
-        shutil.copy2(ROOT / "tests/boundaries/cli/test_documentation.py", suite)
-        snapshot = self.root / "tests/snapshots/cli/test_documentation"
-        snapshot.mkdir(parents=True)
-        shutil.copy2(
-            ROOT
-            / "tests/snapshots/cli/test_documentation/current_companion_links_match_pin.yaml",
-            snapshot,
-        )
-        for name in ("README.md", "RELEASE.md"):
-            (self.root / name).touch()
-        # A renamed companion must still reject links to its old repository.
-        repository = "new-owner/native-runner"
-        revision = "1" * 40
-        (self.root / "sandbox-runner.json").write_text(
-            json.dumps({"repository": repository, "commit": revision}),
-            encoding="utf-8",
-        )
-        for name, linked_repository, linked_revision, valid in (
-            ("README.md", "t-kalinowski/cobox", revision, False),
-            ("RELEASE.md", "old-owner/native-runner", revision, False),
-            ("docs/python/index.qmd", repository, "0" * 40, False),
-            ("docs/guides/nested/guide.md", repository, "main", False),
-            ("docs/python/index.qmd", "t-kalinowski/cobox", revision, False),
-            ("docs/python/index.qmd", repository, revision, True),
-            ("docs/guides/nested/guide.md", repository, revision, True),
-            ("docs/RESOLVER_RELEASE_AUDIT.md", "t-kalinowski/cobox", "0" * 40, True),
-            ("docs/benchmarks/nested/record.qmd", "t-kalinowski/cobox", "0" * 40, True),
-            ("docs/_site/python/index.md", "t-kalinowski/cobox", "0" * 40, True),
-            ("docs/.quarto/record.md", "t-kalinowski/cobox", "0" * 40, True),
-            ("docs/TOOL_DESCRIPTIONS.md", "openai/codex", "0" * 40, True),
-        ):
-            with self.subTest(document=name, repository=linked_repository):
-                document = self.root / name
-                document.parent.mkdir(parents=True, exist_ok=True)
-                (self.root / "docs").mkdir(exist_ok=True)
-                document.write_text(
-                    f"[Source](https://github.com/{linked_repository}/blob/"
-                    f"{linked_revision}/codex-rs/mcp-console-sandbox/src/main.rs)\n",
-                    encoding="utf-8",
-                )
-                try:
-                    result = self.run_runner(selector)
-                    output = result.stdout + result.stderr
-                    if valid:
-                        self.assertEqual(result.returncode, 0, output)
-                    else:
-                        self.assertNotEqual(result.returncode, 0, output)
-                        self.assertIn(
-                            f"{document.relative_to(self.root)}:1: companion reference",
-                            output,
-                        )
-                        self.assertIn(linked_repository, output)
-                        self.assertIn(linked_revision, output)
-                finally:
-                    document.write_text("", encoding="utf-8")
-
     def start_runner(self, *arguments: str) -> subprocess.Popen[str]:
         return subprocess.Popen(
             [sys.executable, self.boundaries / "_run.py", *arguments],
@@ -344,19 +284,13 @@ class TranscriptRunnerFixture(unittest.TestCase):
             start_new_session=True,
         )
 
-    def run_runner(
-        self, *arguments: str, timeout: float = 10
-    ) -> subprocess.CompletedProcess[str]:
-        process = self.start_runner(*arguments)
-        try:
-            stdout, stderr = process.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            with suppress(ProcessLookupError):
-                os.killpg(process.pid, signal.SIGKILL)
-            stdout, stderr = process.communicate()
-            self.fail(f"runner did not exit; stdout={stdout!r}; stderr={stderr!r}")
-        return subprocess.CompletedProcess(
-            arguments, process.returncode, stdout, stderr
+    def run_runner(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, self.boundaries / "_run.py", *arguments],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
 
     def read_snapshot_failure(
@@ -435,6 +369,21 @@ class TranscriptRunnerFixture(unittest.TestCase):
 
 @unittest.skipUnless(POSIX.available, POSIX.reason)
 class TranscriptRunnerTests(TranscriptRunnerFixture):
+    def run_runner(
+        self, *arguments: str, timeout: float = 10
+    ) -> subprocess.CompletedProcess[str]:
+        process = self.start_runner(*arguments)
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            stdout, stderr = process.communicate()
+            self.fail(f"runner did not exit; stdout={stdout!r}; stderr={stderr!r}")
+        return subprocess.CompletedProcess(
+            arguments, process.returncode, stdout, stderr
+        )
+
     def test_script_builds_and_uses_release_with_a_stale_debug_binary(self) -> None:
         environment = self.prepare_script()
         debug = self.root / "target" / "debug" / "mcp-console"
@@ -2117,6 +2066,68 @@ runner: orphan
 
 
 class TranscriptDiscoveryTests(TranscriptRunnerFixture):
+    def test_documentation_companion_links_check_repository_and_nested_guides(
+        self,
+    ) -> None:
+        selector = "cli/test_documentation::current_companion_links_match_pin"
+        suite = self.boundaries / "cli/test_documentation.py"
+        suite.parent.mkdir()
+        shutil.copy2(ROOT / "tests/boundaries/cli/test_documentation.py", suite)
+        snapshot = self.root / "tests/snapshots/cli/test_documentation"
+        snapshot.mkdir(parents=True)
+        shutil.copy2(
+            ROOT
+            / "tests/snapshots/cli/test_documentation/current_companion_links_match_pin.yaml",
+            snapshot,
+        )
+        for name in ("README.md", "RELEASE.md"):
+            (self.root / name).touch()
+        # A renamed companion must still reject links to its old repository.
+        repository = "new-owner/native-runner"
+        revision = "1" * 40
+        (self.root / "sandbox-runner.json").write_text(
+            json.dumps({"repository": repository, "commit": revision}),
+            encoding="utf-8",
+        )
+        for name, linked_repository, linked_revision, valid in (
+            ("README.md", "t-kalinowski/cobox", revision, False),
+            ("RELEASE.md", "old-owner/native-runner", revision, False),
+            ("docs/python/index.qmd", repository, "0" * 40, False),
+            ("docs/guides/nested/guide.md", repository, "main", False),
+            ("docs/python/index.qmd", "t-kalinowski/cobox", revision, False),
+            ("docs/python/index.qmd", repository, revision, True),
+            ("docs/guides/nested/guide.md", repository, revision, True),
+            ("docs/RESOLVER_RELEASE_AUDIT.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/benchmarks/nested/record.qmd", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/_site/python/index.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/.quarto/record.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/TOOL_DESCRIPTIONS.md", "openai/codex", "0" * 40, True),
+        ):
+            with self.subTest(document=name, repository=linked_repository):
+                document = self.root / name
+                document.parent.mkdir(parents=True, exist_ok=True)
+                (self.root / "docs").mkdir(exist_ok=True)
+                document.write_text(
+                    f"[Source](https://github.com/{linked_repository}/blob/"
+                    f"{linked_revision}/codex-rs/mcp-console-sandbox/src/main.rs)\n",
+                    encoding="utf-8",
+                )
+                try:
+                    result = self.run_runner(selector)
+                    output = result.stdout + result.stderr
+                    if valid:
+                        self.assertEqual(result.returncode, 0, output)
+                    else:
+                        self.assertNotEqual(result.returncode, 0, output)
+                        self.assertIn(
+                            f"{document.relative_to(self.root)}:1: companion reference",
+                            output,
+                        )
+                        self.assertIn(linked_repository, output)
+                        self.assertIn(linked_revision, output)
+                finally:
+                    document.write_text("", encoding="utf-8")
+
     def test_shared_direct_handshake_precedes_equal_variants(self) -> None:
         self.suite.write_text(
             PUBLIC_SUITE
@@ -2323,15 +2334,6 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(stale.read_text(), "retained platform output\n")
 
-    def run_runner(self, *arguments: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, self.boundaries / "_run.py", *arguments],
-            cwd=self.root,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-
     def test_help_reports_default_concurrency_for_available_cpus(self) -> None:
         for cpu_count, jobs in ((None, 2), (0, 2), (1, 2), (2, 4), (8, 16), (64, 128)):
             with self.subTest(cpu_count=cpu_count):
@@ -2427,7 +2429,7 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
 
 
 @unittest.skipUnless(os.name == "nt", "native Windows case supervision")
-class WindowsTranscriptTests(TranscriptDiscoveryTests):
+class WindowsTranscriptTests(TranscriptRunnerFixture):
     def test_platform_update_preserves_shared_snapshots_and_prunes_stale_windows_companions(
         self,
     ) -> None:
