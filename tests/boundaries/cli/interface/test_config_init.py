@@ -66,7 +66,7 @@ def test_defaults_use_cwd_without_git_or_global_inference(binary: Path) -> Trans
             assert read_yaml(path) == WORKSPACE_CONFIGURATION
             assert "## Full reference:" in path.read_text(encoding="utf-8")
             assert (
-                "https://t-kalinowski.github.io/mcp-console/reference/#configuration"
+                "https://posit-dev.github.io/mcp-console/reference/#configuration"
                 in path.read_text(encoding="utf-8")
             )
             assert not (repository / ".agents").exists()

@@ -25,22 +25,22 @@ with MCPConsole() as console:
 Keep the connection open to retain state.
 Closing it ends the session; reconnecting starts a new one.
 
-Use [AsyncMCPConsole](https://t-kalinowski.github.io/mcp-console/python/reference/asyncmcpconsole/) with `async with` and `await` for asynchronous code.
+Use [AsyncMCPConsole](https://posit-dev.github.io/mcp-console/python/reference/asyncmcpconsole/) with `async with` and `await` for asynchronous code.
 Enter and close an async connection in the same task.
-The [API reference](https://t-kalinowski.github.io/mcp-console/python/reference/) documents launch commands, working directories, environment options, and exact signatures.
+The [API reference](https://posit-dev.github.io/mcp-console/python/reference/) documents launch commands, working directories, environment options, and exact signatures.
 
 ## Choose a model integration
 
 Install the extra for your framework.
 Each reference page provides a complete example, including setup and cleanup.
 
-| Framework                    | Extra           | Existing Console connection                                                                          | Framework-managed connection                                                                                                               |
-| ---------------------------- | --------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| chatlas                      | `chatlas`       | [tool](https://t-kalinowski.github.io/mcp-console/python/reference/chatlas.tool/)                    | [register](https://t-kalinowski.github.io/mcp-console/python/reference/chatlas.register/)                                                  |
-| `openai` — Responses API     | `openai`        | [responses_tool](https://t-kalinowski.github.io/mcp-console/python/reference/openai.responses_tool/) | Application-owned loop.                                                                                                                    |
-| `openai-agents` — Agents SDK | `openai-agents` | [agents_tool](https://t-kalinowski.github.io/mcp-console/python/reference/openai.agents_tool/)       | [agents_server](https://t-kalinowski.github.io/mcp-console/python/reference/openai.agents_server/)                                         |
-| `openai-codex` — Codex SDK   | `codex`         | —                                                                                                    | [server](https://t-kalinowski.github.io/mcp-console/python/reference/codex.server/) supplies configuration; it does not open a connection. |
-| Anthropic                    | `anthropic`     | [tool](https://t-kalinowski.github.io/mcp-console/python/reference/anthropic.tool/)                  | [tools](https://t-kalinowski.github.io/mcp-console/python/reference/anthropic.tools/)                                                      |
+| Framework                    | Extra           | Existing Console connection                                                                       | Framework-managed connection                                                                                                            |
+| ---------------------------- | --------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| chatlas                      | `chatlas`       | [tool](https://posit-dev.github.io/mcp-console/python/reference/chatlas.tool/)                    | [register](https://posit-dev.github.io/mcp-console/python/reference/chatlas.register/)                                                  |
+| `openai` — Responses API     | `openai`        | [responses_tool](https://posit-dev.github.io/mcp-console/python/reference/openai.responses_tool/) | Application-owned loop.                                                                                                                 |
+| `openai-agents` — Agents SDK | `openai-agents` | [agents_tool](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_tool/)       | [agents_server](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_server/)                                         |
+| `openai-codex` — Codex SDK   | `codex`         | —                                                                                                 | [server](https://posit-dev.github.io/mcp-console/python/reference/codex.server/) supplies configuration; it does not open a connection. |
+| Anthropic                    | `anthropic`     | [tool](https://posit-dev.github.io/mcp-console/python/reference/anthropic.tool/)                  | [tools](https://posit-dev.github.io/mcp-console/python/reference/anthropic.tools/)                                                      |
 
 Your application still owns its model client, chat or agent, and any function-calling loop.
 Creating a Console tool does not choose a model.
@@ -58,9 +58,9 @@ These describe the same workbench your agent uses from Python.
 <span id="results-and-lifetime"></span> <span id="interrupt-a-wait-or-stop-execution"></span>
 
 [Drive send directly](SEND_OPERATIONS.md) walks through collecting unfinished results, answering input, interrupting work, and restarting.
-The [MCPConsole reference](https://t-kalinowski.github.io/mcp-console/python/reference/mcpconsole/) documents result handling and connection cleanup, including `KeyboardInterrupt`.
+The [MCPConsole reference](https://posit-dev.github.io/mcp-console/python/reference/mcpconsole/) documents result handling and connection cleanup, including `KeyboardInterrupt`.
 
 <span id="inspect-or-replace-requirements"></span>
 
-For exact dependency fields and replacement rules, see [Requirements](https://t-kalinowski.github.io/mcp-console/python/reference/requirements/) and the [send reference](API.md#requirements).
+For exact dependency fields and replacement rules, see [Requirements](https://posit-dev.github.io/mcp-console/python/reference/requirements/) and the [send reference](API.md#requirements).
 To prepare data and customize what the model sees, follow [Build a data assistant](BUILD_ON_CONSOLE.md).

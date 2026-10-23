@@ -23,7 +23,7 @@ It also shows how to prepare R objects or initialize a session from application 
 | An existing coding agent         | [Install and connect](CLIENTS.md), then use the same configuration files to customize its Console session.          |
 
 Use the supplied adapters when integrating with a model framework so the model receives the connected server's actual tool schema.
-For exact fields and signatures, see [Tool settings](TOOL_CONFIGURATION.md), the [send tool](API.md), the [R API](https://t-kalinowski.github.io/mcp-console/r/reference/), and the [Python API](https://t-kalinowski.github.io/mcp-console/python/reference/).
+For exact fields and signatures, see [Tool settings](TOOL_CONFIGURATION.md), the [send tool](API.md), the [R API](https://posit-dev.github.io/mcp-console/r/reference/), and the [Python API](https://posit-dev.github.io/mcp-console/python/reference/).
 
 ## Interface stability
 

@@ -128,7 +128,7 @@ They run after other checks because installation can change staging/build layout
 ## One-time PyPI setup
 
 Create the GitHub Actions environment `pypi`.
-Configure the existing PyPI project's Trusted Publisher with owner `t-kalinowski`, repository `mcp-console`, workflow `release.yml`, and environment `pypi`.
+Configure the existing PyPI project's Trusted Publisher with owner `posit-dev`, repository `mcp-console`, workflow `release.yml`, and environment `pypi`.
 Do not add a `PYPI_TOKEN` secret; only publication receives an OIDC token.
 
 ## Prepare and rehearse

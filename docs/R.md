@@ -8,7 +8,7 @@ The client runs in your R session; the agent's analysis runs in Console.
 Install the package and its dependencies:
 
 ```r
-pak::pak("github::t-kalinowski/mcp-console/r")
+pak::pak("github::posit-dev/mcp-console/r")
 ```
 
 Register a Console tool with your chat:
@@ -52,8 +52,8 @@ tool <- console_tool(config = config, project = "/path/to/project")
 
 An explicit configuration skips file discovery.
 Here the `workspace` profile allows ordinary project writes; network access is configured separately.
-[Configure a Console session](https://t-kalinowski.github.io/mcp-console/r/articles/configuration/) covers inspecting, editing, saving, and reusing settings.
-The [R API](https://t-kalinowski.github.io/mcp-console/r/reference/) documents the complete configuration interface.
+[Configure a Console session](https://posit-dev.github.io/mcp-console/r/articles/configuration/) covers inspecting, editing, saving, and reusing settings.
+The [R API](https://posit-dev.github.io/mcp-console/r/reference/) documents the complete configuration interface.
 
 ## Work with the session
 
@@ -61,4 +61,4 @@ The shared guides explain [sessions and languages](BUILTIN_RUNTIME.md), [package
 These describe the same workbench your agent uses from R.
 
 [Build a data assistant](BUILD_ON_CONSOLE.md) shows how to change the descriptions, languages, and parameters the agent sees.
-For a complete analysis example, see [Giving an agent an R session](https://t-kalinowski.github.io/mcp-console/r/articles/autonomous-report/).
+For a complete analysis example, see [Giving an agent an R session](https://posit-dev.github.io/mcp-console/r/articles/autonomous-report/).

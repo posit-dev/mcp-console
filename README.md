@@ -67,7 +67,7 @@ Restart discards live objects but retains accepted requirements and recordings.
 
 ## Documentation
 
-[Get started](docs/getting-started.qmd) · [User guides](docs/README.md) · [Client integration](docs/CLIENTS.md) · [Development](docs/DEVELOPMENT.md)
+[Documentation website](https://posit-dev.github.io/mcp-console/) · [Get started](docs/getting-started.qmd) · [User guides](docs/README.md) · [Client integration](docs/CLIENTS.md) · [Development](docs/DEVELOPMENT.md)
 
-MCP Console grew out of [mcp-repl](https://github.com/posit-dev/mcp-repl).
+MCP Console grew out of [mcp-repl](https://github.com/posit-dev/mcp-console/tree/e60f582d943727a17a38a4162ba63a55b6c773c6).
 Licensed under the [MIT license](LICENSE).

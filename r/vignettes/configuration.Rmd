@@ -171,7 +171,7 @@ Materialization does not lock dependencies or copy inherited environment variabl
 `config@tool@instructions` is server guidance returned during MCP initialization, which some clients use for deferred tool discovery.
 `config@tool@description` and parameter descriptions arrive through `tools/list`.
 The ellmer adapter uses the latter tool definition and does not automatically insert server instructions into the chat prompt.
-See [tool presentation and lifecycle](https://t-kalinowski.github.io/mcp-console/tool_configuration/#tool-descriptions-and-parameters).
+See [tool presentation and lifecycle](https://posit-dev.github.io/mcp-console/tool_configuration/#tool-descriptions-and-parameters).
 
 ## Launch a configured session {#existing-callers}
 
@@ -224,7 +224,7 @@ The first MCP `send` selects the translated client profile when usable metadata 
 Explicit permission settings compose with that selected base; fallback workspace grants are not added to the client profile.
 Use `profile = "inherit_codex"` for the default `"read_only"` fallback, or set `InheritCodexSandboxProfile(fallback = "read_only")` explicitly.
 Missing metadata selects the configured fallback silently; malformed metadata emits a warning on server stderr and selects the same fallback.
-`tempdir` selects `"managed"`, `"read_write"`, or `"read_only"` as described in [temporary storage](https://t-kalinowski.github.io/mcp-console/sandbox_configuration/#profiles-and-temporary-storage).
+`tempdir` selects `"managed"`, `"read_write"`, or `"read_only"` as described in [temporary storage](https://posit-dev.github.io/mcp-console/sandbox_configuration/#profiles-and-temporary-storage).
 This is a host-read/private-write baseline, not filesystem secrecy: sensitive readable locations need explicit denial.
 Create required output directories on the host before granting them; R does not create or normalize configured paths.
 
@@ -265,4 +265,4 @@ Descriptions replace the complete selected text, including empty strings.
 `instructions` independently replaces MCP initialization instructions.
 Hidden parameters are removed from the signature and rejected if supplied; omission retains their runtime defaults.
 Hiding `timeout_ms` retains the 60,000 ms wait budget.
-See `?ToolConfig` and the [tool configuration contract](https://t-kalinowski.github.io/mcp-console/tool_configuration/#tool-descriptions-and-parameters).
+See `?ToolConfig` and the [tool configuration contract](https://posit-dev.github.io/mcp-console/tool_configuration/#tool-descriptions-and-parameters).

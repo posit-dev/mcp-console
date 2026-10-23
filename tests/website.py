@@ -104,9 +104,9 @@ class WebsiteTests(unittest.TestCase):
             r_readme = prefix + "../r/README.md"
             (directory / "package-links.md").write_text(
                 "# Package links\n\n"
-                "[R reference](https://t-kalinowski.github.io/mcp-console/"
+                "[R reference](https://posit-dev.github.io/mcp-console/"
                 "r/reference/console_tool.html?view=full#arguments)\n\n"
-                "[Python reference](https://t-kalinowski.github.io/mcp-console/"
+                "[Python reference](https://posit-dev.github.io/mcp-console/"
                 "python/reference/MCPConsole.html?view=full#"
                 "mcp_console.MCPConsole.send)\n\n"
                 f"[R overview]({r_readme})\n\n"
@@ -276,7 +276,7 @@ class WebsiteTests(unittest.TestCase):
         self.assertIn(self.site / "r/articles/configuration/index.html", destinations)
         search = json.loads((self.site / "r/search.json").read_text())
         self.assertIn(
-            "https://t-kalinowski.github.io/mcp-console/r/articles/autonomous-report/",
+            "https://posit-dev.github.io/mcp-console/r/articles/autonomous-report/",
             {entry["path"] for entry in search},
         )
 
@@ -1189,7 +1189,7 @@ class WebsiteTests(unittest.TestCase):
             )
         }
         reference_url = (
-            "https://t-kalinowski.github.io/mcp-console/r/reference/console_tool/"
+            "https://posit-dev.github.io/mcp-console/r/reference/console_tool/"
         )
         self.assertIn(reference_url, urls)
         search = json.loads((self.site / "r/search.json").read_text())
@@ -1210,7 +1210,7 @@ class WebsiteTests(unittest.TestCase):
         for target in ("getting-started/", "readme/", "build/", "reference/"):
             self.assertIn(f"../../../{target}", self.pages[reference].links)
         self.assertIn(
-            "https://github.com/t-kalinowski/mcp-console/blob/main/r/R/console-tool.R",
+            "https://github.com/posit-dev/mcp-console/blob/main/r/R/console-tool.R",
             self.pages[reference].links,
         )
         for name in (
@@ -1228,7 +1228,7 @@ class WebsiteTests(unittest.TestCase):
                 }
                 self.assertIn(home, destinations)
                 self.assertNotIn(
-                    "https://github.com/t-kalinowski/mcp-console/blob/main/r/README.md",
+                    "https://github.com/posit-dev/mcp-console/blob/main/r/README.md",
                     self.pages[page].links,
                 )
 
@@ -1317,7 +1317,7 @@ class WebsiteTests(unittest.TestCase):
             )
         }
         self.assertIn(
-            "https://t-kalinowski.github.io/mcp-console/python/reference/mcpconsole/",
+            "https://posit-dev.github.io/mcp-console/python/reference/mcpconsole/",
             urls,
         )
         self.assertIn(
@@ -1352,7 +1352,7 @@ class WebsiteTests(unittest.TestCase):
                 ):
                     self.assertIn(self.site / target, destinations)
         self.assertIn(
-            "https://github.com/t-kalinowski/mcp-console/blob/main/python/mcp_console/_sync.py",
+            "https://github.com/posit-dev/mcp-console/blob/main/python/mcp_console/_sync.py",
             {
                 link.split("#")[0]
                 for link in self.pages[
@@ -1527,8 +1527,7 @@ class WebsiteTests(unittest.TestCase):
                     "docs/templates/task-checkpoint.md",
                 ):
                     self.assertIn(
-                        "https://github.com/t-kalinowski/mcp-console/blob/main/"
-                        + source,
+                        "https://github.com/posit-dev/mcp-console/blob/main/" + source,
                         page.links,
                     )
                 self.assertIn(
@@ -1568,20 +1567,19 @@ class WebsiteTests(unittest.TestCase):
         for path, page in self.pages.items():
             for link in page.links:
                 url = urlsplit(link)
-                same_site = (
-                    url.netloc == "t-kalinowski.github.io"
-                    and url.path.startswith("/mcp-console/")
+                same_site = url.netloc == "posit-dev.github.io" and url.path.startswith(
+                    "/mcp-console/"
                 )
                 if (url.scheme or url.netloc) and not same_site:
                     if url.netloc == "github.com" and url.path.startswith(
-                        "/t-kalinowski/mcp-console/blob/main/"
+                        "/posit-dev/mcp-console/blob/main/"
                     ):
                         with self.subTest(
                             page=str(path.relative_to(self.site)), link=link
                         ):
                             self.assertNotIn("/../", url.path)
                             source = url.path.removeprefix(
-                                "/t-kalinowski/mcp-console/blob/main/"
+                                "/posit-dev/mcp-console/blob/main/"
                             )
                             self.assertTrue(
                                 (ROOT / unquote(source)).exists(),

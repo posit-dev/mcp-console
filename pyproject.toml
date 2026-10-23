@@ -33,9 +33,9 @@ openai = ["openai>=3.31.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
 openai-agents = ["openai-agents>=0.24.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
 
 [project.urls]
-Homepage = "https://github.com/t-kalinowski/mcp-console"
-Repository = "https://github.com/t-kalinowski/mcp-console"
-Issues = "https://github.com/t-kalinowski/mcp-console/issues"
+Homepage = "https://github.com/posit-dev/mcp-console"
+Repository = "https://github.com/posit-dev/mcp-console"
+Issues = "https://github.com/posit-dev/mcp-console/issues"
 
 [tool.ruff.format]
 line-ending = "lf"

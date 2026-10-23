@@ -1,4 +1,4 @@
-url: https://t-kalinowski.github.io/mcp-console/r/
+url: https://posit-dev.github.io/mcp-console/r/
 
 development:
   mode: unreleased
@@ -10,9 +10,9 @@ template:
 
 repo:
   url:
-    home: https://github.com/t-kalinowski/mcp-console/
-    source: https://github.com/t-kalinowski/mcp-console/blob/main/r/
-    issue: https://github.com/t-kalinowski/mcp-console/issues/
+    home: https://github.com/posit-dev/mcp-console/
+    source: https://github.com/posit-dev/mcp-console/blob/main/r/
+    issue: https://github.com/posit-dev/mcp-console/issues/
     user: https://github.com/
 
 navbar:
