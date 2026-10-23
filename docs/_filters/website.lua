@@ -31,7 +31,7 @@ end
 
 -- Keep public package URLs usable on GitHub and local in the rendered website.
 function Link(link)
-  local public_prefix = "https://t-kalinowski.github.io/mcp-console/"
+  local public_prefix = "https://posit-dev.github.io/mcp-console/"
   if link.target:sub(1, #public_prefix) == public_prefix then
     local path, suffix = link.target:sub(#public_prefix + 1):match("^([^#?]+)(.*)$")
     if path and (path:match("^python/") or path:match("^r/")) then
@@ -53,7 +53,7 @@ function Link(link)
     if source == "r/README.md" then
       link.target = package_link("r/index.html") .. suffix
     elseif not source:match("^docs/") or source:match("^docs/templates/") then
-      link.target = "https://github.com/t-kalinowski/mcp-console/blob/main/" .. source .. suffix
+      link.target = "https://github.com/posit-dev/mcp-console/blob/main/" .. source .. suffix
     end
   end
   return link

@@ -31,8 +31,8 @@ website:
   description: >-
     An interactive, sandboxed workspace for AI agents working with data in
     R, Python, and SQL.
-  site-url: https://t-kalinowski.github.io/mcp-console/
-  repo-url: https://github.com/t-kalinowski/mcp-console
+  site-url: https://posit-dev.github.io/mcp-console/
+  repo-url: https://github.com/posit-dev/mcp-console
   repo-subdir: docs
   repo-actions: [edit, issue]
   page-navigation: true
@@ -48,7 +48,7 @@ website:
         text: Reference
     right:
       - icon: github
-        href: https://github.com/t-kalinowski/mcp-console
+        href: https://github.com/posit-dev/mcp-console
         aria-label: GitHub repository
   sidebar:
     - id: guides
@@ -150,7 +150,7 @@ website:
         contents:
         - RESOLVER_RELEASE_AUDIT.md
         - benchmarks/transcript-concurrency.md
-        - href: https://github.com/t-kalinowski/mcp-console/blob/main/RELEASE.md
+        - href: https://github.com/posit-dev/mcp-console/blob/main/RELEASE.md
           text: Release procedure
   page-footer:
     left: MCP Console · MIT License
@@ -158,7 +158,7 @@ website:
       - text: Development
         href: DEVELOPMENT.md
       - text: Source
-        href: https://github.com/t-kalinowski/mcp-console
+        href: https://github.com/posit-dev/mcp-console
 
 filters:
   - _filters/python-reference.lua

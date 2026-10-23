@@ -8,7 +8,7 @@ use crate::settings::{Profile, ProfileSelection};
 const HEADER: &str = "\
 ## MCP Console configuration, shared across clients.
 ## Full reference:
-## https://t-kalinowski.github.io/mcp-console/reference/#configuration
+## https://posit-dev.github.io/mcp-console/reference/#configuration
 ##
 ## Reconnect your client after editing.
 ## Relative paths use Console's launch directory, not this file's directory.

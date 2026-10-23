@@ -216,7 +216,7 @@ class ReleaseScriptTests(ReleaseFixture):
                 "GITHUB_EVENT_NAME": "push",
                 "GITHUB_REF_TYPE": "tag",
                 "GITHUB_REF_NAME": "v0.0.2",
-                "GITHUB_REPOSITORY": "t-kalinowski/mcp-console",
+                "GITHUB_REPOSITORY": "posit-dev/mcp-console",
                 "FAKE_RELEASE_COMMIT": "release-commit",
                 "FAKE_MAIN_COMMIT": "main-commit",
                 "FAKE_GH_ARGUMENTS": str(directory / "gh-arguments.json"),
@@ -246,7 +246,7 @@ class ReleaseScriptTests(ReleaseFixture):
             self.assertEqual(result.returncode, 0, result.stderr)
             gh_arguments = json.loads((directory / "gh-arguments.json").read_text())
             self.assertIn(
-                "/repos/t-kalinowski/mcp-console/actions/workflows/ci.yaml/runs",
+                "/repos/posit-dev/mcp-console/actions/workflows/ci.yaml/runs",
                 gh_arguments,
             )
             self.assertIn("head_sha=release-commit", gh_arguments)

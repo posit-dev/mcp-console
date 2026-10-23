@@ -72,12 +72,12 @@ For reading and reusing a session, see [Recordings and reports](RECORDING.md).
 
 ### Packages
 
-- The [Python API](https://t-kalinowski.github.io/mcp-console/python/reference/) documents synchronous and asynchronous clients and model integrations.
+- The [Python API](https://posit-dev.github.io/mcp-console/python/reference/) documents synchronous and asynchronous clients and model integrations.
   [Use Console from Python](PYTHON.md) introduces the clients and framework adapters.
-- The [R API](https://t-kalinowski.github.io/mcp-console/r/reference/) documents tool registration and session configuration.
+- The [R API](https://posit-dev.github.io/mcp-console/r/reference/) documents tool registration and session configuration.
   [Use Console from R](R.md) introduces the ellmer integration and links to configuration and analysis examples.
 
-Package overviews: [Python](https://t-kalinowski.github.io/mcp-console/python/) and [R](../r/README.md).
+Package overviews: [Python](https://posit-dev.github.io/mcp-console/python/) and [R](../r/README.md).
 
 ## Glossary
 

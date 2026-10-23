@@ -30,7 +30,7 @@ For native Windows, follow [Windows build instructions](WINDOWS_DEVELOPMENT.md#b
 ## Install Console
 
 ```sh
-uv tool install git+https://github.com/t-kalinowski/mcp-console
+uv tool install git+https://github.com/posit-dev/mcp-console
 ```
 
 This builds Console and its sandbox runner.

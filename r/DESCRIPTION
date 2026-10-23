@@ -7,9 +7,9 @@ Description: Adds MCP Console to an 'ellmer' chat as a persistent workbench
     for R, Python, and DuckDB. Provides typed session configuration and
     sandbox permissions through the Console command-line interface.
 License: MIT + file LICENSE
-URL: https://t-kalinowski.github.io/mcp-console/r/,
-    https://github.com/t-kalinowski/mcp-console
-BugReports: https://github.com/t-kalinowski/mcp-console/issues
+URL: https://posit-dev.github.io/mcp-console/r/,
+    https://github.com/posit-dev/mcp-console
+BugReports: https://github.com/posit-dev/mcp-console/issues
 Depends:
     R (>= 4.2.0)
 Imports:

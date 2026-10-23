@@ -105,4 +105,4 @@ Closing it ends the session; reconnecting starts a new one.
 
 <span id="python-client-cancellation"></span>
 
-For Python connection cleanup and `KeyboardInterrupt` behavior, see [MCPConsole](https://t-kalinowski.github.io/mcp-console/python/reference/mcpconsole/).
+For Python connection cleanup and `KeyboardInterrupt` behavior, see [MCPConsole](https://posit-dev.github.io/mcp-console/python/reference/mcpconsole/).
