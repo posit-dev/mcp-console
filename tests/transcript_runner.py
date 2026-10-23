@@ -1546,6 +1546,9 @@ runner: released
             self.assertNotIn("timed out", stderr)
             self.assertNotIn("multiple transcript cases failed", stderr)
             self.assertIn("1 of 3 transcript cases failed; not started: 1", stderr)
+            self.assertEqual(
+                stderr.count(f"{failure} differs from its snapshot"), 1, stderr
+            )
             self.assertFalse((self.root / "selected.marker").exists())
             with self.assertRaises(ProcessLookupError):
                 os.killpg(process.pid, 0)
@@ -1985,7 +1988,11 @@ runner: orphan
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("20 of 20 transcript cases failed", result.stderr)
         for name in names:
-            self.assertIn(f"AssertionError: failure in {name}", result.stderr)
+            self.assertEqual(
+                result.stderr.count(f"AssertionError: failure in {name}"),
+                1,
+                result.stderr,
+            )
 
     def test_parallel_failure_exits_and_reports_every_failure(self) -> None:
         self.suite.write_text(FAILING_SUITE, encoding="utf-8")
@@ -2050,17 +2057,16 @@ runner: orphan
                 f"rerun: scripts/test client_server/server/test_tools::{name}",
                 stderr,
             )
+            self.assertEqual(
+                stderr.count(
+                    f"client_server/server/test_tools::{name} differs from its snapshot"
+                ),
+                1,
+                stderr,
+            )
         self.assertIn("runner: first actual", stderr)
         self.assertIn("runner: second actual", stderr)
         self.assertIn("multiple transcript cases failed (2 sub-exceptions)", stderr)
-        self.assertIn(
-            "client_server/server/test_tools::first_failure differs from its snapshot",
-            stderr,
-        )
-        self.assertIn(
-            "client_server/server/test_tools::second_failure differs from its snapshot",
-            stderr,
-        )
         with self.assertRaises(ProcessLookupError):
             os.killpg(process.pid, 0)
 
