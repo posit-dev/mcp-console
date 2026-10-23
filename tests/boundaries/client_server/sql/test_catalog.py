@@ -348,13 +348,12 @@ def test_queries_a_ragnar_store_created_in_r(
     binary: Path, execution: Execution
 ) -> Transcript:
     environment, _ = r_test_environment()
-    # These R/SQL operations do not use ragnar's Python document converters.
-    environment["MCP_CONSOLE_LANGUAGES"] = "r,sql"
     temporary = tempfile.TemporaryDirectory()
     workspace = Path(temporary.name)
     client = McpClient(
         binary,
-        execution.serve(),
+        # These R/SQL operations do not use ragnar's Python document converters.
+        execution.serve("-c", "languages=[r,sql]"),
         environment,
         current_directory=workspace,
     )
@@ -419,7 +418,8 @@ def test_queries_a_ragnar_store_created_in_r(
         writeLines("ragnar store ready")
         """)
     client.send(r=r)
-    assert normalize_duckdb_progress(client) == "ragnar store ready\n"
+    output = normalize_duckdb_progress(client)
+    assert output == "ragnar store ready\n", output
     client.expect("[prepared]", requirements={"duckdb": ["fts", "vss"]})
     # fmt: r
     r = code(r"""
@@ -441,7 +441,8 @@ def test_queries_a_ragnar_store_created_in_r(
         writeLines("selected the open ragnar reader")
         """)
     client.send(r=r)
-    assert normalize_duckdb_progress(client) == "selected the open ragnar reader\n"
+    output = normalize_duckdb_progress(client)
+    assert output == "selected the open ragnar reader\n", output
     client.send(sql="SELECT origin FROM chunks ORDER BY origin")
     preview = normalize_trailing_spaces(client)
     assert [line.split() for line in preview.splitlines()[-2:]] == [
@@ -473,7 +474,8 @@ def test_queries_a_ragnar_store_created_in_r(
         """)
     client.send(r=r)
     marker = "ragnar store ready\n"
-    assert normalize_duckdb_progress(client) == marker
+    output = normalize_duckdb_progress(client)
+    assert output == marker, output
 
     sql = code(r"""
         LOAD fts;
