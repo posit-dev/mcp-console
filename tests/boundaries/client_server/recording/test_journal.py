@@ -830,12 +830,15 @@ def test_flushes_calls_and_keeps_unpolled_images(
         )
         session = next((workspace / ".agents/console" / "sessions").iterdir())
         journal = session / "capture" / "events.jsonl"
+
+        def live_events() -> list[dict]:
+            # Protocol capture can append after a response arrives. Decode only
+            # newline-terminated records, including when the tail splits UTF-8.
+            return [json.loads(line) for line in journal.read_bytes().split(b"\n")[:-1]]
+
         markdown = session / "transcript.md"
         quarto = session / "sessions/session-001.qmd"
-        before_release = [
-            json.loads(line)
-            for line in journal.read_text(encoding="utf-8").splitlines()
-        ]
+        before_release = live_events()
         assert [event["event"] for event in call_events(before_release)] == [
             "recording_started",
             "tool_call",
@@ -854,10 +857,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
 
         (started.parent / "zod-release-evaluation").touch()
         client.receive(waiting)
-        after_release = [
-            json.loads(line)
-            for line in journal.read_text(encoding="utf-8").splitlines()
-        ]
+        after_release = live_events()
         assert [event["event"] for event in call_events(after_release)] == [
             "recording_started",
             "tool_call",
@@ -895,10 +895,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
         (image_started.parent / "zod-release-image").touch()
         wait_for_marker(temporary, "zod-image-processed", client)
 
-        final_events = [
-            json.loads(line)
-            for line in journal.read_text(encoding="utf-8").splitlines()
-        ]
+        final_events = live_events()
         assert [event["event"] for event in call_events(final_events)] == [
             "recording_started",
             "tool_call",
@@ -941,11 +938,9 @@ def test_flushes_calls_and_keeps_unpolled_images(
 
         def completed_image_output() -> Path | None:
             # Completion belongs to call 2 even when it precedes the next poll.
-            # Ignore an incomplete append until its terminating newline arrives.
-            lines = journal.read_text(encoding="utf-8").rsplit("\n", 1)[0].splitlines()
             if any(
                 event.get("event") == "cell_output" and event.get("call_id") == 2
-                for event in map(json.loads, lines)
+                for event in live_events()
             ):
                 return journal
             return None
@@ -956,10 +951,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             root=journal.parent,
             client=client,
         )
-        completed_events = [
-            json.loads(line)
-            for line in journal.read_text(encoding="utf-8").splitlines()
-        ]
+        completed_events = live_events()
         completed_semantic = call_events(completed_events)
         assert [event["event"] for event in completed_semantic] == [
             *[event["event"] for event in call_events(final_events)],
@@ -972,10 +964,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             "content": [{"type": "image", "data": PNG_1X1, "mimeType": "image/png"}],
             "isError": False,
         }, poll_result
-        polled_events = [
-            json.loads(line)
-            for line in journal.read_text(encoding="utf-8").splitlines()
-        ]
+        polled_events = live_events()
         polled_semantic = call_events(polled_events)
         assert [event["event"] for event in polled_semantic] == [
             *[event["event"] for event in completed_semantic],
@@ -1004,6 +993,10 @@ def test_flushes_calls_and_keeps_unpolled_images(
         assert quarto.stat().st_ino == unpolled_quarto_inode
 
         transcript = client.finish()
+        finalized_events = [
+            json.loads(line) for line in journal.read_bytes().splitlines()
+        ]
+        assert finalized_events[-1]["event"] == "recording_ended", finalized_events[-1]
         transcript.append(
             {
                 "live journal": {
