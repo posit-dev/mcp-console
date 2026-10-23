@@ -238,7 +238,7 @@ Transport receipt reserves send capture in wire order without waiting for the re
 The bounded capture queue retains its ownership across handler and delivery cancellation and releases request payloads after capture.
 If 64 captures remain unfinished, the next send is retained in the bounded protocol queue without a canonical call record, and the transport reports the overload on stderr before retiring the connection.
 Protocol receipt is queued before the corresponding send capture starts.
-Response references carry the originating call's identity through handler completion; they do not infer it from a potentially reused JSON-RPC ID.
+Response references carry the originating call's identity through handler completion, even after cancellation removes delivery ownership.
 EOF shutdown closes capture admission before settling its final tail, then publishes outstanding output receipts before recording finalization.
 Recording settlement has no abandonment deadline: every received send must finish capture before `recording_ended` and process exit.
 This assumes filesystem operations eventually return; an indefinitely blocked recording filesystem can keep the Console process alive after transport and worker retirement.
