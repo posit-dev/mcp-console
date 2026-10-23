@@ -122,10 +122,10 @@ impl Environment {
     }
 
     pub(in crate::worker_client) fn runtime_r_requirements(&self) -> &'static [&'static str] {
-        if self.custom_worker {
-            super::super::CUSTOM_DUCKDB_R_REQUIREMENTS
-        } else if matches!(self.r_resolver, RResolver::Disabled) {
+        if matches!(self.r_resolver, RResolver::Disabled) {
             &[]
+        } else if self.custom_worker {
+            super::super::CUSTOM_DUCKDB_R_REQUIREMENTS
         } else {
             R_RUNTIME_REQUIREMENTS
         }

@@ -28,6 +28,7 @@ classifiers = [
 anthropic = ["anthropic[mcp]>=1.15.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
 chatlas = ["chatlas[mcp]>=0.23.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
 client = ["anyio>=4.15.1", "mcp>=2.3.0,<3"]
+jupyter = ["jupyter_client>=8.10,<9"]
 codex = ["openai-codex>=0.163.0"]
 openai = ["openai>=3.31.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
 openai-agents = ["openai-agents>=0.24.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]

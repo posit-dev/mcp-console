@@ -1,0 +1,32 @@
+---
+scenario: >-
+  A delayed readiness reply remains valid after another kernel_info
+  request.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport. A published IPythonKernel subclass constructs every
+  readiness reply immediately, but delivers it only when the next request
+  arrives. Normal IOPub idle messages are delivered immediately; no sleeps
+  or adjusted deadlines are used.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  code: |-
+    answer = 6 * 7
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  code: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

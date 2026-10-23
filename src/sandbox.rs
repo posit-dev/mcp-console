@@ -24,7 +24,11 @@ fn capture_settings(
     } = if let Some(name) = config_env {
         crate::settings::from_configuration_environment(&workspace, name, overrides)?
     } else {
-        crate::settings::discover(&workspace, overrides)?
+        crate::settings::discover(
+            &workspace,
+            overrides,
+            crate::settings::ToolInterface::Configured,
+        )?
     };
     if let Some(name) = config_env {
         // The selected document is launch input, including when its environment

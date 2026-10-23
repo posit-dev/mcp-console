@@ -10,18 +10,23 @@ One MCP connection owns one persistent session.
 Send at most one complete source cell per call.
 Collect its result before submitting another cell.
 
-| Argument             | Meaning                                                                                                                     |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `r`, `python`, `sql` | Optional source string. At most one may be non-null. The configured language selection determines which fields are exposed. |
-| `timeout_ms`         | Nonnegative integer; maximum observation wait, normally 60,000 milliseconds. It does not cancel execution.                  |
-| `stdin`              | Optional string of exact input bytes encoded as UTF-8. No newline is added.                                                 |
-| `control`            | `interrupt` or `restart`.                                                                                                   |
-| `requirements`       | Dependency declaration or inspection action; see [Requirements](#requirements).                                             |
+| Argument             | Meaning                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `r`, `python`, `sql` | Optional source string. At most one may be non-null. The configured language selection determines which fields are exposed.                 |
+| `code`               | Native source for the selected [Jupyter kernel](JUPYTER.md). Available only with `--jupyter-kernel`; cannot accompany another source field. |
+| `timeout_ms`         | Nonnegative integer; maximum observation wait, normally 60,000 milliseconds. It does not cancel execution.                                  |
+| `stdin`              | Optional string of exact input bytes encoded as UTF-8. No newline is added.                                                                 |
+| `control`            | `interrupt` or `restart`.                                                                                                                   |
+| `requirements`       | Dependency declaration or inspection action; see [Requirements](#requirements).                                                             |
 
 Unknown fields and incorrect types are errors.
 Omit unused arguments.
 A hidden language field is rejected even when its value is `null`.
 `timeout_ms` cannot be null.
+
+Jupyter mode exposes `code` instead of the built-in language fields.
+In Jupyter mode, `requirements` supports only `action: "get"`; install packages in the kernel environment before launch.
+Kernel-specific input, display, interruption, and export limits are described in [Jupyter kernels](JUPYTER.md).
 
 Examples below are **tool argument objects**, not complete JSON-RPC messages:
 

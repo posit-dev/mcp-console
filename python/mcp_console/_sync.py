@@ -276,6 +276,7 @@ class MCPConsole:
     def send(
         self,
         *,
+        code: str | None = None,
         r: str | None = None,
         python: str | None = None,
         sql: str | None = None,
@@ -287,8 +288,9 @@ class MCPConsole:
         """Run or control a cell on this connection and return its text output.
 
         The arguments and polling behavior match
-        [AsyncMCPConsole.send()](AsyncMCPConsole.html#send). Send one language
-        per call. If output ends in `[running; poll with an empty send]`, collect
+        [AsyncMCPConsole.send()](AsyncMCPConsole.html#send). Use `code` for the
+        selected Jupyter kernel's language. Send one source field per call.
+        If output ends in `[running; poll with an empty send]`, collect
         the remaining output with `console.send()` before submitting another cell.
         Images appear as MIME placeholders; MCP tool errors raise `RuntimeError`.
         `console(...)` is an alias for `send(...)`.
@@ -296,6 +298,7 @@ class MCPConsole:
         without that argument.
         """
         arguments = {
+            "code": code,
             "r": r,
             "python": python,
             "sql": sql,

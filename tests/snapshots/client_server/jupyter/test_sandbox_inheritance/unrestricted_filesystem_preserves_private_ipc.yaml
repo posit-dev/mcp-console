@@ -1,0 +1,155 @@
+---
+input:
+  method: initialize
+  params:
+    protocolVersion: 2025-11-25
+    capabilities: {}
+    clientInfo:
+      name: acceptance-test
+      version: 1.0.0
+result:
+  protocolVersion: 2025-11-25
+  capabilities:
+    experimental:
+      codex/sandbox-state: {}
+      codex/sandbox-state-meta: {}
+    tools: {}
+  serverInfo:
+    name: mcp-console
+    version: 0.0.6
+  instructions: >-
+    Persistent Jupyter kernel session. Send code in the selected kernel's
+    language and reuse objects across calls.
+---
+input:
+  method: notifications/initialized
+---
+input:
+  method: tools/list
+result:
+  tools:
+    - name: send
+      description: >-
+        Persistent Jupyter kernel session. Send code in the selected kernel's
+        language and reuse objects across calls.
+
+
+        Send one complete `code` cell per call.
+
+
+        The installed kernel supplies evaluation, display, history, and
+        packages. Console returns text and supported images; interactive
+        displays are unavailable. Dependency preparation and Console's built-in
+        SQL and language helpers are unavailable.
+
+
+        Run one cell at a time. Wait for its `send` to return before another
+        call with code. You can interrupt a pending call with
+        `send(control="interrupt")`. An error can leave earlier changes in
+        place. If work is still running, poll with an empty `send`; do not
+        resubmit the cell. When waiting for completion, use `timeout_ms=300000`
+        for a long poll; it returns early when work finishes or needs input.
+        Avoid repeated short polls such as `timeout_ms=1000`. Default:
+        `timeout_ms=60000` (60 seconds).
+
+
+        Text results, including notices, have an 8 KiB limit, retaining the
+        beginning and latest tail; images have separate limits. Response notices
+        report state and omitted-output locations.
+
+
+        The sandbox base comes from Codex metadata on the first send, or the
+        configured fallback (default: read_only). Missing metadata is silent;
+        malformed metadata warns on server stderr. Explicit Console permissions
+        apply to the selected base. Full access disables Console's sandbox.
+        Reconnect to change client permissions.
+      inputSchema:
+        $schema: https://json-schema.org/draft/2020-12/schema
+        additionalProperties: false
+        type: object
+        properties:
+          code:
+            description: >-
+              Evaluate one complete cell in the selected Jupyter kernel's
+              language.
+            type:
+              - string
+              - "null"
+          timeout_ms:
+            description: >-
+              Wait for output for up to this many milliseconds (default 60,000). Use
+              300000 for a long poll; it returns early when work finishes or needs
+              input. 0 returns immediately. Expiry leaves execution running; poll with
+              an empty send.
+            type: integer
+            format: uint64
+            minimum: 0
+            default: 60000
+          control:
+            description: >-
+              Apply control before same-call input or code. interrupt requests kernel
+              interruption; a following cell runs only if prior work stops. restart
+              discards the kernel's live state and queued input, then sends bundled
+              input and code to the replacement.
+            type: string
+            enum:
+              - interrupt
+              - restart
+          stdin:
+            description: >-
+              Answer Jupyter input requests with newline-terminated text. Input queues
+              before a bundled cell; unread input can satisfy later requests. Restart
+              discards queued input. Direct reads from the kernel process's stdin are
+              unsupported.
+            type:
+              - string
+              - "null"
+          requirements:
+            description: >-
+              Inspect Console's empty dependency declaration with action=get. Package
+              installation and dependency changes are unavailable; use packages
+              already installed in the kernel environment.
+            type:
+              - object
+              - "null"
+            properties:
+              action:
+                description: >-
+                  get returns the empty Console declaration, not an installed-package
+                  inventory. Use it alone without code, stdin, or control.
+                type: string
+                enum:
+                  - get
+            additionalProperties: false
+            required:
+              - action
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      code: |
+        import os
+        from pathlib import Path
+
+        host = Path(os.environ["MCP_CONSOLE_TEST_HOST_FILE"])
+        _ = host.write_text("inherited write access")
+        print(host.read_text())
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: unrestricted
+          network: restricted
+result:
+  content:
+    - type: text
+      text: |
+        <python-packages>/ipykernel/iostream.py:73: UserWarning: Couldn't bind IOPub Pipe to 127.0.0.1: Operation not permitted (addr='tcp://127.0.0.1:*')
+        subprocess output will be unavailable.
+          self._setup_pipe_in()
+        inherited write access
+  isError: false

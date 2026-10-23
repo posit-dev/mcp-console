@@ -4,6 +4,7 @@
 #     "py-yaml12>=0.2.0",
 #     "joblib",
 #     "numpy",
+#     "pillow",
 #     "anyio>=4.15.1",
 #     "mcp==2.*,>=2.3.0",
 #     "anthropic[mcp]>=1.15.0",
