@@ -1145,15 +1145,6 @@ def test_managed_import_after_r_startup(
 @requires(POSIX)
 @requires(R)
 @executions(DIRECT, SANDBOXED)
-def test_late_r_startup_uses_running_python(
-    binary: Path, execution: Execution
-) -> Transcript:
-    return r_startup_with_python(binary, execution, managed=False, python_first=True)
-
-
-@requires(POSIX)
-@requires(R)
-@executions(DIRECT, SANDBOXED)
 def test_late_r_startup_preserves_plot_capture(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
@@ -1632,14 +1623,30 @@ def r_startup_with_python(
                 finally:
                     release.release()
                 client.send()
-            elif trigger == "python-access":
-                client.send(python="assert 3 < r.pi < 4")
+            elif plot_after_startup:
+                # Check identity in the startup cell so plotting remains the
+                # first follow-up cell through the R graphics lifecycle.
+                identity = (
+                    "id(before_r) == before_r_identity and "
+                    "id(early_object) == early_identity and "
+                    "sys.executable == early_executable"
+                )
+                if trigger == "python-access":
+                    client.send(
+                        # fmt: python
+                        python=code("""
+                            assert 3 < r.pi < 4
+                            assert IDENTITY
+                            """).replace("IDENTITY", identity)
+                    )
+                else:
+                    client.send(
+                        r=f"stopifnot(reticulate::py_eval({json.dumps(identity)}))"
+                    )
             else:
                 client.send(r="invisible(NULL)")
             assert last_result_text(client) == "[done]", client.transcript[-1]
             if plot_after_startup:
-                # Native R startup owns package loading. Once runtime setup is
-                # complete, Console must still deliver both managed PNGs.
                 client.send(r=plots)
                 assert_result_content(client, expected_plots)
             client.expect(

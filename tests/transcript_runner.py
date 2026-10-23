@@ -913,9 +913,6 @@ runner: orphan
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(orphan.exists())
             self.assertEqual(unselected.read_bytes(), original)
-        full = self.run_runner("--full", "--update")
-        self.assertEqual(full.returncode, 0, full.stderr)
-        self.assertFalse(orphan.exists())
 
     def test_full_profile_selected_updates_preserve_unrelated_orphans(self) -> None:
         orphan = self.snapshots / "deleted_case.yaml"
@@ -1809,22 +1806,6 @@ warnings: []
         result = self.run_runner("client_server/server/test_tools::forks")
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_collection_selectors_and_locate(self) -> None:
-        suite = "client_server/server/test_tools"
-        selected = self.run_runner("--jobs", "1", f"{suite}::selected")
-        self.assertEqual(selected.returncode, 0, selected.stderr)
-        self.assertTrue((self.root / "selected.marker").is_file())
-        self.assertFalse((self.root / "unselected.marker").exists())
-
-        for marker in self.root.glob("*.marker"):
-            marker.unlink()
-        selected_suite = self.run_runner("--jobs", "1", suite)
-        self.assertEqual(selected_suite.returncode, 0, selected_suite.stderr)
-        self.assertEqual(
-            {path.name for path in self.root.glob("*.marker")},
-            {"initialization.marker", "selected.marker", "unselected.marker"},
-        )
-
     def test_orphan_rejection_and_full_update_cleanup(self) -> None:
         orphan = self.snapshots / "deleted_case.yaml"
         orphan.write_text(
@@ -2376,14 +2357,8 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
                     " ".join(result.stdout.split()),
                 )
 
-    def test_runner_metadata_does_not_require_a_binary(self) -> None:
-        (self.root / "target/release/mcp-console").unlink()
-        for arguments in (("--list",), ("--locate", "client_server/server/test_tools")):
-            with self.subTest(arguments=arguments):
-                result = self.run_runner(*arguments)
-                self.assertEqual(result.returncode, 0, result.stderr)
-
     def test_collection_selectors_and_locate(self) -> None:
+        (self.root / "target/release/mcp-console").unlink()
         hidden = (
             self.boundaries / "client_server" / "server" / "_private" / "test_hidden.py"
         )

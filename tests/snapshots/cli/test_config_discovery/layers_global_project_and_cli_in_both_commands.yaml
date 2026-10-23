@@ -1,140 +1,55 @@
 ---
-command: serve
 flag: default
 selected: project|home|project
 ---
-command: serve
-flag: client default below files
-selected: project|home|project
----
-command: serve
-flag: client default without files
-selected: client|client|unset
----
-command: serve
 flag: ordered overrides
 selected: last|home|project
 ---
-command: serve
-flag: before
-selected: home|home|unset
----
-command: serve
-flag: after
-selected: home|home|unset
----
-command: serve
-flag: no global before
-selected: project|unset|project
----
-command: serve
-flag: no global after
-selected: project|unset|project
----
-command: serve
 flag: no global with overrides
 selected: last|unset|project
 ---
-command: serve
-flag: no config before
-selected: unset|unset|unset
----
-command: serve
-flag: no config after
-selected: unset|unset|unset
----
-command: serve
 flag: both scopes excluded
 selected: unset|unset|unset
 ---
-command: serve
 flag: both
 selected: unset|unset|cli
 ---
-command: serve
-arguments:
-  - serve
-project: absent
-selected: home
+flag: --no-project-config before
+selected: home|home|unset
 ---
-command: serve
-arguments:
-  - serve
+flag: --no-project-config after
+selected: home|home|unset
+---
+flag: --no-global-config before
+selected: project|unset|project
+---
+flag: --no-global-config after
+selected: project|unset|project
+---
+flag: --no-config before
+selected: unset|unset|unset
+---
+flag: --no-config after
+selected: unset|unset|unset
+---
+flags: []
+project: absent
+selected: home|home|unset
+---
+flags:
   - --no-project-config
 project: absent
-selected: home
+selected: home|home|unset
 ---
-command: serve
+flags:
+  - --no-global-config
+  - -c
+  - environment.ADDED=cli
 project: absent
-global: excluded
 selected: unset|unset|cli
 ---
-command: sandbox
-flag: default
-selected: project|home|project
----
-command: sandbox
-flag: client default below files
-selected: project|home|project
----
-command: sandbox
-flag: client default without files
-selected: client|client|unset
----
-command: sandbox
-flag: ordered overrides
+command: serve
 selected: last|home|project
 ---
 command: sandbox
-flag: before
-selected: home|home|unset
----
-command: sandbox
-flag: after
-selected: home|home|unset
----
-command: sandbox
-flag: no global before
-selected: project|unset|project
----
-command: sandbox
-flag: no global after
-selected: project|unset|project
----
-command: sandbox
-flag: no global with overrides
-selected: last|unset|project
----
-command: sandbox
-flag: no config before
-selected: unset|unset|unset
----
-command: sandbox
-flag: no config after
-selected: unset|unset|unset
----
-command: sandbox
-flag: both scopes excluded
-selected: unset|unset|unset
----
-command: sandbox
-flag: both
-selected: unset|unset|cli
----
-command: sandbox
-arguments:
-  - sandbox
-project: absent
-selected: home
----
-command: sandbox
-arguments:
-  - sandbox
-  - --no-project-config
-project: absent
-selected: home
----
-command: sandbox
-project: absent
-global: excluded
-selected: unset|unset|cli
+selected: last|home|project

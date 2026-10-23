@@ -1,0 +1,31 @@
+---
+home_selection: ~
+project_selection: chosen R
+overrides:
+  - r.vanilla=true
+selected_workspace_launcher: true
+vanilla: true
+---
+home_selection: ~
+project_selection:
+  vanilla: true
+overrides:
+  - r=./chosen R
+selected_workspace_launcher: true
+vanilla: true
+---
+home_selection: ~
+project_selection:
+  vanilla: true
+overrides:
+  - r=null
+  - r=./chosen R
+selected_workspace_launcher: true
+vanilla: false
+---
+home_selection: ./chosen R
+project_selection:
+  vanilla: true
+overrides: []
+selected_workspace_launcher: true
+vanilla: true

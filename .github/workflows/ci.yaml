@@ -245,6 +245,8 @@ jobs:
       - name: Run native Windows development and installation checks
         run: |
           scripts/check.cmd --full
+      - name: Run stress regressions
+        run: scripts/test.cmd --stress --jobs 6
       - name: Check R package on Windows
         env:
           MCP_CONSOLE_TEST_BINARY: ${{ github.workspace }}/target/release/mcp-console.exe
@@ -724,7 +726,7 @@ jobs:
             -o "$RUNNER_TEMP/transcript-metrics/resource-usage.txt" \
             uv run --script tests/boundaries/_run.py --full --jobs 6
 
-      - name: Run allocation stress regressions
+      - name: Run stress regressions
         run: uv run --script tests/boundaries/_run.py --stress --jobs 6
 
       - name: Summarize transcript measurements

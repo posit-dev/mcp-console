@@ -15,7 +15,7 @@ from support.progress import without_elapsed
 from support.assertions import last_tool_text, wait_for_evaluation_output
 from support.checkpoints import FifoCheckpoint, wait_for_worker_file
 from support.client import McpClient, stop_client
-from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import build_r_input_handler, r_input_handler_client, r_test_environment
 from support.native import build_interposer
@@ -30,7 +30,7 @@ from support.records import Transcript
 from support.suites import run_this_suite
 
 
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_evaluates_source_without_final_newline(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -47,7 +47,7 @@ def test_evaluates_source_without_final_newline(
     return client.finish()
 
 
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_recoverable_language_errors(binary: Path, execution: Execution) -> Transcript:
     client = McpClient(binary, execution.serve())
     client.initialize_and_list_tools()
@@ -394,7 +394,7 @@ def test_restart_skips_direct_stdin_boundary_callback(
         return client.finish()
 
 
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_browser_input(binary: Path, execution: Execution) -> Transcript:
     client = McpClient(binary, execution.serve())
     client.initialize_and_list_tools()

@@ -10,7 +10,10 @@ result:
   isError: false
 ---
 send:
-  r: invisible(NULL)
+  r: >-
+    stopifnot(reticulate::py_eval("id(before_r) == before_r_identity and
+    id(early_object) == early_identity and sys.executable ==
+    early_executable"))
 result:
   content:
     - type: text

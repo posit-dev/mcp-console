@@ -315,9 +315,10 @@ def duckdb_cache(
                 resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(cache)
             config = root / ".agents/console/config.yaml"
             config.parent.mkdir(parents=True)
-            config.write_text(
-                json.dumps({"cache": "host", "resolver": {"environment": resolver_env}})
-            )
+            settings = {"cache": "host", "resolver": {"environment": resolver_env}}
+            if r:
+                settings["r"] = {"packages": []}
+            config.write_text(json.dumps(settings))
             with client_type(binary, ("serve",), env, root) as client:
                 client.initialize_and_list_tools()
                 wait_for_evaluation_output(

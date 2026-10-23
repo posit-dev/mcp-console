@@ -23,7 +23,12 @@ from support.normalization import (
 )
 from support.r import isolated_r_home, r_test_environment
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
-from support.previews import assert_preview, cell_text, normalize_preview_paths
+from support.previews import (
+    assert_preview,
+    cell_text,
+    compact_previews,
+    normalize_preview_paths,
+)
 from support.suites import run_this_suite
 from boundaries.client_server.server.test_no_r import no_r_environment
 
@@ -1148,6 +1153,7 @@ def test_keeps_repeated_previews_deterministic(
     assert outputs[0] == outputs[1] == outputs[2]
     assert outputs[0].startswith("# A tibble:")
     normalize_preview_paths(client)
+    compact_previews(client, "😀漢é")
     return client.finish()
 
 

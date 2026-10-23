@@ -48,16 +48,16 @@ The isolated `sitecustomize` fixtures are covered by the shared boundary tests.
 
 ## Validation ladder
 
-| Command                             | Purpose                                                                       |
-| ----------------------------------- | ----------------------------------------------------------------------------- |
-| `scripts/test --full --list`        | Discover functional cases without building.                                   |
-| `scripts/test --locate SELECTOR`    | Find source and snapshots.                                                    |
-| `scripts/test BOUNDARY/SUITE::CASE` | Focused red/green loop.                                                       |
-| `scripts/test --update SELECTOR`    | Regenerate an intentional snapshot change; then rerun without `--update`.     |
-| `scripts/format`                    | Format all supported sources; inspect every reported result and the diff.     |
-| `scripts/check`                     | Ordinary final local gate. `--quick` is an alias, not a narrower gate.        |
-| `scripts/check --full`              | Applicable functional, tooling, and installation checks.                      |
-| `scripts/test --stress`             | Original allocation-scale workloads, separate from ordinary functional cases. |
+| Command                             | Purpose                                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| `scripts/test --full --list`        | Discover functional cases without building.                                             |
+| `scripts/test --locate SELECTOR`    | Find source and snapshots.                                                              |
+| `scripts/test BOUNDARY/SUITE::CASE` | Focused red/green loop.                                                                 |
+| `scripts/test --update SELECTOR`    | Regenerate an intentional snapshot change; then rerun without `--update`.               |
+| `scripts/format`                    | Format all supported sources; inspect every reported result and the diff.               |
+| `scripts/check`                     | Ordinary final local gate. `--quick` is an alias, not a narrower gate.                  |
+| `scripts/check --full`              | Applicable functional, tooling, and installation checks.                                |
+| `scripts/test --stress`             | Original allocation and concurrency workloads, separate from ordinary functional cases. |
 
 Start behavior changes with a failing public regression.
 For a refactor, establish the existing public baseline.
@@ -71,7 +71,7 @@ The link check scans Markdown and Quarto sources recursively and compares both t
 Dated audit and benchmark records retain their original revisions; rendered website output is excluded.
 The full gate adds applicable tooling, shared functional, and installation checks; installation runs last because it can replace staging/build directories.
 
-CI runs the comprehensive profiles, including Unix allocation stress.
+CI runs the comprehensive profiles, including concurrency stress on every platform and allocation stress on Unix.
 CI pins uv's Python catalogue so interpreter-dependent tracebacks and debugger transcripts change only with an intentional tool update.
 After restoring shared compiler data, CI discards Console's own build artifacts so cached timestamps cannot hide source changes in the checkout.
 Compiler caches preserve Cargo's `CACHEDIR.TAG` alongside profile directories so Cargo can verify the restored target directory before cleaning.

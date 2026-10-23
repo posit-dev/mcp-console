@@ -4,16 +4,6 @@ vanilla: true
 matching_installation_after_restart: true
 ---
 selection:
-  - vanilla
-vanilla: true
-matching_installation_after_restart: true
----
-selection:
-  - vanilla
-vanilla: false
-matching_installation_after_restart: true
----
-selection:
   - executable
 vanilla: false
 matching_installation_after_restart: true

@@ -1,5 +1,6 @@
-"""Reject invalid and ineffective built-in R settings before runtime launch."""
+"""Resolve and validate built-in R settings before runtime launch."""
 
+import json
 import os
 import subprocess
 import sys
@@ -9,6 +10,52 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from support.records import Transcript
+from boundaries.cli.test_config_materialization import resolve
+
+
+def test_r_selection_shorthand_preserves_layered_settings(binary: Path) -> Transcript:
+    transcript = []
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        console_home = root / "console-home"
+        console_home.mkdir()
+        config = root / ".agents/console/config.yaml"
+        config.parent.mkdir(parents=True)
+        for home_selection, selection, overrides, vanilla in (
+            (None, "chosen R", ("r.vanilla=true",), True),
+            (None, {"vanilla": True}, ("r=./chosen R",), True),
+            (None, {"vanilla": True}, ("r=null", "r=./chosen R"), False),
+            ("./chosen R", {"vanilla": True}, (), True),
+        ):
+            (console_home / "config.yaml").write_text(
+                json.dumps({} if home_selection is None else {"r": home_selection})
+            )
+            config.write_text(json.dumps({"r": selection}))
+            result = resolve(
+                binary,
+                root,
+                "--full",
+                "--format",
+                "json",
+                *(item for override in overrides for item in ("-c", override)),
+            )
+            assert result.returncode == 0 and result.stderr == "", result
+            settings = json.loads(result.stdout)
+            assert settings["r"] == {
+                "executable": str(root / "chosen R"),
+                "vanilla": vanilla,
+                "resolution": "implicit",
+            }, settings
+            transcript.append(
+                {
+                    "home_selection": home_selection,
+                    "project_selection": selection,
+                    "overrides": list(overrides),
+                    "selected_workspace_launcher": True,
+                    "vanilla": vanilla,
+                }
+            )
+    return transcript
 
 
 def test_rejects_invalid_r_settings(binary: Path) -> Transcript:
