@@ -192,6 +192,14 @@ pub enum Command {
         #[arg(long, value_enum, requires = "jupyter_kernel")]
         jupyter_transport: Option<crate::jupyter::Transport>,
 
+        /// Enable R and Python in one ark process through reticulate
+        #[arg(long, requires = "jupyter_kernel")]
+        jupyter_reticulate: bool,
+
+        /// Experimental ipykernel endpoint in the shared reticulate process
+        #[arg(long, requires = "jupyter_reticulate")]
+        jupyter_reticulate_ipykernel: bool,
+
         /// Replace the runtime worker during development
         #[arg(long, hide = true, value_name = "PATH")]
         worker: Option<PathBuf>,

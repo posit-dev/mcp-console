@@ -36,6 +36,8 @@ Console must not introduce another native supervisor that competes for the runne
 
 The public [Jupyter mode](JUPYTER.md) uses `relay → Python adapter → local Jupyter kernel` inside the same execution boundary.
 The compile-time embedded [adapter](../src/jupyter/worker.py) owns the kernel child, translates Jupyter messages into Console worker events, and reaps the kernel before its own normal exit.
+The experimental shared ipykernel endpoint runs its transport loop inside the R process, but submitted Python executes through a paired reticulate call on R's owning thread.
+Both endpoints must report their matching reply and idle before that Console cell completes; either endpoint's loss retires the shared worker.
 The relay owns the adapter; native enforcement and descendant cleanup remain with the runner.
 The installed kernelspec supplies the runtime and its packages, so this mode does not use Console's dependency preparation or built-in interpreter coordination.
 

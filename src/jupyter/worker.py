@@ -37,6 +37,8 @@ def error_text(content: dict) -> str:
 @dataclass
 class Execution:
     request_id: str
+    client: AsyncKernelClient
+    driver: bool = False
     idle: bool = False
     reply: dict | None = None
     error_seen: bool = False
@@ -54,10 +56,11 @@ class Adapter:
         self.interrupted = asyncio.Event()
         self.child: asyncio.subprocess.Process | None = None
         self.client: AsyncKernelClient | None = None
+        self.python_client: AsyncKernelClient | None = None
         self.pending_reads: dict[tuple[AsyncKernelClient, str], asyncio.Task[dict]] = {}
-        self.current: Execution | None = None
+        self.executions: list[Execution] = []
         self.started = False
-        self.input_pending = False
+        self.input_client: AsyncKernelClient | None = None
         self.input_buffer = bytearray()
         self.writer: asyncio.StreamWriter | None = None
         self.channels_started = False
@@ -117,7 +120,7 @@ class Adapter:
     async def read_channel(self, client: AsyncKernelClient, name: str) -> None:
         while True:
             message = await self.receive_message(client, name)
-            await self.events.put((name, message))
+            await self.events.put((name, (client, message)))
 
     async def send_message(
         self, client: AsyncKernelClient, channel: str, kind: str, **content: Any
@@ -132,6 +135,26 @@ class Adapter:
             frames, copy=max(map(len, frames)) < client.session.copy_threshold
         )
         return message["header"]["msg_id"]
+
+    async def execute(
+        self,
+        client: AsyncKernelClient,
+        source: str,
+        *,
+        store_history: bool = True,
+        allow_stdin: bool = True,
+    ) -> str:
+        return await self.send_message(
+            client,
+            "shell",
+            "execute_request",
+            code=source,
+            silent=False,
+            store_history=store_history,
+            user_expressions={},
+            allow_stdin=allow_stdin,
+            stop_on_error=True,
+        )
 
     async def interrupt(self) -> None:
         while True:
@@ -204,6 +227,90 @@ class Adapter:
                 for request in replies.keys() & idle:
                     return replies[request]
 
+    async def start_python_endpoint(self, directory: str, context: Any) -> None:
+        from jupyter_client import AsyncKernelClient
+        from jupyter_client.connect import write_connection_file
+
+        assert self.client is not None
+        connection_file = str(Path(directory) / "python.json")
+        write_connection_file(
+            connection_file,
+            transport=self.options.transport,
+            ip="127.0.0.1"
+            if self.options.transport == "tcp"
+            else str(Path(directory) / "p"),
+            key=secrets.token_hex(32).encode(),
+        )
+        self.python_client = AsyncKernelClient(
+            connection_file=connection_file, context=context
+        )
+        self.python_client.load_connection_file()
+        self.python_client.start_channels(hb=False)
+
+        # Both programs are compile-time embedded and materialized only in this
+        # generation's private runtime directory, never loaded from a checkout.
+        path = Path(directory) / "_mcp_console_ipykernel.py"
+        path.write_text(self.options.reticulate_ipykernel, encoding="utf-8")
+        quoted_directory = json.dumps(directory, ensure_ascii=False)
+        statements = []
+        if self.options.namespace_ipykernel:
+            namespace = Path(directory) / "_mcp_console_namespace_ipykernel.py"
+            namespace.write_text(self.options.namespace_ipykernel, encoding="utf-8")
+            # Importing uses a non-__main__ module name, so the private Linux
+            # namespace adaptation does not launch a separate Python kernel.
+            statements.append(
+                "invisible(reticulate::import_from_path("
+                '"_mcp_console_namespace_ipykernel", path = '
+                + quoted_directory
+                + ", convert = FALSE))"
+            )
+        statements.append(
+            'invisible(reticulate::import_from_path("_mcp_console_ipykernel", path = '
+            + quoted_directory
+            + ", convert = FALSE)$start("
+            + json.dumps(connection_file, ensure_ascii=False)
+            + "))"
+        )
+
+        async def execute_bootstrap(source: str) -> None:
+            request = await self.execute(
+                self.client, source, store_history=False, allow_stdin=False
+            )
+
+            async def shell_reply() -> dict:
+                while True:
+                    message = await self.receive_message(self.client, "shell")
+                    if message.get("parent_header", {}).get("msg_id") == request:
+                        return message["content"]
+
+            async def output_until_idle() -> None:
+                while True:
+                    message = await self.receive_message(self.client, "iopub")
+                    self.startup_output(message)
+                    if (
+                        message.get("parent_header", {}).get("msg_id") == request
+                        and message["msg_type"] == "status"
+                        and message["content"]["execution_state"] == "idle"
+                    ):
+                        return
+
+            async with asyncio.timeout(30):
+                async with asyncio.TaskGroup() as group:
+                    reply = group.create_task(shell_reply())
+                    group.create_task(output_until_idle())
+                if reply.result()["status"] != "ok":
+                    raise RuntimeError(
+                        "Unable to initialize shared ipykernel through reticulate: "
+                        + reply.result().get("evalue", reply.result()["status"])
+                    )
+
+        await execute_bootstrap("\n".join(statements))
+        await self.wait_ready(self.python_client)
+        # The Python thread can write through reticulate after its initial R
+        # bootstrap has gone idle. An R execution barrier flushes those writes
+        # and drains both reply and IOPub before Console declares readiness.
+        await execute_bootstrap("invisible(NULL)")
+
     async def display(self, data: dict) -> None:
         # MCP has no HTML/widget display surface. Prefer one supported image;
         # otherwise preserve the kernel's plain-text representation.
@@ -230,45 +337,59 @@ class Adapter:
         await self.emit("console_diagnostic", data=error_text(content))
 
     async def input_reply(self) -> None:
-        if not self.input_pending or b"\n" not in self.input_buffer:
+        if self.input_client is None or b"\n" not in self.input_buffer:
             return
-        assert self.client is not None
         line, _, rest = self.input_buffer.partition(b"\n")
         self.input_buffer = bytearray(rest)
         await self.send_message(
-            self.client,
+            self.input_client,
             "stdin",
             "input_reply",
             value=line.decode("utf-8").removesuffix("\r"),
         )
-        self.input_pending = False
+        self.input_client = None
         await self.emit("input_received")
 
     async def cancel_input(self) -> None:
-        if self.input_pending:
-            self.input_pending = False
+        if self.input_client is not None:
+            self.input_client = None
             await self.emit("input_cancelled")
 
     async def evaluate(self, command: dict) -> None:
-        assert self.current is None, "overlapping Jupyter execution"
+        assert not self.executions, "overlapping Jupyter execution"
         assert command["kind"] == "evaluate", "unsupported Jupyter worker command"
-        assert command["language"] == "kernel", (
-            "unsupported source language for this kernel"
-        )
+        language, source = command["language"], command["source"]
         assert self.client is not None
+        client = self.client
+        if language == "python" and self.options.reticulate:
+            # JSON strings are also valid R strings, except JSON's \u surrogate
+            # pairs. Literal UTF-8 preserves non-BMP characters for R's parser.
+            if self.python_client is not None:
+                client = self.python_client
+            else:
+                source = (
+                    "reticulate::py_run_string("
+                    + json.dumps(source, ensure_ascii=False)
+                    + ")"
+                )
+        else:
+            assert language == "kernel" or (
+                language == "r" and self.options.reticulate
+            ), "unsupported source language for this kernel"
         self.started = False
-        request = await self.send_message(
-            self.client,
-            "shell",
-            "execute_request",
-            code=command["source"],
-            silent=False,
-            store_history=True,
-            user_expressions={},
-            allow_stdin=True,
-            stop_on_error=True,
-        )
-        self.current = Execution(request)
+        request = await self.execute(client, source)
+        self.executions.append(Execution(request, client))
+        if client is self.python_client:
+            # Python's transport thread queues the coroutine; an ordinary
+            # reticulate call executes it on R's owning thread. Both endpoint
+            # replies and idle messages belong to this one Console cell.
+            driver = await self.execute(
+                self.client,
+                'invisible(reticulate::import("_mcp_console_ipykernel", '
+                "convert = FALSE)$run_next())",
+                store_history=False,
+            )
+            self.executions.append(Execution(driver, self.client, driver=True))
 
     async def dispatch(self) -> None:
         assert self.client is not None and self.child is not None
@@ -282,19 +403,24 @@ class Adapter:
             elif channel == "interrupt":
                 await self.cancel_input()
                 if self.child.returncode is None:
-                    if self.interrupt_mode == "message":
-                        await self.send_message(
-                            self.client, "control", "interrupt_request"
-                        )
+                    client = (
+                        self.executions[0].client if self.executions else self.client
+                    )
+                    if client is self.python_client or self.interrupt_mode == "message":
+                        await self.send_message(client, "control", "interrupt_request")
                     else:
                         self.child.send_signal(signal.SIGINT)
             else:
+                client, message = message
                 kind, content = message["msg_type"], message["content"]
                 parent = message.get("parent_header", {}).get("msg_id")
-                current = (
-                    self.current
-                    if self.current and self.current.request_id == parent
-                    else None
+                current = next(
+                    (
+                        execution
+                        for execution in self.executions
+                        if execution.client is client and execution.request_id == parent
+                    ),
+                    None,
                 )
                 if channel == "iopub":
                     if kind == "stream":
@@ -331,23 +457,38 @@ class Adapter:
                             current.idle = True
                 elif current and channel == "shell" and kind == "execute_reply":
                     current.reply = content
+                    if current.driver and content["status"] != "ok":
+                        # An internal driver failure can leave Python waiting
+                        # for its future. Retire both runtimes instead of admitting
+                        # another request against a partial shared execution.
+                        raise RuntimeError(
+                            "Shared ipykernel execution failed in R: "
+                            + content.get("evalue", content["status"])
+                        )
                 elif current and channel == "stdin" and kind == "input_request":
-                    assert not self.input_pending, "overlapping Jupyter input requests"
-                    self.input_pending = True
+                    assert self.input_client is None, (
+                        "overlapping Jupyter input requests"
+                    )
+                    self.input_client = client
                     await self.emit("input_requested", prompt=content["prompt"])
                     await self.input_reply()
-            if self.current and self.current.idle and self.current.reply is not None:
+            if self.executions and all(
+                execution.idle and execution.reply is not None
+                for execution in self.executions
+            ):
                 assert self.started, "kernel completed without publishing busy status"
                 await self.cancel_input()
-                reply = self.current.reply
-                if reply["status"] == "error" and not self.current.error_seen:
-                    await self.error(reply)
-                elif reply["status"] == "aborted":
-                    await self.emit(
-                        "console_diagnostic", data="[Jupyter execution aborted]\n"
-                    )
+                for execution in self.executions:
+                    reply = execution.reply
+                    assert reply is not None
+                    if reply["status"] == "error" and not execution.error_seen:
+                        await self.error(reply)
+                    elif reply["status"] == "aborted":
+                        await self.emit(
+                            "console_diagnostic", data="[Jupyter execution aborted]\n"
+                        )
                 await self.emit("completed")
-                self.current = None
+                self.executions.clear()
 
     async def serve(self, directory: str) -> None:
         import zmq.asyncio
@@ -415,6 +556,9 @@ class Adapter:
         if spec.language.lower().startswith("python"):
             environment.pop("PYTHONEXECUTABLE", None)
         environment["JPY_PARENT_PID"] = str(os.getpid())
+        if self.options.reticulate:
+            environment.setdefault("RETICULATE_PYTHON", sys.executable)
+            environment["_RETICULATE_POSITRON_DISABLE_VARIABLE_INSPECTORS_"] = "1"
         # KernelManager's launcher unconditionally detaches POSIX sessions. Keep
         # this child in Console's process tree and own its wait/termination here.
         context = zmq.asyncio.Context()
@@ -438,11 +582,20 @@ class Adapter:
             self.channels_started = True
             async with asyncio.TaskGroup() as group:
                 group.create_task(self.watch_child())
-                await self.wait_ready(self.client)
+                information = await self.wait_ready(self.client)
+                if (
+                    self.options.reticulate
+                    and information["language_info"]["name"].lower() != "r"
+                ):
+                    raise ValueError("--jupyter-reticulate requires an R kernel")
+                if self.options.reticulate_ipykernel:
+                    await self.start_python_endpoint(directory, context)
                 self.kernel_ready = True
                 await self.emit("ready")
-                for channel in ("shell", "iopub", "stdin"):
-                    group.create_task(self.read_channel(self.client, channel))
+                for client in (self.client, self.python_client):
+                    if client is not None:
+                        for channel in ("shell", "iopub", "stdin"):
+                            group.create_task(self.read_channel(client, channel))
                 group.create_task(self.dispatch())
         finally:
             # Fit inside the relay's one-second worker retirement grace. The
@@ -480,6 +633,8 @@ class Adapter:
             self.pending_reads.clear()
             if self.client is not None:
                 self.client.stop_channels()
+            if self.python_client is not None:
+                self.python_client.stop_channels()
             context.destroy(linger=0)
 
     async def run(self) -> None:
@@ -526,6 +681,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--kernel", required=True)
     parser.add_argument("--transport", choices=("tcp", "ipc"), default="tcp")
+    parser.add_argument("--reticulate", action="store_true")
+    parser.add_argument("--reticulate-ipykernel")
     parser.add_argument("--private-runtime", action="store_true")
     parser.add_argument("--namespace-ipykernel")
     options = parser.parse_args()

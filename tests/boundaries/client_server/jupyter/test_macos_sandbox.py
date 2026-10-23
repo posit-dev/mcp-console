@@ -12,6 +12,7 @@ from support.records import Transcript
 from support.requirements import (
     ARK,
     JUPYTER,
+    JUPYTER_RETICULATE,
     MACOS_SANDBOX,
     R,
     requires,
@@ -82,6 +83,34 @@ def test_ark_private_ipc_preserves_default_sandbox(binary: Path) -> Transcript:
         "ark",
         network_fixture="jupyter_sandbox_network.py",
         network_output=NETWORK_OUTPUT,
+    )
+
+
+@requires(JUPYTER, ARK, R, JUPYTER_RETICULATE, MACOS_SANDBOX)
+def test_shared_ipykernel_private_ipc_preserves_default_sandbox(
+    binary: Path,
+) -> Transcript:
+    iostream = subprocess.check_output(
+        [
+            os.environ["MCP_CONSOLE_TEST_JUPYTER_PYTHON"],
+            "-c",
+            "import ipykernel.iostream; print(ipykernel.iostream.__file__)",
+        ],
+        text=True,
+    ).strip()
+    assert Path(iostream).is_absolute() and Path(iostream).is_file(), iostream
+    return default_sandbox_session(
+        binary,
+        "ark",
+        network_fixture="jupyter_sandbox_network.py",
+        network_output=NETWORK_OUTPUT,
+        reticulate_ipykernel=True,
+        startup_output=(
+            f"{Path(iostream).resolve()}:73: UserWarning: Couldn't bind IOPub Pipe to 127.0.0.1: "
+            "Operation not permitted (addr='tcp://127.0.0.1:*')\n"
+            "subprocess output will be unavailable.\n"
+            "  self._setup_pipe_in()\n"
+        ),
     )
 
 

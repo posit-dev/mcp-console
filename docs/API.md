@@ -25,7 +25,8 @@ A hidden language field is rejected even when its value is `null`.
 `timeout_ms` cannot be null.
 
 Jupyter mode exposes `code` instead of the built-in language fields.
-In Jupyter mode, `requirements` supports only `action: "get"`; install packages in the kernel environment before launch.
+`--jupyter-reticulate` also exposes `r` and `python` for a shared R/reticulate process.
+In either Jupyter mode, `requirements` supports only `action: "get"`; install packages in the kernel environment before launch.
 Kernel-specific input, display, interruption, and export limits are described in [Jupyter kernels](JUPYTER.md).
 
 Examples below are **tool argument objects**, not complete JSON-RPC messages:

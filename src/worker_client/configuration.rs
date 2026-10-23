@@ -106,6 +106,15 @@ impl ClientConfiguration {
             "--transport".into(),
             transport.name().into(),
         ];
+        if selection.reticulate {
+            arguments.push("--reticulate".into());
+        }
+        if selection.reticulate_ipykernel {
+            arguments.extend([
+                "--reticulate-ipykernel".into(),
+                include_str!("../jupyter/reticulate_ipykernel.py").into(),
+            ]);
+        }
         if cfg!(target_os = "linux")
             && !no_sandbox
             && sandbox_settings

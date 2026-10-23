@@ -19,12 +19,14 @@ def test_launch_options(binary: Path) -> Transcript:
         "--jupyter-kernel",
         "--jupyter-python",
         "--jupyter-transport",
+        "--jupyter-reticulate",
     ):
         assert flag in help["stdout"], help
     entries = [help]
     for arguments in (
         ("--jupyter-python", "python3"),
         ("--jupyter-transport", "ipc"),
+        ("--jupyter-reticulate",),
     ):
         entry = record(binary, "serve", *arguments)
         assert entry.get("exit_code") == 2, entry
@@ -49,6 +51,22 @@ def test_launch_options(binary: Path) -> Transcript:
         )
         assert entry.get("exit_code") == 1, entry
         assert "cannot be combined with --jupyter-kernel" in entry["stderr"], entry
+        entries.append(entry)
+    return entries
+
+
+def test_shared_ipykernel_launch_options(binary: Path) -> Transcript:
+    help = record(binary, "serve", "--help")
+    assert "--jupyter-reticulate-ipykernel" in help["stdout"], help
+    entries = [help]
+    for arguments in (
+        ("--jupyter-reticulate-ipykernel",),
+        ("--jupyter-kernel", "unused-kernel", "--jupyter-reticulate-ipykernel"),
+    ):
+        entry = record(binary, "serve", *arguments)
+        assert entry.get("exit_code") == 2, entry
+        assert "required arguments were not provided" in entry["stderr"], entry
+        assert "--jupyter-reticulate" in entry["stderr"], entry
         entries.append(entry)
     return entries
 

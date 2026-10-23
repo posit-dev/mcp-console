@@ -9,6 +9,8 @@ mod linux;
 pub(crate) struct Configuration {
     pub(crate) kernel: String,
     pub(crate) python: PathBuf,
+    pub(crate) reticulate: bool,
+    pub(crate) reticulate_ipykernel: bool,
     pub(crate) transport: Transport,
 }
 
@@ -93,8 +95,8 @@ impl Configuration {
     pub(crate) fn languages(&self) -> crate::cell::Languages {
         crate::cell::Languages {
             kernel: true,
-            r: false,
-            python: false,
+            r: self.reticulate,
+            python: self.reticulate,
             sql: false,
         }
     }

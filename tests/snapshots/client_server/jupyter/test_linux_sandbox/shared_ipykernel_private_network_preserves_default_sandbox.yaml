@@ -1,0 +1,286 @@
+---
+scenario: >-
+  The published ark+ipykernel kernel works in the default read-only
+  sandbox.
+fixture: >-
+  No transport or sandbox permissions are configured. Host TCP and Unix
+  listeners accept baseline connections outside the sandbox; a host file
+  contains a protected sentinel.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter-reticulate.yaml
+---
+send:
+  code: |-
+    answer = 42
+    print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        <python-packages>/jupyter_client/localinterfaces.py:58: UserWarning: Unexpected error discovering local network interfaces: [Errno 1] Operation not permitted
+          ret = f(**kwargs)
+        <python-packages>/jupyter_client/localinterfaces.py:58: UserWarning: Unexpected error discovering local network interfaces: [Errno 1] Operation not permitted
+          ret = f(**kwargs)
+        [SharedApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+        [1] 42
+  isError: false
+---
+send:
+  r: r_pid <- Sys.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    print("same process:", os.getpid() == r.r_pid)
+    from_python = int(r.answer)
+    from_python
+result:
+  content:
+    - type: text
+      text: |
+        same process: True
+        42
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(reticulate::py$from_python == answer);
+    print(reticulate::py$from_python)
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    import base64
+    from IPython.display import Image, display
+
+    display(Image(data=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSuoAAAAASUVORK5CYII=")))
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to the submitted one-pixel PNG>
+      mimeType: image/png
+  isError: false
+---
+send:
+  code: |
+    private <- tempfile("kernel-permission-probe-")
+    writeLines("private", private)
+    stopifnot(identical(readLines(private), "private"))
+    unlink(private)
+    cat("private temp: writable\n")
+    host <- Sys.getenv("MCP_CONSOLE_TEST_JUPYTER_HOST_FILE")
+    stopifnot(identical(readLines(host), "original"))
+    failure <- tryCatch(
+      withCallingHandlers(
+        writeLines("changed", host),
+        warning = function(w) {
+          cat("host file warning: ", conditionMessage(w), "\n", sep = "")
+          invokeRestart("muffleWarning")
+        }
+      ),
+      error = identity
+    )
+    stopifnot(inherits(failure, "error"))
+    cat("host file error: ", conditionMessage(failure), "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        private temp: writable
+        host file warning: cannot open file '<workspace>/host-sentinel': Read-only file system
+        host file error: cannot open the connection
+  isError: false
+---
+send:
+  code: |
+    status <- system2(
+      Sys.getenv("MCP_CONSOLE_TEST_JUPYTER_PYTHON"),
+      shQuote(Sys.getenv("MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"))
+    )
+    stopifnot(status == 0L)
+result:
+  content:
+    - type: text
+      text: |
+        host TCP: [Errno 111] Connection refused
+        external TCP: [Errno 101] Network is unreachable
+        host Unix: [Errno 1] Operation not permitted
+        external HTTP through proxy: denied (403)
+        external CONNECT through proxy: denied (403)
+        host CONNECT through proxy: denied (403)
+  isError: false
+---
+send:
+  python: |
+    exec(Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"]).read_text())
+result:
+  content:
+    - type: text
+      text: |
+        host TCP: [Errno 111] Connection refused
+        external TCP: [Errno 101] Network is unreachable
+        host Unix: [Errno 1] Operation not permitted
+        external HTTP through proxy: denied (403)
+        external CONNECT through proxy: denied (403)
+        host CONNECT through proxy: denied (403)
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        <python-packages>/jupyter_client/localinterfaces.py:58: UserWarning: Unexpected error discovering local network interfaces: [Errno 1] Operation not permitted
+          ret = f(**kwargs)
+        <python-packages>/jupyter_client/localinterfaces.py:58: UserWarning: Unexpected error discovering local network interfaces: [Errno 1] Operation not permitted
+          ret = f(**kwargs)
+        [SharedApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+        [idle]
+  isError: false
+---
+send:
+  code: exists("answer", inherits = FALSE)
+result:
+  content:
+    - type: text
+      text: |
+        [1] FALSE
+  isError: false
+---
+send:
+  code: |-
+    answer = 42
+    print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: r_pid <- Sys.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    print("same process:", os.getpid() == r.r_pid)
+    from_python = int(r.answer)
+    from_python
+result:
+  content:
+    - type: text
+      text: |
+        same process: True
+        42
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(reticulate::py$from_python == answer);
+    print(reticulate::py$from_python)
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    import base64
+    from IPython.display import Image, display
+
+    display(Image(data=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSuoAAAAASUVORK5CYII=")))
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to the submitted one-pixel PNG>
+      mimeType: image/png
+  isError: false
+---
+send:
+  code: |
+    private <- tempfile("kernel-permission-probe-")
+    writeLines("private", private)
+    stopifnot(identical(readLines(private), "private"))
+    unlink(private)
+    cat("private temp: writable\n")
+    host <- Sys.getenv("MCP_CONSOLE_TEST_JUPYTER_HOST_FILE")
+    stopifnot(identical(readLines(host), "original"))
+    failure <- tryCatch(
+      withCallingHandlers(
+        writeLines("changed", host),
+        warning = function(w) {
+          cat("host file warning: ", conditionMessage(w), "\n", sep = "")
+          invokeRestart("muffleWarning")
+        }
+      ),
+      error = identity
+    )
+    stopifnot(inherits(failure, "error"))
+    cat("host file error: ", conditionMessage(failure), "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        private temp: writable
+        host file warning: cannot open file '<workspace>/host-sentinel': Read-only file system
+        host file error: cannot open the connection
+  isError: false
+---
+send:
+  code: |
+    status <- system2(
+      Sys.getenv("MCP_CONSOLE_TEST_JUPYTER_PYTHON"),
+      shQuote(Sys.getenv("MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"))
+    )
+    stopifnot(status == 0L)
+result:
+  content:
+    - type: text
+      text: |
+        host TCP: [Errno 111] Connection refused
+        external TCP: [Errno 101] Network is unreachable
+        host Unix: [Errno 1] Operation not permitted
+        external HTTP through proxy: denied (403)
+        external CONNECT through proxy: denied (403)
+        host CONNECT through proxy: denied (403)
+  isError: false
+---
+send:
+  python: |
+    exec(Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"]).read_text())
+result:
+  content:
+    - type: text
+      text: |
+        host TCP: [Errno 111] Connection refused
+        external TCP: [Errno 101] Network is unreachable
+        host Unix: [Errno 1] Operation not permitted
+        external HTTP through proxy: denied (403)
+        external CONNECT through proxy: denied (403)
+        host CONNECT through proxy: denied (403)
+  isError: false

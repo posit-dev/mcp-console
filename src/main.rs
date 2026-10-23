@@ -131,6 +131,8 @@ fn main() -> ExitCode {
             jupyter_kernel,
             jupyter_python,
             jupyter_transport,
+            jupyter_reticulate,
+            jupyter_reticulate_ipykernel,
             no_sandbox,
             writable_root,
             overrides: command_overrides,
@@ -141,6 +143,8 @@ fn main() -> ExitCode {
             let jupyter = jupyter_kernel.map(|kernel| jupyter::Configuration {
                 kernel,
                 python: jupyter_python.unwrap_or_else(|| "python3".into()),
+                reticulate: jupyter_reticulate,
+                reticulate_ipykernel: jupyter_reticulate_ipykernel,
                 transport: jupyter_transport.unwrap_or_default(),
             });
             match run_server(
