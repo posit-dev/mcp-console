@@ -26,7 +26,7 @@ def startup_environment(root: Path, *, managed: bool = False) -> dict[str, str]:
     environment, rscript = r_test_environment()
     home = root / "home"
     home.mkdir()
-    # Isolate native home discovery while retaining the caller's dependency cache.
+    # Isolate native home discovery while retaining the caller's dependency caches.
     cache = subprocess.check_output(
         [
             rscript,
@@ -38,6 +38,10 @@ def startup_environment(root: Path, *, managed: bool = False) -> dict[str, str]:
         text=True,
     )
     environment.setdefault("R_USER_CACHE_DIR", cache)
+    environment.setdefault(
+        "MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY",
+        str(Path.home() / ".duckdb/extensions"),
+    )
     environment.update(
         HOME=str(home),
         R_USER=str(home),
@@ -617,6 +621,7 @@ def test_startup_containment_and_preparation_isolation(binary: Path) -> Transcri
         ) as client:
             client.initialize_and_list_tools()
             client.expect("native profile contained\n", r="invisible(NULL)")
+            assert not (workspace / "home/.duckdb/extensions").exists()
             assert (workspace / "attempts").read_text().splitlines() == ["attempt"]
             assert not (root / "forbidden").exists()
             output = wait_for_evaluation_output(
@@ -634,6 +639,7 @@ def test_startup_containment_and_preparation_isolation(binary: Path) -> Transcri
                 "attempt",
             ]
             assert not (root / "forbidden").exists()
+            assert not (workspace / "home/.duckdb/extensions").exists()
             return client.finish()
 
 
