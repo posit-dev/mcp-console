@@ -1,0 +1,530 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: mcpsecond::fixture()
+result:
+  content:
+    - type: text
+      text: |
+        Error in loadNamespace(x) : there is no package called ‘mcpsecond’
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  python: >-
+    import os; marker = object(); marker_id = id(marker); original_pid =
+    os.getpid(); print('Python initialized')
+result:
+  content:
+    - type: text
+      text: |
+        Python initialized
+  isError: false
+---
+send:
+  python: import six
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ModuleNotFoundError: No module named 'six'
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: reticulate::py_require('six>=1.16,<2', python_version = '<3.14')
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [
+              "six>=1.16,<2"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python:
+        - six>=1.16,<2
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  python: |
+    import importlib
+
+    for name in ("yaml12", "rpython", "xml.mcp_console_missing"):
+        for load in (
+            importlib.import_module,
+            __import__,
+            lambda name: exec(f"import {name}"),
+        ):
+            try:
+                load(name)
+            except ModuleNotFoundError as error:
+                assert type(error) is ModuleNotFoundError
+                assert error.args == (f"No module named '{name}'",), error.args
+                assert error.name == name
+                assert error.path is None
+            else:
+                raise AssertionError(f"undeclared import succeeded: {name}")
+
+    try:
+        from xml import mcp_console_missing
+    except ImportError as error:
+        assert type(error) is ImportError
+        assert str(error).startswith("cannot import name 'mcp_console_missing' from 'xml'")
+        assert error.name == "xml"
+    else:
+        raise AssertionError("missing from-import succeeded")
+
+    print("native import errors")
+result:
+  content:
+    - type: text
+      text: |
+        native import errors
+  isError: false
+---
+send:
+  python: import yaml12
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e4>", line 1, in <module>
+          File "<reticulate>/python/rpytools/loader.py", line 122, in _find_and_load_hook
+            return _run_hook(name, _hook)
+          File "<reticulate>/python/rpytools/loader.py", line 96, in _run_hook
+            module = hook()
+          File "<reticulate>/python/rpytools/loader.py", line 120, in _hook
+            return _find_and_load(name, import_)
+        ModuleNotFoundError: No module named 'yaml12'
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [
+              "six>=1.16,<2"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python:
+        - six>=1.16,<2
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - mcpsecond
+    python:
+      - packaging
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: stopifnot(mcpsecond::fixture()); cat('deliberate packages available\n')
+result:
+  content:
+    - type: text
+      text: |
+        deliberate packages available
+  isError: false
+---
+send:
+  python: >-
+    import six, packaging; assert id(marker) == marker_id and os.getpid() ==
+    original_pid; print('deliberate Python available')
+result:
+  content:
+    - type: text
+      text: |
+        deliberate Python available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst",
+              "mcpsecond"
+            ],
+            "python": [
+              "packaging",
+              "six>=1.16,<2"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+        - mcpsecond
+      python:
+        - packaging
+        - six>=1.16,<2
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false

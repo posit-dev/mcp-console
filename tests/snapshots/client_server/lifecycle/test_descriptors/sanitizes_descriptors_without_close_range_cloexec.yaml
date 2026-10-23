@@ -1,0 +1,93 @@
+---
+launch_path: ENOSYS
+send:
+  python: |
+    import errno
+    import os
+
+    descriptor = int(os.environ["MCP_CONSOLE_TEST_INHERITED_FD"])
+    try:
+        os.write(descriptor, b"escaped")
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise RuntimeError("unlisted server descriptor reached the worker")
+
+    print("closed")
+result:
+  content:
+    - type: text
+      text: |
+        closed
+  isError: false
+---
+send:
+  r: must not run
+result:
+  content:
+    - type: text
+      text: >-
+        [failed to launch worker relay: No such file or directory (os error 2)]
+  isError: true
+---
+launch_path: EINVAL
+send:
+  python: |
+    import errno
+    import os
+
+    descriptor = int(os.environ["MCP_CONSOLE_TEST_INHERITED_FD"])
+    try:
+        os.write(descriptor, b"escaped")
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise RuntimeError("unlisted server descriptor reached the worker")
+
+    print("closed")
+result:
+  content:
+    - type: text
+      text: |
+        closed
+  isError: false
+---
+send:
+  r: must not run
+result:
+  content:
+    - type: text
+      text: >-
+        [failed to launch worker relay: No such file or directory (os error 2)]
+  isError: true
+---
+launch_path: EPERM
+send:
+  python: |
+    import errno
+    import os
+
+    descriptor = int(os.environ["MCP_CONSOLE_TEST_INHERITED_FD"])
+    try:
+        os.write(descriptor, b"escaped")
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise RuntimeError("unlisted server descriptor reached the worker")
+
+    print("closed")
+result:
+  content:
+    - type: text
+      text: |
+        closed
+  isError: false
+---
+send:
+  r: must not run
+result:
+  content:
+    - type: text
+      text: >-
+        [failed to launch worker relay: No such file or directory (os error 2)]
+  isError: true

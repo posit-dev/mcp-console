@@ -1,0 +1,114 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    plot_checkpoint <- tempfile("plot-checkpoint-")
+    cat(plot_checkpoint)
+result:
+  content:
+    - type: text
+      text: <plot checkpoint directory>
+  isError: false
+---
+send:
+  r: |
+    options(
+      console.plot.width_in = 4,
+      console.plot.height_in = 3,
+      console.plot.dpi = 100
+    )
+    plot(1:3)
+    path <- attr(.Devices[[dev.cur()]], "filepath")
+    writeLines(dirname(path), file.path(plot_checkpoint, "directory"))
+    ready <- fifo(
+      file.path(plot_checkpoint, "ready"),
+      open = "wb",
+      blocking = TRUE
+    )
+    writeBin(charToRaw("1"), ready)
+    close(ready)
+    release <- fifo(
+      file.path(plot_checkpoint, "release"),
+      open = "rb",
+      blocking = TRUE
+    )
+    stopifnot(identical(
+      readBin(release, "raw", n = 1L),
+      charToRaw("1")
+    ))
+    close(release)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+  isError: false
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    plot_checkpoint <- tempfile("plot-checkpoint-")
+    cat(plot_checkpoint)
+result:
+  content:
+    - type: text
+      text: <plot checkpoint directory>
+  isError: false
+---
+send:
+  r: |
+    options(
+      console.plot.width_in = 4,
+      console.plot.height_in = 3,
+      console.plot.dpi = 100
+    )
+    plot(3:1)
+    path <- attr(.Devices[[dev.cur()]], "filepath")
+    writeLines(dirname(path), file.path(plot_checkpoint, "directory"))
+    ready <- fifo(
+      file.path(plot_checkpoint, "ready"),
+      open = "wb",
+      blocking = TRUE
+    )
+    writeBin(charToRaw("1"), ready)
+    close(ready)
+    release <- fifo(
+      file.path(plot_checkpoint, "release"),
+      open = "rb",
+      blocking = TRUE
+    )
+    stopifnot(identical(
+      readBin(release, "raw", n = 1L),
+      charToRaw("1")
+    ))
+    close(release)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+  isError: false

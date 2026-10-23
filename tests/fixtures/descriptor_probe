@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import errno
+import json
+import os
+import sys
+from typing import Any, TextIO
+
+INHERITED_FD_ENV = "MCP_CONSOLE_TEST_INHERITED_FD"
+BUILTIN_RELAY_ENV = "MCP_CONSOLE_TEST_BUILTIN_RELAY"
+READ_FD_ENV = "MCP_CONSOLE_SIDEBAND_READ_FD"
+
+
+def require_closed_server_descriptor(process: str) -> None:
+    descriptor = int(os.environ[INHERITED_FD_ENV])
+    try:
+        os.write(descriptor, b"escaped")
+    except OSError as error:
+        assert error.errno == errno.EBADF, error
+    else:
+        raise RuntimeError(f"unlisted server descriptor reached the custom {process}")
+
+
+def send(stream: TextIO, message: dict[str, Any]) -> None:
+    stream.write(json.dumps(message, separators=(",", ":")) + "\n")
+    stream.flush()
+
+
+def run_worker() -> None:
+    require_closed_server_descriptor("worker")
+    read_fd = int(os.environ.pop("MCP_CONSOLE_SIDEBAND_READ_FD"))
+    write_fd = int(os.environ.pop("MCP_CONSOLE_SIDEBAND_WRITE_FD"))
+    os.set_inheritable(read_fd, False)
+    os.set_inheritable(write_fd, False)
+    reader = os.fdopen(read_fd, "r", encoding="utf-8")
+    writer = os.fdopen(write_fd, "w", encoding="utf-8")
+    send(writer, {"kind": "ready"})
+
+    for line in reader:
+        message = json.loads(line)
+        if message == {"kind": "shutdown"}:
+            return
+        assert message.get("kind") == "evaluate", message
+        send(writer, {"kind": "cell_started"})
+        send(writer, {"kind": "console_output", "data": "closed\n"})
+        send(writer, {"kind": "completed"})
+
+
+def run_relay() -> None:
+    require_closed_server_descriptor("relay")
+    relay = os.environ[BUILTIN_RELAY_ENV]
+    os.execv(relay, [relay, "worker-relay", *sys.argv[1:]])
+
+
+if __name__ == "__main__":
+    if READ_FD_ENV in os.environ:
+        run_worker()
+    else:
+        run_relay()

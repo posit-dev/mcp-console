@@ -1,0 +1,43 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    native_paths <- .libPaths()
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 3L else 2L
+    initial_library <- native_paths[[managed_index]]
+    stopifnot(identical(
+      native_paths[[managed_index - 1L]],
+      normalizePath("project-library", winslash = "/")
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    paths <- .libPaths()
+    stopifnot(
+      !initial_library %in% paths,
+      identical(paths[-managed_index], native_paths[-managed_index]),
+      identical(dirname(find.package("praise")), paths[[managed_index]])
+    )
+    cat("project order retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        project order retained
+  isError: false

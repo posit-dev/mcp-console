@@ -1,0 +1,67 @@
+; MCP Console additions to the pinned native macOS sandbox policy.
+; SPDX-License-Identifier: MIT
+
+; Preserve host-terminal isolation. The base grants host-wide reads and ioctl
+; on all PTY slaves. Reopening /dev/tty or a host slave must remain denied, as
+; must mutating ioctl such as flushing its input. Attribute queries still work.
+; See cli/command/test_execution::{cannot_open_a_preexisting_pseudo_terminal,
+; cannot_flush_a_host_terminal} and cli/supervision terminal ownership cases.
+(deny file-read* file-ioctl
+  (literal "/dev/tty")
+  (regex #"^/dev/ttys[0-9]+"))
+; processx allocates and configures PTYs inside the sandbox. Restore read/ioctl
+; only for slaves bearing Seatbelt's creation extension; the base supplies
+; pseudo-tty allocation, /dev/ptmx access, and slave writes with that extension.
+; See cli/command/test_execution::allows_processx_pty_processes.
+(allow file-read* file-ioctl
+  (require-all
+    (regex #"^/dev/ttys[0-9]+")
+    (extension "com.apple.sandbox.pty")))
+
+; These entries were local exceptions in read_only_policy.sbpl. None is supplied
+; by the pinned base. Their individual provenance and remaining attribution gaps
+; are recorded in docs/SANDBOX.md; passing a workflow alone does not
+; establish that each probe is still necessary on every supported macOS version.
+(allow sysctl-read
+  ; Apple Silicon startup probes query pointer-authentication availability.
+  ; The original observation did not identify the individual native library.
+  (sysctl-name "machdep.ptrauth_enabled")
+  ; processx's ps dependency reads boot time to identify process start times.
+  ; ps/src/api-macos.c: ps__boot_time(); exercised by the processx PTY case.
+  (sysctl-name "kern.boottime")
+  ; Group-limit query seen in the original Quarto platform-probe workflow.
+  ; Retained for generated-document rendering; exact calling utility unconfirmed.
+  (sysctl-name "kern.ngroups")
+  ; sysctl(8) requests OID type/format metadata before returning binary values
+  ; (-b). R/Quarto shell probes need these lookups as well as the value's rule.
+  (sysctl-name-prefix "sysctl.oidfmt.")
+  ; sysctl(8) translates numeric OIDs back into names when printing results.
+  ; This is a separate metadata lookup from the binary-format query above.
+  (sysctl-name-prefix "sysctl.name.")
+  ; uv's macOS system-configuration startup probes query Lockdown Mode state.
+  ; Retained from the prior observed workflow, not a grant of network access.
+  (sysctl-name "security.mac.lockdown_mode_state")
+  ; The same startup workflow queries kernel boot arguments. This permits that
+  ; named read only; its precise framework call site remains unconfirmed.
+  (sysctl-name "kern.bootargs"))
+
+; file-write-data: uv's SystemConfiguration startup was observed opening the
+; DTrace helper for writes. This allows that device access, not host-file writes.
+; file-ioctl: the Quarto wrapper/child-utility workflow also issued helper ioctl
+; and encountered EPERM. Retain separately from write access; the exact ioctl
+; and utility were not recorded. See the generated-document rendering test.
+(allow file-write-data file-ioctl
+  (require-all
+    (path "/dev/dtracehelper")
+    (vnode-type CHARACTER-DEVICE)))
+
+(allow mach-lookup
+  ; uv's HTTP client uses SystemConfiguration to discover system proxy settings.
+  ; Lookup of configd permits the framework query; outbound networking stays denied.
+  (global-name "com.apple.SystemConfiguration.configd")
+  ; System logging endpoint probed during the original uv startup workflow.
+  ; Retain logging initialization; no current fatal dependency is established.
+  (global-name "com.apple.logd")
+  ; Darwin notification endpoint also probed during that uv startup workflow.
+  ; Distinct from logd; the exact framework registration remains unconfirmed.
+  (global-name "com.apple.system.notification_center"))

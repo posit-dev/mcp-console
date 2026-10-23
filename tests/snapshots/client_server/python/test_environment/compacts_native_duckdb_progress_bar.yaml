@@ -1,0 +1,88 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: pass
+  requirements:
+    python:
+      - duckdb==1.5.6
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    import tempfile
+    from pathlib import Path
+
+    import duckdb
+
+    connection = duckdb.connect()
+    assert connection.execute(
+        "SELECT "
+        "current_setting('enable_progress_bar'), "
+        "current_setting('enable_progress_bar_print'), "
+        "current_setting('progress_bar_time')"
+    ).fetchone() == (True, True, 2000)
+    connection.execute("SET progress_bar_time = 1000000")
+    connection.execute("SET threads = 1")
+    row_count = 15_000_000
+    # DuckDB 1.5.6 emits at least 100 native progress redraws while
+    # processing this single-threaded physical table scan.
+    connection.execute(
+        "CREATE TABLE progress_rows AS "
+        "SELECT CAST(value AS INTEGER) AS value "
+        f"FROM range({row_count}) AS values(value)"
+    )
+
+    saved_stdout = os.dup(1)
+    try:
+        with tempfile.TemporaryFile() as capture:
+            os.dup2(capture.fileno(), 1)
+            connection.execute("SET progress_bar_time = 0")
+            result = connection.execute(
+                "SELECT sum(hash(value)) FROM progress_rows"
+            ).fetchone()
+            capture.seek(0)
+            progress = capture.read()
+    finally:
+        os.dup2(saved_stdout, 1)
+        os.close(saved_stdout)
+
+    assert result[0] is not None
+    assert progress.count(b"\r") >= 100
+    _ = Path("progress.bin").write_bytes(progress)
+    with open("progress-ready", "wb", buffering=0) as ready:
+        _ = ready.write(b"1")
+    with open("progress-release", "rb", buffering=0) as release:
+        assert release.read(1) == b"1"
+    with os.fdopen(os.dup(1), "wb") as stdout:
+        stdout.write(progress)
+    with open("completion-release", "rb", buffering=0) as release:
+        assert release.read(1) == b"1"
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 220000
+result:
+  content:
+    - type: text
+      text: |
+        100% ▕██████████████████████████████████████▏ (<elapsed>)
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  elapsed: omitted
+  trailing_progress_padding: omitted

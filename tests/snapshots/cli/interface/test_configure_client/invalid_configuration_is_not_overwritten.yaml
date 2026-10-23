@@ -1,0 +1,6 @@
+---
+client: codex
+invalid_configurations_preserved: 6
+---
+client: claude
+invalid_configurations_preserved: 5

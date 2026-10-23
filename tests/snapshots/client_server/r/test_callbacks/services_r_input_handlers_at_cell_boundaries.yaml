@@ -1,0 +1,46 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    callback_fifo <- file.path(tempdir(), "cell-end-handler-fifo")
+    invisible(.Call(
+      "mcp_test_register_input_handler",
+      callback_fifo,
+      function() cat("cell end callback\n")
+    ))
+    writer <- fifo(callback_fifo, open = "wb")
+    writeBin(as.raw(1), writer)
+    close(writer)
+result:
+  content:
+    - type: text
+      text: |
+        cell end callback
+  isError: false
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    cell_start_callback_ran <- FALSE
+    invisible(.Call(
+      "mcp_test_register_input_handler",
+      file.path(tempdir(), "cell-start-handler-fifo"),
+      function() cell_start_callback_ran <<- TRUE
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: cat(cell_start_callback_ran, "\ncell body\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        TRUE
+        cell body
+  isError: false

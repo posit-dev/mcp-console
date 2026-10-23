@@ -1,0 +1,97 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  r: |
+    reticulate::py_require("matplotlib")
+    invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    invalid_cache = Path(os.environ["MPLCONFIGDIR"]) / "fontlist-v999.json"
+    _ = invalid_cache.write_text(
+        '{"__class__":"FontManager","_version":999}', encoding="utf-8"
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    marker = Path(os.environ["TMPDIR"]) / "mcp-console-font-discovery"
+    invalid_cache = Path(os.environ["MPLCONFIGDIR"]) / "fontlist-v999.json"
+    invalid_cache_was_seeded = invalid_cache.exists()
+
+    import matplotlib
+    import matplotlib.font_manager
+
+    config = Path(matplotlib.matplotlib_fname())
+    font_cache = next(Path(os.environ["MPLCONFIGDIR"]).glob("fontlist-v*.json"))
+    try:
+        with font_cache.open("a", encoding="utf-8"):
+            pass
+    except PermissionError:
+        font_cache_read_only = True
+    else:
+        font_cache_read_only = False
+
+    try:
+        with config.open("a", encoding="utf-8"):
+            pass
+    except PermissionError:
+        config_read_only = True
+    else:
+        config_read_only = False
+
+    try:
+        config.with_name("worker-payload").write_text("payload", encoding="utf-8")
+    except PermissionError:
+        config_directory_read_only = True
+    else:
+        config_directory_read_only = False
+
+    private_probe = Path(os.environ["MPLCONFIGDIR"]) / "config-write-probe"
+    private_probe.write_text("ok", encoding="utf-8")
+
+    (
+        config.resolve() == Path(os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]).resolve(),
+        matplotlib.rcParams["lines.linewidth"],
+        font_cache_read_only,
+        config_read_only,
+        config_directory_read_only,
+        private_probe.read_text(encoding="utf-8") == "ok",
+        marker.exists(),
+        invalid_cache_was_seeded,
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (True, 7.25, True, True, True, True, False, False)
+  isError: false

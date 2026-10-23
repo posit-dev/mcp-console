@@ -1,0 +1,3 @@
+---
+default_caches: console-owned
+empty_xdg: HOME fallback

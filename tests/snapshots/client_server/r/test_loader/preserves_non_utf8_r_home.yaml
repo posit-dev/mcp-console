@@ -1,0 +1,28 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  r: |
+    stopifnot(as.raw(255) %in% charToRaw(Sys.getenv("R_HOME")))
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  control: restart
+  r: |
+    stopifnot(as.raw(255) %in% charToRaw(Sys.getenv("R_HOME")))
+    42L
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [1] 42
+        [done]
+  isError: false

@@ -1,0 +1,8 @@
+---
+client: codex
+default: global
+project: current directory
+---
+client: claude
+default: global
+project: current directory

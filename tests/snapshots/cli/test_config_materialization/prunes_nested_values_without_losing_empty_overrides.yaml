@@ -1,0 +1,17 @@
+---
+environment:
+  EMPTY: ""
+inherit_environment: false
+resolver:
+  inherit_environment: true
+  environment:
+    EMPTY: ""
+sandbox:
+  filesystem:
+    read_only: []
+    read_write: []
+    deny: []
+python:
+  managed:
+    resolution: explicit
+    packages: []

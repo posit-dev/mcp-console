@@ -1,0 +1,138 @@
+---
+languages: sql
+description: >-
+  Persistent custom-worker SQL REPL. Reuse objects across calls to inspect
+  results, test hypotheses, and compare approaches.
+
+
+  Send one complete `sql` cell per call.
+
+
+  Language fields describe the configured interface; evaluation, display,
+  connections, and sharing depend on the worker. Console does not supply
+  built-in runtime packages, import hooks, or a default database connection.
+  Managed requirements need compatible worker callbacks; registry package
+  preparation is unavailable.
+
+
+  Run one cell at a time. Wait for its `send` to return before another call with
+  code. You can interrupt a pending call with `send(control="interrupt")`. An
+  error can leave earlier changes in place. If work is still running, poll with
+  an empty `send`; do not resubmit the cell. When waiting for completion, use
+  `timeout_ms=300000` for a long poll; it returns early when work finishes or
+  needs input. Avoid repeated short polls such as `timeout_ms=1000`. Defaults:
+  `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
+
+
+  Text results, including notices, have an 8 KiB limit, retaining the beginning
+  and latest tail; images have separate limits. Response notices report state
+  and omitted-output locations.
+
+
+  Evaluated code runs without a sandbox, with the server's permissions,
+  including filesystem and network access. Package preparation may execute
+  installation or build code; use only trusted dependencies.
+---
+languages: r,sql
+description: >-
+  Persistent custom-worker R and SQL REPL. Reuse objects across calls to inspect
+  results, test hypotheses, and compare approaches.
+
+
+  Send one complete `r` or `sql` cell per call.
+
+
+  Language fields describe the configured interface; evaluation, display,
+  connections, and sharing depend on the worker. Console does not supply
+  built-in runtime packages, import hooks, or a default database connection.
+  Managed requirements need compatible worker callbacks; registry package
+  preparation is unavailable. Switch languages when useful, using the worker's
+  capabilities.
+
+
+  Run one cell at a time. Wait for its `send` to return before another call with
+  code. You can interrupt a pending call with `send(control="interrupt")`. An
+  error can leave earlier changes in place. If work is still running, poll with
+  an empty `send`; do not resubmit the cell. When waiting for completion, use
+  `timeout_ms=300000` for a long poll; it returns early when work finishes or
+  needs input. Avoid repeated short polls such as `timeout_ms=1000`. Defaults:
+  `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
+
+
+  Text results, including notices, have an 8 KiB limit, retaining the beginning
+  and latest tail; images have separate limits. Response notices report state
+  and omitted-output locations.
+
+
+  Evaluated code runs without a sandbox, with the server's permissions,
+  including filesystem and network access. Package preparation may execute
+  installation or build code; use only trusted dependencies.
+---
+languages: python,sql
+description: >-
+  Persistent custom-worker Python and SQL REPL. Reuse objects across calls to
+  inspect results, test hypotheses, and compare approaches.
+
+
+  Send one complete `python` or `sql` cell per call.
+
+
+  Language fields describe the configured interface; evaluation, display,
+  connections, and sharing depend on the worker. Console does not supply
+  built-in runtime packages, import hooks, or a default database connection.
+  Managed requirements need compatible worker callbacks; registry package
+  preparation is unavailable. Switch languages when useful, using the worker's
+  capabilities.
+
+
+  Run one cell at a time. Wait for its `send` to return before another call with
+  code. You can interrupt a pending call with `send(control="interrupt")`. An
+  error can leave earlier changes in place. If work is still running, poll with
+  an empty `send`; do not resubmit the cell. When waiting for completion, use
+  `timeout_ms=300000` for a long poll; it returns early when work finishes or
+  needs input. Avoid repeated short polls such as `timeout_ms=1000`. Defaults:
+  `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
+
+
+  Text results, including notices, have an 8 KiB limit, retaining the beginning
+  and latest tail; images have separate limits. Response notices report state
+  and omitted-output locations.
+
+
+  Evaluated code runs without a sandbox, with the server's permissions,
+  including filesystem and network access. Package preparation may execute
+  installation or build code; use only trusted dependencies.
+---
+languages: r,python,sql
+description: >-
+  Persistent custom-worker R, Python, and SQL REPL. Reuse objects across calls
+  to inspect results, test hypotheses, and compare approaches.
+
+
+  Send one complete `r`, `python`, or `sql` cell per call.
+
+
+  Language fields describe the configured interface; evaluation, display, SQL,
+  and sharing depend on the worker. Console does not supply built-in runtime
+  packages, import hooks, or a default SQL connection. Managed requirements need
+  compatible worker callbacks; Python requirements are unavailable. Switch
+  languages when useful, using the worker's capabilities.
+
+
+  Run one cell at a time. Wait for its `send` to return before another call with
+  code. You can interrupt a pending call with `send(control="interrupt")`. An
+  error can leave earlier changes in place. If work is still running, poll with
+  an empty `send`; do not resubmit the cell. When waiting for completion, use
+  `timeout_ms=300000` for a long poll; it returns early when work finishes or
+  needs input. Avoid repeated short polls such as `timeout_ms=1000`. Defaults:
+  `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
+
+
+  Text results, including notices, have an 8 KiB limit, retaining the beginning
+  and latest tail; images have separate limits. Response notices report state
+  and omitted-output locations.
+
+
+  Evaluated code runs without a sandbox, with the server's permissions,
+  including filesystem and network access. Package preparation may execute
+  installation or build code; use only trusted dependencies.

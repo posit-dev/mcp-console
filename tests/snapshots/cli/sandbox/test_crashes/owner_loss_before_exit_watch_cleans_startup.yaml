@@ -1,0 +1,15 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --exit-with-parent
+  - <owner pid>
+  - --
+  - /bin/echo
+  - target ran
+owner_signal: SIGKILL before owner-watch registration
+owner_returncode: -9
+stderr: |
+  mcp-console-sandbox: parent_pid is not the current parent
+verified_target: did not run
+verified_cleanup: sandbox root and private directory

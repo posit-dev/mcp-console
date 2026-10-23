@@ -1,0 +1,193 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    from_r <- 40L
+    python_source_visible <- function() {
+      calls <- vapply(sys.calls(), deparse1, character(1))
+      marker <- paste0("unique_python_", "source_marker")
+      any(grepl(marker, calls, fixed = TRUE))
+    }
+    reticulate::py_run_string(
+      r"---(
+    test_sys = __import__("sys")
+    test_types = __import__("types")
+    __import__ = None
+    exec = None
+    setattr = None
+    _io = "user io"
+    _main = "user main"
+    _sys = "user sys"
+    sorted = "user sorted"
+    test_sys.modules["matplotlib.pyplot"] = test_types.SimpleNamespace(
+        get_fignums=lambda: [],
+        close=lambda *_args, **_kwargs: None,
+    )
+    )---"
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    answer = r.from_r + 1
+    print("from Python")
+    (
+        answer + 1,
+        (__import__, exec, setattr) == (None, None, None),
+        (_io, _main, _sys, sorted) == ("user io", "user main", "user sys", "user sorted"),
+        "_mcp_console" not in globals()
+        and test_sys.modules["_mcp_console"].__name__ == "_mcp_console",
+    )
+result:
+  content:
+    - type: text
+      text: |
+        from Python
+        (42, True, True, True)
+  isError: false
+---
+send:
+  python: |
+    1
+    2
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        41
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!"package:reticulate" %in% search())
+    py <- "user shadow"
+    stopifnot(identical(py, "user shadow"))
+    rm(py)
+    py$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 41
+  isError: false
+---
+send:
+  python: |
+    unique_python_source_marker = r.python_source_visible()
+    unique_python_source_marker
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  r: |
+    .mcp_console_private <- "user value"
+    .mcp_console_python_source <- "user source"
+    .mcp_console_python_filename <- "user filename"
+    is.null <- function(...) FALSE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: |
+    compile = "user compile"
+    eval = "user eval"
+    exec = "user exec"
+    isinstance = "user isinstance"
+    BaseException = "user BaseException"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: |
+    import builtins as test_builtins
+
+    test_original_import = test_builtins.__import__
+    test_builtins.__import__ = None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    test_builtins.__import__ = test_original_import
+    answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: silent = True
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    rm(list = ls())
+    py$assigned_from_r <- 43L
+    py$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 41
+  isError: false
+---
+send:
+  python: |
+    assigned_from_r
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false

@@ -1,0 +1,17 @@
+<script>
+  window.backupDefine = window.define;
+  window.define = undefined;
+</script>
+<script src="/quarto-preview.js"></script>
+<script>
+  window.define = window.backupDefine;
+  window.backupDefine = undefined;
+  document.addEventListener("DOMContentLoaded", function () {
+    window.QuartoPreview.init({
+      origin: null,
+      search: null,
+      inputFile: null,
+      isPresentation: false
+    });
+  });
+</script>

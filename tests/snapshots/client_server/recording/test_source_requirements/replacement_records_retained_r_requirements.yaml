@@ -1,0 +1,119 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: initial <- packageVersion('praise'); cat('initial praise available\n')
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: |
+        initial praise available
+  isError: false
+---
+send:
+  r: stop('rejected source')
+  requirements:
+    r:
+      - uncommittedpackage
+    python:
+      - ""
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `` is not accepted: host-side managed resolution
+        accepts named package requirements only
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: retained <- packageVersion('praise'); cat('retained praise available\n')
+result:
+  content:
+    - type: text
+      text: |
+        retained praise available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "praise"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - praise
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false

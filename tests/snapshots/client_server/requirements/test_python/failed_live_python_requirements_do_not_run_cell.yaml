@@ -1,0 +1,319 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_prior
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    import sys
+    import mcp_console_test_prior
+
+    live_module = mcp_console_test_prior
+    live_object = live_module.state
+    live_sentinel = live_module.answer()
+    live_worker_pid = os.getpid()
+    print(sys.executable)
+result:
+  content:
+    - type: text
+      text: |
+        <running Python>
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "mcp_console_test_prior"
+            ],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - mcp_console_test_prior
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: |
+    reticulate_namespace <- asNamespace("reticulate")
+    unlockBinding("py_require", reticulate_namespace)
+    assign("py_require", function(...) stop("tool entered reticulate declaration"),
+           envir = reticulate_namespace)
+    lockBinding("py_require", reticulate_namespace)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: failed_live_python_cell = True
+  requirements:
+    python:
+      - mcp_console_test_candidate
+result:
+  content:
+    - type: text
+      text: |-
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "<running Python>",
+          "packages": [
+            "mcp_console_test_candidate",
+            "mcp_console_test_prior"
+          ]
+        }
+        uv output:
+        synthetic uv failure
+  isError: true
+---
+send:
+  python: import mcp_console_test_candidate
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ModuleNotFoundError: No module named 'mcp_console_test_candidate'.
+
+        MCP Console inferred the PyPI distribution `mcp_console_test_candidate` from the import `mcp_console_test_candidate`, but automatic package resolution failed:
+
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "<running Python>",
+          "packages": [
+            "mcp_console_test_candidate",
+            "mcp_console_test_prior"
+          ]
+        }
+        uv output:
+        synthetic uv failure
+
+        Import names and PyPI distribution names can differ. Retry with the correct distribution declared through `requirements.python` in the `send` call, for example:
+
+        requirements: {"python": ["mcp_console_test_candidate"]}
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "mcp_console_test_prior"
+            ],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - mcp_console_test_prior
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import mcp_console_test_prior
+
+    (
+        live_sentinel,
+        mcp_console_test_prior.answer(),
+        mcp_console_test_prior is live_module,
+        mcp_console_test_prior.state is live_object,
+        os.getpid() == live_worker_pid,
+        "failed_live_python_cell" not in globals(),
+        importlib.util.find_spec("mcp_console_test_candidate") is None,
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (42, 42, True, True, True, True, True)
+  isError: false
+---
+send:
+  python: |
+    import mcp_console_test_candidate
+
+    assert mcp_console_test_candidate.answer == 7
+    raise RuntimeError("after accepted Python preparation")
+  requirements:
+    python:
+      - mcp_console_test_candidate
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e4>", line 4, in <module>
+        RuntimeError: after accepted Python preparation
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "mcp_console_test_candidate",
+              "mcp_console_test_prior"
+            ],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - mcp_console_test_candidate
+        - mcp_console_test_prior
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  python: |
+    import mcp_console_test_prior
+    import mcp_console_test_candidate
+
+    (
+        live_sentinel,
+        mcp_console_test_prior.answer(),
+        mcp_console_test_candidate.answer,
+        mcp_console_test_prior is live_module,
+        mcp_console_test_prior.state is live_object,
+        os.getpid() == live_worker_pid,
+        "failed_live_python_cell" not in globals(),
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (42, 42, 7, True, True, True, True)
+  isError: false

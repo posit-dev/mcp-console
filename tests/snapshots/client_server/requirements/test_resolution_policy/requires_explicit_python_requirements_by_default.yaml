@@ -1,0 +1,251 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: print('Python initialized')
+result:
+  content:
+    - type: text
+      text: |
+        Python initialized
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  python: import yaml12
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ModuleNotFoundError: No module named 'yaml12'
+  isError: false
+---
+send:
+  python: |
+    import importlib
+
+    for load in (importlib.import_module, __import__):
+        try:
+            load("yaml12")
+        except ModuleNotFoundError:
+            pass
+        else:
+            raise AssertionError("undeclared import resolved")
+    print("dynamic imports require declared dependencies")
+result:
+  content:
+    - type: text
+      text: |
+        dynamic imports require declared dependencies
+  isError: false
+---
+send:
+  python: |
+    import importlib
+
+    for name in ("yaml12", "rpython", "xml.mcp_console_missing"):
+        for load in (
+            importlib.import_module,
+            __import__,
+            lambda name: exec(f"import {name}"),
+        ):
+            try:
+                load(name)
+            except ModuleNotFoundError as error:
+                assert type(error) is ModuleNotFoundError
+                assert error.args == (f"No module named '{name}'",), error.args
+                assert error.name == name
+                assert error.path is None
+            else:
+                raise AssertionError(f"undeclared import succeeded: {name}")
+
+    try:
+        from xml import mcp_console_missing
+    except ImportError as error:
+        assert type(error) is ImportError
+        assert str(error).startswith("cannot import name 'mcp_console_missing' from 'xml'")
+        assert error.name == "xml"
+    else:
+        raise AssertionError("missing from-import succeeded")
+
+    print("native import errors")
+result:
+  content:
+    - type: text
+      text: |
+        native import errors
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+  python: import yaml12; print('declared Python package available')
+result:
+  content:
+    - type: text
+      text: |
+        declared Python package available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb",
+              "py-yaml12"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+        - py-yaml12
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false

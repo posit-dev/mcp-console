@@ -1,0 +1,6 @@
+---
+exit_code: 1
+stderr: >
+  .agents/console/config.yaml: resolver: sandbox: filesystem: kind:
+  unknown field `kind`, expected one of `read_only`, `read_write`, `deny`;
+  see docs/CONFIGURATION.md for the public format

@@ -1,0 +1,78 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import importlib
+    import os
+    import select
+    import signal
+    import threading
+
+    # Make CPython's thread-count warning deterministic even when the
+    # sandbox prevents native thread enumeration.
+    release_thread = threading.Event()
+    thread = threading.Thread(target=release_thread.wait)
+    thread.start()
+
+    read_descriptor, write_descriptor = os.pipe()
+    child = os.fork()
+    if child == 0:
+        os.close(read_descriptor)
+        try:
+            importlib.import_module("mcp_console_fork_child_missing")
+        except ModuleNotFoundError as error:
+            payload = f"fork-child name: {error.name}\n{error}"
+        else:
+            payload = "missing import unexpectedly succeeded"
+        os.write(write_descriptor, payload.encode())
+        os._exit(0)
+
+    release_thread.set()
+    thread.join()
+    os.close(write_descriptor)
+    chunks = []
+    while True:
+        readable, _, _ = select.select([read_descriptor], [], [], 10)
+        if not readable:
+            os.kill(child, signal.SIGKILL)
+            os.waitpid(child, 0)
+            raise AssertionError("fork child did not finish its import")
+        chunk = os.read(read_descriptor, 65536)
+        if not chunk:
+            break
+        chunks.append(chunk)
+    payload = b"".join(chunks).decode()
+    os.close(read_descriptor)
+    _, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
+    print(payload)
+result:
+  content:
+    - type: text
+      text: |
+        <mcp-console:python:e2>:14: DeprecationWarning: This process (pid=<pid>) is multi-threaded, use of fork() may lead to deadlocks in the child.
+        fork-child name: mcp_console_fork_child_missing
+        No module named 'mcp_console_fork_child_missing'.
+
+        MCP Console automatic package resolution is available only in the main worker process. Prepare the distribution through `requirements.python` in the parent before starting the child, for example:
+
+        requirements: {"python": ["distribution-name"]}
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

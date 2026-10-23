@@ -1,0 +1,48 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: tools::pskill(Sys.getpid(), signal = 9L)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  stdin: |
+    replacement
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    local({
+      connection <- suppressWarnings(file("/dev/stdin"))
+      on.exit(close(connection))
+      readLines(connection, n = 1)
+    })
+result:
+  content:
+    - type: text
+      text: |
+        [1] "replacement"
+  isError: false

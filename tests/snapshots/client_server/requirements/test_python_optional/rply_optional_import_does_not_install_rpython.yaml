@@ -1,0 +1,76 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - rply==0.7.8
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+
+    assert importlib.util.find_spec("rpython") is None
+    import rply
+
+    lexer = rply.LexerGenerator()
+    lexer.add("NUMBER", r"\d+")
+    [(token.name, token.value) for token in lexer.build().lex("42")]
+result:
+  content:
+    - type: text
+      text: |
+        [('NUMBER', '42')]
+  isError: false
+---
+send:
+  python: importlib.util.find_spec("rpython") is None
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "rply==0.7.8"
+            ],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - rply==0.7.8
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false

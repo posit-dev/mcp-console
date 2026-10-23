@@ -1,0 +1,129 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: answer <- 41
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    answer <- 42
+    created <- TRUE
+    answer + (
+result:
+  content:
+    - type: text
+      text: |
+        Error: <text>:5:0: unexpected end of input
+        3: answer + (
+        4: 
+          ^
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(answer, 41),
+      identical(base::.Last.value, 41),
+      !exists("created", envir = globalenv(), inherits = FALSE)
+    )
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 41
+  isError: false
+---
+send:
+  r: )
+result:
+  content:
+    - type: text
+      text: |
+        Error: <text>:1:1: unexpected ')'
+        1: )
+            ^
+  isError: false
+---
+send:
+  r: |
+    answer <- 43
+    created <- TRUE
+    )
+result:
+  content:
+    - type: text
+      text: |
+        Error: <text>:3:1: unexpected ')'
+        2: created <- TRUE
+        3: )
+           ^
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(answer, 41),
+      identical(base::.Last.value, 41),
+      !exists("created", envir = globalenv(), inherits = FALSE)
+    )
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 41
+  isError: false
+---
+send:
+  r: |
+    answer <- 44
+    created <- TRUE
+    function(x, x) x
+result:
+  content:
+    - type: text
+      text: |
+        Error: repeated formal argument 'x' (<input>:3:13)
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(answer, 41),
+      identical(base::.Last.value, 41),
+      !exists("created", envir = globalenv(), inherits = FALSE)
+    )
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 41
+  isError: false
+---
+send:
+  r: |
+    answer <- 45
+    stop("runtime failure")
+    answer <- 46
+result:
+  content:
+    - type: text
+      text: |
+        Error: runtime failure
+  isError: false
+---
+send:
+  r: answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 45
+  isError: false

@@ -1,0 +1,146 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    ambient_package <- find.package("codetools")
+    hidden_library <- file.path(tempdir(), "libpath-library")
+    dir.create(hidden_library)
+    stopifnot(file.copy(
+      ambient_package,
+      hidden_library,
+      recursive = TRUE
+    ))
+    attributed_package <- structure(
+      "codetools",
+      LibPath = hidden_library
+    )
+    namespace <- loadNamespace(attributed_package)
+    if (getRversion() < "4.6.0") {
+      stopifnot(identical(
+        normalizePath(getNamespaceInfo(namespace, "path")),
+        normalizePath(file.path(hidden_library, "codetools"))
+      ))
+    }
+    unloadNamespace("codetools")
+
+    listing_warnings <- character()
+    listing <- withCallingHandlers(
+      library(),
+      warning = function(w) {
+        listing_warnings <<- c(listing_warnings, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      }
+    )
+    expected_warnings <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") {
+      sprintf(
+        ngettext(
+          1L,
+          "library %s contains no packages",
+          "libraries %s contain no packages"
+        ),
+        sQuote(.libPaths()[[1L]])
+      )
+    } else {
+      character()
+    }
+    help_info <- library(help = base)
+    restricted <- suppressWarnings(library(
+      "fortunes",
+      lib.loc = .Library,
+      character.only = TRUE,
+      logical.return = TRUE,
+      quietly = TRUE
+    ))
+    partial_failed <- inherits(
+      try(
+        loadNamespace("fortunes", lib.loc = .Library, partial = TRUE),
+        silent = TRUE
+      ),
+      "try-error"
+    )
+    package <- "methods"
+    library(package, character.only = TRUE, quietly = TRUE)
+    invalid <- require(
+      "mcpconsole-invalid",
+      character.only = TRUE,
+      quietly = TRUE
+    )
+    stopifnot(
+      inherits(listing, "libraryIQR"),
+      identical(listing_warnings, expected_warnings),
+      inherits(help_info, "packageInfo"),
+      identical(restricted, FALSE),
+      partial_failed,
+      identical(invalid, FALSE),
+      identical(jsonlite::fromJSON("42"), 42L)
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!"package:splines" %in% search())
+    forwarded <- function(x) {
+      base::library(
+        splines,
+        attach.required = x,
+        quietly = TRUE
+      )
+    }
+    error <- try(forwarded(), silent = TRUE)
+    stopifnot(
+      inherits(error, "try-error"),
+      identical(
+        conditionMessage(attr(error, "condition")),
+        'argument "x" is missing, with no default'
+      )
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!isNamespaceLoaded("stats4"))
+    forwarded <- function(x) {
+      base::loadNamespace("stats4", keep.source = x)
+    }
+    messages <- capture.output(
+      error <- try(forwarded(), silent = TRUE),
+      type = "message"
+    )
+    stopifnot(
+      inherits(error, "try-error"),
+      any(grepl(
+        'argument "x" is missing, with no default',
+        messages,
+        fixed = TRUE
+      ))
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

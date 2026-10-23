@@ -1,0 +1,21 @@
+---
+send:
+  requirements:
+    r:
+      - DBI
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false

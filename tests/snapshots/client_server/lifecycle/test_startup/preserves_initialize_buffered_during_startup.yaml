@@ -1,0 +1,28 @@
+---
+!same-as MCP initialization for this execution mode
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: dependency preparation]
+        [worker starting]
+  isError: false
+---
+send:
+  r: must not run
+  requirements:
+    r:
+      - ""
+result:
+  content:
+    - type: text
+      text: R requirement strings must not be empty
+  isError: true

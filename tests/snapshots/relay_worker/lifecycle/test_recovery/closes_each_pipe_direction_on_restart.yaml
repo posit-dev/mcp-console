@@ -1,0 +1,55 @@
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: r
+  source: echo ready
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: console_output
+  data: "zod: "
+---
+worker:
+  kind: console_output
+  data: |
+    ready
+---
+worker:
+  kind: completed
+---
+relay:
+  kind: shutdown
+---
+stdin:
+  closed: true
+---
+worker_sideband:
+  closed: true
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: r
+  source: echo replacement ready
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: console_output
+  data: "zod: "
+---
+worker:
+  kind: console_output
+  data: |
+    replacement ready
+---
+worker:
+  kind: completed

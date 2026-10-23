@@ -1,0 +1,96 @@
+---
+scenario: malformed JSON
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Eof at line 1, column 1)
+---
+scenario: file reference
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Syntax at line 1, column 1)
+---
+scenario: missing policy
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: filesystem is required without extends
+---
+scenario: duplicate field
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 33)
+---
+scenario: removed version
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 162)
+---
+scenario: duplicate command
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 162)
+---
+scenario: duplicate cwd
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 158)
+---
+scenario: file include
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 162)
+---
+scenario: transport export
+exit_code: 1
+stdout: ""
+stderr: >
+  mcp-console-sandbox: configuration transport variable cannot be exported
+  to the target
+---
+scenario: invalid lifecycle
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: cleanup_timeout_ms must be 1..=60000
+---
+scenario: invalid environment
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: invalid configuration JSON (Data at line 1, column 198)
+---
+scenario: --runner-config-env ABSENT_POLICY
+exit_code: 1
+stdout: ""
+stderr: |
+  mcp-console-sandbox: selected configuration variable is not set
+---
+scenario: --runner-config-env TEST_POLICY --runner-config-env
+exit_code: 2
+stdout: ""
+stderr: |
+  error: the argument '--runner-config-env <NAME>' cannot be used multiple times
+
+  Usage: mcp-console sandbox [OPTIONS] <COMMAND>...
+
+  For more information, try '--help'.
+---
+scenario: --runner-config-env TEST_POLICY --exit-with-parent
+exit_code: 2
+stdout: ""
+stderr: >
+  error: the argument '--runner-config-env <NAME>' cannot be used with
+  '--exit-with-parent <PID>'
+
+
+  Usage: mcp-console sandbox <COMMAND>...
+
+
+  For more information, try '--help'.

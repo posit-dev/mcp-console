@@ -1,0 +1,23 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+    import subprocess
+
+    assert os.environ["RETICULATE_PYTHON"] == sys.executable
+    assert os.path.samefile(sys.prefix, os.environ["MCP_CONSOLE_TEST_ENVIRONMENT"])
+    assert os.path.samefile(sys.exec_prefix, sys.prefix)
+    child = subprocess.check_output(
+        [sys.executable, "-c", "import sys; print(sys.prefix)"], text=True
+    ).strip()
+    assert os.path.samefile(child, sys.prefix)
+    print("selected environment retained through directory alias")
+result:
+  content:
+    - type: text
+      text: |
+        selected environment retained through directory alias
+  isError: false

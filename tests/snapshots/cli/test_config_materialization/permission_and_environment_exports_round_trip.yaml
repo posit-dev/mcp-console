@@ -1,0 +1,16 @@
+---
+permission_round_trips:
+  - defaults
+  - common
+  - limited
+  - empty
+  - enabled
+  - restricted
+  - read_only
+  - client_default
+  - workspace
+  - workspace_fallback
+  - workspace_read_write_temp
+  - read_only_temp
+  - groups
+environment_preserved: true

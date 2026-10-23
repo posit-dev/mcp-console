@@ -1,0 +1,27 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        Traceback (most recent call last):
+          File "<string>", line 949, in _mcp_console_configure_module_defaults
+          File "<string>", line 913, in apply
+          File "<string>", line 586, in _mcp_console_install_matplotlib_show
+          File "<setup checkpoint>", line 9, in __setattr__
+        ValueError: matplotlib setup failed
+
+        [idle]
+  isError: false
+---
+send:
+  python: assert id(runtime_identity) == runtime_identity_id; 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

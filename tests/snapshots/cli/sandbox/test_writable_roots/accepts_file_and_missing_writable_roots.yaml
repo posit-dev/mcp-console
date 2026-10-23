@@ -1,0 +1,31 @@
+---
+arguments:
+  - sandbox
+  - --writable-root
+  - output café 雪.txt
+  - --writable-root
+  - future output
+python: |
+  import errno
+  from pathlib import Path
+
+  assert not Path("future output").exists()
+  file = Path("output café 雪.txt")
+  assert file.read_text() == "original"
+  _ = file.write_text("updated")
+  assert file.read_text() == "updated"
+  print("single file updated; missing root was not created")
+  for path in (Path("neighbor"), Path("unlisted")):
+      try:
+          _ = path.write_text("must not be written")
+      except OSError as error:
+          assert error.errno in (errno.EPERM, errno.EACCES, errno.EROFS)
+          print(f"write denied: {path}")
+      else:
+          raise AssertionError(f"unexpected write: {path}")
+exit_code: 0
+stdout: |
+  single file updated; missing root was not created
+  write denied: neighbor
+  write denied: unlisted
+stderr: ""

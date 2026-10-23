@@ -1,0 +1,36 @@
+---
+refilled_stream: stdout
+repeated_output:
+  kind: stdout
+  data: |
+    descendant output
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: worker_sideband_closed
+  - kind: worker_exited
+    code: 0
+---
+refilled_stream: stderr
+repeated_output:
+  kind: stderr
+  data: |
+    descendant output
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: worker_sideband_closed
+  - kind: worker_exited
+    code: 0
+---
+refilled_stream: sideband
+repeated_output:
+  kind: console_output
+  data: |
+    descendant output
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: worker_sideband_closed
+  - kind: worker_exited
+    code: 0

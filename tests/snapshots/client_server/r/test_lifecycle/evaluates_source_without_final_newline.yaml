@@ -1,0 +1,13 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |-
+    answer <- 40
+    answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

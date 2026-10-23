@@ -1,0 +1,28 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: |
+    print("x" * 8388600, end="")
+    import yaml12
+
+    yaml12.__name__
+  timeout_ms: 120000
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8053
+        concat:
+          - repeat: x
+            count: 3968
+          - |
+
+            [output omitted: 8380742 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
+          - repeat: x
+            count: 3890
+          - |
+
+            [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+            'yaml12'
+  isError: false

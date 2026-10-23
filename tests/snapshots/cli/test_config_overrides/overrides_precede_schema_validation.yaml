@@ -1,0 +1,11 @@
+---
+overrides:
+  - -c
+  - environment.KEEP=first
+  - -c
+  - environment=null
+  - -c
+  - "environment={FINAL: last}"
+  - -c
+  - python=null
+initialized: true

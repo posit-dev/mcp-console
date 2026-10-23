@@ -1,0 +1,29 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    executable <- commandArgs()[1L]
+    stopifnot(
+      file.exists(executable),
+      identical(executable, file.path(R.home("bin"), "R")),
+      interactive(),
+      is.na(Sys.getenv("R_ARCH", unset = NA_character_))
+    )
+    child <- system2(
+      executable,
+      c("--vanilla", "--slave", "-e", shQuote('cat(Sys.getenv("R_ARCH"))')),
+      stdout = TRUE,
+      stderr = TRUE
+    )
+    stopifnot(
+      is.null(attr(child, "status")),
+      identical(child, "/identity-test")
+    )
+    cat("Selected R launcher supplies its default architecture\n")
+result:
+  content:
+    - type: text
+      text: |
+        Selected R launcher supplies its default architecture
+  isError: false

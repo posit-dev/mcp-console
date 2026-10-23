@@ -1,0 +1,28 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import builtins
+    import sys
+
+    (
+        40 + 2,
+        hasattr(builtins, "mcp_console_local_psutil_imported"),
+        "psutil" in sys.modules,
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (42, False, False)
+  isError: false
+---
+send:
+  python: import psutil; psutil.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

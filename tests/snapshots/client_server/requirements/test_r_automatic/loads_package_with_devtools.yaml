@@ -1,0 +1,46 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      !isNamespaceLoaded("devtools"),
+      !isNamespaceLoaded("pkgload"),
+      !isNamespaceLoaded("mcpconsoleloadall")
+    )
+    devtools::load_all(
+      reset = TRUE,
+      recompile = FALSE,
+      export_all = FALSE,
+      helpers = FALSE,
+      quiet = TRUE
+    )
+    stopifnot(
+      !"internal_value" %in%
+        getNamespaceExports("mcpconsoleloadall")
+    )
+    list(
+      exported = mcpconsoleloadall::exported_value(),
+      internal = mcpconsoleloadall:::internal_value()
+    )
+result:
+  content:
+    - type: text
+      text: |+
+        $exported
+        [1] 42
+
+        $internal
+        [1] 41
+
+  isError: false

@@ -1,0 +1,84 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    r_started = Path(os.environ["TMPDIR"]) / "r-started"
+    assert not r_started.exists()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: assert not r_started.exists()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    native_paths <- .libPaths()
+    prepared_library <- dirname(find.package("consolefirst"))
+    stopifnot(prepared_library %in% native_paths)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: assert r_started.read_text() == "started\n"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consolefirst
+      - consolesecond
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    paths <- .libPaths()
+    replacement <- dirname(find.package("consolesecond"))
+    stopifnot(
+      !prepared_library %in% paths,
+      identical(
+        paths[!paths %in% replacement],
+        native_paths[!native_paths %in% prepared_library]
+      ),
+      consolefirst::fixture(),
+      consolesecond::fixture()
+    )
+    cat("pre-initialization library replaced\n")
+result:
+  content:
+    - type: text
+      text: |
+        pre-initialization library replaced
+  isError: false

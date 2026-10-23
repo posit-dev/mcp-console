@@ -1,0 +1,4 @@
+---
+stdout: |
+  empty protected directories resist removal, replacement and rename
+stderr: ""

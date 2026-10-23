@@ -1,0 +1,44 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_symlinked_package
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    site = Path(
+        importlib.util.find_spec("mcp_console_test_symlinked_package").origin
+    ).parent.parent
+    with tempfile.TemporaryDirectory() as temporary:
+        linked_site = Path(temporary) / "site-packages"
+        linked_site.symlink_to(site, target_is_directory=True)
+        sys.path.insert(0, str(linked_site))
+        try:
+            import mcp_console_test_symlinked_package as package
+
+            assert linked_site in Path(package.__spec__.origin).parents
+            assert linked_site in Path(package.helper.__spec__.origin).parents
+            assert package.__path__ == [str((site / package.__name__).resolve())]
+            assert package.fallback
+        finally:
+            sys.path.remove(str(linked_site))
+    print("Symlinked package and helper keep their optional-import fallback")
+result:
+  content:
+    - type: text
+      text: |
+        Symlinked package and helper keep their optional-import fallback
+  isError: false

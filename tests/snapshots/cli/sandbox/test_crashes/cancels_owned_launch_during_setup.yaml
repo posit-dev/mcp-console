@@ -1,0 +1,26 @@
+---
+scenario: SIGTERM after setup writing begins with a stopped reader
+stdout: ""
+stderr: ""
+verified_cleanup: launcher, runner, manager, and private directory
+---
+scenario: owner exit after setup writing begins with a stopped reader
+stdout: ""
+stderr: ""
+verified_cleanup: launcher, runner, manager, and private directory
+---
+scenario: SIGTERM after setup writing begins with a writable pipe
+stdout: ""
+stderr: ""
+verified_cleanup: launcher, runner, manager, and private directory
+---
+scenario: owner exit after setup writing begins with a writable pipe
+stdout: ""
+stderr: ""
+verified_cleanup: launcher, runner, manager, and private directory
+---
+scenario: no cancellation after setup writing begins with a writable pipe
+stdout: |
+  target ran
+stderr: ""
+verified_cleanup: launcher, runner, manager, and private directory

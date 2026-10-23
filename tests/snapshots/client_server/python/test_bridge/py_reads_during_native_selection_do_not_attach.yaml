@@ -1,0 +1,41 @@
+---
+send:
+  r: |
+    callback_calls <- 0L
+    options(reticulate.python.beforeInitialized = function() {
+      callback_calls <<- callback_calls + 1L
+      stopifnot(is.null(reticulate::py), is.null(py$hook_value))
+      reticulate::use_python(
+        Sys.getenv("MCP_CONSOLE_TEST_PYTHON"),
+        required = TRUE
+      )
+    })
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: hook_value = "selected Python value"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    stopifnot(
+      identical(py$hook_value, "selected Python value"),
+      callback_calls == 1L
+    )
+    options(reticulate.python.beforeInitialized = NULL)
+    cat("native selection callback ran once\n")
+result:
+  content:
+    - type: text
+      text: |
+        native selection callback ran once
+  isError: false

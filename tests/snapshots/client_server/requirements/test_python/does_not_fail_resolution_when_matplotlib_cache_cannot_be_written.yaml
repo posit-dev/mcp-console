@@ -1,0 +1,31 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: (__import__('matplotlib').__name__, __import__('yaml12').__name__)
+result:
+  content:
+    - type: text
+      text: |
+        ('matplotlib', 'yaml12')
+  isError: false

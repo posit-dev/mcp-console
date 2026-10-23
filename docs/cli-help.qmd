@@ -1,0 +1,17 @@
+---
+title: CLI help
+toc-depth: 3
+body-classes: cli-help-page
+filters:
+  - _filters/cli-help.py
+---
+
+Help for the public commands: `mcp-console`, `serve`, `warmup`, `sandbox`, `config`, `config init`, `config resolve`, and `configure-client`.
+For examples, see [Command-line reference](CLI.md).
+
+The text comes from the CLI acceptance snapshots.
+Run `mcp-console --help` to see the help for your installed version.
+On narrow screens, scroll within a help block to see the complete line.
+
+::: {#all-platforms .cli-help-transcript snapshot="help.yaml"}
+:::

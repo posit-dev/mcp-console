@@ -1,0 +1,5 @@
+---
+command: mcp-console sandbox -- python <isolation checks>
+stdout: |
+  host reads, private writes, network denial, and PID isolation verified
+temporary_directory_removed: true

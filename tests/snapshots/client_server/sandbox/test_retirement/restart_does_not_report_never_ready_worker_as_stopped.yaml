@@ -1,0 +1,31 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: echo echo
+  timeout_ms: 30000
+result:
+  content:
+    - type: text
+      text: "[stopped by session restart request before evaluation finished]"
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

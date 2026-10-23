@@ -1,0 +1,83 @@
+url: https://t-kalinowski.github.io/mcp-console/r/
+
+development:
+  mode: unreleased
+
+template:
+  bootstrap: 5
+  bootswatch: cosmo
+  light-switch: true
+
+repo:
+  url:
+    home: https://github.com/t-kalinowski/mcp-console/
+    source: https://github.com/t-kalinowski/mcp-console/blob/main/r/
+    issue: https://github.com/t-kalinowski/mcp-console/issues/
+    user: https://github.com/
+
+navbar:
+  structure:
+    left:
+      - console
+      - start
+      - documentation
+      - build
+      - console_reference
+    right: [search, github, lightswitch]
+  components:
+    console:
+      text: MCP Console
+      href: ../index.html
+    start:
+      text: Get started
+      href: ../getting-started.html
+    documentation:
+      text: Guides
+      href: ../README.html
+    build:
+      text: Build
+      href: ../BUILD.html
+    console_reference:
+      text: Reference
+      href: ../REFERENCE.html
+
+articles:
+  - title: Guides
+    contents:
+    - autonomous-report
+    - configuration
+
+reference:
+  - title: Use Console with ellmer
+    contents:
+    - console_tool
+  - title: Configure sessions
+    contents:
+    - config-workflow
+    - ConsoleConfig
+  - title: Runtime selection and dependency preparation
+    contents:
+    - RConfig
+    - current_r
+    - ExistingPython
+    - ManagedPython
+    - FirstAvailablePython
+    - StartupConfig
+    - ResolverConfig
+  - title: Permissions
+    contents:
+    - SandboxPolicy
+    - InheritCodexSandboxProfile
+    - SandboxFilesystem
+    - SandboxDomains
+    - SandboxProxy
+    - SandboxSockets
+    - SandboxNetwork
+  - title: Tool presentation
+    contents:
+    - ToolConfig
+    - ToolParameterConfig
+  - title: Configuration helpers
+    contents:
+    - resolve_console_config
+    - ConfigDiscovery

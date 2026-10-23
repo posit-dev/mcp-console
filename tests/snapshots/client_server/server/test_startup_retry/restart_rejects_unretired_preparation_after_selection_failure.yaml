@@ -1,0 +1,52 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  python: "42"
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/selected-python; local resolver setup or retirement deadline
+        exceeded; cannot terminate local resolver: Operation not permitted (os
+        error 1); retirement unconfirmed
+  isError: true
+---
+send:
+  control: restart
+  python: "42"
+result:
+  content:
+    - type: text
+      text: runtime discovery retry requires confirmed preparation cleanup
+  isError: true
+---
+send:
+  python: "42"
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/selected-python; local resolver setup or retirement deadline
+        exceeded; cannot terminate local resolver: Operation not permitted (os
+        error 1); retirement unconfirmed
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: runtime discovery retry requires confirmed preparation cleanup
+  isError: true
+---
+tools_schema_unchanged: true
+---
+stderr: >
+  selected Python executable is not an absolute file:
+  <workspace>/selected-python; local resolver setup or retirement deadline
+  exceeded; cannot terminate local resolver: Operation not permitted (os
+  error 1); retirement unconfirmed
+unretired_preparation_blocked_retry: true

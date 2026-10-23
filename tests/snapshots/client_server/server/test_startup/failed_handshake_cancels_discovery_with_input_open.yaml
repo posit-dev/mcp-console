@@ -1,0 +1,7 @@
+---
+stderr: >
+  expect initialized request, but received:
+  Some(Notification(JsonRpcNotification { jsonrpc: JsonRpcVersion2_0,
+  notification: InitializedNotification(NotificationNoParam { method:
+  InitializedNotificationMethod, extensions: Extensions }) }))
+input_remained_open: true

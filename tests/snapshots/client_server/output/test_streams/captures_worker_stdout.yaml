@@ -1,0 +1,21 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: emit stdout
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8053
+        concat:
+          - |
+            zod stdout 👩🏽‍💻
+          - repeat: x
+            count: 3941
+          - |
+
+            [output omitted: 4186395 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
+          - repeat: y
+            count: 3968
+  isError: false

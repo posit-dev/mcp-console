@@ -1,0 +1,54 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  timeout_ms: 0
+  python: |
+    import json
+    import os
+    import sys
+    import selected_package
+
+    assert sys.path[0] == ""
+    assert os.path.dirname(sys.executable) not in sys.path
+    assert selected_package.value == 42, (
+        selected_package.value,
+        selected_package.__file__,
+        sys.path,
+        sys.prefix,
+    )
+    json.dumps({"selected package": selected_package.value})
+result:
+  content:
+    - type: text
+      text: |
+        '{"selected package": 42}'
+  isError: false
+---
+send:
+  control: restart
+  timeout_ms: 0
+  python: |
+    import json
+    import os
+    import sys
+    import selected_package
+
+    assert sys.path[0] == ""
+    assert os.path.dirname(sys.executable) not in sys.path
+    assert selected_package.value == 42, (
+        selected_package.value,
+        selected_package.__file__,
+        sys.path,
+        sys.prefix,
+    )
+    json.dumps({"selected package": selected_package.value})
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        '{"selected package": 42}'
+        [done]
+  isError: false

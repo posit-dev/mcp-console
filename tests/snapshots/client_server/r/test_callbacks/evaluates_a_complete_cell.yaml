@@ -1,0 +1,60 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    answer <- 40
+    answer + 1
+    answer + 2
+    cat("done\n")
+    invisible(99)
+result:
+  content:
+    - type: text
+      text: |
+        [1] 41
+        [1] 42
+        done
+  isError: false
+---
+send:
+  r: |
+    identical(
+      as.vector(splines::splineDesign(
+        knots = c(0, 0, 0, 0, 1, 1, 1, 1),
+        x = 0.5
+      )),
+      c(0.125, 0.375, 0.375, 0.125)
+    )
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  r: stop("boom")
+result:
+  content:
+    - type: text
+      text: |
+        Error: boom
+  isError: false
+---
+send:
+  r: answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 40
+  isError: false
+---
+send:
+  r: silent <- 1
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

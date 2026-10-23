@@ -1,0 +1,81 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - must-not-resolve
+  stdin: |
+    must not queue
+result:
+  content:
+    - type: text
+      text: >-
+        requirements-only `send` performs standalone preparation and cannot also
+        queue stdin
+  isError: true
+---
+send:
+  requirements:
+    action: set
+    r:
+      - standalone-requirement
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": false,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: false
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    action: set
+    r:
+      - standalone-requirement
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false

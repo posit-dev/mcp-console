@@ -1,0 +1,42 @@
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+    assert np.get_printoptions()["linewidth"] == 200
+    assert pd.get_option("display.width") == 200
+    np.set_printoptions(linewidth=73)
+    pd.set_option("display.width", 79)
+    custom_show = lambda *args, **kwargs: "user show"
+    plt.show = custom_show
+    print("shared module defaults installed")
+result:
+  content:
+    - type: text
+      text: |
+        shared module defaults installed
+  isError: false
+---
+send:
+  python: >-
+    assert np.get_printoptions()["linewidth"] == 73; assert
+    pd.get_option("display.width") == 79; assert plt.show is custom_show;
+    print("user module options retained")
+result:
+  content:
+    - type: text
+      text: |
+        user module options retained
+  isError: false

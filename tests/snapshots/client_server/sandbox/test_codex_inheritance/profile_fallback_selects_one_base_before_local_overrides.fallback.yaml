@@ -1,0 +1,48 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox-python-only.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: |
+        import errno
+        import json
+        import os
+        import socket
+        from pathlib import Path
+
+        fallback = os.environ["MCP_CONSOLE_TEST_FALLBACK"] == "True"
+        _ = Path("output/created").write_text("explicit grant")
+        try:
+            _ = Path("workspace-file").write_text("workspace grant")
+        except OSError as error:
+            assert not fallback and error.errno in (errno.EACCES, errno.EPERM, errno.EROFS)
+        else:
+            assert fallback, "fallback workspace grants leaked into the client base"
+        try:
+            _ = Path("private/secret").read_text()
+        except OSError as error:
+            assert error.errno in (errno.EACCES, errno.EPERM)
+        else:
+            raise AssertionError("explicit denial was lost")
+        assert Path(os.environ["TMPDIR"]) == Path.cwd() / "temp"
+        assert os.environ["MCP_CONSOLE_MANAGED_TEMPDIR"] == "0"
+        for port in json.loads(os.environ["MCP_CONSOLE_TEST_PORTS"]):
+            try:
+                connection = socket.create_connection(("127.0.0.1", port), timeout=2)
+            except OSError:
+                pass
+            else:
+                connection.close()
+                raise AssertionError("explicit network restriction was lost")
+        print("workspace fallback" if fallback else "client base")
+    _meta: {}
+result:
+  content:
+    - type: text
+      text: |
+        workspace fallback
+  isError: false

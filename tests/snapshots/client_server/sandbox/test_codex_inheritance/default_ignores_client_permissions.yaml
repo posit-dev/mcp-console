@@ -1,0 +1,43 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: |
+        import errno
+        import json
+        import os
+        import socket
+        from pathlib import Path
+
+        assert os.environ["MCP_CONSOLE_SANDBOX"] == "1"
+        _ = Path("local/created").write_text("allowed")
+        try:
+            _ = Path("additional/created").write_text("denied")
+        except OSError as error:
+            assert error.errno in (errno.EPERM, errno.EACCES, errno.EROFS)
+        else:
+            raise AssertionError("client disabled the sandbox without opt-in")
+        for port in json.loads(os.environ["MCP_CONSOLE_TEST_PORTS"]):
+            try:
+                connection = socket.create_connection(("127.0.0.1", port), timeout=2)
+            except OSError:
+                pass
+            else:
+                connection.close()
+                raise AssertionError("client enabled direct networking without opt-in")
+        print("local sandbox unchanged")
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: disabled
+result:
+  content:
+    - type: text
+      text: |
+        local sandbox unchanged
+  isError: false

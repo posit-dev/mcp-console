@@ -1,0 +1,30 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: complete before partial sideband descendant
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

@@ -1,0 +1,54 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: malformed sideband after stdout
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8110
+        concat:
+          - "zod malformed stdout: "
+          - repeat: x
+            count: 3882
+          - |
+
+            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
+          - repeat: z
+            count: 3832
+          - |-
+            od expected stdout malformed tail: <pipe tail bytes>
+            zod malformed output read
+            [worker sideband read failed: expected value at line 1 column 33]
+            [worker terminated by signal 9]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+            [idle]
+  isError: true
+---
+send:
+  r: malformed sideband after stderr
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8110
+        concat:
+          - "zod malformed stderr: "
+          - repeat: x
+            count: 3882
+          - |
+
+            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/002/cell-001.txt]
+          - repeat: z
+            count: 3832
+          - |-
+            od expected stderr malformed tail: <pipe tail bytes>
+            zod malformed output read
+            [worker sideband read failed: expected value at line 1 column 33]
+            [worker terminated by signal 9]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+            [idle]
+  isError: true

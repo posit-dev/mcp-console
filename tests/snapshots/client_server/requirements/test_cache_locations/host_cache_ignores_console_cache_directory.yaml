@@ -1,0 +1,3 @@
+---
+host_caches: true
+restart_retains_selection: true

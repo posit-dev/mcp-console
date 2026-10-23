@@ -1,0 +1,16 @@
+---
+global_nested: false
+python:
+  managed:
+    resolution: fixed
+    packages:
+      - matplotlib
+    version: ">=3.12,<3.14"
+---
+global_nested: true
+python:
+  managed:
+    resolution: fixed
+    packages:
+      - matplotlib
+    version: ">=3.12,<3.14"

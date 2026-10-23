@@ -1,0 +1,76 @@
+---
+scenario: >-
+  The first received send selects permissions even if its handler is
+  cancelled.
+fixture: >-
+  Write two conflicting sends and cancellation together so all three
+  frames are ready before handler dispatch.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox-python-only.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      python: |
+        cancelled_first_handler_ran = True
+        raise AssertionError("cancelled first handler ran")
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: restricted
+            entries: []
+          network: restricted
+id: <cancelled request 1>
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: |
+        from pathlib import Path
+
+        _ = Path("later-policy-ran").write_text("unexpected")
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: disabled
+result:
+  content:
+    - type: text
+      text: >-
+        client sandbox permissions changed; reconnect to apply them before
+        sending more code
+  isError: true
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+
+    assert "cancelled_first_handler_ran" not in globals()
+    assert os.environ["MCP_CONSOLE_SANDBOX"] == "1"
+    try:
+        _ = Path("created").write_text("denied")
+    except OSError as error:
+        assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS)
+    else:
+        raise AssertionError("later metadata replaced the first permissions")
+    print("first received permissions retained")
+result:
+  content:
+    - type: text
+      text: |
+        first received permissions retained
+  isError: false

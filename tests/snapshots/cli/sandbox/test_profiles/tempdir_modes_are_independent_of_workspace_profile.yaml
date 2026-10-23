@@ -1,0 +1,36 @@
+---
+profile: ~
+tempdir: managed
+stdout: |
+  temp selection, host grants and workspace policy match configuration
+stderr: ""
+---
+profile: ~
+tempdir: read_write
+stdout: |
+  temp selection, host grants and workspace policy match configuration
+stderr: ""
+---
+profile: ~
+tempdir: read_only
+stdout: |
+  temp selection, host grants and workspace policy match configuration
+stderr: ""
+---
+profile: workspace
+tempdir: managed
+stdout: |
+  temp selection, host grants and workspace policy match configuration
+stderr: ""
+---
+profile: workspace
+tempdir: read_write
+stdout: |
+  temp selection, host grants and workspace policy match configuration
+stderr: ""
+---
+profile: workspace
+tempdir: read_only
+stdout: |
+  temp selection, host grants and workspace policy match configuration
+stderr: ""

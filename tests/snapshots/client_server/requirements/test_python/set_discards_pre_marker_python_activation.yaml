@@ -1,0 +1,82 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |
+    config <- reticulate::py_config()
+    activation_ready <- tempfile("mcp-console-activation-ready-")
+    activation_release <- tempfile("mcp-console-activation-release-")
+    activation_sent <- tempfile("mcp-console-activation-sent-")
+    cat(
+      activation_ready,
+      activation_release,
+      activation_sent,
+      config$python,
+      sep = "\n"
+    )
+result:
+  content:
+    - type: text
+      text: |-
+        <activation ready>
+        <activation release>
+        <activation sent>
+  isError: false
+---
+send:
+  r: |
+    globals <- get(".globals", envir = asNamespace("reticulate"))
+    original <- activeBindingFunction("python_requirements", globals)
+    rm(list = "python_requirements", envir = globals)
+    makeActiveBinding("python_requirements", function(value) {
+      if (missing(value)) {
+        return(original())
+      }
+      ready <- fifo(activation_ready, open = "wb", blocking = TRUE)
+      writeBin(charToRaw("1"), ready)
+      close(ready)
+      release <- fifo(activation_release, open = "rb", blocking = TRUE)
+      stopifnot(identical(readBin(release, "raw", n = 1L), charToRaw("1")))
+      close(release)
+      original(value)
+      sent <- fifo(activation_sent, open = "wb", blocking = TRUE)
+      writeBin(charToRaw("1"), sent)
+      close(sent)
+    }, globals)
+    reticulate::py_require("py-yaml12")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - mcp-console-restart-fixture
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    packages <- reticulate::py_require()$packages
+    c("mcp-console-restart-fixture" %in% packages, "py-yaml12" %in% packages)
+result:
+  content:
+    - type: text
+      text: |
+        [1]  TRUE FALSE
+  isError: false

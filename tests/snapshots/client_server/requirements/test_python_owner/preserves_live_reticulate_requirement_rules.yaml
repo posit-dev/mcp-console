@@ -1,0 +1,61 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |
+    config_reader <- reticulate::py_config
+    initial <- config_reader()
+    current <- reticulate::py_require()
+    replacement <- tryCatch(
+      reticulate::py_require(c(current$packages, "py-yaml12"), action = "set"),
+      error = conditionMessage
+    )
+    stopifnot(
+      identical(
+        replacement,
+        "After Python has initialized, only `action = 'add'` is supported."
+      ),
+      identical(reticulate::py_require(), current)
+    )
+    reticulate::py_require(python_version = ">=3.10")
+    stopifnot(identical(
+      reticulate::py_require()$python_version,
+      current$python_version
+    ))
+    reticulate::py_require("py-yaml12")
+    config <- reticulate::py_config()
+    sys <- reticulate::import("sys")
+    stopifnot(
+      "py-yaml12" %in% reticulate::py_require()$packages,
+      identical(config_reader, reticulate::py_config),
+      identical(config_reader(), config),
+      identical(reticulate::py_exe(), sys$executable),
+      identical(config$python, sys$executable),
+      identical(config$executable, sys$executable),
+      identical(config$prefix, sys$prefix),
+      identical(config$exec_prefix, sys$exec_prefix),
+      identical(config$virtualenv, sys$prefix),
+      identical(
+        config$pythonpath,
+        paste(
+          ifelse(nzchar(sys$path), sys$path, "."),
+          collapse = .Platform$path.sep
+        )
+      ),
+      !grepl(initial$prefix, config$pythonpath, fixed = TRUE),
+      !nzchar(config$virtualenv_activate) ||
+        identical(dirname(config$virtualenv_activate), dirname(sys$executable)),
+      identical(
+        config$pythonhome,
+        if (identical(sys$base_prefix, sys$base_exec_prefix)) {
+          sys$base_prefix
+        } else {
+          paste(sys$base_prefix, sys$base_exec_prefix, sep = ":")
+        }
+      )
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

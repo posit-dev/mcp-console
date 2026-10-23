@@ -1,0 +1,118 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: owner_r_state <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE owner_state AS SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    owner_object = object()
+    owner_identity = id(owner_object)
+    owner_pid = os.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    namespace <- asNamespace("reticulate")
+    mutators <- c(
+      "py_require",
+      "py_reqs_activate",
+      "py_activate_virtualenv",
+      "uv_get_or_create_env"
+    )
+    originals <- mget(mutators, envir = namespace)
+    for (name in mutators) {
+      unlockBinding(name, namespace)
+      assign(
+        name,
+        function(...) stop("reticulate environment mutator reached"),
+        namespace
+      )
+      lockBinding(name, namespace)
+    }
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+  stdin: |
+    queued input
+  python: |
+    import yaml12
+
+    assert os.getpid() == owner_pid and id(owner_object) == owner_identity
+    input()
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: ""]
+        'queued input'
+  isError: false
+---
+send:
+  python: import humanize; humanize.intcomma(1234)
+result:
+  content:
+    - type: text
+      text: |
+        '1,234'
+  isError: false
+---
+send:
+  r: |
+    for (name in mutators) {
+      unlockBinding(name, namespace)
+      assign(name, originals[[name]], namespace)
+      lockBinding(name, namespace)
+    }
+    stopifnot(
+      all(c("py-yaml12", "humanize") %in% reticulate::py_require()$packages),
+      is.null(reticulate::py_require()$python_version),
+      identical(
+        reticulate::py_config()$python,
+        reticulate::import("sys")$executable
+      ),
+      identical(owner_r_state, 42L)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM owner_state
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false

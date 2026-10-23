@@ -1,0 +1,44 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: cat(42, '\n', sep='')
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: cat(42, '\n', sep='')
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+  r: cat("must not run\n")
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [r.executable: selected R resource directory changed: <workspace>/R/doc]
+        session restart did not complete; cell was not run
+  isError: true

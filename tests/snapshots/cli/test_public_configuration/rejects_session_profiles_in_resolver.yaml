@@ -1,0 +1,12 @@
+---
+profile: inherit_codex
+stderr: >
+  configuration with CLI overrides: resolver.sandbox.profile:
+  inherit_codex is a session profile; configure sandbox.profile instead
+---
+profile:
+  inherit_codex:
+    fallback: workspace
+stderr: >
+  configuration with CLI overrides: resolver.sandbox.profile:
+  inherit_codex is a session profile; configure sandbox.profile instead

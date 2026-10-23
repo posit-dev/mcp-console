@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import signal
+import sys
+from pathlib import Path
+
+arguments = sys.argv[1:]
+if record := os.environ.get("MCP_CONSOLE_TEST_STARTUP_RECORD"):
+    with open(record, "a", encoding="utf-8") as stream:
+        json.dump({"program": Path(sys.argv[0]).name, "arguments": arguments}, stream)
+        stream.write("\n")
+if arguments[:5] == ["tool", "run", "--from", "r-lib-ir", "ir"]:
+    arguments = arguments[5:]
+elif Path(sys.argv[0]).name == "uv":
+    real_uv = os.environ["MCP_CONSOLE_TEST_REAL_UV"]
+    os.execv(real_uv, [real_uv, *arguments])
+phase = "discovery" if arguments == ["--version"] else "preparation"
+gated = os.environ["MCP_CONSOLE_TEST_STARTUP_PHASE"] in (phase, "all")
+if gated and (claim := os.environ.get("MCP_CONSOLE_TEST_STARTUP_CLAIM")):
+    try:
+        descriptor = os.open(claim, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        gated = False
+    else:
+        os.close(descriptor)
+if gated:
+    signal.signal(signal.SIGINT, lambda signum, _frame: sys.exit(128 + signum))
+    descendant = os.fork()
+    if descendant == 0:
+        identity = Path(os.environ["MCP_CONSOLE_TEST_STARTUP_IDENTITY"])
+        identity.write_text(f"{os.getppid()} {os.getpid()}\n", encoding="utf-8")
+        with open(
+            os.environ["MCP_CONSOLE_TEST_STARTUP_RELEASE"], "rb", buffering=0
+        ) as gate:
+            with open(
+                os.environ["MCP_CONSOLE_TEST_STARTUP_STARTED"], "wb", buffering=0
+            ) as started:
+                started.write(b"1")
+            assert gate.read(1) == b"1"
+        os._exit(0)
+    assert os.waitpid(descendant, 0) == (descendant, 0)
+
+if phase == "discovery":
+    print("ir 0.4.0")
+else:
+    real_ir = os.environ["MCP_CONSOLE_TEST_REAL_IR"]
+    os.execv(real_ir, [real_ir, *arguments])

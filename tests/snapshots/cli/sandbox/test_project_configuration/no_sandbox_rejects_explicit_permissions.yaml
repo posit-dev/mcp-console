@@ -1,0 +1,4 @@
+---
+stderr: >
+  explicit sandbox or resolver.sandbox permissions require sandboxing;
+  remove them when using --no-sandbox

@@ -1,0 +1,12 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    Sys.getenv("RETICULATE_PYTHON", unset = NA_character_)
+result:
+  content:
+    - type: text
+      text: |
+        [1] "managed"
+  isError: false

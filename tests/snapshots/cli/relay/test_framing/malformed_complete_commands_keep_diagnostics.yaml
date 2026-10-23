@@ -1,0 +1,25 @@
+---
+frame: |
+  {"kind":
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: fatal
+    message: >-
+      relay stdin frame is invalid: EOF while parsing a value at line 1 column
+      8
+  - kind: worker_sideband_closed
+  - kind: worker_signaled
+    signal: 9
+---
+frame: "\r\n"
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: fatal
+    message: >-
+      relay stdin frame is invalid: EOF while parsing a value at line 1 column
+      0
+  - kind: worker_sideband_closed
+  - kind: worker_signaled
+    signal: 9

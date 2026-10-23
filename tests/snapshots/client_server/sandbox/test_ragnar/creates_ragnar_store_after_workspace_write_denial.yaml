@@ -1,0 +1,76 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  requirements:
+    r:
+      - ragnar
+    python:
+      - markitdown[all]
+    python_version:
+      - <3.14
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    ragnar::ragnar_store_create(
+      "knowledge.ragnar.duckdb",
+      embed = NULL
+    )
+result:
+  content:
+    - type: text
+      text: <error output identical to live sandboxed Rscript --vanilla>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  comparison: exact equality with live sandboxed Rscript --vanilla
+  reference_adjustments: >-
+    interactive error display; remove Execution halted footer
+---
+send:
+  r: |
+    reference <- suppressWarnings(system2(
+      file.path(R.home("bin"), "Rscript"),
+      c("--vanilla", "reference.R"),
+      stdout = TRUE,
+      stderr = TRUE
+    ))
+    stopifnot(
+      identical(attr(reference, "status"), 1L),
+      identical(tail(reference, 1L), "Execution halted")
+    )
+    writeLines(jsonlite::toJSON(
+      paste0(paste(head(reference, -1L), collapse = "\n"), "\n"),
+      auto_unbox = TRUE
+    ))
+result:
+  content:
+    - type: text
+      text: <error output identical to live sandboxed Rscript --vanilla>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  comparison: exact equality with live sandboxed Rscript --vanilla
+  reference_adjustments: >-
+    interactive error display; remove Execution halted footer
+---
+send:
+  r: |
+    store_path <- file.path(tempdir(), "knowledge.ragnar.duckdb")
+    store <- suppressMessages(ragnar::ragnar_store_create(
+      store_path,
+      embed = NULL
+    ))
+    stopifnot(DBI::dbIsValid(store@con), file.exists(store_path))
+    writeLines("created store under the worker tempdir")
+result:
+  content:
+    - type: text
+      text: |
+        created store under the worker tempdir
+  isError: false

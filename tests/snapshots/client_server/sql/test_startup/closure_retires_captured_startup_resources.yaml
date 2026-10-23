@@ -1,0 +1,19 @@
+---
+config:
+  startup:
+    language: python
+    code: input("Startup close gate> ")
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Startup close gate> "]
+        [waiting for stdin]
+  isError: false
+---
+blocked_captured_startup_retired: true

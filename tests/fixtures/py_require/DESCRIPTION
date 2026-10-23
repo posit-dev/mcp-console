@@ -1,0 +1,9 @@
+Package: mcpconsolepyrequire
+Title: MCP Console Python Requirement Fixture
+Version: 0.0.0.9000
+Authors@R: person("MCP Console", role = c("aut", "cre"), email = "fixture@example.com")
+Description: Declares a Python requirement when its namespace loads.
+License: MIT
+Encoding: UTF-8
+Imports:
+    reticulate

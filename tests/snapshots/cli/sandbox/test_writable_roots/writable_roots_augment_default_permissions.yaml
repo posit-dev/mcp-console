@@ -1,0 +1,22 @@
+---
+writable_roots: []
+stdout: |
+  private storage remains writable
+  write denied: output café 雪/created
+  write denied: cache/created
+  write denied: parent-write
+  write denied: neighbor/created
+  write denied: output café 雪/escape/created
+  network remains denied
+---
+writable_roots:
+  - output café 雪
+  - cache
+stdout: |
+  private storage remains writable
+  create, modify, delete, subprocess write allowed: output café 雪
+  create, modify, delete, subprocess write allowed: cache
+  write denied: parent-write
+  write denied: neighbor/created
+  write denied: output café 雪/escape/created
+  network remains denied

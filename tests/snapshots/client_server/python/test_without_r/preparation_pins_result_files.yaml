@@ -1,0 +1,52 @@
+---
+send:
+  python: retained = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python embedding library is missing:
+        <preparation>/missing-libpython
+  isError: true
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python embedding library is missing:
+        <preparation>/missing-libpython
+  isError: true
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

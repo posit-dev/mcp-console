@@ -1,0 +1,44 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    config = Path(matplotlib.matplotlib_fname())
+    private_probe = Path(os.environ["MPLCONFIGDIR"]) / "config-write-probe"
+    private_probe.write_text("ok", encoding="utf-8")
+
+    (
+        config.samefile(os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]),
+        matplotlib.rcParams["lines.linewidth"],
+        private_probe.read_text(encoding="utf-8") == "ok",
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (True, 8.25, True)
+  isError: false

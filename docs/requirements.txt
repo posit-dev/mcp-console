@@ -1,0 +1,5 @@
+beautifulsoup4
+great-docs==0.17.0
+pandocfilters
+py-yaml12>=0.2.0
+websockets>=15

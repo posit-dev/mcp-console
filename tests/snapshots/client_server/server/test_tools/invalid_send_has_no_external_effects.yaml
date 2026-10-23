@@ -1,0 +1,40 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: stop('invalid R cell ran')
+  requirements:
+    r:
+      - ""
+result:
+  content:
+    - type: text
+      text: R requirement strings must not be empty
+  isError: true
+---
+send:
+  python: raise AssertionError('invalid Python cell ran')
+  requirements:
+    python:
+      - example @ https://example.invalid/example.whl
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `example @ https://example.invalid/example.whl` is
+        not accepted: host-side managed resolution accepts named package
+        requirements only
+  isError: true
+---
+send:
+  sql: SELECT 1
+  requirements:
+    duckdb:
+      - spatial FROM community
+result:
+  content:
+    - type: text
+      text: >-
+        DuckDB extension names must start with a lowercase ASCII letter and
+        contain only lowercase ASCII letters, digits, and underscores
+  isError: true

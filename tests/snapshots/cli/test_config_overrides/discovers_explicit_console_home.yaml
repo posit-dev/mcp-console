@@ -1,0 +1,4 @@
+---
+console_home_override: true
+project_layering: true
+invalid_console_home_rejected: true

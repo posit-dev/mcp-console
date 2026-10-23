@@ -1,0 +1,9 @@
+---
+configuration:
+  parameters:
+    timeout_ms:
+      type: string
+stderr: >
+  configuration with CLI overrides: tool.parameters.timeout_ms.type:
+  unknown field `type`, expected one of `enabled`, `description`,
+  `schema`, `parameters`; see docs/CONFIGURATION.md for the public format

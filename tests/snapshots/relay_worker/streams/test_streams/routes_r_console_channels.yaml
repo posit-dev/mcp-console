@@ -1,0 +1,43 @@
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: r
+  source: |
+    cat("R output\n")
+    message("R diagnostic")
+    utils::file.edit(
+      c("/dev/null", "/dev/null"),
+      editor = Sys.which("true")
+    )
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: r_initialization
+  complete: false
+---
+worker:
+  kind: r_initialization
+  complete: true
+---
+worker:
+  kind: console_output
+  data: |
+    R output
+---
+worker:
+  kind: console_diagnostic
+  data: |
+    R diagnostic
+---
+worker:
+  kind: console_diagnostic
+  data: |
+    WARNING: Only editing the first in the list of files
+---
+worker:
+  kind: completed

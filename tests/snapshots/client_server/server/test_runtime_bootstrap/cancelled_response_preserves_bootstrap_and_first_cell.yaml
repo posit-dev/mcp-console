@@ -1,0 +1,63 @@
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        Python startup
+
+        [idle]
+  isError: false
+---
+send:
+  python: counter = 1; counter
+  timeout_ms: 0
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "startup> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    continue
+result:
+  content:
+    - type: text
+      text: |
+        1
+  isError: false
+---
+send:
+  python: counter
+result:
+  content:
+    - type: text
+      text: |
+        1
+  isError: false

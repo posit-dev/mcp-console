@@ -1,0 +1,27 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_shadowed_package
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import mcp_console_test_shadowed_package as package
+    from pathlib import Path
+
+    assert Path(package.__file__).samefile("mcp_console_test_shadowed_package.py")
+    package.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

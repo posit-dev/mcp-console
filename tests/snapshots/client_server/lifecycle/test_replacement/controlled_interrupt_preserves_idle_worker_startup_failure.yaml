@@ -1,0 +1,34 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - blocked-resolver
+result:
+  content:
+    - type: text
+      text: "R package resolution failed with exit status: 130: "
+  isError: true
+---
+send:
+  control: interrupt
+  stdin: |
+    unused input
+result:
+  content:
+    - type: text
+      text: |-
+        zod replacement startup failed
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+  isError: true
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

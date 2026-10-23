@@ -1,0 +1,116 @@
+---
+scenario: full-write positive control
+stdout: |
+  target started
+---
+backend: ~
+network: restricted
+filesystem: unrestricted
+stdout: |
+  target started
+exit_code: 0
+---
+backend: ~
+network: restricted
+filesystem: external sandbox
+stdout: |
+  target started
+exit_code: 0
+---
+backend: ~
+network: restricted
+filesystem: root write
+stdout: |
+  target started
+exit_code: 0
+---
+backend: ~
+network: restricted
+filesystem: shadowed read carveout
+stdout: |
+  target started
+exit_code: 0
+---
+backend: ~
+network: enabled
+filesystem: unrestricted
+stdout: |
+  target started
+exit_code: 0
+---
+backend: ~
+network: enabled
+filesystem: external sandbox
+stdout: |
+  target started
+exit_code: 0
+---
+backend: ~
+network: enabled
+filesystem: root write
+stdout: |
+  target started
+exit_code: 0
+---
+backend: ~
+network: enabled
+filesystem: shadowed read carveout
+stdout: |
+  target started
+exit_code: 0
+---
+backend: bubblewrap
+network: restricted
+filesystem: unrestricted
+stdout: |
+  target started
+exit_code: 0
+---
+backend: bubblewrap
+network: restricted
+filesystem: external sandbox
+stdout: |
+  target started
+exit_code: 0
+---
+backend: bubblewrap
+network: restricted
+filesystem: root write
+stdout: |
+  target started
+exit_code: 0
+---
+backend: bubblewrap
+network: restricted
+filesystem: shadowed read carveout
+stdout: |
+  target started
+exit_code: 0
+---
+backend: bubblewrap
+network: enabled
+filesystem: unrestricted
+stdout: |
+  target started
+exit_code: 0
+---
+backend: bubblewrap
+network: enabled
+filesystem: external sandbox
+stdout: |
+  target started
+exit_code: 0
+---
+backend: bubblewrap
+network: enabled
+filesystem: root write
+stdout: |
+  target started
+exit_code: 0
+---
+backend: bubblewrap
+network: enabled
+filesystem: shadowed read carveout
+stdout: |
+  target started
+exit_code: 0

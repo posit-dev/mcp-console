@@ -1,0 +1,90 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: Sys.setenv(RETICULATE_PYTHONPATH = "<startup modules>")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    retained_pid <- Sys.getpid()
+    retained_state <- new.env()
+    retained_state$answer <- 42L
+    native <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+    invisible(DBI::dbExecute(native, "CREATE TABLE selected AS SELECT 1 AS answer"))
+    DBI::dbBegin(native)
+    invisible(DBI::dbExecute(native, "UPDATE selected SET answer = 43"))
+    .console$sql_connection(native)
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: never_run = True
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "SQL selection replay> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 145, in use_r
+          File "<SQL selection checkpoint>", line 10, in selection_checkpoint
+          File "<string>", line 50, in _console_input
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: |
+    assert "never_run" not in globals()
+    assert id(runtime_identity) == runtime_identity_id
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      43
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      Sys.getpid() == retained_pid,
+      retained_state$answer == 42L,
+      identical(.console$sql_connection(), native),
+      DBI::dbIsValid(native),
+      DBI::dbGetQuery(native, "SELECT answer FROM selected")[[1L]] == 43
+    )
+    DBI::dbRollback(native)
+    stopifnot(DBI::dbGetQuery(native, "SELECT answer FROM selected")[[1L]] == 1)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

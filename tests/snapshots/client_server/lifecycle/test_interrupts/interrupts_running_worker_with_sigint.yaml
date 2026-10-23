@@ -1,0 +1,40 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: checkpoint 3
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: "wait for interrupt: 4"
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: |
+        zod interrupted
+  isError: false
+---
+send:
+  r: checkpoint 6
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

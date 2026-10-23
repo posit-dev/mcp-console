@@ -1,0 +1,73 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: direct_state = [41]
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    for (name in c("py_eval", "py_run_string")) {
+      invisible(suppressMessages(base::trace(
+        name,
+        tracer = quote(stop("R-mediated Python cell dispatch")),
+        print = FALSE,
+        where = asNamespace("reticulate")
+      )))
+    }
+    invisible(suppressMessages(base::trace(
+      "readline",
+      tracer = quote(stop("R-mediated Python input")),
+      print = FALSE,
+      where = baseenv()
+    )))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: direct_state.append(42); direct_state
+result:
+  content:
+    - type: text
+      text: |
+        [41, 42]
+  isError: false
+---
+send:
+  python: input("direct> ")
+  stdin: |
+    still live
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "direct> "]
+        'still live'
+  isError: false
+---
+send:
+  python: raise ValueError("direct exception")
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e4>", line 1, in <module>
+        ValueError: direct exception
+  isError: false
+---
+send:
+  python: direct_state
+result:
+  content:
+    - type: text
+      text: |
+        [41, 42]
+  isError: false

@@ -1,0 +1,104 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    first <- readline("first> ")
+    second <- readline("second> ")
+    cat(paste(first, second, sep = "|"), "\n", sep = "")
+  stdin: |
+    Ada
+    Lovelace
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "first> "]
+        [input requested: "second> "]
+        Ada|Lovelace
+  isError: false
+---
+send:
+  r: |
+    direct <- local({
+      connection <- suppressWarnings(file("/dev/stdin"))
+      on.exit(close(connection))
+      readLines(connection, n = 1)
+    })
+    prompted <- readline("after> ")
+    cat(paste(direct, prompted, sep = "|"), "\n", sep = "")
+  stdin: |
+    direct
+  timeout_ms: 1000
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "after> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    callback
+result:
+  content:
+    - type: text
+      text: |
+        direct|callback
+  isError: false
+---
+send:
+  r: |
+    paste("color", readline("color> "))
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "color> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: bl
+  timeout_ms: 50
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    ue
+result:
+  content:
+    - type: text
+      text: |
+        [1] "color blue"
+  isError: false
+---
+send:
+  r: |
+    prompt <- paste0('quoted "prompt"', "\n", "> ")
+    invisible(readline(prompt))
+  stdin: |
+    accepted
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "quoted \"prompt\"\n> "]
+  isError: false

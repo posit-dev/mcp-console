@@ -1,0 +1,41 @@
+---
+case: absent
+initialized: true
+---
+case: .agents is a file
+initialized: true
+---
+case: .agents/console is a file
+initialized: true
+---
+case: ignored .mcp-console/config.yaml
+initialized: true
+---
+case: ignored .agents/mcp-console.yaml
+initialized: true
+---
+case: only console config used
+initialized: true
+---
+case: .agents/console/config.yaml
+command: serve
+stderr: >
+  .agents/console/config.yaml: unknown: unknown field `unknown`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+case: .agents/console/config.yaml
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: unknown: unknown field `unknown`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+case: ancestors ignored
+initialized: true
+---
+case: unreadable existing path
+stderr: |
+  configuration '.agents/console/config.yaml' must be a regular file

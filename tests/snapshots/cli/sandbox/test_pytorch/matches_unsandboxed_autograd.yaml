@@ -1,0 +1,12 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - <resolved Python>
+  - tests/fixtures/pytorch_autograd.py
+result: <numbers identical to the live unsandboxed run>
+exit_code: 0
+transcript_normalization:
+  target: result
+  warnings: omitted

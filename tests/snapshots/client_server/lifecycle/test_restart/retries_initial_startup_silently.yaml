@@ -1,0 +1,21 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+  isError: true
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

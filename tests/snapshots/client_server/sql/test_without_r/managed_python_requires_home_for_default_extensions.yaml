@@ -1,0 +1,27 @@
+---
+send:
+  sql: SELECT 42 AS answer
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: >-
+        DuckDB extension preparation requires an absolute HOME at server startup
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        DuckDB extension preparation requires an absolute HOME at server startup
+  isError: true
+---
+input:
+  method: ping
+result: {}
+---
+stderr: |
+  DuckDB extension preparation requires an absolute HOME at server startup

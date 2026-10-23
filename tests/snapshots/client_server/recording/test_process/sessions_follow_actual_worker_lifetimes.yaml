@@ -1,0 +1,83 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: echo first
+result:
+  content:
+    - type: text
+      text: |
+        zod: first
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get cannot be combined with code, stdin, or control
+  isError: true
+---
+send:
+  r: echo still first
+result:
+  content:
+    - type: text
+      text: |
+        zod: still first
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: echo second
+result:
+  content:
+    - type: text
+      text: |
+        zod: second
+  isError: false
+---
+send:
+  r: exit unexpectedly
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: echo third
+result:
+  content:
+    - type: text
+      text: |
+        zod: third
+  isError: false

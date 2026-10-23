@@ -1,0 +1,141 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE answers AS SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  sql: SELECT answer FROM answers
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: |
+    import ctypes
+    import os
+
+    original_pid = os.getpid()
+    answer = 41
+    import numpy as np
+    import pandas as pd
+
+    registered = pd.DataFrame({"value": np.array([20, 22])})
+    _console.sql_connection().register("registered", registered)
+    if os.name == "nt":
+        assert ctypes.windll.kernel32.GetModuleHandleW("R.dll") == 0
+    else:
+        assert not hasattr(ctypes.CDLL(None), "Rf_initialize_R")
+    assert _console.sql_connection().execute("SELECT answer FROM answers").fetchone() == (
+        42,
+    )
+    answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  sql: SELECT sum(value) AS answer FROM registered
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+    _console.sql_connection(sqlite3.connect(":memory:"))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 7 AS temporary_answer
+result:
+  content:
+    - type: text
+      text: |
+        temporary_answer
+        ----------------
+        7
+  isError: false
+---
+send:
+  python: _console.sql_connection(None)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM answers
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: R cells are unavailable in Python sessions without R
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: R requirements are unavailable in Python sessions without R
+  isError: true
+---
+send:
+  python: (os.getpid() == original_pid, answer)
+result:
+  content:
+    - type: text
+      text: |
+        (True, 41)
+  isError: false
+---
+send:
+  sql: SELECT answer FROM answers
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false

@@ -1,0 +1,50 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import sys
+
+    _ = sys.stdout.write("\x1b[31mstyled\x1b[0m\nold\r\x1b[2Kshort\n")
+result:
+  content:
+    - type: text
+      text: |
+        styled
+        short
+  isError: false
+---
+send:
+  r: |
+    cat("\033[31mstyled\033[0m\nold\r\033[2Kshort\n")
+result:
+  content:
+    - type: text
+      text: |
+        styled
+        short
+  isError: false
+---
+send:
+  python: |
+    _ = sys.stdout.write("before\x1b]unterminated")
+    answer = input("prompt> ")
+    print("after")
+result:
+  content:
+    - type: text
+      text: |-
+        before
+        [input requested: "prompt> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        after
+  isError: false

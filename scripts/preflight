@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+"""Inventory local development prerequisites and existing test capabilities."""
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+from checkout_workflow import WINDOWS, r_executable
+
+
+def probe(*command: str) -> str:
+    result = subprocess.run(
+        [shutil.which(command[0]) or command[0], *command[1:]],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True,
+    )
+    return (result.stdout + result.stderr).strip()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true")
+    options = parser.parse_args()
+    tools = {}
+    missing = []
+    errors: dict[str, str] = {}
+    required_errors: set[str] = set()
+
+    def query(label: str, *command: str, required: bool = True) -> str | None:
+        try:
+            return probe(*command)
+        except subprocess.CalledProcessError as error:
+            errors[label] = (error.stdout + error.stderr).strip()
+        except (OSError, subprocess.TimeoutExpired) as error:
+            errors[label] = str(error)
+        if required:
+            required_errors.add(label)
+        return None
+
+    for name in ("git", "uv", "cargo", "rustup", "R", "Rscript"):
+        path = r_executable(name) if name in {"R", "Rscript"} else shutil.which(name)
+        label = f"{name}_version"
+        required = not WINDOWS or name not in {"R", "Rscript"}
+        version = query(label, path, "--version", required=required) if path else None
+        tools[name] = {
+            "path": path,
+            "version": version.splitlines()[0] if version else None,
+            "error": errors.get(label),
+            "required": required,
+        }
+        if tools[name]["version"] is None and tools[name]["required"]:
+            missing.append(name)
+    companion = json.loads(
+        probe(sys.executable, str(ROOT / "scripts/stage-sandbox-runner"), "--describe")
+    )
+    executable = ROOT / (
+        "target/debug/mcp-console.exe" if WINDOWS else "target/release/mcp-console"
+    )
+    runner_name = "mcp-console-sandbox.exe" if WINDOWS else "mcp-console-sandbox"
+    artifact_paths = [executable, ROOT / "wheel-data/data/libexec" / runner_name]
+    if WINDOWS:
+        build_record = Path(companion["build_record"])
+        build = (
+            json.loads(build_record.read_text(encoding="utf-8"))
+            if build_record.is_file()
+            else {}
+        )
+        if build.get("source_revision") == companion["pin"]["commit"]:
+            # Match build.rs: serde_json serializes the manifest with sorted keys.
+            manifest = json.dumps(
+                build,
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            digest = hashlib.sha256(manifest).hexdigest()
+            artifact_paths.append(
+                ROOT / f"target/libexec/mcp-console-{digest}/libexec" / runner_name
+            )
+    else:
+        artifact_paths.append(ROOT / "target/libexec" / runner_name)
+    artifacts = {str(path): path.is_file() for path in artifact_paths}
+
+    if WINDOWS:
+        capabilities = {}
+    else:
+        sys.path.insert(0, str(ROOT / "tests"))
+        from support.requirements import (
+            FRESH_PROCFS,
+            NESTED_NAMESPACES,
+            NESTED_PROCFS,
+            PROCESS_EVENTS,
+        )
+
+        capabilities = {
+            item.name: {"available": item.available, "reason": item.reason}
+            for item in (PROCESS_EVENTS, NESTED_NAMESPACES, NESTED_PROCFS, FRESH_PROCFS)
+        }
+    report = {
+        "checkout": str(ROOT),
+        "revision": query("revision", "git", "rev-parse", "HEAD")
+        if tools["git"]["version"] and (ROOT / ".git").exists()
+        else None,
+        "executable": {
+            "development": str(executable),
+            "present": executable.is_file(),
+            "on_path": shutil.which("mcp-console"),
+        },
+        "companion": companion,
+        "artifacts": artifacts,
+        "tools": tools,
+        "runtime": {
+            "command_python": sys.executable,
+            "command_python_version": sys.version.split()[0],
+            "python_selection": os.environ.get("RETICULATE_PYTHON")
+            or (shutil.which("python") if WINDOWS else "managed at worker startup"),
+            "r_home": os.environ.get("R_HOME")
+            or (
+                query(
+                    "r_home",
+                    tools["R"]["path"],
+                    "RHOME",
+                    required=tools["R"]["required"],
+                )
+                if tools["R"]["version"]
+                else None
+            ),
+            "rustup_toolchain": query(
+                "rustup_toolchain", "rustup", "show", "active-toolchain"
+            )
+            if tools["rustup"]["version"] and tools["cargo"]["version"]
+            else None,
+        },
+        "host_capabilities": capabilities,
+        "caches": {
+            "checkout_build": str(ROOT / "target"),
+            "runner_source": companion.get("source_checkout"),
+            "runner_build": companion.get("build_directory"),
+            "wheel_staging": companion.get("staging_directory"),
+            "cargo_home": os.environ.get("CARGO_HOME", str(Path.home() / ".cargo")),
+            "uv": query("uv_cache", "uv", "cache", "dir")
+            if tools["uv"]["version"]
+            else None,
+        },
+        "required_missing": missing,
+        "probe_errors": errors,
+    }
+    if options.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(f"Checkout: {ROOT}\nRevision: {report['revision']}")
+        print(
+            f"Development executable: {executable} ({'present' if executable.is_file() else 'missing'})"
+        )
+        print(f"PATH executable: {report['executable']['on_path']}")
+        print(
+            f"Companion pin: {companion['pin']['commit']}\nStaged revision: {companion['staged_revision']}"
+        )
+        print(f"Staged target: {companion['staged_target']}")
+        print(f"Companion toolchain: {companion['source_toolchain']}")
+        for path, present in artifacts.items():
+            print(f"Artifact: {path} ({'present' if present else 'missing'})")
+        for name, value in report["runtime"].items():
+            print(f"{name}: {value}")
+        for name, value in tools.items():
+            print(
+                f"{'Required' if value['required'] else 'Optional'} {name}: {value['version'] or 'MISSING'} ({value['path']})"
+            )
+            if value["error"]:
+                print(value["error"])
+        for name, item in report["host_capabilities"].items():
+            print(
+                f"Host {name}: {'available' if item['available'] else 'skip; ' + item['reason']}"
+            )
+        for name, path in report["caches"].items():
+            print(f"Cache {name}: {path}")
+        for label, error in errors.items():
+            print(f"Probe error ({label}): {error}")
+    raise SystemExit(bool(missing or required_errors))
+
+
+if __name__ == "__main__":
+    main()

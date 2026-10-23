@@ -1,0 +1,9 @@
+---
+completed:
+  id: 1
+  result:
+    Err: >-
+      managed Python version resolution failed with exit status: 23: fixture
+      resolver interrupted
+  control: Interrupted
+  confirmed: true

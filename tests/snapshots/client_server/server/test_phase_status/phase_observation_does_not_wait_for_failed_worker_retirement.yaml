@@ -1,0 +1,45 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: "42"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: "42"
+  timeout_ms: 500
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [scripted phase failure]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: "42"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

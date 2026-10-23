@@ -1,0 +1,70 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: "start background sideband: combined-requirements"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: echo combined cell
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: |
+        zod background sideband
+        [output produced while idle]
+        zod: combined cell
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: "start background sideband: combined-requirements-failure"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: echo failed resolver cell ran
+  requirements:
+    r:
+      - cli
+result:
+  content:
+    - type: text
+      text: |
+        idle before failure image
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+    - type: text
+      text: |-
+        idle after failure image
+        [output produced while idle]
+        R package resolution failed with exit status: 1: fixture R resolver failed
+  isError: true
+---
+send:
+  r: echo worker still usable
+result:
+  content:
+    - type: text
+      text: |
+        zod: worker still usable
+  isError: false

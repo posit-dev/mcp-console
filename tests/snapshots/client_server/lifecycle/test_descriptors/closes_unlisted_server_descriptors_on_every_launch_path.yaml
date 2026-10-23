@@ -1,0 +1,66 @@
+---
+launch_path: builtin worker
+send:
+  python: |
+    import errno
+    import os
+
+    descriptor = int(os.environ["MCP_CONSOLE_TEST_INHERITED_FD"])
+    try:
+        os.write(descriptor, b"escaped")
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise RuntimeError("unlisted server descriptor reached the worker")
+
+    print("closed")
+result:
+  content:
+    - type: text
+      text: |
+        closed
+  isError: false
+---
+launch_path: custom worker
+send:
+  python: |
+    import errno
+    import os
+
+    descriptor = int(os.environ["MCP_CONSOLE_TEST_INHERITED_FD"])
+    try:
+        os.write(descriptor, b"escaped")
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise RuntimeError("unlisted server descriptor reached the worker")
+
+    print("closed")
+result:
+  content:
+    - type: text
+      text: |
+        closed
+  isError: false
+---
+launch_path: custom relay and worker
+send:
+  python: |
+    import errno
+    import os
+
+    descriptor = int(os.environ["MCP_CONSOLE_TEST_INHERITED_FD"])
+    try:
+        os.write(descriptor, b"escaped")
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise RuntimeError("unlisted server descriptor reached the worker")
+
+    print("closed")
+result:
+  content:
+    - type: text
+      text: |
+        closed
+  isError: false

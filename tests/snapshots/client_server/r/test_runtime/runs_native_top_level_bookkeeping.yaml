@@ -1,0 +1,69 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    invisible(addTaskCallback(
+      local({
+        first <- TRUE
+        function(expr, ...) {
+          if (first) {
+            first <<- FALSE
+            return(TRUE)
+          }
+          cat(deparse1(expr), "\n", sep = "")
+          FALSE
+        }
+      }),
+      name = "mcp-console-test"
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: "# No expression to evaluate."
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    mcp_console_callback_probe <- 99
+    (
+result:
+  content:
+    - type: text
+      text: |
+        Error: <text>:4:0: unexpected end of input
+        2: (
+        3: 
+          ^
+  isError: false
+---
+send:
+  r: mcp_console_callback_probe <- 42
+result:
+  content:
+    - type: text
+      text: |
+        mcp_console_callback_probe <- 42
+  isError: false
+---
+send:
+  r: |
+    warning("careful", call. = FALSE)
+    invisible(42)
+    cat("last value: ", identical(base::.Last.value, 42), "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        Warning message:
+        careful 
+        last value: TRUE
+  isError: false

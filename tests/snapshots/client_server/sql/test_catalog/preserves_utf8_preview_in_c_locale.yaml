@@ -1,0 +1,31 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: SELECT 'façade 漢字' AS label
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          label        
+          <string>     
+        1 "façade 漢字"
+  isError: false
+---
+send:
+  sql: |
+    SELECT
+      E'line\nbreak\t"quoted"' AS controls,
+      'literal \u6f22 and \path' AS backslashes,
+      '' AS empty,
+      CAST(NULL AS VARCHAR) AS missing
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 4
+          controls                  backslashes                  empty    missing 
+          <string>                  <string>                     <string> <string>
+        1 "line\nbreak\t\"quoted\"" "literal \\u6f22 and \\path" ""       NULL    
+  isError: false

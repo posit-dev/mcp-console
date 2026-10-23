@@ -1,0 +1,24 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: cat(42, '\n', sep='')
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - jsonlite
+      - digest
+result:
+  content:
+    - type: text
+      text: >-
+        r.executable: selected R installation changed at
+        <workspace>/R/bin/Rscript; restart the server to select it again
+  isError: true

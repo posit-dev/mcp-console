@@ -1,0 +1,17 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: >-
+        managed Python version resolution failed: uv did not report a supported
+        CPython interpreter
+  isError: true
+---
+exit_status: 1
+stderr: >
+  managed Python version resolution failed: uv did not report a supported
+  CPython interpreter

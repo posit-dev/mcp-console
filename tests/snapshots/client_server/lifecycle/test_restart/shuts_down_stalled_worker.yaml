@@ -1,0 +1,6 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: stall
+  stdin: <large stdin>

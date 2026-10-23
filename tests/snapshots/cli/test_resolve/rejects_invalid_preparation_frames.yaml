@@ -1,0 +1,29 @@
+---
+case: versioned_open
+input_bytes: 43
+exit: 1
+stdout: ""
+stderr: >
+  invalid resolver JSON: unknown field `version`, expected `mode` or
+  `installation` at line 1 column 38
+---
+case: malformed_json
+input_bytes: 10
+exit: 1
+stdout: ""
+stderr: |
+  invalid resolver JSON: expected value at line 1 column 9
+---
+case: unterminated_open
+input_bytes: 30
+exit: 1
+stdout: ""
+stderr: |
+  resolver input closed
+---
+case: oversized_line
+input_bytes: 1048578
+exit: 1
+stdout: ""
+stderr: |
+  resolver JSON line exceeds 1 MiB

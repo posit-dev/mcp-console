@@ -1,0 +1,5 @@
+---
+stderr: >
+  configuration with CLI overrides: sandbox.network.proxy.socks5: tcp_udp
+  is unsupported by the pinned runner (Linux has a TCP-only bridge; native
+  UDP replies are routed back to the destination)

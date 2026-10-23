@@ -1,0 +1,37 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: preview redraw
+result:
+  content:
+    - type: text
+      text: |
+        preview head
+        progress final
+        preview tail: final diagnostic
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+    - type: text
+      text: |
+        after final image
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: echo fresh
+result:
+  content:
+    - type: text
+      text: |
+        zod: fresh
+  isError: false

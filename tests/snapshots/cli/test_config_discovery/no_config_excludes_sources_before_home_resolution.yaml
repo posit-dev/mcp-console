@@ -1,0 +1,12 @@
+---
+home: <root>/global
+skipped: true
+---
+home: relative
+skipped: true
+---
+home: ""
+skipped: true
+---
+home: ~/console
+skipped: true

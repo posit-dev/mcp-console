@@ -1,0 +1,4 @@
+---
+scenario: target closes stdin while target, runner, and launcher remain alive
+stdin_write: EPIPE
+exit_code: 0

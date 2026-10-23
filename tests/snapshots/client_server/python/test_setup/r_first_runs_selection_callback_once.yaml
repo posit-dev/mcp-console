@@ -1,0 +1,37 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    Sys.unsetenv("RETICULATE_PYTHON")
+    expected_python <- normalizePath(
+      if (.Platform$OS.type == "windows") {
+        Sys.getenv("MCP_CONSOLE_TEST_PYTHON")
+      } else {
+        Sys.which("python3")
+      }
+    )
+    callback_calls <- 0L
+    options(reticulate.python.beforeInitialized = function() {
+      callback_calls <<- callback_calls + 1L
+      reticulate::use_python(expected_python, required = TRUE)
+    })
+    config <- reticulate::py_config()
+    stopifnot(callback_calls == 1L)
+    stopifnot(identical(normalizePath(config$python), expected_python))
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: 41 + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

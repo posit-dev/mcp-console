@@ -1,0 +1,158 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    interrupt_state <- 41L
+    checkpoint <- fifo("r-interrupt-started", open = "wb")
+    writeBin(charToRaw("1"), checkpoint)
+    close(checkpoint)
+    repeat {
+      Sys.sleep(60)
+    }
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: "\n"
+  isError: false
+---
+send:
+  r: interrupt_state + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    invisible(.Call(
+      "mcp_test_register_input_handler",
+      file.path(tempdir(), "input-handler-fifo"),
+      function() {
+        # Install cleanup before the checkpoint permits interruption.
+        on.exit(boundary_interrupt_cleanup <<- TRUE)
+        checkpoint <- fifo("r-boundary-interrupt-started", open = "wb")
+        writeBin(charToRaw("1"), checkpoint)
+        close(checkpoint)
+        repeat {
+          Sys.sleep(60)
+        }
+      }
+    ))
+    boundary_interrupt_state <- 42L
+    writer <- fifo(
+      file.path(tempdir(), "input-handler-fifo"),
+      open = "wb"
+    )
+    writeBin(as.raw(1), writer)
+    close(writer)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "\n"
+  isError: false
+---
+send:
+  r: c(boundary_interrupt_state, boundary_interrupt_cleanup)
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42  1
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+
+        [idle]
+  isError: false
+---
+send:
+  r: idle_interrupt_state <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: idle_interrupt_state
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: |
+    setTimeLimit(elapsed = 10, transient = FALSE)
+    invisible(NULL)
+    setTimeLimit(elapsed = 0.05, transient = FALSE)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: '"idle time does not consume a cell limit"'
+result:
+  content:
+    - type: text
+      text: |
+        [1] "idle time does not consume a cell limit"
+  isError: false

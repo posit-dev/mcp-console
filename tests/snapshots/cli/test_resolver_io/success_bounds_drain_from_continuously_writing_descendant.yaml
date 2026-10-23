@@ -1,0 +1,9 @@
+---
+completed:
+  id: 1
+  result:
+    Ok: 3.12.7
+  control: ~
+  confirmed: true
+output_readers_closed: true
+subsequent_version: 3.12.7

@@ -1,0 +1,30 @@
+---
+send:
+  sql: SELECT 42 AS recorded
+result:
+  content:
+    - type: text
+      text: |
+        recorded
+        --------
+        42
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - json
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: _console.sql_connection().execute("SELECT 1").fetchone()
+result:
+  content:
+    - type: text
+      text: |
+        (1,)
+  isError: false

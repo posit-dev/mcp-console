@@ -1,0 +1,12 @@
+---
+saved:
+  sandbox:
+    profile: workspace
+  environment:
+    KEEP: explicit
+    VALUE: last
+  r:
+    packages: []
+    vanilla: false
+  startup: ~
+global_values: remain a separate configuration layer

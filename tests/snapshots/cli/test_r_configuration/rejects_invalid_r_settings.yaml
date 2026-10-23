@@ -1,0 +1,43 @@
+---
+setting: r.vanilla=1
+stderr: >
+  configuration with CLI overrides: r: vanilla: invalid type: integer `1`,
+  expected a boolean; see docs/CONFIGURATION.md for the public format
+---
+setting: r.vanilla=null
+stderr: >
+  configuration with CLI overrides: r: vanilla: invalid type: null,
+  expected a boolean; see docs/CONFIGURATION.md for the public format
+---
+setting: r.vanilla="false"
+stderr: >
+  configuration with CLI overrides: r: vanilla: invalid type: string
+  "false", expected a boolean; see docs/CONFIGURATION.md for the public
+  format
+---
+setting: r=[]
+stderr: >
+  configuration with CLI overrides: r: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+setting: r.executable=null
+stderr: >
+  configuration with CLI overrides: r: executable: invalid type: null,
+  expected path string; see docs/CONFIGURATION.md for the public format
+---
+setting: r.executable=1
+stderr: >
+  configuration with CLI overrides: r: executable: invalid type: integer
+  `1`, expected path string; see docs/CONFIGURATION.md for the public
+  format
+---
+setting: r.executable=""
+stderr: >
+  configuration with CLI overrides: r.executable must name an R executable
+  or launcher
+---
+setting: r.profiles=true
+stderr: >
+  configuration with CLI overrides: r: profiles: unknown field `profiles`,
+  expected one of `executable`, `packages`, `resolution`, `vanilla`; see
+  docs/CONFIGURATION.md for the public format

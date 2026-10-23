@@ -1,0 +1,25 @@
+---
+command:
+  kind: evaluate
+  language: r
+  source: "42"
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: fatal
+    message: relay stdin closed midway through a frame
+  - kind: worker_sideband_closed
+  - kind: worker_signaled
+    signal: 9
+---
+command:
+  kind: stdin
+  data: x
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: fatal
+    message: relay stdin closed midway through a frame
+  - kind: worker_sideband_closed
+  - kind: worker_signaled
+    signal: 9

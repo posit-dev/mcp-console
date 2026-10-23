@@ -1,0 +1,42 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    local({
+      user_names <- ls(globalenv(), all.names = TRUE)
+      tools <- as.environment("tools:mcp-console")
+      helpers <- c("py_import", "py_eval", "py_run_string", "py_require")
+      stopifnot(
+        sum(search() == "tools:mcp-console") == 1L,
+        identical(
+          sort(ls(tools, all.names = TRUE)),
+          sort(c(
+            ".console",
+            "py",
+            helpers
+          ))
+        ),
+        !reticulate::py_available(initialize = FALSE)
+      )
+      topics <- c("import", "py_eval", "py_run_string", "py_require")
+      for (i in seq_along(helpers)) {
+        helper <- get(helpers[[i]], envir = tools, inherits = FALSE)
+        stopifnot(
+          is.function(helper),
+          identical(helper, getExportedValue("reticulate", topics[[i]])),
+          length(help(topics[[i]], package = "reticulate")) == 1L
+        )
+      }
+      stopifnot(
+        !reticulate::py_available(initialize = FALSE),
+        identical(ls(globalenv(), all.names = TRUE), user_names)
+      )
+      cat("four lazy helpers with reticulate help\n")
+    })
+result:
+  content:
+    - type: text
+      text: |
+        four lazy helpers with reticulate help
+  isError: false

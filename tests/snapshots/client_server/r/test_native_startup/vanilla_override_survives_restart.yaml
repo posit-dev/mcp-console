@@ -1,0 +1,49 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    stopifnot(
+      Sys.getenv("CONSOLE_NATIVE_ENV") == "",
+      "--vanilla" %in% commandArgs(),
+      !exists("native_profile"),
+      !exists("restored_value"),
+      !exists(".First"),
+      "package:stats" %in% search()
+    )
+    cat("vanilla startup complete\n")
+result:
+  content:
+    - type: text
+      text: |
+        vanilla startup complete
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      Sys.getenv("CONSOLE_NATIVE_ENV") == "",
+      "--vanilla" %in% commandArgs(),
+      !exists("native_profile"),
+      !exists("restored_value"),
+      !exists(".First"),
+      "package:stats" %in% search()
+    )
+    cat("vanilla startup complete\n")
+result:
+  content:
+    - type: text
+      text: |
+        vanilla startup complete
+  isError: false

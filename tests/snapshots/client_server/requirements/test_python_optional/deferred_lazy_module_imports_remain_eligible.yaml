@@ -1,0 +1,31 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_lazy_package
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+
+    specification = importlib.util.find_spec("mcp_console_test_lazy_package")
+    specification.loader = importlib.util.LazyLoader(specification.loader)
+    package = importlib.util.module_from_spec(specification)
+    sys.modules[specification.name] = package
+    specification.loader.exec_module(package)
+    package.fallback
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false

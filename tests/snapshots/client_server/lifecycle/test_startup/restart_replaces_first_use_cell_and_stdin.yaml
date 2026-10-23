@@ -1,0 +1,90 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: startup_cell_ran = True
+  stdin: |
+    old input
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: restart
+  python: |
+    assert "startup_cell_ran" not in globals()
+    assert input() == "replacement input"
+    print("replacement only")
+  stdin: replacement input
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [starting new worker]
+        [input requested: ""]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: "\n"
+result:
+  content:
+    - type: text
+      text: |-
+        replacement only
+        [done]
+  isError: false
+---
+send:
+  python: |
+    with open("new-cell-release", "rb", buffering=0) as gate:
+        assert gate.read(1) == b"1"
+    input("replacement> ")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  stdin: |
+    replacement still usable
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "replacement> "]
+        'replacement still usable'
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

@@ -1,0 +1,39 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    str2expression <- suppressWarnings <- function(...) stop("masked parser")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    user_calls <- function() {
+      vapply(sys.calls(), deparse1, character(1))
+    }
+    calls <- user_calls()
+    cat("contains user call: ", "user_calls()" %in% calls, "\n", sep = "")
+    cat(
+      "contains internal call: ",
+      any(grepl("mcp_console|base::get", calls)),
+      "\n",
+      sep = ""
+    )
+    cat(
+      "global binding: ",
+      exists(".Last.value", envir = globalenv(), inherits = FALSE),
+      "\n",
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        contains user call: TRUE
+        contains internal call: FALSE
+        global binding: FALSE
+  isError: false

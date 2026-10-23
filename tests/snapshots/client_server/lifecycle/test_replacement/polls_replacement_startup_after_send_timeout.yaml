@@ -1,0 +1,53 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: complete silently
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: exit unexpectedly
+  timeout_ms: 1000
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [phase: replacement]
+        [worker starting]
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[requirements not prepared: worker is starting]"
+  isError: true
+---
+send:
+  r: echo startup overlap cell ran
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: "[requirements not prepared: worker is starting]"
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: "[idle]"
+  isError: false

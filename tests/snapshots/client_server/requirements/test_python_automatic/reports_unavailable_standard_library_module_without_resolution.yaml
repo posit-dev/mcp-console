@@ -1,0 +1,39 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import sys
+
+    assert "winreg" in sys.stdlib_module_names
+    try:
+        import winreg
+    except ModuleNotFoundError as error:
+        print(f"missing standard-library name: {error.name}")
+        print(error)
+result:
+  content:
+    - type: text
+      text: |
+        missing standard-library name: winreg
+        No module named 'winreg'.
+
+        'winreg' is a Python standard-library module, but it is unavailable in the selected Python build. MCP Console did not try to install a same-named PyPI distribution.
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

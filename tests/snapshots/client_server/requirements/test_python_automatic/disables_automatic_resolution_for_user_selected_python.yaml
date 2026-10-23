@@ -1,0 +1,30 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: import mcp_console_user_selected_missing
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ModuleNotFoundError: No module named 'mcp_console_user_selected_missing'
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

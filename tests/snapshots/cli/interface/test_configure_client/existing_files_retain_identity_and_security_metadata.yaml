@@ -1,0 +1,6 @@
+---
+client: codex
+file_identity_and_native_security_metadata: retained
+---
+client: claude
+file_identity_and_native_security_metadata: retained

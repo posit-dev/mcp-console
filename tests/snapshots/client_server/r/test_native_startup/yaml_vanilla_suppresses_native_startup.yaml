@@ -1,0 +1,11 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: '"--vanilla" %in% commandArgs()'
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

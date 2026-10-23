@@ -1,0 +1,26 @@
+---
+initial: dangerously_allow_all
+override: []
+native:
+  enabled: true
+  mode: full
+  enableSocks5: true
+  enableSocks5Udp: false
+  allowUpstreamProxy: false
+  domains: {}
+  unixSockets: {}
+  dangerouslyAllowAllUnixSockets: false
+  allowLocalBinding: false
+---
+initial: []
+override: dangerously_allow_all
+native:
+  enabled: true
+  mode: full
+  enableSocks5: true
+  enableSocks5Udp: false
+  allowUpstreamProxy: false
+  domains: {}
+  unixSockets: {}
+  dangerouslyAllowAllUnixSockets: true
+  allowLocalBinding: false

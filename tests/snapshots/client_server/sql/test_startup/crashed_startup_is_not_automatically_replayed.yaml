@@ -1,0 +1,61 @@
+---
+config:
+  startup:
+    language: python
+    code: |
+      import os
+      import sqlite3
+      from pathlib import Path
+
+      attempts = Path("attempts")
+      previous = attempts.read_text() if attempts.exists() else ""
+      _ = attempts.write_text(previous + "x")
+      if not previous:
+          os._exit(17)
+      native = sqlite3.connect(":memory:")
+      _console.sql_connection(native)
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 17]
+        [worker stopped: in-memory state lost]
+        [startup may have executed; explicit restart required]
+  isError: true
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: "[startup may have executed; explicit restart required]"
+  isError: true
+---
+send:
+  control: restart
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        answer
+        ------
+        42
+        [done]
+  isError: false
+---
+crashed_startup: |-
+  [worker sideband read failed: worker sideband closed]
+  [worker exited with status 17]
+  [worker stopped: in-memory state lost]
+  [startup may have executed; explicit restart required]
+automatic_replay_refused: >-
+  [startup may have executed; explicit restart required]
+explicit_restart_attempts: 2

@@ -1,0 +1,36 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: old evaluation before invalid requirements
+---
+relay:
+  kind: cell_started
+---
+server:
+  kind: interrupt
+  request_id: 0
+---
+relay:
+  kind: interrupt_result
+  request_id: 0
+---
+server:
+  kind: stdin
+  data: |
+    finish old before validation
+---
+relay:
+  kind: console_output
+  data: |
+    old evaluation finished before validation
+---
+relay:
+  kind: completed

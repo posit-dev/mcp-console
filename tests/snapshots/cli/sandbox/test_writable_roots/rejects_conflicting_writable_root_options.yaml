@@ -1,0 +1,36 @@
+---
+arguments:
+  - serve
+  - --no-sandbox
+  - --writable-root
+  - .
+exit_code: 2
+stderr: >
+  error: the argument '--no-sandbox' cannot be used with '--writable-root
+  <PATH>'
+
+
+  Usage: mcp-console serve --no-sandbox
+
+
+  For more information, try '--help'.
+---
+arguments:
+  - sandbox
+  - --runner-config-env
+  - POLICY
+  - --writable-root
+  - .
+  - --
+  - /bin/echo
+  - workload started
+exit_code: 2
+stderr: >
+  error: the argument '--runner-config-env <NAME>' cannot be used with
+  '--writable-root <PATH>'
+
+
+  Usage: mcp-console sandbox <COMMAND>...
+
+
+  For more information, try '--help'.

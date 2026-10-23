@@ -1,0 +1,64 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    reticulate::use_python(
+      normalizePath(
+        if (.Platform$OS.type == "windows") {
+          Sys.getenv("MCP_CONSOLE_TEST_PYTHON")
+        } else {
+          Sys.which("python3")
+        }
+      ),
+      required = TRUE
+    )
+    interrupted <- TRUE
+    invisible(suppressMessages(base::trace(
+      "py_discover_config",
+      exit = quote({
+        if (!interrupted) {
+          interrupted <<- TRUE
+          stop(structure(
+            list(message = "selection interrupted", call = NULL),
+            class = c("interrupt", "condition")
+          ))
+        }
+      }),
+      print = FALSE,
+      where = asNamespace("reticulate")
+    )))
+    for (previous in c(NA_character_, "before-selection")) {
+      if (is.na(previous)) {
+        Sys.unsetenv("VIRTUAL_ENV")
+      } else {
+        Sys.setenv(VIRTUAL_ENV = previous)
+      }
+      interrupted <- FALSE
+      failure <- tryCatch(reticulate::py_config(), interrupt = conditionMessage)
+      stopifnot(
+        identical(failure, "selection interrupted"),
+        identical(Sys.getenv("VIRTUAL_ENV", unset = NA_character_), previous),
+        !reticulate::py_available(initialize = FALSE)
+      )
+    }
+    invisible(suppressMessages(base::untrace(
+      "py_discover_config",
+      where = asNamespace("reticulate")
+    )))
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: 41 + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

@@ -1,0 +1,64 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    try:
+        import azure.mcp_console_missing
+    except ModuleNotFoundError as error:
+        print(f"ambiguous name: {error.name}")
+        print(error)
+
+    import mcp_console_available_root
+
+    assert mcp_console_available_root.answer == 42
+    try:
+        import mcp_console_available_root.missing
+    except ModuleNotFoundError as error:
+        print(f"installed-root name: {error.name}")
+        print(error)
+
+    try:
+        from mcp_console_available_root import missing
+    except ImportError as error:
+        print(f"from-import name: {error.name}")
+        print(error)
+
+    from mcp_console_fromlist_parent import missing as nested_direct
+
+    assert nested_direct.answer == 42
+    print(f"nested-direct name: {nested_direct.missing_name}")
+result:
+  content:
+    - type: text
+      text: |
+        ambiguous name: azure
+        No module named 'azure'.
+
+        MCP Console could not safely infer a PyPI distribution for the missing import `azure`.
+
+        Pass the distribution through `requirements.python` in the `send` call, for example:
+
+        requirements: {"python": ["distribution-name"]}
+        installed-root name: mcp_console_available_root.missing
+        No module named 'mcp_console_available_root.missing'.
+
+        MCP Console did not resolve the top-level import 'mcp_console_available_root' again because it is already present. The missing submodule may require an optional extra or a different distribution. Pass the correct distribution through `requirements.python` in the `send` call, for example:
+
+        requirements: {"python": ["distribution-name"]}
+        from-import name: mcp_console_available_root.missing
+        No module named 'mcp_console_available_root.missing'.
+
+        MCP Console did not resolve the top-level import 'mcp_console_available_root' again because it is already present. The missing submodule may require an optional extra or a different distribution. Pass the correct distribution through `requirements.python` in the `send` call, for example:
+
+        requirements: {"python": ["distribution-name"]}
+        nested-direct name: mcp_console_available_root.nested_missing
+  isError: false

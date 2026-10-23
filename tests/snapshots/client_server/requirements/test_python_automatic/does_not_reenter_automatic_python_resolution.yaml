@@ -1,0 +1,64 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import runpy
+    original_run_path = runpy.run_path
+    automatic_nested_calls = 0
+    automatic_nested_error = None
+
+    def activate_with_nested_import(*args, **kwargs):
+        global automatic_nested_calls, automatic_nested_error
+        automatic_nested_calls += 1
+        try:
+            import mcp_console_nested_resolution_missing
+        except ModuleNotFoundError as error:
+            automatic_nested_error = str(error)
+        return original_run_path(*args, **kwargs)
+
+    runpy.run_path = activate_with_nested_import
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: import yaml12; yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        'yaml12'
+  isError: false
+---
+send:
+  python: >-
+    assert automatic_nested_calls == 1; assert
+    'mcp_console_nested_resolution_missing' in automatic_nested_error;
+    print('nested resolution suppressed')
+result:
+  content:
+    - type: text
+      text: |
+        nested resolution suppressed
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

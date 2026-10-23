@@ -1,0 +1,79 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: activation_state <- 41L; activation_pid <- Sys.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    local({
+      invisible(suppressMessages(base::trace(
+        ".libPaths",
+        tracer = quote(if (!missing(new)) {
+          stop("synthetic managed R activation failure")
+        }),
+        print = FALSE,
+        where = base::baseenv()
+      )))
+      on.exit(invisible(suppressMessages(base::untrace(
+        ".libPaths",
+        where = base::baseenv()
+      ))))
+      package <- "fortunes"
+      do.call(
+        base::loadNamespace,
+        list(package = package)
+      )
+    })
+result:
+  content:
+    - type: text
+      text: |
+        Error: synthetic managed R activation failure
+  isError: false
+---
+send:
+  r: activation_state + as.integer(identical(Sys.getpid(), activation_pid))
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - english
+result:
+  content:
+    - type: text
+      text: "[restart required]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: >-
+    package <- 'fortunes'; stopifnot(do.call(base::requireNamespace,
+    list(package = package, quietly = TRUE))); 42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

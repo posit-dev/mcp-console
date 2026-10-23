@@ -1,0 +1,43 @@
+---
+send:
+  r: |
+    retained_connection <- .console$sql_connection()
+    invisible(DBI::dbExecute(
+      retained_connection,
+      "CREATE TABLE retained AS SELECT 42 AS answer"
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - parquet
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: identical(.console$sql_connection(), retained_connection)
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  r: >-
+    DBI::dbGetQuery(.console$sql_connection(), 'SELECT answer FROM
+    retained')$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

@@ -1,0 +1,91 @@
+---
+config:
+  startup:
+    language: python
+    code: |
+      import sqlite3
+
+      startup_count = globals().get("startup_count", 0) + 1
+      native = sqlite3.connect(":memory:")
+      _console.sql_connection(native)
+      input("Startup gate> ")
+      _ = native.execute("CREATE TABLE selected AS SELECT 42 AS answer")
+---
+interrupted: true
+---
+!same-as MCP initialization for this execution mode
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  sql: CREATE TABLE first_cell AS SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Startup gate> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 479, in initialize_connection
+          File "<console startup>", line 6, in <module>
+          File "<string>", line 50, in _console_input
+        KeyboardInterrupt
+        Error: configured startup did not complete; SQL withheld; explicit restart required
+  isError: false
+---
+send:
+  python: |
+    assert startup_count == 1
+    assert native.execute("SELECT count(*) FROM sqlite_master").fetchone() == (0,)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: configured startup did not complete; explicit
+        restart required
+  isError: false
+---
+send:
+  control: restart
+  stdin: |
+    continue
+  sql: SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [input requested: "Startup gate> "]
+        answer
+        ------
+        42
+        [done]
+  isError: false
+---
+send:
+  python: assert startup_count == 1
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

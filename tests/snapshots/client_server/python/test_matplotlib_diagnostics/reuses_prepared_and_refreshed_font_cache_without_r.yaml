@@ -1,0 +1,249 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    private = Path(os.environ["MPLCONFIGDIR"])
+    source = Path(os.environ["MCP_CONSOLE_TEST_FONT_SOURCE"])
+    caches = list(private.glob("fontlist-v*.json"))
+    assert len(caches) == 1 and caches[0].is_symlink()
+    assert caches[0].resolve().parent == source
+    assert Path(matplotlib.get_cachedir()) == private
+    assert Path(matplotlib.matplotlib_fname()).samefile(
+        os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]
+    )
+    assert matplotlib.rcParams["lines.linewidth"] == 7.25
+    assert matplotlib.get_backend() == "svg"
+    os.environ["MCP_CONSOLE_TEST_FONT_DISCOVERY"] = str(private / "discovery.log")
+
+    import matplotlib.pyplot as plt
+
+    _ = plt.plot([0, 1], [1, 0])
+    plt.close("all")
+    assert not (private / "discovery.log").exists()
+    print("prepared font cache and selected configuration reused")
+result:
+  content:
+    - type: text
+      text: |
+        prepared font cache and selected configuration reused
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    private = Path(os.environ["MPLCONFIGDIR"])
+    source = Path(os.environ["MCP_CONSOLE_TEST_FONT_SOURCE"])
+    caches = list(private.glob("fontlist-v*.json"))
+    assert len(caches) == 1 and caches[0].is_symlink()
+    assert caches[0].resolve().parent == source
+    assert Path(matplotlib.get_cachedir()) == private
+    assert Path(matplotlib.matplotlib_fname()).samefile(
+        os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]
+    )
+    assert matplotlib.rcParams["lines.linewidth"] == 7.25
+    assert matplotlib.get_backend() == "svg"
+    os.environ["MCP_CONSOLE_TEST_FONT_DISCOVERY"] = str(private / "discovery.log")
+
+    import matplotlib.pyplot as plt
+
+    _ = plt.plot([0, 1], [1, 0])
+    plt.close("all")
+    assert not (private / "discovery.log").exists()
+    print("prepared font cache and selected configuration reused")
+result:
+  content:
+    - type: text
+      text: |
+        prepared font cache and selected configuration reused
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    private = Path(os.environ["MPLCONFIGDIR"])
+    source = Path(os.environ["MCP_CONSOLE_TEST_FONT_SOURCE"])
+    caches = list(private.glob("fontlist-v*.json"))
+    assert len(caches) == 1 and caches[0].is_symlink()
+    assert caches[0].resolve().parent == source
+    assert Path(matplotlib.get_cachedir()) == private
+    assert Path(matplotlib.matplotlib_fname()).samefile(
+        os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]
+    )
+    assert matplotlib.rcParams["lines.linewidth"] == 7.25
+    assert matplotlib.get_backend() == "svg"
+    os.environ["MCP_CONSOLE_TEST_FONT_DISCOVERY"] = str(private / "discovery.log")
+
+    import matplotlib.pyplot as plt
+
+    _ = plt.plot([0, 1], [1, 0])
+    plt.close("all")
+    assert not (private / "discovery.log").exists()
+    print("prepared font cache and selected configuration reused")
+result:
+  content:
+    - type: text
+      text: |
+        prepared font cache and selected configuration reused
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    private = Path(os.environ["MPLCONFIGDIR"])
+    source = Path(os.environ["MCP_CONSOLE_TEST_FONT_SOURCE"])
+    caches = list(private.glob("fontlist-v*.json"))
+    assert len(caches) == 1 and caches[0].is_symlink()
+    assert caches[0].resolve().parent == source
+    assert Path(matplotlib.get_cachedir()) == private
+    assert Path(matplotlib.matplotlib_fname()).samefile(
+        os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]
+    )
+    assert matplotlib.rcParams["lines.linewidth"] == 7.25
+    assert matplotlib.get_backend() == "svg"
+    os.environ["MCP_CONSOLE_TEST_FONT_DISCOVERY"] = str(private / "discovery.log")
+
+    import matplotlib.pyplot as plt
+
+    _ = plt.plot([0, 1], [1, 0])
+    plt.close("all")
+    assert not (private / "discovery.log").exists()
+    print("prepared font cache and selected configuration reused")
+result:
+  content:
+    - type: text
+      text: |
+        prepared font cache and selected configuration reused
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - pillow
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    private = Path(os.environ["MPLCONFIGDIR"])
+    source = Path(os.environ["MCP_CONSOLE_TEST_FONT_SOURCE"])
+    caches = list(private.glob("fontlist-v*.json"))
+    assert len(caches) == 1 and caches[0].is_symlink()
+    assert caches[0].resolve().parent == source
+    assert Path(matplotlib.get_cachedir()) == private
+    assert Path(matplotlib.matplotlib_fname()).samefile(
+        os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]
+    )
+    assert matplotlib.rcParams["lines.linewidth"] == 7.25
+    assert matplotlib.get_backend() == "svg"
+    os.environ["MCP_CONSOLE_TEST_FONT_DISCOVERY"] = str(private / "discovery.log")
+
+    import matplotlib.pyplot as plt
+
+    _ = plt.plot([0, 1], [1, 0])
+    plt.close("all")
+    assert not (private / "discovery.log").exists()
+    print("prepared font cache and selected configuration reused")
+result:
+  content:
+    - type: text
+      text: |
+        prepared font cache and selected configuration reused
+  isError: false
+---
+send:
+  python: |
+    cache = next(private.glob("fontlist-v*.json"))
+    try:
+        with cache.open("ab"):
+            pass
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("prepared source is writable")
+    cache.unlink()
+    cache.write_text("worker-private cache", encoding="utf-8")
+    assert cache.read_text(encoding="utf-8") == "worker-private cache"
+    print("prepared source is read-only; private replacement is writable")
+result:
+  content:
+    - type: text
+      text: |
+        prepared source is read-only; private replacement is writable
+  isError: false

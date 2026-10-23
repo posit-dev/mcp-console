@@ -1,0 +1,130 @@
+---
+command: serve
+arguments:
+  - --config-file
+  - selected.yaml
+  - serve
+  - --no-config
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: serve
+arguments:
+  - --no-config
+  - serve
+  - --config-file
+  - selected.yaml
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: serve
+arguments:
+  - --config-file
+  - selected.yaml
+  - serve
+  - --no-global-config
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: serve
+arguments:
+  - --no-global-config
+  - serve
+  - --config-file
+  - selected.yaml
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: serve
+arguments:
+  - --config-file
+  - selected.yaml
+  - serve
+  - --no-project-config
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: serve
+arguments:
+  - --no-project-config
+  - serve
+  - --config-file
+  - selected.yaml
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: serve
+duplicate_file_rejected: true
+stderr: |
+  --config-file may be supplied only once
+---
+command: sandbox
+arguments:
+  - --config-file
+  - selected.yaml
+  - sandbox
+  - --no-config
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: sandbox
+arguments:
+  - --no-config
+  - sandbox
+  - --config-file
+  - selected.yaml
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: sandbox
+arguments:
+  - --config-file
+  - selected.yaml
+  - sandbox
+  - --no-global-config
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: sandbox
+arguments:
+  - --no-global-config
+  - sandbox
+  - --config-file
+  - selected.yaml
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: sandbox
+arguments:
+  - --config-file
+  - selected.yaml
+  - sandbox
+  - --no-project-config
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: sandbox
+arguments:
+  - --no-project-config
+  - sandbox
+  - --config-file
+  - selected.yaml
+stderr: >
+  --config-file cannot be combined with --no-config, --no-global-config,
+  or --no-project-config
+---
+command: sandbox
+duplicate_file_rejected: true
+stderr: |
+  --config-file may be supplied only once

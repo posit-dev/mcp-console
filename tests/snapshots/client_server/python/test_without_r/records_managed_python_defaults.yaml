@@ -1,0 +1,38 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import numpy, pandas
+
+    retained = 42
+    retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  requirements:
+    action: set
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

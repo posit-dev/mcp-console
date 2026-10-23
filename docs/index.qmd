@@ -1,0 +1,98 @@
+---
+title: MCP Console
+subtitle: Give your agent an interactive workbench for data.
+description: >-
+  An interactive, sandboxed workspace for AI agents working with data in
+  R, Python, and SQL.
+hide-description: true
+toc: false
+sidebar: false
+---
+
+MCP Console lets your agent explore data and develop code interactively in R, Python, and SQL.
+
+Code runs in an [OS-level sandbox](SANDBOX.md) by default.
+Console prepares environments and packages automatically; no Console configuration file is required.
+
+Console works with MCP-compatible clients such as Codex and Claude Code and does not depend on a particular model provider.
+You can also use Console from [R](R.md) or [Python](PYTHON.md).
+
+::: {.home-links}
+[Get started](getting-started.qmd){.btn .btn-primary} [Build on Console](BUILD.md){.btn .btn-outline-primary} [Reference](REFERENCE.md){.btn .btn-outline-primary}
+:::
+
+Console provides a unified API across macOS, Linux, and Windows x64.
+It is currently a **development preview**.
+
+## Work iteratively
+
+Console gives agents the interactive affordances of a REPL, so they can work iteratively: run code, inspect results, and decide what to try next.
+They can refine plots, read help, respond to interactive prompts, and step through code in a debugger.
+Long computations can keep running between calls, and agents can interrupt work or restart an unresponsive session.
+
+The environment is designed for agents, with help and output formatted for them.
+For example, Console collapses progress bar redraws and previews large results to keep them from flooding the model's context.
+The agent can then inspect those results in more detail without rerunning the computation.
+
+## Use one language or combine them {#one-workspace-three-languages}
+
+Console embeds R, Python, and DuckDB in the same process.
+The agent can switch between R, Python, and SQL on any turn, choosing the language and libraries that make each task easiest or most efficient.
+It can reuse live data and models across languages without exporting and reloading intermediate files.
+
+[Reticulate](https://rstudio.github.io/reticulate/) connects R and Python, and [DuckDB](https://duckdb.org/) can query in-memory data frames as SQL views.
+
+R and Python can each run without the other.
+
+See [Sessions and languages](BUILTIN_RUNTIME.md) for examples, database connections, and plots.
+
+## Use a full runtime in a sandbox {#status-and-trust}
+
+Console uses native R and Python runtimes, with access to their package ecosystems, including packages with compiled code.
+An OS-level sandbox enforces limits on file and network access.
+
+The default `read_only` sandbox profile restricts network access and filesystem writes.
+You can customize these permissions to allow writes to selected paths, block reads from selected paths, and control network access with domain allowlists or denylists.
+See [Sandbox and trust](SANDBOX.md) for the defaults and how to adapt them to your work.
+
+<span id="run-commands-in-a-sandbox"></span>
+
+The [`mcp-console sandbox` subcommand](SANDBOX_COMMAND.md) makes the same sandbox available for scripts and other programs, independently of an agent session.
+The permissions apply to the command and its child processes.
+
+```sh
+mcp-console sandbox -- python analysis.py
+```
+
+## Use packages without managing environments {#environment-setup}
+
+Console automatically prepares its own environments and package libraries, reusing cached installations across sessions.
+You don't need to create an environment or install packages for the agent.
+
+The agent can request packages from the full R and Python ecosystems as an analysis develops, without requiring approval for each package.
+By default, these requests are handled in a separate OS-level sandbox, with writes limited to dependency caches and temporary directories and network access limited to allowed package and tooling hosts.
+Installing a package doesn't expand the permissions of the agent's code.
+
+See [Packages and environments](REQUIREMENTS.md).
+
+## Review the agent's work
+
+[Recordings](RECORDING.md) retain code, output, and plots so you can see what the agent ran in Console and inspect the results.
+They also provide a starting point for reproducible analyses and reports.
+
+## Build on Console {#build-on-console}
+
+Replace the complete tool description and instructions, choose which language interfaces and parameters the model can use, and preconfigure the runtime.
+Set sandbox permissions to control access to files and networks.
+
+For example, build a data chat with only SQL and a selected database connection, or a reporting assistant with a prepared R or Python environment.
+
+[Build on Console](BUILD.md) introduces tool customization, prepared sessions, and the R and Python clients.
+
+## Where Console fits
+
+- **Unattended analysis:** run long analyses with limits on filesystem writes and network access.
+- **Model evaluations:** evaluate how an agent explores data, checks its work, and responds to results.
+- **Conversational exploration:** discuss questions and results while the agent works in its own session.
+- **Large datasets:** keep data and intermediate results in memory for follow-up questions.
+- **Debugging and package development:** pause execution and inspect live objects where a failure occurs.

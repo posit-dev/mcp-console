@@ -1,0 +1,50 @@
+---
+initial: restricted
+override:
+  proxy: {}
+network: restricted
+proxy:
+  enabled: true
+  mode: full
+  enableSocks5: true
+  enableSocks5Udp: false
+  allowUpstreamProxy: false
+  domains: {}
+  unixSockets: {}
+  dangerouslyAllowAllUnixSockets: false
+  allowLocalBinding: false
+---
+initial:
+  proxy: {}
+override: enabled
+network: enabled
+proxy: ~
+---
+initial: enabled
+override: restricted
+network: restricted
+proxy: ~
+---
+socks5: disabled
+native:
+  enabled: true
+  mode: full
+  enableSocks5: false
+  enableSocks5Udp: false
+  allowUpstreamProxy: false
+  domains: {}
+  unixSockets: {}
+  dangerouslyAllowAllUnixSockets: false
+  allowLocalBinding: false
+---
+socks5: tcp
+native:
+  enabled: true
+  mode: full
+  enableSocks5: true
+  enableSocks5Udp: false
+  allowUpstreamProxy: false
+  domains: {}
+  unixSockets: {}
+  dangerouslyAllowAllUnixSockets: false
+  allowLocalBinding: false

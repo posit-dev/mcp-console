@@ -1,0 +1,76 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - later
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    callback_gate <- tempfile("mcp-console-callback-gate-")
+    callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+    callback_complete <- tempfile("mcp-console-callback-complete-")
+    run_callback <- function() {
+      if (!file.exists(callback_gate)) {
+        later::later(run_callback, delay = 0.01)
+        return(invisible(NULL))
+      }
+      stopifnot(file.create(callback_checkpoint))
+      reticulate::py_require("py-yaml12")
+      cat("idle Python activated\n")
+      stopifnot(file.create(callback_complete))
+    }
+    later::later(run_callback, delay = 0.01)
+    cat(callback_gate, callback_checkpoint, callback_complete, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <worker callback gate>
+        <worker callback checkpoint>
+        <worker callback complete>
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        idle Python activated
+
+        [idle]
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: import yaml12; yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        'yaml12'
+  isError: false

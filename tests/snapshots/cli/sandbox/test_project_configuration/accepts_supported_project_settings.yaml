@@ -1,0 +1,95 @@
+---
+configuration: {}
+command:
+  - mcp-console
+  - serve
+  - --worker
+  - unused-worker
+  - --writable-root
+  - future CLI
+initialized: true
+exit_status: 0
+stderr: ""
+---
+configuration:
+  sandbox: {}
+command:
+  - mcp-console
+  - serve
+  - --worker
+  - unused-worker
+  - --writable-root
+  - future CLI
+initialized: true
+exit_status: 0
+stderr: ""
+---
+configuration:
+  sandbox:
+    network:
+      proxy: {}
+command:
+  - mcp-console
+  - serve
+  - --worker
+  - unused-worker
+  - --writable-root
+  - future CLI
+initialized: true
+exit_status: 0
+stderr: ""
+---
+configuration:
+  sandbox:
+    filesystem:
+      read_write:
+        - ./out
+command:
+  - mcp-console
+  - serve
+  - --worker
+  - unused-worker
+  - --writable-root
+  - future CLI
+initialized: true
+exit_status: 0
+stderr: ""
+---
+configuration:
+  sandbox:
+    filesystem:
+      read_write:
+        - ./future café 雪
+command:
+  - mcp-console
+  - serve
+  - --worker
+  - unused-worker
+  - --writable-root
+  - future CLI
+initialized: true
+exit_status: 0
+stderr: ""
+---
+configuration:
+  sandbox:
+    network:
+      proxy:
+        mode: limited
+        allow_upstream_proxy: true
+        domains:
+          allow:
+            - "*.example.com"
+          deny:
+            - blocked.example.com
+      allow_local_binding: true
+command:
+  - mcp-console
+  - serve
+  - --worker
+  - unused-worker
+  - --writable-root
+  - future CLI
+initialized: true
+exit_status: 0
+stderr: ""

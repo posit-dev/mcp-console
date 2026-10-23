@@ -1,0 +1,40 @@
+---
+config:
+  startup:
+    language: r
+    code: |-
+      startup_count <- 1L
+      .console$sql_connection(NULL)
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE never_run AS SELECT 99 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        Error: startup must select a valid native connection with .console$sql_connection(connection)
+        Error: configured startup did not complete; SQL withheld; explicit restart required
+        Error: SQL unavailable: configured startup did not complete; explicit restart required
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(startup_count == 1L, !"never_run" %in%
+    DBI::dbListTables(.console$sql_connection()))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: configured startup did not complete; explicit
+        restart required
+  isError: false

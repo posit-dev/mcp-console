@@ -1,0 +1,4 @@
+---
+output: hello
+control: interrupted
+closed: true

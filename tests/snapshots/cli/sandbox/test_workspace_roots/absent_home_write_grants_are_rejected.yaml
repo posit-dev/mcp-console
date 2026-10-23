@@ -1,0 +1,19 @@
+---
+grant: missing
+stdout: |
+  absent home remains read-only
+stderr: >
+  Warning: refusing relative writable root 'missing'; use an absolute path
+  to grant writes to the home directory or filesystem root
+---
+grant: missing/home
+stdout: |
+  absent home remains read-only
+stderr: >
+  Warning: refusing relative writable root 'missing/home'; use an absolute
+  path to grant writes to the home directory or filesystem root
+---
+grant: output
+stdout: |
+  unrelated absent root accepted
+stderr: ""

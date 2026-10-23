@@ -1,0 +1,65 @@
+---
+send:
+  sql: SELECT 1
+result:
+  content:
+    - type: text
+      text: >
+        Error: DuckDB is unavailable; add duckdb with requirements.python and
+        control: restart in a managed session, install it before starting a
+        selected Python environment, or select a DB-API connection with
+        _console.sql_connection(connection)
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import sqlite3
+
+    assert importlib.util.find_spec("duckdb") is None
+    selected = sqlite3.connect(":memory:")
+    selected.execute("CREATE TABLE custom(value INTEGER)")
+    selected.execute("INSERT INTO custom VALUES (21)")
+    _console.sql_connection(selected)
+    assert _console.sql_connection() is selected
+    print("custom connection selected")
+result:
+  content:
+    - type: text
+      text: |
+        custom connection selected
+  isError: false
+---
+send:
+  sql: SELECT value * 2 AS answer FROM custom
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: >-
+    _console.sql_connection(None); selected.execute('SELECT value FROM
+    custom').fetchone()
+result:
+  content:
+    - type: text
+      text: |
+        (21,)
+  isError: false
+---
+send:
+  sql: SELECT 1
+result:
+  content:
+    - type: text
+      text: >
+        Error: DuckDB is unavailable; add duckdb with requirements.python and
+        control: restart in a managed session, install it before starting a
+        selected Python environment, or select a DB-API connection with
+        _console.sql_connection(connection)
+  isError: false

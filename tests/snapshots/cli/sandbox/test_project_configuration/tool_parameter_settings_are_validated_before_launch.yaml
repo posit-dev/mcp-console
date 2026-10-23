@@ -1,0 +1,116 @@
+---
+case: unknown
+visibility: configuration
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: tool.parameters.missing: unknown or
+  unavailable parameter
+---
+case: unknown
+visibility: configuration
+command: serve
+stderr: >
+  .agents/console/config.yaml: tool.parameters.missing: unknown or
+  unavailable parameter
+---
+case: unknown
+visibility: environment
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: tool.parameters.missing: unknown or
+  unavailable parameter
+---
+case: unknown
+visibility: environment
+command: serve
+stderr: >
+  .agents/console/config.yaml: tool.parameters.missing: unknown or
+  unavailable parameter
+---
+case: unavailable
+visibility: configuration
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: tool.parameters.r: unknown or unavailable
+  parameter
+---
+case: unavailable
+visibility: configuration
+command: serve
+stderr: >
+  .agents/console/config.yaml: tool.parameters.r: unknown or unavailable
+  parameter
+---
+case: unavailable
+visibility: environment
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: tool.parameters.r: unknown or unavailable
+  parameter
+---
+case: unavailable
+visibility: environment
+command: serve
+stderr: >
+  .agents/console/config.yaml: tool.parameters.r: unknown or unavailable
+  parameter
+---
+case: unknown nested
+visibility: configuration
+command: sandbox
+stderr: >
+  .agents/console/config.yaml:
+  tool.parameters.requirements.parameters.missing: unknown or unavailable
+  parameter
+---
+case: unknown nested
+visibility: configuration
+command: serve
+stderr: >
+  .agents/console/config.yaml:
+  tool.parameters.requirements.parameters.missing: unknown or unavailable
+  parameter
+---
+case: unknown nested
+visibility: environment
+command: sandbox
+stderr: >
+  .agents/console/config.yaml:
+  tool.parameters.requirements.parameters.missing: unknown or unavailable
+  parameter
+---
+case: unknown nested
+visibility: environment
+command: serve
+stderr: >
+  .agents/console/config.yaml:
+  tool.parameters.requirements.parameters.missing: unknown or unavailable
+  parameter
+---
+case: scalar children
+visibility: configuration
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: tool.parameters.timeout_ms.parameters: this
+  parameter has no nested parameters
+---
+case: scalar children
+visibility: configuration
+command: serve
+stderr: >
+  .agents/console/config.yaml: tool.parameters.timeout_ms.parameters: this
+  parameter has no nested parameters
+---
+case: scalar children
+visibility: environment
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: tool.parameters.timeout_ms.parameters: this
+  parameter has no nested parameters
+---
+case: scalar children
+visibility: environment
+command: serve
+stderr: >
+  .agents/console/config.yaml: tool.parameters.timeout_ms.parameters: this
+  parameter has no nested parameters

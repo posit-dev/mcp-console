@@ -1,0 +1,80 @@
+---
+!same-as custom-writable MCP initialization for this execution mode
+---
+send:
+  json:
+    text_bytes: 16422
+    concat:
+      - '{"argument head '
+      - repeat: éλ
+        count: 4096
+      - ' argument tail": true}'
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8191
+        concat:
+          - "failed to deserialize parameters: unknown field `argument head "
+          - repeat: éλ
+            count: 1001
+          - "[… omitted 8416 rendered UTF-8 bytes; not retained …]"
+          - repeat: éλ
+            count: 991
+          - " argument tail`, expected one of `r`, `python`, `sql`, `control`, `requirements`, `stdin`, `timeout_ms`"
+  isError: true
+---
+send:
+  json:
+    text_bytes: 16427
+    concat:
+      - '{"control": "argument head '
+      - repeat: éλ
+        count: 4096
+      - ' argument tail"}'
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8192
+        concat:
+          - "failed to deserialize parameters: unknown variant `argument head "
+          - repeat: éλ
+            count: 1000
+          - é[… omitted 8364 rendered UTF-8 bytes; not retained …]λ
+          - repeat: éλ
+            count: 1004
+          - " argument tail`, expected `interrupt` or `restart`"
+  isError: true
+---
+send:
+  json:
+    text_bytes: 16430
+    concat:
+      - '{"timeout_ms": "argument head '
+      - repeat: éλ
+        count: 4096
+      - ' argument tail"}'
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8190
+        concat:
+          - 'failed to deserialize parameters: invalid type: string "argument head '
+          - repeat: éλ
+            count: 999
+          - "[… omitted 8350 rendered UTF-8 bytes; not retained …]λ"
+          - repeat: éλ
+            count: 1009
+          - ' argument tail", expected u64'
+  isError: true
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false

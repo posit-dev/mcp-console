@@ -1,0 +1,19 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    stopifnot(
+      identical(dirname(find.package("praise")), .libPaths()[[managed_index]])
+    )
+    praise::praise("ready")
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: |
+        [1] "ready"
+  isError: false

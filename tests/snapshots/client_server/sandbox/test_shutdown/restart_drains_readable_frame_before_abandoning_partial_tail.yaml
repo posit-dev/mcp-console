@@ -1,0 +1,42 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: complete silently
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: wait after readable frame and partial tail
+result:
+  content:
+    - type: text
+      text: |-
+        zod readable retirement frame
+        [stopped by session restart request before evaluation finished]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: echo replacement ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: replacement ready
+  isError: false

@@ -1,0 +1,28 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.r-only-writable.yaml
+---
+send:
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: |
+        native profile contained
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    r:
+      - MASS
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        native profile contained
+        [done]
+  isError: false

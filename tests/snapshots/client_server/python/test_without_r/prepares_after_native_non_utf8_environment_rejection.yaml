@@ -1,0 +1,21 @@
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        mcp-console-sandbox: environment key must be UTF-8
+        [worker relay exited before readiness]
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false

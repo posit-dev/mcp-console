@@ -1,0 +1,5 @@
+---
+normal_text_exact: true
+long_unicode_log_readable: true
+utf8_head_tail_and_omission_exact: true
+poll_consumed_notice: true

@@ -1,0 +1,72 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: python_sentinel = 40
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE automatic_r_state AS SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    sentinel <- 42L
+    worker_pid <- Sys.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(is.function(mcpfirst::fixture))
+    suppressPackageStartupMessages(library(mcpsecond))
+    stopifnot(
+      identical(sentinel, 42L),
+      identical(Sys.getpid(), worker_pid),
+      suppressPackageStartupMessages(require(mcpfirst, quietly = TRUE)),
+      requireNamespace("mcpsecond", quietly = TRUE)
+    )
+    connection <- suppressWarnings(file("/dev/stdin"))
+    on.exit(close(connection))
+    input <- readLines(connection, n = 1L)
+    cat("answer: ", input, "\n", sep = "")
+  stdin: |
+    42
+result:
+  content:
+    - type: text
+      text: |
+        answer: 42
+  isError: false
+---
+send:
+  python: python_sentinel + 2
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  sql: SELECT answer FROM automatic_r_state
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false

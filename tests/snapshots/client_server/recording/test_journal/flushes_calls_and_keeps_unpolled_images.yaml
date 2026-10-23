@@ -1,0 +1,57 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: complete after release
+result:
+  content:
+    - type: text
+      text: |
+        zod: complete after release
+  isError: false
+---
+send:
+  r: emit image before completion
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        <leading newline>[elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 3000
+result:
+  content:
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+  isError: false
+---
+live journal:
+  while first call was running:
+    - recording_started
+    - tool_call
+  after first call completed:
+    - recording_started
+    - tool_call
+    - cell_output
+    - tool_result
+  unpolled image:
+    event: image_retained
+    path: capture/sessions/001/cell-002-001.png
+    data: <byte-identical decoded PNG>
+  later poll result:
+    content:
+      - type: image
+        mimeType: image/png
+        artifactId: 1
+        path: capture/sessions/001/cell-002-001.png
+    isError: false
+  Markdown projection:
+    live before result: true
+    each snapshot retained as an exact prefix: true
+    inode retained: true
+  Quarto projection: source cells only

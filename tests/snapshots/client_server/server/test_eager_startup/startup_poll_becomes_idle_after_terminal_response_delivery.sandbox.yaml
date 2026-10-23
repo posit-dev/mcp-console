@@ -1,0 +1,69 @@
+---
+scenario: >-
+  An admitted poll follows another call's terminal delivery and preserves
+  its input.
+fixture: >-
+  Admit a cell during blocked discovery, give one poll its terminal
+  result, then submit another poll while the completed response's
+  transport write is held. Observe its receipt in capture before releasing
+  the write.
+---
+!same-as writable MCP initialization for this execution mode
+---
+send:
+  r: cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L
+  requirements:
+    action: set
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  stdin: |
+    retained input
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    local({
+      connection <- suppressWarnings(file("/dev/stdin"))
+      on.exit(close(connection))
+      readLines(connection, n = 1)
+    })
+result:
+  content:
+    - type: text
+      text: |
+        [1] "retained input"
+  isError: false
+---
+send:
+  r: 43L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 43
+  isError: false

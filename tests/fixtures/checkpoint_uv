@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+
+import os
+import signal
+import sys
+
+
+def notify(path: str) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "wb", buffering=0) as stream:
+        stream.write(b"1")
+
+
+def wait(path: str) -> None:
+    with open(path, "rb", buffering=0) as stream:
+        assert stream.read(1) == b"1"
+
+
+def wait_for_interrupt() -> None:
+    signum = signal.sigwait({signal.SIGINT})
+    assert signum == signal.SIGINT
+    notify(os.environ["MCP_CONSOLE_TEST_UV_INTERRUPTED"])
+    wait(os.environ["MCP_CONSOLE_TEST_UV_INTERRUPT_RELEASE"])
+    raise SystemExit(128 + signum)
+
+
+def checkpoint() -> None:
+    argument = os.environ["MCP_CONSOLE_TEST_UV_CHECKPOINT_ARGUMENT"]
+    if not any(argument in value for value in sys.argv[1:]):
+        return
+
+    claim = os.environ["MCP_CONSOLE_TEST_UV_CHECKPOINT_CLAIM"]
+    try:
+        descriptor = os.open(claim, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        return
+    os.close(descriptor)
+
+    interruptible = "MCP_CONSOLE_TEST_UV_INTERRUPTED" in os.environ
+    if interruptible:
+        # Block before readiness so an early SIGINT stays pending for sigwait.
+        # A Python callback can remain deferred across a blocking FIFO read.
+        previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+        assert signal.SIGINT not in previous
+
+    notify(os.environ["MCP_CONSOLE_TEST_UV_STARTED"])
+
+    if interruptible:
+        wait_for_interrupt()
+    wait(os.environ["MCP_CONSOLE_TEST_UV_RELEASE"])
+
+
+def reuse_resolved_python() -> None:
+    # Candidate-manifest lifecycle tests reuse the real interpreter resolved at
+    # startup. Execute uv's post-`--` probe unchanged so reticulate observes the
+    # normal output-file contract without another external package resolution.
+    configured = os.environ.get("MCP_CONSOLE_TEST_UV_REUSE_REQUIREMENTS")
+    if configured is None:
+        return
+
+    try:
+        separator = sys.argv.index("--")
+    except ValueError:
+        return
+    arguments = sys.argv[1:separator]
+    with_requirements = {
+        arguments[index + 1]
+        for index, argument in enumerate(arguments[:-1])
+        if argument == "--with"
+    }
+    requirements = set(configured.split(os.pathsep))
+    matched = requirements.intersection(with_requirements)
+    if not matched:
+        return
+
+    assert len(matched) == 1, matched
+    requirement = matched.pop()
+    command = sys.argv[separator + 1 :]
+    assert command and command[0] == "python", command
+
+    path = os.environ["MCP_CONSOLE_TEST_UV_REUSE_PYTHON"]
+    with open(path, encoding="utf-8") as stream:
+        python = stream.read().strip()
+    assert os.path.isabs(python) and os.path.isfile(python), python
+
+    if requirement == os.environ.get("MCP_CONSOLE_TEST_UV_PROVIDE_REQUIREMENT"):
+        # Make an automatic import completable only after its candidate resolves.
+        module = os.environ["MCP_CONSOLE_TEST_UV_PROVIDE_MODULE"]
+        with open(module, "x", encoding="utf-8") as stream:
+            stream.write("# Materialized by the deterministic uv fixture.\n")
+
+    record = os.environ["MCP_CONSOLE_TEST_UV_REUSE_RECORD"]
+    with open(record, "a", encoding="utf-8") as stream:
+        stream.write(requirement + "\n")
+    os.execv(python, [python, *command[1:]])
+
+
+def main() -> None:
+    checkpoint()
+    reuse_resolved_python()
+    executable = os.environ["MCP_CONSOLE_TEST_REAL_UV"]
+    os.execv(executable, [executable, *sys.argv[1:]])
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise KeyboardInterrupt from None

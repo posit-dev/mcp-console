@@ -1,0 +1,11 @@
+---
+submitted_interrupts: 17
+acknowledged_interrupts: 16
+stdout_prefix:
+  repeated_event:
+    kind: console_output
+    data: |
+      blocked output
+exit_code: 1
+stderr: |
+  relay supervisor event queue capacity exceeded

@@ -1,0 +1,88 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    Sys.setenv(PYTHONPATH = "selection-original")
+    original_environment <- Sys.getenv(
+      c(
+        "VIRTUAL_ENV",
+        "R_SESSION_INITIALIZED",
+        "PYTHONIOENCODING",
+        "PATH",
+        "LD_LIBRARY_PATH",
+        "PYTHONPATH"
+      ),
+      unset = NA_character_
+    )
+    selection_env_interrupted <- FALSE
+    invisible(suppressMessages(base::trace(
+      "py_discover_config",
+      exit = quote({
+        if (!selection_env_interrupted) {
+          selection_env_interrupted <<- TRUE
+          stop(base::structure(
+            base::list(
+              message = "synthetic selection environment interrupt",
+              call = NULL
+            ),
+            class = c("interrupt", "condition")
+          ))
+        }
+      }),
+      print = FALSE,
+      where = asNamespace("reticulate")
+    )))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    raise AssertionError("interrupted selection ran the cell")
+result:
+  content:
+    - type: text
+      text: |
+        Error: synthetic selection environment interrupt
+  isError: false
+---
+send:
+  r: |
+    stopifnot(selection_env_interrupted)
+    stopifnot(identical(
+      Sys.getenv(names(original_environment), unset = NA_character_),
+      original_environment
+    ))
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: 41 + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: |
+    stopifnot(identical(
+      Sys.getenv("PYTHONPATH"),
+      original_environment[["PYTHONPATH"]]
+    ))
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

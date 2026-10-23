@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+
+
+def main() -> None:
+    requirement = os.environ["MCP_CONSOLE_TEST_IR_REQUIREMENT"]
+    if requirement in sys.argv[1:]:
+        print(os.environ["MCP_CONSOLE_TEST_IR_LIBRARY"], end="")
+        return
+
+    executable = os.environ["MCP_CONSOLE_TEST_REAL_IR"]
+    os.execv(executable, [executable, *sys.argv[1:]])
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,47 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server_raw: <partial stdin frame>
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: "42"
+---
+relay:
+  kind: cell_started
+---
+relay:
+  kind: completed
+---
+server:
+  kind: shutdown
+  grace_millis: <remaining shutdown grace>
+---
+relay:
+  kind: shutdown_started
+---
+relay:
+  kind: stdout_closed
+---
+relay:
+  kind: stderr_closed
+---
+relay:
+  kind: worker_sideband_closed
+---
+relay:
+  kind: worker_exited
+  code: 0

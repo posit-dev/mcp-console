@@ -1,0 +1,33 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    answer = 42
+    import sys
+    import threading
+
+
+    def explicit_exit():
+        raise SystemExit(33)
+
+
+    for terminate in (lambda: sys.exit(33), explicit_exit):
+        thread = threading.Thread(target=terminate)
+        thread.start()
+        thread.join()
+        assert not thread.is_alive()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

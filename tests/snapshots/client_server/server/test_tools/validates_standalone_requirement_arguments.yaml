@@ -1,0 +1,94 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  requirements: {}
+result:
+  content:
+    - type: text
+      text: >-
+        at least one of `requirements.r`, `requirements.python`, or
+        `requirements.duckdb` is required
+  isError: true
+---
+send:
+  requirements:
+    duckdb:
+      - spatial FROM community
+result:
+  content:
+    - type: text
+      text: >-
+        DuckDB extension names must start with a lowercase ASCII letter and
+        contain only lowercase ASCII letters, digits, and underscores
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - ""
+result:
+  content:
+    - type: text
+      text: R requirement strings must not be empty
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - |-
+        cli
+        dplyr
+result:
+  content:
+    - type: text
+      text: R requirement strings must not contain NUL or line breaks
+  isError: true
+---
+send:
+  control: interrupt
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: '`requirements` with `control = "interrupt"` requires a code cell'
+  isError: true
+---
+send:
+  control: restart
+  requirements: {}
+result:
+  content:
+    - type: text
+      text: >-
+        at least one of `requirements.r`, `requirements.python`, or
+        `requirements.duckdb` is required
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - |-
+        cli
+        dplyr
+result:
+  content:
+    - type: text
+      text: R requirement strings must not contain NUL or line breaks
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    duckdb:
+      - spatial FROM community
+result:
+  content:
+    - type: text
+      text: >-
+        DuckDB extension names must start with a lowercase ASCII letter and
+        contain only lowercase ASCII letters, digits, and underscores
+  isError: true

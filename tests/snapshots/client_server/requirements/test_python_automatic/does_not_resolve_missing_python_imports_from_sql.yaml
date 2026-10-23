@@ -1,0 +1,178 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE managed_restore_value AS SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import importlib
+
+    sql_import_stages = []
+
+
+    def miss(stage):
+        sql_import_stages.append(stage)
+        try:
+            importlib.import_module("mcp_console_sql_missing_" + stage)
+        except ModuleNotFoundError:
+            pass
+
+
+    class ColumnName:
+        def __str__(self):
+            miss("name")
+            return "answer"
+
+
+    class Value:
+        def __repr__(self):
+            miss("repr")
+            return "42"
+
+
+    class Cursor:
+        @property
+        def description(self):
+            miss("description")
+            return ((ColumnName(),),)
+
+        def execute(self, source):
+            miss("execute")
+            return self
+
+        def fetchmany(self, size):
+            miss("fetch")
+            return [(Value(),)][:size]
+
+        def close(self):
+            miss("close")
+
+
+    class Connection:
+        def cursor(self):
+            miss("cursor")
+            return Cursor()
+
+
+    _console.sql_connection(Connection())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: ANSWER
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  sql: ANSWER AGAIN
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: sorted(set(sql_import_stages))
+result:
+  content:
+    - type: text
+      text: |
+        ['close', 'cursor', 'description', 'execute', 'fetch', 'name', 'repr']
+  isError: false
+---
+send:
+  python: |
+    import _mcp_console_sql
+    import sys
+
+    use_r_code = _mcp_console_sql.use_r.__code__
+
+
+    def restore_hook(frame, event, argument):
+        if event == "call" and frame.f_code is use_r_code:
+            miss("restore")
+            raise SystemExit("managed SQL restoration exit")
+        return restore_hook
+
+
+    _console.sql_connection(None)
+    sys.settrace(restore_hook)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM managed_restore_value
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 363, in dispatch
+          File "<string>", line 751, in _mcp_console_without_automatic_resolution
+          File "<string>", line 357, in _dispatch
+          File "<string>", line 145, in use_r
+          File "<mcp-console:python:e4>", line 10, in restore_hook
+        SystemExit: managed SQL restoration exit
+  isError: false
+---
+send:
+  python: sql_import_stages[-1]
+result:
+  content:
+    - type: text
+      text: |
+        'restore'
+  isError: false
+---
+send:
+  sql: SELECT answer FROM managed_restore_value
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false
+---
+send:
+  python: |
+    try:
+        importlib.import_module("mcp_console_sql_missing_python_cell")
+    except ModuleNotFoundError:
+        pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

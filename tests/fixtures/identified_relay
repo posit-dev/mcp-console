@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+from pathlib import Path
+
+pid = str(os.getpid())
+os.environ["ZOD_RELAY_PID"] = pid
+marker = Path(os.environ["TMPDIR"]) / "zod-relay-pid"
+pending = marker.with_name(".zod-relay-pid.pending")
+pending.write_text(pid, encoding="utf-8")
+pending.replace(marker)
+binary = os.environ["MCP_CONSOLE_TEST_BINARY"]
+os.execv(binary, [binary, "worker-relay", *sys.argv[1:]])

@@ -1,0 +1,48 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python: []
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import sys
+
+    original_identity = sys.prefix, sys.exec_prefix, sys.executable
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - console-activation-fixture
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import console_identity
+    import os
+
+    assert console_identity.identity != original_identity
+    assert console_identity.identity == (sys.prefix, sys.exec_prefix, sys.executable)
+    assert os.environ["VIRTUAL_ENV_PROMPT"] == "candidate"
+    assert sys.real_prefix == original_identity[0]
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

@@ -1,0 +1,178 @@
+---
+- event: recording_started
+  working_directory: <workspace>
+  dynamic_resolution: ~
+  python_preparation: ~
+  startup_requirements: ~
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_call
+  call_id: 1
+  request_id: <request ID>
+  request:
+    name: send
+    arguments:
+      r: emit image
+      stdin: |
+        recorded stdin
+      requirements:
+        r:
+          - praise
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: image_retained
+  owner:
+    session_id: 1
+    cell_id: 1
+    interval: cell
+  artifact_id: 1
+  call_id: 1
+  path: capture/sessions/001/cell-001-001.png
+  mime_type: image/png
+  bytes: 68
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: cell_output
+  owner:
+    session_id: 1
+    cell_id: 1
+    interval: cell
+  call_id: 1
+  path: capture/sessions/001/cell-001.txt
+  retained_bytes: 25
+  inline_omitted_bytes: 0
+  discarded_bytes: 0
+  retention_limit_bytes: 1073741824
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_result
+  call_id: 1
+  parts:
+  - block: 0
+    start: 0
+    end: 13
+    owner:
+      session_id: 1
+      cell_id: 1
+      interval: cell
+  - block: 1
+    start: 0
+    end: 0
+    owner:
+      session_id: 1
+      cell_id: 1
+      interval: cell
+  - block: 2
+    start: 0
+    end: 12
+    owner:
+      session_id: 1
+      cell_id: 1
+      interval: cell
+  result:
+    content:
+      - type: text
+        text: |
+          before image
+      - type: image
+        mimeType: image/png
+        artifactId: 1
+        path: capture/sessions/001/cell-001-001.png
+      - type: text
+        text: |
+          after image
+    isError: false
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_call
+  call_id: 2
+  request_id: <request ID>
+  request:
+    _meta:
+      progressToken: record-me
+    name: send
+    arguments:
+      r: "1"
+      python: "1"
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_result
+  call_id: 2
+  parts: []
+  result:
+    content:
+      - type: text
+        text: only one of `r`, `python`, or `sql` may be supplied
+    isError: true
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_call
+  call_id: 3
+  request_id: <request ID>
+  request:
+    name: send
+    arguments:
+      requirements:
+        python:
+          - transcript-fixture
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_result
+  call_id: 3
+  parts:
+  - block: 0
+    start: 0
+    end: 56
+    owner: ~
+  result:
+    content:
+      - type: text
+        text: Python requirements are unavailable with a custom worker
+    isError: true
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_call
+  call_id: 4
+  request_id: <request ID>
+  request:
+    name: send
+    arguments:
+      requirements:
+        r:
+          - glue
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+- event: tool_result
+  call_id: 4
+  parts:
+  - block: 0
+    start: 0
+    end: 10
+    owner: ~
+  result:
+    content:
+      - type: text
+        text: "[prepared]"
+    isError: false
+  run_id: <run ID>
+  sequence: <capture sequence>
+  at: <UTC timestamp>
+---
+produced session:
+  root: .agents/console/sessions/<run ID>
+  files:
+    - capture/events.jsonl
+    - transcript.md
+    - sessions/session-001.qmd
+    - capture/sessions/001/cell-001-001.png
+    - capture/sessions/001/cell-001.txt

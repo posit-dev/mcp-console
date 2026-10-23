@@ -1,0 +1,179 @@
+project:
+  type: website
+  pre-render:
+    - >-
+      uv run --no-project --isolated --with-requirements requirements.txt
+      python _python.py
+  post-render:
+    - _pkgdown.R
+    - >-
+      uv run --no-project --isolated --with-requirements requirements.txt
+      python _urls.py
+  render:
+    - index.qmd
+    - getting-started.qmd
+    - cli-help.qmd
+    - README.md
+    - "*.md"
+    - benchmarks/*.md
+    - python/index.qmd
+    - python/reference/*.qmd
+    - "!python/**/*.md"
+    - "!templates/"
+  resources:
+    - python/objects.json
+    - python/index.md
+    - python/reference/*.md
+    - python/llms*.txt
+
+website:
+  title: MCP Console
+  description: >-
+    An interactive, sandboxed workspace for AI agents working with data in
+    R, Python, and SQL.
+  site-url: https://t-kalinowski.github.io/mcp-console/
+  repo-url: https://github.com/t-kalinowski/mcp-console
+  repo-subdir: docs
+  repo-actions: [edit, issue]
+  page-navigation: true
+  navbar:
+    left:
+      - href: getting-started.qmd
+        text: Get started
+      - href: README.md
+        text: Guides
+      - href: BUILD.md
+        text: Build
+      - href: REFERENCE.md
+        text: Reference
+    right:
+      - icon: github
+        href: https://github.com/t-kalinowski/mcp-console
+        aria-label: GitHub repository
+  sidebar:
+    - id: guides
+      title: Guides
+      style: docked
+      collapse-level: 2
+      contents:
+      - href: README.md
+        text: Overview
+      - section: Learn Console
+        contents:
+        - getting-started.qmd
+        - BUILTIN_RUNTIME.md
+        - REQUIREMENTS.md
+        - SANDBOX.md
+        - RECORDING.md
+      - section: Set up
+        contents:
+        - CLIENTS.md
+      - section: Other tasks
+        contents:
+        - SANDBOX_COMMAND.md
+    - id: build
+      title: Build
+      style: docked
+      collapse-level: 2
+      contents:
+      - href: BUILD.md
+        text: Overview
+      - href: BUILD_ON_CONSOLE.md
+        text: Build a data assistant
+      - section: Integrate
+        contents:
+        - href: R.md
+          text: From R (ellmer)
+        - href: PYTHON.md
+          text: From Python
+        - href: SEND_OPERATIONS.md
+          text: Drive send directly
+      - section: Builder reference
+        contents:
+        # Published routes link out without assigning these sources to two sidebars.
+        - href: tool_configuration/
+          text: Tool settings
+        - href: api/
+          text: Send tool
+        - href: r/reference/
+          text: R API
+        - href: python/reference/
+          text: Python API
+    - id: reference
+      title: Reference
+      style: docked
+      collapse-level: 2
+      contents:
+      - href: REFERENCE.md
+        text: Reference index
+      - CONFIGURATION.md
+      - section: Settings
+        contents:
+        - RUNTIME_CONFIGURATION.md
+        - href: PACKAGE_CONFIGURATION.md
+          text: Packages
+        - href: SANDBOX_CONFIGURATION.md
+          text: Sandbox
+        - href: TOOL_CONFIGURATION.md
+          text: Tool interface
+        - ENVIRONMENT.md
+      - section: Behavior
+        contents:
+        - RUNTIME_REFERENCE.md
+        - href: RECORDING_REFERENCE.md
+          text: Recordings
+      - section: Interfaces
+        contents:
+        - href: CLI.md
+          text: Command line
+        - cli-help.qmd
+        - href: API.md
+          text: MCP send
+        - href: r/reference/index.html
+          text: R API
+        - href: python/reference/index.qmd
+          text: Python API
+      - GLOSSARY.md
+    - id: development
+      title: Development
+      style: docked
+      collapse-level: 1
+      contents:
+      - DEVELOPMENT.md
+      - ARCHITECTURE.md
+      - RELAY_PROTOCOL.md
+      - WORKER_PROTOCOL.md
+      - TOOL_DESCRIPTIONS.md
+      - WINDOWS_DEVELOPMENT.md
+      - TODO.md
+      - section: Evidence and release
+        contents:
+        - RESOLVER_RELEASE_AUDIT.md
+        - benchmarks/transcript-concurrency.md
+        - href: https://github.com/t-kalinowski/mcp-console/blob/main/RELEASE.md
+          text: Release procedure
+  page-footer:
+    left: MCP Console · MIT License
+    right:
+      - text: Development
+        href: DEVELOPMENT.md
+      - text: Source
+        href: https://github.com/t-kalinowski/mcp-console
+
+filters:
+  - _filters/python-reference.lua
+  - _filters/website.lua
+
+execute:
+  enabled: false
+
+format:
+  html:
+    theme:
+      light: [cosmo, theme.scss]
+      dark: [cosmo, theme.scss, dark.scss]
+    respect-user-color-scheme: true
+    css: styles.css
+    toc: true
+    code-copy: true
+    code-overflow: wrap

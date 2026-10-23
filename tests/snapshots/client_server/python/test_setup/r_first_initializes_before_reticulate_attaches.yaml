@@ -1,0 +1,48 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    startup_probe <- dyn.load("<test python probe>")
+    startup_calls <- 0L
+    invisible(suppressMessages(base::trace(
+      "py_initialize",
+      tracer = quote({
+        assign(
+          "startup_calls",
+          get("startup_calls", envir = .GlobalEnv) + 1L,
+          envir = .GlobalEnv
+        )
+        stopifnot(identical(
+          .C(
+            getNativeSymbolInfo(
+              "mcp_console_probe_python_initialized",
+              PACKAGE = .GlobalEnv$startup_probe
+            ),
+            value = 0L
+          )$value,
+          1L
+        ))
+      }),
+      print = FALSE,
+      where = asNamespace("reticulate")
+    )))
+    invisible(reticulate::py_config())
+    reticulate::py_run_string("startup_value = 41")
+    stopifnot(startup_calls == 1L)
+    reticulate::py_to_r(reticulate::py$startup_value) + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: startup_value + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

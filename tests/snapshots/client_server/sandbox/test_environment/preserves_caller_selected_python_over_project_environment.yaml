@@ -1,0 +1,16 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.yaml
+---
+send:
+  python: |
+    import os
+    import sys
+
+    assert sys.executable == os.environ["MCP_CONSOLE_TEST_SELECTED_PYTHON"]
+    print("caller-selected Python retained")
+result:
+  content:
+    - type: text
+      text: |
+        caller-selected Python retained
+  isError: false

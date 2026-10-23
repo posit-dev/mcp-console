@@ -1,0 +1,49 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    step <- function() {
+      value <- 1
+      browser()
+      value <- value + 1
+      value <- value + 1
+      value
+    }
+    step()
+  stdin: |
+    n
+    n
+    n
+result:
+  content:
+    - type: text
+      text: |-
+        Called from: step()
+        [input requested: "Browse[1]> "]
+        debug at #4: value <- value + 1
+        [input requested: "Browse[1]> "]
+        debug at #5: value <- value + 1
+        [input requested: "Browse[1]> "]
+        debug at #6: value
+        [input requested: "Browse[1]> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  r: "1"
+result:
+  content:
+    - type: text
+      text: "[worker is already evaluating a cell; poll without a code field]"
+  isError: true
+---
+send:
+  stdin: |
+    c
+result:
+  content:
+    - type: text
+      text: |
+        [1] 3
+  isError: false

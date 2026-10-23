@@ -1,0 +1,66 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_native_optional
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: >-
+    import mcp_console_test_native_optional as package;
+    bool(package.fallback)
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  requirements:
+    action: add
+    python:
+      - mcp_console_test_native_framework
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: >-
+    import mcp_console_test_native_framework;
+    mcp_console_test_native_framework.fallback
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  python: package.probe()
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  python: >-
+    import mcp_console_test_native_optional_dependency;
+    mcp_console_test_native_optional_dependency.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

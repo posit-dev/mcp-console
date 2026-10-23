@@ -1,0 +1,72 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: startup_marker <- 41L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    import sys; retained_object = object(); retained_object_id =
+    id(retained_object); print(sys.executable)
+result:
+  content:
+    - type: text
+      text: |
+        <running Python>
+  isError: false
+---
+send:
+  python: raise AssertionError('failed preparation ran the cell')
+  requirements:
+    python:
+      - py-yaml12<0
+result:
+  content:
+    - type: text
+      text: |-
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "<running Python>",
+          "packages": [
+            "numpy",
+            "pandas",
+            "matplotlib",
+            "plotnine",
+            "py-yaml12<0"
+          ]
+        }
+        uv output:
+        error: No solution found when resolving tool dependencies
+          cause: you require py-yaml12<0, which does not allow any versions
+  isError: true
+---
+send:
+  r: |
+    stopifnot(isTRUE(reticulate::py_eval(
+      "id(retained_object) == retained_object_id"
+    )))
+    startup_marker + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: assert id(retained_object) == retained_object_id; r.startup_marker + 1
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

@@ -1,0 +1,12 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    Sys.getenv("UV_OFFLINE", unset = NA_character_)
+result:
+  content:
+    - type: text
+      text: |
+        [1] "1"
+  isError: false

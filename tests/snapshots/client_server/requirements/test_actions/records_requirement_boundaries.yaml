@@ -1,0 +1,58 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+  python: first_environment = 1
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - six
+  python: second_environment = 2
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [done]
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python_version:
+      - ">3"
+      - <2
+result:
+  content:
+    - type: text
+      text: |-
+        managed Python version resolution failed: Requested Python version constraints could not be satisfied.
+          constraints: "<2,>3"
+        Hint: Call `py_require(python_version = <string>, action = "set")` to replace constraints.
+        Available Python versions found: 3.11.14, 3.12.12
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    action: reset
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false

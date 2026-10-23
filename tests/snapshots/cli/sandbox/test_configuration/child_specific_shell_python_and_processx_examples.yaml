@@ -1,0 +1,15 @@
+---
+example: sandbox-config.sh
+stdout: |
+  value: café 雪, "quotes", $() and spaces
+  literal argument: * ; $(echo no)
+---
+example: sandbox-config.py
+stdout: |
+  value: café 雪, "quotes", $() and spaces
+  literal argument: * ; $(echo no)
+---
+example: sandbox-config.R
+stdout: |
+  value: café 雪, "quotes", $() and spaces
+  literal argument: * ; $(echo no)

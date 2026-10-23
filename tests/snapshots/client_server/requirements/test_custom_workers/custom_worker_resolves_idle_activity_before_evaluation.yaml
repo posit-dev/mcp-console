@@ -1,0 +1,47 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: resolve python while idle
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false
+---
+send:
+  r: request input while idle
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "idle> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  r: echo echo
+  stdin: |
+    continue
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

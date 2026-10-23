@@ -1,0 +1,225 @@
+---
+scenario: Fixed R resolution lets reset retry a skipped startup default.
+fixture: >-
+  The ir wrapper rejects tidyverse during startup and reset; deliberate
+  add and set remain forbidden.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "yyjsonr"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - yyjsonr
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: answer <- 42; cat(answer, '\n', sep = '')
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        skipping default R package `tidyverse`: R package resolution failed with exit status: 1: synthetic `ir` failure for tidyverse
+        [output produced while idle]
+        42
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: add
+    r:
+      - tidyverse
+  r: answer <- 0
+result:
+  content:
+    - type: text
+      text: >-
+        [R requirements cannot change under r.resolution=fixed
+        (requirements.action=add)]
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    r:
+      - tidyverse
+  r: answer <- 0
+result:
+  content:
+    - type: text
+      text: >-
+        [R requirements cannot change under r.resolution=fixed
+        (requirements.action=set)]
+  isError: true
+---
+send:
+  r: cat(answer, '\n', sep = '')
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: reset
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        skipping default R package `tidyverse`: R package resolution failed with exit status: 1: synthetic `ir` failure for tidyverse
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "yyjsonr"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - yyjsonr
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false

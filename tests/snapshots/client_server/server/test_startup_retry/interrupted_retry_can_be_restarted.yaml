@@ -1,0 +1,47 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/python/bin/python
+  isError: true
+---
+send:
+  control: restart
+  python: rejected_cell = True
+result:
+  content:
+    - type: text
+      text: "selected Python inspection failed (exit status: 130): "
+  isError: true
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: "[worker starting]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: "selected Python inspection failed (exit status: 130): "
+  isError: true
+---
+send:
+  control: restart
+  python: assert 'rejected_cell' not in globals(); 42
+result:
+  content:
+    - type: text
+      text: |-
+        [runtime discovery retried]
+        42
+        [done]
+  isError: false

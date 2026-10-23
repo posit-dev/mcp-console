@@ -1,0 +1,38 @@
+---
+scenario: equals sign in executable name
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - ./program=fixture
+  - /usr/bin/false
+stdout: ""
+---
+scenario: option-like executable name
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - --help
+environment:
+  PATH: .:<inherited PATH>
+stdout: ""
+transcript_normalization:
+  target: environment.PATH
+  inherited_path: omitted
+---
+scenario: literal arguments and standard output
+command:
+  - mcp-console
+  - sandbox
+  - python
+  - -c
+  - |
+    import sys
+
+    print("|".join(sys.argv[1:]))
+  - hello world
+  - $(not-a-command)
+  - --child-option
+stdout: |
+  hello world|$(not-a-command)|--child-option

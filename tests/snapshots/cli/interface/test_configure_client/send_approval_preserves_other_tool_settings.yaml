@@ -1,0 +1,18 @@
+---
+project: false
+server: console
+tools:
+  send:
+    approval_mode: approve
+    output_token_limit: 5000
+  other:
+    approval_mode: prompt
+---
+project: true
+server: console.local
+tools:
+  send:
+    approval_mode: approve
+    output_token_limit: 5000
+  other:
+    approval_mode: prompt

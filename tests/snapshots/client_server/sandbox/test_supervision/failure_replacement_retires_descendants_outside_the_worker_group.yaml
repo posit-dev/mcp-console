@@ -1,0 +1,56 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  r: |
+    sandbox_child <- processx::process$new(
+      "/bin/sleep",
+      "60",
+      stdout = "|",
+      stderr = "|",
+      cleanup = FALSE
+    )
+    writeLines(c(
+      sprintf("worker=%d", Sys.getpid()),
+      sprintf("relay=%d", ps::ps_ppid()),
+      sprintf("child=%d", sandbox_child$get_pid()),
+      sprintf("temp=%s", Sys.getenv("TMPDIR"))
+    ))
+  requirements:
+    r:
+      - processx
+result:
+  content:
+    - type: text
+      text: |
+        worker=<worker pid>
+        relay=<relay pid>
+        child=<processx child pid>
+        temp=<sandbox temp>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  process_ids: omitted
+  sandbox_temporary_directory: omitted
+---
+send:
+  r: tools::pskill(Sys.getpid(), signal = 9L)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: writeLines("replacement ready")
+result:
+  content:
+    - type: text
+      text: |
+        replacement ready
+  isError: false

@@ -1,0 +1,45 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/python/bin/python
+  isError: true
+---
+send:
+  control: restart
+  stdin: |
+    repaired input
+  timeout_ms: 10000
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "retry> "]
+        repaired input
+  isError: false
+---
+send:
+  python: answer = input('retry> '); print(answer)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        'repaired input'
+  isError: false

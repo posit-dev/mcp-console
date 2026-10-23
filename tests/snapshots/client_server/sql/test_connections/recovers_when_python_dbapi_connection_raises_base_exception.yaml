@@ -1,0 +1,67 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    class RecoverableCursor:
+        description = None
+
+        def __init__(self, connection):
+            self.connection = connection
+
+        def execute(self, source):
+            if source == "EXIT":
+                raise SystemExit("selected DB-API failure")
+            self.description = (("answer",),)
+            return self
+
+        def fetchmany(self, size):
+            return [(42,)][:size]
+
+        def close(self):
+            if self.connection.close_failure:
+                self.connection.close_failure = False
+                raise SystemExit("selected DB-API cleanup failure")
+
+
+    class RecoverableConnection:
+        def __init__(self):
+            self.close_failure = True
+
+        def cursor(self):
+            return RecoverableCursor(self)
+
+
+    _console.sql_connection(RecoverableConnection())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: EXIT
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 318, in _evaluate
+          File "<mcp-console:python:e1>", line 9, in execute
+        SystemExit: selected DB-API failure
+        Traceback (most recent call last):
+          File "<string>", line 35, in _close_candidates
+          File "<mcp-console:python:e1>", line 19, in close
+        SystemExit: selected DB-API cleanup failure
+  isError: false
+---
+send:
+  sql: ANSWER
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false

@@ -1,0 +1,21 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |
+    SELECT
+      1 AS column_name_01_abcdefghijkl,
+      2 AS column_name_02_abcdefghijkl,
+      3 AS column_name_03_abcdefghijkl,
+      4 AS column_name_04_abcdefghijkl,
+      5 AS column_name_05_abcdefghijkl,
+      6 AS column_name_06_abcdefghijkl
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 6
+          column_name_01_abcdefghijkl column_name_02_abcdefghijkl column_name_03_abcdefghijkl column_name_04_abcdefghijkl column_name_05_abcdefghijkl column_name_06_abcdefghijkl
+                              <int32>                     <int32>                     <int32>                     <int32>                     <int32>                     <int32>
+        1                           1                           2                           3                           4                           5                           6
+  isError: false

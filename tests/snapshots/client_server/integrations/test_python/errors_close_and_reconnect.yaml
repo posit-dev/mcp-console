@@ -1,0 +1,12 @@
+---
+error: only one of `r`, `python`, or `sql` may be supplied
+---
+recovery: |
+  zod: recovered
+---
+closed: >-
+  AsyncMCPConsole is not connected; use `async with AsyncMCPConsole() as
+  console` or call `await console.connect()` first
+---
+reconnected: |
+  zod: reconnected

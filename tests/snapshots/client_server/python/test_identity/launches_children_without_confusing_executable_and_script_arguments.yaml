@@ -1,0 +1,270 @@
+---
+send:
+  python: |
+    import builtins
+    import json
+    import os
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    assert sys.executable == os.environ["RETICULATE_PYTHON"]
+    assert sys.argv == [""], sys.argv
+    assert sys.orig_argv == [sys.executable], sys.orig_argv
+    assert builtins.startup_identity == (sys.executable, [""], [sys.executable])
+    assert os.environ["VIRTUAL_ENV"] == sys.prefix
+    assert Path(shutil.which("python")).samefile(sys.executable)
+    assert "PYTHONHOME" not in os.environ
+    assert "PYTHONPLATLIBDIR" not in os.environ
+    assert "__PYVENV_LAUNCHER__" not in os.environ
+    identity = [
+        sys.executable,
+        sys._base_executable,
+        sys.prefix,
+        sys.exec_prefix,
+        sys.base_prefix,
+        sys.base_exec_prefix,
+    ]
+    program = Path("identity_module.py").read_text(encoding="utf-8")
+    native_program_name = json.loads(
+        Path("native_program_name.json").read_text(encoding="utf-8")
+    )
+    user = ["two words", "λ", "--literal"]
+    invocations = [
+        ([], [""], program),
+        (["-c", program, *user], ["-c", *user], None),
+        (["identity λ.py", *user], ["identity λ.py", *user], None),
+        (
+            ["-m", "identity_module", *user],
+            [str(Path("identity_module.py").resolve()), *user],
+            None,
+        ),
+        (["-", *user], ["-", *user], program),
+    ]
+    for arguments, expected_argv, stdin in invocations:
+        child = json.loads(
+            subprocess.check_output([sys.executable, *arguments], input=stdin, text=True)
+        )
+        assert all(
+            Path(a).samefile(b) for a, b in zip(child["identity"], identity, strict=True)
+        ), (child, identity)
+        assert child["argv"] == expected_argv, child
+        assert child["orig_argv"] == [native_program_name, *arguments], child
+        assert child["virtualenv"] == sys.prefix, child
+    sys.argv[:] = ["user script.py", *user]
+    sys.orig_argv[:] = [sys.executable, "user script.py", *user]
+    print("Python interpreter and children retain executable, arguments, and environment")
+result:
+  content:
+    - type: text
+      text: >
+        Python interpreter and children retain executable, arguments, and
+        environment
+  isError: false
+---
+send:
+  python: |
+    assert sys.argv == ["user script.py", "two words", "λ", "--literal"]
+    assert sys.orig_argv == [
+        sys.executable,
+        "user script.py",
+        "two words",
+        "λ",
+        "--literal",
+    ]
+    print("user argv retained across cells and R attachment")
+result:
+  content:
+    - type: text
+      text: |
+        user argv retained across cells and R attachment
+  isError: false
+---
+send:
+  python: |
+    import builtins
+    import json
+    import os
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    assert sys.executable == os.environ["RETICULATE_PYTHON"]
+    assert sys.argv == [""], sys.argv
+    assert sys.orig_argv == [sys.executable], sys.orig_argv
+    assert builtins.startup_identity == (sys.executable, [""], [sys.executable])
+    assert os.environ["VIRTUAL_ENV"] == sys.prefix
+    assert Path(shutil.which("python")).samefile(sys.executable)
+    assert "PYTHONHOME" not in os.environ
+    assert "PYTHONPLATLIBDIR" not in os.environ
+    assert "__PYVENV_LAUNCHER__" not in os.environ
+    identity = [
+        sys.executable,
+        sys._base_executable,
+        sys.prefix,
+        sys.exec_prefix,
+        sys.base_prefix,
+        sys.base_exec_prefix,
+    ]
+    program = Path("identity_module.py").read_text(encoding="utf-8")
+    native_program_name = json.loads(
+        Path("native_program_name.json").read_text(encoding="utf-8")
+    )
+    user = ["two words", "λ", "--literal"]
+    invocations = [
+        ([], [""], program),
+        (["-c", program, *user], ["-c", *user], None),
+        (["identity λ.py", *user], ["identity λ.py", *user], None),
+        (
+            ["-m", "identity_module", *user],
+            [str(Path("identity_module.py").resolve()), *user],
+            None,
+        ),
+        (["-", *user], ["-", *user], program),
+    ]
+    for arguments, expected_argv, stdin in invocations:
+        child = json.loads(
+            subprocess.check_output([sys.executable, *arguments], input=stdin, text=True)
+        )
+        assert all(
+            Path(a).samefile(b) for a, b in zip(child["identity"], identity, strict=True)
+        ), (child, identity)
+        assert child["argv"] == expected_argv, child
+        assert child["orig_argv"] == [native_program_name, *arguments], child
+        assert child["virtualenv"] == sys.prefix, child
+    sys.argv[:] = ["user script.py", *user]
+    sys.orig_argv[:] = [sys.executable, "user script.py", *user]
+    print("Python interpreter and children retain executable, arguments, and environment")
+result:
+  content:
+    - type: text
+      text: >
+        Python interpreter and children retain executable, arguments, and
+        environment
+  isError: false
+---
+send:
+  r: invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    assert sys.argv == ["user script.py", "two words", "λ", "--literal"]
+    assert sys.orig_argv == [
+        sys.executable,
+        "user script.py",
+        "two words",
+        "λ",
+        "--literal",
+    ]
+    print("user argv retained across cells and R attachment")
+result:
+  content:
+    - type: text
+      text: |
+        user argv retained across cells and R attachment
+  isError: false
+---
+send:
+  r: invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import builtins
+    import json
+    import os
+    import shutil
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    assert sys.executable == os.environ["RETICULATE_PYTHON"]
+    assert sys.argv == [""], sys.argv
+    assert sys.orig_argv == [sys.executable], sys.orig_argv
+    assert builtins.startup_identity == (sys.executable, [""], [sys.executable])
+    assert os.environ["VIRTUAL_ENV"] == sys.prefix
+    assert Path(shutil.which("python")).samefile(sys.executable)
+    assert "PYTHONHOME" not in os.environ
+    assert "PYTHONPLATLIBDIR" not in os.environ
+    assert "__PYVENV_LAUNCHER__" not in os.environ
+    identity = [
+        sys.executable,
+        sys._base_executable,
+        sys.prefix,
+        sys.exec_prefix,
+        sys.base_prefix,
+        sys.base_exec_prefix,
+    ]
+    program = Path("identity_module.py").read_text(encoding="utf-8")
+    native_program_name = json.loads(
+        Path("native_program_name.json").read_text(encoding="utf-8")
+    )
+    user = ["two words", "λ", "--literal"]
+    invocations = [
+        ([], [""], program),
+        (["-c", program, *user], ["-c", *user], None),
+        (["identity λ.py", *user], ["identity λ.py", *user], None),
+        (
+            ["-m", "identity_module", *user],
+            [str(Path("identity_module.py").resolve()), *user],
+            None,
+        ),
+        (["-", *user], ["-", *user], program),
+    ]
+    for arguments, expected_argv, stdin in invocations:
+        child = json.loads(
+            subprocess.check_output([sys.executable, *arguments], input=stdin, text=True)
+        )
+        assert all(
+            Path(a).samefile(b) for a, b in zip(child["identity"], identity, strict=True)
+        ), (child, identity)
+        assert child["argv"] == expected_argv, child
+        assert child["orig_argv"] == [native_program_name, *arguments], child
+        assert child["virtualenv"] == sys.prefix, child
+    sys.argv[:] = ["user script.py", *user]
+    sys.orig_argv[:] = [sys.executable, "user script.py", *user]
+    print("Python interpreter and children retain executable, arguments, and environment")
+result:
+  content:
+    - type: text
+      text: >
+        Python interpreter and children retain executable, arguments, and
+        environment
+  isError: false
+---
+send:
+  r: invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    assert sys.argv == ["user script.py", "two words", "λ", "--literal"]
+    assert sys.orig_argv == [
+        sys.executable,
+        "user script.py",
+        "two words",
+        "λ",
+        "--literal",
+    ]
+    print("user argv retained across cells and R attachment")
+result:
+  content:
+    - type: text
+      text: |
+        user argv retained across cells and R attachment
+  isError: false

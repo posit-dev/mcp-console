@@ -1,0 +1,80 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: prepare_r
+  library: <candidate-one>
+---
+server:
+  kind: shutdown
+  grace_millis: <remaining shutdown grace>
+---
+relay:
+  kind: shutdown_started
+---
+relay:
+  kind: r_prepared
+  library: <candidate-one>
+---
+relay:
+  kind: stdout
+  data: |
+    drained old stdout
+---
+relay:
+  kind: stderr
+  data: |
+    drained old stderr
+---
+relay:
+  kind: stdout_closed
+---
+relay:
+  kind: stderr_closed
+---
+relay:
+  kind: worker_sideband_closed
+---
+relay:
+  kind: worker_exited
+  code: 33
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: prepare_r
+  library: <candidate-two>
+---
+relay:
+  kind: r_prepared
+  library: <candidate-two>
+---
+server:
+  kind: shutdown
+  grace_millis: <remaining shutdown grace>
+---
+relay:
+  kind: shutdown_started
+---
+relay:
+  kind: stdout_closed
+---
+relay:
+  kind: stderr_closed
+---
+relay:
+  kind: worker_sideband_closed
+---
+relay:
+  kind: worker_exited
+  code: 0

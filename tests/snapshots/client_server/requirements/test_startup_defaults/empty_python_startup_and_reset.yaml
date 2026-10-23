@@ -1,0 +1,224 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+
+    assert sys.version_info[:2] == (3, 13)
+    assert importlib.util.find_spec("duckdb") is None
+    assert importlib.util.find_spec("numpy") is None
+    assert importlib.util.find_spec("packaging") is None
+    print("configured Python available")
+result:
+  content:
+    - type: text
+      text: |
+        configured Python available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - packaging
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: >-
+    import packaging; import os; original_pid = os.getpid();
+    print('packaging available')
+result:
+  content:
+    - type: text
+      text: |
+        packaging available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - packaging
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - six
+    python_version:
+      - "3.13"
+result:
+  content:
+    - type: text
+      text: |-
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "3.13",
+          "packages": [
+            "six"
+          ],
+          "python_version": [
+            "3.13"
+          ]
+        }
+        uv output:
+        synthetic uv failure
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - packaging
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  python: assert os.getpid() == original_pid; print('worker retained')
+result:
+  content:
+    - type: text
+      text: |
+        worker retained
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: reset
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+
+    assert sys.version_info[:2] == (3, 13)
+    assert importlib.util.find_spec("duckdb") is None
+    assert importlib.util.find_spec("numpy") is None
+    assert importlib.util.find_spec("packaging") is None
+    print("configured Python available")
+result:
+  content:
+    - type: text
+      text: |
+        configured Python available
+  isError: false

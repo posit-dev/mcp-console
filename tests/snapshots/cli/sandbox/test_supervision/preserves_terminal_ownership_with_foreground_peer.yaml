@@ -1,0 +1,23 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import os
+    import sys
+
+    print(
+        f"ready {os.getpid()} {os.getpgrp()} {sys.argv[2]}",
+        flush=True,
+    )
+    with open(sys.argv[1], encoding="utf-8") as release:
+        assert release.readline() == "release\n"
+  - <release gate>
+  - <peer pid>
+foreground_peer: shares launcher process group
+target_process_group: dedicated
+terminal_foreground_group: launcher and peer
+exit_code: 0

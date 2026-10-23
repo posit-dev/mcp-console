@@ -1,0 +1,32 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  r: echo no-replay
+result:
+  content:
+    - type: text
+      text: |-
+        [worker relay stdout closed before retirement completed]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: echo recovered
+result:
+  content:
+    - type: text
+      text: |
+        zod: recovered
+  isError: false

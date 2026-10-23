@@ -1,0 +1,23 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: >-
+        R package resolution failed with exit status: 77: fixture rejection
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - zeallot
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false

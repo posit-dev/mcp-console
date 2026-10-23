@@ -1,0 +1,13 @@
+---
+content:
+  - type: text
+    text: |
+      before image
+  - type: image
+    data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+    mimeType: image/png
+  - type: text
+    text: |
+      after image
+isError: false
+resultType: complete

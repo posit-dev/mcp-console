@@ -1,0 +1,32 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_callback_framework
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: import local_plugin
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    import mcp_console_test_callback_framework;
+    mcp_console_test_callback_framework.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

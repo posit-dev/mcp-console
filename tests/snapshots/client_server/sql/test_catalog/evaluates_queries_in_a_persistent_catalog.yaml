@@ -1,0 +1,35 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |
+    CREATE TABLE answers AS SELECT CAST(42 AS INTEGER) AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    INSERT INTO answers VALUES (7)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT answer FROM answers
+    ORDER BY answer DESC
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 2 × 1
+           answer
+          <int32>
+        1      42
+        2       7
+  isError: false

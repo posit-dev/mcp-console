@@ -1,0 +1,52 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.automatic.direct.yaml
+---
+send:
+  python: import os
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    import psutil
+
+    host_process = int(os.environ["MCP_CONSOLE_TEST_HOST_PROCESS"])
+    assert os.getpgid(host_process) != os.getpgrp()
+    print(
+        host_process in psutil.pids(),
+        host_process in {process.pid for process in psutil.process_iter()},
+    )
+result:
+  content:
+    - type: text
+      text: |
+        True True
+  isError: false
+---
+send:
+  control: restart
+  python: |
+    import os
+
+    import psutil
+
+    host_process = int(os.environ["MCP_CONSOLE_TEST_HOST_PROCESS"])
+    assert os.getpgid(host_process) != os.getpgrp()
+    print(
+        host_process in psutil.pids(),
+        host_process in {process.pid for process in psutil.process_iter()},
+    )
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        True True
+        [done]
+  isError: false

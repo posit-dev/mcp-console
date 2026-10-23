@@ -1,0 +1,66 @@
+---
+override: inherit_environment=wrong
+stderr: >
+  configuration with CLI overrides: inherit_environment: invalid type:
+  string "wrong", expected a boolean; see docs/CONFIGURATION.md for the
+  public format
+---
+override: inherit_environment=42
+stderr: >
+  configuration with CLI overrides: inherit_environment: invalid type:
+  integer `42`, expected a boolean; see docs/CONFIGURATION.md for the
+  public format
+---
+override: inherit_environment=1.5
+stderr: >
+  configuration with CLI overrides: inherit_environment: invalid type:
+  floating point `1.5`, expected a boolean; see docs/CONFIGURATION.md for
+  the public format
+---
+override: target.command=[far, faz]
+stderr: >
+  configuration with CLI overrides: target: unknown field `target`,
+  expected one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+override: "unknown={baz: [far, faz]}"
+stderr: >
+  configuration with CLI overrides: unknown: unknown field `unknown`,
+  expected one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+override: cache=relative-cache
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format
+---
+override: cache=/tmp/cache
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format
+---
+override: cache=42
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format
+---
+override: "cache={directory: ''}"
+stderr: |
+  configuration with CLI overrides: cache.directory must not be empty
+---
+override: "cache={directory: 42}"
+stderr: >
+  configuration with CLI overrides: cache: invalid type: integer `42`,
+  expected path string; see docs/CONFIGURATION.md for the public format
+---
+override: "cache={path: cache}"
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format
+---
+override: "cache={directory: cache, unknown: true}"
+stderr: >
+  configuration with CLI overrides: cache: expected managed, host, or a
+  directory mapping; see docs/CONFIGURATION.md for the public format

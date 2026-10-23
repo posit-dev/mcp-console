@@ -1,0 +1,56 @@
+---
+config:
+  startup:
+    language: python
+    code: |
+      import os
+      import sqlite3
+      from pathlib import Path
+
+      import matplotlib.pyplot as plt
+
+      startup_count = globals().get("startup_count", 0) + 1
+      native = sqlite3.connect(":memory:")
+      _console.sql_connection(native)
+      figure, axes = plt.subplots(figsize=(3, 2), dpi=100)
+      _ = axes.plot([1, 2, 3], [3, 1, 2])
+      figure.savefig(Path(os.environ["TMPDIR"]) / "startup.png", format="png")
+      plt.show()
+  python: <configured Python>
+  cache: host
+---
+failed_startup: false
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  sql: SELECT 42 AS answer
+  timeout_ms: 0
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live startup savefig 1>
+      mimeType: image/png
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: assert startup_count == 1; assert not plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

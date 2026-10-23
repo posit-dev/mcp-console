@@ -1,0 +1,26 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    reticulate::py_run_string(
+      "
+    import numpy as np
+    import pandas as pd
+    "
+    )
+    cat(
+      "R-first NumPy linewidth: ",
+      reticulate::py_eval("np.get_printoptions()['linewidth']"),
+      "\nR-first pandas display.width: ",
+      reticulate::py_eval("pd.get_option('display.width')"),
+      "\n",
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        R-first NumPy linewidth: 200
+        R-first pandas display.width: 200
+  isError: false

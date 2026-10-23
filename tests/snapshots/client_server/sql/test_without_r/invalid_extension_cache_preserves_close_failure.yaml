@@ -1,0 +1,21 @@
+---
+send:
+  sql: SELECT 42 AS answer
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        skipping default DuckDB extension `sqlite`: DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
+          File "<string>", line 56, in <module>
+            connection.install_extension(extension)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+        _duckdb.IOException: IO Error: Failed to create directory "<temporary>/invalid-cache": File exists
+        [output produced while idle]
+        answer
+        ------
+        42
+  isError: false
+---
+stderr: |
+  resolver input closed; local resolver sandbox exited with exit status: 47

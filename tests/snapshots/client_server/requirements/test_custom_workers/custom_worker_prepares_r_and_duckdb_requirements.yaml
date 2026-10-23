@@ -1,0 +1,151 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - json
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: report managed R requirement
+result:
+  content:
+    - type: text
+      text: |
+        zod R requirement: prepared=true
+  isError: false
+---
+send:
+  r: fail next r preparation after output
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: echo failed preparation cell ran
+  requirements:
+    r:
+      - zeallot
+result:
+  content:
+    - type: text
+      text: |
+        before failed preparation
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+    - type: text
+      text: |-
+
+        zod rejected R preparation; further requirement changes are unavailable until session restart
+  isError: true
+---
+send:
+  r: emit output and image before completion
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  r: echo active restart-required cell ran
+  requirements:
+    r:
+      - cli
+result:
+  content:
+    - type: text
+      text: >-
+        worker is already evaluating a cell; poll it before preparing
+        requirements
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        before pending image
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+    - type: text
+      text: |-
+        after pending image
+
+        [elapsed: <elapsed>s since admission]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: echo restart-required cell ran
+  requirements:
+    r:
+      - cli
+result:
+  content:
+    - type: text
+      text: requirements require session restart; cell was not run
+  isError: true
+---
+send:
+  r: echo worker remains usable
+result:
+  content:
+    - type: text
+      text: |
+        zod: worker remains usable
+  isError: false
+---
+send:
+  r: report managed python activation
+result:
+  content:
+    - type: text
+      text: |-
+        [custom worker reported a managed Python activation]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true

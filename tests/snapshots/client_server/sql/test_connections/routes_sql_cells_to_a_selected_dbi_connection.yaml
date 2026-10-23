@@ -1,0 +1,248 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE managed_values AS SELECT 'managed' AS origin
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    sqlite <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+    .console$sql_connection(connection = sqlite)
+    cat(
+      c("selected: ", identical(.console$sql_connection(), sqlite), "\n"),
+      c("valid: ", DBI::dbIsValid(.console$sql_connection()), "\n"),
+      sep = ""
+    )
+  requirements:
+    r:
+      - RSQLite
+result:
+  content:
+    - type: text
+      text: |
+        selected: TRUE
+        valid: TRUE
+  isError: false
+---
+send:
+  r: |
+    selected <- .console$sql_connection()
+    message <- tryCatch(
+      .console$sql_connection("not a connection"),
+      error = conditionMessage
+    )
+    cat(
+      c("rejected: ", message, "\n"),
+      c("unchanged: ", identical(.console$sql_connection(), selected), "\n"),
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        rejected: `connection` must be a valid DBIConnection or NULL
+        unchanged: TRUE
+  isError: false
+---
+send:
+  sql: CREATE TABLE custom_values (label TEXT NOT NULL, value INTEGER NOT NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: INSERT INTO custom_values VALUES ('a', 2), ('b', 5)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: previous_warn <- getOption('warn'); options(warn = 2); invisible()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: INSERT INTO custom_values VALUES ('RETURNING', 7)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: >-
+    WITH incoming(label, value) AS (VALUES ('cte', 9)) INSERT INTO
+    custom_values SELECT label, value FROM incoming
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: PRAGMA user_version = 3
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: invisible(options(warn = previous_warn))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    -- The selected DBI backend handles this query.
+    SELECT label, value
+    FROM custom_values
+    ORDER BY label
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 4 × 2
+          label         value
+          <string>    <int32>
+        1 "RETURNING"       7
+        2 "a"               2
+        3 "b"               5
+        4 "cte"             9
+  isError: false
+---
+send:
+  sql: SELECT missing FROM missing_values
+result:
+  content:
+    - type: text
+      text: |
+        Error: no such table: missing_values
+  isError: false
+---
+send:
+  sql: SELECT value FROM custom_values WHERE FALSE
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 0 × 1
+        # ℹ 1 variable: value <int32>
+        [0 rows]
+  isError: false
+---
+send:
+  sql: |
+    WITH RECURSIVE sequence(value) AS (
+      SELECT 1
+      UNION ALL
+      SELECT value + 1 FROM sequence WHERE value < 25
+    )
+    SELECT value FROM sequence
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 20 × 1
+             value
+           <int32>
+         1       1
+         2       2
+         3       3
+         4       4
+         5       5
+         6       6
+         7       7
+         8       8
+         9       9
+        10      10
+        11      11
+        12      12
+        13      13
+        14      14
+        15      15
+        16      16
+        17      17
+        18      18
+        19      19
+        20      20
+        [additional rows omitted]
+  isError: false
+---
+send:
+  sql: INSERT INTO custom_values VALUES ('c', 11) RETURNING label, value
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 2
+          label      value
+          <string> <int32>
+        1 "c"           11
+  isError: false
+---
+send:
+  r: |
+    selected <- .console$sql_connection()
+    invisible(DBI::dbDisconnect(selected))
+    cat(
+      c("disconnected: ", !DBI::dbIsValid(selected), "\n"),
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        disconnected: TRUE
+  isError: false
+---
+send:
+  sql: SELECT label FROM custom_values
+result:
+  content:
+    - type: text
+      text: >
+        Error: The selected SQL connection is no longer valid; call
+        .console$sql_connection(NULL) to restore DuckDB
+  isError: false
+---
+send:
+  r: |
+    .console$sql_connection(NULL)
+    cat(
+      c("restored: ", !identical(.console$sql_connection(), selected), "\n"),
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        restored: TRUE
+  isError: false
+---
+send:
+  sql: SELECT origin FROM managed_values
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          origin   
+          <string> 
+        1 "managed"
+  isError: false

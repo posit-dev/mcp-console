@@ -1,0 +1,48 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: raise AssertionError('interrupted setup ran the cell')
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Managed import setup> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 144, in configure
+          File "<setup checkpoint>", line 9, in configuring_thread
+          File "<string>", line 50, in _console_input
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: >-
+    import yaml12; assert id(runtime_identity) == runtime_identity_id;
+    print('managed import setup retried')
+result:
+  content:
+    - type: text
+      text: |
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        managed import setup retried
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  accepted_python_requirements:
+    - numpy
+    - pandas
+    - matplotlib
+    - plotnine
+    - py-yaml12

@@ -1,0 +1,31 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: Sys.setenv(RETICULATE_PYTHON = "/mcp-console-missing-python")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: py_eval("1 + 1")
+result:
+  content:
+    - type: text
+      text: |
+        Error in py_discover_config(required_module, use_environment) : 
+          Python specified in RETICULATE_PYTHON (/mcp-console-missing-python) does not exist
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    6L * 7L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

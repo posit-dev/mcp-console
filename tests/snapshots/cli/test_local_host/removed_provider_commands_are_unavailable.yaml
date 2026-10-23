@@ -1,0 +1,11 @@
+---
+unavailable_commands:
+  - ssh-launch
+  - ssh-prepare
+  - docker-owner
+  - docker-launch
+  - docker-probe
+  - docker-sandbox-owner
+  - docker-sandbox-launch
+  - docker-sandbox-probe
+  - image-runtime-probe

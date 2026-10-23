@@ -1,0 +1,7 @@
+---
+worker_replaced_selected_r_resolver: true
+worker_r_profile_excluded: true
+host_read: true
+direct_write_denied: true
+symlink_write_denied: true
+download_denied: true

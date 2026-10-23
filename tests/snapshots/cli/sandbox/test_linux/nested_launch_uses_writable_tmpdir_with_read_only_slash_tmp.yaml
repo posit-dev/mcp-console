@@ -1,0 +1,4 @@
+---
+stdout: |
+  nested temporary storage is writable; outer /tmp remains read-only
+private_temporary_directory_removed: true

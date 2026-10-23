@@ -1,0 +1,6 @@
+---
+selected_r_connection_with_missing_python: true
+python_remains_uninitialized: true
+native_identity_transaction_and_worker_state_retained: true
+selection_survives_later_python_initialization: true
+later_python_selection_takes_precedence: true

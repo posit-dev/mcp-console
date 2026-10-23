@@ -1,0 +1,167 @@
+---
+send:
+  requirements:
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import errno
+    import socket
+
+    try:
+        # Linux may deny socket creation before connect is reached.
+        with socket.socket() as probe:
+            probe.settimeout(1)
+            probe.connect(("203.0.113.1", 443))
+    except OSError as error:
+        assert error.errno in (errno.EACCES, errno.EPERM), error
+    else:
+        raise AssertionError("worker network connection succeeded")
+    print("worker network denied")
+result:
+  content:
+    - type: text
+      text: |
+        worker network denied
+  isError: false
+---
+send:
+  sql: SET autoinstall_known_extensions = false; LOAD fts
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  sql: >-
+    SELECT installed, loaded FROM duckdb_extensions() WHERE extension_name =
+    'fts'
+result:
+  content:
+    - type: text
+      text: |
+        installed | loaded
+        ----------+-------
+        True      | True
+  isError: false
+---
+send:
+  python: import os; print(os.environ['TMPDIR'])
+result:
+  content:
+    - type: text
+      text: |
+        <worker temporary 1>
+  isError: false
+---
+send:
+  control: restart
+  sql: SET autoinstall_known_extensions = false; LOAD fts
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        Success
+        -------
+        [0 rows]
+        [done]
+  isError: false
+---
+send:
+  python: import os; print(os.environ['TMPDIR'])
+result:
+  content:
+    - type: text
+      text: |
+        <worker temporary 2>
+  isError: false
+---
+send:
+  python: import os; os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  sql: SET autoinstall_known_extensions = false; LOAD fts
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb"
+            ],
+            "duckdb": [
+              "fts",
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+      duckdb:
+        - fts
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false

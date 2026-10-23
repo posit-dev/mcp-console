@@ -1,0 +1,11 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: stopifnot("--vanilla" %in% commandArgs()); cat(42, "\n", sep="")
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

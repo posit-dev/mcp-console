@@ -1,0 +1,33 @@
+---
+send:
+  python: |
+    import os, sys
+    from pathlib import Path
+
+    assert Path(sys.prefix).is_relative_to(Path(os.environ["MCP_CONSOLE_TEST_CACHE"]))
+    os.environ["UV_CONFIG_FILE"] = str(Path.cwd() / "uv.toml")
+    os.environ["UV_CACHE_DIR"] = str(Path.cwd() / "worker-cache")
+    os.environ["UV_HTTP_TIMEOUT"] = "1"
+    print("user cache selected")
+result:
+  content:
+    - type: text
+      text: |
+        user cache selected
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - py-yaml12
+  python: import yaml12; 42
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        42
+        [done]
+  isError: false

@@ -1,0 +1,175 @@
+---
+!same-as sql MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE retained(value INTEGER)
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        [0 rows]
+  isError: false
+---
+send:
+  sql: INSERT INTO retained VALUES (41)
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  sql: BEGIN
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  sql: INSERT INTO retained VALUES (99)
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  sql: ROLLBACK
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  sql: BEGIN
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  sql: INSERT INTO retained VALUES (1)
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  sql: COMMIT
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  sql: SELECT sum(value) AS answer FROM retained
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  r: must not run
+  control: restart
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: "`r` source fields are hidden by `languages`"
+  isError: true
+---
+send:
+  python: must not run
+  control: restart
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: "`python` source fields are hidden by `languages`"
+  isError: true
+---
+send:
+  sql: SELECT sum(value) AS answer FROM retained
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  sql: SHOW TABLES
+result:
+  content:
+    - type: text
+      text: |
+        name
+        ----
+        [0 rows]
+  isError: false

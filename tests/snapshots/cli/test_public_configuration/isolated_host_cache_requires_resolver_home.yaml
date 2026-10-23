@@ -1,0 +1,7 @@
+---
+preparation_error: >-
+  resolver.environment: preparation requires an absolute HOME or
+  MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when
+  inherit_environment is false
+---
+explicit_duckdb_directory_without_home: true

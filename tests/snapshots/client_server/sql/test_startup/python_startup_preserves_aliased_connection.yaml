@@ -1,0 +1,83 @@
+---
+config:
+  startup:
+    language: python
+    code: |
+      import sqlite3
+
+
+      class AliasedConnection:
+          def __init__(self) -> None:
+              self.native = sqlite3.connect(":memory:")
+              self.result = self.native.cursor()
+
+          def cursor(self) -> "AliasedConnection":
+              return self
+
+          def execute(self, source: str) -> "AliasedConnection":
+              self.result.execute(source)
+              return self
+
+          @property
+          def description(self) -> tuple | None:
+              return self.result.description
+
+          def fetchmany(self, size: int) -> list[tuple]:
+              return self.result.fetchmany(size)
+
+          def close(self) -> None:
+              self.native.close()
+
+
+      native = AliasedConnection()
+      _ = native.execute("CREATE TABLE selected (answer INTEGER)")
+      _ = native.execute("INSERT INTO selected VALUES (42)")
+      _console.sql_connection(native)
+overrides:
+  - python=<running Python>
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  sql: SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  sql: UPDATE selected SET answer = 43
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        43
+  isError: false
+---
+send:
+  python: |
+    assert native.native.in_transaction
+    native.native.rollback()
+    assert native.native.execute("SELECT count(*) FROM selected").fetchone() == (0,)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+startup: true
+aliased_connection_preserved: true

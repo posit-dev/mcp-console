@@ -1,0 +1,52 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: r_marker <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    answer = 42
+    import matplotlib.pyplot as plt
+
+    original_close = plt.close
+
+
+    def exit_during_cleanup(*args, **kwargs):
+        raise SystemExit("plot cleanup exit")
+
+
+    plt.close = exit_during_cleanup
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e1>", line 8, in exit_during_cleanup
+        SystemExit: plot cleanup exit
+  isError: false
+---
+send:
+  python: |-
+    plt.close = original_close
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: r_marker
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

@@ -1,0 +1,17 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    python:
+      - -e
+      - >-
+        base::writeLines('executed',
+        base::Sys.getenv('MCP_CONSOLE_HOST_MARKER'))
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `-e` is not accepted: host-side managed resolution
+        accepts named package requirements only
+  isError: true

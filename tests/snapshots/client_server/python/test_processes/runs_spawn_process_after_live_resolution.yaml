@@ -1,0 +1,39 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: |
+    import multiprocessing.spawn
+    import sys
+
+    initial_executable = sys.executable
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import multiprocessing
+    import sys
+
+    import joblib
+
+    context = multiprocessing.get_context("spawn")
+    with context.Pool(1) as pool:
+        child_executable = pool.apply(
+            eval,
+            ("__import__('sys').executable",),
+        )
+
+    (
+        initial_executable != sys.executable,
+        child_executable == sys.executable,
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (True, True)
+  isError: false

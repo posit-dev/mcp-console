@@ -1,0 +1,75 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import subprocess, sys
+    from pathlib import Path
+
+    assert Path(sys.prefix) == Path.cwd() / ".venv"
+    assert (
+        subprocess.check_output(
+            [sys.executable, "-c", "import sys; print(sys.prefix)"], text=True
+        ).strip()
+        == sys.prefix
+    )
+    identity = object()
+    identity_id = id(identity)
+    42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - six
+  python: identity = None
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirements are unavailable in this non-managed Python session;
+        install packages before starting the session
+  isError: true
+---
+send:
+  python: assert id(identity) == identity_id; 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+  python: >-
+    import sys; from pathlib import Path; assert Path(sys.prefix) ==
+    Path.cwd() / '.venv'; 42
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        42
+        [done]
+  isError: false
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: >-
+    import sys; from pathlib import Path; assert Path(sys.prefix) ==
+    Path.cwd() / '.venv'; 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

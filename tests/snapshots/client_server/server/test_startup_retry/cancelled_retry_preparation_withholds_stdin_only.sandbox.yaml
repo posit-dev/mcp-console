@@ -1,0 +1,130 @@
+---
+!same-as writable MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        Python sessions without R require `uv` on PATH; set python in
+        .agents/console/config.yaml to use an existing environment
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - six
+  stdin: |
+    cancelled input
+  timeout_ms: 600000
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [runtime discovery retried]
+        [request cancelled before stdin admission]
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "six"
+            ],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - six
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  python: answer = input('fresh> '); print(answer)
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "fresh> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    fresh input
+result:
+  content:
+    - type: text
+      text: |
+        fresh input
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        'fresh input'
+  isError: false
+---
+send:
+  python: |
+    import six
+    from pathlib import Path
+
+    assert not Path("cancelled-cell").exists()
+    answer = 42
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false

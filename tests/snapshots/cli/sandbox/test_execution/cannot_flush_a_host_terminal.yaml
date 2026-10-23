@@ -1,0 +1,4 @@
+---
+scenario: mutating ioctl on an inherited host PTY
+stdout: |
+  blocked

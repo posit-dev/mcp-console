@@ -1,0 +1,5 @@
+---
+invalid_cache_paths:
+  - UV_CACHE_DIR
+  - HOME
+cache_not_created: true

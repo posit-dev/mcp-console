@@ -1,0 +1,18 @@
+---
+output_count: 1024
+first:
+  kind: console_output
+  data: "0000"
+last:
+  kind: console_output
+  data: "1023"
+tail:
+  - kind: image
+    data: eA==
+    mime_type: image/png
+  - kind: completed
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: worker_sideband_closed
+  - kind: worker_exited
+    code: 0

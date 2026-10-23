@@ -1,0 +1,47 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: r_marker <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    answer = 42
+    import sys
+
+    try:
+        sys.exit(33)
+    except SystemExit as error:
+        assert error.code == 33
+    try:
+        raise SystemExit("caught message")
+    except SystemExit as error:
+        assert error.code == "caught message"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: r_marker
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

@@ -1,0 +1,48 @@
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: python
+  source: |
+    import logging
+    import sys
+    import threading
+
+    saved_stdout, saved_stderr = sys.stdout, sys.stderr
+    logger = logging.Logger("thread-output")
+    logger.addHandler(logging.StreamHandler(saved_stderr))
+
+
+    def background():
+        saved_stdout.write("thread stdout\n")
+        saved_stdout.flush()
+        saved_stderr.write("thread stderr\n")
+        saved_stderr.flush()
+        logger.warning("thread log")
+
+
+    thread = threading.Thread(target=background)
+    thread.start()
+    thread.join()
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: r_initialization
+  complete: false
+---
+worker:
+  kind: r_initialization
+  complete: true
+---
+stdout: |
+  thread stdout
+stderr: |
+  thread stderr
+  thread log
+---
+worker:
+  kind: completed

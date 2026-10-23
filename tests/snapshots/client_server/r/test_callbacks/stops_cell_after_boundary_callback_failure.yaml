@@ -1,0 +1,39 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    invisible(.Call(
+      "mcp_test_register_input_handler",
+      file.path(tempdir(), "failing-handler-fifo"),
+      function() {
+        plot(1)
+        Sys.chmod(list.files(
+          file.path(tempdir(), "mcp-console-plots"),
+          full.names = TRUE
+        ), "0000")
+        old_umask <- Sys.umask("0777")
+        on.exit(Sys.umask(old_umask), add = TRUE)
+        grDevices::dev.off()
+        Sys.umask(old_umask)
+        on.exit(NULL)
+      }
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: system("printf boundary-cell-ran")
+result:
+  content:
+    - type: text
+      text: |-
+        [failed to read managed plot `<worker plot>`: permission denied]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true

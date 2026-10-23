@@ -1,0 +1,8 @@
+---
+unix_sockets: []
+stdout: |
+  Unix connection denied
+---
+unix_sockets: dangerously_allow_all
+stdout: |
+  Unix payload sent

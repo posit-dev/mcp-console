@@ -1,0 +1,185 @@
+---
+send:
+  python: |
+    import os, tempfile
+
+    identity = object()
+    original_stderr = os.dup(2)
+    raw_stderr = tempfile.TemporaryFile()
+    _ = os.dup2(raw_stderr.fileno(), 2)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+  python: raise AssertionError('activation failure ran code')
+result:
+  content:
+    - type: text
+      text: |-
+        Traceback (most recent call last):
+          File "<string>", line 128, in _activate
+          File "<string>", line 768, in _mcp_console_raise_setup_error
+          File "<string>", line 781, in _mcp_console_activate_environment
+          File "<frozen runpy>", line 294, in run_path
+          File "<frozen runpy>", line 98, in _run_module_code
+          File "<frozen runpy>", line 88, in _run_code
+          File "<preparation>/archive-v0/<environment>/bin/activate_this.py", line 1, in <module>
+            raise RuntimeError("synthetic activation failure")
+        RuntimeError: synthetic activation failure
+        Python activation failed; restart required; further requirement changes are unavailable until session restart
+  isError: true
+---
+send:
+  python: |
+    os.dup2(original_stderr, 2)
+    os.close(original_stderr)
+    raw_stderr.seek(0)
+    assert raw_stderr.read() == b""
+    raw_stderr.close()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: "[restart required]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: >-
+    assert 'identity' not in globals(); print('accepted environment
+    retained')
+result:
+  content:
+    - type: text
+      text: |
+        accepted environment retained
+  isError: false

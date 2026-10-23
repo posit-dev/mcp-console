@@ -1,0 +1,72 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    invisible(.Call(
+      "mcp_test_register_input_handler",
+      file.path(tempdir(), "initial-boundary-fifo"),
+      function() readline("callback> ")
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: cat("cell body ran\n")
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "callback> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    callback_fifo <- file.path(tempdir(), "final-boundary-fifo")
+    invisible(.Call(
+      "mcp_test_register_input_handler",
+      callback_fifo,
+      function() cat("post-cell callback ran\n")
+    ))
+    writer <- fifo(callback_fifo, open = "wb")
+    writeBin(as.raw(1), writer)
+    close(writer)
+    readline("cell> ")
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "cell> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [1] ""
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false

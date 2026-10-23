@@ -1,0 +1,100 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+    import subprocess
+
+    assert "PYTHONHOME" not in os.environ
+    assert os.environ["RETICULATE_PYTHON"] == sys.executable
+    assert os.path.samefile(sys.prefix, "../environment")
+    assert sys.prefix != sys.base_prefix
+    child = subprocess.check_output(
+        [sys.executable, "-c", "import sys; print(sys.prefix)"], text=True
+    ).strip()
+    assert os.path.samefile(child, sys.prefix)
+    print("selected environment retained")
+result:
+  content:
+    - type: text
+      text: |
+        selected environment retained
+  isError: false
+---
+send:
+  control: restart
+  python: |
+    import os
+    import sys
+    import subprocess
+
+    assert "PYTHONHOME" not in os.environ
+    assert os.environ["RETICULATE_PYTHON"] == sys.executable
+    assert os.path.samefile(sys.prefix, "../environment")
+    assert sys.prefix != sys.base_prefix
+    child = subprocess.check_output(
+        [sys.executable, "-c", "import sys; print(sys.prefix)"], text=True
+    ).strip()
+    assert os.path.samefile(child, sys.prefix)
+    print("selected environment retained")
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        selected environment retained
+        [done]
+  isError: false
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+    import subprocess
+
+    assert "PYTHONHOME" not in os.environ
+    assert os.environ["RETICULATE_PYTHON"] == sys.executable
+    assert os.path.samefile(sys.prefix, "../environment")
+    assert sys.prefix != sys.base_prefix
+    child = subprocess.check_output(
+        [sys.executable, "-c", "import sys; print(sys.prefix)"], text=True
+    ).strip()
+    assert os.path.samefile(child, sys.prefix)
+    print("selected environment retained")
+result:
+  content:
+    - type: text
+      text: |
+        selected environment retained
+  isError: false
+---
+send:
+  control: restart
+  python: |
+    import os
+    import sys
+    import subprocess
+
+    assert "PYTHONHOME" not in os.environ
+    assert os.environ["RETICULATE_PYTHON"] == sys.executable
+    assert os.path.samefile(sys.prefix, "../environment")
+    assert sys.prefix != sys.base_prefix
+    child = subprocess.check_output(
+        [sys.executable, "-c", "import sys; print(sys.prefix)"], text=True
+    ).strip()
+    assert os.path.samefile(child, sys.prefix)
+    print("selected environment retained")
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        selected environment retained
+        [done]
+  isError: false

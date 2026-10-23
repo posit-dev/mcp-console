@@ -1,0 +1,14 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  r: queued-EOF
+  python: "1"
+result:
+  content:
+    - type: text
+      text: only one of `r`, `python`, or `sql` may be supplied
+  isError: true
+---
+exit_status: 0
+stderr: ""

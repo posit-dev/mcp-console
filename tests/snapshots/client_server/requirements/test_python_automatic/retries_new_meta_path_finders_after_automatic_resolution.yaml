@@ -1,0 +1,70 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+
+
+    class AutomaticMetaLoader:
+        def create_module(self, specification):
+            return None
+
+        def exec_module(self, module):
+            module.answer = 42
+
+
+    class AutomaticMetaFinder:
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname == "mcp_console_activated_finder":
+                return importlib.util.spec_from_loader(
+                    fullname,
+                    AutomaticMetaLoader(),
+                )
+            return None
+
+
+    automatic_meta_finder = AutomaticMetaFinder()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import runpy
+    import sys
+
+    original_run_path = runpy.run_path
+
+    def activate_with_finder(*args, **kwargs):
+        result = original_run_path(*args, **kwargs)
+        sys.meta_path.insert(0, automatic_meta_finder)
+        runpy.run_path = original_run_path
+        return result
+
+    runpy.run_path = activate_with_finder
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    import mcp_console_activated_finder; mcp_console_activated_finder.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

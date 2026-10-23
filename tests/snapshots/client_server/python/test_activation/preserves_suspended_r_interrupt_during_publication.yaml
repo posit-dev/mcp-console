@@ -1,0 +1,81 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python: []
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import signal
+    import _mcp_console_services as services
+
+    original_publish = services.publish_python_activation
+
+
+    def interrupted_publish(activation):
+        signal.raise_signal(signal.SIGINT)
+        original_publish(activation)
+
+
+    services.publish_python_activation = interrupted_publish
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      {
+        suspendInterrupts({
+          reticulate::py_require("console-activation-fixture")
+          cat("activation returned\n")
+        })
+        Sys.sleep(0) # Check R interrupts while the handler is installed.
+      },
+      interrupt = function(condition) cat("R accepted deferred interrupt\n")
+    )
+result:
+  content:
+    - type: text
+      text: |
+        activation returned
+        R accepted deferred interrupt
+  isError: false
+---
+send:
+  python: import console_unloaded; console_unloaded.origin
+result:
+  content:
+    - type: text
+      text: |
+        'candidate'
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: import console_unloaded; console_unloaded.origin
+result:
+  content:
+    - type: text
+      text: |
+        'candidate'
+  isError: false

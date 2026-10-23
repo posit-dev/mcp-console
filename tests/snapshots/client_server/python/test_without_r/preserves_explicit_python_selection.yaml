@@ -1,0 +1,57 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: >-
+    import os, sys; assert sys.executable ==
+    os.environ['RETICULATE_PYTHON']; identity = object(); identity_id =
+    id(identity); 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirements are unavailable in this non-managed Python session;
+        install packages before starting the session
+  isError: true
+---
+send:
+  python: assert id(identity) == identity_id; 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirements are unavailable in this non-managed Python session;
+        install packages before starting the session
+  isError: true
+---
+send:
+  python: assert id(identity) == identity_id; 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

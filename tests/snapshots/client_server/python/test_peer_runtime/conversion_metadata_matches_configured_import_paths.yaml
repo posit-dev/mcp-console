@@ -1,0 +1,5 @@
+---
+configured_import_paths:
+  - PYTHONPATH
+  - RETICULATE_PYTHONPATH
+live_numpy_metadata: true

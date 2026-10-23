@@ -1,0 +1,55 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    sentinel <- 42L
+    worker_pid <- Sys.getpid()
+    initial_lib_paths <- .libPaths()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - zeallot
+    python:
+      - example @ https://example.invalid/example.whl
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `example @ https://example.invalid/example.whl` is
+        not accepted: host-side managed resolution accepts named package
+        requirements only
+  isError: true
+---
+send:
+  r: |
+    stopifnot(
+      identical(sentinel, 42L),
+      identical(Sys.getpid(), worker_pid),
+      identical(.libPaths(), initial_lib_paths)
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

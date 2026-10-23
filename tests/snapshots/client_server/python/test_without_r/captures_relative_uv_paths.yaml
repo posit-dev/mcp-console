@@ -1,0 +1,28 @@
+---
+send:
+  python: |
+    import os, sys
+    from pathlib import Path
+
+    assert Path(sys.prefix).is_relative_to(Path(os.environ["MCP_CONSOLE_TEST_CACHE"]))
+    print("relative startup paths retained")
+result:
+  content:
+    - type: text
+      text: |
+        relative startup paths retained
+  isError: false
+---
+send:
+  python: |
+    import os, sys
+    from pathlib import Path
+
+    assert Path(sys.prefix).is_relative_to(Path(os.environ["MCP_CONSOLE_TEST_CACHE"]))
+    print("relative startup paths retained")
+result:
+  content:
+    - type: text
+      text: |
+        relative startup paths retained
+  isError: false

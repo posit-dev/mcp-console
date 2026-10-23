@@ -1,0 +1,179 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import json
+    import os
+    import subprocess
+    import sys
+    import numpy
+    import pandas
+
+    assert "RETICULATE_PYTHON" not in os.environ
+    assert sys.prefix != sys.base_prefix
+    base = os.path.join(sys.base_prefix, "bin", "python3")
+    probe = "import importlib.util; assert importlib.util.find_spec('pandas') is None"
+    subprocess.run([base, "-I", "-c", probe], check=True)
+    probe = "import json, sys, pandas; print(json.dumps([sys.executable, sys.prefix, sys.exec_prefix]))"
+    child = json.loads(subprocess.check_output([sys.executable, "-c", probe], text=True))
+    assert child == [sys.executable, sys.prefix, sys.exec_prefix]
+    child = json.loads(subprocess.check_output(["python", "-c", probe], text=True))
+    assert child == [sys.executable, sys.prefix, sys.exec_prefix]
+    assert os.environ["VIRTUAL_ENV"] == sys.prefix
+    import multiprocessing
+
+    with multiprocessing.get_context("spawn").Pool(1) as pool:
+        child = pool.apply(eval, ("__import__('sys').executable",))
+    assert child == sys.executable
+    # Release the pool's semaphores before restarting a worker
+    # whose interpreter is intentionally never finalized.
+    del pool
+    import gc
+
+    gc.collect()
+    selected = sys.executable
+    retained = 41
+    identity = object()
+    identity_id = id(identity)
+    retained + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: assert id(identity) == identity_id; retained + 2
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  r: "1"
+result:
+  content:
+    - type: text
+      text: R cells are unavailable in Python sessions without R
+  isError: true
+---
+send:
+  python: assert id(identity) == identity_id; retained + 2
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  requirements:
+    action: set
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  python: assert id(identity) == identity_id; retained + 2
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - cli
+result:
+  content:
+    - type: text
+      text: R requirements are unavailable in Python sessions without R
+  isError: true
+---
+send:
+  python: assert id(identity) == identity_id; retained + 2
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - json
+    python:
+      - numpy==0.1
+result:
+  content:
+    - type: text
+      text: >-
+        live Python requirements can only add new distributions; `numpy==0.1`
+        changes already-declared `numpy`; use control: restart with
+        requirements.action: set
+  isError: true
+---
+send:
+  python: assert id(identity) == identity_id; retained + 2
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  python: import os.mcp_console_missing
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e7>", line 1, in <module>
+        ModuleNotFoundError: No module named 'os.mcp_console_missing'; 'os' is not a package
+  isError: false
+---
+send:
+  python: assert id(identity) == identity_id; retained + 2
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  python: print(selected)
+result:
+  content:
+    - type: text
+      text: |
+        <selected Python>
+  isError: false
+---
+send:
+  control: restart
+  python: import sys, pandas; print(sys.executable)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        <selected Python>
+        [done]
+  isError: false

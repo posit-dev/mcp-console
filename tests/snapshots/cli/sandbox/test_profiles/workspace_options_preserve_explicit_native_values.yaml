@@ -1,0 +1,25 @@
+---
+configuration:
+  extends: :workspace
+  workspace_options:
+    exclude_tmpdir_env_var: false
+    exclude_slash_tmp: true
+stdout: |
+  explicit native temporary-directory options preserved
+stderr: ""
+---
+configuration:
+  extends: :workspace
+  workspace_options:
+    exclude_tmpdir_env_var: true
+    exclude_slash_tmp: false
+stdout: |
+  explicit native temporary-directory options preserved
+stderr: ""
+---
+configuration:
+  extends: :workspace
+  workspace_options: ~
+stdout: |
+  explicit native temporary-directory options preserved
+stderr: ""

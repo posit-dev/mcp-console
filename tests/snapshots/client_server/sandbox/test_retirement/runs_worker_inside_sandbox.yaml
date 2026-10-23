@@ -1,0 +1,11 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: probe sandbox
+result:
+  content:
+    - type: text
+      text: |
+        sandbox blocked host write
+  isError: false

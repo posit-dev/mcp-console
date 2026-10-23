@@ -1,0 +1,87 @@
+---
+send:
+  requirements:
+    action: set
+    python: []
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    startup_worker_pid <- Sys.getpid()
+    startup_r_state <- 42L
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    cat(tempfile("ready-"), tempfile("release-"), tempfile("pid-"), sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <probe ready>
+        <probe release>
+        <probe pid>
+  isError: false
+---
+send:
+  sql: CREATE TABLE startup_state AS SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: invisible(reticulate::py_config())
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 30000
+result:
+  content:
+    - type: text
+      text: "\n"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(Sys.getpid(), startup_worker_pid),
+      identical(startup_r_state, 42L)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM startup_state
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false
+---
+send:
+  r: reticulate::py_run_string("print('initialized')")
+result:
+  content:
+    - type: text
+      text: |
+        initialized
+  isError: false

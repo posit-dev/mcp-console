@@ -1,0 +1,5 @@
+---
+interrupt_settled_by_shutdown: true
+observation_cancelled: false
+late_ack_after_command_eof: true
+writer_joined: true

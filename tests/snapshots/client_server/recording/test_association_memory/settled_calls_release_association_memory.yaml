@@ -1,0 +1,4 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+association memory: settled calls released while the worker survives

@@ -1,0 +1,36 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: old evaluation
+---
+relay:
+  kind: cell_started
+---
+server:
+  kind: interrupt
+  request_id: 0
+---
+relay:
+  kind: console_output
+  data: |
+    old evaluation remains active
+---
+relay:
+  kind: interrupt_result
+  request_id: 0
+---
+relay:
+  kind: console_output
+  data: |
+    old evaluation eventually finished
+---
+relay:
+  kind: completed

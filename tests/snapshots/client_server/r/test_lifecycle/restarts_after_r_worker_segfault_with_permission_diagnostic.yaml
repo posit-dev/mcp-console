@@ -1,0 +1,67 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: r_worker_marker <- TRUE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    dyn.load(Sys.getenv("MCP_CONSOLE_TEST_SEGFAULT_LIBRARY"))
+    .C("mcp_test_segfault")
+result:
+  content:
+    - type: text
+      text: |2-
+
+         *** caught segfault ***
+        address 0x0, cause 'invalid permissions'
+
+        Traceback:
+         1: .C("mcp_test_segfault")
+
+        Possible actions:
+        1: abort (with core dump, if enabled)
+        2: normal R exit
+        3: exit R without saving workspace
+        4: exit R saving workspace
+        [input requested: "Selection: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    1
+result:
+  content:
+    - type: text
+      text: |-
+        R is aborting now ...
+        [worker sideband read failed: worker sideband closed]
+        [worker terminated by signal 11]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: exists("r_worker_marker", inherits = FALSE)
+result:
+  content:
+    - type: text
+      text: |
+        [1] FALSE
+  isError: false
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        [1] 2
+  isError: false

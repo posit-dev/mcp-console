@@ -1,0 +1,26 @@
+---
+command: serve
+home: false
+environment: last|unset|cli
+---
+command: sandbox
+home: false
+environment: last|unset|cli
+---
+command: serve
+home: true
+environment: last|home|cli
+---
+command: sandbox
+home: true
+environment: last|home|cli
+---
+command: serve
+home: false
+overrides: false
+environment: unset|unset|unset
+---
+command: sandbox
+home: false
+overrides: false
+environment: unset|unset|unset

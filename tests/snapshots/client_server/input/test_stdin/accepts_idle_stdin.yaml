@@ -1,0 +1,42 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  stdin: |
+    cold
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: input without request
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin: cold
+  isError: false
+---
+send:
+  stdin: |
+    idle
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: input without request
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin: idle
+  isError: false

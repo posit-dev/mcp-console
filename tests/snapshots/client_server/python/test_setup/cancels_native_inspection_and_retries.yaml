@@ -1,0 +1,67 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    retained_value <- 41L
+    retained_pid <- Sys.getpid()
+    Sys.setenv(RETICULATE_PYTHON = "<selected python>")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    unexecuted_value = 1
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: "\n"
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(Sys.getpid() == retained_pid)
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    retained_value + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    retried_value = 43
+    retried_value
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  python: |
+    retried_value + 1
+result:
+  content:
+    - type: text
+      text: |
+        44
+  isError: false

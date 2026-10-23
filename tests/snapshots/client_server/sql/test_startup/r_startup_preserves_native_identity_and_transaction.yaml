@@ -1,0 +1,87 @@
+---
+config:
+  startup:
+    language: r
+    code: |
+      assert_startup_transport_consumed <- function() {
+        stopifnot(is.na(Sys.getenv(
+          "MCP_CONSOLE_STARTUP_FILE",
+          unset = NA_character_
+        )))
+        stopifnot(
+          !any(startsWith(
+            system2("/usr/bin/env", stdout = TRUE),
+            "MCP_CONSOLE_STARTUP_FILE="
+          ))
+        )
+      }
+      assert_startup_transport_consumed()
+      startup_count <- if (exists("startup_count")) startup_count + 1L else 1L
+      native <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+      invisible(DBI::dbExecute(native, "CREATE TABLE selected AS SELECT 1 AS answer"))
+      DBI::dbBegin(native)
+      invisible(DBI::dbExecute(native, "UPDATE selected SET answer = 42"))
+      .console$sql_connection(native)
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false
+---
+send:
+  r: |
+    assert_startup_transport_consumed()
+    stopifnot(startup_count == 1L, identical(.console$sql_connection(), native))
+    DBI::dbRollback(native)
+    stopifnot(DBI::dbGetQuery(native, "SELECT answer FROM selected")[[1L]] == 1)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  sql: SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false
+---
+send:
+  r: >-
+    assert_startup_transport_consumed(); stopifnot(startup_count == 1L,
+    identical(.console$sql_connection(), native))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+startup: native R
+once_per_generation: true
+identity_and_transactions: true

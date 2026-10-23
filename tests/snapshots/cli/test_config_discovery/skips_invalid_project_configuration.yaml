@@ -1,0 +1,11 @@
+---
+project: malformed
+default_error: >
+  .agents/console/config.yaml: while parsing a node, did not find expected
+  node content at byte 10 line 2 column 1
+skipped: true
+---
+project: unreadable
+default_error: |
+  configuration '.agents/console/config.yaml' must be a regular file
+skipped: true

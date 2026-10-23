@@ -1,0 +1,14 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --exit-with-parent
+  - <owner pid>
+  - --
+  - /bin/echo
+  - target ran
+owner_signal: SIGKILL before target release
+owner_returncode: -9
+stderr: ""
+verified_target: did not run
+verified_cleanup: sandbox root, manager, and private directory

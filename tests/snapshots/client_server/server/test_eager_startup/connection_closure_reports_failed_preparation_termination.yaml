@@ -1,0 +1,6 @@
+---
+stalled_preparation_reaped_before_server_exit: false
+stderr: >
+  local resolver setup or retirement deadline exceeded; cannot terminate
+  local resolver: Operation not permitted (os error 1); retirement
+  unconfirmed

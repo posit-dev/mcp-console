@@ -1,0 +1,8 @@
+.git
+target
+wheel-data
+.agents
+.dev-workflow
+.venv
+__pycache__
+*.egg-info

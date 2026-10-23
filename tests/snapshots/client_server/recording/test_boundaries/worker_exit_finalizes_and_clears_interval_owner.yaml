@@ -1,0 +1,14 @@
+---
+fixture: "Gated relay: ended owner."
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: complete before shutdown
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        post-cell text
+  isError: false

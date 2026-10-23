@@ -1,0 +1,33 @@
+---
+arguments:
+  - serve
+  - --no-sandbox
+  - -c
+  - "sandbox={} "
+stderr: >
+  .agents/console/config.yaml: while parsing a node, did not find expected
+  node content at byte 10 line 2 column 1
+---
+arguments:
+  - -c
+  - extends=:workspace
+  - sandbox
+  - --runner-config-env
+  - TEST_POLICY
+  - --
+  - <console>
+  - --version
+stderr: |
+  configuration overrides cannot be combined with --runner-config-env
+---
+arguments:
+  - sandbox
+  - --settings-env
+  - TEST_POLICY
+  - -c
+  - extends=:workspace
+  - --
+  - <console>
+  - --version
+stderr: |
+  configuration overrides cannot be combined with --settings-env

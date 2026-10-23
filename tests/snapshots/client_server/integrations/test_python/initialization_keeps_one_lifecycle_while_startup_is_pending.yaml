@@ -1,0 +1,4 @@
+---
+startup_kept_one_lifecycle: true
+output: |
+  zod: initialized

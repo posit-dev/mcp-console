@@ -1,0 +1,73 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_retained_package
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import mcp_console_test_retained_package as package
+    from pathlib import Path
+    import sys
+
+    initial_package_path = Path(package.__file__).resolve().parent
+    initial_site = Path(package.__spec__.submodule_search_locations[0]).parent
+    assert initial_site in {Path(path) for path in sys.path if path}
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: add
+    python:
+      - mcp_console_test_activation_addition
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    assert initial_site not in {Path(path) for path in sys.path if path}
+    assert Path(package.__path__[0]).resolve() == initial_package_path
+    from mcp_console_test_retained_package import later
+
+    assert Path(later.__file__).samefile(initial_package_path / "later.py")
+    later.fallback
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  python: |
+    from pkgutil import extend_path
+
+    original_spec_paths = tuple(package.__spec__.submodule_search_locations)
+    package.__path__ = extend_path(package.__path__, package.__name__)
+    assert tuple(package.__spec__.submodule_search_locations) == original_spec_paths
+    assert len(package.__path__) > len(original_spec_paths)
+    from mcp_console_test_retained_package import new_portion
+
+    assert Path(new_portion.__file__).resolve().parent != initial_package_path
+    new_portion.fallback
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false

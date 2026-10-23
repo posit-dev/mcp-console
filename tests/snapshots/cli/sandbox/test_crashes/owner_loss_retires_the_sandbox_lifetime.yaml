@@ -1,0 +1,36 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --exit-with-parent
+  - <owner pid>
+  - --
+  - python
+  - -c
+  - |
+    import os
+    import subprocess
+    import time
+
+    assert input() == "start"
+    child = subprocess.Popen(
+        ["/bin/sleep", "60"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    print(os.getpid())
+    print(child.pid)
+    print(os.environ["TMPDIR"], flush=True)
+    time.sleep(60)
+stdout: |
+  <sandbox root pid>
+  <detached descendant pid>
+  <sandbox temp>
+---
+owner_signal: SIGKILL
+owner_returncode: -9
+verified_cleanup_barrier: >-
+  launcher exited after sandbox root/target, detached descendant, manager,
+  and temp

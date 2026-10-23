@@ -1,0 +1,116 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  r: preview recovery intervals
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+id: <cancelled request 2>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 2>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8124
+        concat:
+          - |
+            interval 0 head
+          - repeat: x
+            count: 3952
+          - |
+
+            [output omitted: 24865 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-002.txt]
+          - repeat: x
+            count: 3951
+          - |-
+
+            interval 0 tail
+
+            [elapsed: <elapsed>s since admission]
+            [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8124
+        concat:
+          - |
+            interval 1 head
+          - repeat: x
+            count: 3952
+          - |
+
+            [output omitted: 57666 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-002.txt]
+          - repeat: x
+            count: 3951
+          - |-
+
+            interval 2 tail
+
+            [elapsed: <elapsed>s since admission]
+            [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

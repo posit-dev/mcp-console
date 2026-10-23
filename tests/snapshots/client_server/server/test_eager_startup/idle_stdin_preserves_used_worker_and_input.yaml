@@ -1,0 +1,43 @@
+---
+send:
+  requirements:
+    action: get
+result: <committed default manifest>
+---
+send:
+  stdin: |
+    retained input
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result: <unchanged default manifest>
+---
+send:
+  python: input()
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: ""]
+        'retained input'
+  isError: false

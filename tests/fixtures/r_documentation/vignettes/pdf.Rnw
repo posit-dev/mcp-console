@@ -1,0 +1,8 @@
+\documentclass{article}
+%\VignetteIndexEntry{Console PDF vignette}
+\begin{document}
+Installed PDF source.
+<<must-not-run>>=
+stop("vignette source must not execute")
+@
+\end{document}

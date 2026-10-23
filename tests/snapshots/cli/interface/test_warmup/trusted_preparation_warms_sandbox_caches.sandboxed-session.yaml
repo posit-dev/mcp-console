@@ -1,0 +1,11 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.configured-python.yaml
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

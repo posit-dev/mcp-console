@@ -1,0 +1,5 @@
+---
+configuration_padding_bytes: 65536
+stdout: "independent stdin\n\0雪\n"
+---
+oversized_launch_errno: E2BIG

@@ -1,0 +1,28 @@
+---
+project: false
+server: console
+settings:
+  model: example
+  permissions:
+    allow:
+      - Read
+      - mcp__other__send
+      - mcp__console__send
+    ask:
+      - Bash
+    deny:
+      - Read(./.env)
+---
+project: true
+server: console.test_custom-1:@/local
+settings:
+  model: example
+  permissions:
+    allow:
+      - Read
+      - mcp__other__send
+      - mcp__console_test_custom-1___local__send
+    ask:
+      - Bash
+    deny:
+      - Read(./.env)

@@ -1,0 +1,116 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: input length without request
+  stdin: <long UTF-8 stdin containing NUL>
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin length: 1030
+  isError: false
+---
+send:
+  r: input without request
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  stdin: |
+    followup
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin: followup
+  isError: false
+---
+send:
+  r: request input
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "zod> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: ""
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    prompted
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin: prompted
+  isError: false
+---
+send:
+  r: input without request then request input
+  stdin: |
+    first
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "second> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    second
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin: first|second
+  isError: false
+---
+send:
+  r: echo echo
+  stdin: |
+    stale
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false
+---
+send:
+  r: input without request
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin: stale
+  isError: false
+---
+send:
+  r: echo echo
+  stdin: <large unread stdin>
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

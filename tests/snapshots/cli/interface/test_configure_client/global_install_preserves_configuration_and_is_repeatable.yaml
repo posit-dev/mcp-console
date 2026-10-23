@@ -1,0 +1,82 @@
+---
+client: codex
+console:
+  command: uvx
+  args:
+    - mcp-console
+    - serve
+    - --default-config
+    - sandbox.profile=inherit_codex
+  enabled: true
+  startup_timeout_sec: 30
+  omit_tools_from:
+    - deferred
+  env:
+    KEEP: value
+  tools:
+    send:
+      approval_mode: approve
+stdout: |
+  Configured Console for Codex (global).
+  Configuration: <CONFIG>
+
+  Set these fields:
+  [mcp_servers.console]
+  command = "uvx"
+  args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"]
+  enabled = true
+  omit_tools_from = ["deferred"]
+
+  [mcp_servers.console.tools.send]
+  approval_mode = "approve"
+
+  Console tools are configured to load up front. Use --no-auto-load to keep the client's default tool discovery.
+  Console's send tool is allowlisted for calls without individual approval; explicit client restrictions still apply.
+  Restart Codex to load the configuration.
+repeat: unchanged
+---
+client: claude
+console:
+  type: stdio
+  command: uvx
+  args:
+    - mcp-console
+    - serve
+  env:
+    KEEP: value
+  alwaysLoad: true
+stdout: |
+  Configured Console for Claude Code (global).
+  Configuration: <CONFIG>
+
+  Set these fields:
+  {
+    "mcpServers": {
+      "console": {
+        "type": "stdio",
+        "command": "uvx",
+        "args": [
+          "mcp-console",
+          "serve"
+        ],
+        "alwaysLoad": true
+      }
+    }
+  }
+
+  Configured Console for Claude Code (global).
+  Configuration: <SETTINGS>
+
+  Set these fields:
+  {
+    "permissions": {
+      "allow": [
+        "mcp__console__send"
+      ]
+    }
+  }
+
+  Console tools are configured to load up front. Use --no-auto-load to keep the client's default tool discovery.
+  Console's send tool is allowlisted for calls without individual approval; explicit client restrictions still apply.
+  Restart Claude Code to load the configuration.
+repeat: unchanged

@@ -1,0 +1,6 @@
+---
+real_package_build_backend: true
+host_read: true
+direct_write_denied: true
+symlink_write_denied: true
+download_denied: true

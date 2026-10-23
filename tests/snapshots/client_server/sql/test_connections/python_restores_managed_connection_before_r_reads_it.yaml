@@ -1,0 +1,127 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE managed_values AS SELECT 42 AS value
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    lite <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+    .console$sql_connection(lite)
+    invisible()
+  requirements:
+    r:
+      - RSQLite
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: _console.sql_connection(None)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    restored <- .console$sql_connection()
+    DBI::dbDisconnect(lite)
+    cat(
+      c("managed: ", inherits(restored, "duckdb_connection"), "\n"),
+      c(
+        "value: ",
+        DBI::dbGetQuery(
+          .console$sql_connection(),
+          "SELECT value FROM managed_values"
+        )$value,
+        "\n"
+      ),
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        managed: TRUE
+        value: 42
+  isError: false
+---
+send:
+  python: |
+    import _mcp_console_sql
+    import sys
+
+    use_r_code = _mcp_console_sql.use_r.__code__
+
+
+    def reject_repeated_restore(frame, event, argument):
+        if event == "call" and frame.f_code is use_r_code:
+            raise SystemExit("repeated managed restoration")
+        return reject_repeated_restore
+
+
+    sys.settrace(reject_repeated_restore)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT value FROM managed_values
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+            value
+          <int32>
+        1      42
+  isError: false
+---
+send:
+  python: sys.settrace(None)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    another <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+    .console$sql_connection(another)
+    managed_in_r <- function() inherits(.console$sql_connection(), "duckdb_connection")
+    invisible()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    _console.sql_connection(None)
+    assert r.managed_in_r()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: DBI::dbDisconnect(another); invisible()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

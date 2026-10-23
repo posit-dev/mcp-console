@@ -1,0 +1,22 @@
+---
+output_frames:
+  - index: 0
+    encoded_bytes: 8392704
+    data_prefix: "0000:"
+    repeated_character: x
+  - index: 1
+    encoded_bytes: 8392704
+    data_prefix: "0001:"
+    repeated_character: x
+  - index: 2
+    encoded_bytes: 8392704
+    data_prefix: "0002:"
+    repeated_character: x
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: worker_sideband_closed
+  - kind: worker_exited
+    code: 0
+exit_code: 0
+stderr: ""

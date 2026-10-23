@@ -1,0 +1,6 @@
+---
+signal: SIGINT
+stdout: |
+  ready
+  interrupted
+exit_code: 23

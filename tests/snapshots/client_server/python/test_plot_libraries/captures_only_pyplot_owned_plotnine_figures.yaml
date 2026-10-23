@@ -1,0 +1,97 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - seaborn
+      - plotnine
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    from PIL import Image
+    from plotnine import aes, geom_point, ggplot, theme
+
+    assert matplotlib.get_backend().lower() == "agg"
+    references = Path(os.environ["TMPDIR"])
+    data = pd.DataFrame({"x": [1, 2, 3], "y": [3, 1, 2]})
+    plot = ggplot(data, aes("x", "y")) + geom_point() + theme(figure_size=(3, 2), dpi=100)
+    assert plt.get_fignums() == []
+    plot
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        <unshown plotnine ggplot>
+  isError: false
+---
+send:
+  python: |
+    # Default draw returns a detached Figure, even after savefig.
+    hidden = plot.draw()
+    hidden.savefig(references / "hidden.png", format="png")
+    with Image.open(references / "hidden.png") as image:
+        assert image.size == (300, 200)
+        assert any(lo < hi for lo, hi in image.convert("RGB").getextrema())
+    assert plt.get_fignums() == []
+    hidden
+result:
+  content:
+    - type: text
+      text: |
+        <Figure size 300x200 with 1 Axes>
+  isError: false
+---
+send:
+  python: |
+    # Use a fresh object: the previous draw cached a detached Figure.
+    shown_plot = (
+        ggplot(data, aes("x", "y")) + geom_point() + theme(figure_size=(3, 2), dpi=100)
+    )
+    shown = shown_plot.draw(show=True)
+    assert plt.get_fignums() == []
+    shown.savefig(references / "shown.png", format="png")
+    with Image.open(references / "shown.png") as image:
+        assert image.size == (300, 200)
+        assert any(lo < hi for lo, hi in image.convert("RGB").getextrema())
+    shown
+  timeout_ms: 600000
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live shown plotnine savefig 1>
+      mimeType: image/png
+    - type: text
+      text: |
+        <Figure size 300x200 with 1 Axes>
+  isError: false
+---
+send:
+  python: (matplotlib.get_backend().lower(), plt.get_fignums())
+result:
+  content:
+    - type: text
+      text: |
+        ('agg', [])
+  isError: false

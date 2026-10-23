@@ -1,0 +1,43 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: retained = 42; retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - numpy<2
+      - pandas
+      - duckdb==0.9.2
+    python_version:
+      - <3.12
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: |-
+        DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
+          File "<string>", line 56, in <module>
+        duckdb.duckdb.HTTPException: HTTP Error: Failed to download extension "not_a_real_duckdb_extension" at URL "http://extensions.duckdb.org/v0.9.2/<duckdb platform>/not_a_real_duckdb_extension.duckdb_extension.gz"
+
+        Candidate extensions: "motherduck"
+  isError: true
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

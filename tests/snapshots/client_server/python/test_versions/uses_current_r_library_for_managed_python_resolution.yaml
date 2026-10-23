@@ -1,0 +1,77 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    initial_r_library <- .libPaths()[[managed_index]]
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - zeallot
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    cat(jsonlite::toJSON(.libPaths()[[managed_index]], auto_unbox = TRUE))
+result:
+  content:
+    - type: text
+      text: '"<current managed R library>"'
+  isError: false
+---
+send:
+  r: |
+    invisible(capture.output(print(reticulate::py_require())))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_require("py-yaml12")
+    invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    cat(jsonlite::toJSON(.libPaths()[[managed_index]], auto_unbox = TRUE))
+result:
+  content:
+    - type: text
+      text: '"<current managed R library>"'
+  isError: false

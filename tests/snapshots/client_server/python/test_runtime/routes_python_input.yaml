@@ -1,0 +1,54 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    name = input("name> ")
+    name
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "name> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    Ada
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        'Ada'
+  isError: false
+---
+send:
+  python: |
+    color = input("color> ")
+    color
+  stdin: |
+    blue
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "color> "]
+        'blue'
+  isError: false
+---
+send:
+  python: |
+    import sys
+
+    direct = sys.stdin.readline()
+    direct
+  stdin: |
+    fd 0
+result:
+  content:
+    - type: text
+      text: |
+        'fd 0\n'
+  isError: false

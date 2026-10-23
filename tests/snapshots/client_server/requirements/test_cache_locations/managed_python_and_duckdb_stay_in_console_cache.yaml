@@ -1,0 +1,5 @@
+---
+managed_python: true
+live_requirements: true
+duckdb: true
+host_caches_untouched: true

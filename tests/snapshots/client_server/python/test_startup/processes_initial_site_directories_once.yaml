@@ -1,0 +1,25 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import builtins
+    import sys
+
+    assert sys.flags.no_site == 0
+    builtins.console_startups == 2
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  python: builtins.console_startups == 2
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false

@@ -1,31 +1,62 @@
 [build-system]
-requires = ["maturin>=1.11,<2"]
-build-backend = "maturin"
+requires = ["maturin>=1.15,<2.0"]
+build-backend = "build_backend"
+backend-path = ["scripts"]
 
 [project]
-name = "posit-mcp-repl"
+name = "mcp-console"
 dynamic = ["version"]
-description = "MCP server exposing a long-lived interactive REPL runtime (R or Python backend) over stdio."
+description = "Persistent R, Python, and SQL sessions for MCP clients"
 readme = "README.md"
-requires-python = ">=3.9"
-license = "Apache-2.0"
-keywords = ["mcp", "repl", "r", "python"]
+requires-python = ">=3.11"
+license = "MIT"
+keywords = ["mcp", "r", "python", "sql", "duckdb"]
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Environment :: Console",
-  "License :: OSI Approved :: Apache Software License",
-  "Programming Language :: Rust",
-  "Programming Language :: Python :: 3",
-  "Topic :: Software Development :: Interpreters",
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering",
 ]
 
+[project.optional-dependencies]
+anthropic = ["anthropic[mcp]>=1.15.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
+chatlas = ["chatlas[mcp]>=0.23.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
+client = ["anyio>=4.15.1", "mcp>=2.3.0,<3"]
+codex = ["openai-codex>=0.163.0"]
+openai = ["openai>=3.31.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
+openai-agents = ["openai-agents>=0.24.0", "anyio>=4.15.1", "mcp>=2.3.0,<3"]
+
 [project.urls]
-Homepage = "https://github.com/posit-dev/mcp-repl"
-Repository = "https://github.com/posit-dev/mcp-repl"
-Issues = "https://github.com/posit-dev/mcp-repl/issues"
+Homepage = "https://github.com/t-kalinowski/mcp-console"
+Repository = "https://github.com/t-kalinowski/mcp-console"
+Issues = "https://github.com/t-kalinowski/mcp-console/issues"
+
+[tool.ruff.format]
+line-ending = "lf"
 
 [tool.maturin]
 bindings = "bin"
-features = ["pypi-alias"]
-strip = true
 compatibility = "pypi"
+locked = true
+module-name = "mcp_console"
+python-source = "python"
+data = "wheel-data"
+include = [
+    { path = "wheel-data/data/.gitignore", format = "sdist" },
+    { path = "scripts/build_backend.py", format = "sdist" },
+    { path = "scripts/checkout_workflow.py", format = "sdist" },
+    { path = "scripts/checkout_windows.py", format = "sdist" },
+    { path = "scripts/stage-sandbox-runner", format = "sdist" },
+    { path = "sandbox-runner.json", format = "sdist" },
+]
+exclude = [
+    { path = "wheel-data/data/.gitignore", format = "wheel" },
+    { path = "wheel-data/data/libexec/**", format = "sdist" },
+    { path = "wheel-data/data/share/**", format = "sdist" },
+]

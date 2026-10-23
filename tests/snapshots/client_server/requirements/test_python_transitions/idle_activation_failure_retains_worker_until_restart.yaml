@@ -1,0 +1,275 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - later
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import runpy
+    import sys
+
+    identity = object()
+    identity_id = id(identity)
+
+
+    def fail_activation(_path):
+        raise ValueError("idle activation failure")
+
+
+    runpy.run_path = fail_activation
+    print(sys.executable)
+result:
+  content:
+    - type: text
+      text: |
+        <running Python>
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "later",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - later
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: |
+    callback_gate <- tempfile("python-activation-gate-")
+    callback_checkpoint <- tempfile("python-activation-checkpoint-")
+    callback_complete <- tempfile("python-activation-complete-")
+    run_callback <- function() {
+      if (!file.exists(callback_gate)) {
+        later::later(run_callback, delay = 0.01)
+        return(invisible(NULL))
+      }
+      stopifnot(file.create(callback_checkpoint))
+      condition <- tryCatch(
+        reticulate::py_require("py-yaml12"),
+        error = conditionMessage
+      )
+      stopifnot(grepl(
+        "ValueError: idle activation failure",
+        condition,
+        fixed = TRUE
+      ))
+      cat("idle activation rejected\n")
+      complete <- fifo(callback_complete, open = "wb", blocking = TRUE)
+      writeBin(charToRaw("1"), complete)
+      close(complete)
+    }
+    later::later(run_callback, delay = 0.01)
+    cat(callback_gate, callback_checkpoint, callback_complete, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <worker callback gate>
+        <worker callback checkpoint>
+        <worker callback complete>
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        idle activation rejected
+
+        [idle]
+  isError: false
+---
+send:
+  python: assert id(identity) == identity_id; print('same object')
+result:
+  content:
+    - type: text
+      text: |
+        same object
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "later",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - later
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: "[restart required]"
+  isError: false

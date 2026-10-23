@@ -1,0 +1,114 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.automatic.yaml
+---
+send:
+  python: |
+    import importlib.machinery
+    import os
+    import sys
+
+    live_pid = os.getpid()
+    live_sentinel = 42
+
+
+    class FailingPsutilFinder:
+        def __init__(self):
+            self.visible_lookups = 0
+
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname != "psutil":
+                return None
+            specification = importlib.machinery.PathFinder.find_spec(
+                fullname,
+                path,
+            )
+            if specification is None:
+                return None
+            self.visible_lookups += 1
+            sys.meta_path.remove(self)
+            raise ImportError("synthetic psutil probe failure")
+
+
+    failing_psutil_finder = FailingPsutilFinder()
+    sys.meta_path.insert(0, failing_psutil_finder)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    import subprocess
+    import sys
+
+    import psutil
+
+    command = [sys.executable, "-c", "import time; time.sleep(30)"]
+    child = subprocess.Popen(command)
+    try:
+        visible = psutil.pids()
+        descendants = psutil.Process().children(recursive=True)
+        observed = [process.pid for process in descendants]
+        process_group = os.getpgrp()
+        visible_groups = [os.getpgid(pid) for pid in visible]
+    finally:
+        child.terminate()
+        child.wait()
+
+    (
+        psutil.__name__,
+        failing_psutil_finder.visible_lookups,
+        live_sentinel,
+        os.getpid() == live_pid,
+        1 not in visible,
+        visible == sorted(visible),
+        all(group == process_group for group in visible_groups),
+        child.pid in visible,
+        child.pid in observed,
+    )
+result:
+  content:
+    - type: text
+      text: |
+        ('psutil', 1, 42, True, True, True, True, True, True)
+  isError: false
+---
+send:
+  r: '"psutil" %in% reticulate::py_require()$packages'
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: '"psutil" %in% reticulate::py_require()$packages'
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  python: import psutil; psutil.__name__
+result:
+  content:
+    - type: text
+      text: |
+        'psutil'
+  isError: false

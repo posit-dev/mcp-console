@@ -1,0 +1,8 @@
+---
+resolver_home_cache: true
+explicit_cache: true
+retained_across_restart: true
+---
+initial_sql_response: running
+query_executions_per_gate: 1
+sql_submissions_per_cache: 4

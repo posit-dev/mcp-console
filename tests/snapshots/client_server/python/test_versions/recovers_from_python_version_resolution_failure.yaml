@@ -1,0 +1,30 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: worker_pid <- Sys.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    print(reticulate::py_require())
+result:
+  content:
+    - type: text
+      text: >
+        Error: managed Python version resolution failed with exit status: 99:
+        synthetic uv failure
+  isError: false
+---
+send:
+  r: identical(Sys.getpid(), worker_pid)
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

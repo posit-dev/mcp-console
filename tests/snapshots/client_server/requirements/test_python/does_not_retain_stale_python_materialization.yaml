@@ -1,0 +1,80 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    resolve_unchanged <- function() {
+      current <- reticulate::py_require()
+      manifest <- list(
+        packages = I(current$packages),
+        python_version = I(if (is.null(current$python_version)) character() else current$python_version),
+        exclude_newer = current$exclude_newer
+      )
+      request <- jsonlite::toJSON(list(
+        requirements = manifest, retained_requirements = manifest
+      ), auto_unbox = TRUE, null = "null")
+      invisible(.Call("mcp_console_resolve_python", request))
+    }
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import _mcp_console_environment as environment
+
+    original_check = environment._check_compatible
+
+
+    def check_after_materialization(candidate):
+        environment._check_compatible = original_check
+        r.resolve_unchanged()
+        original_check(candidate)
+
+
+    environment._check_compatible = check_after_materialization
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: import yaml12; yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        'yaml12'
+  isError: false

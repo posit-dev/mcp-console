@@ -1,0 +1,31 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: controlled cell completed before later interrupt
+---
+relay:
+  kind: cell_started
+---
+relay:
+  kind: console_output
+  data: |
+    controlled cell completed before later interrupt
+---
+relay:
+  kind: completed
+---
+server:
+  kind: interrupt
+  request_id: 0
+---
+relay:
+  kind: interrupt_result
+  request_id: 0

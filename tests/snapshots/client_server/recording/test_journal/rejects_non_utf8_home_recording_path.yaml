@@ -1,0 +1,14 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false
+---
+server stderr: >-
+  mcp-console: transcript recording disabled: recording path must be UTF-8

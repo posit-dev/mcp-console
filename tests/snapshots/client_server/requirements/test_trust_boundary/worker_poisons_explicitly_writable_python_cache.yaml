@@ -1,0 +1,7 @@
+---
+explicit_worker_cache_write_grant: true
+poisoned_python_startup: true
+host_read: true
+direct_write_denied: true
+symlink_write_denied: true
+download_denied: true

@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+export MCP_CONSOLE_TEST_RELAY_READ_PID="$$"
+export MCP_CONSOLE_TEST_RELAY_READ_BLOCKED="$TMPDIR/relay-read-$$-blocked"
+export MCP_CONSOLE_TEST_RELAY_READ_RELEASE="$TMPDIR/relay-read-$$-release"
+mkfifo "$MCP_CONSOLE_TEST_RELAY_READ_BLOCKED" "$MCP_CONSOLE_TEST_RELAY_READ_RELEASE"
+case "$(uname -s)" in
+  Darwin) export DYLD_INSERT_LIBRARIES="${MCP_CONSOLE_TEST_RELAY_READ_DYLIB:?}" ;;
+  Linux) export LD_PRELOAD="${MCP_CONSOLE_TEST_RELAY_READ_DYLIB:?}" ;;
+esac
+
+exec "${MCP_CONSOLE_TEST_RELAY_BINARY:?}" worker-relay "$@"

@@ -1,0 +1,153 @@
+---
+environment: base
+---
+send:
+  python: peer_object = object(); peer_identity = id(peer_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    config <- reticulate::py_config()
+    sys <- reticulate::import("sys")
+    stopifnot(
+      identical(config$python, Sys.getenv("MCP_CONSOLE_TEST_PYTHON")),
+      identical(normalizePath(config$prefix), normalizePath(sys$prefix)),
+      identical(normalizePath(config$exec_prefix), normalizePath(sys$exec_prefix)),
+      identical(normalizePath(config$base_prefix), normalizePath(sys$base_prefix)),
+      identical(
+        normalizePath(config$base_exec_prefix),
+        normalizePath(sys$base_exec_prefix)
+      ),
+      !isTRUE(config$ephemeral),
+      identical(
+        config$conda,
+        Sys.getenv("MCP_CONSOLE_TEST_ENVIRONMENT_KIND") == "conda-marker"
+      ),
+      identical(
+        normalizePath(config$virtualenv, mustWork = FALSE),
+        normalizePath(Sys.getenv("MCP_CONSOLE_TEST_VIRTUALENV"), mustWork = FALSE)
+      ),
+      identical(config$virtualenv_activate, "")
+    )
+    cat("environment metadata retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        environment metadata retained
+  isError: false
+---
+send:
+  python: assert id(peer_object) == peer_identity; print('same interpreter')
+result:
+  content:
+    - type: text
+      text: |
+        same interpreter
+  isError: false
+---
+environment: virtualenv
+---
+send:
+  python: peer_object = object(); peer_identity = id(peer_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    config <- reticulate::py_config()
+    sys <- reticulate::import("sys")
+    stopifnot(
+      identical(config$python, Sys.getenv("MCP_CONSOLE_TEST_PYTHON")),
+      identical(normalizePath(config$prefix), normalizePath(sys$prefix)),
+      identical(normalizePath(config$exec_prefix), normalizePath(sys$exec_prefix)),
+      identical(normalizePath(config$base_prefix), normalizePath(sys$base_prefix)),
+      identical(
+        normalizePath(config$base_exec_prefix),
+        normalizePath(sys$base_exec_prefix)
+      ),
+      !isTRUE(config$ephemeral),
+      identical(
+        config$conda,
+        Sys.getenv("MCP_CONSOLE_TEST_ENVIRONMENT_KIND") == "conda-marker"
+      ),
+      identical(
+        normalizePath(config$virtualenv, mustWork = FALSE),
+        normalizePath(Sys.getenv("MCP_CONSOLE_TEST_VIRTUALENV"), mustWork = FALSE)
+      ),
+      identical(config$virtualenv_activate, "")
+    )
+    cat("environment metadata retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        environment metadata retained
+  isError: false
+---
+send:
+  python: assert id(peer_object) == peer_identity; print('same interpreter')
+result:
+  content:
+    - type: text
+      text: |
+        same interpreter
+  isError: false
+---
+environment: conda-marker
+---
+send:
+  python: peer_object = object(); peer_identity = id(peer_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    config <- reticulate::py_config()
+    sys <- reticulate::import("sys")
+    stopifnot(
+      identical(config$python, Sys.getenv("MCP_CONSOLE_TEST_PYTHON")),
+      identical(normalizePath(config$prefix), normalizePath(sys$prefix)),
+      identical(normalizePath(config$exec_prefix), normalizePath(sys$exec_prefix)),
+      identical(normalizePath(config$base_prefix), normalizePath(sys$base_prefix)),
+      identical(
+        normalizePath(config$base_exec_prefix),
+        normalizePath(sys$base_exec_prefix)
+      ),
+      !isTRUE(config$ephemeral),
+      identical(
+        config$conda,
+        Sys.getenv("MCP_CONSOLE_TEST_ENVIRONMENT_KIND") == "conda-marker"
+      ),
+      identical(
+        normalizePath(config$virtualenv, mustWork = FALSE),
+        normalizePath(Sys.getenv("MCP_CONSOLE_TEST_VIRTUALENV"), mustWork = FALSE)
+      ),
+      identical(config$virtualenv_activate, "")
+    )
+    cat("environment metadata retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        environment metadata retained
+  isError: false
+---
+send:
+  python: assert id(peer_object) == peer_identity; print('same interpreter')
+result:
+  content:
+    - type: text
+      text: |
+        same interpreter
+  isError: false

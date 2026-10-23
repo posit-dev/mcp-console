@@ -1,0 +1,34 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - blocked-resolver
+result:
+  content:
+    - type: text
+      text: >-
+        failed to interrupt R package resolver `ir`: Operation not permitted (os
+        error 1)
+  isError: true
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: >-
+        [failed to interrupt R package resolver `ir`: Operation not permitted
+        (os error 1)]
+  isError: true
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

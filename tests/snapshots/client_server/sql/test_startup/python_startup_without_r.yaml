@@ -1,0 +1,48 @@
+---
+config:
+  startup:
+    language: python
+    code: |
+      import os
+      import sqlite3
+      import subprocess
+
+
+      def assert_startup_transport_consumed() -> None:
+          assert "MCP_CONSOLE_STARTUP_FILE" not in os.environ
+          assert b"MCP_CONSOLE_STARTUP_FILE=" not in subprocess.check_output(["/usr/bin/env"])
+
+
+      assert_startup_transport_consumed()
+
+      native = sqlite3.connect(":memory:")
+      _ = native.execute("CREATE TABLE selected AS SELECT 42 AS answer")
+      _console.sql_connection(native)
+  python: <configured Python>
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  sql: SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: >-
+    assert_startup_transport_consumed(); assert _console.sql_connection() is
+    native; assert native.execute('SELECT answer FROM selected').fetchone()
+    == (42,)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+startup: native Python without R
+selected_connection: true

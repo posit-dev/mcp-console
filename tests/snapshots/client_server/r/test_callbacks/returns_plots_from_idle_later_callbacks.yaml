@@ -1,0 +1,50 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - later
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    callback_gate <- tempfile("mcp-console-callback-gate-")
+    callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+    run_callback <- function() {
+      if (!file.exists(callback_gate)) {
+        later::later(run_callback, delay = 0.01)
+        return(invisible(NULL))
+      }
+      cat("idle plot\n")
+      plot(1:3)
+      stopifnot(file.create(callback_checkpoint))
+    }
+    later::later(run_callback, delay = 0.01)
+    cat(callback_gate, callback_checkpoint, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <worker callback gate>
+        <worker callback checkpoint>
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        idle plot
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

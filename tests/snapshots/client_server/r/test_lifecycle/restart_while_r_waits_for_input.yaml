@@ -1,0 +1,36 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    restart_marker <- TRUE
+    readline("restart> ")
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "restart> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [1] ""
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: exists("restart_marker", inherits = FALSE)
+result:
+  content:
+    - type: text
+      text: |
+        [1] FALSE
+  isError: false

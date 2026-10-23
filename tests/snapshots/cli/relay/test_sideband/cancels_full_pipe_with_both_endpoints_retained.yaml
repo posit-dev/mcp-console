@@ -1,0 +1,9 @@
+---
+kind: stdout_closed
+---
+kind: stderr_closed
+---
+kind: worker_sideband_closed
+---
+kind: worker_exited
+code: 0

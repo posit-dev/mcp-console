@@ -1,0 +1,27 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    local({
+      plot(1:3)
+      stop("boom")
+    })
+result:
+  content:
+    - type: text
+      text: |
+        Error in eval(quote({ : boom
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+  isError: false
+---
+send:
+  r: plot(3:1)
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+  isError: false

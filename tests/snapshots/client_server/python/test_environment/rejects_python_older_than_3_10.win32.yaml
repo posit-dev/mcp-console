@@ -1,0 +1,21 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: "selected Python inspection failed (exit code: 1): Traceback (most recent call last):\r\n  File \"<string>\", line 145, in <module>\r\n  File \"<string>\", line 19, in describe\r\nRuntimeError: MCP Console requires Python 3.10 or later\r\n"
+  isError: true
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: "selected Python inspection failed (exit code: 1): Traceback (most recent call last):\r\n  File \"<string>\", line 145, in <module>\r\n  File \"<string>\", line 19, in describe\r\nRuntimeError: MCP Console requires Python 3.10 or later\r\n"
+  isError: true
+---
+stderr: "selected Python inspection failed (exit code: 1): Traceback (most recent call last):\r\n  File \"<string>\", line 145, in <module>\r\n  File \"<string>\", line 19, in describe\r\nRuntimeError: MCP Console requires Python 3.10 or later\r\n\n"

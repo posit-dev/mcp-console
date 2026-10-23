@@ -1,0 +1,22 @@
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        managed Python version resolution failed: uv did not report a supported
+        CPython interpreter
+  isError: true

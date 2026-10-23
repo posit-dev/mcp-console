@@ -1,0 +1,7 @@
+Package: mcpconsoleloadall
+Title: MCP Console Load All Fixture
+Version: 0.0.0.9000
+Authors@R: person("MCP Console", role = c("aut", "cre"), email = "fixture@example.com")
+Description: Provides functions for the devtools load-all transcript test.
+License: MIT
+Encoding: UTF-8

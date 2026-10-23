@@ -1,0 +1,85 @@
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        Python startup
+
+        [idle]
+  isError: false
+---
+send:
+  python: import builtins; counter = 1; builtins.bootstrap_input
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 20
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  python: counter += 1
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[worker is already evaluating a cell; poll without a code field]"
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "startup> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    retained
+result:
+  content:
+    - type: text
+      text: |
+        'retained'
+  isError: false
+---
+send:
+  python: counter, builtins.bootstrap_runs
+result:
+  content:
+    - type: text
+      text: |
+        (1, 1)
+  isError: false
+---
+send:
+  python: raise RuntimeError('first user filenames')
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e3>", line 1, in <module>
+        RuntimeError: first user filenames
+  isError: false

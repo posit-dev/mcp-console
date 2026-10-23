@@ -1,0 +1,78 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python: []
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import signal
+    import sys
+
+    old_prefix = sys.prefix
+    marker = object()
+    marker_id = id(marker)
+
+
+    def interrupt_publication(frame, event, function):
+        if (
+            event == "c_call"
+            and getattr(function, "__name__", None) == "publish_python_activation"
+        ):
+            sys.setprofile(None)
+            assert sys.prefix != old_prefix
+            signal.raise_signal(signal.SIGINT)
+
+
+    sys.setprofile(interrupt_publication)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - console-activation-fixture
+result:
+  content:
+    - type: text
+      text: KeyboardInterrupt
+  isError: true
+---
+send:
+  python: sys.prefix != old_prefix, id(marker) == marker_id
+result:
+  content:
+    - type: text
+      text: |
+        (True, True)
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: import console_unloaded; console_unloaded.origin
+result:
+  content:
+    - type: text
+      text: |
+        'candidate'
+  isError: false

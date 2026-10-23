@@ -1,0 +1,37 @@
+---
+case: absent
+stderr: >
+  cannot read configuration environment 'TEST_CONFIG': environment
+  variable not found
+---
+case: empty
+stderr: |
+  configuration environment 'TEST_CONFIG': expected one mapping document
+---
+case: sequence
+stderr: |
+  configuration environment 'TEST_CONFIG': expected one mapping document
+---
+case: malformed
+stderr: >
+  configuration environment 'TEST_CONFIG': while parsing a node, did not
+  find expected node content at byte 10 line 2 column 1
+---
+case: native policy
+stderr: >
+  configuration environment 'TEST_CONFIG': filesystem: unknown field
+  `filesystem`, expected one of `tool`, `startup`, `cache`, `python`, `r`,
+  `languages`, `inherit_environment`, `environment`, `sandbox`,
+  `resolver`; see docs/CONFIGURATION.md for the public format
+---
+case: invalid sandbox
+stderr: >
+  configuration environment 'TEST_CONFIG': sandbox: profile: unknown
+  variant `unknown`, expected one of `read_only`, `workspace`,
+  `inherit_codex`; see docs/CONFIGURATION.md for the public format
+---
+case: invalid environment
+stderr: >
+  configuration environment 'TEST_CONFIG': environment: MESSAGE:
+  environment values must be strings; see docs/CONFIGURATION.md for the
+  public format

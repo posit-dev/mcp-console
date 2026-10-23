@@ -1,0 +1,98 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  r: |
+    library <- .libPaths()[[1L]]
+    stopifnot(
+      identical(Sys.getenv("MCP_CONSOLE_SANDBOX"), "1"),
+      startsWith(
+        library,
+        paste0(normalizePath(tempdir()), .Platform$file.sep)
+      ),
+      dir.exists(library),
+      file.access(library, 2L) == 0L
+    )
+    installer_stdout <- file.path(tempdir(), "mcpconsolelocalpkg.out")
+    installer_stderr <- file.path(tempdir(), "mcpconsolelocalpkg.err")
+    # Local installs ignore keep_outputs. Record complete streams
+    # separately because their interleaving is unspecified.
+    installer_status <- system2(
+      file.path(R.home("bin"), "R"),
+      c(
+        "CMD",
+        "INSTALL",
+        # Request the same help output across R installations.
+        "--html",
+        "-l",
+        shQuote(library),
+        "mcpconsolelocalpkg_0.0.1.tar.gz"
+      ),
+      stdout = installer_stdout,
+      stderr = installer_stderr
+    )
+    stopifnot(
+      file.exists(installer_stdout),
+      file.exists(installer_stderr)
+    )
+    writeLines(c(
+      "installer stdout:",
+      readLines(installer_stdout),
+      "installer stderr:",
+      readLines(installer_stderr)
+    ))
+    stopifnot(
+      installer_status == 0L,
+      identical(dirname(find.package("mcpconsolelocalpkg")), library),
+      identical(mcpconsolelocalpkg::answer(), 42L)
+    )
+result:
+  content:
+    - type: text
+      text: |
+        installer stdout:
+          converting help for package ‘mcpconsolelocalpkg’
+            answer                                  html  
+        installer stderr:
+        * installing *source* package ‘mcpconsolelocalpkg’ ...
+        ** this is package ‘mcpconsolelocalpkg’ version ‘0.0.1’
+        ** using staged installation
+        ** R
+        ** byte-compile and prepare package for lazy loading
+        ** help
+        *** installing help indices
+            finding HTML links ... done
+        ** building package indices
+        ** testing if installed package can be loaded from temporary location
+        ** testing if installed package can be loaded from final location
+        ** testing if installed package keeps a record of temporary installation path
+        * DONE (mcpconsolelocalpkg)
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      startsWith(
+        .libPaths()[[1L]],
+        paste0(normalizePath(tempdir()), .Platform$file.sep)
+      ),
+      dir.exists(.libPaths()[[1L]])
+    )
+    cat("new sandbox library ready\n")
+result:
+  content:
+    - type: text
+      text: |
+        new sandbox library ready
+  isError: false

@@ -1,0 +1,25 @@
+---
+candidate: dangling
+stderr: >
+  cannot use existing Python <fixture>/dangling: No such file or directory
+  (os error 2)
+---
+candidate: broken
+stderr: >
+  existing Python directory <fixture>/broken must be a standard venv with
+  pyvenv.cfg
+---
+candidate: conda
+stderr: >
+  existing Python <fixture>/conda is a Conda environment; Conda
+  environments are unsupported; use a standard venv or managed Python
+---
+candidate: conda-alias
+stderr: >
+  existing Python <fixture>/conda is a Conda environment; Conda
+  environments are unsupported; use a standard venv or managed Python
+---
+candidate: ordinary venv
+stderr: >
+  existing Python <fixture>/conda is a Conda environment; Conda
+  environments are unsupported; use a standard venv or managed Python

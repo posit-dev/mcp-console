@@ -1,0 +1,27 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import shutil
+
+    import numpy as np
+    import pandas as pd
+
+    print(f"terminal columns: {shutil.get_terminal_size().columns}")
+    print(f"pandas display.width: {pd.get_option('display.width')}")
+    print(f"NumPy linewidth: {np.get_printoptions()['linewidth']}")
+    pd.DataFrame(
+        [range(12)],
+        columns=[f"column_{column:02}" for column in range(12)],
+    )
+result:
+  content:
+    - type: text
+      text: |
+        terminal columns: 200
+        pandas display.width: 200
+        NumPy linewidth: 200
+           column_00  column_01  column_02  column_03  column_04  column_05  column_06  column_07  column_08  column_09  column_10  column_11
+        0          0          1          2          3          4          5          6          7          8          9         10         11
+  isError: false

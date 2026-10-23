@@ -1,0 +1,27 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    r:
+      - MASS
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: native_ready
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

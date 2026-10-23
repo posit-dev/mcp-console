@@ -1,0 +1,36 @@
+---
+messages:
+  - Hello
+  - Completed:
+      id: 0
+      result:
+        Ok:
+          managed: true
+          selections:
+            r_home: <fixture R home>
+            python: managed
+          local_r_home_bytes: <fixture R home bytes>
+          local_has_uv: false
+      control: ~
+      confirmed: true
+  - Completed:
+      id: 1
+      result:
+        Ok: ~
+      control: ~
+      confirmed: true
+  - Controlled:
+      id: 2
+      result:
+        Ok: true
+  - Completed:
+      id: 2
+      result:
+        Err: >-
+          managed Python version resolution failed with exit status: 23:
+          independent inventory failure
+      control: ~
+      confirmed: true
+  - Closed
+stderr: ""
+exit: 0

@@ -1,0 +1,9 @@
+---
+initial_error:
+  content:
+    - type: text
+      text: >-
+        r.executable <workspace>/chosen R: No such file or directory (os error
+        2)
+  isError: true
+repaired_captured_selection: true

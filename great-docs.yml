@@ -1,0 +1,40 @@
+module: mcp_console
+display_name: MCP Console Python
+parser: google
+dynamic: false
+inline_methods: true
+
+source:
+  branch: main
+
+reference:
+  title: Python API reference
+  sections:
+    - title: Clients
+      contents:
+      - name: MCPConsole
+        members: [connect, close, send, send_tool, __enter__, __exit__]
+      - name: AsyncMCPConsole
+        members: [connect, close, send, send_tool, __aenter__, __aexit__]
+      - name: Requirements
+        members: false
+    - title: chatlas
+      contents:
+      - chatlas.tool
+      - chatlas.register
+    - title: openai — Responses API
+      contents:
+      - openai.responses_tool
+      - openai.ResponsesTool
+      - openai.AsyncResponsesTool
+    - title: openai-agents — Agents SDK
+      contents:
+      - openai.agents_tool
+      - openai.agents_server
+    - title: openai-codex — Codex SDK
+      contents:
+      - codex.server
+    - title: Anthropic
+      contents:
+      - anthropic.tool
+      - anthropic.tools

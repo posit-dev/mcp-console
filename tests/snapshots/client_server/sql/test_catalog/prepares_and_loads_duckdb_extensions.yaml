@@ -1,0 +1,169 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |
+    CREATE TABLE retained_state AS
+    SELECT
+      CAST(42 AS INTEGER) AS answer,
+      'duckdb extension preparation' AS body
+    UNION ALL
+    SELECT 7, 'other words'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - json
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE failed_requirement_cell(answer INTEGER)
+  requirements:
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        DuckDB extension resolution failed with exit status: 1: fixture DuckDB
+        extension not_a_real_duckdb_extension is unavailable
+  isError: true
+---
+send:
+  sql: >-
+    SELECT count(*) AS side_effects FROM duckdb_tables() WHERE table_name =
+    'failed_requirement_cell'
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          side_effects
+               <int64>
+        1            0
+  isError: false
+---
+send:
+  sql: |
+    PRAGMA create_fts_index('retained_state', 'answer', 'body')
+  requirements:
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT
+      'loaded' AS verified
+    FROM retained_state
+    CROSS JOIN duckdb_extensions() AS extensions
+    WHERE retained_state.answer = 42
+      AND extensions.extension_name = 'fts'
+      AND extensions.loaded
+      AND fts_main_retained_state.match_bm25(
+        retained_state.answer,
+        'duckdb'
+      ) IS NOT NULL
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          verified
+          <string>
+        1 "loaded"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  sql: LOAD fts
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    CREATE TABLE replacement_state AS
+    SELECT
+      CAST(42 AS INTEGER) AS answer,
+      'duckdb extension preparation' AS body
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    PRAGMA create_fts_index('replacement_state', 'answer', 'body')
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT 'loaded' AS verified
+    FROM replacement_state
+    CROSS JOIN duckdb_extensions() AS extensions
+    WHERE extensions.extension_name = 'fts'
+      AND extensions.loaded
+      AND fts_main_replacement_state.match_bm25(
+        replacement_state.answer,
+        'duckdb'
+      ) IS NOT NULL
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          verified
+          <string>
+        1 "loaded"
+  isError: false

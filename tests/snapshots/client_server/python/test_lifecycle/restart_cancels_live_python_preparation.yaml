@@ -1,0 +1,62 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: restart_marker <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: stop('cancelled requirements cell ran')
+  requirements:
+    python:
+      - mcp-console-blocked-live-preparation
+result:
+  content:
+    - type: text
+      text: Python preparation cancelled by restart
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: "[session is preparing requirements]"
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: session is preparing requirements
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    requirements <- reticulate::py_require()
+    stopifnot(
+      !exists("restart_marker", inherits = FALSE),
+      !"mcp-console-blocked-live-preparation" %in% requirements$packages
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

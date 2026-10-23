@@ -1,0 +1,7 @@
+Package: mcpconsolerinstallescape
+Title: MCP Console R Installation Escape Fixture
+Version: 0.0.0.9000
+Authors@R: person("MCP Console", role = c("aut", "cre"), email = "fixture@example.com")
+Description: Writes a marker when package configuration runs.
+License: MIT
+Encoding: UTF-8

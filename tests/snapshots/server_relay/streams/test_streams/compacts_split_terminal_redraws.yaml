@@ -1,0 +1,43 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: "42"
+---
+relay:
+  kind: cell_started
+---
+relay:
+  kind: stdout
+  data: "ordinary stdout\r\r\n"
+---
+relay:
+  kind: stdout
+  data: "old\r\b\n"
+---
+relay:
+  kind: stdout
+  data: "old\r\b"
+---
+relay:
+  kind: stdout
+  data: "newx\b\n"
+---
+relay:
+  kind: stdout
+  data: "old\e["
+---
+relay:
+  kind: stdout
+  data: |
+    2Knew
+---
+relay:
+  kind: completed

@@ -1,0 +1,44 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: old evaluation before failing requirements
+---
+relay:
+  kind: cell_started
+---
+server:
+  kind: interrupt
+  request_id: 0
+---
+relay:
+  kind: interrupt_result
+  request_id: 0
+---
+server:
+  kind: stdin
+  data: |
+    finish old before preparation
+---
+relay:
+  kind: console_output
+  data: |
+    old evaluation finished before preparation
+---
+relay:
+  kind: completed
+---
+server:
+  kind: prepare_r
+  library: <interrupt-failure-candidate>
+---
+relay:
+  kind: r_preparation_failed
+  message: scripted controlled interrupt R preparation failed

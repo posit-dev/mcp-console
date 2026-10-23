@@ -1,0 +1,42 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: complete silently
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: overflow cell retention limit
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8140
+        concat:
+          - repeat: x
+            count: 3904
+          - |
+
+            [output omitted: 1073734021 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-002.txt; logs contain prefixes; later raw text unavailable]
+          - repeat: x
+            count: 3899
+          - |
+            tail
+            [cell output retention limit reached at 1073741824 bytes for capture/sessions/001/cell-002.txt (relative to recording); later text is not retained in this file]
+  isError: false

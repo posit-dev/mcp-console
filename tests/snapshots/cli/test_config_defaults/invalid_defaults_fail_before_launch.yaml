@@ -1,0 +1,9 @@
+---
+default: environment
+rejected: true
+---
+default: .environment=value
+rejected: true
+---
+default: unknown_setting=true
+rejected: true

@@ -1,0 +1,132 @@
+---
+read: all
+network: restricted
+proc: inherited
+operations:
+  visible: true
+  fresh: false
+  direct_read: b'synthetic-file-sentinel'
+  direct_write: errno:30
+  environment: errno:13
+  root_read: errno:13
+  cwd_read: errno:13
+  fd_read: errno:13
+  root_write: errno:13
+  cwd_write: errno:13
+  fd_write: errno:13
+  mem_read: errno:13
+  mem_write: errno:30
+  control_write: errno:13
+  signal: errno:3
+  ptrace: errno:1
+  vm_read: errno:1
+  vm_write: errno:1
+  network: errno:1
+  network_namespace_link: errno:13
+  network_setns: errno:1
+  supervisor_environment: errno:13
+  supervisor_memory_write: errno:30
+  supervisor_fd_metadata: "True"
+  supervisor_fd_link: errno:13
+  supervisor_control_write: errno:13
+  supervisor_signal: errno:3
+  policy_replacement_write: errno:30
+---
+read: all
+network: enabled
+proc: inherited
+operations:
+  visible: true
+  fresh: false
+  direct_read: b'synthetic-file-sentinel'
+  direct_write: errno:30
+  environment: errno:13
+  root_read: errno:13
+  cwd_read: errno:13
+  fd_read: errno:13
+  root_write: errno:13
+  cwd_write: errno:13
+  fd_write: errno:13
+  mem_read: errno:13
+  mem_write: errno:30
+  control_write: errno:13
+  signal: errno:3
+  ptrace: errno:3
+  vm_read: errno:3
+  vm_write: errno:3
+  network: allowed
+  network_namespace_link: errno:13
+  network_setns: errno:1
+  supervisor_environment: errno:13
+  supervisor_memory_write: errno:30
+  supervisor_fd_metadata: "True"
+  supervisor_fd_link: errno:13
+  supervisor_control_write: errno:13
+  supervisor_signal: errno:3
+  policy_replacement_write: errno:30
+---
+read: deny-sentinel
+network: restricted
+proc: inherited
+operations:
+  visible: true
+  fresh: false
+  direct_read: errno:13
+  direct_write: errno:13
+  environment: errno:13
+  root_read: errno:13
+  cwd_read: errno:13
+  fd_read: errno:13
+  root_write: errno:13
+  cwd_write: errno:13
+  fd_write: errno:13
+  mem_read: errno:13
+  mem_write: errno:30
+  control_write: errno:13
+  signal: errno:3
+  ptrace: errno:1
+  vm_read: errno:1
+  vm_write: errno:1
+  network: errno:1
+  network_namespace_link: errno:13
+  network_setns: errno:1
+  supervisor_environment: errno:13
+  supervisor_memory_write: errno:30
+  supervisor_fd_metadata: "True"
+  supervisor_fd_link: errno:13
+  supervisor_control_write: errno:13
+  supervisor_signal: errno:3
+  policy_replacement_write: errno:13
+---
+read: deny-sentinel
+network: enabled
+proc: inherited
+operations:
+  visible: true
+  fresh: false
+  direct_read: errno:13
+  direct_write: errno:13
+  environment: errno:13
+  root_read: errno:13
+  cwd_read: errno:13
+  fd_read: errno:13
+  root_write: errno:13
+  cwd_write: errno:13
+  fd_write: errno:13
+  mem_read: errno:13
+  mem_write: errno:30
+  control_write: errno:13
+  signal: errno:3
+  ptrace: errno:3
+  vm_read: errno:3
+  vm_write: errno:3
+  network: allowed
+  network_namespace_link: errno:13
+  network_setns: errno:1
+  supervisor_environment: errno:13
+  supervisor_memory_write: errno:30
+  supervisor_fd_metadata: "True"
+  supervisor_fd_link: errno:13
+  supervisor_control_write: errno:13
+  supervisor_signal: errno:3
+  policy_replacement_write: errno:13

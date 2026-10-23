@@ -1,0 +1,78 @@
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+  python: |
+    raise AssertionError("failed preparation ran code")
+  stdin: |
+    rejected input
+result:
+  content:
+    - type: text
+      text: |-
+        [managed Python resolution failed:
+        resolver input:
+        {
+          "python": "3.13.XX (reticulate default)",
+          "packages": [
+            "numpy",
+            "pandas",
+            "matplotlib",
+            "plotnine",
+            "duckdb",
+            "py-yaml12"
+          ]
+        }
+        uv output:
+        fixture Python resolution failed]
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+  python: |
+    raise AssertionError("failed preparation ran code")
+  stdin: |
+    rejected input
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python embedding library is missing:
+        <preparation>/missing-libpython
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import yaml12
+
+    print(input("prepared> "))
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "prepared> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    fresh input
+result:
+  content:
+    - type: text
+      text: |
+        fresh input
+  isError: false

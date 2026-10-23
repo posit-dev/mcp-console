@@ -1,0 +1,21 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+input:
+  method: tools/call
+  params:
+    name: session
+    arguments:
+      action: restart
+error:
+  code: -32602
+  message: tool not found
+---
+recording:
+  initialization and removed session tool only: absent
+  materialized by:
+    send:
+      - recording_started
+      - tool_call
+      - cell_output
+      - tool_result

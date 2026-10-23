@@ -1,0 +1,7 @@
+---
+languages:
+  - SQL
+stderr: >
+  configuration with CLI overrides: languages[0]: unknown variant `SQL`,
+  expected one of `r`, `python`, `sql`; see docs/CONFIGURATION.md for the
+  public format

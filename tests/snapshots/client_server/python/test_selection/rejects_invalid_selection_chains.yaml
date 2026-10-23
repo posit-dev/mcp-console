@@ -1,0 +1,31 @@
+---
+choice: empty chain
+stderr: |
+  python.first_available must not be empty
+---
+choice: duplicate active venv
+stderr: >
+  python.first_available[1]: python: expected exactly one of existing,
+  managed, first_available
+---
+choice: managed first
+stderr: >
+  python.first_available permits existing paths, one active_venv, and one
+  optional managed candidate last; nested chains are unsupported
+---
+choice: nested chain
+stderr: >
+  python.first_available permits existing paths, one active_venv, and one
+  optional managed candidate last; nested chains are unsupported
+---
+choice: multiple choices
+stderr: |
+  python: expected exactly one of existing, managed, first_available
+---
+choice: null managed options
+stderr: |
+  python: managed: invalid type: null, expected struct Managed
+---
+choice: empty path
+stderr: |
+  python: expected a nonempty path

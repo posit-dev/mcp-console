@@ -1,0 +1,58 @@
+---
+send:
+  r: |
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    managed_packages <- c(
+      "tidyverse",
+      "dplyr",
+      "dbplyr",
+      "reticulate",
+      "DBI",
+      "duckdb",
+      "nanoarrow",
+      "yyjsonr",
+      "ggplot2"
+    )
+    # Loaded namespaces report canonical cache paths; ir libraries can
+    # contain symlinks to those same package directories.
+    stopifnot(
+      !reticulate::py_available(initialize = FALSE),
+      vapply(
+        managed_packages,
+        function(package) {
+          identical(
+            normalizePath(find.package(package)),
+            normalizePath(file.path(.libPaths()[[managed_index]], package))
+          )
+        },
+        logical(1L)
+      ),
+      vapply(
+        c("ggplot2", "dplyr", "readr", "jsonlite", "yyjsonr"),
+        requireNamespace,
+        logical(1L),
+        quietly = TRUE
+      )
+    )
+    csv <- readr::read_csv(I("value\n40\n2\n"), show_col_types = FALSE)
+    json <- jsonlite::fromJSON('[{"value": 40}, {"value": 2}]')
+    stopifnot(identical(as.integer(csv$value), json$value))
+    dplyr::summarise(csv, answer = sum(.data$value))$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - DBI
+      - duckdb
+      - nanoarrow
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false

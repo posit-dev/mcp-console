@@ -1,0 +1,23 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox-python-only.yaml
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+
+    assert os.environ["MCP_CONSOLE_SANDBOX"] == "1"
+    try:
+        _ = Path("created").write_text("denied")
+    except OSError as error:
+        assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS)
+    else:
+        raise AssertionError("default fallback allowed workspace writes")
+    print("read_only fallback")
+result:
+  content:
+    - type: text
+      text: |
+        read_only fallback
+  isError: false

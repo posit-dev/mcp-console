@@ -1,0 +1,107 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import importlib.metadata
+    import os
+    from pathlib import Path
+    import sys
+    import mcp_console_test_loaded as loaded
+
+    marker = loaded.marker
+    worker_pid = os.getpid()
+    record = Path(
+        importlib.metadata.distribution("mcp-console-test-loaded").locate_file(
+            "mcp_console_test_loaded-1.0.0.dist-info/RECORD"
+        )
+    )
+    block_record = False
+
+
+    def guard_inventory(event, arguments):
+        if (
+            block_record
+            and event == "open"
+            and isinstance(arguments[0], (str, bytes, os.PathLike))
+            and Path(os.fsdecode(arguments[0])) == record
+        ):
+            raise RuntimeError("unchanged distribution file inventory was read")
+
+
+    sys.addaudithook(guard_inventory)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  accepted_python_requirements:
+    - duckdb
+    - mcp_console_test_loaded
+---
+send:
+  python: rejected_cell_ran = True
+  requirements:
+    python:
+      - mcp_console_test_incompatible_addition
+result:
+  content:
+    - type: text
+      text: >-
+        Cannot replace loaded mcp-console-test-loaded 1.0.0 with 2.0.0. Restart
+        with compatible requirements; the running interpreter and objects are
+        unchanged.
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result:
+  accepted_python_requirements:
+    - duckdb
+    - mcp_console_test_loaded
+---
+send:
+  python: |
+    assert "rejected_cell_ran" not in globals()
+    assert os.getpid() == worker_pid and loaded.marker is marker
+    assert loaded.version == "1.0.0"
+    block_record = True
+    print("incompatible changes rejected without mutation")
+result:
+  content:
+    - type: text
+      text: |
+        incompatible changes rejected without mutation
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - mcp_console_test_compatible_addition
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    block_record = False
+    import mcp_console_test_compatible_addition as addition
+
+    assert addition.answer == 42
+    assert loaded.version == "1.0.0" and loaded.marker is marker
+    assert os.getpid() == worker_pid
+    print("unchanged loaded distribution retained")
+result:
+  content:
+    - type: text
+      text: |
+        unchanged loaded distribution retained
+  isError: false

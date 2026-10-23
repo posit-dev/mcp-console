@@ -1,0 +1,50 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  python: import os
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker exited with status 47]
+        [worker sideband read failed: worker sideband closed]
+        [stopped by session restart request before evaluation finished]
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: must not run during retirement
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[worker is restarting]"
+  isError: true
+---
+send:
+  python: print('replacement ran')
+result:
+  content:
+    - type: text
+      text: |
+        replacement ran
+  isError: false

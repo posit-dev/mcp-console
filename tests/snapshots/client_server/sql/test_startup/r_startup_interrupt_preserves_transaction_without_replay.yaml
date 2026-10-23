@@ -1,0 +1,56 @@
+---
+config:
+  startup:
+    language: r
+    code: |
+      startup_count <- 1L
+      native <- DBI::dbConnect(duckdb::duckdb())
+      invisible(DBI::dbExecute(native, "CREATE TABLE selected AS SELECT 1 AS answer"))
+      DBI::dbBegin(native)
+      .console$sql_connection(native)
+      invisible(readline("R startup gate> "))
+      invisible(DBI::dbExecute(native, "UPDATE selected SET answer = 42"))
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: UPDATE selected SET answer = 99
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "R startup gate> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        R startup interrupted
+        Error: configured startup did not complete; SQL withheld; explicit restart required
+  isError: false
+---
+send:
+  r: |
+    stopifnot(startup_count == 1L, identical(.console$sql_connection(), native))
+    stopifnot(DBI::dbGetQuery(native, "SELECT answer FROM selected")[[1L]] == 1)
+    DBI::dbRollback(native)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: configured startup did not complete; explicit
+        restart required
+  isError: false

@@ -1,0 +1,21 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    python:
+      - numpy
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(Sys.getenv("RETICULATE_PYTHON") == "managed")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

@@ -1,0 +1,57 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    native_paths <- .libPaths()
+    initial_library <- dirname(find.package("jsonlite"))
+    project_paths <- native_paths[!native_paths %in% initial_library]
+    project_library <- normalizePath(
+      "resolved-r-libraries/consoleproject",
+      winslash = "/"
+    )
+    stopifnot(project_library %in% project_paths)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consoleproject
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - consoleproject
+      - consolemissing
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    paths <- .libPaths()
+    stopifnot(
+      !initial_library %in% paths,
+      all(project_paths %in% paths),
+      identical(paths[paths %in% project_paths], project_paths),
+      consoleproject::fixture(),
+      consolemissing::fixture()
+    )
+    cat("project library retained across changes\n")
+result:
+  content:
+    - type: text
+      text: |
+        project library retained across changes
+  isError: false

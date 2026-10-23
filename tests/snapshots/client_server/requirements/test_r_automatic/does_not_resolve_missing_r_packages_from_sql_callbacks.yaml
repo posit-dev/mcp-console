@@ -1,0 +1,55 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    sql_requires_package <- function() {
+      as.integer(suppressWarnings(requireNamespace(
+        "mcpsqlcallback",
+        quietly = TRUE
+      )))
+    }
+    invisible()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+    connection = sqlite3.connect(":memory:")
+    connection.create_function("sql_requires_package", 0, r.sql_requires_package)
+    _console.sql_connection(connection)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT sql_requires_package() AS resolved
+result:
+  content:
+    - type: text
+      text: |
+        resolved
+        --------
+        0
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      requireNamespace("mcpsqlcallback", quietly = TRUE),
+      is.function(mcpsqlcallback::fixture)
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

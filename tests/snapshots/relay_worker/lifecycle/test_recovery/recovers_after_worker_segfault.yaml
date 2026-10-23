@@ -1,0 +1,72 @@
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: r
+  source: |
+    crash_marker <- "old generation"
+    cat("before crash\n")
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: r_initialization
+  complete: false
+---
+worker:
+  kind: r_initialization
+  complete: true
+---
+worker:
+  kind: console_output
+  data: |
+    before crash
+---
+worker:
+  kind: completed
+---
+relay:
+  kind: evaluate
+  language: python
+  source: |
+    import ctypes
+
+    ctypes.string_at(0)
+---
+worker:
+  kind: cell_started
+---
+worker_sideband:
+  closed: true
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: r
+  source: |
+    stopifnot(!exists("crash_marker", inherits = FALSE))
+    cat("after crash\n")
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: r_initialization
+  complete: false
+---
+worker:
+  kind: r_initialization
+  complete: true
+---
+worker:
+  kind: console_output
+  data: |
+    after crash
+---
+worker:
+  kind: completed

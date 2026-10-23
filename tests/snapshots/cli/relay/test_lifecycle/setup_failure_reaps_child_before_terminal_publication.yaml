@@ -1,0 +1,22 @@
+---
+kind: stdout
+data: |
+  setup stdout
+---
+kind: stderr
+data: |
+  setup stderr
+---
+kind: stdout_closed
+---
+kind: stderr_closed
+---
+kind: fatal
+message: >-
+  failed to create worker stdin cancellation pipe: Input/output error (os
+  error 5)
+---
+kind: worker_sideband_closed
+---
+kind: worker_signaled
+signal: 9

@@ -1,0 +1,18 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    cores <- parallel::detectCores()
+    stopifnot(
+      length(cores) == 1L,
+      !is.na(cores),
+      cores >= 1L
+    )
+    writeLines("R core detection available")
+result:
+  content:
+    - type: text
+      text: |
+        R core detection available
+  isError: false

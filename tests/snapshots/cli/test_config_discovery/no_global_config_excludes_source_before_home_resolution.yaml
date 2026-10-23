@@ -1,0 +1,14 @@
+---
+home: <root>/global
+project_loaded: true
+---
+home: relative
+project_loaded: true
+---
+home: ""
+project_loaded: true
+---
+home: ~/console
+project_loaded: true
+---
+non_regular_global_skipped: true

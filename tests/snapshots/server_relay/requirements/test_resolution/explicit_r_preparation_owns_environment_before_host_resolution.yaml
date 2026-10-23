@@ -1,0 +1,49 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+relay:
+  kind: resolve_r
+  packages:
+    - praise
+---
+server:
+  kind: r_resolution_failed
+  failure: host
+  message: R package resolution is unavailable during requirement preparation
+---
+server:
+  kind: prepare_r
+  library: <explicit-candidate>
+---
+relay:
+  kind: r_prepared
+  library: <explicit-candidate>
+---
+relay:
+  kind: resolve_r
+  packages:
+    - english
+---
+server:
+  kind: r_resolved
+  library: <explicit-candidate>
+---
+relay:
+  kind: r_activated
+  library: <explicit-candidate>
+---
+server:
+  kind: evaluate
+  language: r
+  source: "42"
+---
+relay:
+  kind: cell_started
+---
+relay:
+  kind: completed

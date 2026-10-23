@@ -1,0 +1,41 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import os
+    from pathlib import Path
+
+    temporary = Path(os.environ["TMPDIR"])
+    nested = temporary / "nested"
+    nested.mkdir()
+    for parent in (temporary, nested):
+        for name in (".git", ".agents", ".codex"):
+            directory = parent / name
+            directory.mkdir()
+            (directory / "payload").write_text("temporary data", encoding="utf-8")
+            renamed = directory.with_name(name + "-renamed")
+            directory.rename(renamed)
+            assert (renamed / "payload").read_text(encoding="utf-8") == "temporary data"
+            (renamed / "payload").unlink()
+            renamed.rmdir()
+            directory.mkdir()
+            directory.rmdir()
+            print(f"{parent.relative_to(temporary)}: {name} created, renamed, removed")
+
+    nested.rmdir()
+    temporary.rmdir()
+    assert not temporary.exists()
+    temporary.mkdir()
+    print("temporary directory recreated")
+stdout: |
+  .: .git created, renamed, removed
+  .: .agents created, renamed, removed
+  .: .codex created, renamed, removed
+  nested: .git created, renamed, removed
+  nested: .agents created, renamed, removed
+  nested: .codex created, renamed, removed
+  temporary directory recreated

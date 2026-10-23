@@ -1,0 +1,4 @@
+---
+stderr: >
+  R_HOME must select an existing R installation:
+  <workspace>/missing-r/bin/Rscript is missing

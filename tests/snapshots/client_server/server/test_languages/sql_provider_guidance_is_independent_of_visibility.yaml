@@ -1,0 +1,47 @@
+---
+scenario: >-
+  Evaluate SQL with the visible languages below, checking that the answer
+  is 42 and that tool guidance stays independent of which installed
+  runtime provides SQL.
+fixture: >-
+  These are real runtimes, not a fake worker. For the Python provider, a
+  private PATH exposes uv but hides R, and inherited R-selection variables
+  are removed; the R-provider case uses the host R. The languages and
+  provider below identify this invocation.
+languages:
+  - sql
+  - python
+provider: R
+---
+!same-as sql-python MCP initialization for this execution mode
+---
+send:
+  python: |
+    import pandas as pd
+
+    frame = pd.DataFrame({"value": [19, 23]})
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: r.visible_frame = frame
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT sum(value) AS answer FROM visible_frame
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+            answer
+          <double>
+        1     42.0
+  isError: false

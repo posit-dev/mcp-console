@@ -1,0 +1,210 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+
+    assert sys.version_info.major == 3 and 12 <= sys.version_info.minor < 14
+    assert importlib.util.find_spec("duckdb") is None
+    assert importlib.util.find_spec("packaging") is not None
+    assert "packaging" not in sys.modules
+    print("conditional startup available")
+result:
+  content:
+    - type: text
+      text: |
+        conditional startup available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "duckdb; python_version < '2'",
+              "duckdb; sys_platform == 'win32'",
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [
+              ">=3.12,<3.14"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - duckdb; python_version < '2'
+        - duckdb; sys_platform == 'win32'
+        - packaging
+      duckdb: []
+      python_version:
+        - ">=3.12,<3.14"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - json
+result:
+  content:
+    - type: text
+      text: >-
+        DuckDB extension resolution failed with exit status: 1: DuckDB extension
+        preparation needs an importable duckdb package in the candidate Python
+        environment; include duckdb in requirements.python
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "duckdb; python_version < '2'",
+              "duckdb; sys_platform == 'win32'",
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [
+              ">=3.12,<3.14"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - duckdb; python_version < '2'
+        - duckdb; sys_platform == 'win32'
+        - packaging
+      duckdb: []
+      python_version:
+        - ">=3.12,<3.14"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: reset
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+
+    assert sys.version_info.major == 3 and 12 <= sys.version_info.minor < 14
+    assert importlib.util.find_spec("duckdb") is None
+    assert importlib.util.find_spec("packaging") is not None
+    assert "packaging" not in sys.modules
+    print("conditional startup available")
+result:
+  content:
+    - type: text
+      text: |
+        conditional startup available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "duckdb; python_version < '2'",
+              "duckdb; sys_platform == 'win32'",
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [
+              ">=3.12,<3.14"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - duckdb; python_version < '2'
+        - duckdb; sys_platform == 'win32'
+        - packaging
+      duckdb: []
+      python_version:
+        - ">=3.12,<3.14"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false

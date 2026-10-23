@@ -1,0 +1,46 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    invisible(Sys.setlocale("LC_CTYPE", ".UTF-8"))
+    sub(normalizePath(R.home(), winslash = "/"), "<R_HOME>", normalizePath(commandArgs()[1L], winslash = "/"), fixed = TRUE)
+    identical(normalizePath(commandArgs()[1L], winslash = "/"), normalizePath(file.path(R.home(), "bin", "R.exe"), winslash = "/"))
+    interactive()
+result:
+  content:
+    - type: text
+      text: |
+        [1] "<R_HOME>/bin/R.exe"
+        [1] TRUE
+        [1] TRUE
+  isError: false
+---
+send:
+  python: |
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    print("sys.executable is a file:", Path(sys.executable).is_file())
+    print("sys.argv:", sys.argv)
+    print("sys.orig_argv == [sys.executable]:", sys.orig_argv == [sys.executable])
+    print("sys.argv[0] == sys.executable:", sys.argv[0] == sys.executable)
+    child = subprocess.run(
+        [sys.executable, "identity.py", "two words"],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    sys.stdout.write(child.stdout)
+    child.check_returncode()
+result:
+  content:
+    - type: text
+      text: |
+        sys.executable is a file: True
+        sys.argv: ['']
+        sys.orig_argv == [sys.executable]: True
+        sys.argv[0] == sys.executable: False
+        script sys.argv: ['identity.py', 'two words']
+        script sys.argv[0] == sys.executable: False
+  isError: false

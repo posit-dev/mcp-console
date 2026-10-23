@@ -1,0 +1,91 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        preparation detail
+        selected Python executable is not an absolute file: <workspace>/python/bin/python
+  isError: true
+---
+send:
+  control: restart
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        preparation detail
+
+        [idle]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        recorded Python startup
+
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    from pathlib import Path
+    from threading import Thread
+
+    def emit_idle():
+        with Path('<workspace>/idle-release').open("rb", buffering=0) as gate:
+            assert gate.read(1) == b"1"
+        print("idle head\n" + "s" * 32768 + "\nidle tail", flush=True)
+
+    thread = Thread(target=emit_idle)
+    thread.start()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8092
+        concat:
+          - |
+            idle head
+          - repeat: s
+            count: 3958
+          - |
+
+            [output omitted: 24853 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001-post.txt]
+          - repeat: s
+            count: 3957
+          - |-
+
+            idle tail
+
+            [idle]
+  isError: false
+---
+send:
+  python: thread.join(); 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+session_output:
+  path: capture/sessions/001/cell-001-post.txt
+  retained_bytes: 32789
+  discarded_bytes: 0
+  inline_omitted_bytes: 24853
+startup_log_preserved: true
+preparation_capture_preserved: true

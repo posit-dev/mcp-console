@@ -1,0 +1,85 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    interrupt_started <- file.path(tempdir(), "sql-interrupt-started")
+    cat(interrupt_started, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        <SQL interrupt checkpoint>
+  isError: false
+---
+send:
+  sql: |
+    CREATE TABLE interrupt_state AS
+    SELECT CAST(42 AS INTEGER) AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    dyn.load(Sys.getenv("MCP_CONSOLE_SQL_INTERRUPT_LIBRARY"))
+    invisible(DBI::dbExecute(.console$sql_connection(), "SET threads = 1"))
+    invisible(DBI::dbExecute(
+      .console$sql_connection(),
+      "SET enable_progress_bar = true"
+    ))
+    invisible(DBI::dbExecute(
+      .console$sql_connection(),
+      "SET progress_bar_time = 0"
+    ))
+    query_started <- FALSE
+    options(duckdb.progress_display = function(percentage) {
+      if (!query_started && percentage < 100) {
+        query_started <<- TRUE
+        invisible(.C(
+          "wait_for_sql_interrupt",
+          interrupt_started
+        ))
+      }
+    })
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT sum(i) AS total FROM range(1000000000000) AS t(i)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 30000
+result:
+  content:
+    - type: text
+      text: "\n"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM interrupt_state
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false

@@ -1,0 +1,138 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: print(0)
+result:
+  content:
+    - type: text
+      text: |
+        [1] 0
+  isError: false
+---
+send:
+  python: "0"
+result:
+  content:
+    - type: text
+      text: |
+        0
+  isError: false
+---
+send:
+  control: interrupt
+  requirements:
+    r:
+      - DBI
+  r: print(42)
+result:
+  content:
+    - type: text
+      text: |-
+
+        [output produced while idle]
+        [1] 42
+        [done]
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      {
+        readline("old> ")
+        old_cell_completed <- TRUE
+      },
+      interrupt = function(e) cat("interrupted\n")
+    )
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "old> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  requirements:
+    r:
+      - DBI
+  r: stopifnot(!exists("old_cell_completed")); print(43)
+result:
+  content:
+    - type: text
+      text: |-
+        interrupted
+        [1] 43
+        [done]
+  isError: false
+---
+send:
+  python: 40 + 2
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

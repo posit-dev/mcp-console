@@ -1,0 +1,21 @@
+---
+managed:
+  resolution: explicit
+---
+managed:
+  resolution: explicit
+  packages: []
+---
+managed:
+  resolution: explicit
+  version: ">=3.12,<3.14"
+---
+managed:
+  resolution: implicit
+---
+managed:
+  resolution: fixed
+  packages:
+    - numpy
+    - pandas
+  version: "3.13"

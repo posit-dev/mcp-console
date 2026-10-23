@@ -1,0 +1,7 @@
+Package: mcpconsoleearlypython
+Title: Initialize Python During R Startup
+Version: 0.0.1
+Authors@R: person("Console", "Tests", email = "tests@example.com", role = c("aut", "cre"))
+Description: Public startup fixture for attaching to an existing Python interpreter.
+License: MIT
+Imports: reticulate

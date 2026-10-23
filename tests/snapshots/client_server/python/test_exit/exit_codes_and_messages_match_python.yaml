@@ -1,0 +1,213 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |-
+    import threading
+    assert threading.current_thread() is threading.main_thread()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    import sys
+    sys.exit()
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 0]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    import sys
+    sys.exit(None)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 0]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    import sys
+    sys.exit(0)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 0]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    import sys
+    sys.exit("shutdown message")
+result:
+  content:
+    - type: text
+      text: |-
+        shutdown message
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 1]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    import sys
+    sys.exit(1.5)
+result:
+  content:
+    - type: text
+      text: |-
+        1.5
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 1]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    raise SystemExit(33)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 33]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    raise SystemExit
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 0]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    import argparse
+    argparse.ArgumentParser().exit(33, "package shutdown\n")
+result:
+  content:
+    - type: text
+      text: |-
+        package shutdown
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 33]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false

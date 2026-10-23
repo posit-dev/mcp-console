@@ -1,0 +1,39 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |
+    CREATE TABLE __mcp_console_preview_e2 AS
+    SELECT CAST(999 AS INTEGER) AS column_01
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT CAST(42 AS INTEGER) AS answer
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false
+---
+send:
+  sql: |
+    SELECT column_01 AS catalog_value
+    FROM __mcp_console_preview_e2
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          catalog_value
+                <int32>
+        1           999
+  isError: false

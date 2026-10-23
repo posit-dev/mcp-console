@@ -1,0 +1,51 @@
+---
+config:
+  startup:
+    language: python
+    code: startup_count = 1
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE never_run AS SELECT 99 AS answer
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Python SQL setup> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 949, in _mcp_console_configure_module_defaults
+          File "<string>", line 907, in apply
+          File "<SQL setup checkpoint>", line 16, in configuration_checkpoint
+          File "<string>", line 50, in _console_input
+        KeyboardInterrupt
+        Error: Python initialization is incomplete; SQL withheld; explicit restart required
+  isError: false
+---
+send:
+  python: assert "startup_count" not in globals()
+result:
+  content:
+    - type: text
+      text: |
+        Python setup resumed with same objects
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: Python initialization is incomplete; explicit
+        restart required
+  isError: false

@@ -1,0 +1,37 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import os
+    import signal
+
+    interrupts = 0
+    interrupted, wakeup = os.pipe()
+    os.set_blocking(wakeup, False)
+    signal.set_wakeup_fd(wakeup)
+
+
+    def handle_interrupt(_signal, _frame):
+        global interrupts
+        interrupts += 1
+
+
+    signal.signal(signal.SIGINT, handle_interrupt)
+    previous_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+    assert signal.SIGINT not in previous_mask
+    print(f"ready {os.getpid()} {os.getpgrp()}", flush=True)
+    print(input(), flush=True)
+    signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask)
+    print("interrupt ready", flush=True)
+    assert os.read(interrupted, 1) == bytes([signal.SIGINT])
+    print(interrupts)
+stdin: |-
+  sandbox input
+  <Ctrl-C>
+stdout: |
+  1
+terminal_ownership: transferred to target

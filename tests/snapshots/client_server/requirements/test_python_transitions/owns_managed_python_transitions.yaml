@@ -1,0 +1,108 @@
+---
+send:
+  r: |
+    namespace <- asNamespace("reticulate")
+    invisible(suppressMessages(base::trace(
+      "py_reqs_plan",
+      tracer = quote(stop("reticulate calculated the transition")),
+      print = FALSE,
+      where = namespace
+    )))
+    reticulate::py_require(c("numpy", "unused", "numpy"), action = "set")
+    reticulate::py_require("unused", action = "remove")
+    reticulate::py_require(python_version = ">=3.10, <4")
+    reticulate::py_require(exclude_newer = "2026-01-01")
+    reticulate::py_require(exclude_newer = NA_character_, action = "remove")
+    declared <- reticulate::py_require()
+    stopifnot(
+      identical(declared$packages, "numpy"),
+      identical(declared$python_version, c(">=3.10", "<4")),
+      identical(declared["exclude_newer"], list(exclude_newer = NULL)),
+      !reticulate::py_available(initialize = FALSE)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - numpy
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: reticulate::py_run_string("import yaml12; print(yaml12.__name__)")
+result:
+  content:
+    - type: text
+      text: |
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        yaml12
+  isError: false
+---
+send:
+  r: |
+    current <- reticulate::py_require()
+    stopifnot(
+      identical(current$packages, c("py-yaml12", "numpy")),
+      identical(current$python_version, declared$python_version)
+    )
+    reticulate::py_require("py-yaml12")
+    reticulate::py_require("absent", action = "remove")
+    reticulate::py_require(rev(current$packages), action = "set")
+    reticulate::py_require(python_version = ">=3.10")
+    unchanged <- reticulate::py_require()
+    stopifnot(
+      identical(unchanged$packages, current$packages),
+      identical(unchanged$python_version, declared$python_version),
+      length(unchanged$history) == length(current$history) + 4L
+    )
+    for (action in c("remove", "set")) {
+      message <- tryCatch(
+        reticulate::py_require("numpy", action = action),
+        error = conditionMessage
+      )
+      stopifnot(identical(
+        message,
+        "After Python has initialized, only `action = 'add'` is supported."
+      ))
+    }
+    stopifnot(identical(reticulate::py_require(), unchanged))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - packaging
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: reticulate::py_run_string("import packaging; print(packaging.__name__)")
+result:
+  content:
+    - type: text
+      text: |
+        packaging
+  isError: false

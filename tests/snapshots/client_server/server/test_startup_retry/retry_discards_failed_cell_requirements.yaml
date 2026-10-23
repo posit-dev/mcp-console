@@ -1,0 +1,106 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: rejected_cell = True
+  requirements:
+    action: set
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: >-
+        worker R home discovery failed with exit status: 17: fixture R discovery
+        failed
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[worker evaluation is already being polled]"
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        worker R home discovery failed with exit status: 17: fixture R discovery
+        failed
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  python: assert 'rejected_cell' not in globals(); answer = 42; answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

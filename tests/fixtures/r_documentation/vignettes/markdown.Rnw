@@ -1,0 +1,8 @@
+\documentclass{article}
+%\VignetteIndexEntry{Console Markdown vignette}
+\begin{document}
+Installed Markdown source.
+<<must-not-run>>=
+stop("vignette source must not execute")
+@
+\end{document}

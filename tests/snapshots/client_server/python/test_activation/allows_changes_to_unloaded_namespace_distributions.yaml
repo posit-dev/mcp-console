@@ -1,0 +1,55 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python: []
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import console_namespace.auth
+    import os
+
+    marker = console_namespace.auth.value
+    worker_pid = os.getpid()
+    print(console_namespace.auth.__version__)
+result:
+  content:
+    - type: text
+      text: |
+        1.0
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - console-activation-fixture
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import console_namespace.cloud
+    import importlib.util
+
+    assert console_namespace.auth.value is marker
+    assert os.getpid() == worker_pid
+    assert importlib.util.find_spec("console_namespace.storage") is None
+    print(console_namespace.auth.__version__)
+    print(console_namespace.cloud.__version__)
+result:
+  content:
+    - type: text
+      text: |
+        1.0
+        2.0
+  isError: false

@@ -1,0 +1,34 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  r: stop('rejected cell must not run')
+result:
+  content:
+    - type: text
+      text: >-
+        worker R home discovery failed with exit status: 17: fixture R discovery
+        failed
+  isError: true
+---
+send:
+  r: stop('ordinary send must not retry')
+result:
+  content:
+    - type: text
+      text: >-
+        worker R home discovery failed with exit status: 17: fixture R discovery
+        failed
+  isError: true
+---
+send:
+  control: restart
+  r: answer <- 42; answer
+result:
+  content:
+    - type: text
+      text: |-
+        [runtime discovery retried]
+        [1] 42
+        [done]
+  isError: false

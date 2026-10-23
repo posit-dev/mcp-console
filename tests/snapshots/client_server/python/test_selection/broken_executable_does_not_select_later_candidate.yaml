@@ -1,0 +1,11 @@
+---
+result:
+  content:
+    - type: text
+      text: >
+        selected Python inspection failed (exit status: 23): fixture interpreter
+        failed
+  isError: true
+stderr: |+
+  selected Python inspection failed (exit status: 23): fixture interpreter failed
+

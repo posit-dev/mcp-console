@@ -1,0 +1,54 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |-
+    import threading
+    assert threading.current_thread() is threading.main_thread()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: r_marker <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |-
+    answer = 42
+    import sys
+    sys.exit(33)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 33]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: ("answer" in globals(), 1 + 1)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 2)
+  isError: false
+---
+send:
+  r: stopifnot(!exists("r_marker", inherits = FALSE)); 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        [1] 2
+  isError: false

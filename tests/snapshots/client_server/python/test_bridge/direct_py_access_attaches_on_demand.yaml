@@ -1,0 +1,351 @@
+---
+send:
+  python: |
+    bridge_value = "startup value"
+    bridge_object = object()
+    bridge_identity = id(bridge_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    suppressPackageStartupMessages(library(reticulate))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    main <- reticulate::py
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    stopifnot(
+      identical(main$bridge_value, "startup value"),
+      identical(reticulate::py$bridge_value, "startup value"),
+      reticulate::py_available(initialize = FALSE)
+    )
+    bridge_from_r <- 42L
+    main$bridge_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] "startup value"
+  isError: false
+---
+send:
+  python: |
+    assert id(bridge_object) == bridge_identity
+    assert bridge_value == "startup value"
+    assert int(r.bridge_from_r) == 42
+    print("bridge state retained")
+result:
+  content:
+    - type: text
+      text: |
+        bridge state retained
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    bridge_value = "startup value"
+    bridge_object = object()
+    bridge_identity = id(bridge_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    suppressPackageStartupMessages(library(reticulate))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    main <- reticulate::py
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    stopifnot(
+      identical(main$bridge_value, "startup value"),
+      identical(reticulate::py$bridge_value, "startup value"),
+      reticulate::py_available(initialize = FALSE)
+    )
+    bridge_from_r <- 42L
+    main$bridge_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] "startup value"
+  isError: false
+---
+send:
+  python: |
+    assert id(bridge_object) == bridge_identity
+    assert bridge_value == "startup value"
+    assert int(r.bridge_from_r) == 42
+    print("bridge state retained")
+result:
+  content:
+    - type: text
+      text: |
+        bridge state retained
+  isError: false
+---
+send:
+  python: |
+    bridge_value = "startup value"
+    bridge_object = object()
+    bridge_identity = id(bridge_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    suppressPackageStartupMessages(library(reticulate))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    main <- py
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    stopifnot(
+      identical(main$bridge_value, "startup value"),
+      identical(py$bridge_value, "startup value"),
+      reticulate::py_available(initialize = FALSE)
+    )
+    bridge_from_r <- 42L
+    main$bridge_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] "startup value"
+  isError: false
+---
+send:
+  python: |
+    assert id(bridge_object) == bridge_identity
+    assert bridge_value == "startup value"
+    assert int(r.bridge_from_r) == 42
+    print("bridge state retained")
+result:
+  content:
+    - type: text
+      text: |
+        bridge state retained
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    bridge_value = "startup value"
+    bridge_object = object()
+    bridge_identity = id(bridge_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    suppressPackageStartupMessages(library(reticulate))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    main <- py
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    stopifnot(
+      identical(main$bridge_value, "startup value"),
+      identical(py$bridge_value, "startup value"),
+      reticulate::py_available(initialize = FALSE)
+    )
+    bridge_from_r <- 42L
+    main$bridge_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] "startup value"
+  isError: false
+---
+send:
+  python: |
+    assert id(bridge_object) == bridge_identity
+    assert bridge_value == "startup value"
+    assert int(r.bridge_from_r) == 42
+    print("bridge state retained")
+result:
+  content:
+    - type: text
+      text: |
+        bridge state retained
+  isError: false
+---
+send:
+  python: |
+    bridge_value = "startup value"
+    bridge_object = object()
+    bridge_identity = id(bridge_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    suppressPackageStartupMessages(library(reticulate))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    main <- get("py", envir = as.environment("package:reticulate"))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    stopifnot(
+      identical(main$bridge_value, "startup value"),
+      identical(get("py", envir = as.environment("package:reticulate"))$bridge_value, "startup value"),
+      reticulate::py_available(initialize = FALSE)
+    )
+    bridge_from_r <- 42L
+    main$bridge_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] "startup value"
+  isError: false
+---
+send:
+  python: |
+    assert id(bridge_object) == bridge_identity
+    assert bridge_value == "startup value"
+    assert int(r.bridge_from_r) == 42
+    print("bridge state retained")
+result:
+  content:
+    - type: text
+      text: |
+        bridge state retained
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    bridge_value = "startup value"
+    bridge_object = object()
+    bridge_identity = id(bridge_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    suppressPackageStartupMessages(library(reticulate))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    main <- get("py", envir = as.environment("package:reticulate"))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    stopifnot(
+      identical(main$bridge_value, "startup value"),
+      identical(get("py", envir = as.environment("package:reticulate"))$bridge_value, "startup value"),
+      reticulate::py_available(initialize = FALSE)
+    )
+    bridge_from_r <- 42L
+    main$bridge_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] "startup value"
+  isError: false
+---
+send:
+  python: |
+    assert id(bridge_object) == bridge_identity
+    assert bridge_value == "startup value"
+    assert int(r.bridge_from_r) == 42
+    print("bridge state retained")
+result:
+  content:
+    - type: text
+      text: |
+        bridge state retained
+  isError: false

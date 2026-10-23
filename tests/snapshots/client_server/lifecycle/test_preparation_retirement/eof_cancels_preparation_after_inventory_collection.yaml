@@ -1,0 +1,5 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+exit_status: 0
+stderr: ""

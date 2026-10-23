@@ -1,0 +1,35 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - Rscript
+  - --vanilla
+  - -e
+  - |
+    child <- processx::process$new(
+      "/bin/sleep",
+      "60",
+      cleanup = FALSE
+    )
+    tryCatch(
+      {
+        writeLines(c(
+          as.character(Sys.getpid()),
+          as.character(child$get_pid())
+        ))
+        flush.console()
+        Sys.sleep(60)
+      },
+      interrupt = function(...) {
+        quit(save = "no", status = 130L, runLast = FALSE)
+      }
+    )
+stdout: |
+  <sandbox root pid>
+  <processx child pid>
+verified_descendant: processx child outside root process group
+---
+signal: SIGINT
+exit_code: 130
+stderr: ""

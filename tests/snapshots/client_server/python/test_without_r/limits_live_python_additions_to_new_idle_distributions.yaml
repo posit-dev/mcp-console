@@ -1,0 +1,281 @@
+---
+send:
+  python: import os; worker_pid = os.getpid(); identity = object()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: input('busy> ')
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "busy> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        worker is already evaluating a cell; poll it before preparing
+        requirements
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - numpy
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  stdin: |
+    ready
+result:
+  content:
+    - type: text
+      text: |
+        'ready'
+  isError: false
+---
+send:
+  python: import pdb; pdb.set_trace(); print('debugger resumed')
+result:
+  content:
+    - type: text
+      text: |-
+        > <mcp-console:python:e3>(1)<module>()
+        [input requested: "(Pdb) "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        worker is already evaluating a cell; poll it before preparing
+        requirements
+  isError: true
+---
+send:
+  stdin: |
+    continue
+result:
+  content:
+    - type: text
+      text: |
+        debugger resumed
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - NumPy==0
+result:
+  content:
+    - type: text
+      text: >-
+        live Python requirements can only add new distributions; `NumPy==0`
+        changes already-declared `numpy`; use control: restart with
+        requirements.action: set
+  isError: true
+---
+send:
+  requirements:
+    python_version:
+      - <3
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    exclude_newer: 2026-01-01
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    action: set
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    action: set
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - six
+    duckdb:
+      - json
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+    duckdb:
+      - json
+  sql: select 42 as value
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        42
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - NumPy==0
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: >-
+        live Python requirements can only add new distributions; `NumPy==0`
+        changes already-declared `numpy`; use control: restart with
+        requirements.action: set
+  isError: true
+---
+send:
+  python: >-
+    import os, six, yaml12; assert os.getpid() == worker_pid; print('state
+    retained')
+result:
+  content:
+    - type: text
+      text: |
+        state retained
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb",
+              "py-yaml12",
+              "six"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+        - py-yaml12
+        - six
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false

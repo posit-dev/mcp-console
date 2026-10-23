@@ -1,0 +1,11 @@
+---
+config:
+  startup:
+    language: python
+    code: raise RuntimeError('source must not execute')
+  python: /mcp-console-startup-missing-python
+---
+exit_status: 1
+stderr: >
+  cannot use existing Python /mcp-console-startup-missing-python: No such
+  file or directory (os error 2)

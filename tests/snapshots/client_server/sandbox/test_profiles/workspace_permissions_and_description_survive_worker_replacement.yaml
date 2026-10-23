@@ -1,0 +1,257 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.workspace-profile.yaml
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+
+    workspace = Path(os.environ["TEST_WORKSPACE"])
+    outside = Path(os.environ["TEST_OUTSIDE"])
+    os.chdir(outside)
+    ordinary = workspace / "ordinary"
+    _ = ordinary.write_text("created")
+    _ = ordinary.write_text("edited")
+    assert ordinary.read_text() == "edited"
+    ordinary.unlink()
+    for path in [
+        outside / "blocked",
+        *[
+            workspace / name / "keep"
+            for name in (".git", ".agents", ".codex", ".aws", ".claude")
+        ],
+    ]:
+        try:
+            _ = path.write_text("blocked")
+        except OSError as error:
+            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+        else:
+            raise AssertionError(path)
+    assert (workspace / ".claude/keep").read_text() == "readable"
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; Path('.claude/new').write_text('blocked')",
+        ],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+    )
+    assert child.returncode != 0 and (
+        "PermissionError" in child.stderr or "Read-only file system" in child.stderr
+    ), child
+    _ = (Path(os.environ["TMPDIR"]) / "private").write_text("private")
+    print("fixed workspace permits edits and protects metadata after cwd changes")
+result:
+  content:
+    - type: text
+      text: |
+        fixed workspace permits edits and protects metadata after cwd changes
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+
+    workspace = Path(os.environ["TEST_WORKSPACE"])
+    outside = Path(os.environ["TEST_OUTSIDE"])
+    os.chdir(outside)
+    ordinary = workspace / "ordinary"
+    _ = ordinary.write_text("created")
+    _ = ordinary.write_text("edited")
+    assert ordinary.read_text() == "edited"
+    ordinary.unlink()
+    for path in [
+        outside / "blocked",
+        *[
+            workspace / name / "keep"
+            for name in (".git", ".agents", ".codex", ".aws", ".claude")
+        ],
+    ]:
+        try:
+            _ = path.write_text("blocked")
+        except OSError as error:
+            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+        else:
+            raise AssertionError(path)
+    assert (workspace / ".claude/keep").read_text() == "readable"
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; Path('.claude/new').write_text('blocked')",
+        ],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+    )
+    assert child.returncode != 0 and (
+        "PermissionError" in child.stderr or "Read-only file system" in child.stderr
+    ), child
+    _ = (Path(os.environ["TMPDIR"]) / "private").write_text("private")
+    print("fixed workspace permits edits and protects metadata after cwd changes")
+result:
+  content:
+    - type: text
+      text: |
+        fixed workspace permits edits and protects metadata after cwd changes
+  isError: false
+---
+send:
+  python: os._exit(23)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 23]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+
+    workspace = Path(os.environ["TEST_WORKSPACE"])
+    outside = Path(os.environ["TEST_OUTSIDE"])
+    os.chdir(outside)
+    ordinary = workspace / "ordinary"
+    _ = ordinary.write_text("created")
+    _ = ordinary.write_text("edited")
+    assert ordinary.read_text() == "edited"
+    ordinary.unlink()
+    for path in [
+        outside / "blocked",
+        *[
+            workspace / name / "keep"
+            for name in (".git", ".agents", ".codex", ".aws", ".claude")
+        ],
+    ]:
+        try:
+            _ = path.write_text("blocked")
+        except OSError as error:
+            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+        else:
+            raise AssertionError(path)
+    assert (workspace / ".claude/keep").read_text() == "readable"
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; Path('.claude/new').write_text('blocked')",
+        ],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+    )
+    assert child.returncode != 0 and (
+        "PermissionError" in child.stderr or "Read-only file system" in child.stderr
+    ), child
+    _ = (Path(os.environ["TMPDIR"]) / "private").write_text("private")
+    print("fixed workspace permits edits and protects metadata after cwd changes")
+result:
+  content:
+    - type: text
+      text: |
+        fixed workspace permits edits and protects metadata after cwd changes
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+
+    workspace = Path(os.environ["TEST_WORKSPACE"])
+    outside = Path(os.environ["TEST_OUTSIDE"])
+    os.chdir(outside)
+    ordinary = workspace / "ordinary"
+    _ = ordinary.write_text("created")
+    _ = ordinary.write_text("edited")
+    assert ordinary.read_text() == "edited"
+    ordinary.unlink()
+    for path in [
+        outside / "blocked",
+        *[
+            workspace / name / "keep"
+            for name in (".git", ".agents", ".codex", ".aws", ".claude")
+        ],
+    ]:
+        try:
+            _ = path.write_text("blocked")
+        except OSError as error:
+            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+        else:
+            raise AssertionError(path)
+    assert (workspace / ".claude/keep").read_text() == "readable"
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; Path('.claude/new').write_text('blocked')",
+        ],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+    )
+    assert child.returncode != 0 and (
+        "PermissionError" in child.stderr or "Read-only file system" in child.stderr
+    ), child
+    _ = (Path(os.environ["TMPDIR"]) / "private").write_text("private")
+    print("fixed workspace permits edits and protects metadata after cwd changes")
+result:
+  content:
+    - type: text
+      text: |
+        fixed workspace permits edits and protects metadata after cwd changes
+  isError: false
+---
+send:
+  python: import yaml12; print(yaml12.__name__)
+result:
+  content:
+    - type: text
+      text: |
+        yaml12
+  isError: false

@@ -1,0 +1,44 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    local({
+      # Observe the requested dimensions without allocating a large image.
+      invisible(suppressMessages(trace(
+        "png",
+        where = asNamespace("grDevices"),
+        tracer = quote({
+          stopifnot(identical(units, "in"))
+          stop(
+            sprintf("%g x %g inches at %g DPI", width, height, res),
+            call. = FALSE
+          )
+        }),
+        print = FALSE
+      )))
+      on.exit(suppressMessages(untrace(
+        "png",
+        where = asNamespace("grDevices")
+      )))
+      for (size in list(c(8, 6, 600), c(32, 1, 600))) {
+        options(
+          console.plot.width_in = size[[1]],
+          console.plot.height_in = size[[2]],
+          console.plot.dpi = size[[3]]
+        )
+        message <- tryCatch(plot(1:3), error = conditionMessage)
+        cat(message, "\n", sep = "")
+        stopifnot(identical(
+          message,
+          sprintf("%g x %g inches at %g DPI", size[[1]], size[[2]], size[[3]])
+        ))
+      }
+    })
+result:
+  content:
+    - type: text
+      text: |
+        8 x 6 inches at 600 DPI
+        32 x 1 inches at 600 DPI
+  isError: false

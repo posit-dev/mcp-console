@@ -1,0 +1,43 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    Sys.sleep(0.25)
+    answer <- 42
+    answer
+  timeout_ms: 10
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        [1] 43
+  isError: false

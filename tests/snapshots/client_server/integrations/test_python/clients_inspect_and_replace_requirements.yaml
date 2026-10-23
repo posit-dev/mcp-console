@@ -1,0 +1,41 @@
+---
+sync:
+  requirements:
+    r: []
+    python: []
+    duckdb: []
+    python_version:
+      - ">=3.11"
+    exclude_newer: 2026-01-01
+  prepared: true
+  runtime_requirements:
+    r:
+      - DBI
+      - duckdb
+      - jsonlite
+      - nanoarrow
+      - pillar
+      - reticulate
+      - tibble
+      - utf8
+    python: []
+---
+async:
+  requirements:
+    r: []
+    python: []
+    duckdb: []
+    python_version: []
+    exclude_newer: ~
+  prepared: true
+  runtime_requirements:
+    r:
+      - DBI
+      - duckdb
+      - jsonlite
+      - nanoarrow
+      - pillar
+      - reticulate
+      - tibble
+      - utf8
+    python: []

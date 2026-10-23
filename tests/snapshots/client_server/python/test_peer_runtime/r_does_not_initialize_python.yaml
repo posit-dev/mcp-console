@@ -1,0 +1,55 @@
+---
+send:
+  r: |
+    probe <- dyn.load("<Python initialization probe>")
+    r_value <- new.env()
+    r_value$answer <- 42L
+    r_answer <- 42L
+    python_initialized <- function() {
+      .C(
+        getNativeSymbolInfo(
+          "mcp_console_probe_python_initialized",
+          PACKAGE = probe
+        ),
+        value = 0L
+      )$value
+    }
+    stopifnot(python_initialized() == -1L)
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    r_value$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: >-
+    peer_object = object(); peer_identity = id(peer_object); int(r.r_answer)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: stopifnot(python_initialized() == 1L); r_value$answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: >-
+    assert id(peer_object) == peer_identity; print('runtime objects
+    retained')
+result:
+  content:
+    - type: text
+      text: |
+        runtime objects retained
+  isError: false

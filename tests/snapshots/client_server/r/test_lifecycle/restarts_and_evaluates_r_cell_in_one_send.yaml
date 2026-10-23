@@ -1,0 +1,23 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: inline_restart_marker <- TRUE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+  r: exists("inline_restart_marker", inherits = FALSE)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [1] FALSE
+        [done]
+  isError: false

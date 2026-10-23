@@ -1,0 +1,41 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    (
+        Path(matplotlib.matplotlib_fname()).samefile(
+            os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]
+        ),
+        matplotlib.rcParams["lines.linewidth"],
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (True, 9.25)
+  isError: false

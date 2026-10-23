@@ -1,0 +1,28 @@
+---
+backend: ~
+carveout: read
+stdout: |
+  target started
+  carveout write denied
+  carveout read allowed
+---
+backend: ~
+carveout: deny
+stdout: |
+  target started
+  carveout write denied
+  carveout read denied
+---
+backend: bubblewrap
+carveout: read
+stdout: |
+  target started
+  carveout write denied
+  carveout read allowed
+---
+backend: bubblewrap
+carveout: deny
+stdout: |
+  target started
+  carveout write denied
+  carveout read denied

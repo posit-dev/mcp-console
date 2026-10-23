@@ -1,0 +1,8 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only-writable.yaml
+---
+input:
+  method: ping
+result: {}
+---
+prelaunch_resources_retired: true

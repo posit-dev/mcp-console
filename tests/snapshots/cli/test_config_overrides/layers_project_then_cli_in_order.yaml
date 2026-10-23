@@ -1,0 +1,36 @@
+---
+command: serve
+overrides:
+  - -c
+  - environment.BEFORE=first
+  - -c
+  - environment.CHANGE=first
+  - -c
+  - "environment={CHANGE=last, ADD: cli}"
+  - -c
+  - sandbox.filesystem.read_write=[./cli]
+environment:
+  ADD: cli
+  BEFORE: first
+  CHANGE: last
+  KEEP: project
+paths:
+  - cli
+---
+command: sandbox
+overrides:
+  - -c
+  - environment.BEFORE=first
+  - -c
+  - environment.CHANGE=first
+  - -c
+  - "environment={CHANGE=last, ADD: cli}"
+  - -c
+  - sandbox.filesystem.read_write=[./cli]
+environment:
+  ADD: cli
+  BEFORE: first
+  CHANGE: last
+  KEEP: project
+paths:
+  - cli

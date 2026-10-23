@@ -1,0 +1,12 @@
+---
+observation: failed with failed status probe
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: fatal
+    message: >-
+      failed to observe child process PID exit: Input/output error (os error
+      5); failed to read direct worker status: Input/output error (os error 5)
+  - kind: worker_sideband_closed
+  - kind: worker_signaled
+    signal: 9

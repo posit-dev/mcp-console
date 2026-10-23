@@ -1,0 +1,19 @@
+---
+initially_configured: true
+validation_launches: 0
+identical_worker_launches: 4
+writable_roots:
+  - output café 雪
+  - CLI cache
+network: restricted
+proxy:
+  enabled: true
+  mode: full
+  enableSocks5: true
+  enableSocks5Udp: false
+  allowUpstreamProxy: false
+  domains:
+    127.0.0.1: allow
+  unixSockets: {}
+  dangerouslyAllowAllUnixSockets: false
+  allowLocalBinding: false

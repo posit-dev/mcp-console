@@ -1,0 +1,39 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    local({
+      saved <- utils::vignette("rendered", package = "consolehelp")
+      text <- capture.output(print(saved))
+      previous <- Sys.getlocale("LC_CTYPE")
+      on.exit(Sys.setlocale("LC_CTYPE", previous))
+      stopifnot(identical(Sys.setlocale("LC_CTYPE", "C"), "C"))
+      reference <- tempfile()
+      writeBin(charToRaw(paste(text, collapse = "\n")), reference)
+      selected <- function(files, header, title, delete.file) {
+        bytes <<- readBin(files, "raw", n = file.info(files)$size)
+        if (delete.file) unlink(files)
+      }
+      file.show(reference, pager = selected, encoding = "UTF-8", delete.file = TRUE)
+      expected <- bytes
+      options(pager = selected)
+      print(saved)
+      stopifnot(identical(bytes, expected))
+      options(pager = function(files, header, title, delete.file) {
+        failed <<- files
+        stop("pager failed")
+      })
+      error <- tryCatch(print(saved), error = identity)
+      stopifnot(
+        identical(conditionMessage(error), "pager failed"),
+        !file.exists(failed)
+      )
+      cat("custom pagers receive the standard native encoding\n")
+    })
+result:
+  content:
+    - type: text
+      text: |
+        custom pagers receive the standard native encoding
+  isError: false

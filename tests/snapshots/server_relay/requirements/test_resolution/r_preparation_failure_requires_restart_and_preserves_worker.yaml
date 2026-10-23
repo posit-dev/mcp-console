@@ -1,0 +1,26 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: prepare_r
+  library: <failed-candidate>
+---
+relay:
+  kind: r_preparation_failed
+  message: scripted R preparation failed
+---
+server:
+  kind: evaluate
+  language: r
+  source: "42"
+---
+relay:
+  kind: cell_started
+---
+relay:
+  kind: completed

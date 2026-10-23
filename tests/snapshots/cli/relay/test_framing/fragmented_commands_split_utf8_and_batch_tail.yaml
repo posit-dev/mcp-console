@@ -1,0 +1,17 @@
+---
+kind: console_output
+data: command 🦀
+---
+kind: completed
+---
+kind: stdout_closed
+---
+kind: stderr_closed
+---
+kind: fatal
+message: relay stdin closed midway through a frame
+---
+kind: worker_sideband_closed
+---
+kind: worker_signaled
+signal: 9

@@ -1,0 +1,89 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: import runpy; original_run_path = runpy.run_path
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: before <- reticulate::py_require()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    def fail_activation_hook(_path):
+        raise ValueError("activation hook failed")
+
+
+    runpy.run_path = fail_activation_hook
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: reticulate::py_require("py-yaml12")
+result:
+  content:
+    - type: text
+      text: |
+        Error in reticulate::py_require("py-yaml12") : 
+          ValueError: activation hook failed
+        Run `reticulate::py_last_error()` for details.
+  isError: false
+---
+send:
+  r: stopifnot(identical(reticulate::py_require(), before))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: runpy.run_path = original_run_path
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[restart required]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: import yaml12; yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        'yaml12'
+  isError: false

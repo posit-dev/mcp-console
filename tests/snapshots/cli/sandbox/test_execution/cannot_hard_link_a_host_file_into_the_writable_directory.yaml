@@ -1,0 +1,29 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import errno
+    import os
+    import pathlib
+    import sys
+
+    destination = pathlib.Path(os.environ["TMPDIR"]) / "host-link"
+    assert os.stat(sys.argv[1]).st_dev == os.stat(destination.parent).st_dev
+    try:
+        os.link(sys.argv[1], destination)
+    except OSError as error:
+        assert error.errno == errno.EPERM
+    else:
+        destination.write_text("escaped")
+        raise SystemExit("host hard-link escape succeeded")
+
+    print("blocked")
+  - host.txt
+environment:
+  TMPDIR: .
+stdout: |
+  blocked

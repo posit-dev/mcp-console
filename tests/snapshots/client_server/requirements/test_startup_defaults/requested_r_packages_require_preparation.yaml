@@ -1,0 +1,18 @@
+---
+configuration: without R
+result:
+  content:
+    - type: text
+      text: >-
+        r.packages: requested startup packages require R and R preparation
+        support
+  isError: true
+---
+configuration: without R preparation
+result:
+  content:
+    - type: text
+      text: >-
+        r.packages: requested startup packages require R and R preparation
+        support
+  isError: true

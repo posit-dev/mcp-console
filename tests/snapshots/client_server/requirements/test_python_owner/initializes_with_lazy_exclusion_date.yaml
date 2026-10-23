@@ -1,0 +1,47 @@
+---
+send:
+  r: |
+    reticulate::py_require(exclude_newer = "2026-09-01")
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: reticulate::py_eval("1 + 1")
+result:
+  content:
+    - type: text
+      text: |
+        [1] 2
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(reticulate::py_require()$exclude_newer, "2026-09-01"),
+      !reticulate::py_available(initialize = FALSE)
+    )
+    invisible(reticulate::py_config())
+    stopifnot(
+      reticulate::py_available(initialize = FALSE),
+      identical(reticulate::py_require()$exclude_newer, "2026-09-01")
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

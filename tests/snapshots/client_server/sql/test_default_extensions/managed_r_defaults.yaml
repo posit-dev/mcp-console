@@ -1,0 +1,158 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  sql: SET autoinstall_known_extensions = false; SET TimeZone = 'UTC'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: ATTACH 'audit.sqlite' AS audit (TYPE sqlite, READ_ONLY)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT
+      CASE WHEN json_extract_string('{"answer":42}', '$.answer') = '42'
+        THEN 1234567 ELSE 0 END AS json_ok,
+      CASE WHEN CAST(
+        timezone('America/New_York', TIMESTAMP '2020-01-01') AS VARCHAR
+      ) = '2020-01-01 05:00:00+00'
+        THEN 1234567 ELSE 0 END AS timezone_ok,
+      CASE WHEN (SELECT payload->>'$.answer' FROM audit.events) = '42'
+        THEN 1234567 ELSE 0 END AS sqlite_ok
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 3
+          json_ok timezone_ok sqlite_ok
+          <int32>     <int32>   <int32>
+        1 1234567     1234567   1234567
+  isError: false
+---
+send:
+  sql: INSERT INTO audit.events VALUES ('{}')
+result:
+  content:
+    - type: text
+      text: |
+        Error: Invalid Input Error: Cannot execute statement of type "INSERT" on database "audit" which is attached in read-only mode!
+        ℹ Context: rapi_execute
+        ℹ Error type: INVALID_INPUT
+  isError: false
+---
+send:
+  sql: SELECT count(*) AS events FROM audit.events
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           events
+          <int64>
+        1       1
+  isError: false

@@ -1,0 +1,55 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - Rscript
+  - --vanilla
+  - -e
+  - |
+    child_script <- '
+    import os
+    import subprocess
+    import time
+
+    grandchild = subprocess.Popen(
+        ["/bin/sleep", "60"],
+        start_new_session=True,
+    )
+    payload = (
+        str(grandchild.pid)
+        + os.linesep
+        + os.environ["TMPDIR"]
+        + os.linesep
+    ).encode()
+    os.write(1, payload)
+    time.sleep(60)
+    '
+
+    child <- processx::process$new(
+      "python",
+      c("-c", child_script),
+      stdout = "|",
+      stderr = "2>&1",
+      cleanup = FALSE
+    )
+    stopifnot(child$poll_io(-1)[["output"]] == "ready")
+    child_output <- child$read_output_lines()
+    stopifnot(length(child_output) == 2L)
+    writeLines(c(
+      as.character(Sys.getpid()),
+      as.character(child$get_pid()),
+      child_output
+    ))
+    flush.console()
+    stopifnot(identical(readLines("stdin", n = 1L), "exit"))
+    quit(save = "no", status = 23L, runLast = FALSE)
+exit_code: 23
+stdout: |
+  <sandbox root pid>
+  <processx child pid>
+  <processx grandchild pid>
+  <sandbox temp>
+verified_descendants:
+  - processx child outside root session
+  - detached grandchild outside processx child session

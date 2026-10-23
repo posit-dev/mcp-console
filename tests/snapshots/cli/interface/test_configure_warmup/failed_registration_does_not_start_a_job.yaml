@@ -1,0 +1,6 @@
+---
+exit_code: 1
+stderr: >
+  Cannot configure <workspace>/claude-home/.claude.json: expected ident at
+  line 1 column 2
+warmup_started: false

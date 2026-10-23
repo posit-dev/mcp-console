@@ -1,0 +1,5 @@
+---
+close_receipt_lost: true
+exit_status: 1
+stderr: |
+  Python inspection resolution cancelled; resolver input closed

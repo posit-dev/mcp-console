@@ -1,0 +1,93 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE managed_values AS SELECT 42 AS value
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    callback_started <- tempfile("mcp-console-sql-callback-started-")
+    callback_release <- tempfile("mcp-console-sql-callback-release-")
+    cat(callback_started, callback_release, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <callback started>
+        <callback release>
+  isError: false
+---
+send:
+  r: |
+    select_r_sql <- function() {
+      started <- fifo(callback_started, open = "wb", blocking = TRUE)
+      writeBin(charToRaw("1"), started)
+      close(started)
+      gate <- fifo(callback_release, open = "rb", blocking = TRUE)
+      stopifnot(identical(
+        readBin(gate, "raw", n = 1L),
+        charToRaw("1")
+      ))
+      close(gate)
+      .console$sql_connection(NULL)
+      41L
+    }
+    invisible()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+    connection = sqlite3.connect(":memory:")
+    connection.create_function("select_r_sql", 0, r.select_r_sql)
+    _console.sql_connection(connection)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT select_r_sql() AS callback_value
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: |
+        callback_value
+        --------------
+        41
+  isError: false
+---
+send:
+  sql: SELECT value FROM managed_values
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+            value
+          <int32>
+        1      42
+  isError: false

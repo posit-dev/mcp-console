@@ -1,0 +1,30 @@
+---
+case: no files
+languages:
+  - python
+  - r
+  - sql
+---
+case: global alone
+languages:
+  - r
+---
+case: project alone
+languages:
+  - python
+---
+case: empty project
+languages:
+  - r
+---
+case: list replacement
+languages:
+  - python
+---
+case: project repairs global
+languages:
+  - sql
+---
+case: CLI repairs layers
+languages:
+  - python

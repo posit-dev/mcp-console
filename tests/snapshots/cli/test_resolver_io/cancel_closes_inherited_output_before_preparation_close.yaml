@@ -1,0 +1,9 @@
+---
+completed:
+  id: 1
+  result:
+    Err: managed Python version resolution cancelled
+  control: Cancelled
+  confirmed: true
+output_readers_closed: true
+subsequent_version: 3.12.7

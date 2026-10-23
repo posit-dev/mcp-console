@@ -1,0 +1,7 @@
+---
+invalid_R_HOME: >-
+  R_HOME must select an existing R installation:
+  <fixture>/missing-r/bin/Rscript is missing
+---
+broken_R: >-
+  worker R home discovery failed with exit status: 41: broken discovered R

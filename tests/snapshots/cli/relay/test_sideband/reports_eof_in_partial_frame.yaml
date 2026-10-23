@@ -1,0 +1,14 @@
+---
+kind: stdout_closed
+---
+kind: stderr_closed
+---
+kind: fatal
+message: >-
+  worker sideband read failed: worker sideband closed midway through a
+  frame
+---
+kind: worker_sideband_closed
+---
+kind: worker_signaled
+signal: 9

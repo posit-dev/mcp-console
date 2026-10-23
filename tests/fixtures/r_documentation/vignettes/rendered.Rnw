@@ -1,0 +1,8 @@
+\documentclass{article}
+%\VignetteIndexEntry{Console rendered vignette}
+\begin{document}
+Source-only prose must not replace rendered output.
+<<must-not-run>>=
+stop("vignette source must not execute")
+@
+\end{document}

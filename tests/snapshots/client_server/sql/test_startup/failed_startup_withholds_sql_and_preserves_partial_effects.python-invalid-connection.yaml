@@ -1,0 +1,48 @@
+---
+config:
+  startup:
+    language: python
+    code: _console.sql_connection(object())
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE never_run AS SELECT 99 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 479, in initialize_connection
+          File "<console startup>", line 1, in <module>
+          File "<string>", line 132, in sql_connection
+          File "<string>", line 107, in _validate_connection
+        TypeError: `connection` must provide a callable cursor() method or be None
+        Error: configured startup did not complete; SQL withheld; explicit restart required
+        Error: SQL unavailable: configured startup did not complete; explicit restart required
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: configured startup did not complete; explicit
+        restart required
+  isError: false
+---
+language: python
+failure: cursor()
+first_sql: |
+  Traceback (most recent call last):
+    File "<string>", line 479, in initialize_connection
+    File "<console startup>", line 1, in <module>
+    File "<string>", line 132, in sql_connection
+    File "<string>", line 107, in _validate_connection
+  TypeError: `connection` must provide a callable cursor() method or be None
+  Error: configured startup did not complete; SQL withheld; explicit restart required
+  Error: SQL unavailable: configured startup did not complete; explicit restart required
+later_sql: >
+  Error: SQL unavailable: configured startup did not complete; explicit
+  restart required

@@ -1,0 +1,7 @@
+---
+configuration:
+  description: 1
+stderr: >
+  configuration with CLI overrides: tool.description: invalid type:
+  integer `1`, expected a string; see docs/CONFIGURATION.md for the public
+  format

@@ -1,0 +1,21 @@
+---
+callable: |
+  zod: sync
+---
+error: only one of `r`, `python`, or `sql` may be supplied
+---
+chatlas: |
+  zod: chatlas
+---
+anthropic: |
+  zod: anthropic
+---
+agent: |
+  zod: agent
+---
+closed: >-
+  MCPConsole is not connected; use `with MCPConsole() as console` or call
+  `console.connect()` first
+---
+reconnected: |
+  zod: reconnected

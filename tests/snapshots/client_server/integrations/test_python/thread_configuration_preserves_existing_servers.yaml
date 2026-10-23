@@ -1,0 +1,12 @@
+---
+config:
+  model: caller-selected-model
+  mcp_servers:
+    existing:
+      command: other
+    console:
+      env:
+        MODE: test
+      command: custom-console
+      args:
+        - serve

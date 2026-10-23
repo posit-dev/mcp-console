@@ -1,0 +1,6 @@
+---
+yaml: |
+  !configuration
+  !key cache: !cache host
+  environment: !environment {LABEL: !text tagged}
+initialized: true

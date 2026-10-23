@@ -1,0 +1,71 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    explicit_plot <- tempfile(fileext = ".png")
+    grDevices::png(explicit_plot, width = 4, height = 3, units = "in", res = 100)
+    explicit_device <- grDevices::dev.cur()
+    plot(1:3)
+    cat("explicit current: ", names(grDevices::dev.cur()), "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        explicit current: <device>
+  isError: false
+---
+send:
+  r: |
+    cat(
+      "explicit still current: ",
+      identical(grDevices::dev.cur(), explicit_device),
+      "\n",
+      sep = ""
+    )
+    invisible(grDevices::dev.off(which = explicit_device))
+    cat("explicit complete: ", file.exists(explicit_plot), "\n", sep = "")
+    unlink(explicit_plot)
+result:
+  content:
+    - type: text
+      text: |
+        explicit still current: TRUE
+        explicit complete: TRUE
+  isError: false
+---
+send:
+  r: plot(3:1)
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+  isError: false
+---
+send:
+  r: |
+    first_explicit_plot <- tempfile(fileext = ".png")
+    second_explicit_plot <- tempfile(fileext = ".png")
+    grDevices::png(first_explicit_plot)
+    plot(1:3)
+    grDevices::png(second_explicit_plot)
+    plot(3:1)
+    grDevices::graphics.off()
+    cat(
+      "all explicit complete: ",
+      all(file.exists(first_explicit_plot, second_explicit_plot)),
+      "\n",
+      sep = ""
+    )
+    unlink(c(first_explicit_plot, second_explicit_plot))
+    plot(2:4)
+result:
+  content:
+    - type: text
+      text: |
+        all explicit complete: TRUE
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+  isError: false

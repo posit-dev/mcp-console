@@ -1,0 +1,96 @@
+---
+launch: root
+profile: workspace
+full: false
+stderr: ""
+---
+launch: root
+profile: workspace
+full: true
+stderr: ""
+---
+launch: root
+profile:
+  inherit_codex:
+    fallback: workspace
+full: false
+stderr: ""
+---
+launch: root
+profile:
+  inherit_codex:
+    fallback: workspace
+full: true
+stderr: ""
+---
+launch: home
+profile: workspace
+full: false
+stderr: ""
+---
+launch: home
+profile: workspace
+full: true
+stderr: ""
+---
+launch: home
+profile:
+  inherit_codex:
+    fallback: workspace
+full: false
+stderr: ""
+---
+launch: home
+profile:
+  inherit_codex:
+    fallback: workspace
+full: true
+stderr: ""
+---
+launch: home_parent
+profile: workspace
+full: false
+stderr: ""
+---
+launch: home_parent
+profile: workspace
+full: true
+stderr: ""
+---
+launch: home_parent
+profile:
+  inherit_codex:
+    fallback: workspace
+full: false
+stderr: ""
+---
+launch: home_parent
+profile:
+  inherit_codex:
+    fallback: workspace
+full: true
+stderr: ""
+---
+launch: project
+profile: workspace
+full: false
+stderr: ""
+---
+launch: project
+profile: workspace
+full: true
+stderr: ""
+---
+launch: project
+profile:
+  inherit_codex:
+    fallback: workspace
+full: false
+stderr: ""
+---
+launch: project
+profile:
+  inherit_codex:
+    fallback: workspace
+full: true
+stderr: ""

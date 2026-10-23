@@ -1,0 +1,51 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    dyn.load("<interrupt fixture>")
+    retained_pid <- Sys.getpid()
+    retained_value <- 41L
+    options(reticulate.python.beforeInitialized = function() {
+      options(reticulate.python.beforeInitialized = NULL)
+      invisible(.C("queue_inspection_interrupt"))
+    })
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    suspendInterrupts(invisible(reticulate::py_config()))
+result:
+  content:
+    - type: text
+      text: |+
+        Error: Python inspection interrupted
+
+  isError: false
+---
+send:
+  r: |
+    stopifnot(Sys.getpid() == retained_pid)
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    retained_value + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    retried_value = 43
+    retried_value
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false

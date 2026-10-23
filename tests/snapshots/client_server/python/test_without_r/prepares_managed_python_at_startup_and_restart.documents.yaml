@@ -1,0 +1,282 @@
+---
+session: 1
+qmd: |+
+  ---
+  # Source recorded by MCP Console; review before executing.
+  title: MCP Console session
+  # From a working copy, run `ir render session-001.qmd` in a prepared environment.
+  # IR rendering requires R on the render host, including for Python-only documents.
+  ir:
+    isolated: true
+    packages: []
+    python-packages:
+      - numpy
+      - pandas
+      - matplotlib
+      - plotnine
+      - duckdb
+      - py-yaml12
+  mcp-console:
+    original-working-directory: <workspace>
+    r-available: false
+    dynamic-resolution: false
+    duckdb-extensions:
+      - icu
+      - json
+      - sqlite
+    python-version: []
+  ---
+
+  ```{python}
+  #| error: true
+  import yaml12
+
+  print("startup package available")
+  ```
+
+  ```{python}
+  #| error: true
+  import os, subprocess, sys, numpy, pandas, yaml12
+
+  assert "RETICULATE_PYTHON" not in os.environ
+  subprocess.run([sys.executable, "-c", "import numpy, pandas, yaml12"], check=True)
+  identity = object()
+  identity_id = id(identity)
+  print("startup packages available")
+  ```
+
+  ```{python}
+  #| error: true
+  assert id(identity) == identity_id
+  print("same worker")
+  ```
+
+  ```{python}
+  #| error: true
+  assert id(identity) == identity_id
+  print("no-op cell")
+  ```
+
+  ```{python}
+  #| error: true
+  input("old worker> ")
+  open("old-worker-consumed-input", "w").close()
+  ```
+
+path: sessions/session-001.qmd
+---
+session: 2
+qmd: |+
+  ---
+  # Source recorded by MCP Console; review before executing.
+  title: MCP Console session
+  # From a working copy, run `ir render session-002.qmd` in a prepared environment.
+  # IR rendering requires R on the render host, including for Python-only documents.
+  ir:
+    isolated: true
+    packages: []
+    python-packages:
+      - numpy
+      - pandas
+      - matplotlib
+      - plotnine
+      - duckdb
+      - more-itertools
+      - py-yaml12
+  mcp-console:
+    original-working-directory: <workspace>
+    r-available: false
+    dynamic-resolution: false
+    duckdb-extensions:
+      - icu
+      - json
+      - sqlite
+    python-version: []
+  ---
+
+  ```{python}
+  #| error: true
+  assert "identity" not in globals()
+  print(input())
+  ```
+
+  ```{python}
+  #| error: true
+  import os, subprocess, sys, numpy, pandas, yaml12, more_itertools
+
+  assert "RETICULATE_PYTHON" not in os.environ
+  probe = "import numpy, pandas, yaml12, more_itertools"
+  subprocess.run([sys.executable, "-c", probe], check=True)
+  subprocess.run(["python", "-c", probe], check=True)
+  print("cumulative packages retained")
+  ```
+
+path: sessions/session-002.qmd
+---
+session: 3
+qmd: |+
+  ---
+  # Source recorded by MCP Console; review before executing.
+  title: MCP Console session
+  # From a working copy, run `ir render session-003.qmd` in a prepared environment.
+  # IR rendering requires R on the render host, including for Python-only documents.
+  ir:
+    isolated: true
+    packages: []
+    python-packages:
+      - numpy
+      - pandas
+      - matplotlib
+      - plotnine
+      - duckdb
+      - more-itertools
+      - py-yaml12
+  mcp-console:
+    original-working-directory: <workspace>
+    r-available: false
+    dynamic-resolution: false
+    duckdb-extensions:
+      - icu
+      - json
+      - sqlite
+    python-version: []
+  ---
+
+  ```{python}
+  #| error: true
+  import os, subprocess, sys, numpy, pandas, yaml12, more_itertools
+
+  assert "RETICULATE_PYTHON" not in os.environ
+  probe = "import numpy, pandas, yaml12, more_itertools"
+  subprocess.run([sys.executable, "-c", probe], check=True)
+  subprocess.run(["python", "-c", probe], check=True)
+  print("cumulative packages retained")
+  ```
+
+  ```{python}
+  #| error: true
+  import os
+
+  os._exit(47)
+  ```
+
+path: sessions/session-003.qmd
+---
+session: 4
+qmd: |+
+  ---
+  # Source recorded by MCP Console; review before executing.
+  title: MCP Console session
+  # From a working copy, run `ir render session-004.qmd` in a prepared environment.
+  # IR rendering requires R on the render host, including for Python-only documents.
+  ir:
+    isolated: true
+    packages: []
+    python-packages:
+      - numpy
+      - pandas
+      - matplotlib
+      - plotnine
+      - duckdb
+      - more-itertools
+      - py-yaml12
+  mcp-console:
+    original-working-directory: <workspace>
+    r-available: false
+    dynamic-resolution: false
+    duckdb-extensions:
+      - icu
+      - json
+      - sqlite
+    python-version: []
+  ---
+
+  ```{python}
+  #| error: true
+  import os, subprocess, sys, numpy, pandas, yaml12, more_itertools
+
+  assert "RETICULATE_PYTHON" not in os.environ
+  probe = "import numpy, pandas, yaml12, more_itertools"
+  subprocess.run([sys.executable, "-c", probe], check=True)
+  subprocess.run(["python", "-c", probe], check=True)
+  print("cumulative packages retained")
+  ```
+
+path: sessions/session-004.qmd
+---
+session: 5
+qmd: |+
+  ---
+  # Source recorded by MCP Console; review before executing.
+  title: MCP Console session
+  # From a working copy, run `ir render session-005.qmd` in a prepared environment.
+  # IR rendering requires R on the render host, including for Python-only documents.
+  ir:
+    isolated: true
+    packages: []
+    python-packages:
+      - numpy
+      - pandas
+      - matplotlib
+      - plotnine
+      - duckdb
+      - more-itertools
+      - py-yaml12
+  mcp-console:
+    original-working-directory: <workspace>
+    r-available: false
+    dynamic-resolution: false
+    duckdb-extensions:
+      - icu
+      - json
+      - sqlite
+    python-version: []
+  ---
+
+  ```{python}
+  #| error: true
+  import yaml12, more_itertools
+
+  print("retained restart")
+  ```
+
+path: sessions/session-005.qmd
+---
+session: 6
+qmd: |+
+  ---
+  # Source recorded by MCP Console; review before executing.
+  title: MCP Console session
+  # From a working copy, run `ir render session-006.qmd` in a prepared environment.
+  # IR rendering requires R on the render host, including for Python-only documents.
+  ir:
+    isolated: true
+    packages: []
+    python-packages:
+      - numpy
+      - pandas
+      - matplotlib
+      - plotnine
+      - duckdb
+      - more-itertools
+      - py-yaml12
+      - six
+  mcp-console:
+    original-working-directory: <workspace>
+    r-available: false
+    dynamic-resolution: false
+    duckdb-extensions:
+      - icu
+      - json
+      - sqlite
+    python-version: []
+  ---
+
+  ```{python}
+  #| error: true
+  import six, yaml12, more_itertools
+
+  42
+  ```
+
+path: sessions/session-006.qmd

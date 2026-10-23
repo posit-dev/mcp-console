@@ -1,0 +1,114 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": false,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: false
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+      python: []
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: overflow cell output file
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8109
+        concat:
+          - repeat: x
+            count: 3840
+          - |
+
+            [output omitted: 25158151 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt; logs contain prefixes; later raw text unavailable]
+          - repeat: x
+            count: 3840
+          - |-
+
+            [cell output file capture/sessions/001/cell-001.txt (relative to recording) stopped after 25165827 retained bytes: File too large (os error 27); later text is not retained in this file]
+
+            [elapsed: <elapsed>s since admission]
+            [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8104
+        concat:
+          - repeat: y
+            count: 3968
+          - |
+
+            [output omitted: 8380679 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt; logs contain prefixes; later raw text unavailable]
+          - repeat: y
+            count: 3968
+  isError: false
+---
+send:
+  r: echo after failure
+result:
+  content:
+    - type: text
+      text: |
+        zod: after failure
+  isError: false

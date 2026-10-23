@@ -1,0 +1,16 @@
+---
+events:
+  - kind: ready
+  - kind: cell_started
+  - kind: console_output
+    data: "zod: "
+  - kind: console_output
+    data: |
+      hello
+  - kind: completed
+  - kind: shutdown_started
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: worker_sideband_closed
+  - kind: worker_exited
+    code: 0

@@ -1,0 +1,31 @@
+---
+send:
+  r: |
+    reticulate::py_require(character(), action = "set")
+    stopifnot(is.null(reticulate::py_config()$numpy))
+    reticulate::py_require("numpy")
+    numpy <- reticulate::import("numpy", convert = FALSE)
+    config <- reticulate::py_config()
+    stopifnot(
+      !is.null(config$numpy),
+      identical(
+        config$numpy$version,
+        numeric_version(reticulate::py_to_r(numpy$`__version__`))
+      ),
+      identical(
+        normalizePath(config$numpy$path),
+        normalizePath(reticulate::py_to_r(numpy$`__path__`)[[1L]])
+      )
+    )
+    reticulate::py_require("py-yaml12")
+    active <- reticulate::py_config()
+    stopifnot(
+      !identical(active$numpy$path, config$numpy$path),
+      startsWith(active$numpy$path, active$prefix),
+      identical(active$numpy$version, config$numpy$version)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

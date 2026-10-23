@@ -1,0 +1,10 @@
+---
+directory: outside-git
+configuration:
+  sandbox:
+    profile: workspace
+---
+directory: repository/nested
+configuration:
+  sandbox:
+    profile: workspace

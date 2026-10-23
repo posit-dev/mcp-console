@@ -1,0 +1,58 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - later
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    callback_gate <- tempfile("mcp-console-callback-gate-")
+    callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+    callback_release <- tempfile("mcp-console-callback-release-")
+    run_callback <- function() {
+      if (!file.exists(callback_gate)) {
+        later::later(run_callback, delay = 0.01)
+        return(invisible(NULL))
+      }
+      stopifnot(file.create(callback_checkpoint))
+      while (!file.exists(callback_release)) {
+        Sys.sleep(0.01)
+      }
+      cat("long callback")
+    }
+    later::later(run_callback, delay = 0.01)
+    cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <worker callback gate>
+        <worker callback checkpoint>
+        <worker callback release>
+  isError: false
+---
+send:
+  timeout_ms: 10
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        long callback
+        [idle]
+  isError: false

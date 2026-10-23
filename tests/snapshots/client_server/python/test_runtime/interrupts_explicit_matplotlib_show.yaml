@@ -1,0 +1,74 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import matplotlib.pyplot as plt
+
+    figure = plt.figure()
+    plt.close(figure)
+
+
+    def blocked_savefig(*args, **kwargs):
+        input("render> ")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    figure = plt.figure()
+    figure.savefig = blocked_savefig
+    continued_after_show = False
+    plt.show()
+    continued_after_show = True
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "render> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 4, in <module>
+          File "<mcp-console:python:e1>", line 8, in blocked_savefig
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: continued_after_show, plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: |
+        (False, [])
+  isError: false

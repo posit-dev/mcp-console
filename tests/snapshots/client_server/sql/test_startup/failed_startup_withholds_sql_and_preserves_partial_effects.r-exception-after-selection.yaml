@@ -1,0 +1,67 @@
+---
+config:
+  startup:
+    language: r
+    code: >-
+      native <- DBI::dbConnect(duckdb::duckdb());
+      .console$sql_connection(native); startup_count <- 1L; stop("after
+      selection")
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE never_run AS SELECT 99 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        Error: after selection
+        Error: configured startup did not complete; SQL withheld; explicit restart required
+        Error: SQL unavailable: configured startup did not complete; explicit restart required
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: configured startup did not complete; explicit
+        restart required
+  isError: false
+---
+send:
+  r: stopifnot(startup_count == 1L)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: .console$sql_connection(NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: configured startup did not complete; explicit
+        restart required
+  isError: false
+---
+language: r
+failure: after selection
+first_sql: |
+  Error: after selection
+  Error: configured startup did not complete; SQL withheld; explicit restart required
+  Error: SQL unavailable: configured startup did not complete; explicit restart required
+later_sql: >
+  Error: SQL unavailable: configured startup did not complete; explicit
+  restart required

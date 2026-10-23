@@ -1,0 +1,77 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: automatic_python_r_state <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE automatic_python_state AS SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    automatic_python_object = {"answer": 42}
+    automatic_python_pid = os.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    automatic_python_attempts = globals().get("automatic_python_attempts", 0) + 1
+    print("prefix", end="")
+    import yaml12
+
+    assert automatic_python_attempts == 1
+    automatic_python_input = input()
+    (
+        yaml12.__name__,
+        automatic_python_object["answer"],
+        __import__("os").getpid() == automatic_python_pid,
+        automatic_python_input,
+    )
+  stdin: |
+    42
+result:
+  content:
+    - type: text
+      text: |
+        prefix
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        [input requested: ""]
+        ('yaml12', 42, True, '42')
+  isError: false
+---
+send:
+  r: automatic_python_r_state
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  sql: SELECT answer FROM automatic_python_state
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false

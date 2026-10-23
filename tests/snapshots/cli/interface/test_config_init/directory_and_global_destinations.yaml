@@ -1,0 +1,15 @@
+---
+destination: relative
+configuration:
+  sandbox:
+    profile: workspace
+---
+destination: absolute
+configuration:
+  sandbox:
+    profile: workspace
+---
+destination: global
+configuration:
+  sandbox:
+    profile: workspace

@@ -1,0 +1,36 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox-python-only.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: |
+        import errno
+        import os
+        from pathlib import Path
+
+        assert os.environ["MCP_CONSOLE_SANDBOX"] == "1"
+        try:
+            _ = Path("created").write_text("denied")
+        except OSError as error:
+            assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS)
+        else:
+            raise AssertionError("malformed metadata allowed workspace writes")
+        print("read_only fallback")
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system: []
+result:
+  content:
+    - type: text
+      text: |
+        read_only fallback
+  isError: false
+---
+stderr: |
+  Warning: could not parse Codex sandbox settings; falling back to read_only

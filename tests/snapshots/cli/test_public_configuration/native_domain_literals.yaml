@@ -1,0 +1,14 @@
+---
+domains:
+  - 127.0.0.1
+  - ::1
+  - "[::1]"
+  - fe80::1%lo0
+  - "[fe80::1%25lo0]"
+  - fe80::1%3
+  - fe80::1%25
+  - "[fe80::1%253]"
+  - api?.example.org
+  - api*.example.org
+stdout: |
+  accepted

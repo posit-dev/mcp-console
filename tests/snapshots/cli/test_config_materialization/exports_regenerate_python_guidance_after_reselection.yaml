@@ -1,0 +1,72 @@
+---
+selection: environment
+full: false
+description: generated
+---
+selection: environment
+full: false
+description: custom
+---
+selection: environment
+full: false
+description: empty
+---
+selection: environment
+full: true
+description: generated
+---
+selection: environment
+full: true
+description: custom
+---
+selection: environment
+full: true
+description: empty
+---
+selection: fallback_missing
+full: false
+description: generated
+---
+selection: fallback_missing
+full: false
+description: custom
+---
+selection: fallback_missing
+full: false
+description: empty
+---
+selection: fallback_missing
+full: true
+description: generated
+---
+selection: fallback_missing
+full: true
+description: custom
+---
+selection: fallback_missing
+full: true
+description: empty
+---
+selection: fallback_present
+full: false
+description: generated
+---
+selection: fallback_present
+full: false
+description: custom
+---
+selection: fallback_present
+full: false
+description: empty
+---
+selection: fallback_present
+full: true
+description: generated
+---
+selection: fallback_present
+full: true
+description: custom
+---
+selection: fallback_present
+full: true
+description: empty

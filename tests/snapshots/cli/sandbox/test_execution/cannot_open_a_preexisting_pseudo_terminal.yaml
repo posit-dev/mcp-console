@@ -1,0 +1,28 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import errno
+    import os
+    import sys
+
+    for flags in (os.O_RDONLY, os.O_WRONLY):
+        try:
+            descriptor = os.open(sys.argv[1], flags | os.O_NOCTTY)
+        except OSError as error:
+            assert error.errno == errno.EPERM
+        else:
+            os.close(descriptor)
+            raise SystemExit("pre-existing pseudo-terminal was accessible")
+
+    print("blocked")
+  - <pre-existing pseudo-terminal>
+stdout: |
+  blocked
+transcript_normalization:
+  target: command[-1]
+  pseudo_terminal_path: omitted

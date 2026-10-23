@@ -1,0 +1,162 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: dependency preparation]
+        [worker starting]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - graphics
+      - grDevices
+    python:
+      - pandas
+    duckdb:
+      - sqlite
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    options(
+      console.plot.width_in = 4,
+      console.plot.height_in = 3,
+      console.plot.dpi = 100
+    )
+    measurements <- data.frame(
+      label = c("a", "b"),
+      value = c(2L, 5L)
+    )
+    plot(measurements$value, type = "b")
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live Rscript page 1>
+      mimeType: image/png
+  isError: false
+---
+send:
+  python: |
+    int(r.measurements["value"].sum())
+result:
+  content:
+    - type: text
+      text: |
+        7
+  isError: false
+---
+send:
+  sql: |
+    SELECT label, value * 10 AS scaled
+    FROM measurements
+    ORDER BY label
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 2 × 2
+          label     scaled
+          <string> <int32>
+        1 "a"           20
+        2 "b"           50
+  isError: false

@@ -1,0 +1,63 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |
+    invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import multiprocessing.spawn
+    import sys
+
+    initial_executable = sys.executable
+    42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_require(c("matplotlib", "py-yaml12"))
+    plt <- reticulate::import("matplotlib.pyplot")
+    invisible(plt$show())
+    42L
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    import subprocess
+
+    import matplotlib.pyplot as plt
+
+    assert sys.executable != initial_executable
+    child_executable = subprocess.check_output(
+        [sys.executable, "-c", "import sys, yaml12; print(sys.executable)"],
+        text=True,
+    ).strip()
+    assert child_executable == sys.executable
+    with multiprocessing.get_context("spawn").Pool(1) as pool:
+        child_executable = pool.apply(eval, ("__import__('sys').executable",))
+    assert child_executable == sys.executable
+    plt.show()
+    42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

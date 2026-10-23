@@ -1,0 +1,29 @@
+---
+!same-as writable MCP initialization for this execution mode
+---
+send:
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L
+  requirements:
+    action: set
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false

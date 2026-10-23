@@ -1,0 +1,52 @@
+---
+config:
+  startup:
+    language: r
+    code: stop("must not execute")
+  python: <configured Python>
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        Error: R is unavailable in this session; SQL withheld; explicit restart
+        required
+
+
+        [idle]
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: R is unavailable in this session; explicit
+        restart required
+  isError: false
+---
+send:
+  python: assert 6 * 7 == 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: R is unavailable in this session; explicit
+        restart required
+  isError: false
+---
+missing_runtime_withholds_sql: >
+  Error: SQL unavailable: R is unavailable in this session; explicit
+  restart required

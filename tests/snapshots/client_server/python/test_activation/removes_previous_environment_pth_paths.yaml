@@ -1,0 +1,53 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python: []
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+
+    original_prefix = sys.prefix
+    original_paths = {path for path in sys.path if path.startswith(original_prefix)}
+    sys.path.insert(0, "user-added-path")
+    importlib.util.find_spec("console_retired") is not None
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - console-activation-fixture
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import console_unloaded
+
+    assert "user-added-path" in sys.path
+    assert not original_paths.intersection(sys.path)
+    assert importlib.util.find_spec("console_retired") is None
+    console_unloaded.origin
+result:
+  content:
+    - type: text
+      text: |
+        'candidate'
+  isError: false

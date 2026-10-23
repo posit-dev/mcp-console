@@ -1,0 +1,8 @@
+---
+configuration: >-
+  sandbox: {filesystem: {read_write: [., .claude, .agents/allowed], deny:
+  [.git/keep]}}
+stdout: >
+  equal-path and descendant write exceptions, group translation and read
+  denial verified
+stderr: ""

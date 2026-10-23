@@ -1,0 +1,142 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    r_input_state <- 41L
+    tryCatch(
+      readline("R interrupt> "),
+      interrupt = function(condition) cat("R input interrupted\n")
+    )
+  stdin: R partial
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "R interrupt> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        R input interrupted
+  isError: false
+---
+send:
+  r: readline("R replay> ")
+  stdin: |
+    !
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "R replay> "]
+        [1] "R partial!"
+  isError: false
+---
+send:
+  r: |
+    suspended_input <- "not read"
+    suspendInterrupts({
+      suspended_input <- readline("R suspended> ")
+      cat("suspended input accepted")
+    })
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "R suspended> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    accepted
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: |
+        suspended input accepted
+  isError: false
+---
+send:
+  r: suspended_input
+result:
+  content:
+    - type: text
+      text: |
+        [1] "accepted"
+  isError: false
+---
+send:
+  python: |
+    python_input_state = 41
+    try:
+        input("Python interrupt> ")
+    except KeyboardInterrupt:
+        print("Python input interrupted")
+  stdin: Python partial
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Python interrupt> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        Python input interrupted
+  isError: false
+---
+send:
+  python: input("Python replay> ")
+  stdin: |
+    !
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "Python replay> "]
+        'Python partial!'
+  isError: false
+---
+send:
+  r: r_input_state + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: python_input_state + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

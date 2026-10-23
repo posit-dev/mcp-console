@@ -1,0 +1,53 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    first <- .Call("mcp_test_read_console_once", "short> ")
+    second <- .Call("mcp_test_read_console_once", "short> ")
+    bytes <- c(charToRaw(first), charToRaw(second))
+    value <- rawToChar(bytes[bytes != as.raw(10)])
+    Encoding(value) <- "UTF-8"
+    cat(
+      paste(nchar(value, type = "bytes"), endsWith(value, "é")),
+      "\n",
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "short> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: xx
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: é
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "short> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: "\n"
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: |
+        4 TRUE
+  isError: false

@@ -1,0 +1,44 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  timeout_ms: 10000
+result:
+  content:
+    - type: text
+      text: "[previous send response delivery is still pending]"
+  isError: true
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: cat("1", file = Sys.getenv("MCP_CONSOLE_TEST_EVALUATED")); 42L
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

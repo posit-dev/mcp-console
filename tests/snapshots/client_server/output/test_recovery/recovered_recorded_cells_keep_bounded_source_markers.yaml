@@ -1,0 +1,257 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  control: restart
+  r: preview recovery cell 0
+transcript_normalization:
+  target: repeated cancellation setup exchanges
+  repeated_exchange_count: 32
+  exchange_entry_count: 3
+  request_ids: distinct in each exchange
+  send.r:
+    template: preview recovery cell {index}
+    index_start: 0
+    index_count: 32
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8161
+        concat:
+          - |
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+            cell 0 head
+          - repeat: x
+            count: 2804
+          - |
+
+            [output omitted: 1043788 UTF-8 bytes; retained logs: .agents/console/sessions/<run ID>/capture/sessions/]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+            [done]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+
+            […]
+          - repeat: x
+            count: 2802
+          - |-
+
+            cell 31 tail
+            [done]
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

@@ -1,0 +1,78 @@
+---
+send:
+  r: |
+    worker_pid <- Sys.getpid()
+    reticulate::py_require("humanize")
+    reticulate::py_require("humanize", action = "remove")
+    reticulate::py_require("py-yaml12")
+    reticulate::py_require(python_version = ">=3.10")
+    reticulate::py_require(python_version = ">=3.10", action = "remove")
+    reticulate::py_require(exclude_newer = "2026-09-01")
+    reticulate::py_require(exclude_newer = NA, action = "set")
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - packaging
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(Sys.getpid(), worker_pid),
+      !reticulate::py_available(initialize = FALSE),
+      all(c("py-yaml12", "packaging") %in% reticulate::py_require()$packages),
+      !"humanize" %in% reticulate::py_require()$packages,
+      identical(reticulate::py_require()$python_version, character()),
+      is.null(reticulate::py_require()$exclude_newer)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      !reticulate::py_available(initialize = FALSE),
+      all(c("py-yaml12", "packaging") %in% reticulate::py_require()$packages),
+      !"humanize" %in% reticulate::py_require()$packages,
+      is.null(reticulate::py_require()$python_version),
+      is.null(reticulate::py_require()$exclude_newer)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: reticulate::import("yaml12")$`__name__`
+result:
+  content:
+    - type: text
+      text: |
+        [1] "yaml12"
+  isError: false

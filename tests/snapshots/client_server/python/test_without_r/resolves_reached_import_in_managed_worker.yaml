@@ -1,0 +1,252 @@
+---
+send:
+  python: |
+    import os, sqlite3
+
+    worker_pid = os.getpid()
+    identity = object()
+    identity_id = id(identity)
+    managed = _console.sql_connection()
+    managed.execute("create table retained as select 42 as value")
+    selected = sqlite3.connect(":memory:")
+    selected.execute("create table chosen as select 7 as value")
+    _console.sql_connection(selected)
+    steps = []
+    print("state created")
+result:
+  content:
+    - type: text
+      text: |
+        state created
+  isError: false
+---
+send:
+  python: |
+    steps.append("before import")
+    def load_package():
+        import yaml12
+        return yaml12
+    loaded = load_package()
+    assert os.getpid() == worker_pid
+    assert id(identity) == identity_id
+    assert _console.sql_connection() is selected
+    assert managed.execute("select value from retained").fetchone() == (42,)
+    assert steps == ["before import"]
+    print("reached import activated")
+result:
+  content:
+    - type: text
+      text: |
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        reached import activated
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb",
+              "py-yaml12"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+        - py-yaml12
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  sql: select value from chosen
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        7
+  isError: false
+---
+send:
+  python: |
+    steps.append("before second import")
+    import pydash
+    assert steps == ["before import", "before second import"]
+    raise ValueError("later statement failed")
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e3>", line 4, in <module>
+        ValueError: later statement failed
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb",
+              "py-yaml12",
+              "pydash"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+        - py-yaml12
+        - pydash
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+      - pydash
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import subprocess, sys
+
+    assert os.getpid() == worker_pid and id(identity) == identity_id
+    assert _console.sql_connection() is selected
+    assert managed.execute("select value from retained").fetchone() == (42,)
+    assert subprocess.check_output(
+        [sys.executable, "-c", "import yaml12, pydash; print('child ready')"],
+        text=True,
+    ).strip() == "child ready"
+    print("automatic additions survived later failure")
+result:
+  content:
+    - type: text
+      text: |
+        automatic additions survived later failure
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: >-
+    import yaml12, pydash; assert 'steps' not in globals(); print('restart
+    retained imports')
+result:
+  content:
+    - type: text
+      text: |
+        restart retained imports
+  isError: false
+---
+send:
+  python: import os; os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: import yaml12, pydash; print('replacement retained imports')
+result:
+  content:
+    - type: text
+      text: |
+        replacement retained imports
+  isError: false

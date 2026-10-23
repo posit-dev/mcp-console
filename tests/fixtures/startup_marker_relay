@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+from pathlib import Path
+
+marker = Path(os.environ["TMPDIR"]) / "mcp-console-startup-marker"
+marker.touch()
+
+binary = os.environ["MCP_CONSOLE_TEST_BINARY"]
+os.execv(binary, [binary, "worker-relay", *sys.argv[1:]])

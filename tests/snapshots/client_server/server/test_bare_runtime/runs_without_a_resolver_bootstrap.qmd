@@ -1,0 +1,31 @@
+---
+# Source recorded by MCP Console; review before executing.
+title: MCP Console session
+# From a working copy, run `ir render session-001.qmd` in a prepared environment.
+# IR rendering requires R on the render host, including for Python-only documents.
+ir:
+  isolated: true
+  packages: []
+  python-packages: []
+mcp-console:
+  original-working-directory: <workspace>
+  r-available: true
+  dynamic-resolution: false
+  duckdb-extensions: []
+  python-version: []
+---
+
+```{r}
+#| error: true
+1 + 1
+```
+
+```{r}
+#| error: true
+options(useFancyQuotes = FALSE)
+conditionMessage(tryCatch(
+  library(mcpConsoleDefinitelyMissingPackage),
+  error = identity
+))
+```
+

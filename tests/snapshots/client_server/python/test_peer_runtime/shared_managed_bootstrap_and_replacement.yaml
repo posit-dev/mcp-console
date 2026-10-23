@@ -1,0 +1,130 @@
+---
+send:
+  requirements:
+    action: get
+result:
+  default_python_requirements:
+    - numpy
+    - pandas
+    - matplotlib
+    - plotnine
+    - duckdb
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import json
+    import os
+    import subprocess
+    import sys
+    import yaml12
+    import numpy as np
+
+    assert np.arange(3).tolist() == [0, 1, 2]
+
+    peer_object = object()
+    peer_id = id(peer_object)
+    peer_library = sys.base_prefix
+    expected = [
+        sys.executable,
+        sys.prefix,
+        sys.exec_prefix,
+        sys.base_prefix,
+        sys.base_exec_prefix,
+    ]
+    program = "import sys, json; print(json.dumps([sys.executable, sys.prefix, sys.exec_prefix, sys.base_prefix, sys.base_exec_prefix]))"
+    child = json.loads(subprocess.check_output([sys.executable, "-c", program], text=True))
+    assert all(os.path.samefile(a, b) for a, b in zip(child, expected, strict=True)), (
+        child,
+        expected,
+    )
+    assert os.environ["VIRTUAL_ENV"] == sys.prefix
+    print("managed identity and child environment agree")
+result:
+  content:
+    - type: text
+      text: |
+        managed identity and child environment agree
+  isError: false
+---
+send:
+  python: >-
+    import more_itertools; assert id(peer_object) == peer_id; assert
+    os.path.samefile(sys.base_prefix, peer_library); print('live import
+    retained objects')
+result:
+  content:
+    - type: text
+      text: |
+        live import retained objects
+  isError: false
+---
+send:
+  python: raise ValueError('after accepted activation')
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e3>", line 1, in <module>
+        ValueError: after accepted activation
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: >-
+    import yaml12, more_itertools; print('accepted additions survived
+    restart')
+result:
+  content:
+    - type: text
+      text: |
+        accepted additions survived restart
+  isError: false
+---
+send:
+  python: import os; os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: >-
+    import yaml12, more_itertools; print('accepted additions survived
+    crash')
+result:
+  content:
+    - type: text
+      text: |
+        accepted additions survived crash
+  isError: false

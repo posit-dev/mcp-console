@@ -1,0 +1,25 @@
+---
+send:
+  requirements:
+    python:
+      - six
+    duckdb:
+      - fts
+  sql: SET autoinstall_known_extensions = false; LOAD fts
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  python: import six; print('combined SQL preparation')
+result:
+  content:
+    - type: text
+      text: |
+        combined SQL preparation
+  isError: false

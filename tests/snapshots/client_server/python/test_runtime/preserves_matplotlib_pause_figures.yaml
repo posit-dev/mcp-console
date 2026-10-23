@@ -1,0 +1,83 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+    import matplotlib.pyplot as plt
+
+    other_figure = plt.figure(num=20)
+    other_figure.savefig(Path(os.environ["TMPDIR"]) / "pause-other.png")
+    figure, axes = plt.subplots(num=10)
+    (line,) = axes.plot([0, 1], [0, 1])
+    original_event_loop = figure.canvas.start_event_loop
+
+
+    def checked_event_loop(interval):
+        assert plt.get_fignums() == [10, 20]
+        assert plt.gcf() is figure
+        original_event_loop(interval)
+
+
+    figure.canvas.start_event_loop = checked_event_loop
+    for index in range(3):
+        line.set_ydata([index, 1])
+        figure.savefig(Path(os.environ["TMPDIR"]) / f"pause-{index}.png")
+        plt.pause(0.001)
+        assert plt.get_fignums() == [10, 20]
+        assert plt.gcf() is figure
+    plt.close("all")
+    "pause loop finished"
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live pause matplotlib savefig 1>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live pause matplotlib savefig 2>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live pause matplotlib savefig 3>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live pause matplotlib savefig 4>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live pause matplotlib savefig 5>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live pause matplotlib savefig 6>
+      mimeType: image/png
+    - type: text
+      text: |
+        'pause loop finished'
+  isError: false
+---
+send:
+  python: plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: |
+        []
+  isError: false

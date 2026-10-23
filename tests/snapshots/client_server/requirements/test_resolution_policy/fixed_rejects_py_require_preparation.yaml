@@ -1,0 +1,269 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: |
+    before <- reticulate::py_require()
+    reticulate::py_require("six", python_version = ">=3.13")
+    failure <- tryCatch(
+      reticulate::py_write_requirements(NULL, NULL, freeze = FALSE, python = NULL),
+      error = conditionMessage
+    )
+    stopifnot(grepl("python.managed.resolution=fixed", failure, fixed = TRUE))
+    reticulate::py_require(
+      as.character(before$packages),
+      python_version = as.character(before$python_version),
+      action = "set"
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |-
+    reticulate::py_run_string(r"(
+    import importlib
+
+    for name in ("yaml12", "rpython", "xml.mcp_console_missing"):
+        for load in (
+            importlib.import_module,
+            __import__,
+            lambda name: exec(f"import {name}"),
+        ):
+            try:
+                load(name)
+            except ModuleNotFoundError as error:
+                assert type(error) is ModuleNotFoundError
+                assert error.args == (f"No module named '{name}'",), error.args
+                assert error.name == name
+                assert error.path is None
+            else:
+                raise AssertionError(f"undeclared import succeeded: {name}")
+
+    try:
+        from xml import mcp_console_missing
+    except ImportError as error:
+        assert type(error) is ImportError
+        assert str(error).startswith("cannot import name 'mcp_console_missing' from 'xml'")
+        assert error.name == "xml"
+    else:
+        raise AssertionError("missing from-import succeeded")
+
+    print("native import errors")
+    )")
+result:
+  content:
+    - type: text
+      text: |
+        native import errors
+  isError: false
+---
+send:
+  r: |
+    before <- reticulate::py_require()
+    failure <- tryCatch(reticulate::py_require("six"), error = conditionMessage)
+    stopifnot(
+      grepl("python.managed.resolution=fixed", failure, fixed = TRUE),
+      identical(reticulate::py_require(), before)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false

@@ -1,0 +1,54 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: dependency preparation]
+        [worker starting]
+  isError: false
+---
+send:
+  r: cat('cell completed\n')
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        cell completed
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

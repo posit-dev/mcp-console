@@ -1,0 +1,151 @@
+---
+send:
+  requirements:
+    python:
+      - mcp-console-test-cli
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: import numpy as np; peer_object = object(); peer_id = id(peer_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    check_cli <- function(command, module) {
+      selected <- reticulate::py_config()$python
+      prefix <- reticulate::import("sys")$prefix
+      stopifnot(identical(
+        normalizePath(unname(Sys.which(command))),
+        normalizePath(file.path(
+          dirname(selected),
+          paste0(command, if (.Platform$OS.type == "windows") ".exe" else "")
+        ))
+      ))
+      output <- system2(command, stdout = TRUE)
+      stopifnot(is.null(attr(output, "status")))
+      child <- jsonlite::fromJSON(output)
+      # Installers may use bin/python or bin/python3 in their shebang.
+      # Check executable identity and the virtualenv independently.
+      stopifnot(
+        identical(child$module, module),
+        identical(normalizePath(child$executable), normalizePath(selected)),
+        identical(normalizePath(child$prefix), normalizePath(prefix)),
+        identical(child$virtualenv, Sys.getenv("VIRTUAL_ENV")),
+        identical(child$values, 0:2)
+      )
+      cat("installed CLI uses the selected Python environment\n")
+    }
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: >-
+    check_cli("peer-cli", "mcp_console_test_cli");
+    stopifnot(Sys.which("peer-cli-added") == "")
+result:
+  content:
+    - type: text
+      text: |
+        installed CLI uses the selected Python environment
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - mcp-console-test-cli-added
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: >-
+    assert id(peer_object) == peer_id; assert np.arange(3).tolist() == [0,
+    1, 2]
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: check_cli("peer-cli", "mcp_console_test_cli")
+result:
+  content:
+    - type: text
+      text: |
+        installed CLI uses the selected Python environment
+  isError: false
+---
+send:
+  r: check_cli("peer-cli-added", "mcp_console_test_cli_added")
+result:
+  content:
+    - type: text
+      text: |
+        installed CLI uses the selected Python environment
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    check_cli <- function(command, module) {
+      selected <- reticulate::py_config()$python
+      prefix <- reticulate::import("sys")$prefix
+      stopifnot(identical(
+        normalizePath(unname(Sys.which(command))),
+        normalizePath(file.path(
+          dirname(selected),
+          paste0(command, if (.Platform$OS.type == "windows") ".exe" else "")
+        ))
+      ))
+      output <- system2(command, stdout = TRUE)
+      stopifnot(is.null(attr(output, "status")))
+      child <- jsonlite::fromJSON(output)
+      # Installers may use bin/python or bin/python3 in their shebang.
+      # Check executable identity and the virtualenv independently.
+      stopifnot(
+        identical(child$module, module),
+        identical(normalizePath(child$executable), normalizePath(selected)),
+        identical(normalizePath(child$prefix), normalizePath(prefix)),
+        identical(child$virtualenv, Sys.getenv("VIRTUAL_ENV")),
+        identical(child$values, 0:2)
+      )
+      cat("installed CLI uses the selected Python environment\n")
+    }
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: check_cli("peer-cli-added", "mcp_console_test_cli_added")
+result:
+  content:
+    - type: text
+      text: |
+        installed CLI uses the selected Python environment
+  isError: false

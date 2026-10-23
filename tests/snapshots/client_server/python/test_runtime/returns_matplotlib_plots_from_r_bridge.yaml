@@ -1,0 +1,63 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    plt <- reticulate::import("matplotlib.pyplot")
+    invisible(plt$show())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    figure <- plt$figure()
+    invisible(plt$plot(1:3, c(3, 1, 2)))
+    invisible(figure$savefig(file.path(Sys.getenv("TMPDIR"), "r-show.png")))
+    cat("before show\n")
+    invisible(plt$show())
+    stopifnot(length(plt$get_fignums()) == 0L)
+    invisible(plt$show())
+    cat("after show\n")
+result:
+  content:
+    - type: text
+      text: |
+        before show
+    - type: image
+      data: <PNG byte-identical to live R bridge matplotlib savefig 1>
+      mimeType: image/png
+    - type: text
+      text: |
+        after show
+  isError: false
+---
+send:
+  python: import matplotlib.pyplot as plt; plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: |
+        []
+  isError: false

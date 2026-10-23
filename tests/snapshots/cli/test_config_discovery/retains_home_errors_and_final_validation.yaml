@@ -1,0 +1,92 @@
+---
+command: serve
+home: malformed
+stderr: >
+  <root>/console-home/config.yaml: while parsing a node, did not find
+  expected node content at byte 10 line 2 column 1
+---
+command: sandbox
+home: malformed
+stderr: >
+  <root>/console-home/config.yaml: while parsing a node, did not find
+  expected node content at byte 10 line 2 column 1
+---
+command: serve
+home: unreadable
+stderr: |
+  configuration '<root>/console-home/config.yaml' must be a regular file
+---
+command: sandbox
+home: unreadable
+stderr: |
+  configuration '<root>/console-home/config.yaml' must be a regular file
+---
+command: serve
+home: invalid
+stderr: >
+  configuration from <root>/console-home/config.yaml,
+  .agents/console/config.yaml: unknown: unknown field `unknown`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+command: sandbox
+home: invalid
+stderr: >
+  configuration from <root>/console-home/config.yaml,
+  .agents/console/config.yaml: unknown: unknown field `unknown`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+command: serve
+home: invalid override
+stderr: >
+  configuration from <root>/console-home/config.yaml,
+  .agents/console/config.yaml with CLI overrides: cache: expected managed,
+  host, or a directory mapping; see docs/CONFIGURATION.md for the public
+  format
+---
+command: sandbox
+home: invalid override
+stderr: >
+  configuration from <root>/console-home/config.yaml,
+  .agents/console/config.yaml with CLI overrides: cache: expected managed,
+  host, or a directory mapping; see docs/CONFIGURATION.md for the public
+  format
+---
+command: serve
+home: invalid environment override
+stderr: >
+  configuration from <root>/console-home/config.yaml,
+  .agents/console/config.yaml with CLI overrides: environment: TOKEN:
+  environment values must be strings; see docs/CONFIGURATION.md for the
+  public format
+---
+command: sandbox
+home: invalid environment override
+stderr: >
+  configuration from <root>/console-home/config.yaml,
+  .agents/console/config.yaml with CLI overrides: environment: TOKEN:
+  environment values must be strings; see docs/CONFIGURATION.md for the
+  public format
+---
+command: serve
+home: relative home
+stderr: |
+  MCP_CONSOLE_HOME must be an absolute path
+---
+command: sandbox
+home: relative home
+stderr: |
+  MCP_CONSOLE_HOME must be an absolute path
+---
+command: serve
+home: empty home
+stderr: |
+  MCP_CONSOLE_HOME must be an absolute path
+---
+command: sandbox
+home: empty home
+stderr: |
+  MCP_CONSOLE_HOME must be an absolute path

@@ -1,0 +1,194 @@
+---
+preview: |
+  Would create configuration: <WORKSPACE>/.agents/console/config.yaml
+
+  ## MCP Console configuration, shared across clients.
+  ## Full reference:
+  ## https://t-kalinowski.github.io/mcp-console/reference/#configuration
+  ##
+  ## Reconnect your client after editing.
+  ## Relative paths use Console's launch directory, not this file's directory.
+  ## Omitted settings inherit global configuration, then Console defaults.
+  ## Lines beginning with ## explain settings; lines beginning with # can be uncommented.
+
+  sandbox:
+    ## The workspace profile allows creating, editing, and deleting project files.
+    ## The workspace is Console's launch directory.
+    ## Changing the working directory later does not change the workspace.
+    ## .git, .agents, .codex, .aws, and .claude stay read-only, even when absent.
+    ## .agents includes this configuration file; referenced Git metadata is protected too.
+    ## Other host files remain readable when permitted by the OS.
+    ## Network access and temporary storage are configured separately below.
+    ## Use read_only instead to omit the profile's workspace write grants.
+    profile: workspace
+
+    ## Add exceptions to the selected profile's filesystem permissions.
+    ## To grant writes only to selected directories, use profile: read_only first.
+    # filesystem:
+    #   read_write: [/absolute/path/to/shared-output]
+    #   read_only: [./reference-data]
+    #   deny: [./.env, ./secrets]
+
+    ## Temporary storage options:
+    ## - managed (default): private writable storage with Console cleanup.
+    ## - read_write: writable host temp directories, without Console cleanup.
+    ## - read_only: no private storage or automatic temporary write grants;
+    ##   other filesystem permissions still apply.
+    ##   Note: R will not work without a writeable temporary directory.
+    # tempdir: managed
+
+    ## Network options: restricted (default), enabled, or a proxy mapping.
+    ## enabled allows network access.
+    ## Use a proxy to allow selected hosts.
+    ## Use hostnames, not URLs; quote wildcard patterns.
+    ## Package downloads use separate permissions.
+    # network:
+    #   proxy:
+    #     domains:
+    #       allow: [api.example.com, "*.example.org"]
+
+    ## Allow code to start local servers, e.g. http://localhost:8000,
+    ## and use loopback network connections.
+    ## auto (default): false where possible on Unix, true on Windows.
+    ## false is unsupported on Windows when a proxy is enabled.
+    #   allow_local_binding: true
+
+  ## Package preparation policies for R and managed Python:
+  ## R defaults to implicit; managed Python defaults to explicit.
+  ## implicit: startup packages, explicit requests, and missing loads/imports.
+  ## explicit: startup packages and explicit requests only.
+  ## fixed: prepare startup packages; reject later package changes.
+  ##
+  ## Supplied package lists replace the default startup lists.
+  ## [] requests no optional startup packages; it does not disable preparation.
+
+  ## R packages to prepare at startup.
+  ## To disable R preparation, set resolution: disabled and packages: [].
+  ## Required R infrastructure must then already be installed.
+  # r:
+  #   resolution: implicit
+  #   packages: [dplyr, ggplot2]
+
+  ## Let Console manage Python and prepare these initial packages.
+  ## version accepts a quoted version or constraint; omit it for no constraint.
+  # python:
+  #   version: "3.13"
+  #   resolution: explicit
+  #   packages: [numpy, pandas, matplotlib]
+
+  ## Alternatively, use an existing Python environment without managing its packages.
+  ## Choose this instead of the managed Python settings above.
+  ## The environment and its required packages must already be installed.
+  # python: .venv
+
+  ## Environment variables for evaluated code and package preparation.
+  ## Values must be strings.
+  # environment:
+  #   OMP_NUM_THREADS: "4"
+
+  ## Cache options: managed (default when sandboxed), host, or a directory mapping.
+  ## Use host to reuse ordinary host package caches.
+  ## directory places managed dependency caches under <directory>/dependencies.
+  ## Relative directories use the launch directory; a leading ~/ uses your home.
+  ## It applies to package preparation and workers.
+  ## Configuration and recordings stay in their existing locations.
+  # cache:
+  #   directory: /absolute/path/to/console-cache
+
+  Dry run; no files changed.
+---
+created: |
+  Created configuration: <WORKSPACE>/.agents/console/config.yaml
+
+  ## MCP Console configuration, shared across clients.
+  ## Full reference:
+  ## https://t-kalinowski.github.io/mcp-console/reference/#configuration
+  ##
+  ## Reconnect your client after editing.
+  ## Relative paths use Console's launch directory, not this file's directory.
+  ## Omitted settings inherit global configuration, then Console defaults.
+  ## Lines beginning with ## explain settings; lines beginning with # can be uncommented.
+
+  sandbox:
+    ## The workspace profile allows creating, editing, and deleting project files.
+    ## The workspace is Console's launch directory.
+    ## Changing the working directory later does not change the workspace.
+    ## .git, .agents, .codex, .aws, and .claude stay read-only, even when absent.
+    ## .agents includes this configuration file; referenced Git metadata is protected too.
+    ## Other host files remain readable when permitted by the OS.
+    ## Network access and temporary storage are configured separately below.
+    ## Use read_only instead to omit the profile's workspace write grants.
+    profile: workspace
+
+    ## Add exceptions to the selected profile's filesystem permissions.
+    ## To grant writes only to selected directories, use profile: read_only first.
+    # filesystem:
+    #   read_write: [/absolute/path/to/shared-output]
+    #   read_only: [./reference-data]
+    #   deny: [./.env, ./secrets]
+
+    ## Temporary storage options:
+    ## - managed (default): private writable storage with Console cleanup.
+    ## - read_write: writable host temp directories, without Console cleanup.
+    ## - read_only: no private storage or automatic temporary write grants;
+    ##   other filesystem permissions still apply.
+    ##   Note: R will not work without a writeable temporary directory.
+    # tempdir: managed
+
+    ## Network options: restricted (default), enabled, or a proxy mapping.
+    ## enabled allows network access.
+    ## Use a proxy to allow selected hosts.
+    ## Use hostnames, not URLs; quote wildcard patterns.
+    ## Package downloads use separate permissions.
+    # network:
+    #   proxy:
+    #     domains:
+    #       allow: [api.example.com, "*.example.org"]
+
+    ## Allow code to start local servers, e.g. http://localhost:8000,
+    ## and use loopback network connections.
+    ## auto (default): false where possible on Unix, true on Windows.
+    ## false is unsupported on Windows when a proxy is enabled.
+    #   allow_local_binding: true
+
+  ## Package preparation policies for R and managed Python:
+  ## R defaults to implicit; managed Python defaults to explicit.
+  ## implicit: startup packages, explicit requests, and missing loads/imports.
+  ## explicit: startup packages and explicit requests only.
+  ## fixed: prepare startup packages; reject later package changes.
+  ##
+  ## Supplied package lists replace the default startup lists.
+  ## [] requests no optional startup packages; it does not disable preparation.
+
+  ## R packages to prepare at startup.
+  ## To disable R preparation, set resolution: disabled and packages: [].
+  ## Required R infrastructure must then already be installed.
+  # r:
+  #   resolution: implicit
+  #   packages: [dplyr, ggplot2]
+
+  ## Let Console manage Python and prepare these initial packages.
+  ## version accepts a quoted version or constraint; omit it for no constraint.
+  # python:
+  #   version: "3.13"
+  #   resolution: explicit
+  #   packages: [numpy, pandas, matplotlib]
+
+  ## Alternatively, use an existing Python environment without managing its packages.
+  ## Choose this instead of the managed Python settings above.
+  ## The environment and its required packages must already be installed.
+  # python: .venv
+
+  ## Environment variables for evaluated code and package preparation.
+  ## Values must be strings.
+  # environment:
+  #   OMP_NUM_THREADS: "4"
+
+  ## Cache options: managed (default when sandboxed), host, or a directory mapping.
+  ## Use host to reuse ordinary host package caches.
+  ## directory places managed dependency caches under <directory>/dependencies.
+  ## Relative directories use the launch directory; a leading ~/ uses your home.
+  ## It applies to package preparation and workers.
+  ## Configuration and recordings stay in their existing locations.
+  # cache:
+  #   directory: /absolute/path/to/console-cache

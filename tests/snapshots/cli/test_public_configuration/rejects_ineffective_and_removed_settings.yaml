@@ -1,0 +1,321 @@
+---
+path: sandbox.profile
+stderr: >
+  configuration with CLI overrides: sandbox: profile: unknown variant
+  `workspace_write`, expected one of `read_only`, `workspace`,
+  `inherit_codex`; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.profile
+stderr: >
+  configuration with CLI overrides: sandbox: profile: unknown variant
+  `workspace-write`, expected one of `read_only`, `workspace`,
+  `inherit_codex`; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.profile
+stderr: >
+  configuration with CLI overrides: sandbox: profile: unknown variant
+  `:workspace`, expected one of `read_only`, `workspace`, `inherit_codex`;
+  see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.workspace_options
+stderr: >
+  configuration with CLI overrides: sandbox: workspace_options: unknown
+  field `workspace_options`, expected one of `profile`, `tempdir`,
+  `filesystem`, `network`; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.tempdir
+stderr: >
+  configuration with CLI overrides: sandbox: tempdir: invalid type:
+  boolean `true`, expected string or map; see docs/CONFIGURATION.md for
+  the public format
+---
+path: sandbox.tempdir
+stderr: >
+  configuration with CLI overrides: sandbox: tempdir: invalid type: null,
+  expected string or map; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.tempdir
+stderr: >
+  configuration with CLI overrides: sandbox: tempdir: unknown variant
+  `unmanaged`, expected one of `managed`, `read_write`, `read_only`; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network
+stderr: >
+  configuration with CLI overrides: sandbox: network: unknown variant
+  `full`, expected `restricted` or `enabled`; see docs/CONFIGURATION.md
+  for the public format
+---
+path: sandbox.network
+stderr: >
+  configuration with CLI overrides: sandbox: network: expected restricted,
+  enabled, or a mapping containing proxy; see docs/CONFIGURATION.md for
+  the public format
+---
+path: sandbox.network
+stderr: >
+  configuration with CLI overrides: sandbox: network: missing field
+  `proxy`; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox
+stderr: >
+  configuration with CLI overrides: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.filesystem
+stderr: >
+  configuration with CLI overrides: sandbox: filesystem: expected a
+  mapping; see docs/CONFIGURATION.md for the public format
+---
+path: resolver
+stderr: >
+  configuration with CLI overrides: resolver: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.proxy
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: expected a
+  mapping; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.sockets
+stderr: >
+  configuration with CLI overrides: sandbox: network: sockets: expected a
+  mapping; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.proxy.domains
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: domains:
+  expected a mapping; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.proxy
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: expected a
+  mapping; see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.proxy.enabled
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: enabled:
+  unknown field `enabled`, expected one of `mode`, `domains`,
+  `allow_upstream_proxy`, `socks5`; see docs/CONFIGURATION.md for the
+  public format
+---
+path: sandbox.network.proxy.enableSocks5
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: enableSocks5:
+  unknown field `enableSocks5`, expected one of `mode`, `domains`,
+  `allow_upstream_proxy`, `socks5`; see docs/CONFIGURATION.md for the
+  public format
+---
+path: sandbox.network.proxy.enable_socks5
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy:
+  enable_socks5: unknown field `enable_socks5`, expected one of `mode`,
+  `domains`, `allow_upstream_proxy`, `socks5`; see docs/CONFIGURATION.md
+  for the public format
+---
+path: sandbox.network.proxy.domains
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: domains:
+  example.org: unknown field `example.org`, expected `allow` or `deny`;
+  see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.proxy.domains.allow
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.sockets.unix_sockets
+stderr: >
+  configuration with CLI overrides: sandbox: network: sockets:
+  unix_sockets: expected an absolute-path list or dangerously_allow_all;
+  see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.sockets.unix_sockets
+stderr: >
+  configuration with CLI overrides: sandbox: network: sockets:
+  unix_sockets: expected an absolute-path list or dangerously_allow_all;
+  see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.sockets.unix_sockets
+stderr: >
+  configuration with CLI overrides: sandbox: network: sockets:
+  unix_sockets: expected an absolute-path list or dangerously_allow_all;
+  see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.sockets.unix_sockets
+stderr: >
+  configuration with CLI overrides: sandbox: network: sockets:
+  unix_sockets: expected an absolute-path list or dangerously_allow_all;
+  see docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.sockets.deny
+stderr: >
+  configuration with CLI overrides: sandbox: network: sockets: deny:
+  unknown field `deny`, expected `unix_sockets`; see docs/CONFIGURATION.md
+  for the public format
+---
+path: sandbox.network.sockets.dangerously_allow_all_unix_sockets
+stderr: >
+  configuration with CLI overrides: sandbox: network: sockets:
+  dangerously_allow_all_unix_sockets: unknown field
+  `dangerously_allow_all_unix_sockets`, expected `unix_sockets`; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.filesystem
+stderr: >
+  configuration with CLI overrides: sandbox: filesystem: entries: unknown
+  field `entries`, expected one of `read_only`, `read_write`, `deny`; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.filesystem.read_write
+stderr: >
+  configuration with CLI overrides: sandbox: filesystem: read_write:
+  invalid type: string ".", expected a sequence; see docs/CONFIGURATION.md
+  for the public format
+---
+path: sandbox.environment
+stderr: >
+  configuration with CLI overrides: sandbox: environment: unknown field
+  `environment`, expected one of `profile`, `tempdir`, `filesystem`,
+  `network`; see docs/CONFIGURATION.md for the public format
+---
+path: environment
+stderr: >
+  configuration with CLI overrides: environment: TOKEN: environment values
+  must be strings; see docs/CONFIGURATION.md for the public format
+---
+path: environment
+stderr: >
+  configuration with CLI overrides: environment: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+path: resolver.environment
+stderr: >
+  configuration with CLI overrides: resolver: environment: expected a
+  mapping; see docs/CONFIGURATION.md for the public format
+---
+path: resolver.environment
+stderr: >
+  configuration with CLI overrides: resolver: environment: TOKEN:
+  environment values must be strings; see docs/CONFIGURATION.md for the
+  public format
+---
+path: extends
+stderr: >
+  configuration with CLI overrides: extends: unknown field `extends`,
+  expected one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.unsupported
+stderr: >
+  configuration with CLI overrides: sandbox: unsupported: unknown field
+  `unsupported`, expected one of `profile`, `tempdir`, `filesystem`,
+  `network`; see docs/CONFIGURATION.md for the public format
+---
+scope: sandbox
+selector: disabled
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: socks5 is not
+  allowed in limited mode; remove the explicitly configured socks5 field;
+  see docs/CONFIGURATION.md for the public format
+---
+scope: resolver.sandbox
+selector: disabled
+stderr: >
+  configuration with CLI overrides: resolver: sandbox: network: proxy:
+  socks5 is not allowed in limited mode; remove the explicitly configured
+  socks5 field; see docs/CONFIGURATION.md for the public format
+---
+scope: sandbox
+selector: tcp
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: socks5 is not
+  allowed in limited mode; remove the explicitly configured socks5 field;
+  see docs/CONFIGURATION.md for the public format
+---
+scope: resolver.sandbox
+selector: tcp
+stderr: >
+  configuration with CLI overrides: resolver: sandbox: network: proxy:
+  socks5 is not allowed in limited mode; remove the explicitly configured
+  socks5 field; see docs/CONFIGURATION.md for the public format
+---
+scope: sandbox
+selector: tcp_udp
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: socks5 is not
+  allowed in limited mode; remove the explicitly configured socks5 field;
+  see docs/CONFIGURATION.md for the public format
+---
+scope: resolver.sandbox
+selector: tcp_udp
+stderr: >
+  configuration with CLI overrides: resolver: sandbox: network: proxy:
+  socks5 is not allowed in limited mode; remove the explicitly configured
+  socks5 field; see docs/CONFIGURATION.md for the public format

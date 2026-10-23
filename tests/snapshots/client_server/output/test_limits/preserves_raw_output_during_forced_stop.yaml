@@ -1,0 +1,41 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: force stop after raw stdout
+result:
+  content:
+    - type: text
+      text: |-
+        zod retiring stdout: �
+        <cross-source position follows serialized observation>
+        [worker sent an unexpected ready message]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: force stop after raw stderr
+result:
+  content:
+    - type: text
+      text: |-
+        zod retiring stderr: �
+        <cross-source position follows serialized observation>
+        [worker sent an unexpected ready message]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

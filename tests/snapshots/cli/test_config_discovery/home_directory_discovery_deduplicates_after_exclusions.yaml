@@ -1,0 +1,4 @@
+---
+home_and_project_loaded_once: true
+global_survives_project_exclusion: true
+project_survives_global_exclusion: true

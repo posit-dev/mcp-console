@@ -1,0 +1,12 @@
+---
+kind: stdout_closed
+---
+kind: stderr_closed
+---
+kind: fatal
+message: "worker sideband write failed: Broken pipe (os error 32)"
+---
+kind: worker_sideband_closed
+---
+kind: worker_signaled
+signal: 9

@@ -1,0 +1,105 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    answer = 41
+
+
+    def fail():
+        raise ValueError("boom")
+
+
+    fail()
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e1>", line 8, in <module>
+          File "<mcp-console:python:e1>", line 5, in fail
+        ValueError: boom
+  isError: false
+---
+send:
+  python: |
+    compile_partial = 9
+    await missing()
+result:
+  content:
+    - type: text
+      text: |2
+          File "<mcp-console:python:e2>", line 2
+        SyntaxError: 'await' outside function
+  isError: false
+---
+send:
+  python: '"compile_partial" in globals()'
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  python: "nul_state = 42\0"
+result:
+  content:
+    - type: text
+      text: |
+        SyntaxError: source code string cannot contain null bytes
+  isError: false
+---
+send:
+  python: 1 / 0
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e5>", line 1, in <module>
+        ZeroDivisionError: division by zero
+  isError: false
+---
+send:
+  python: exec("raise RuntimeError('from exec')")
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e6>", line 1, in <module>
+          File "<string>", line 1, in <module>
+        RuntimeError: from exec
+  isError: false
+---
+send:
+  python: |
+    try:
+        raise ValueError("cause")
+    except ValueError as error:
+        raise RuntimeError("chained") from error
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e7>", line 2, in <module>
+        ValueError: cause
+
+        The above exception was the direct cause of the following exception:
+
+        Traceback (most recent call last):
+          File "<mcp-console:python:e7>", line 4, in <module>
+        RuntimeError: chained
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        41
+  isError: false

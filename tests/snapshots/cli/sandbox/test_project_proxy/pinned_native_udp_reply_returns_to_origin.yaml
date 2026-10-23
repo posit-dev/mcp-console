@@ -1,0 +1,16 @@
+---
+native_proxy:
+  enabled: true
+  enableSocks5: true
+  enableSocks5Udp: true
+  allowUpstreamProxy: false
+  dangerouslyAllowAllUnixSockets: false
+  mode: full
+  allowLocalBinding: true
+  domains:
+    127.0.0.1: allow
+origin_received:
+  - request
+  - reply
+stdout: |
+  native UDP reply returned to origin, not client

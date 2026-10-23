@@ -1,0 +1,10 @@
+#!/bin/sh
+""":"
+exec "${MCP_CONSOLE_TEST_PYTHON:?}" "$0" "$@"
+":"""
+
+from _zod_worker.core import main
+
+
+if __name__ == "__main__":
+    main()

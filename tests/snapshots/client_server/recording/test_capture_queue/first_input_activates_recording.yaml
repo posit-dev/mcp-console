@@ -1,0 +1,12 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  stdin: unused input
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

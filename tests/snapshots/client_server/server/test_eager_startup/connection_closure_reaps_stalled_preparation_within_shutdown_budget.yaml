@@ -1,0 +1,4 @@
+---
+stalled_preparation_reaped_before_server_exit: true
+stderr: |
+  local resolver setup or retirement deadline exceeded

@@ -1,0 +1,25 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import asyncio
+
+
+    async def answer():
+        await asyncio.sleep(0)
+        return 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: asyncio.run(answer())
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

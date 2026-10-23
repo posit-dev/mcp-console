@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""Test a built Linux wheel in clean native Ubuntu 22.04 runtime images."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("wheel", type=Path)
+    parser.add_argument(
+        "--target",
+        required=True,
+        choices=("x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"),
+    )
+    parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--docker-context")
+    args = parser.parse_args()
+    wheel = args.wheel.resolve()
+    assert wheel.is_file()
+    evidence = args.evidence.resolve()
+    evidence.mkdir(parents=True, exist_ok=True)
+    docker = [
+        "docker",
+        *(["--context", args.docker_context] if args.docker_context else []),
+    ]
+    architecture = args.target.split("-", 1)[0]
+    daemon_architecture = subprocess.check_output(
+        [*docker, "info", "--format", "{{.Architecture}}"], text=True
+    ).strip()
+    assert daemon_architecture == architecture, (
+        "floor validation requires a matching native Docker host"
+    )
+    for image in ("ubuntu:22.04", "ghcr.io/astral-sh/uv:0.13.1"):
+        subprocess.run([*docker, "pull", image], check=True)
+
+    # Keep bind inputs beside evidence, on the filesystem shared with the daemon.
+    with tempfile.TemporaryDirectory(
+        prefix="mcp-console-linux-floor-", dir=evidence.parent
+    ) as directory:
+        inputs = Path(directory)
+        # Only the artifact and minimal public smoke/installation harness enter.
+        for source, destination in (
+            (wheel, inputs / wheel.name),
+            (ROOT / "scripts/linux-wheel/Dockerfile", inputs / "Dockerfile"),
+            (ROOT / "scripts/configure-ci-r.R", inputs / "configure-ci-r.R"),
+            (ROOT / "scripts/release.py", inputs / "release.py"),
+            (ROOT / "sandbox-runner.json", inputs / "sandbox-runner.json"),
+            (ROOT / "tests/linux_wheel_runtime.py", inputs / "linux_wheel_runtime.py"),
+            (
+                ROOT / "tests/sandbox_installation.py",
+                inputs / "sandbox_installation.py",
+            ),
+            (ROOT / "tests/support/native.py", inputs / "support/native.py"),
+        ):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
+        for mode in ("no-r", "with-r"):
+            output = evidence / mode
+            output.mkdir(exist_ok=True)
+            image = f"mcp-console-linux-floor:{inputs.name}-{mode}"
+            subprocess.run(
+                [
+                    *docker,
+                    "build",
+                    "--target",
+                    mode,
+                    "--tag",
+                    image,
+                    *(
+                        ["--build-arg", f"R_PREPARATION_RUN={inputs.name}"]
+                        if mode == "with-r"
+                        else []
+                    ),
+                    str(inputs),
+                ],
+                check=True,
+            )
+            images = subprocess.check_output(
+                [
+                    *docker,
+                    "image",
+                    "inspect",
+                    "ubuntu:22.04",
+                    "ghcr.io/astral-sh/uv:0.13.1",
+                    image,
+                ],
+                text=True,
+            )
+            (output / "images.json").write_text(images, encoding="utf-8")
+            command = [
+                *docker,
+                "run",
+                "--rm",
+                "--cap-add",
+                "SYS_ADMIN",
+                "--security-opt",
+                "seccomp=unconfined",
+                "--security-opt",
+                "apparmor=unconfined",
+                "--mount",
+                f"type=bind,src={inputs},dst=/test,readonly",
+                "--mount",
+                f"type=bind,src={output},dst=/evidence",
+                image,
+                "python3",
+                "/test/linux_wheel_runtime.py",
+                f"/test/{wheel.name}",
+                "--target",
+                args.target,
+                *(["--with-r"] if mode == "with-r" else []),
+            ]
+            (output / "command.json").write_text(json.dumps(command), encoding="utf-8")
+            subprocess.run(command, check=True)
+
+
+if __name__ == "__main__":
+    main()

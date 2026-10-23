@@ -1,0 +1,16 @@
+---
+mode: explicit
+packages: ~
+result:
+  content:
+    - type: text
+      text: r.resolution=explicit requires R startup preparation support
+  isError: true
+---
+mode: fixed
+packages: []
+result:
+  content:
+    - type: text
+      text: r.resolution=fixed requires R startup preparation support
+  isError: true

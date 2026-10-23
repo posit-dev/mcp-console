@@ -1,0 +1,86 @@
+---
+send:
+  python: |
+    import os
+
+    original_pid = os.getpid()
+    received = input("original cell> ")
+    print(received)
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "original cell> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  requirements:
+    r:
+      - praise
+  stdin: |
+    rejected input
+  python: interrupt_followup_ran = True
+result:
+  content:
+    - type: text
+      text: R requirements are unavailable in Python sessions without R
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  requirements:
+    python:
+      - numpy
+  stdin: |
+    rejected input
+  python: interrupt_followup_ran = True
+result:
+  content:
+    - type: text
+      text: >-
+        [Python requirements cannot accompany control: interrupt; prepare before
+        first use or with control: restart]
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    fresh input
+result:
+  content:
+    - type: text
+      text: |
+        fresh input
+  isError: false
+---
+send:
+  python: |
+    assert os.getpid() == original_pid
+    assert received == "fresh input"
+    assert "interrupt_followup_ran" not in globals()
+    print("original cell and worker retained")
+result:
+  content:
+    - type: text
+      text: |
+        original cell and worker retained
+  isError: false

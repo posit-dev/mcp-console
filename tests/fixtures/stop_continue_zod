@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import json
+import os
+import signal
+import tempfile
+from pathlib import Path
+from typing import TextIO
+
+
+def publish_marker(path: Path, contents: str | None = None) -> None:
+    pending = path.with_name(f".{path.name}.{os.getpid()}.pending")
+    if contents is None:
+        pending.touch()
+    else:
+        pending.write_text(contents, encoding="utf-8")
+    pending.replace(path)
+
+
+def send(stream: TextIO, message: dict[str, str]) -> None:
+    stream.write(json.dumps(message, separators=(",", ":")) + "\n")
+    stream.flush()
+
+
+def stop_and_report(temporary: Path) -> None:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    publish_marker(
+        temporary / "zod-stop-continue-worker",
+        f"{os.getpid()} {os.getppid()} {os.getpgrp()}",
+    )
+    os.kill(os.getpid(), signal.SIGSTOP)
+    publish_marker(temporary / "zod-stop-continue-resumed")
+
+
+def receive(reader: TextIO) -> dict[str, str]:
+    line = reader.readline()
+    assert line, "relay closed the sideband without shutdown"
+    message = json.loads(line)
+    assert isinstance(message, dict), message
+    return message
+
+
+def evaluate_echo(message: dict[str, str], writer: TextIO) -> None:
+    assert message == {
+        "kind": "evaluate",
+        "language": "r",
+        "source": "echo echo",
+    }, message
+    send(writer, {"kind": "cell_started"})
+    send(writer, {"kind": "console_output", "data": "zod: echo\n"})
+    send(writer, {"kind": "completed"})
+
+
+def main() -> None:
+    read_fd = int(os.environ.pop("MCP_CONSOLE_SIDEBAND_READ_FD"))
+    write_fd = int(os.environ.pop("MCP_CONSOLE_SIDEBAND_WRITE_FD"))
+    os.set_inheritable(read_fd, False)
+    os.set_inheritable(write_fd, False)
+    reader = os.fdopen(read_fd, "r", encoding="utf-8")
+    writer = os.fdopen(write_fd, "w", encoding="utf-8")
+    temporary = Path(tempfile.gettempdir())
+    mode = Path(os.environ["ZOD_STARTUP_CONTROL"]).read_text(encoding="utf-8")
+
+    if mode == "stop startup":
+        stop_and_report(temporary)
+    else:
+        assert mode == "stop evaluation", mode
+    send(writer, {"kind": "ready"})
+
+    if mode == "stop evaluation":
+        message = receive(reader)
+        stop_and_report(temporary)
+        evaluate_echo(message, writer)
+
+    while True:
+        message = receive(reader)
+        if message == {"kind": "shutdown"}:
+            return
+        evaluate_echo(message, writer)
+
+
+if __name__ == "__main__":
+    main()

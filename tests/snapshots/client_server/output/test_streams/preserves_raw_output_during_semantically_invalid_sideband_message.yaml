@@ -1,0 +1,27 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: unexpected input receipt after stdout
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8099
+        concat:
+          - "zod unexpected input receipt: "
+          - repeat: x
+            count: 3874
+          - |
+
+            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
+          - repeat: z
+            count: 3866
+          - |-
+            od expected semantic tail: <pipe tail bytes>
+            [worker reported received input without requesting it]
+            [worker terminated by signal 9]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+            [idle]
+  isError: true

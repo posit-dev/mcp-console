@@ -1,0 +1,17 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import yaml12
+
+    print(yaml12.__name__)
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: |
+        yaml12
+  isError: false

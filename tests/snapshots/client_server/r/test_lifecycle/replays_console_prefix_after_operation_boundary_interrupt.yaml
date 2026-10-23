@@ -1,0 +1,111 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    dyn.load("./mcp_test_input_handler.so")
+    tryCatch(
+      .Call(
+        "mcp_test_read_console_line",
+        "small callbacks> "
+      ),
+      interrupt = function(condition) {
+        cat("caught later-callback interrupt\n")
+      }
+    )
+  stdin: part
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "small callbacks> "]
+        [input requested: "small callbacks> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        caught later-callback interrupt
+  isError: false
+---
+send:
+  r: readline("after later callback> ")
+  stdin: |
+    !
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "after later callback> "]
+        [1] "part!"
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      {
+        checkpoint <- fifo(
+          file.path(tempdir(), "between-console-callbacks-started"),
+          open = "w+b"
+        )
+        partial <- .Call(
+          "mcp_test_read_console_once",
+          "between callbacks> "
+        )
+        stopifnot(nchar(partial, type = "bytes") == 3L)
+        writeBin(as.raw(49), checkpoint)
+        close(checkpoint)
+        repeat {
+          Sys.sleep(60)
+        }
+      },
+      interrupt = function(condition) {
+        cat("caught between-callback interrupt\n")
+      }
+    )
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "between callbacks> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: xxxxxx
+  timeout_ms: 50
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        caught between-callback interrupt
+  isError: false
+---
+send:
+  r: identical(readline("after boundary> "), paste0(strrep("x", 6), "!"))
+  stdin: |
+    !
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "after boundary> "]
+        [1] TRUE
+  isError: false

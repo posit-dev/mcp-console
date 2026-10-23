@@ -1,0 +1,5 @@
+---
+languages: sql
+stderr: >
+  configuration with CLI overrides: languages: invalid type: string "sql",
+  expected a sequence; see docs/CONFIGURATION.md for the public format

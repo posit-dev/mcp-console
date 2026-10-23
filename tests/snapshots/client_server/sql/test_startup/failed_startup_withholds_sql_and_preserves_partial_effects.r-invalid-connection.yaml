@@ -1,0 +1,38 @@
+---
+config:
+  startup:
+    language: r
+    code: .console$sql_connection(new.env())
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE never_run AS SELECT 99 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        Error: `connection` must be a valid DBIConnection or NULL
+        Error: configured startup did not complete; SQL withheld; explicit restart required
+        Error: SQL unavailable: configured startup did not complete; explicit restart required
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: >
+        Error: SQL unavailable: configured startup did not complete; explicit
+        restart required
+  isError: false
+---
+language: r
+failure: valid DBIConnection
+first_sql: |
+  Error: `connection` must be a valid DBIConnection or NULL
+  Error: configured startup did not complete; SQL withheld; explicit restart required
+  Error: SQL unavailable: configured startup did not complete; explicit restart required
+later_sql: >
+  Error: SQL unavailable: configured startup did not complete; explicit
+  restart required

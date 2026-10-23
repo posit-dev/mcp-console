@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Acknowledge idle callback output through the server's ordered relay stream."""
+
+import json
+import os
+import select
+import subprocess
+import sys
+from pathlib import Path
+
+checkpoint = Path(os.environ["TMPDIR"]) / "idle-callback-output-processed"
+os.mkfifo(checkpoint)
+binary = os.environ["MCP_CONSOLE_TEST_BINARY"]
+assert sys.argv[1:] == [binary], sys.argv
+# The developer relay override requires an explicit worker. Run the built-in
+# worker through that entry point with the test's prepared R requirements.
+relay = subprocess.Popen(
+    [binary, "worker-relay", binary, "worker"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+)
+assert relay.stdin is not None and relay.stdout is not None
+output_fd = relay.stdout.fileno()
+buffers = {0: bytearray(), output_fd: bytearray()}
+expected_output = "idle callback\n"
+callback_output = ""
+awaiting_reply = False
+acknowledged = False
+
+while output_fd in buffers:
+    readable, _, _ = select.select(list(buffers), [], [])
+    for descriptor in readable:
+        chunk = os.read(descriptor, 64 * 1024)
+        if not chunk:
+            assert not buffers.pop(descriptor), "incomplete relay frame"
+            if descriptor == 0:
+                relay.stdin.close()
+            continue
+        buffers[descriptor].extend(chunk)
+        while b"\n" in buffers[descriptor]:
+            line, _, buffers[descriptor] = buffers[descriptor].partition(b"\n")
+            message = json.loads(line)
+            if descriptor == 0:
+                if awaiting_reply:
+                    assert message["kind"] == "python_version_resolution_failed", (
+                        message
+                    )
+                    # The reply follows processing of every preceding output
+                    # frame. Keep that output pending for the next MCP cell.
+                    with checkpoint.open("wb", buffering=0) as stream:
+                        assert stream.write(b"1") == 1
+                    awaiting_reply = False
+                    acknowledged = True
+                else:
+                    relay.stdin.write(line + b"\n")
+                    relay.stdin.flush()
+                continue
+
+            sys.stdout.buffer.write(line + b"\n")
+            sys.stdout.buffer.flush()
+            if message["kind"] == "console_output" and not acknowledged:
+                callback_output = (callback_output + message["data"])[
+                    -len(expected_output) :
+                ]
+                if callback_output == expected_output:
+                    # Custom workers have no managed Python resolver. Its
+                    # rejection acknowledges the stream without preparing an
+                    # environment or consuming the pending callback output.
+                    assert not awaiting_reply
+                    request = {
+                        "kind": "resolve_python_version",
+                        "request": {"constraints": ["python3"]},
+                    }
+                    sys.stdout.write(json.dumps(request) + "\n")
+                    sys.stdout.flush()
+                    awaiting_reply = True
+
+relay.stdout.close()
+raise SystemExit(relay.wait())

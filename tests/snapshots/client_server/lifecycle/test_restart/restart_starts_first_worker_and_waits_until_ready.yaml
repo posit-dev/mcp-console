@@ -1,0 +1,29 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: "[worker is restarting]"
+  isError: true
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

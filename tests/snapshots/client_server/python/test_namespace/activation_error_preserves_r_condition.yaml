@@ -1,0 +1,63 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: |
+    assert globals() is __import__("__main__").__dict__
+    assert __name__ == "__main__"
+    assert globals().keys() <= {
+        "__name__", "__doc__", "__package__", "__loader__", "__spec__",
+        "__builtins__", "__annotations__", "r",
+    }
+    assert not {"os", "sys", "tempfile"} & globals().keys()
+    assert not {"os", "sys", "tempfile"} & vars(__import__("builtins")).keys()
+    assert not any(name.startswith("_mcp_console") for name in vars(__import__("builtins")))
+    assert callable(_console.sql_connection)
+    assert hasattr(__import__("builtins"), "r")
+    os, sys, tempfile = object(), object(), object()
+    namespace_bindings = (os, sys, tempfile)
+    __import__ = namespace_import_binding = object()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    invisible(reticulate::py_config())
+    failure <- tryCatch(
+      reticulate::py_require("py-yaml12"),
+      error = identity
+    )
+    # py_require's native boundary preserves ordinary error
+    # messages; reticulate also retains the Python exception.
+    stopifnot(
+      identical(class(failure), c("simpleError", "error", "condition")),
+      startsWith(
+        conditionMessage(failure),
+        "RuntimeError: synthetic activation failure"
+      ),
+      identical(reticulate::py_last_error()$type, "RuntimeError"),
+      identical(reticulate::py_last_error()$value, "synthetic activation failure")
+    )
+    cat("Python exception preserved in R\n")
+result:
+  content:
+    - type: text
+      text: |
+        Python exception preserved in R
+  isError: false
+---
+send:
+  python: |
+    assert all(a is b for a, b in zip((os, sys, tempfile), namespace_bindings))
+    assert __import__ is namespace_import_binding
+    assert not any(name.startswith("_mcp_console") for name in (lambda: None).__builtins__)
+    print("user namespace preserved")
+result:
+  content:
+    - type: text
+      text: |
+        user namespace preserved
+  isError: false

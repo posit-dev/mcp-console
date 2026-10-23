@@ -1,0 +1,12 @@
+---
+completed:
+  id: 1
+  result:
+    Err: >-
+      failed to wait for managed Python version resolver `UV`: failed to
+      observe child process PID exit: Input/output error (os error 5); failed
+      to stop managed Python version resolver `UV`: Permission denied (os
+      error 13)
+  control: ~
+  confirmed: false
+materializer_still_alive: true

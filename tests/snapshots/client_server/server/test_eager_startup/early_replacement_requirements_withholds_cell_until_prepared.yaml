@@ -1,0 +1,60 @@
+---
+!same-as MCP initialization for this execution mode
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  python: >-
+    import importlib.util; assert importlib.util.find_spec("numpy") is None;
+    counter = 1; counter
+  requirements:
+    action: set
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  python: counter += 1
+  timeout_ms: 20
+result:
+  content:
+    - type: text
+      text: "[worker is already evaluating a cell; poll without a code field]"
+  isError: true
+---
+send:
+  timeout_ms: 20
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        1
+  isError: false
+---
+send:
+  python: counter
+result:
+  content:
+    - type: text
+      text: |
+        1
+  isError: false

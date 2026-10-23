@@ -1,0 +1,7 @@
+Package: mcpconsolebootstrap
+Version: 0.0.1
+Title: Runtime Bootstrap Checkpoint
+Description: A deterministic startup hook for public Console tests.
+License: MIT
+Author: Test Fixture
+Maintainer: Test Fixture <fixture@example.invalid>

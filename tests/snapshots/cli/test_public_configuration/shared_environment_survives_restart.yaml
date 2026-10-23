@@ -1,0 +1,36 @@
+---
+inherit_environment: true
+resolver_inherit_environment: ~
+worker: worker configured launch
+resolver:
+  ROLE: resolver
+  SHARED: configured
+  INHERITED: launch
+console_adjustments_retained: true
+---
+inherit_environment: false
+resolver_inherit_environment: ~
+worker: worker configured absent
+resolver:
+  ROLE: resolver
+  SHARED: configured
+  INHERITED: ~
+console_adjustments_retained: true
+---
+inherit_environment: false
+resolver_inherit_environment: true
+worker: worker configured absent
+resolver:
+  ROLE: resolver
+  SHARED: configured
+  INHERITED: launch
+console_adjustments_retained: true
+---
+inherit_environment: true
+resolver_inherit_environment: false
+worker: worker configured launch
+resolver:
+  ROLE: resolver
+  SHARED: configured
+  INHERITED: ~
+console_adjustments_retained: true

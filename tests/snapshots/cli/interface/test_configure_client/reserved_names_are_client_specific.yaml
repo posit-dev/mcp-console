@@ -1,0 +1,10 @@
+---
+reserved_names:
+  - workspace
+  - claude-in-chrome
+  - computer-use
+  - Claude Preview
+  - Claude Browser
+reserved_builtin_name: rejected only for the affected client
+selected_clients_validated_before_writes: true
+other_clients: same names remain available

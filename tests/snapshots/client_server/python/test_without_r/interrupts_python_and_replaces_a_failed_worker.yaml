@@ -1,0 +1,77 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: retained = 41
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    print("loop entered")
+    # Keep interrupt locations stable across Python bytecode versions.
+    while True: pass  # fmt: skip
+  timeout_ms: 100
+result:
+  content:
+    - type: text
+      text: |-
+        loop entered
+
+        [elapsed: <elapsed>s since admission]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 3, in <module>
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: retained + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: import tempfile; print(tempfile.gettempdir())
+result:
+  content:
+    - type: text
+      text: |
+        <worker temporary>
+  isError: false
+---
+send:
+  python: import os; os._exit(23)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 23]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: assert 'retained' not in globals(); 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

@@ -1,0 +1,57 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    runtime_generation_marker = "original runtime retained"
+    preparation_gate = input("preparation gate> ")
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "preparation gate> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        worker is already evaluating a cell; poll it before preparing
+        requirements
+  isError: true
+---
+send:
+  python: combined_cell_ran = True
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        worker is already evaluating a cell; poll it before preparing
+        requirements
+  isError: true
+---
+send:
+  stdin: |
+    continue
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: runtime_generation_marker, 'combined_cell_ran' not in globals()
+result:
+  content:
+    - type: text
+      text: |
+        ('original runtime retained', True)
+  isError: false

@@ -1,0 +1,41 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: waiter-owned evaluation
+---
+relay:
+  kind: cell_started
+---
+server:
+  kind: stdin
+  data: |
+    poll ownership checkpoint
+---
+server:
+  kind: interrupt
+  request_id: 0
+---
+relay:
+  kind: console_output
+  data: |
+    output owned by original waiter
+---
+relay:
+  kind: interrupt_result
+  request_id: 0
+---
+relay:
+  kind: console_output
+  data: |
+    original waiter evaluation finished
+---
+relay:
+  kind: completed

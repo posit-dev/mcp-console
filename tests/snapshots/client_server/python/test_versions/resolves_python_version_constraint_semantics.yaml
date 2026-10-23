@@ -1,0 +1,105 @@
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_require(
+      python_version = c("v3.12.12"),
+      action = "set"
+    )
+    result <- tryCatch(
+      reticulate::py_write_requirements(
+        NULL,
+        NULL,
+        freeze = FALSE,
+        python = NULL
+      )$python_version,
+      error = conditionMessage
+    )
+    cat(result, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        3.12.12
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_require(
+      python_version = c("==3.15.0a5"),
+      action = "set"
+    )
+    result <- tryCatch(
+      reticulate::py_write_requirements(
+        NULL,
+        NULL,
+        freeze = FALSE,
+        python = NULL
+      )$python_version,
+      error = conditionMessage
+    )
+    cat(result, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        3.15.0a5
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_require(
+      python_version = c("==3.12.0"),
+      action = "set"
+    )
+    result <- tryCatch(
+      reticulate::py_write_requirements(
+        NULL,
+        NULL,
+        freeze = FALSE,
+        python = NULL
+      )$python_version,
+      error = conditionMessage
+    )
+    cat(result, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        managed Python version resolution failed: Requested Python version constraints could not be satisfied.
+          constraints: "==3.12.0"
+        Hint: Call `py_require(python_version = <string>, action = "set")` to replace constraints.
+        Available Python versions found: 3.11.14, 3.12.0a5
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_require(
+      python_version = c(">=3.12.0a1", "!=3.12.0"),
+      action = "set"
+    )
+    result <- tryCatch(
+      reticulate::py_write_requirements(
+        NULL,
+        NULL,
+        freeze = FALSE,
+        python = NULL
+      )$python_version,
+      error = conditionMessage
+    )
+    cat(result, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        3.12.0a5
+  isError: false

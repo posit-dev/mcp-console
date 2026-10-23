@@ -1,0 +1,72 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import duckdb
+
+    connection = duckdb.connect(":memory:")
+    connection.execute("CREATE TEMP TABLE before_selection AS SELECT 41 AS value")
+    _console.sql_connection(connection)
+    del connection
+  requirements:
+    python:
+      - duckdb==1.5.6
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT value + 1 AS answer FROM before_selection
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  sql: CREATE TEMP TABLE later_state AS SELECT 'retained' AS value
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  sql: SELECT value FROM later_state
+result:
+  content:
+    - type: text
+      text: |
+        value
+        ----------
+        'retained'
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: print("new interpreter")
+result:
+  content:
+    - type: text
+      text: |
+        new interpreter
+  isError: false

@@ -1,0 +1,56 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: answer <- 41
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    g <- function() stop("boom")
+    f <- function() g()
+    f()
+result:
+  content:
+    - type: text
+      text: |
+        Error in g() : boom
+  isError: false
+---
+send:
+  r: |
+    traceback()
+result:
+  content:
+    - type: text
+      text: |
+        3: stop("boom") at #1
+        2: g() at #1
+        1: f()
+  isError: false
+---
+send:
+  r: |
+    print.auto_print_failure <- function(...) {
+      stop("print failed")
+    }
+    structure(1, class = "auto_print_failure")
+result:
+  content:
+    - type: text
+      text: |
+        Error in print.auto_print_failure(x) : print failed
+  isError: false
+---
+send:
+  r: answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 41
+  isError: false

@@ -1,0 +1,14 @@
+---
+repeated_output:
+  kind: console_output
+  data: |
+    blocked output
+output_count: 4096
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: worker_sideband_closed
+  - kind: worker_exited
+    code: 0
+exit_code: 0
+stderr: ""

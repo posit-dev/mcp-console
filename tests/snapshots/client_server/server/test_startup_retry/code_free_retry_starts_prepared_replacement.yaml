@@ -1,0 +1,54 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: raise AssertionError('must not run')
+result:
+  content:
+    - type: text
+      text: >-
+        Python sessions without R require `uv` on PATH; set python in
+        .agents/console/config.yaml to use an existing environment
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        Python sessions without R require `uv` on PATH; set python in
+        .agents/console/config.yaml to use an existing environment
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: |-
+        [runtime discovery retried]
+        [idle]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        prepared Python startup ran
+
+        [idle]
+  isError: false
+---
+send:
+  python: import six; print('prepared cell ran')
+result:
+  content:
+    - type: text
+      text: |
+        prepared cell ran
+  isError: false

@@ -1,0 +1,16 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: preview invalid oversized image
+result:
+  content:
+    - type: text
+      text: |-
+        before invalid image
+        [worker returned invalid base64 image data: Invalid symbol 63, offset 8388610.]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true

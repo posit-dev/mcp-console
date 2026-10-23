@@ -1,0 +1,19 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: FAIL
+  r.packages: requested startup packages require R and R preparation support
+  Checking Python...
+  Python: FAIL
+  r.packages: requested startup packages require R and R preparation support
+  Checking SQL...
+  SQL: FAIL
+  r.packages: requested startup packages require R and R preparation support
+  Shutdown: FAIL
+  server exited with status 1
+  Warmup found 4 failed checks.
+stderr: |
+  r.packages: requested startup packages require R and R preparation support

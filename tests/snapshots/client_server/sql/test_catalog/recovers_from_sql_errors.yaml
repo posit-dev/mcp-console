@@ -1,0 +1,31 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |
+    SELECT * FROM table_that_does_not_exist
+result:
+  content:
+    - type: text
+      text: |
+        Error: Catalog Error: Table with name table_that_does_not_exist does not exist!
+        Did you mean "information_schema.tables"?
+
+        LINE 1: SELECT * FROM table_that_does_not_exist
+                              ^
+        ℹ Context: rapi_prepare
+        ℹ Error type: CATALOG
+  isError: false
+---
+send:
+  sql: |
+    SELECT CAST(42 AS INTEGER) AS answer
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           answer
+          <int32>
+        1      42
+  isError: false

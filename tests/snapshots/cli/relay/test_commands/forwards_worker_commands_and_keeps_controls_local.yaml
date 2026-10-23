@@ -1,0 +1,90 @@
+---
+forwarded:
+  - kind: evaluate
+    language: r
+    source: cat('R 🦀\n')
+  - kind: evaluate
+    language: python
+    source: print('Python 🦀')
+  - kind: evaluate
+    language: sql
+    source: SELECT 'SQL 🦀'
+  - kind: prepare_r
+    library: /libraries/requested R 🦀
+  - kind: r_resolved
+    library: /libraries/resolved R 🦀
+  - kind: r_resolution_failed
+    failure: host
+    message: |-
+      host: R resolution 🦀
+      second line
+  - kind: r_resolution_failed
+    failure: interrupted
+    message: |-
+      interrupted: R resolution 🦀
+      second line
+  - kind: r_resolution_failed
+    failure: operation
+    message: |-
+      operation: R resolution 🦀
+      second line
+  - kind: prepare_python
+    packages:
+    - pandas
+    - numpy
+    - custom_pkg>=2
+  - kind: python_resolved
+    python: /environments/managed Python 🦀
+  - kind: python_resolved
+    python: /environments/native Python 🦀
+    native:
+      selected:
+        embedding:
+          python: /native/bin/python
+          libpython: /native/lib/libpython
+          python_home: /native/home
+        prefix: /native/prefix
+        exec_prefix: /native/exec-prefix
+        base_prefix: /native/base-prefix
+        base_exec_prefix: /native/base-exec-prefix
+        metadata:
+          base_executable: /native/base/bin/python
+          pythonpath: /native/extra 🦀
+          version: 3.13.11 (fixture)
+          version_number: 3.13.11
+          architecture: fixture-architecture
+          conda: true
+          numpy:
+            path: /native/numpy
+            version: 2.3.0
+      requirements:
+        packages:
+          - custom_pkg>=2
+          - numpy
+          - pandas
+        python_version:
+          - <3.14
+          - ">=3.13"
+        exclude_newer: 2026-09-01T00:00:00Z
+  - kind: python_resolution_failed
+    message: |-
+      Python resolution 🦀
+      failed
+  - kind: python_version_resolved
+    version: ">=3.13,<3.14"
+  - kind: python_version_resolution_failed
+    message: |-
+      version 🦀
+      failed
+  - kind: shutdown
+stdin: "stdin 🦀\nsecond line\r\n"
+controls:
+  - kind: interrupt_result
+    request_id: 731
+shutdown:
+  - kind: shutdown_started
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: worker_sideband_closed
+  - kind: worker_exited
+    code: 0

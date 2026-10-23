@@ -1,0 +1,45 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  r: stop('cancelled request must not execute')
+id: <cancelled request 1>
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[worker evaluation is already being polled]"
+  isError: true
+---
+send:
+  r: stop('another cell must not execute')
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[worker is already evaluating a cell; poll without a code field]"
+  isError: true
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        worker R home discovery failed with exit status: 17: fixture R discovery
+        failed
+  isError: true
+---
+stderr: >
+  worker R home discovery failed with exit status: 17: fixture R discovery
+  failed

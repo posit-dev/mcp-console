@@ -1,0 +1,112 @@
+---
+send:
+  python: |
+    import builtins
+    import ctypes
+    import io
+    import os
+    import sqlite3
+    import sys
+    import numpy as np
+
+    def r_initialized():
+        try:
+            if os.name == "nt":
+                kernel = ctypes.WinDLL("kernel32")
+                kernel.GetModuleHandleW.argtypes = [ctypes.c_wchar_p]
+                kernel.GetModuleHandleW.restype = ctypes.c_void_p
+                handle = kernel.GetModuleHandleW("R.dll")
+                if not handle:
+                    return False
+                library = ctypes.CDLL(None, handle=handle)
+            else:
+                library = ctypes.CDLL(None)
+            return bool(ctypes.c_void_p.in_dll(library, "R_GlobalEnv").value)
+        except ValueError:
+            return False
+
+    assert not r_initialized(), "R initialized before Python demand"
+    assert builtins.peer_startups == 1
+    persistent = object()
+    connection = sqlite3.connect(":memory:")
+    connection.execute("create table peer(value integer)")
+    connection.execute("insert into peer values (42)")
+    _console.sql_connection(connection)
+    np.set_printoptions(linewidth=73)
+    before = (id(persistent), id(connection), sys.executable, sys.prefix,
+              os.environ.get("MPLCONFIGDIR"), os.environ.get("XDG_CACHE_HOME"))
+    print("Python live; R absent")
+    original_streams = (sys.stdout, sys.stderr)
+    redirected_stdout = io.StringIO()
+    redirected_stderr = io.StringIO()
+    sys.stdout, sys.stderr = redirected_stdout, redirected_stderr
+result:
+  content:
+    - type: text
+      text: |
+        Python live; R absent
+  isError: false
+---
+send:
+  r: >-
+    peer_from_r <- 41L; stopifnot(reticulate::py_eval('persistent is not
+    None'))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    assert r_initialized()
+    assert sys.stdout is redirected_stdout
+    assert sys.stderr is redirected_stderr
+    print("redirected stdout")
+    print("redirected stderr", file=sys.stderr)
+    assert redirected_stdout.getvalue() == "redirected stdout\n"
+    assert redirected_stderr.getvalue() == "redirected stderr\n"
+    sys.stdout, sys.stderr = original_streams
+    assert builtins.peer_startups == 1
+    assert before == (
+        id(persistent),
+        id(connection),
+        sys.executable,
+        sys.prefix,
+        os.environ.get("MPLCONFIGDIR"),
+        os.environ.get("XDG_CACHE_HOME"),
+    )
+    assert connection.execute("select value from peer").fetchone() == (42,)
+    assert np.get_printoptions()["linewidth"] == 73
+
+
+    def nested_peer():
+        return int(r["sum(c(40, 2))"])
+
+
+    print("Python state and services retained")
+result:
+  content:
+    - type: text
+      text: |
+        Python state and services retained
+  isError: false
+---
+send:
+  sql: select value from peer
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        42
+  isError: false
+---
+send:
+  r: stopifnot(identical(reticulate::py$nested_peer(), 42L))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

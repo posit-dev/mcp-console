@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+
+def notify(path: str) -> None:
+    with Path(path).open("wb", buffering=0) as checkpoint:
+        checkpoint.write(b"1")
+
+
+def wait(path: str) -> None:
+    with Path(path).open("rb", buffering=0) as checkpoint:
+        assert checkpoint.read(1) == b"1"
+
+
+def fixture_library(arguments: list[str]) -> Path | None:
+    sources_value = os.environ.get("MCP_CONSOLE_TEST_IR_SOURCE_LIBRARIES")
+    root_value = os.environ.get("MCP_CONSOLE_TEST_IR_LIBRARY_ROOT")
+    packages_value = os.environ.get("MCP_CONSOLE_TEST_IR_FIXTURE_PACKAGES")
+    base_value = os.environ.get("MCP_CONSOLE_TEST_IR_BASE_LIBRARY")
+    if (
+        sources_value is None
+        and root_value is None
+        and packages_value is None
+        and base_value is None
+    ):
+        return None
+    assert sources_value is not None and root_value is not None
+    assert packages_value is not None and base_value is not None
+    if arguments[0] != "run":
+        return None
+
+    configured = set(packages_value.split(","))
+    requirements = [
+        arguments[index + 1]
+        for index, argument in enumerate(arguments[:-1])
+        if argument == "--with" and arguments[index + 1] in configured
+    ]
+    if not requirements:
+        return None
+    sources = [Path(value) for value in sources_value.split(os.pathsep)]
+    assert sources and all(source.is_dir() for source in sources), sources
+    base = Path(base_value).read_text(encoding="utf-8")
+    base = Path(base)
+    assert base.is_dir(), base
+    library = Path(root_value) / "-".join(requirements)
+    library.mkdir(parents=True, exist_ok=True)
+    for package in base.iterdir():
+        if package.name in configured:
+            continue
+        link = library / package.name
+        if not link.exists():
+            link.symlink_to(package, target_is_directory=package.is_dir())
+    for requirement in requirements:
+        packages = [source / requirement for source in sources]
+        packages = [package for package in packages if package.is_dir()]
+        assert len(packages) == 1, (requirement, packages)
+        link = library / requirement
+        if not link.exists():
+            link.symlink_to(packages[0], target_is_directory=True)
+    return library.resolve()
+
+
+def main() -> None:
+    arguments = sys.argv[1:]
+    record = Path(os.environ["MCP_CONSOLE_TEST_IR_RECORD"])
+    with record.open("a", encoding="utf-8") as stream:
+        json.dump(
+            {
+                "arguments": arguments,
+                "no_local_sources": os.environ.get("IR_NO_LOCAL_SOURCES"),
+                "subprocess_timeout": os.environ.get("PKG_SUBPROCESS_TIMEOUT"),
+            },
+            stream,
+        )
+        stream.write("\n")
+
+    fail = os.environ.get("MCP_CONSOLE_TEST_IR_FAIL_REQUIREMENT")
+    if fail is not None and fail in arguments:
+        if failure := os.environ.get("MCP_CONSOLE_TEST_IR_FAILURE_OUTPUT"):
+            sys.stderr.buffer.write(Path(failure).read_bytes())
+        else:
+            print(f"synthetic `ir` failure for {fail}", file=sys.stderr)
+        raise SystemExit(1)
+
+    block = os.environ.get("MCP_CONSOLE_TEST_IR_BLOCK_REQUIREMENT")
+    if block is not None and block in arguments:
+        interrupted = os.environ.get("MCP_CONSOLE_TEST_IR_INTERRUPTED")
+        if interrupted is not None:
+            # Receive SIGINT synchronously, independent of Python callbacks
+            # deferred during FIFO I/O. Block it before publishing readiness.
+            previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+            assert signal.SIGINT not in previous
+        notify(os.environ["MCP_CONSOLE_TEST_IR_STARTED"])
+        if interrupted is not None:
+            signum = signal.sigwait({signal.SIGINT})
+            assert signum == signal.SIGINT
+            notify(interrupted)
+            raise SystemExit(128 + signum)
+        wait(os.environ["MCP_CONSOLE_TEST_IR_RELEASE"])
+
+    if library := fixture_library(arguments):
+        print(library, end="")
+        return
+
+    executable = os.environ["MCP_CONSOLE_TEST_REAL_IR"]
+    base_value = os.environ.get("MCP_CONSOLE_TEST_IR_BASE_LIBRARY")
+    if base_value is not None and arguments[0] == "run":
+        result = subprocess.run(
+            [executable, *arguments],
+            capture_output=True,
+        )
+        sys.stdout.buffer.write(result.stdout)
+        sys.stderr.buffer.write(result.stderr)
+        if result.returncode == 0:
+            Path(base_value).write_bytes(result.stdout)
+        raise SystemExit(result.returncode)
+    os.execv(executable, [executable, *arguments])
+
+
+if __name__ == "__main__":
+    main()

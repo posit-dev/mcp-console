@@ -1,0 +1,10 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - raise SystemExit(23)
+inherited_sigchld: ignored
+exit_code: 23

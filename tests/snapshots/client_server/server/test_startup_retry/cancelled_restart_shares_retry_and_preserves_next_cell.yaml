@@ -1,0 +1,92 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/python/bin/python
+  isError: true
+---
+send:
+  control: restart
+  python: cancelled_cell = True
+id: <cancelled request 1>
+---
+send:
+  control: restart
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: dependency preparation]
+        [worker starting]
+  isError: false
+---
+send:
+  control: restart
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: dependency preparation]
+        [worker starting]
+  isError: false
+---
+send:
+  control: restart
+  python: timed_out_cell = True
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [worker starting]
+        [phase: dependency preparation]
+        startup is pending; control was not applied and cell was not run
+  isError: true
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  python: |
+    assert "cancelled_cell" not in globals()
+    assert "timed_out_cell" not in globals()
+    answer = 42
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[worker evaluation is already being polled]"
+  isError: true
+---
+send:
+  python: answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false

@@ -1,0 +1,131 @@
+---
+!same-as automatic-writable MCP initialization for this execution mode
+---
+send:
+  python: >-
+    import sys; identity = object(); identity_id = id(identity);
+    initial_executable = sys.executable; from pathlib import Path; _ =
+    Path('initial-python').write_text(sys.executable)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    before <- reticulate::py_config()
+    invisible(reticulate::py_require("py-yaml12"))
+    after <- reticulate::py_config()
+    stopifnot(
+      identical(after$libpython, before$libpython),
+      identical(
+        after$executable,
+        reticulate::py_eval("__import__('sys').executable")
+      ),
+      "py-yaml12" %in% reticulate::py_require()$packages
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "py-yaml12"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - py-yaml12
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  python: >-
+    import yaml12; (id(identity) == identity_id, sys.executable !=
+    initial_executable, yaml12.__name__)
+result:
+  content:
+    - type: text
+      text: |
+        (True, True, 'yaml12')
+  isError: false

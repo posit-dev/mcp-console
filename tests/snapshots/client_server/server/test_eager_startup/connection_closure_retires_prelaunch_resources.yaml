@@ -1,0 +1,8 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+input:
+  method: ping
+result: {}
+---
+prelaunch_resources_retired: true

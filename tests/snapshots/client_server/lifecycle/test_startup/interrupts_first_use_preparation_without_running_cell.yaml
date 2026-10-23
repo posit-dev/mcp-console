@@ -1,0 +1,33 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: startup_cell_ran <- TRUE
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 30000
+result:
+  content:
+    - type: text
+      text: "[R package resolution failed with exit status: 130: ]"
+  isError: true
+---
+send:
+  r: exists("startup_cell_ran", inherits = FALSE)
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        [1] FALSE
+  isError: false

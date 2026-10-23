@@ -1,0 +1,333 @@
+---
+send:
+  r: |
+    reticulate::py_require(
+      "numpy",
+      python_version = ">=3.10, <4",
+      action = "set"
+    )
+    before <- reticulate::py_require()
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: |-
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "<4, >=3.10",
+          "packages": [
+            "numpy",
+            "py-yaml12"
+          ],
+          "python_version": [
+            "<4",
+            ">=3.10"
+          ]
+        }
+        uv output:
+        synthetic uv failure
+  isError: true
+---
+send:
+  r: |
+    stopifnot(
+      identical(reticulate::py_require(), before),
+      !reticulate::py_available(initialize = FALSE)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    before <- reticulate::py_require()
+    reticulate::py_require("numpy")
+    reticulate::py_require("absent", action = "remove")
+    reticulate::py_require(before$packages, action = "set")
+    reticulate::py_require(python_version = ">=3.10")
+    unchanged <- reticulate::py_require()
+    stopifnot(
+      identical(unchanged$packages, before$packages),
+      identical(unchanged$python_version, c(">=3.10", "<4")),
+      length(unchanged$history) == length(before$history) + 4L
+    )
+    message <- tryCatch(
+      reticulate::py_require("numpy==0"),
+      error = conditionMessage
+    )
+    stopifnot(identical(
+      message,
+      paste(
+        "After Python has initialized, only `action = 'add'` with new packages is supported.",
+        "You tried to add `numpy==0` but requirements contain `numpy` already."
+      )
+    ))
+    message <- tryCatch(
+      reticulate::py_require(exclude_newer = "2026-01-01"),
+      error = conditionMessage
+    )
+    stopifnot(identical(
+      message,
+      "`exclude_newer` cannot be changed after Python has initialized."
+    ))
+    version <- reticulate::py_eval(
+      "'.'.join(str(x) for x in __import__('sys').version_info[:3])"
+    )
+    message <- tryCatch(
+      reticulate::py_require(python_version = "<3"),
+      error = conditionMessage
+    )
+    stopifnot(
+      identical(
+        message,
+        paste0(
+          "Python version requirements cannot be changed after Python has been initialized.\n",
+          "* Python version request: '<3'\n",
+          "* Python version initialized: '",
+          version,
+          "'"
+        )
+      ),
+      identical(reticulate::py_require(), unchanged)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "<4",
+              ">=3.10"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - <4
+        - ">=3.10"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: |
+    marker <- reticulate::py_eval("object()", convert = FALSE)
+    marker_id <- reticulate::py_id(marker)
+    initial_config <- reticulate::py_config()
+    failure <- tryCatch(
+      reticulate::py_require("py-yaml12"),
+      error = conditionMessage
+    )
+    stopifnot(
+      grepl("synthetic uv failure", failure, fixed = TRUE),
+      identical(reticulate::py_require(), unchanged),
+      identical(reticulate::py_config(), initial_config),
+      identical(reticulate::py_id(marker), marker_id)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "<4",
+              ">=3.10"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - <4
+        - ">=3.10"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(reticulate::py_require()$python_version, c(">=3.10", "<4")),
+      identical(reticulate::py_require()$packages, c("py-yaml12", "numpy"))
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

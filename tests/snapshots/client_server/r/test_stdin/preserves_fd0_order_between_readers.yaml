@@ -1,0 +1,46 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    fd0_order_started <- tempfile("mcp-console-fd0-order-started-")
+    fd0_order_release <- tempfile("mcp-console-fd0-order-release-")
+    cat(fd0_order_started, fd0_order_release, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <fd 0 started checkpoint>
+        <fd 0 release checkpoint>
+  isError: false
+---
+send:
+  r: |
+    started <- fifo(fd0_order_started, open = "wb", blocking = TRUE)
+    writeBin(charToRaw("1"), started)
+    close(started)
+    release <- fifo(fd0_order_release, open = "rb", blocking = TRUE)
+    stopifnot(identical(
+      readBin(release, "raw", n = 1L),
+      charToRaw("1")
+    ))
+    close(release)
+
+    prompted <- readline("callback> ")
+    direct <- local({
+      connection <- suppressWarnings(file("/dev/stdin"))
+      on.exit(close(connection))
+      readLines(connection, n = 1)
+    })
+    cat(paste(prompted, direct, sep = "|"), "\n", sep = "")
+  stdin: |
+    callback
+    direct
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "callback> "]
+        callback|direct
+  isError: false

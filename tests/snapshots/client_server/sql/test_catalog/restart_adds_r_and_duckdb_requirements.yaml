@@ -1,0 +1,92 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: restart_marker <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        DuckDB extension resolution failed with exit status: 1: fixture DuckDB
+        extension not_a_real_duckdb_extension is unavailable
+  isError: true
+---
+send:
+  r: identical(restart_marker, 42L)
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: "!exists('restart_marker') && requireNamespace('praise', quietly = TRUE)"
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  sql: |
+    CREATE TABLE restart_documents AS
+    SELECT 1 AS id, 'duckdb restart requirements' AS body
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: PRAGMA create_fts_index('restart_documents', 'id', 'body')
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT count(*) AS matches
+    FROM restart_documents
+    WHERE fts_main_restart_documents.match_bm25(id, 'duckdb') IS NOT NULL
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          matches
+          <int64>
+        1       1
+  isError: false

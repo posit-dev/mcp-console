@@ -1,0 +1,12 @@
+---
+choice: {}
+managed_preparation_required: true
+---
+choice:
+  managed: {}
+managed_preparation_required: true
+---
+choice:
+  first_available:
+    - managed: {}
+managed_preparation_required: true

@@ -1,0 +1,12 @@
+---
+resolver_launches:
+  - omitted
+  - restricted
+  - enabled
+  - limited
+  - mapping_to_enabled
+  - mapping_to_restricted
+  - scalar_to_limited
+  - empty_domains
+  - read_only_filesystem
+  - empty_filesystem

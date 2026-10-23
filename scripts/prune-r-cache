@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Discard restored ir library views whose package targets were not cached."""
+
+import argparse
+import shutil
+from pathlib import Path
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("cache", type=Path)
+cache = parser.parse_args().cache
+
+for library in sorted((cache / "ir/libraries").glob("*")):
+    missing = [package for package in library.iterdir() if not package.exists()]
+    if missing:
+        for package in missing:
+            print(f"Discarding {library}: {package.name} -> {package.readlink()}")
+        # ir checks that the library still exists before accepting its cached
+        # resolution. Keep valid views and the underlying renv package cache.
+        shutil.rmtree(library)

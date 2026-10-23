@@ -1,0 +1,69 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: import mcp_console_distribution_without_module
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ModuleNotFoundError: No module named 'mcp_console_distribution_without_module'.
+
+        MCP Console prepared the inferred PyPI distribution `mcp_console_distribution_without_module`, but it did not provide the import `mcp_console_distribution_without_module`.
+
+        Pass the correct distribution through `requirements.python` in the `send` call:
+
+        requirements: {"python": ["correct-distribution-name"]}
+  isError: false
+---
+send:
+  r: >-
+    "mcp_console_distribution_without_module" %in%
+    reticulate::py_require()$packages
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  python: import yaml12; yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        'yaml12'
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: >-
+    "mcp_console_distribution_without_module" %in%
+    reticulate::py_require()$packages
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

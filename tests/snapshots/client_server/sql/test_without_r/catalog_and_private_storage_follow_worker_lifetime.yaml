@@ -1,0 +1,131 @@
+---
+send:
+  python: |
+    import os, sys
+    from pathlib import Path
+
+    first_temporary = Path(os.environ["TMPDIR"])
+    assert "duckdb" in sys.modules
+    assert not (first_temporary / "mcp-console-duckdb").exists()
+    print(first_temporary)
+result:
+  content:
+    - type: text
+      text: |
+        <worker temporary 1>
+  isError: false
+---
+send:
+  sql: CREATE TABLE state AS SELECT 41 AS value
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  python: |
+    connection = _console.sql_connection()
+    spill = Path(
+        connection.execute("SELECT current_setting('temp_directory')").fetchone()[0]
+    )
+    secrets = Path(
+        connection.execute("SELECT current_setting('secret_directory')").fetchone()[0]
+    )
+    assert spill == first_temporary / "mcp-console-duckdb/spill"
+    assert secrets == first_temporary / "mcp-console-duckdb/stored-secrets"
+    assert connection.execute(
+        "SELECT current_setting('python_enable_replacements')"
+    ).fetchone() == (False,)
+    spill.mkdir(parents=True)
+    secrets.mkdir(parents=True)
+    (spill / "retired").touch()
+    (secrets / "retired").touch()
+    print("private DuckDB storage")
+result:
+  content:
+    - type: text
+      text: |
+        private DuckDB storage
+  isError: false
+---
+send:
+  control: restart
+  sql: SELECT * FROM state
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        Error: Catalog Error: Table with name state does not exist!
+        Did you mean "pg_attrdef"?
+
+        LINE 1: SELECT * FROM state
+                              ^^^^^
+        [done]
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    second_temporary = Path(os.environ["TMPDIR"])
+    assert second_temporary != first_temporary
+    print(second_temporary)
+result:
+  content:
+    - type: text
+      text: |
+        <worker temporary 2>
+  isError: false
+---
+send:
+  sql: CREATE TABLE crash_state AS SELECT 42 AS value
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  python: import os; os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  sql: SELECT * FROM crash_state
+result:
+  content:
+    - type: text
+      text: |
+        Error: Catalog Error: Table with name crash_state does not exist!
+        Did you mean "sqlite_master"?
+
+        LINE 1: SELECT * FROM crash_state
+                              ^^^^^^^^^^^
+  isError: false
+---
+send:
+  python: import os; print(os.environ['TMPDIR'])
+result:
+  content:
+    - type: text
+      text: |
+        <worker temporary 3>
+  isError: false

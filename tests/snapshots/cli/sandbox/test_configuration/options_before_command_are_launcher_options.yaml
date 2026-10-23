@@ -1,0 +1,22 @@
+---
+option: --bootstrap-fd
+exit_code: 2
+stderr: |
+  error: unexpected argument '--bootstrap-fd' found
+
+    tip: to pass '--bootstrap-fd' as a value, use '-- --bootstrap-fd'
+
+  Usage: mcp-console sandbox [OPTIONS] <COMMAND>...
+
+  For more information, try '--help'.
+---
+option: --unsupported-launch-option
+exit_code: 2
+stderr: |
+  error: unexpected argument '--unsupported-launch-option' found
+
+    tip: to pass '--unsupported-launch-option' as a value, use '-- --unsupported-launch-option'
+
+  Usage: mcp-console sandbox [OPTIONS] <COMMAND>...
+
+  For more information, try '--help'.

@@ -1,0 +1,37 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  r: request input after timeout
+  stdin: |
+    answer
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: |
+        before
+        [input requested: "late> "]
+        during request
+        zod stdin: answer
+  isError: false

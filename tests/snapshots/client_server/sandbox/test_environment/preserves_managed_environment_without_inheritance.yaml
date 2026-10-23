@@ -1,0 +1,95 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  requirements:
+    r:
+      - praise
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(Sys.getenv("MCP_CONSOLE_SANDBOX"), "1"),
+      identical(Sys.getenv("MCP_CONSOLE_MANAGED_TEMPDIR"), "1"),
+      identical(Sys.getenv("mcp_console_managed_tempdir"), "project"),
+      identical(Sys.getenv("MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION"), "1"),
+      identical(Sys.getenv("RETICULATE_PYTHON"), "managed"),
+      identical(Sys.getenv("MCP_CONSOLE_TEST_PROJECT_ENV"), "project"),
+      identical(dirname(find.package("praise")), .libPaths()[[2L]]),
+      "py-yaml12" %in% reticulate::py_require()$packages
+    )
+    cat("managed R and Python requirements retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        managed R and Python requirements retained
+  isError: false
+---
+send:
+  python: |
+    import os
+    import yaml12
+
+    print(yaml12.__name__)
+    print(os.environ.get("MCP_CONSOLE_TEST_INHERITED_ENV", "absent"))
+result:
+  content:
+    - type: text
+      text: |
+        yaml12
+        absent
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(Sys.getenv("MCP_CONSOLE_SANDBOX"), "1"),
+      identical(Sys.getenv("MCP_CONSOLE_MANAGED_TEMPDIR"), "1"),
+      identical(Sys.getenv("mcp_console_managed_tempdir"), "project"),
+      identical(Sys.getenv("MCP_CONSOLE_DYNAMIC_ENVIRONMENT_RESOLUTION"), "1"),
+      identical(Sys.getenv("RETICULATE_PYTHON"), "managed"),
+      identical(Sys.getenv("MCP_CONSOLE_TEST_PROJECT_ENV"), "project"),
+      identical(dirname(find.package("praise")), .libPaths()[[2L]]),
+      "py-yaml12" %in% reticulate::py_require()$packages
+    )
+    cat("managed R and Python requirements retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        managed R and Python requirements retained
+  isError: false
+---
+send:
+  python: |
+    import os
+    import yaml12
+
+    print(yaml12.__name__)
+    print(os.environ.get("MCP_CONSOLE_TEST_INHERITED_ENV", "absent"))
+result:
+  content:
+    - type: text
+      text: |
+        yaml12
+        absent
+  isError: false

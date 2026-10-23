@@ -1,0 +1,19 @@
+---
+scenario: uv installs a local wheel offline inside the sandbox
+python: |
+  import os
+  import subprocess
+  import sys
+  from pathlib import Path
+
+  destination = Path(os.environ["TMPDIR"]) / "site"
+  subprocess.run([
+      sys.argv[1], "--offline", "--no-cache", "pip", "install", "--quiet",
+      "--no-deps", "--target", str(destination), sys.argv[2],
+  ], check=True)
+  sys.path.insert(0, str(destination))
+  import sandbox_fixture
+  print(sandbox_fixture.value)
+stdout: |
+  installed in private storage
+exit_code: 0

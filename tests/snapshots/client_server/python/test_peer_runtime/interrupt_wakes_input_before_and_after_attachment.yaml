@@ -1,0 +1,96 @@
+---
+send:
+  python: |
+    import signal
+    import threading
+
+    def interrupt_from_background():
+        with open("interrupt", "rb", buffering=0) as gate:
+            assert gate.read(1) == b"1"
+        signal.pthread_kill(threading.get_ident(), signal.SIGINT)
+
+    sender = threading.Thread(target=interrupt_from_background)
+    sender.start()
+    try:
+        input("interrupt gate> ")
+    except KeyboardInterrupt:
+        print("input cancelled once")
+    else:
+        raise AssertionError("input was not interrupted")
+    sender.join()
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "interrupt gate> "]
+        [waiting for stdin]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        input cancelled once
+  isError: false
+---
+send:
+  python: print('no duplicate interrupt')
+result:
+  content:
+    - type: text
+      text: |
+        no duplicate interrupt
+  isError: false
+---
+send:
+  python: assert int(r['42L']) == 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import signal
+    import threading
+
+    def interrupt_from_background():
+        with open("interrupt", "rb", buffering=0) as gate:
+            assert gate.read(1) == b"1"
+        signal.pthread_kill(threading.get_ident(), signal.SIGINT)
+
+    sender = threading.Thread(target=interrupt_from_background)
+    sender.start()
+    try:
+        input("interrupt gate> ")
+    except KeyboardInterrupt:
+        print("input cancelled once")
+    else:
+        raise AssertionError("input was not interrupted")
+    sender.join()
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "interrupt gate> "]
+        [waiting for stdin]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        input cancelled once
+  isError: false
+---
+send:
+  python: print('no duplicate interrupt')
+result:
+  content:
+    - type: text
+      text: |
+        no duplicate interrupt
+  isError: false

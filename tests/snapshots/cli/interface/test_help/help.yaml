@@ -1,0 +1,426 @@
+---
+command: mcp-console
+exit_code: 2
+stdout: ""
+stderr: |
+  Persistent R, Python, and SQL sessions for MCP clients
+
+  Usage: mcp-console [OPTIONS] <COMMAND>
+
+  Commands:
+    serve             Run the MCP server over standard input and output
+    sandbox           Run a command with the default or an explicit sandbox policy
+    config            Create or inspect configuration without starting
+                      interpreters or preparing packages
+    configure-client  Configure clients to launch MCP Console and expose its tools
+    warmup            Check the configured server and runtimes and warm their
+                      caches
+    help              Print this message or the help of the given subcommand(s)
+
+  Options:
+        --no-project-config
+            Skip trusted launch-directory project configuration; still load global
+            configuration and apply -c overrides
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+    -h, --help
+            Print help (see more with '--help')
+    -V, --version
+            Print version
+
+  Examples:
+    mcp-console serve
+    mcp-console warmup
+    mcp-console sandbox -- python -c 'print("hello")'
+    mcp-console configure-client codex claude
+---
+command: mcp-console --help
+stdout: |
+  Persistent R, Python, and SQL sessions for MCP clients
+
+  Usage: mcp-console [OPTIONS] <COMMAND>
+
+  Commands:
+    serve             Run the MCP server over standard input and output
+    sandbox           Run a command with the default or an explicit sandbox policy
+    config            Create or inspect configuration without starting
+                      interpreters or preparing packages
+    configure-client  Configure clients to launch MCP Console and expose its tools
+    warmup            Check the configured server and runtimes and warm their
+                      caches
+    help              Print this message or the help of the given subcommand(s)
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+    -h, --help
+            Print help (see a summary with '-h')
+
+    -V, --version
+            Print version
+
+  Examples:
+    mcp-console serve
+    mcp-console warmup
+    mcp-console sandbox -- python -c 'print("hello")'
+    mcp-console configure-client codex claude
+---
+command: mcp-console config --help
+stdout: |
+  Create or inspect configuration without starting interpreters or preparing
+  packages
+
+  Usage: mcp-console config <COMMAND>
+
+  Commands:
+    init     Create an annotated Console configuration with workspace permissions
+    resolve  Print resolved configuration
+    help     Print this message or the help of the given subcommand(s)
+
+  Options:
+    -h, --help  Print help
+---
+command: mcp-console config init --help
+stdout: |
+  Create an annotated Console configuration with workspace permissions
+
+  Usage: mcp-console config init [OPTIONS]
+
+  Options:
+        --global              Create global configuration in Console home instead
+                              of the project directory
+        --directory <PATH>    Existing project directory; defaults to the current
+                              directory without searching Git parents
+    -c, --config <KEY=VALUE>  Override starter settings; repeat for ordered dotted
+                              KEY=VALUE assignments
+        --dry-run             Print the destination and proposed contents without
+                              creating files or directories
+    -h, --help                Print help
+
+  Starts with workspace permissions and commented examples for common settings.
+  Apply -c settings after the starter permissions; other defaults remain implicit.
+  Existing files are never overwritten. Does not start interpreters or prepare
+  packages.
+
+  Examples:
+    mcp-console config init
+    mcp-console config init --global
+    mcp-console config init --directory /path/to/project
+    mcp-console config init -c r.resolution=disabled -c 'r.packages=[]' --dry-run
+---
+command: mcp-console config resolve --help
+stdout: |
+  Print resolved configuration
+
+  Usage: mcp-console config resolve [OPTIONS]
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+        --no-sandbox
+            Resolve defaults for a subsequent serve --no-sandbox launch
+
+        --full
+            Include all configuration defaults and the complete editable tool
+            presentation
+
+        --prune
+            Include only settings that differ from built-in defaults (the default)
+
+        --format <FORMAT>
+            Output format
+            
+            [default: yaml]
+            [possible values: yaml, json]
+
+    -h, --help
+            Print help (see a summary with '-h')
+---
+command: mcp-console configure-client --help
+stdout: |
+  Configure clients to launch MCP Console and expose its tools
+
+  Usage: mcp-console configure-client [OPTIONS] <CLIENT>... [-- <SERVE_ARGS>...]
+
+  Arguments:
+    <CLIENT>...      One or more clients to configure [possible values: codex,
+                     claude]
+    [SERVE_ARGS]...  Additional arguments passed to mcp-console serve, after --
+
+  Options:
+        --directory <PATH>       Write project configuration in PATH; defaults to
+                                 global registration when omitted
+        --no-uvx                 Configure an absolute executable path; temporary
+                                 uvx runs install recorded direct sources with uv.
+                                 Index installs must be persistent first.
+                                 Conflicts with --pin-version
+        --pin-version <VERSION>  Console version to resolve with uvx: exact
+                                 version, current, or latest; unpinned by default.
+                                 Conflicts with --no-uvx
+        --name <NAME>            Server name in the client's configuration
+                                 [default: console]
+        --no-auto-load           Keep the client's default tool discovery instead
+                                 of loading Console tools up front
+        --no-warmup              Skip the background runtime checks and cache
+                                 warming after configuration
+        --dry-run                Preview setup without writing files, installing,
+                                 or starting background warmup
+    -h, --help                   Print help
+
+  Prints each configuration file and setting changed. Unrelated settings are
+  preserved. Use --dry-run to preview or apply the changes manually.
+  Allows Console's send tool without individual approval, subject to client
+  restrictions.
+  Starts cache warming in the background; use --no-warmup to skip it.
+  Codex launches default to the client's sandbox permissions; configuration files
+  can select another profile. Arguments after -- customize the serve settings.
+
+  Examples:
+    uvx mcp-console configure-client codex claude
+    mcp-console configure-client codex --pin-version current
+    mcp-console configure-client codex --pin-version v0.0.5
+    mcp-console configure-client claude --no-uvx --dry-run
+---
+command: mcp-console serve --help
+stdout: |
+  Run the MCP server over standard input and output
+
+  Usage: mcp-console serve [OPTIONS]
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+        --no-sandbox
+            Run evaluated code and dependency resolution with host permissions
+
+        --writable-root <PATH>
+            Allow writes to an additional path (temporary launch option)
+
+    -h, --help
+            Print help (see a summary with '-h')
+---
+command: mcp-console warmup --help
+stdout: |
+  Check the configured server and runtimes and warm their caches
+
+  Dependency preparation runs with host permissions, using the same caches as
+  serve. Run only trusted configuration and dependencies. Runtime checks use the
+  configured sandbox unless --no-sandbox is selected.
+
+  Usage: mcp-console warmup [OPTIONS]
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+        --no-sandbox
+            Run evaluated code and dependency resolution with host permissions
+
+        --writable-root <PATH>
+            Allow writes to an additional path (temporary launch option)
+
+        --timeout <SECONDS>
+            Maximum seconds for server initialization and each language check
+            
+            [default: 600]
+
+    -h, --help
+            Print help (see a summary with '-h')
+---
+command: mcp-console worker --help
+stdout: |
+  Run the internal R worker
+
+  Usage: mcp-console worker
+
+  Options:
+    -h, --help  Print help
+---
+command: mcp-console sandbox
+exit_code: 2
+stdout: ""
+stderr: |
+  error: the following required arguments were not provided:
+    <COMMAND>...
+
+  Usage: mcp-console sandbox <COMMAND>...
+
+  For more information, try '--help'.
+---
+command: mcp-console sandbox --help
+stdout: |
+  Run a command with the default or an explicit sandbox policy
+
+  Usage: mcp-console sandbox [OPTIONS] <COMMAND>...
+
+  Arguments:
+    <COMMAND>...
+            Command and arguments to run
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+        --config-env <NAME>
+            Use only this environment variable's YAML or JSON configuration, then
+            apply -c overrides
+
+        --writable-root <PATH>
+            Allow writes to an additional path (temporary launch option)
+
+    -h, --help
+            Print help (see a summary with '-h')
+
+  Examples:
+    mcp-console sandbox -- Rscript analysis.R
+    mcp-console sandbox -- python script.py

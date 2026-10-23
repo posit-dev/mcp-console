@@ -1,0 +1,57 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: >-
+    attachment_object = object(); attachment_identity =
+    id(attachment_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    options(reticulate.python.afterInitialized = function() stop("partial attachment"))
+    first <- tryCatch(reticulate::py_config(), error = conditionMessage)
+    stopifnot(identical(first, "partial attachment"))
+    options(reticulate.python.afterInitialized = NULL)
+    second <- tryCatch(reticulate::py_config(), error = conditionMessage)
+    stopifnot(identical(second, "R/Python attachment is incomplete; restart required"))
+    cat("partial attachment requires restart\n")
+result:
+  content:
+    - type: text
+      text: |
+        partial attachment requires restart
+  isError: false
+---
+send:
+  python: assert id(attachment_object) == attachment_identity; 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: assert 'attachment_object' not in globals(); int(r['40L + 2L'])
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

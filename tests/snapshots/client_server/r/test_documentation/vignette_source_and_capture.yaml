@@ -1,0 +1,112 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: vignette("source", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        Vignette source: source.Rnw
+        \documentclass{article}
+        \usepackage[utf8]{inputenc}
+        %\VignetteIndexEntry{Console fixture vignette}
+        \begin{document}
+        Installed source: 日本語 and €.
+        <<source-only>>=
+        stop("vignette source must not execute")
+        @
+        \end{document}
+  isError: false
+---
+send:
+  r: saved <- utils::vignette("source", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(inherits(saved, "vignette"))
+    source <- c(
+      paste("Vignette source:", saved$File),
+      readLines(file.path(saved$Dir, "doc", saved$File), encoding = "UTF-8")
+    )
+    # capture.output can leave UTF-8 bytes unmarked in the C locale.
+    same_source <- function(text) {
+      identical(
+        charToRaw(paste(text, collapse = "\n")),
+        charToRaw(paste(source, collapse = "\n"))
+      )
+    }
+    stopifnot(
+      same_source(capture.output(print(saved))),
+      same_source(capture.output(vignette("source", package = "consolehelp"))),
+      same_source(capture.output(utils::vignette(consolehelp::source))),
+      same_source(capture.output(vignette(consolehelp::source)))
+    )
+    printed <- capture.output(returned <- withVisible(print(saved)))
+    stopifnot(identical(returned$value, saved), !returned$visible)
+    listing <- capture.output(vignette(package = "consolehelp"))
+    stopifnot(any(grepl("Console fixture vignette", listing, fixed = TRUE)))
+    grid_source <- utils::vignette("grid", package = "grid")
+    stopifnot(identical(
+      capture.output(print(grid_source)),
+      c(
+        paste("Vignette source:", grid_source$File),
+        readLines(
+          file.path(grid_source$Dir, "doc", grid_source$File),
+          encoding = "UTF-8"
+        )
+      )
+    ))
+    for (topic in c("pdf", "markdown")) {
+      other <- utils::vignette(topic, package = "consolehelp")
+      stopifnot(nzchar(other$PDF), !grepl("html$", other$PDF))
+      stopifnot(identical(
+        capture.output(print(other)),
+        c(
+          paste("Vignette source:", other$File),
+          readLines(file.path(other$Dir, "doc", other$File), encoding = "UTF-8")
+        )
+      ))
+    }
+    local({
+      previous <- Sys.getlocale("LC_CTYPE")
+      on.exit(Sys.setlocale("LC_CTYPE", previous))
+      stopifnot(identical(Sys.setlocale("LC_CTYPE", "C"), "C"))
+      text <- capture.output(print(saved))
+      stopifnot(identical(
+        charToRaw(paste(text, collapse = "\n")),
+        charToRaw(paste(source, collapse = "\n"))
+      ))
+    })
+    cat("qualified vignette lookup, capture, and return value retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        qualified vignette lookup, capture, and return value retained
+  isError: false
+---
+send:
+  r: |
+    unlink(file.path(saved$Dir, "doc", saved$File))
+    error <- tryCatch(print(saved), error = identity)
+    stopifnot(
+      inherits(error, "error"),
+      grepl(
+        "Installed vignette source is unavailable",
+        conditionMessage(error),
+        fixed = TRUE
+      )
+    )
+    cat("missing installed source fails clearly\n")
+result:
+  content:
+    - type: text
+      text: |
+        missing installed source fails clearly
+  isError: false

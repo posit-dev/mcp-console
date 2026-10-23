@@ -1,0 +1,19 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import os
+    from pathlib import Path
+
+    temporary_directory = Path(os.environ["TMPDIR"])
+    (temporary_directory / ".mcp-console-preserve").write_text("retain\n")
+    print(temporary_directory)
+stdout: |
+  <sandbox temp>
+transcript_normalization:
+  target: stdout
+  sandbox_temporary_directory: omitted

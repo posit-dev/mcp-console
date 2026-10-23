@@ -1,0 +1,33 @@
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        Python startup
+
+        [idle]
+  isError: false
+---
+send:
+  python: import builtins; builtins.bootstrap_input
+  stdin: |
+    hello
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "startup> "]
+        'hello'
+  isError: false

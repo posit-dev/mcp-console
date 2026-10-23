@@ -1,0 +1,36 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |-
+    import os
+    answer = 42
+    os._exit(33)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 33]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: '"answer" in globals()'
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  python: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false

@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+
+import os
+
+for direction in ("READ", "WRITE"):
+    os.environ[f"MCP_CONSOLE_TEST_SIDEBAND_{direction}"] = os.environ[
+        f"MCP_CONSOLE_SIDEBAND_{direction}_FD"
+    ]
+binary = os.environ.pop("MCP_CONSOLE_TEST_WORKER_BINARY")
+# Exercise the built-in worker's existing R-library-path re-exec on Linux.
+os.environ.pop("LD_LIBRARY_PATH", None)
+os.execv(binary, [binary, "worker"])

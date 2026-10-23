@@ -1,0 +1,43 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: import sys; identity = object(); identity_id = id(identity)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    before <- reticulate::py_config()
+    namespace <- asNamespace("reticulate")
+    invisible(suppressMessages(base::trace(
+      "python_config",
+      tracer = quote(stop("candidate rediscovery is forbidden")),
+      print = FALSE,
+      where = namespace
+    )))
+    reticulate::py_require("py-yaml12")
+    after <- reticulate::py_config()
+    stopifnot(
+      identical(after$libpython, before$libpython),
+      identical(after$python, reticulate::py_eval("__import__('sys').executable"))
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    import yaml12, more_itertools; assert id(identity) == identity_id;
+    print('inspected candidate retained')
+result:
+  content:
+    - type: text
+      text: |
+        inspected candidate retained
+  isError: false

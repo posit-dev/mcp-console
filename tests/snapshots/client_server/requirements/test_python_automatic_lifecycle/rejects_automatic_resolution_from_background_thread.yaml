@@ -1,0 +1,54 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import threading
+
+    thread_result = []
+
+
+    def import_from_thread():
+        import json
+
+        try:
+            import mcp_console_thread_missing
+        except ModuleNotFoundError as error:
+            thread_result.extend((json.__name__, error.name, str(error)))
+
+
+    thread = threading.Thread(target=import_from_thread)
+    thread.start()
+    thread.join()
+    print(f"available module: {thread_result[0]}")
+    print(f"background-thread name: {thread_result[1]}")
+    print(thread_result[2])
+result:
+  content:
+    - type: text
+      text: |
+        available module: json
+        background-thread name: mcp_console_thread_missing
+        No module named 'mcp_console_thread_missing'.
+
+        MCP Console automatic package resolution is available only on the configuring thread for the Python worker. Prepare the distribution through `requirements.python` before starting the background thread, for example:
+
+        requirements: {"python": ["distribution-name"]}
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

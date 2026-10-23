@@ -1,0 +1,27 @@
+---
+send:
+  control: restart
+  python: import builtins; builtins.bootstrap_input
+  stdin: |
+    new generation
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "startup> "]
+        'new generation'
+        [done]
+  isError: false

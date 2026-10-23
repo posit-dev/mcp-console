@@ -1,0 +1,5 @@
+---
+exit_code: 1
+stdout: ""
+stderr: |
+  R console output failed: Broken pipe (os error 32)

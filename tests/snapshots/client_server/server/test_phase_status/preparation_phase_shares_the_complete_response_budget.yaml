@@ -1,0 +1,94 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: import sys; print(sys.executable)
+result:
+  content:
+    - type: text
+      text: |
+        <running Python>
+  isError: false
+---
+send:
+  python: |
+    with open("phase-code-release", "rb", buffering=0) as gate:
+        assert gate.read(1) == b"1"
+    attempts = globals().get("attempts", 0) + 1
+    print("head\n" + "x" * 12_000 + "tail")
+    import yaml12
+
+    print(yaml12.__name__, attempts)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8154
+        concat:
+          - |
+            head
+          - repeat: x
+            count: 3963
+          - |
+
+            [output omitted: 4074 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-002.txt]
+          - repeat: x
+            count: 3963
+          - |-
+            tail
+
+            [elapsed: <elapsed>s since admission; phase: dependency preparation]
+            [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        yaml12 1
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

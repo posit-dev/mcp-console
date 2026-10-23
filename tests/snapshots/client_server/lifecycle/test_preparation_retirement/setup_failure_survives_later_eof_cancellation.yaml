@@ -1,0 +1,7 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+exit_status: 1
+stderr: |+
+  selected Python inspection failed (exit status: 23): captured setup failure
+

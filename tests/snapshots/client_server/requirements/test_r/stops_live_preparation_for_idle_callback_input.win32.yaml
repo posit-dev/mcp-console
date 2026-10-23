@@ -1,0 +1,72 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - later
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_require("py-yaml12")
+    invisible(reticulate::py_config())
+    callback_gate <- tempfile("mcp-console-callback-gate-")
+    callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+    run_callback <- function() {
+      if (!file.exists(callback_gate)) {
+        later::later(run_callback, delay = 0.01)
+        return(invisible(NULL))
+      }
+      # later caps one top-level handler turn at 20 callback passes.
+      # Leave the input callback ready for the next handler turn.
+      request_input <- function(turns) {
+        if (turns == 0L) {
+          stopifnot(file.create(callback_checkpoint))
+          readline("later> ")
+          # Keep the submitted callback alive if relay retirement closes
+          # fd 0 before the force-stop signal reaches the worker.
+          repeat {
+            Sys.sleep(1)
+          }
+        } else {
+          later::later(function() request_input(turns - 1L), delay = 0)
+        }
+      }
+      request_input(25L)
+    }
+    later::later(run_callback, delay = 0.01)
+    cat(callback_gate, callback_checkpoint, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <worker callback gate>
+        <worker callback checkpoint>
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "later> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12>=0
+result:
+  content:
+    - type: text
+      text: |-
+        [idle R callback requested input "later> " during requirement preparation; collect callback input with send before preparing requirements]
+        [worker exited with status 1]
+        [worker stopped: in-memory state lost]
+  isError: true

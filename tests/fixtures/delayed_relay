@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+"""Hold relay launch before any worker-lifetime frame can be emitted."""
+
+import os
+import sys
+from pathlib import Path
+
+with Path(os.environ["MCP_CONSOLE_TEST_RELAY_REACHED"]).open("wb", buffering=0) as gate:
+    gate.write(b"1")
+with Path(os.environ["MCP_CONSOLE_TEST_RELAY_RELEASE"]).open("rb", buffering=0) as gate:
+    assert gate.read(1) == b"1"
+binary = os.environ["MCP_CONSOLE_TEST_REAL_BINARY"]
+os.execv(binary, [binary, "worker-relay", *sys.argv[1:]])

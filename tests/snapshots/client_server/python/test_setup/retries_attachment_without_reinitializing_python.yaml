@@ -1,0 +1,63 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    startup_probe <- dyn.load("<test python probe>")
+    invisible(suppressMessages(base::trace(
+      "py_initialize",
+      exit = quote({
+          startup_environment <<- Sys.getenv(c("VIRTUAL_ENV", "PATH", "R_SESSION_INITIALIZED"))
+          stop(structure(
+            list(message = "synthetic reticulate attach failure", call = NULL),
+            class = c(attachment_failure, "condition")
+          ))
+      }),
+      print = FALSE,
+      where = asNamespace("reticulate")
+    )))
+    for (attachment_failure in c("error", "interrupt")) {
+      failure <- tryCatch(
+        reticulate::py_config(),
+        error = conditionMessage,
+        interrupt = conditionMessage
+      )
+      stopifnot(!reticulate::py_available(initialize = FALSE))
+      stopifnot(grepl("synthetic reticulate attach failure", failure, fixed = TRUE))
+      stopifnot(identical(
+        Sys.getenv(names(startup_environment)), startup_environment
+      ))
+      stopifnot(identical(
+        .C(
+          getNativeSymbolInfo(
+            "mcp_console_probe_python_initialized",
+            PACKAGE = startup_probe
+          ),
+          value = 0L
+        )$value,
+        1L
+      ))
+    }
+    invisible(suppressMessages(base::untrace(
+      "py_initialize", where = asNamespace("reticulate")
+    )))
+    config <- reticulate::py_config()
+    sys <- reticulate::import("sys", convert = FALSE)
+    stopifnot(identical(config$executable, reticulate::py_to_r(sys$executable)))
+    reticulate::py_run_string("startup_value = 41")
+    reticulate::py_to_r(reticulate::py$startup_value) + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: startup_value + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

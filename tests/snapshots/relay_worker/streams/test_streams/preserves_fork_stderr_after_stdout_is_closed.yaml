@@ -1,0 +1,192 @@
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: r
+  source: |
+    python <- Sys.which("python3")
+    stopifnot(nzchar(python))
+    reticulate::use_python(python, required = TRUE)
+    suppressWarnings(invisible(reticulate::py_run_string("fork_ready = True")))
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: r_initialization
+  complete: false
+---
+worker:
+  kind: r_initialization
+  complete: true
+---
+worker:
+  kind: completed
+---
+relay:
+  kind: evaluate
+  language: python
+  source: |
+    import logging
+    import os
+    import select
+    import signal
+    import sys
+    import traceback
+    import warnings
+
+    assert fork_ready
+    saved_stdout, saved_stderr = sys.stdout, sys.stderr
+    parent_tty = saved_stdout.isatty(), saved_stderr.isatty()
+    worker_pid = os.getpid()
+    logger = logging.Logger("fork-output")
+    logger.propagate = False
+    handler = logging.StreamHandler()
+    logger.addHandler(handler)
+
+
+    def reject_runtime_callback(frame, event, function):
+        if (
+            os.getpid() != worker_pid
+            and event == "c_call"
+            and getattr(function, "__module__", None)
+            in {"rpycall", "_mcp_console_services"}
+        ):
+            raise AssertionError("fork child called back into Console or R")
+
+
+    def run_child(action):
+        read_fd, write_fd = os.pipe()
+        # Only this known CPython diagnostic is filtered, only around fork.
+        # The automatic-resolution lifecycle test records it in full.
+        previous_profile = sys.getprofile()
+        sys.setprofile(reject_runtime_callback)
+        try:
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    message=r"This process \(pid=\d+\) is multi-threaded, use of fork\(\) may lead to deadlocks in the child\.$",
+                    category=DeprecationWarning,
+                )
+                child = os.fork()
+        finally:
+            if os.getpid() == worker_pid:
+                sys.setprofile(previous_profile)
+        if child == 0:
+            os.close(read_fd)
+            try:
+                action()
+            except BaseException:
+                os.write(2, traceback.format_exc().encode())
+                os._exit(1)
+            # Keep write_fd open until exit so EOF bounds the parent's wait.
+            os._exit(0)
+
+        os.close(write_fd)
+        exited = False
+        try:
+            readable, _, _ = select.select([read_fd], [], [], 10)
+            assert readable, "fork child did not exit"
+            assert os.read(read_fd, 1) == b""
+            exited = True
+        finally:
+            os.close(read_fd)
+            if not exited:
+                os.kill(child, signal.SIGKILL)
+            _, status = os.waitpid(child, 0)
+        assert os.waitstatus_to_exitcode(status) == 0, status
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: completed
+---
+relay:
+  kind: evaluate
+  language: python
+  source: |
+    saved_stdout.buffer.close()
+
+
+    def child_output():
+        try:
+            saved_stdout.write("closed child stdout\n")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("closed stdout accepted a write")
+        saved_stderr.write("child stderr after stdout closed\n")
+        saved_stderr.flush()
+        logger.warning("child log after stdout closed")
+
+
+    run_child(child_output)
+---
+worker:
+  kind: cell_started
+---
+stderr: |
+  child stderr after stdout closed
+  child log after stdout closed
+---
+worker:
+  kind: completed
+---
+relay:
+  kind: evaluate
+  language: python
+  source: |
+    assert sys.stdout is saved_stdout
+    assert sys.stderr is saved_stderr
+    assert handler.stream is saved_stderr
+    assert (saved_stdout.isatty(), saved_stderr.isatty()) == parent_tty
+    parent_stdout = sys.stdout.write("parent stdout\n")
+    parent_stderr = sys.stderr.write("parent stderr\n")
+    logger.warning("parent log")
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: console_output
+  data: |
+    parent stdout
+---
+worker:
+  kind: console_diagnostic
+  data: |
+    parent stderr
+---
+worker:
+  kind: console_diagnostic
+  data: |
+    parent log
+---
+worker:
+  kind: completed
+---
+relay:
+  kind: evaluate
+  language: r
+  source: 6 * 7
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: console_output
+  data: "[1]"
+---
+worker:
+  kind: console_output
+  data: " 42"
+---
+worker:
+  kind: console_output
+  data: "\n"
+---
+worker:
+  kind: completed

@@ -1,0 +1,18 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    assert "MCP_CONSOLE_SANDBOX_CONFIG" not in os.environ
+    temporary = Path(os.environ["TMPDIR"])
+    _ = (temporary / "configured-by-serve").write_text("allowed", encoding="utf-8")
+    print("serve supplied its own policy")
+result:
+  content:
+    - type: text
+      text: |
+        serve supplied its own policy
+  isError: false

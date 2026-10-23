@@ -1,0 +1,33 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: report process group
+result:
+  content:
+    - type: text
+      text: |
+        zod process group: <process group>
+  isError: false
+---
+send:
+  r: violate protocol
+result:
+  content:
+    - type: text
+      text: |-
+        zod output before protocol failure
+        [worker sent an unexpected ready message]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: complete silently
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

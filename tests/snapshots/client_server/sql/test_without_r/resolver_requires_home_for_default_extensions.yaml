@@ -1,0 +1,33 @@
+---
+send:
+  sql: SELECT 42 AS answer
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: >-
+        resolver.environment: preparation requires an absolute HOME or
+        MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when
+        inherit_environment is false
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        resolver.environment: preparation requires an absolute HOME or
+        MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when
+        inherit_environment is false
+  isError: true
+---
+input:
+  method: ping
+result: {}
+---
+stderr: >
+  resolver.environment: preparation requires an absolute HOME or
+  MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when
+  inherit_environment is false

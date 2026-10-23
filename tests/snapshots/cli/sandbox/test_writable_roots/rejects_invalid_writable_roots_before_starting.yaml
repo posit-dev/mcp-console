@@ -1,0 +1,23 @@
+---
+arguments:
+  - serve
+  - --writable-root
+  - ""
+exit_code: 2
+stderr: |
+  error: a value is required for '--writable-root <PATH>' but none was supplied
+
+  For more information, try '--help'.
+---
+arguments:
+  - sandbox
+  - --writable-root
+  - ""
+  - --
+  - /bin/echo
+  - workload started
+exit_code: 2
+stderr: |
+  error: a value is required for '--writable-root <PATH>' but none was supplied
+
+  For more information, try '--help'.

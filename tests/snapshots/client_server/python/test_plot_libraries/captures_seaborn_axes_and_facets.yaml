@@ -1,0 +1,82 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - seaborn
+      - plotnine
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from PIL import Image
+
+    assert matplotlib.get_backend() == "svg"
+    references = Path(os.environ["TMPDIR"])
+    figure, axes = plt.subplots(figsize=(3, 2), dpi=100)
+    sns.scatterplot(x=[1, 2, 3], y=[3, 1, 2], ax=axes)
+    grid = sns.relplot(
+        x=[1, 2, 1, 2],
+        y=[1, 3, 3, 1],
+        col=["a", "a", "b", "b"],
+        height=2,
+        aspect=1,
+    )
+    grid.figure.set_size_inches(4, 2)
+    grid.figure.set_dpi(100)
+
+    for plot, filename, size in (
+        (figure, "scatter.png", (300, 200)),
+        (grid.figure, "facets.png", (400, 200)),
+    ):
+        reference = references / filename
+        plot.savefig(reference, format="png")
+        with Image.open(reference) as image:
+            assert image.size == size
+            assert any(lo < hi for lo, hi in image.convert("RGB").getextrema())
+
+    print("open figures:", len(plt.get_fignums()))
+    print("facet axes:", len(grid.axes.flat))
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        open figures: 2
+        facet axes: 2
+    - type: image
+      data: <PNG byte-identical to live seaborn savefig 1>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live seaborn savefig 2>
+      mimeType: image/png
+  isError: false
+---
+send:
+  python: (matplotlib.get_backend(), plt.get_fignums())
+result:
+  content:
+    - type: text
+      text: |
+        ('svg', [])
+  isError: false

@@ -1,0 +1,35 @@
+---
+send:
+  python: hook_value = "retained Python value"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    callback_calls <- 0L
+    options(reticulate.python.beforeInitialized = function() {
+      callback_calls <<- callback_calls + 1L
+      stopifnot(is.null(reticulate::py))
+      if (callback_calls == 1L) stop("first initialization failed")
+    })
+    failure <- tryCatch(py$hook_value, error = conditionMessage)
+    stopifnot(
+      identical(failure, "first initialization failed"),
+      callback_calls == 1L,
+      !reticulate::py_available(initialize = FALSE)
+    )
+    stopifnot(
+      identical(py$hook_value, "retained Python value"),
+      callback_calls == 2L
+    )
+    options(reticulate.python.beforeInitialized = NULL)
+    cat("initialization error preserved and retried\n")
+result:
+  content:
+    - type: text
+      text: |
+        initialization error preserved and retried
+  isError: false

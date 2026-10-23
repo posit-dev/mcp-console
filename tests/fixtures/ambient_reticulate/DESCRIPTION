@@ -1,0 +1,7 @@
+Package: reticulate
+Title: MCP Console Ambient Bootstrap Fixture
+Version: 0.0.0.9000
+Authors@R: person("MCP Console", role = c("aut", "cre"), email = "fixture@example.com")
+Description: Records ambient capability inspection and fails when bootstrap is requested.
+License: MIT
+Encoding: UTF-8

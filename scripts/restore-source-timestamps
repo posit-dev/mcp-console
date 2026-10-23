@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""Restore cached source mtimes without replacing a clean Git checkout."""
+
+import argparse
+import os
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import stat
+import tarfile
+
+
+def restore(archive: Path, source: Path) -> None:
+    source = source.resolve(strict=True)
+    timestamps = []
+    with tarfile.open(archive) as cached:
+        for member in cached:
+            relative = PurePosixPath(member.name)
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or PureWindowsPath(member.name).drive
+                or "\\" in member.name
+            ):
+                raise ValueError(f"Invalid source archive path: {member.name}")
+            path = source.joinpath(*relative.parts)
+            parent = source
+            for component in relative.parts[:-1]:
+                parent /= component
+                if parent.is_symlink():
+                    raise ValueError(
+                        f"Source archive path traverses a symlink: {member.name}"
+                    )
+            current = path.lstat()
+            if member.isdir():
+                matches = stat.S_ISDIR(current.st_mode)
+            elif member.issym():
+                target = member.linkname
+                matches = (
+                    os.readlink(path) == target
+                    if stat.S_ISLNK(current.st_mode)
+                    else stat.S_ISREG(current.st_mode)
+                    and path.read_bytes() == target.encode("utf-8")
+                )
+            elif member.isfile():
+                with cached.extractfile(member) as payload:
+                    contents = payload.read()
+                matches = (
+                    os.readlink(path).encode("utf-8") == contents
+                    if stat.S_ISLNK(current.st_mode)
+                    else stat.S_ISREG(current.st_mode) and path.read_bytes() == contents
+                )
+            else:
+                raise ValueError(f"Unsupported source archive member: {member.name}")
+            if not matches:
+                raise ValueError(f"Source archive differs from checkout: {member.name}")
+            timestamps.append(
+                (path, current.st_atime_ns, round(member.mtime * 1_000_000_000))
+            )
+
+    # Validate the entire archive before changing any timestamps. Never follow
+    # symlinks: Git may represent them as target-text files on Windows.
+    for path, accessed, modified in reversed(timestamps):
+        if path.is_symlink():
+            # Python cannot set Windows symlink mtimes without following them.
+            # Cargo reads the target files, whose timestamps are restored below.
+            if os.utime in os.supports_follow_symlinks:
+                os.utime(path, ns=(accessed, modified), follow_symlinks=False)
+        else:
+            os.utime(path, ns=(accessed, modified))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("archive", type=Path)
+    parser.add_argument("source", type=Path)
+    options = parser.parse_args()
+    try:
+        restore(options.archive, options.source)
+    except (OSError, ValueError, tarfile.TarError) as error:
+        parser.exit(1, f"{error}\n")
+
+
+if __name__ == "__main__":
+    main()

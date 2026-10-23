@@ -1,0 +1,49 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: retained = 40
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: retained += 1; retained
+result:
+  content:
+    - type: text
+      text: |
+        41
+  isError: false
+---
+send:
+  control: interrupt
+  python: retained += 1; retained
+result:
+  content:
+    - type: text
+      text: |-
+        42
+        [done]
+  isError: false
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

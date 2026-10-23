@@ -1,0 +1,13 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: >-
+    stopifnot(identical(R.home(), "<workspace>/R home \t\r")); cat("selected
+    home\n")
+result:
+  content:
+    - type: text
+      text: |
+        selected home
+  isError: false

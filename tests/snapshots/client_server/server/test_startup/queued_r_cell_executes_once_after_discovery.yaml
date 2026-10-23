@@ -1,0 +1,41 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  r: |
+    started <- get0("started", ifnotfound = 0L) + 1L
+    checkpoint <- fifo("evaluated", "wb", blocking = TRUE)
+    writeBin(charToRaw("1"), checkpoint)
+    close(checkpoint)
+    started
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 10000
+result:
+  content:
+    - type: text
+      text: |
+        [1] 1
+  isError: false
+---
+send:
+  r: started
+result:
+  content:
+    - type: text
+      text: |
+        [1] 1
+  isError: false

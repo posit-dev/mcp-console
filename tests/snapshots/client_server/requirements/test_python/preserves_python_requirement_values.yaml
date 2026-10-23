@@ -1,0 +1,166 @@
+---
+send:
+  r: |
+    initial <- reticulate::py_require()
+    stopifnot(
+      identical(class(initial), "python_requirements"),
+      identical(names(initial), c("packages", "history")),
+      !reticulate::py_available(initialize = FALSE)
+    )
+    packages <- c(second = "py-yaml12", first = "numpy", repeated = "numpy")
+    result <- withVisible(reticulate::py_require(
+      packages,
+      python_version = c(">=3.10", "<4"),
+      exclude_newer = "2026-01-01",
+      action = "set"
+    ))
+    expected <- initial
+    expected$packages <- packages
+    expected$python_version <- c(">=3.10", "<4")
+    expected$exclude_newer <- "2026-01-01"
+    expected$history <- c(
+      initial$history,
+      list(list(
+        requested_from = "R_GlobalEnv",
+        env_is_package = FALSE,
+        packages = packages,
+        python_version = c(">=3.10", "<4"),
+        exclude_newer = "2026-01-01",
+        exclude_newer_supplied = TRUE,
+        action = "set"
+      ))
+    )
+    stopifnot(
+      identical(result, list(value = NULL, visible = FALSE)),
+      identical(reticulate::py_require(), expected)
+    )
+    detached <- reticulate::py_require()
+    detached$packages[1L] <- "changed"
+    detached$history[[1L]]$packages <- "changed"
+    invisible(gc())
+    stopifnot(identical(reticulate::py_require(), expected))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    error <- tryCatch(
+      reticulate::py_require(exclude_newer = "2026-02-01"),
+      error = conditionMessage
+    )
+    stopifnot(
+      identical(
+        error,
+        paste0(
+          "`exclude_newer` is already set to '2026-01-01', ",
+          "use `action = 'set'` to override"
+        )
+      ),
+      identical(reticulate::py_require(), expected)
+    )
+    reticulate::py_require(
+      "numpy",
+      python_version = "<4",
+      exclude_newer = "2026-01-01",
+      action = "remove"
+    )
+    removed <- reticulate::py_require()
+    stopifnot(
+      identical(removed$packages, "py-yaml12"),
+      identical(removed$python_version, ">=3.10"),
+      identical(removed["exclude_newer"], list(exclude_newer = NULL)),
+      identical(names(removed), names(expected)),
+      identical(head(removed$history, -1L), expected$history)
+    )
+    reticulate::py_require(
+      character(),
+      python_version = character(),
+      action = "set"
+    )
+    empty <- reticulate::py_require()
+    stopifnot(
+      identical(empty$packages, character()),
+      identical(empty$python_version, character()),
+      identical(empty["exclude_newer"], list(exclude_newer = NULL)),
+      identical(names(empty), names(expected)),
+      identical(head(empty$history, -1L), removed$history),
+      !reticulate::py_available(initialize = FALSE)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    initial <- reticulate::py_require()
+    latin1 <- rawToChar(as.raw(0xe9))
+    Encoding(latin1) <- "latin1"
+    bytes <- rawToChar(as.raw(0xff))
+    Encoding(bytes) <- "bytes"
+    packages <- structure(
+      c("zeta", "alpha", NA_character_, "alpha", "", latin1, bytes),
+      names = c("last", "first", "missing", "again", "empty", latin1, bytes),
+      class = "AsIs",
+      comment = "package request",
+      detail = list(values = c(1L, NA_integer_), nested = list("original"))
+    )
+    cutoff <- structure(
+      "2026-01-01",
+      names = "cutoff",
+      class = "AsIs",
+      detail = list("original")
+    )
+    reticulate::py_require(packages, exclude_newer = cutoff, action = "set")
+    expected <- reticulate::py_require()
+    stopifnot(
+      identical(expected$packages, packages),
+      identical(expected$exclude_newer, cutoff),
+      identical(Encoding(expected$packages), Encoding(packages)),
+      identical(tail(expected$history, 1L)[[1L]]$packages, packages),
+      identical(tail(expected$history, 1L)[[1L]]$exclude_newer, cutoff),
+      identical(head(expected$history, -1L), initial$history)
+    )
+    packages[1L] <- "changed input"
+    names(packages)[2L] <- "changed name"
+    attr(packages, "detail")$nested[[1L]] <- "changed input attribute"
+    cutoff[1L] <- "2026-02-01"
+    attr(cutoff, "detail")[[1L]] <- "changed cutoff attribute"
+    invisible(gc())
+    stopifnot(identical(reticulate::py_require(), expected))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    detached <- reticulate::py_require()
+    detached$packages[1L] <- "changed result"
+    attr(detached$packages, "detail")$nested[[1L]] <- "changed result attribute"
+    attr(detached$exclude_newer, "detail")[[1L]] <- "changed cutoff result"
+    attr(detached$history[[length(detached$history)]]$packages, "detail") <- NULL
+    detached$history[[length(detached$history)]]$packages[1L] <- "changed history"
+    invisible(gc())
+    stopifnot(identical(reticulate::py_require(), expected))
+    empty <- structure(character(), class = "AsIs", detail = list(1L))
+    reticulate::py_require(empty, exclude_newer = "", action = "set")
+    cleared <- reticulate::py_require()
+    stopifnot(
+      identical(cleared$packages, empty),
+      identical(cleared["exclude_newer"], list(exclude_newer = NULL)),
+      identical(names(cleared), names(expected)),
+      identical(head(cleared$history, -1L), expected$history),
+      identical(tail(cleared$history, 1L)[[1L]]$packages, empty),
+      !reticulate::py_available(initialize = FALSE)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

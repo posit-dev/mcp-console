@@ -1,0 +1,28 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import os
+    import signal
+    import sys
+
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN
+    assert os.isatty(0)
+    with open(sys.argv[1], "rb", buffering=0) as release:
+        print(f"ready {os.getpid()} {os.getpgrp()}", flush=True)
+        assert release.read(1) == b"1"
+    assert not os.isatty(0)
+    print("terminal closed before release", flush=True)
+    raise SystemExit(23)
+  - <release gate>
+terminal_foreground_group: target
+terminal_loss: revoke slave, close master, then release FIFO
+stdout: |
+  terminal closed before release
+exit_code: 23
+stderr: ""

@@ -1,0 +1,13 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    answer = 41
+    answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

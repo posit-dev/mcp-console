@@ -1,0 +1,53 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    input_release <- tempfile("input-thread-release-")
+    input_completed <- tempfile("input-thread-completed-")
+    cat(input_release, input_completed, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <thread release>
+        <thread completed>
+  isError: false
+---
+send:
+  python: |
+    import threading
+
+    release_path = r.input_release
+    completed_path = r.input_completed
+
+
+    def input_thread():
+        with open(release_path, "rb", buffering=0) as gate:
+            assert gate.read(1) == b"1"
+        with open(completed_path, "wb", buffering=0) as receipt:
+            receipt.write(b"1")
+
+
+    background = threading.Thread(target=input_thread, daemon=True)
+    background.start()
+    line = input("thread progress> ")
+    background.join()
+    print(line)
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "thread progress> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    finished
+result:
+  content:
+    - type: text
+      text: |
+        finished
+  isError: false

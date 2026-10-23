@@ -1,0 +1,9 @@
+---
+inherited_signals: ignored
+stdout: |
+  SIGHUP ignored
+  SIGINT ignored
+  SIGTERM ignored
+  SIGCHLD ignored
+  highest signal ignored
+exit_code: 0

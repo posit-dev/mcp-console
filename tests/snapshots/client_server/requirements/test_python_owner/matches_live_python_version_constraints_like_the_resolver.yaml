@@ -1,0 +1,47 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |
+    invisible(reticulate::py_config())
+    version <- as.character(reticulate::py_version(patch = TRUE))
+    minor <- as.character(reticulate::py_version())
+    current <- reticulate::py_require()
+    for (constraint in c(
+      paste0(version, "rc1"),
+      paste0("1!", version),
+      paste0(version, "+console"),
+      paste0(version, ".post1"),
+      paste0(version, ".dev1"),
+      paste0(">", minor)
+    )) {
+      error <- tryCatch(
+        reticulate::py_require(
+          "humanize; python_version < '0'",
+          python_version = constraint
+        ),
+        error = conditionMessage
+      )
+      stopifnot(
+        is.character(error),
+        grepl("Python version requirements cannot be changed", error, fixed = TRUE),
+        identical(reticulate::py_require(), current)
+      )
+    }
+    for (constraint in c(
+      version,
+      minor,
+      paste0("==", minor),
+      paste0("<=", minor)
+    )) {
+      reticulate::py_require(python_version = constraint)
+    }
+    stopifnot(identical(
+      reticulate::py_require()$python_version,
+      current$python_version
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

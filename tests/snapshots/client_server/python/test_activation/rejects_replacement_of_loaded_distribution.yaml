@@ -1,0 +1,83 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python: []
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import console_loaded
+    import os
+    import sys
+
+    marker = console_loaded.value
+    identity = sys.prefix, sys.exec_prefix, sys.executable, list(sys.path)
+    process_environment = dict(os.environ)
+    worker_pid = os.getpid()
+    print(console_loaded.__version__)
+result:
+  content:
+    - type: text
+      text: |
+        1.0
+  isError: false
+---
+send:
+  python: cell_was_run = True
+  requirements:
+    python:
+      - console-activation-fixture
+result:
+  content:
+    - type: text
+      text: >-
+        Cannot replace loaded console-loaded 1.0 with 2.0. Restart with
+        compatible requirements; the running interpreter and objects are
+        unchanged.
+  isError: true
+---
+send:
+  python: |
+    assert identity == (sys.prefix, sys.exec_prefix, sys.executable, sys.path)
+    assert process_environment == dict(os.environ)
+    assert console_loaded.value is marker and os.getpid() == worker_pid
+    assert "cell_was_run" not in globals()
+    print(console_loaded.__version__)
+result:
+  content:
+    - type: text
+      text: |
+        1.0
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import console_loaded
+    import console_unloaded
+
+    assert console_unloaded.origin == "initial"
+    print(console_loaded.__version__)
+result:
+  content:
+    - type: text
+      text: |
+        1.0
+  isError: false

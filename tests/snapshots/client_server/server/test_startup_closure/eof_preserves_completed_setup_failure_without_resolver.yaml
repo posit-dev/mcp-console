@@ -1,0 +1,21 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  python: raise AssertionError('must not execute')
+result:
+  content:
+    - type: text
+      text: >-
+        resolver.environment: preparation requires an absolute HOME or
+        MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when
+        inherit_environment is false
+  isError: true
+---
+tools_schema_unchanged: true
+---
+exit_status: 1
+stderr: >
+  resolver.environment: preparation requires an absolute HOME or
+  MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY; configure one when
+  inherit_environment is false

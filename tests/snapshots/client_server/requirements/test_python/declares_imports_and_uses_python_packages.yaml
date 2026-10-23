@@ -1,0 +1,59 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: reticulate::py_require("py-yaml12")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: yaml12 <- reticulate::import("yaml12")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: 'yaml12$parse_yaml("answer: 42")$answer'
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    import yaml12
+
+    yaml12.parse_yaml("answer: 42")["answer"]
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: reticulate::py_require("more-itertools")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import more_itertools
+
+    assert yaml12 is __import__("yaml12")
+    assert more_itertools.__name__ == "more_itertools"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

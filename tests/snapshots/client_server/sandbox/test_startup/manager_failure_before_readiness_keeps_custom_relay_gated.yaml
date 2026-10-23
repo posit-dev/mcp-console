@@ -1,0 +1,29 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |-
+        mcp-console-sandbox: failed to fill whole buffer
+        [worker relay exited before readiness]
+  isError: true
+startup_supervision_failure:
+  manager: killed before readiness
+  custom_relay: did not execute
+  sandbox_stderr: "mcp-console-sandbox: failed to fill whole buffer"
+  diagnostic_order: complete before cut
+  verified_cleanup: helper and manager reaping
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false
+startup_supervision_recovery:
+  custom_relay: executed only for the replacement generation

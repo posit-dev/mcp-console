@@ -1,0 +1,7 @@
+---
+languages:
+  - ruby
+stderr: >
+  configuration with CLI overrides: languages[0]: unknown variant `ruby`,
+  expected one of `r`, `python`, `sql`; see docs/CONFIGURATION.md for the
+  public format

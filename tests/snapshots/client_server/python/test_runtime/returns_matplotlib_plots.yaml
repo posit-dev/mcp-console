@@ -1,0 +1,203 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |
+    reticulate::py_require("matplotlib")
+    invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    import matplotlib
+    import matplotlib.pyplot as plt
+
+    assert Path(matplotlib.matplotlib_fname()).samefile(
+        os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]
+    )
+    assert matplotlib.rcParams["lines.linewidth"] == 7.25
+
+    later_figure, later_axes = plt.subplots(num=20)
+    later_axes.plot([1, 2, 3], [1, 2, 1])
+    later_reference = Path(os.environ["TMPDIR"]) / "matplotlib-later-reference.png"
+    later_figure.savefig(later_reference, format="png")
+
+    figure, axes = plt.subplots(num=10)
+    axes.plot([1, 2, 3], [3, 1, 2])
+
+    reference = Path(os.environ["TMPDIR"]) / "matplotlib-reference.png"
+    figure.savefig(reference, format="png")
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live matplotlib savefig 1>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live matplotlib savefig 2>
+      mimeType: image/png
+  isError: false
+---
+send:
+  python: |
+    shown_figure, shown_axes = plt.subplots()
+    shown_axes.plot([1, 2, 3], [1, 3, 2])
+    shown_reference = Path(os.environ["TMPDIR"]) / "matplotlib-shown-reference.png"
+    shown_figure.savefig(shown_reference, format="png")
+    print("before show")
+    plt.show()
+    plt.close(shown_figure)
+    print("after show")
+    shown_figure
+result:
+  content:
+    - type: text
+      text: |
+        before show
+    - type: image
+      data: <PNG byte-identical to live shown matplotlib savefig 1>
+      mimeType: image/png
+    - type: text
+      text: |
+        after show
+        <matplotlib figure displayhook representation>
+  isError: false
+---
+send:
+  python: |
+    for index in range(3):
+        loop_figure, loop_axes = plt.subplots(num=10)
+        loop_axes.plot([0, 1, 2], [index, 2, 1])
+        loop_figure.savefig(
+            Path(os.environ["TMPDIR"]) / f"matplotlib-loop-{index}.png",
+            format="png",
+        )
+        plt.show(block=False)
+        assert plt.get_fignums() == []
+        plt.close(loop_figure)
+        plt.show()
+
+    # An unshown figure using the same number still captures at cell end.
+    remaining_figure, remaining_axes = plt.subplots(num=10)
+    remaining_axes.plot([0, 1], [3, 1])
+    remaining_figure.savefig(
+        Path(os.environ["TMPDIR"]) / "matplotlib-remaining.png",
+        format="png",
+    )
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to live repeated-show matplotlib savefig 1>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live repeated-show matplotlib savefig 2>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live repeated-show matplotlib savefig 3>
+      mimeType: image/png
+    - type: image
+      data: <PNG byte-identical to live repeated-show matplotlib savefig 4>
+      mimeType: image/png
+  isError: false
+---
+send:
+  python: plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: |
+        []
+  isError: false
+---
+send:
+  python: |
+    closed_figure, closed_axes = plt.subplots()
+    closed_axes.plot([1, 2, 3], [2, 1, 3])
+    closed_reference = Path(os.environ["TMPDIR"]) / "matplotlib-closed-reference.png"
+    closed_figure.savefig(closed_reference, format="png")
+    plt.close(closed_figure)
+    plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: |
+        []
+  isError: false
+---
+send:
+  python: |
+    axes.plot([1, 3], [2, 0])
+    plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: |
+        []
+  isError: false
+---
+send:
+  python: |
+    error_figure, error_axes = plt.subplots()
+    error_axes.plot([1, 2], [2, 1])
+    error_reference = Path(os.environ["TMPDIR"]) / "matplotlib-error-reference.png"
+    error_figure.savefig(error_reference, format="png")
+    raise ValueError("cell failed")
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e7>", line 5, in <module>
+        ValueError: cell failed
+    - type: image
+      data: <PNG byte-identical to live error-cell matplotlib savefig 1>
+      mimeType: image/png
+  isError: false
+---
+send:
+  python: plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: |
+        []
+  isError: false
+---
+send:
+  python: |
+    def fail_plot_capture(*args, **kwargs):
+        raise RuntimeError("plot render failed")
+
+
+    failed_figure = plt.figure()
+    failed_figure.savefig = fail_plot_capture
+    figure, axes = plt.subplots()
+    axes.plot([1, 3], [2, 0])
+    second_reference = Path(os.environ["TMPDIR"]) / "matplotlib-second-reference.png"
+    figure.savefig(second_reference, format="png")
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e9>", line 2, in fail_plot_capture
+        RuntimeError: plot render failed
+    - type: image
+      data: <PNG byte-identical to live second matplotlib savefig 1>
+      mimeType: image/png
+  isError: false
+---
+send:
+  python: plt.get_fignums()
+result:
+  content:
+    - type: text
+      text: |
+        []
+  isError: false

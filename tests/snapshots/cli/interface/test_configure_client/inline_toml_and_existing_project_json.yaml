@@ -1,0 +1,28 @@
+---
+client: codex
+console:
+  command: uvx
+  env:
+    KEEP: value
+  args:
+    - mcp-console
+    - serve
+    - --default-config
+    - sandbox.profile=inherit_codex
+  enabled: true
+  omit_tools_from:
+    - deferred
+  tools:
+    send:
+      approval_mode: approve
+---
+client: claude
+console:
+  command: uvx
+  env:
+    KEEP: value
+  type: stdio
+  args:
+    - mcp-console
+    - serve
+  alwaysLoad: true

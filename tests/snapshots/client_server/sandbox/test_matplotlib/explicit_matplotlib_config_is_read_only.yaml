@@ -1,0 +1,47 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import errno
+    import os
+    import sys
+    from pathlib import Path
+
+    import matplotlib
+
+    config = Path(matplotlib.matplotlib_fname())
+    try:
+        with config.open("a", encoding="utf-8"):
+            pass
+    except OSError as error:
+        assert error.errno == (errno.EROFS if sys.platform == "linux" else errno.EPERM)
+        config_read_only = True
+    else:
+        config_read_only = False
+
+    private_probe = Path(os.environ["MPLCONFIGDIR"]) / "config-write-probe"
+    private_probe.write_text("ok", encoding="utf-8")
+
+    (
+        config.resolve() == Path(os.environ["MCP_CONSOLE_TEST_MATPLOTLIBRC"]).resolve(),
+        matplotlib.rcParams["lines.linewidth"],
+        config_read_only,
+        private_probe.read_text(encoding="utf-8") == "ok",
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (True, 8.25, True, True)
+  isError: false

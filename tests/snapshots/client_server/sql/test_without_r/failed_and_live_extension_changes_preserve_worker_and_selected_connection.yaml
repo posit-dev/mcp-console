@@ -1,0 +1,358 @@
+---
+send:
+  requirements:
+    action: set
+    python:
+      - duckdb==1.5.6
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE retained AS SELECT 42 AS value
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+    identity = object()
+    identity_id = id(identity)
+    selected = sqlite3.connect(":memory:")
+    selected.execute("CREATE TABLE chosen(value INTEGER)")
+    selected.execute("INSERT INTO chosen VALUES (17)")
+    _console.sql_connection(selected)
+    print("selected SQLite")
+result:
+  content:
+    - type: text
+      text: |
+        selected SQLite
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  sql: SELECT value FROM chosen
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        17
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - not_a_real_duckdb_extension
+  stdin: |
+    retained input
+  sql: DROP TABLE retained
+result:
+  content:
+    - type: text
+      text: |-
+        DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
+          File "<string>", line 56, in <module>
+            connection.install_extension(extension)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+        _duckdb.HTTPException: HTTP Error: Failed to download extension "not_a_real_duckdb_extension" at URL "<DuckDB extension URL>" (HTTP 404)
+
+        Candidate extensions: "motherduck", "odbc", "unity_catalog", "delta", "lance"
+        For more info, visit <DuckDB extension troubleshooting URL>
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "duckdb==1.5.6"
+            ],
+            "duckdb": [
+              "fts"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - duckdb==1.5.6
+      duckdb:
+        - fts
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  sql: SELECT value FROM chosen
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        17
+  isError: false
+---
+send:
+  python: assert id(identity) == identity_id; print(input())
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: ""]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    fresh input
+result:
+  content:
+    - type: text
+      text: |
+        fresh input
+  isError: false
+---
+send:
+  python: _console.sql_connection(None)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT value FROM retained
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        42
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - six
+    duckdb:
+      - fts
+  python: identity = None
+result:
+  content:
+    - type: text
+      text: >-
+        [DuckDB extension resolution failed with exit status: 1: DuckDB
+        extension preparation needs an importable duckdb package in the
+        candidate Python environment; include duckdb in requirements.python]
+  isError: true
+---
+send:
+  python: assert id(identity) == identity_id; print('old worker intact')
+result:
+  content:
+    - type: text
+      text: |
+        old worker intact
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - json
+    python:
+      - absent-fixture-distribution
+  python: identity = None
+result:
+  content:
+    - type: text
+      text: |-
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "<selected Python>",
+          "packages": [
+            "absent-fixture-distribution",
+            "duckdb==1.5.6"
+          ]
+        }
+        uv output:
+        error: No solution found when resolving tool dependencies
+          cause: Because absent-fixture-distribution was not found in the package registry and you require absent-fixture-distribution, we can conclude that your requirements are unsatisfiable.
+  isError: true
+---
+send:
+  requirements:
+    duckdb:
+      - json
+    python_version:
+      - ">=3.11"
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    duckdb:
+      - json
+    exclude_newer: 2026-01-01
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    action: set
+    python:
+      - duckdb==1.5.6
+    duckdb:
+      - fts
+      - json
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        changed requirements require an explicit restart; retry
+        send(control="restart", requirements={"action": "set", ...}) with the
+        complete declaration (or action="reset")
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "duckdb==1.5.6"
+            ],
+            "duckdb": [
+              "fts"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - duckdb==1.5.6
+      duckdb:
+        - fts
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  python: assert id(identity) == identity_id; print('still intact')
+result:
+  content:
+    - type: text
+      text: |
+        still intact
+  isError: false
+---
+send:
+  requirements:
+    action: set
+    python:
+      - duckdb==1.5.6
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - fts
+  python: assert id(identity) == identity_id; print('no-op')
+result:
+  content:
+    - type: text
+      text: |
+        no-op
+  isError: false

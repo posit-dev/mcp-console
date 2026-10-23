@@ -1,0 +1,32 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: start background stderr
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8078
+        concat:
+          - |
+            zod background stderr
+          - repeat: x
+            count: 3946
+          - |
+
+            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001-post.txt]
+          - repeat: y
+            count: 3968
+          - |-
+
+            [idle]
+  isError: false

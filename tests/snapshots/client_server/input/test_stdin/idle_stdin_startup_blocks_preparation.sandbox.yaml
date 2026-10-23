@@ -1,0 +1,41 @@
+---
+!same-as custom-writable MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  stdin: |
+    queued
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[requirements not prepared: worker is starting]"
+  isError: true
+---
+send:
+  r: input without request
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin: queued
+  isError: false

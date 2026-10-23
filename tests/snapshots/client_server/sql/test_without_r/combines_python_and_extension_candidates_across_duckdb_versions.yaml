@@ -1,0 +1,178 @@
+---
+send:
+  requirements:
+    action: set
+    python:
+      - duckdb==1.4.4
+      - six
+    duckdb:
+      - fts
+  python: >-
+    import duckdb, six; assert duckdb.__version__ == '1.4.4'; print('first
+    candidate')
+result:
+  content:
+    - type: text
+      text: |
+        first candidate
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "duckdb==1.4.4",
+              "six"
+            ],
+            "duckdb": [
+              "fts"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - duckdb==1.4.4
+        - six
+      duckdb:
+        - fts
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - duckdb==1.5.6
+      - six
+    duckdb:
+      - fts
+  sql: SET autoinstall_known_extensions = false; LOAD fts
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        Success
+        -------
+        [0 rows]
+        [done]
+  isError: false
+---
+send:
+  python: import duckdb, six; print(duckdb.__version__)
+result:
+  content:
+    - type: text
+      text: |
+        1.5.6
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "duckdb==1.5.6",
+              "six"
+            ],
+            "duckdb": [
+              "fts"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - duckdb==1.5.6
+        - six
+      duckdb:
+        - fts
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - six
+    duckdb: []
+  python: sentinel = object(); original = sentinel
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [done]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - duckdb==1.5.6
+    duckdb:
+      - fts
+  sql: SET autoinstall_known_extensions = false; LOAD fts
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  python: assert sentinel is original; print('candidate prepared together')
+result:
+  content:
+    - type: text
+      text: |
+        candidate prepared together
+  isError: false

@@ -1,0 +1,19 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: FAIL
+  worker R returned an empty home path
+  Checking Python...
+  Python: FAIL
+  worker R returned an empty home path
+  Checking SQL...
+  SQL: FAIL
+  worker R returned an empty home path
+  Shutdown: FAIL
+  server exited with status 1
+  Warmup found 4 failed checks.
+stderr: |
+  worker R returned an empty home path

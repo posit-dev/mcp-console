@@ -1,0 +1,26 @@
+---
+send:
+  python: retained = 42; retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  sql: SELECT 1
+result:
+  content:
+    - type: text
+      text: "`sql` cells are disabled by `MCP_CONSOLE_LANGUAGES`"
+  isError: true
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

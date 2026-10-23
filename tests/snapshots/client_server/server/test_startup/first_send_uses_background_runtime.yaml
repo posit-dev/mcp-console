@@ -1,0 +1,22 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |-
+    started = globals().get('started', 0) + 1
+    started
+result:
+  content:
+    - type: text
+      text: |
+        1
+  isError: false
+---
+send:
+  python: started
+result:
+  content:
+    - type: text
+      text: |
+        1
+  isError: false

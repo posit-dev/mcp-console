@@ -1,0 +1,23 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: >-
+    stopifnot(getOption("width") == 71L); cat("R continued
+    initialization\n")
+result:
+  content:
+    - type: text
+      text: |
+        Error: native profile error continues in R
+        R continued initialization
+  isError: false
+---
+send:
+  r: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

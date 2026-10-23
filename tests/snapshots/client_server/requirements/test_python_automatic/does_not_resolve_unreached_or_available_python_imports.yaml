@@ -1,0 +1,70 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    if False:
+        import mcp_console_not_a_real_package
+
+
+    def never_called():
+        import mcp_console_also_not_a_real_package
+
+
+    import importlib.util
+    import json
+    import numpy
+    import pandas
+    import mcp_console_local_module
+
+    (
+        json.loads("42"),
+        numpy.__name__,
+        pandas.__name__,
+        mcp_console_local_module.answer,
+        importlib.util.find_spec("mcp_console_probe_missing") is None,
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (42, 'numpy', 'pandas', 42, True)
+  isError: false
+---
+send:
+  python: >-
+    import mcp_console_local_requires_pydash;
+    mcp_console_local_requires_pydash.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: import yaml12; yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        'yaml12'
+  isError: false
+---
+send:
+  python: import yaml12; yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        'yaml12'
+  isError: false

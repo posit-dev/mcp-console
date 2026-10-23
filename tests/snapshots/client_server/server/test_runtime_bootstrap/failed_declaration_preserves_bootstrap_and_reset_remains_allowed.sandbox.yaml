@@ -1,0 +1,60 @@
+---
+!same-as writable MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python_version:
+      - ">3"
+      - <2
+result:
+  content:
+    - type: text
+      text: |-
+        managed Python version resolution failed: Requested Python version constraints could not be satisfied.
+          constraints: "<2,>3"
+        Hint: Call `py_require(python_version = <string>, action = "set")` to replace constraints.
+        Available Python versions found: 3.11.14, 3.12.12
+  isError: true
+---
+send:
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    action: reset
+  python: counter = 1; counter
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        1
+  isError: false

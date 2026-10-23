@@ -1,0 +1,121 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    measurements <- data.frame(
+      label = c("a", "b"),
+      value = c(2L, 5L)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT label, value * 10 AS scaled
+    FROM measurements
+    ORDER BY label
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 2 × 2
+          label     scaled
+          <string> <int32>
+        1 "a"           20
+        2 "b"           50
+  isError: false
+---
+send:
+  r: |
+    rebound_measurements <- data.frame(value = 2L)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    CREATE VIEW live_rebound_measurements AS
+    SELECT value FROM rebound_measurements
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    rebound_measurements <- data.frame(value = 7L)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT value FROM live_rebound_measurements
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+            value
+          <int32>
+        1       7
+  isError: false
+---
+send:
+  r: |
+    values <- data.frame(origin = "r")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    CREATE TABLE values AS SELECT 'sql' AS origin;
+    SELECT origin FROM values
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          origin  
+          <string>
+        1 "sql"   
+  isError: false
+---
+send:
+  r: |
+    connection <- data.frame(name = "connection")
+    source <- data.frame(name = "source")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: |
+    SELECT name FROM connection
+    UNION ALL
+    SELECT name FROM source
+    ORDER BY name
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 2 × 1
+          name        
+          <string>    
+        1 "connection"
+        2 "source"    
+  isError: false

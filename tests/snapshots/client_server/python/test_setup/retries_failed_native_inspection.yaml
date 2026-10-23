@@ -1,0 +1,84 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    retained_pid <- Sys.getpid()
+    retained_value <- 41L
+    invisible(asNamespace("reticulate"))
+    return_missing <- TRUE
+    assignInNamespace(
+      "py_discover_config",
+      local({
+        original <- get("py_discover_config", asNamespace("reticulate"))
+        function(...) {
+          config <- original(...)
+          if (return_missing) {
+            config$python <- "/missing-selected-python"
+          }
+          config
+        }
+      }),
+      "reticulate"
+    )
+    startup_environment <- Sys.getenv(
+      c(
+        "VIRTUAL_ENV",
+        "R_SESSION_INITIALIZED",
+        "PYTHONIOENCODING",
+        "PATH",
+        "LD_LIBRARY_PATH",
+        "PYTHONPATH"
+      ),
+      unset = NA_character_
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    unexecuted_value = 1
+result:
+  content:
+    - type: text
+      text: >
+        Error: selected Python executable is not an absolute file:
+        /missing-selected-python
+  isError: false
+---
+send:
+  r: |
+    stopifnot(Sys.getpid() == retained_pid)
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    stopifnot(identical(
+      Sys.getenv(names(startup_environment), unset = NA_character_),
+      startup_environment
+    ))
+    failure <- tryCatch(reticulate::py_config(), error = identity)
+    stopifnot(inherits(failure, "console_python_inspection_error"))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    return_missing <- FALSE
+    retained_value + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    retried_value = 43
+    import sys
+
+    assert sys.orig_argv == [sys.executable], (sys.orig_argv, sys.executable)
+    retried_value
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false

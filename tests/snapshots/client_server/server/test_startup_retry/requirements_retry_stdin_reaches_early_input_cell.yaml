@@ -1,0 +1,47 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        Python sessions without R require `uv` on PATH; set python in
+        .agents/console/config.yaml to use an existing environment
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    action: reset
+  stdin: |
+    repaired input
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "retry> "]
+        repaired input
+  isError: false
+---
+send:
+  python: answer = input('retry> '); print(answer)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        'repaired input'
+  isError: false

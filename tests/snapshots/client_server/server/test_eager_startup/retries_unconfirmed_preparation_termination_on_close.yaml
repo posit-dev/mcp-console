@@ -1,0 +1,5 @@
+---
+replacement_rejected: true
+preparation_reaped: true
+termination_retried_on_close: true
+original_retirement_error_retained: true

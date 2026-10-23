@@ -1,0 +1,8 @@
+---
+selected: TEST_POLICY
+stdout: |
+  unchanged workload stdin
+---
+selected: MCP_CONSOLE_SANDBOX_SETTINGS
+stdout: |
+  unchanged workload stdin

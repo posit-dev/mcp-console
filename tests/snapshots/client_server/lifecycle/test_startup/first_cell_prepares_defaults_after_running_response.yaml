@@ -1,0 +1,81 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    defaults <- c(
+      "tidyverse",
+      "dplyr",
+      "dbplyr",
+      "reticulate",
+      "DBI",
+      "duckdb",
+      "nanoarrow",
+      "yyjsonr",
+      "ggplot2"
+    )
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    stopifnot(all(defaults %in% list.files(.libPaths()[[managed_index]])))
+    stopifnot(identical(
+      reticulate::py_require()$packages,
+      c("numpy", "pandas", "matplotlib", "plotnine")
+    ))
+    cat("scientific defaults ready\n")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        scientific defaults ready
+  isError: false
+---
+send:
+  python: |
+    import numpy, pandas
+
+    print("Python defaults ready")
+result:
+  content:
+    - type: text
+      text: |
+        Python defaults ready
+  isError: false
+---
+send:
+  sql: |
+    SELECT extension_name
+    FROM duckdb_extensions()
+    WHERE installed AND extension_name IN ('icu', 'json')
+    ORDER BY extension_name
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 2 × 1
+          extension_name
+          <string>      
+        1 "icu"         
+        2 "json"        
+  isError: false

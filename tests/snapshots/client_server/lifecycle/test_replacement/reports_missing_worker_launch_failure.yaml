@@ -1,0 +1,10 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: complete silently
+result:
+  content:
+    - type: text
+      text: "failed to launch worker: <missing executable>"
+  isError: true

@@ -1,0 +1,30 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: "42"
+---
+relay:
+  kind: cell_started
+---
+relay:
+  kind: stderr
+  data: "\rstderr old"
+---
+relay:
+  kind: stdout
+  data: "\rstdout final\n"
+---
+relay:
+  kind: stderr
+  data: "\rstderr final\n"
+---
+relay:
+  kind: completed

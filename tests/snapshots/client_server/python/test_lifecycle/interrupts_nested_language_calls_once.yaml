@@ -1,0 +1,160 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    nested_r_state <- new.env()
+    nested_r_original <- nested_r_state
+    nested_input <- function() readline("nested R> ")
+    invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    import signal
+
+    nested_state = object()
+    nested_original = nested_state
+
+
+    def signal_while_suspended():
+        os.kill(os.getpid(), signal.SIGINT)
+        print("Python completed while suspended")
+
+
+    def read_while_suspended():
+        global suspended_line
+        suspended_line = input("suspended Python> ")
+        print(suspended_line)
+
+
+    try:
+        r.nested_input()
+    except KeyboardInterrupt:
+        print("Python caught R interrupt")
+    print("Python continued")
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "nested R> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Python caught R interrupt
+        Python continued
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      reticulate::py_run_string("input('nested Python> ')"),
+      interrupt = function(condition) cat("R caught Python interrupt\n")
+    )
+    cat("R continued\n")
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "nested Python> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        R caught Python interrupt
+        R continued
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      {
+        suspendInterrupts(reticulate::py_run_string(
+          "signal_while_suspended()"
+        ))
+        Sys.sleep(0) # Explicitly check R interrupts inside the handler.
+      },
+      interrupt = function(condition) cat("R accepted deferred interrupt\n")
+    )
+result:
+  content:
+    - type: text
+      text: |
+        Python completed while suspended
+        R accepted deferred interrupt
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      {
+        suspendInterrupts(reticulate::py_run_string(
+          "read_while_suspended()"
+        ))
+        Sys.sleep(0)
+      },
+      interrupt = function(condition) cat("R accepted input interrupt\n")
+    )
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "suspended Python> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    accepted
+result:
+  content:
+    - type: text
+      text: |
+        accepted
+        R accepted input interrupt
+  isError: false
+---
+send:
+  python: nested_state is nested_original
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  r: identical(nested_r_state, nested_r_original)
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

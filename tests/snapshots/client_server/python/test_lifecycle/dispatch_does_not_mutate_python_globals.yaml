@@ -1,0 +1,45 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import threading
+
+    globals_iteration_started = threading.Event()
+    globals_iteration_continue = threading.Event()
+    globals_iteration_result = []
+
+
+    def iterate_globals():
+        iterator = iter(globals())
+        next(iterator)
+        globals_iteration_started.set()
+        globals_iteration_continue.wait()
+        try:
+            tuple(iterator)
+            globals_iteration_result.append("stable")
+        except BaseException as error:
+            globals_iteration_result.append(repr(error))
+
+
+    globals_iteration_thread = threading.Thread(target=iterate_globals)
+    globals_iteration_thread.start()
+    globals_iteration_started.wait()
+    None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    globals_iteration_continue.set()
+    globals_iteration_thread.join()
+    globals_iteration_result
+result:
+  content:
+    - type: text
+      text: |
+        ['stable']
+  isError: false

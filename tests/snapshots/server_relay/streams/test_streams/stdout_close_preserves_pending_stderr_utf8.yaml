@@ -1,0 +1,29 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: evaluate
+  language: r
+  source: "42"
+---
+relay:
+  kind: cell_started
+---
+relay:
+  kind: stderr_bytes
+  data: 4g==
+---
+relay:
+  kind: stdout_closed
+---
+relay:
+  kind: stderr_bytes
+  data: gqwK
+---
+relay:
+  kind: completed

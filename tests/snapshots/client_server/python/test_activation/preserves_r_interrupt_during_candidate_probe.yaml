@@ -1,0 +1,88 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |
+    cat(
+      tempfile("probe-ready-"),
+      tempfile("probe-release-"),
+      tempfile("probe-pid-"),
+      sep = "\n"
+    )
+result:
+  content:
+    - type: text
+      text: |-
+        <probe ready>
+        <probe release>
+        <probe pid>
+  isError: false
+---
+send:
+  python: marker = object(); marker_id = id(marker)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: before <- reticulate::py_require()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      reticulate::py_require("console-activation-fixture"),
+      interrupt = function(condition) cat("caught R interrupt\n"),
+      error = function(condition) {
+        cat("caught R error:", conditionMessage(condition), "\n")
+      }
+    )
+    stopifnot(identical(reticulate::py_require(), before))
+result:
+  content:
+    - type: text
+      text: |
+        caught R interrupt
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: id(marker) == marker_id
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  r: reticulate::py_require("console-activation-fixture")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: import console_unloaded; console_unloaded.origin
+result:
+  content:
+    - type: text
+      text: |
+        'candidate'
+  isError: false

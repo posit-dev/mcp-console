@@ -1,0 +1,54 @@
+---
+send:
+  python: |
+    import os
+    import sys
+    import json
+    import subprocess
+    import builtins
+    import peer_module
+
+    assert peer_module.value == 41
+    assert os.path.samefile(
+        peer_module.__file__,
+        os.path.join(os.environ["RETICULATE_PYTHONPATH"], "peer_module.py"),
+    )
+    assert os.path.samefile(sys.executable, os.environ["MCP_CONSOLE_TEST_PYTHON"])
+    assert os.path.realpath(sys.prefix) == os.path.realpath(
+        os.environ["MCP_CONSOLE_TEST_PYTHON_PREFIX"]
+    )
+    assert os.environ["PYTHONPATH"] == os.environ["RETICULATE_PYTHONPATH"]
+    assert builtins.peer_bootstrap_count == 1
+    assert all(
+        os.path.samefile(a, b)
+        for a, b in zip(
+            builtins.peer_bootstrap, (sys.prefix, sys.prefix, sys.executable), strict=True
+        )
+    ), builtins.peer_bootstrap
+    expected = [
+        sys.executable,
+        sys.prefix,
+        sys.exec_prefix,
+        sys.base_prefix,
+        sys.base_exec_prefix,
+    ]
+    assert sys.executable == os.environ["MCP_CONSOLE_TEST_PYTHON"], (
+        sys.executable,
+        os.environ["MCP_CONSOLE_TEST_PYTHON"],
+    )
+    assert os.path.dirname(sys.executable) not in sys.path, sys.path
+    assert os.environ["VIRTUAL_ENV"] == sys.prefix
+    program = "import sys, json; print(json.dumps([sys.executable, sys.prefix, sys.exec_prefix, sys.base_prefix, sys.base_exec_prefix]))"
+    for command in (sys.executable, "python"):
+        child = json.loads(subprocess.check_output([command, "-c", program], text=True))
+        assert all(os.path.samefile(a, b) for a, b in zip(child, expected, strict=True)), (
+            child,
+            expected,
+        )
+    print("selected environment retained by interpreter and children")
+result:
+  content:
+    - type: text
+      text: |
+        selected environment retained by interpreter and children
+  isError: false

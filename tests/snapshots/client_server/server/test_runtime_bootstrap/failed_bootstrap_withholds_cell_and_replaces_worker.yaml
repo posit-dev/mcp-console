@@ -1,0 +1,56 @@
+---
+send:
+  python: never_run = True
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: assert 'never_run' not in globals(); counter = 1; counter
+  stdin: |
+    replacement
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "startup> "]
+        1
+  isError: false
+---
+send:
+  python: counter
+result:
+  content:
+    - type: text
+      text: |
+        1
+  isError: false

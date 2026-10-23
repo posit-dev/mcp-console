@@ -1,0 +1,14 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --exit-with-parent
+  - "1"
+  - --
+  - python
+  - -c
+  - print('target ran')
+exit_code: 1
+stdout: ""
+stderr: |
+  sandbox owner 1 is not the launcher's current parent

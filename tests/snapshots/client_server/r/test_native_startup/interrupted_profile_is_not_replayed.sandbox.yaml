@@ -1,0 +1,54 @@
+---
+!same-as r-only-writable MCP initialization for this execution mode
+---
+send:
+  r: stop("interrupted startup ran cell")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "native startup> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        R initialization interrupted; explicit restart required
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 1]
+        [worker stopped: in-memory state lost]
+        [startup may have executed; explicit restart required]
+  isError: true
+---
+send:
+  r: stop("interrupted startup retried cell")
+result:
+  content:
+    - type: text
+      text: "[startup may have executed; explicit restart required]"
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: native_repaired
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

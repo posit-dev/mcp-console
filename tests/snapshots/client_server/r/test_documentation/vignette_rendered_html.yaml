@@ -1,0 +1,154 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: vignette("rendered", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: |
+        # Rendered results
+
+        Installed HTML: café, 日本語, and €.
+
+        This paragraph comes after a blank line.
+
+        ## Steps
+        * Read installed HTML
+        * Keep evaluated results
+        1. First step
+        2. Second step
+
+        `if (TRUE) {
+          sum(c(20, 22))
+        }
+        ## [1] 42 — evaluated result`
+
+        Evaluated totals
+
+        ─────┬─────
+        Group│Total
+        ─────┼─────
+        alpha│42
+        ─────┼─────
+        beta │7
+        ─────┴─────
+
+        See [the reference][1] and [local details][2].
+
+        [A rising trend] Figure 1: evaluated trend. [Remote figure description]
+
+        [1]: https://example.org/vignette?x=1&y=2
+        [2]: other.html#details
+  isError: false
+---
+send:
+  r: saved <- utils::vignette("rendered", package = "consolehelp")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(saved$PDF == "evaluated.HTML", saved$File == "rendered.Rnw")
+    text <- capture.output(print(saved))
+    stopifnot(
+      any(grepl("# Rendered results", text, fixed = TRUE)),
+      any(grepl("## Steps", text, fixed = TRUE)),
+      any(grepl("café, 日本語, and €", text, fixed = TRUE)),
+      any(text == ""),
+      any(grepl("* Read installed HTML", text, fixed = TRUE)),
+      any(grepl("1. First step", text, fixed = TRUE)),
+      any(grepl("  sum(c(20, 22))", text, fixed = TRUE)),
+      any(grepl("42 — evaluated result", text, fixed = TRUE)),
+      any(grepl("Evaluated totals", text, fixed = TRUE)),
+      any(grepl("alpha", text, fixed = TRUE) & grepl("42", text, fixed = TRUE)),
+      any(grepl("https://example.org/vignette?x=1&y=2", text, fixed = TRUE)),
+      any(grepl("other.html#details", text, fixed = TRUE)),
+      any(grepl("A rising trend", text, fixed = TRUE)),
+      any(grepl("Figure 1: evaluated trend.", text, fixed = TRUE)),
+      any(grepl("Remote figure description", text, fixed = TRUE)),
+      !any(grepl("SENTINEL", text, fixed = TRUE)),
+      identical(
+        text,
+        capture.output(vignette("rendered", package = "consolehelp"))
+      ),
+      identical(text, capture.output(utils::vignette(consolehelp::rendered))),
+      identical(text, capture.output(vignette(consolehelp::rendered)))
+    )
+    printed <- capture.output(returned <- withVisible(print(saved)))
+    stopifnot(identical(returned$value, saved), !returned$visible)
+    stopifnot(identical(capture.output(writeLines(text[1:5])), text[1:5]))
+    listing <- capture.output(vignette(package = "consolehelp"))
+    stopifnot(any(grepl("Console rendered vignette", listing, fixed = TRUE)))
+    local({
+      previous <- Sys.getlocale("LC_CTYPE")
+      on.exit(Sys.setlocale("LC_CTYPE", previous))
+      # Native package lookup needs a locale that can list this filename.
+      # Prepare the object first, then test its rendering in the C locale.
+      library <- enc2utf8("library-café")
+      stopifnot(identical(Encoding(library), "UTF-8"))
+      # Unix filenames use native bytes; Windows APIs use Unicode.
+      if (.Platform$OS.type == "unix") {
+        Encoding(library) <- "unknown"
+      }
+      stopifnot(dir.create(library))
+      stopifnot(file.copy(saved$Dir, library, recursive = TRUE))
+      native <- utils::vignette(
+        "rendered",
+        package = "consolehelp",
+        lib.loc = library
+      )
+      # Unix filenames use native bytes; Windows keeps its UTF-8 tag
+      # for wide-character filenames after the locale changes.
+      if (.Platform$OS.type != "windows") {
+        native$Dir <- rawToChar(charToRaw(native$Dir))
+      }
+      stopifnot(identical(Sys.setlocale("LC_CTYPE", "C"), "C"))
+      captured <- capture.output(print(saved))
+      stopifnot(identical(
+        charToRaw(paste(captured, collapse = "\n")),
+        charToRaw(paste(text, collapse = "\n"))
+      ))
+      native_text <- capture.output(print(native))
+      stopifnot(identical(
+        charToRaw(paste(native_text, collapse = "\n")),
+        charToRaw(paste(text, collapse = "\n"))
+      ))
+    })
+    cat("rendered structure, capture, metadata, and return value retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        rendered structure, capture, metadata, and return value retained
+  isError: false
+---
+send:
+  r: |
+    html <- file.path(saved$Dir, "doc", saved$PDF)
+    unlink(file.path(saved$Dir, "doc", saved$File))
+    stopifnot(identical(capture.output(print(saved)), text))
+    writeBin(as.raw(c(255, 254)), html)
+    failed <- capture.output(error <- tryCatch(print(saved), error = identity))
+    stopifnot(
+      inherits(error, "error"),
+      grepl(
+        "Unable to convert installed HTML documentation",
+        conditionMessage(error),
+        fixed = TRUE
+      ),
+      length(failed) == 0L
+    )
+    unlink(html)
+    error <- tryCatch(print(saved), error = identity)
+    stopifnot(inherits(error, "error"))
+    cat("HTML conversion errors do not switch to source\n")
+result:
+  content:
+    - type: text
+      text: |
+        HTML conversion errors do not switch to source
+  isError: false

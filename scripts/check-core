@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+import sys
+
+from checkout_workflow import main
+
+sys.argv.insert(1, "check-core")
+main()

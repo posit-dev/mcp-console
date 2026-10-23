@@ -1,0 +1,767 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  # Each main commit must finish CI even while later commits arrive.
+  # New revisions of the same PR still replace its older CI run.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Preserve compiler state for debug, test, and release builds across revisions.
+  CARGO_INCREMENTAL: "1"
+  # Manual version used by GitHub Actions cache keys and restore prefixes.
+  # Bump for build inputs outside the hashed files, such as workflow build
+  # flags or native dependency setup. Cargo and Maturin do not read this value.
+  CI_BUILD_CACHE_VERSION: "4"
+  IR_LATEST_RESOLUTION_MAX_AGE_SECONDS: "604800"
+  # The Python inventory determines defaults recorded in transcript snapshots.
+  UV_VERSION: "0.13.1"
+
+jobs:
+  windows:
+    name: Windows local execution
+    runs-on: windows-latest
+    env:
+      # Keep English diagnostics without forcing R's text rendering into ASCII.
+      LANGUAGE: en
+      # Packaging/source installs must reuse the same restored Cargo workspace.
+      MCP_CONSOLE_SANDBOX_SOURCE: ${{ github.workspace }}/.sandbox-runner-source
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set Windows dependency directories
+        shell: pwsh
+        run: |
+          "UV_CACHE_DIR=$env:RUNNER_TEMP/console-windows-cache/uv" >> $env:GITHUB_ENV
+          "R_LIBS_USER=$env:RUNNER_TEMP/console-windows-r" >> $env:GITHUB_ENV
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - uses: r-lib/actions/setup-r@v2
+        id: r
+        with:
+          use-public-rspm: false
+      - name: Configure binary R repositories
+        run: Rscript --vanilla scripts/configure-ci-r.R
+      - uses: dtolnay/rust-toolchain@stable
+        id: rust
+        with:
+          components: clippy, rustfmt
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: false
+      - name: Select weekly cache identity
+        id: epoch
+        shell: pwsh
+        run: |
+          $now = [DateTime]::UtcNow
+          $year = [Globalization.ISOWeek]::GetYear($now)
+          $week = [Globalization.ISOWeek]::GetWeekOfYear($now)
+          "week=$year-$week" >> $env:GITHUB_OUTPUT
+          "image=$env:ImageOS" >> $env:GITHUB_OUTPUT
+          Write-Output "Runner image: $env:ImageOS-$env:ImageVersion"
+      - name: Read native Windows sandbox source pin
+        id: sandbox-pin
+        run: |
+          git config --global core.longpaths true
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          scripts/stage-sandbox-runner.cmd --github-output "$env:GITHUB_OUTPUT"
+      - name: Check out native Windows sandbox source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.sandbox-pin.outputs.repository }}
+          ref: ${{ steps.sandbox-pin.outputs.commit }}
+          path: .sandbox-runner-source
+          persist-credentials: false
+      - name: Restore native Windows sandbox source timestamps
+        id: sandbox-source-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/sandbox-source.tar
+          key: sandbox-source-v1-${{ steps.epoch.outputs.week }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.sandbox-pin.outputs.commit }}
+      - name: Prepare native Windows sandbox source archive
+        id: sandbox-source
+        run: |
+          if (Test-Path "$env:RUNNER_TEMP/sandbox-source.tar") {
+            python scripts/restore-source-timestamps "$env:RUNNER_TEMP/sandbox-source.tar" .sandbox-runner-source
+          } else {
+            # Use the Unix timestamp archive convention; never cache .git.
+            tar --force-local -cf "$env:RUNNER_TEMP/sandbox-source.tar" --exclude=./.git --exclude=./codex-rs/target -C .sandbox-runner-source .
+          }
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $status = git -C .sandbox-runner-source status --porcelain --untracked-files=all
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if ($status) { throw "Sandbox source is not clean: $status" }
+          # A regenerated/evicted archive must not leave an exact build hit
+          # paired with different source mtimes on every subsequent run.
+          "archive-sha256=$((Get-FileHash "$env:RUNNER_TEMP/sandbox-source.tar" -Algorithm SHA256).Hash.ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+      - name: Restore Windows build and dependency caches
+        uses: actions/cache/restore@v6
+        id: cache
+        with:
+          path: |
+            target/CACHEDIR.TAG
+            target/debug
+            target/release
+            ${{ runner.temp }}/console-windows-cache
+          key: windows-v2-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.epoch.outputs.week }}-${{ steps.epoch.outputs.image }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.r.outputs.installed-r-version }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**') }}
+          restore-keys: |
+            windows-v2-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.epoch.outputs.week }}-${{ steps.epoch.outputs.image }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.r.outputs.installed-r-version }}-
+      - name: Discard restored Console build artifacts
+        # Cached fingerprints can be newer than this checkout's changed sources.
+        # Retain dependency builds, but compile Console from this checkout.
+        run: scripts/with-checkout.cmd cargo clean --package mcp-console --target-dir target
+      - name: Restore Windows Cargo downloads
+        id: cargo-downloads
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-downloads-v1-${{ steps.epoch.outputs.week }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', '.sandbox-runner-source/codex-rs/Cargo.lock') }}
+          restore-keys: |
+            cargo-downloads-v1-${{ steps.epoch.outputs.week }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install Windows runtime packages
+        run: |
+          # Keep the transcript interpreter available alongside development and rejection fixtures.
+          uv python install 3.14 3.13 3.12 3.9
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $oldPython = uv python find 3.9 --python-preference only-managed
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "MCP_CONSOLE_TEST_OLD_PYTHON=$oldPython" >> $env:GITHUB_ENV
+          $consolePython = Join-Path $env:LOCALAPPDATA "mcp-console/cache/dependencies/uv/python"
+          uv python install 3.14 3.13 3.12 --install-dir $consolePython
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $ciPython = (Get-Command python).Source
+          uv pip install --python $ciPython packaging matplotlib
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install Windows development tools
+        run: |
+          $ciPython = (Get-Command python).Source
+          foreach ($tool in @("r-lib-ir", "ruff", "yamark")) {
+            uv tool install --python $ciPython $tool
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+          uv tool dir --bin >> $env:GITHUB_PATH
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install Windows R bridge and package dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: r
+          cache-version: windows-runtime-v3-${{ steps.epoch.outputs.week }}
+          upgrade: "FALSE"
+          dependencies: "NA"
+          packages: |
+            deps::.
+            any::reticulate
+            any::jsonlite
+            any::ellmer
+            any::processx
+            any::ps
+            any::httr2
+            any::knitr
+            any::rmarkdown
+            any::testthat
+      - name: Inventory Windows development prerequisites
+        run: |
+          scripts/preflight.cmd --json
+      - name: Restore native Windows sandbox outputs
+        id: sandbox-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            wheel-data/data
+            target/sandbox-runner-build.json
+          # Exact artifacts only: pin, pinned toolchain, target, OS and recipe.
+          key: sandbox-runner-v3-${{ steps.epoch.outputs.week }}-${{ steps.epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-x86_64-pc-windows-msvc-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ hashFiles('.sandbox-runner-source/codex-rs/rust-toolchain.toml', 'sandbox-runner.json', 'scripts/stage-sandbox-runner', 'scripts/stage-sandbox-runner.cmd', 'scripts/checkout_workflow.py', 'scripts/checkout_windows.py', 'build.rs') }}
+      - name: Restore native Windows sandbox build intermediates
+        id: sandbox-build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .sandbox-runner-source/codex-rs/target
+          # Compatible fallbacks still run Cargo, including later source builds.
+          key: sandbox-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.epoch.outputs.week }}-${{ steps.epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-x86_64-pc-windows-msvc-${{ hashFiles('.sandbox-runner-source/codex-rs/rust-toolchain.toml') }}-${{ hashFiles('.sandbox-runner-source/codex-rs/Cargo.toml', '.sandbox-runner-source/codex-rs/Cargo.lock', '.sandbox-runner-source/codex-rs/.cargo/**') }}-${{ steps.sandbox-pin.outputs.commit }}-${{ steps.sandbox-source.outputs.archive-sha256 }}
+          restore-keys: |
+            sandbox-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.epoch.outputs.week }}-${{ steps.epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-x86_64-pc-windows-msvc-${{ hashFiles('.sandbox-runner-source/codex-rs/rust-toolchain.toml') }}-${{ hashFiles('.sandbox-runner-source/codex-rs/Cargo.toml', '.sandbox-runner-source/codex-rs/Cargo.lock', '.sandbox-runner-source/codex-rs/.cargo/**') }}-
+            sandbox-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.epoch.outputs.week }}-${{ steps.epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-x86_64-pc-windows-msvc-${{ hashFiles('.sandbox-runner-source/codex-rs/rust-toolchain.toml') }}-
+      - name: Stage native Windows sandbox
+        if: >-
+          steps.sandbox-cache.outputs.cache-hit != 'true' ||
+          steps.sandbox-build-cache.outputs.cache-hit != 'true'
+        run: scripts/stage-sandbox-runner.cmd --target x86_64-pc-windows-msvc
+      - name: Validate native Windows sandbox artifacts
+        run: |
+          # Force build.rs to validate even an exact restore against the pin,
+          # native target and every required helper/license digest before use.
+          (Get-Item target/sandbox-runner-build.json).LastWriteTimeUtc = [DateTime]::UtcNow
+          scripts/with-checkout.cmd cargo build --target-dir target
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # Save only successful, validated builds, before acceptance tests.
+      - name: Save native Windows sandbox source timestamps
+        if: steps.sandbox-source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/sandbox-source.tar
+          key: ${{ steps.sandbox-source-cache.outputs.cache-primary-key }}
+      - name: Save native Windows sandbox outputs
+        if: steps.sandbox-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            wheel-data/data
+            target/sandbox-runner-build.json
+          key: ${{ steps.sandbox-cache.outputs.cache-primary-key }}
+      - name: Save native Windows sandbox build intermediates
+        if: steps.sandbox-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .sandbox-runner-source/codex-rs/target
+          key: ${{ steps.sandbox-build-cache.outputs.cache-primary-key }}
+      - name: Save Windows Cargo downloads
+        if: steps.cargo-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ steps.cargo-downloads.outputs.cache-primary-key }}
+      - name: Probe MXC and run Windows sandbox contracts
+        run: scripts/with-checkout.cmd python tests/windows_mxc.py -v
+      - name: Select the Windows R runtime
+        run: |
+          $rHome = & (Get-Command Rscript.exe).Source --vanilla -e 'cat(R.home())'
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Run native Windows development and installation checks
+        run: |
+          scripts/check.cmd --full
+      - name: Check R package on Windows
+        env:
+          MCP_CONSOLE_TEST_BINARY: ${{ github.workspace }}/target/release/mcp-console.exe
+          _R_CHECK_TESTS_NLINES_: "0"
+        run: |
+          scripts/with-checkout.cmd R CMD build r
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $package = Get-Item mcp.console_*.tar.gz
+          scripts/with-checkout.cmd R CMD check --no-manual $package.FullName
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Save Windows caches
+        if: >-
+          github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit !=
+          'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            target/CACHEDIR.TAG
+            target/debug
+            target/release
+            ${{ runner.temp }}/console-windows-cache
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+  check:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    env:
+      # Install missing system requirements, retaining the runner's installed versions.
+      PKG_SYSREQS_UPDATE: "false"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-24.04]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Select weekly cache epoch
+        id: cache-epoch
+        run: |
+          printf 'value=%s\n' "$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+          # Reuse caches across image revisions within the same OS version.
+          printf 'image=%s\n' "${ImageOS:?}" >> "$GITHUB_OUTPUT"
+          printf 'Runner image: %s-%s\n' "$ImageOS" "${ImageVersion:?}"
+
+      - name: Install Python
+        id: python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Read private sandbox source pin
+        id: sandbox-pin
+        run: scripts/stage-sandbox-runner --github-output "$GITHUB_OUTPUT"
+
+      - name: Check out private sandbox source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ steps.sandbox-pin.outputs.repository }}
+          ref: ${{ steps.sandbox-pin.outputs.commit }}
+          path: .sandbox-runner-source
+
+      - name: Restore private sandbox source timestamps
+        id: sandbox-source-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ runner.temp }}/sandbox-source.tar
+          key: sandbox-source-v1-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.sandbox-pin.outputs.commit }}
+
+      - name: Prepare private sandbox source archive
+        run: |
+          if [ -f "$RUNNER_TEMP/sandbox-source.tar" ]; then
+            tar -xf "$RUNNER_TEMP/sandbox-source.tar" -C .sandbox-runner-source
+          else
+            # Preserve tracked-source mtimes with the build cache, excluding
+            # checkout credentials and the separately cached Cargo outputs.
+            tar -cf "$RUNNER_TEMP/sandbox-source.tar" \
+              --exclude=./.git --exclude=./codex-rs/target \
+              -C .sandbox-runner-source .
+          fi
+          test -z "$(git -C .sandbox-runner-source status --porcelain --untracked-files=all)"
+
+      - name: Save private sandbox source timestamps
+        if: steps.sandbox-source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/sandbox-source.tar
+          key: ${{ steps.sandbox-source-cache.outputs.cache-primary-key }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          cache-local-path: ${{ runner.temp }}/mcp-console-cache
+          cache-suffix: runtime-v2-${{ steps.cache-epoch.outputs.value }}
+          prune-cache: false
+          save-cache: true
+
+      - name: Install tools
+        id: tools
+        run: |
+          uv tool install r-lib-ir
+          uv tool install yamark
+          # Match the supported build backend range in pyproject.toml.
+          uv tool install 'maturin>=1.15,<2.0'
+          uv tool dir --bin >> "$GITHUB_PATH"
+          printf 'ir_version=%s\n' "$(ir --version | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+          printf 'maturin_version=%s\n' "$(maturin --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
+
+      # Chrome is unused here; its repository can block apt with inconsistent metadata.
+      - name: Disable unused Chrome apt repository
+        if: runner.os == 'Linux'
+        run: |
+          sudo find /etc/apt/sources.list.d -type f \
+            \( -name '*.list' -o -name '*.sources' \) \
+            -exec grep -qF 'dl.google.com/linux/chrome' {} \; \
+            -print -delete
+
+      - name: Install R
+        id: setup-r
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: false
+
+      - name: Configure binary R repositories
+        run: sudo "$(command -v Rscript)" --vanilla scripts/configure-ci-r.R
+
+      # The managed R environment can build data.table from source. Its NLS
+      # code needs libintl.h in R's /opt/R/<arch> build prefix.
+      - name: Install gettext for R source packages
+        if: runner.os == 'macOS'
+        run: |
+          sudo Rscript --vanilla -e \
+            'source("https://mac.R-project.org/bin/install.R"); install.libs("gettext"); stopifnot(file.exists(file.path("/opt/R", Sys.info()[["machine"]], "include", "libintl.h")))'
+
+      - name: Install Rust
+        id: rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Restore Linux dependency downloads
+        if: runner.os == 'Linux'
+        id: apt-cache
+        uses: actions/cache/restore@v6
+        with:
+          # Cache compressed downloads only, never the installed system or apt lists.
+          # One baseline per runner OS and week, without accumulating older versions.
+          path: ${{ runner.temp }}/apt-archives/*.deb
+          key: apt-v1-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.arch }}
+
+      - name: Install Linux build and sandbox dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo mkdir -p "$RUNNER_TEMP/apt-archives/partial"
+          printf 'Dir::Cache::archives "%s";\nAPT::Install-Recommends "false";\n' \
+            "$RUNNER_TEMP/apt-archives" | sudo tee /etc/apt/apt.conf.d/99-ci-archives
+          sudo apt-get update
+          sudo apt-get install -y --no-upgrade build-essential pkg-config libcurl4-openssl-dev libcap-dev
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Configure R cache paths
+        run: |
+          printf 'IR_CACHE_DIR=%s\n' "$RUNNER_TEMP/mcp-console-r-cache/ir" >> "$GITHUB_ENV"
+          printf 'RENV_PATHS_CACHE=%s\n' "$RUNNER_TEMP/mcp-console-r-cache/renv" >> "$GITHUB_ENV"
+
+      - name: Restore R environments
+        id: ir-cache
+        uses: actions/cache/restore@v6
+        with:
+          # v6 resolves against the configured binary repositories; older
+          # resolution markers must not keep source builds or the old mirror.
+          path: ${{ runner.temp }}/mcp-console-r-cache
+          key: >-
+            ir-v6-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ steps.tools.outputs.ir_version }}-${{ hashFiles('scripts/configure-ci-r.R', 'src/worker_client.rs', 'src/resolver/managed_r.rs', 'tests/boundaries/client_server/requirements/test_r_automatic.py', 'tests/boundaries/client_server/requirements/test_r.py') }}
+          restore-keys: |
+            ir-v6-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ steps.tools.outputs.ir_version }}-
+
+      - name: Validate restored R library links
+        run: python3 scripts/prune-r-cache "$RUNNER_TEMP/mcp-console-r-cache"
+
+      - name: Restore Cargo downloads
+        id: cargo-downloads
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: >-
+            cargo-downloads-v1-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', '.sandbox-runner-source/codex-rs/Cargo.lock') }}
+          restore-keys: |
+            cargo-downloads-v1-${{ steps.cache-epoch.outputs.value }}-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Restore Rust build data
+        id: rust-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            target/CACHEDIR.TAG
+            target/debug
+            target/release
+            target/libexec
+            target/share/licenses
+          # Keep one baseline per dependency set, shared from main by ordinary PRs.
+          # Source edits reuse it without uploading another large target snapshot.
+          # Every restore prefix includes the UTC week to start fresh on Monday.
+          key: >-
+            cargo-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.setup-r.outputs.installed-r-version }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**') }}
+          restore-keys: |
+            cargo-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.setup-r.outputs.installed-r-version }}-
+
+      - name: Discard restored Console build artifacts
+        # Cached fingerprints can be newer than this checkout's changed sources.
+        # Retain dependency builds, but compile Console from this checkout.
+        run: scripts/with-checkout cargo clean --package mcp-console --target-dir target
+
+      - name: Restore private sandbox runner
+        id: sandbox-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            wheel-data
+            target/sandbox-runner-build.json
+          # The pin, OS version, and recipe identify the cached native artifacts.
+          key: >-
+            sandbox-runner-v3-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ hashFiles('sandbox-runner.json', 'scripts/stage-sandbox-runner') }}
+
+      - name: Restore private sandbox build data
+        id: sandbox-build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .sandbox-runner-source/codex-rs/target
+          # Source-install checks need intermediates even with a staged runner.
+          # Reuse workspace crates from the preceding pin when rebuilding it.
+          # Keep every restore prefix within the current UTC week.
+          key: >-
+            sandbox-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.sandbox-runner-source/codex-rs/rust-toolchain.toml') }}-${{ hashFiles('.sandbox-runner-source/codex-rs/Cargo.toml', '.sandbox-runner-source/codex-rs/Cargo.lock', '.sandbox-runner-source/codex-rs/.cargo/**') }}-${{ steps.sandbox-pin.outputs.commit }}
+          restore-keys: |
+            sandbox-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.sandbox-runner-source/codex-rs/rust-toolchain.toml') }}-${{ hashFiles('.sandbox-runner-source/codex-rs/Cargo.toml', '.sandbox-runner-source/codex-rs/Cargo.lock', '.sandbox-runner-source/codex-rs/.cargo/**') }}-
+            sandbox-build-v${{ env.CI_BUILD_CACHE_VERSION }}-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.sandbox-runner-source/codex-rs/rust-toolchain.toml') }}-
+
+      - name: Stage private sandbox runner
+        # Rebuild on either miss so source-install checks retain a warm workspace.
+        if: >-
+          steps.sandbox-cache.outputs.cache-hit != 'true' ||
+          steps.sandbox-build-cache.outputs.cache-hit != 'true'
+        run: scripts/stage-sandbox-runner .sandbox-runner-source
+
+      # Save each completed build before any tests run.
+      - name: Save private sandbox runner
+        if: steps.sandbox-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            wheel-data
+            target/sandbox-runner-build.json
+          key: ${{ steps.sandbox-cache.outputs.cache-primary-key }}
+
+      - name: Save private sandbox build data
+        if: steps.sandbox-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: .sandbox-runner-source/codex-rs/target
+          key: ${{ steps.sandbox-build-cache.outputs.cache-primary-key }}
+
+      - name: Restore release outputs
+        id: release-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            target/release/mcp-console
+            target/libexec
+            target/share/licenses
+            dist
+          # Only exact matches skip packaging. On a miss, Maturin invokes Cargo
+          # using the build data restored above, including earlier revisions.
+          key: >-
+            release-v2-${{ steps.cache-epoch.outputs.value }}-${{ steps.cache-epoch.outputs.image }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.cachekey }}-r-${{ steps.setup-r.outputs.installed-r-version }}-py-${{ steps.python.outputs.python-version }}-maturin-${{ steps.tools.outputs.maturin_version }}-recipe-${{ env.CI_BUILD_CACHE_VERSION }}-${{ hashFiles('src/**', 'python/**', 'Cargo.toml', 'Cargo.lock', '.cargo/**', 'build.rs', 'scripts/build_backend.py', 'pyproject.toml', 'sandbox-runner.json', 'target/sandbox-runner-build.json', 'scripts/stage-sandbox-runner', 'README.md', 'LICENSE') }}
+
+      - name: Build Rust test targets
+        run: cargo test --locked --no-run --all-targets --all-features
+
+      - name: Prepare Clippy build data
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Build Python package
+        if: steps.release-cache.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          GITHUB_PAT: ${{ github.token }}
+          UV_TOOL_DIR: ${{ runner.temp }}/mcp-console-tool
+          UV_TOOL_BIN_DIR: ${{ runner.temp }}/mcp-console-bin
+          UV_CACHE_DIR: ${{ runner.temp }}/mcp-console-cache
+          UV_PYTHON_DOWNLOADS: never
+          UV_NO_CONFIG: "1"
+        run: |
+          set -euo pipefail
+
+          rm -rf dist
+          maturin build \
+            --release \
+            --locked \
+            --compatibility pypi \
+            --out dist
+
+      - name: Save release outputs
+        if: steps.release-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            target/release/mcp-console
+            target/libexec
+            target/share/licenses
+            dist
+          key: ${{ steps.release-cache.outputs.cache-primary-key }}
+
+      - name: Save Cargo downloads
+        if: steps.cargo-downloads.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ steps.cargo-downloads.outputs.cache-primary-key }}
+
+      - name: Save Rust build data
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            target/CACHEDIR.TAG
+            target/debug
+            target/release
+            target/libexec
+            target/share/licenses
+          key: ${{ steps.rust-cache.outputs.cache-primary-key }}
+
+      - name: Run core checks
+        env:
+          GITHUB_PAT: ${{ github.token }}
+        run: scripts/check-core --full
+
+      - name: Smoke-test Python package
+        env:
+          GITHUB_PAT: ${{ github.token }}
+          UV_TOOL_DIR: ${{ runner.temp }}/mcp-console-tool
+          UV_TOOL_BIN_DIR: ${{ runner.temp }}/mcp-console-bin
+          UV_CACHE_DIR: ${{ runner.temp }}/mcp-console-cache
+          UV_PYTHON_DOWNLOADS: automatic
+          UV_NO_CONFIG: "1"
+        run: |
+          python3 scripts/release.py \
+            smoke-wheel \
+            dist/*.whl \
+            target/release/mcp-console
+          python3 scripts/release.py \
+            smoke-wheel \
+            dist/*.whl \
+            target/release/mcp-console \
+            --without-r
+
+      - name: Install R package dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        env:
+          R_LIBS_USER: ${{ runner.temp }}/mcp-console-r-package
+        with:
+          cache: always
+          cache-version: r-package-v2-${{ steps.cache-epoch.outputs.value }}
+          working-directory: r
+          upgrade: "FALSE"
+          packages: |
+            deps::.
+
+      - name: Check R package
+        env:
+          MCP_CONSOLE_TEST_BINARY: ${{ github.workspace }}/target/release/mcp-console
+          R_LIBS_USER: ${{ runner.temp }}/mcp-console-r-package
+          _R_CHECK_TESTS_NLINES_: "0"
+        working-directory: r
+        run: |
+          R CMD build .
+          R CMD check --no-manual mcp.console_*.tar.gz
+
+      - name: Install transcript dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          cache: always
+          cache-version: transcripts-v3-${{ steps.cache-epoch.outputs.value }}
+          install-quarto: false
+          upgrade: "FALSE"
+          dependencies: "NA"
+          packages: |
+            any::devtools
+            any::processx
+            any::reticulate
+
+      - name: Save Linux dependency downloads
+        if: runner.os == 'Linux' && steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/apt-archives/*.deb
+          key: ${{ steps.apt-cache.outputs.cache-primary-key }}
+
+      - name: Install Quarto portable archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          tag=$(gh release view --repo quarto-dev/quarto-cli --json tagName --jq .tagName)
+          version=${tag#v}
+          case "$RUNNER_OS" in
+            macOS) platform=macos ;;
+            Linux) platform=linux-amd64 ;;
+            *) exit 1 ;;
+          esac
+          archive="quarto-$version-$platform.tar.gz"
+          checksums="quarto-$version-checksums.txt"
+          gh release download "$tag" --repo quarto-dev/quarto-cli \
+            --pattern "$archive" --pattern "$checksums"
+          grep "  $archive$" "$checksums" | shasum -a 256 --check --strict
+          mkdir quarto
+          tar -xzf "$archive" --strip-components=1 -C quarto
+          test "$(quarto/bin/quarto --version)" = "$version"
+          printf '%s\n' "$RUNNER_TEMP/quarto/bin" >> "$GITHUB_PATH"
+          rm "$archive" "$checksums"
+
+      - name: Prewarm R test environments
+        env:
+          GITHUB_PAT: ${{ github.token }}
+          IR_NO_LOCAL_SOURCES: "1"
+          IR_LATEST_RESOLUTION_MAX_AGE_SECONDS: ${{ github.ref == 'refs/heads/main' && steps.ir-cache.outputs.cache-hit != 'true' && '0' || '604800' }}
+        run: |
+          prewarm_r() {
+            ir run \
+              --with tidyverse \
+              --with reticulate \
+              --with DBI \
+              --with duckdb \
+              --with nanoarrow \
+              --with jsonlite \
+              --with pillar \
+              --with tibble \
+              --with utf8 \
+              --isolated \
+              --vanilla \
+              "$@" \
+              -e 'sessionInfo(package = c("tidyverse", "reticulate", "DBI", "duckdb", "nanoarrow", "jsonlite", "pillar", "tibble", "utf8"))'
+          }
+          # shellcheck disable=SC2016 # The dollar sign belongs to R, not the shell.
+          prewarm_r -e 'cat("MCP_CONSOLE_TEST_SSH_R_LIBS=", paste(.libPaths(), collapse = .Platform$path.sep), "\n", sep = "", file = Sys.getenv("GITHUB_ENV"), append = TRUE)'
+          prewarm_r --with praise
+          prewarm_r --with praise --with zeallot
+          # Build optional Ragnar dependencies before the bounded sandbox case.
+          prewarm_r --with ragnar
+
+      - name: Run transcripts
+        id: transcripts
+        env:
+          GITHUB_PAT: ${{ github.token }}
+          MCP_CONSOLE_TEST_TIMINGS: ${{ runner.temp }}/transcript-metrics/case-timings.jsonl
+        # Use the prepared executable; scripts/test also invokes Cargo.
+        run: |
+          mkdir -p "$RUNNER_TEMP/transcript-metrics"
+          {
+            printf 'Revision: %s\n' "$(git rev-parse HEAD)"
+            printf 'Transcript workers: 6\n'
+            printf 'Runner: %s / %s / %s\n' "$RUNNER_OS" "$RUNNER_ARCH" "$ImageVersion"
+            python3 -c 'import os; print(f"Logical CPUs: {os.cpu_count()}")'
+          } > "$RUNNER_TEMP/transcript-metrics/environment.txt"
+          case "$RUNNER_OS" in
+            macOS) time_args=(-l) ;;
+            Linux) time_args=(-v) ;;
+            *) exit 1 ;;
+          esac
+          /usr/bin/time "${time_args[@]}" \
+            -o "$RUNNER_TEMP/transcript-metrics/resource-usage.txt" \
+            uv run --script tests/boundaries/_run.py --full --jobs 6
+
+      - name: Run allocation stress regressions
+        run: uv run --script tests/boundaries/_run.py --stress --jobs 6
+
+      - name: Summarize transcript measurements
+        if: ${{ !cancelled() && steps.transcripts.outcome != 'skipped' }}
+        run: |
+          {
+            printf '### Transcript measurements\n\n```text\n'
+            cat "$RUNNER_TEMP/transcript-metrics/environment.txt"
+            cat "$RUNNER_TEMP/transcript-metrics/resource-usage.txt"
+            printf '\n```\n\n'
+            printf 'Maximum RSS is a per-process high-water mark, not the combined peak of concurrent workers. Units: bytes on macOS, KiB on Linux.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload transcript measurements
+        if: ${{ !cancelled() && steps.transcripts.outcome != 'skipped' }}
+        # Optional diagnostics must not block the installation checks below.
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: transcript-metrics-${{ matrix.os }}-6-workers
+          path: ${{ runner.temp }}/transcript-metrics
+          retention-days: 14
+
+      - name: Check uv source installations
+        env:
+          # Run last: these checks replace and hide the shared target directory.
+          MCP_CONSOLE_SANDBOX_SOURCE: ${{ github.workspace }}/.sandbox-runner-source
+          UV_CACHE_DIR: ${{ runner.temp }}/mcp-console-cache
+          UV_PYTHON_DOWNLOADS: never
+          UV_NO_CONFIG: "1"
+        run: python3 tests/install.py
+
+      - name: Save R environments
+        if: >-
+          github.ref == 'refs/heads/main' && steps.ir-cache.outputs.cache-hit !=
+          'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/mcp-console-r-cache
+          key: ${{ steps.ir-cache.outputs.cache-primary-key }}

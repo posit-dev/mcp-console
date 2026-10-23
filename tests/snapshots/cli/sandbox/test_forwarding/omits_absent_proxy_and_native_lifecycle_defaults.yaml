@@ -1,0 +1,12 @@
+---
+case: absent file
+proxy_omitted: true
+native_cleanup_default: true
+---
+case: omitted
+proxy_omitted: true
+native_cleanup_default: true
+---
+case: explicit restricted
+proxy_omitted: true
+native_cleanup_default: true

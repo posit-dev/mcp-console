@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Measure tracked working-tree changes from the merge base with a PR parent."""
+
+import argparse
+import json
+import subprocess
+
+
+def git(*arguments: str) -> str:
+    return subprocess.check_output(["git", *arguments], text=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("base", help="intended parent branch or commit; never inferred")
+    parser.add_argument("--json", action="store_true")
+    options = parser.parse_args()
+    base = git(
+        "rev-parse", "--verify", "--end-of-options", f"{options.base}^{{commit}}"
+    ).strip()
+    groups = {
+        name: {"files": 0, "added": 0, "deleted": 0, "binary_files": 0}
+        for name in ("production", "tooling", "tests", "documentation", "snapshots")
+    }
+    for entry in git(
+        "diff",
+        "--merge-base",
+        "--numstat",
+        "-z",
+        "--no-renames",
+        "--no-ext-diff",
+        "--no-textconv",
+        base,
+        "--",
+    ).split("\0"):
+        if not entry:
+            continue
+        added, deleted, path = entry.split("\t", 2)
+        if path.startswith("tests/snapshots/"):
+            group = "snapshots"
+        elif path.endswith(".md") or path.startswith("docs/"):
+            group = "documentation"
+        elif path.startswith(("tests/", "r/tests/")):
+            group = "tests"
+        elif path.startswith(("src/", "python/mcp_console/", "r/R/", "r/src/")):
+            group = "production"
+        else:
+            group = "tooling"
+        counts = groups[group]
+        counts["files"] += 1
+        if added == "-":
+            counts["binary_files"] += 1
+        else:
+            counts["added"] += int(added)
+            counts["deleted"] += int(deleted)
+    report = {
+        "base": base,
+        "head": git("rev-parse", "HEAD").strip(),
+        "groups": groups,
+        "untracked": [
+            path
+            for path in git("ls-files", "--others", "--exclude-standard", "-z").split(
+                "\0"
+            )
+            if path
+        ],
+    }
+    if options.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(f"Base: {options.base} ({base})")
+        print("Tracked working tree, including staged and unstaged changes:")
+        print(f"{'category':16} {'files':>7} {'added':>7} {'deleted':>7} {'binary':>7}")
+        for name, counts in groups.items():
+            print(
+                f"{name:16} {counts['files']:7} {counts['added']:7} {counts['deleted']:7} {counts['binary_files']:7}"
+            )
+        print(
+            f"{len(report['untracked'])} untracked file(s) excluded; stage intended additions before measuring."
+        )
+
+
+if __name__ == "__main__":
+    main()

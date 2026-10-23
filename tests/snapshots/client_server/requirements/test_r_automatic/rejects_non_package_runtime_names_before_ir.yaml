@@ -1,0 +1,42 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    invalid <- c(
+      paste0("package", intToUtf8(10L)),
+      "github::owner/repo",
+      "https://example.com/package",
+      "../local/package",
+      "package@version",
+      "package name"
+    )
+    available <- vapply(
+      invalid,
+      requireNamespace,
+      logical(1L),
+      quietly = TRUE
+    )
+    host_response <- .Call("mcp_console_resolve_r", invalid)
+    stopifnot(
+      !any(available),
+      identical(host_response[[1L]], "failed"),
+      identical(host_response[[2L]], "host")
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

@@ -1,0 +1,99 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: import sys; print(sys.executable)
+result:
+  content:
+    - type: text
+      text: |
+        <running Python>
+  isError: false
+---
+send:
+  python: |
+    import importlib
+    import os
+
+    with open("automatic-import-release", "rb", buffering=0) as gate:
+        assert gate.read(1) == b"1"
+    automatic_interrupt_state = 41
+    automatic_interrupt_pid = os.getpid()
+    importlib.import_module("mcp_console_blocked_automatic_import")
+    automatic_interrupt_cell_ran = True
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 30000
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 8, in <module>
+          File "<python-stdlib>/importlib/__init__.py", line 88, in import_module
+            return _bootstrap._gcd_import(name[level:], package, level)
+                   ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          File "<frozen importlib._bootstrap>", line 1404, in _gcd_import
+          File "<frozen importlib._bootstrap>", line 1369, in _find_and_load
+          File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+          File "<frozen importlib._bootstrap>", line 1265, in _find_spec
+        ModuleNotFoundError: No module named 'mcp_console_blocked_automatic_import'.
+
+        MCP Console inferred the PyPI distribution `mcp_console_blocked_automatic_import` from the import `mcp_console_blocked_automatic_import`, but automatic package resolution failed:
+
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "<running Python>",
+          "packages": [
+            "numpy",
+            "pandas",
+            "matplotlib",
+            "plotnine",
+            "duckdb",
+            "mcp_console_blocked_automatic_import"
+          ]
+        }
+        uv output:
+        Traceback (most recent call last):
+          File "<workspace>/tests/fixtures/checkpoint_uv", line <line>, in <module>
+            raise KeyboardInterrupt from None
+        KeyboardInterrupt
+
+        Import names and PyPI distribution names can differ. Retry with the correct distribution declared through `requirements.python` in the `send` call, for example:
+
+        requirements: {"python": ["mcp_console_blocked_automatic_import"]}
+  isError: false
+---
+send:
+  python: >-
+    automatic_interrupt_state + int('automatic_interrupt_cell_ran' not in
+    globals()) + int(__import__('os').getpid() == automatic_interrupt_pid) -
+    1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

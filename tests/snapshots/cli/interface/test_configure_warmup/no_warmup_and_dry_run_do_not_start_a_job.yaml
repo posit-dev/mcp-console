@@ -1,0 +1,6 @@
+---
+option: --no-warmup
+warmup_started: false
+---
+option: --dry-run
+warmup_started: false

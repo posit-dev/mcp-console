@@ -1,0 +1,51 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        eager native profile diagnostic
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 24]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  requirements:
+    action: set
+    r:
+      - MASS
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: stop("eager startup must not retry")
+result:
+  content:
+    - type: text
+      text: "[startup may have executed; explicit restart required]"
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: native_repaired
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

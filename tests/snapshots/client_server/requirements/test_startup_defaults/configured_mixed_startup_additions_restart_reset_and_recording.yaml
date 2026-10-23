@@ -1,0 +1,456 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    stopifnot(
+      !("praise" %in% loadedNamespaces()),
+      nzchar(find.package("praise")),
+      !("package:praise" %in% search())
+    )
+    cat("configured R available\n")
+result:
+  content:
+    - type: text
+      text: |
+        configured R available
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+
+    assert sys.version_info[:2] == (3, 13)
+    assert importlib.util.find_spec("packaging") is not None
+    assert "packaging" not in sys.modules
+    print("configured Python available")
+result:
+  content:
+    - type: text
+      text: |
+        configured Python available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "praise"
+            ],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - praise
+      python:
+        - packaging
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  python: import idna; print('addition available')
+  requirements:
+    r:
+      - zeallot
+    python:
+      - idna
+result:
+  content:
+    - type: text
+      text: |
+        addition available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "praise",
+              "zeallot"
+            ],
+            "python": [
+              "idna",
+              "packaging"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - praise
+        - zeallot
+      python:
+        - idna
+        - packaging
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "praise",
+              "zeallot"
+            ],
+            "python": [
+              "idna",
+              "packaging"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - praise
+        - zeallot
+      python:
+        - idna
+        - packaging
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  python: import idna; print('addition retained')
+result:
+  content:
+    - type: text
+      text: |
+        addition retained
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: reset
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "praise"
+            ],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - praise
+      python:
+        - packaging
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      !("praise" %in% loadedNamespaces()),
+      nzchar(find.package("praise")),
+      !("package:praise" %in% search())
+    )
+    cat("configured R available\n")
+result:
+  content:
+    - type: text
+      text: |
+        configured R available
+  isError: false
+---
+send:
+  python: |
+    import importlib.util
+    import sys
+
+    assert sys.version_info[:2] == (3, 13)
+    assert importlib.util.find_spec("packaging") is not None
+    assert "packaging" not in sys.modules
+    print("configured Python available")
+result:
+  content:
+    - type: text
+      text: |
+        configured Python available
+  isError: false

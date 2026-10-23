@@ -1,0 +1,10 @@
+---
+absent:
+  stdout: |
+    absent metadata cannot be created
+  stderr: ""
+worktree:
+  stdout: >
+    git pointer and referenced metadata remain readable and protected
+    through aliases
+  stderr: ""

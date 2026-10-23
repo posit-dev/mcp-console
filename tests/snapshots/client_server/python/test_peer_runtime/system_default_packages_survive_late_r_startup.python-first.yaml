@@ -1,0 +1,111 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: before_r = object(); before_r_identity = id(before_r)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: invisible(NULL)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      "mcpconsoleearlypython" %in% getOption("defaultPackages"),
+      identical(isTRUE(reticulate::py_config()$ephemeral), FALSE),
+      identical(search()[[2L]], "tools:mcp-console"),
+      identical(find("py")[[1L]], "tools:mcp-console"),
+      identical(find(".console")[[1L]], "tools:mcp-console")
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    assert id(before_r) == before_r_identity; assert early_executable ==
+    sys.executable; print('startup package attached to running Python')
+result:
+  content:
+    - type: text
+      text: |
+        startup package attached to running Python
+  isError: false
+---
+send:
+  r: |
+    incompatible <- tryCatch(
+      reticulate::use_python("/incompatible-python", required = TRUE),
+      error = conditionMessage
+    )
+    stopifnot(identical(
+      incompatible,
+      "Python is already initialized with another selection; restart required"
+    ))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import json
+    import subprocess
+
+    if not False:
+        assert os.path.samefile(sys.executable, os.environ["MCP_CONSOLE_TEST_PYTHON"])
+        assert os.path.realpath(sys.prefix) == os.path.realpath(
+            os.environ["MCP_CONSOLE_TEST_PYTHON_PREFIX"]
+        )
+    assert id(early_object) == early_identity
+    assert sys.executable == early_executable
+    assert (
+        sys.prefix,
+        sys.exec_prefix,
+        sys.base_prefix,
+        sys.base_exec_prefix,
+    ) == early_prefixes
+    assert os.environ["PATH"] == early_path
+    child = json.loads(
+        subprocess.check_output([sys.executable, "-c", early_child_program], text=True)
+    )
+    assert child == early_child, (child, early_child)
+    print("attached to the existing interpreter")
+result:
+  content:
+    - type: text
+      text: |
+        attached to the existing interpreter
+  isError: false
+---
+send:
+  r: reticulate::py_eval("id(early_object) == early_identity")
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

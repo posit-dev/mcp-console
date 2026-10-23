@@ -1,0 +1,53 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: complete silently
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: exit after partial sideband descendant
+  timeout_ms: 15000
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [phase: replacement]
+        [worker starting]
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: replacement]
+        [worker starting]
+  isError: false
+---
+send:
+  timeout_ms: 15000
+result:
+  content:
+    - type: text
+      text: "[idle]"
+  isError: false
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false

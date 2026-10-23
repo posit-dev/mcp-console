@@ -1,0 +1,5 @@
+---
+host_read: true
+cache_write: true
+host_write_denied: true
+disallowed_host_denied: true

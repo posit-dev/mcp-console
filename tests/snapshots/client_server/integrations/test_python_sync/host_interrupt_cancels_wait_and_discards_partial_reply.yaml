@@ -1,0 +1,5 @@
+---
+host_interrupt: KeyboardInterrupt
+request_cancelled: true
+recovery: recovered
+control: interrupted

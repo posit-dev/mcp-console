@@ -1,0 +1,13 @@
+---
+send:
+  r: |
+    Sys.setenv(RETICULATE_PYTHON = "__console_missing_python__")
+    suppressPackageStartupMessages(library(reticulate))
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    cat("reticulate loaded without Python\n")
+result:
+  content:
+    - type: text
+      text: |
+        reticulate loaded without Python
+  isError: false

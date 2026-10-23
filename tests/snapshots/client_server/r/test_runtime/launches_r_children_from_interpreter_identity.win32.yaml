@@ -1,0 +1,87 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    invisible(Sys.setlocale("LC_CTYPE", ".UTF-8"))
+    arguments <- commandArgs()
+    stopifnot(
+      file.exists(normalizePath(arguments[[1L]], winslash = "/")),
+      identical(normalizePath(arguments[[1L]], winslash = "/"), normalizePath(file.path(R.home(), "bin", "R.exe"), winslash = "/")),
+      interactive(),
+      identical(arguments[-1L], c("--quiet", "--interactive", "--no-save")),
+      identical(commandArgs(TRUE), character())
+    )
+    environment_names <- c(
+      "R_HOME",
+      "R_SHARE_DIR",
+      "R_INCLUDE_DIR",
+      "R_DOC_DIR"
+    )
+    script <- tempfile("identity ascii ", fileext = ".R")
+    result <- tempfile("identity result ascii ", fileext = ".rds")
+    writeLines(
+      c(
+        "arguments <- commandArgs()",
+        "saveRDS(list(arguments = arguments, user = commandArgs(TRUE),",
+        "  interactive = interactive(),",
+        "  environment = Sys.getenv(c('R_HOME', 'R_ARCH', 'R_SHARE_DIR',",
+        "    'R_INCLUDE_DIR', 'R_DOC_DIR'))), commandArgs(TRUE)[[1L]])"
+      ),
+      script,
+      useBytes = TRUE
+    )
+    user <- c(result, "two words", "ascii", "--literal")
+    reference <- NULL
+    for (command in c(
+      normalizePath(file.path(R.home(), "bin", "R.exe"), winslash = "/"),
+      normalizePath(file.path(R.home(), "bin", "Rscript.exe"), winslash = "/"),
+      normalizePath(arguments[[1L]], winslash = "/")
+    )) {
+      options <- if (basename(command) == "Rscript.exe") {
+        c("--vanilla", script)
+      } else {
+        c("--slave", "--vanilla", paste0("--file=", script), "--args")
+      }
+      output <- system2(
+        command,
+        shQuote(c(options, user)),
+        stdout = TRUE,
+        stderr = TRUE
+      )
+      if (!is.null(attr(output, "status"))) stop(paste(output, collapse = "\n"))
+      stopifnot(identical(output, character()))
+      child <- readRDS(result)
+      if (is.null(reference)) {
+        reference <- child
+      }
+      # The selected launcher supplies the native executable and architecture.
+      file_argument <- paste0("--file=", script)
+      expected <- if (basename(command) == "Rscript.exe") {
+        c("--no-echo", "--no-restore", "--vanilla", file_argument, "--args", user)
+      } else {
+        c("--slave", "--vanilla", file_argument, "--args", user)
+      }
+      stopifnot(
+        file.exists(normalizePath(child$arguments[[1L]], winslash = "/")),
+        identical(normalizePath(child$arguments[[1L]], winslash = "/"), normalizePath(reference$arguments[[1L]], winslash = "/")),
+        identical(child$arguments[-1L], expected),
+        identical(child$user, user),
+        identical(child$interactive, FALSE),
+        identical(
+          normalizePath(child$environment[environment_names], winslash = "/"),
+          normalizePath(Sys.getenv(environment_names), winslash = "/")
+        ),
+        identical(child$environment[["R_ARCH"]], reference$environment[["R_ARCH"]])
+      )
+    }
+    unlink(c(script, result))
+    cat(
+      "R interpreter and children retain executable, arguments, and environment\n"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        R interpreter and children retain executable, arguments, and environment
+  isError: false

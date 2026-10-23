@@ -1,0 +1,15 @@
+---
+case: home
+recording_root: home
+---
+case: project
+recording_root: project
+---
+case: project path is a file
+recording_root: home
+---
+case: console home
+recording_root: console home
+---
+case: project with console home
+recording_root: project

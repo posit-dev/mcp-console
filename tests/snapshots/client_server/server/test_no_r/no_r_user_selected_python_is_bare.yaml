@@ -1,0 +1,36 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    answer = 41
+    answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - mcp-console-definitely-missing-package
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirements are unavailable in this non-managed Python session;
+        install packages before starting the session
+  isError: true
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false

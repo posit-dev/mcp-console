@@ -1,0 +1,203 @@
+---
+send:
+  sql: CREATE TABLE retained AS SELECT 42 AS value
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  python: |
+    import os
+    import sqlite3
+    import sys
+
+    identity = object()
+    identity_id = id(identity)
+    worker_pid = os.getpid()
+    interpreter = sys.executable
+    managed = _console.sql_connection()
+    selected = sqlite3.connect(":memory:")
+    selected.execute("CREATE TABLE chosen(value INTEGER)")
+    selected.execute("INSERT INTO chosen VALUES (17)")
+    _console.sql_connection(selected)
+    print("state ready")
+result:
+  content:
+    - type: text
+      text: |
+        state ready
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - fts
+    python:
+      - duckdb
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    assert os.getpid() == worker_pid
+    assert sys.executable == interpreter
+    assert id(identity) == identity_id
+    assert _console.sql_connection() is selected
+    assert managed.execute("SELECT value FROM retained").fetchone() == (42,)
+    assert selected.execute("SELECT value FROM chosen").fetchone() == (17,)
+    _console.sql_connection(None)
+    assert _console.sql_connection() is managed
+    print("state retained")
+result:
+  content:
+    - type: text
+      text: |
+        state retained
+  isError: false
+---
+send:
+  sql: SET autoinstall_known_extensions = false; LOAD fts
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - excel
+  sql: >-
+    SET autoinstall_known_extensions = false; LOAD excel; SELECT value FROM
+    retained
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        42
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - parquet
+  python: >-
+    assert os.getpid() == worker_pid and id(identity) == identity_id;
+    print('Python cell retained')
+result:
+  content:
+    - type: text
+      text: |
+        Python cell retained
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb"
+            ],
+            "duckdb": [
+              "excel",
+              "fts",
+              "icu",
+              "json",
+              "parquet",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+      duckdb:
+        - excel
+        - fts
+        - icu
+        - json
+        - parquet
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  control: restart
+  sql: SET autoinstall_known_extensions = false; LOAD fts
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        Success
+        -------
+        [0 rows]
+        [done]
+  isError: false
+---
+send:
+  python: import os; os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  sql: SET autoinstall_known_extensions = false; LOAD excel
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false

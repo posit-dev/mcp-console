@@ -1,0 +1,107 @@
+---
+setting: r.packages=null
+stderr: >
+  configuration with CLI overrides: r: packages: invalid type: null,
+  expected a sequence; see docs/CONFIGURATION.md for the public format
+---
+setting: r.packages=[1]
+stderr: >
+  configuration with CLI overrides: r: packages[0]: invalid type: integer
+  `1`, expected a string; see docs/CONFIGURATION.md for the public format
+---
+setting: r.packages=[""]
+stderr: >
+  configuration with CLI overrides: r.packages: R requirement strings must
+  not be empty
+---
+setting: python.managed.packages=null
+stderr: |
+  python: managed.packages: invalid type: null, expected a sequence
+---
+setting: python.managed.packages=[1]
+stderr: |
+  python: managed.packages[0]: invalid type: integer `1`, expected a string
+---
+setting: python.managed.packages=[""]
+stderr: >
+  python.managed.packages: Python requirement `` is not accepted:
+  host-side managed resolution accepts named package requirements only
+---
+setting: python.managed.packages=["numpy @ https://example.com/pkg.whl"]
+stderr: >
+  python.managed.packages: Python requirement `numpy @
+  https://example.com/pkg.whl` is not accepted: host-side managed
+  resolution accepts named package requirements only
+---
+setting: python.managed.version=3.13
+stderr: >
+  python: managed.version: invalid type: floating point `3.13`, expected a
+  string
+---
+setting: python.managed.version=[]
+stderr: |
+  python: managed.version: invalid type: sequence, expected a string
+---
+setting: python.managed.version=null
+stderr: |
+  python: managed.version: invalid type: null, expected a string
+---
+setting: python.managed.version=""
+stderr: >
+  python.managed.version: Python version constraint `` is not accepted:
+  host-side managed resolution accepts version numbers and supported PEP
+  440 version specifiers only
+---
+setting: python.managed.version="/opt/python"
+stderr: >
+  python.managed.version: Python version constraint `/opt/python` is not
+  accepted: host-side managed resolution accepts version numbers and
+  supported PEP 440 version specifiers only
+---
+setting: python.managed.extra_packages=[]
+stderr: >
+  python: managed.extra_packages: unknown field `extra_packages`, expected
+  one of `packages`, `version`, `resolution`
+---
+setting: python.packages=null
+stderr: |
+  python: managed.packages: invalid type: null, expected a sequence
+---
+setting: python.packages=[1]
+stderr: |
+  python: managed.packages[0]: invalid type: integer `1`, expected a string
+---
+setting: python.packages=[""]
+stderr: >
+  python.managed.packages: Python requirement `` is not accepted:
+  host-side managed resolution accepts named package requirements only
+---
+setting: python.version=3.13
+stderr: >
+  python: managed.version: invalid type: floating point `3.13`, expected a
+  string
+---
+setting: python.version=null
+stderr: |
+  python: managed.version: invalid type: null, expected a string
+---
+setting: python.version="/opt/python"
+stderr: >
+  python.managed.version: Python version constraint `/opt/python` is not
+  accepted: host-side managed resolution accepts version numbers and
+  supported PEP 440 version specifiers only
+---
+setting: "python={packages: [], extra_packages: []}"
+stderr: >
+  python: managed.extra_packages: unknown field `extra_packages`, expected
+  one of `packages`, `version`, `resolution`
+---
+setting: "python.existing={executable: .venv, packages: []}"
+stderr: |
+  python: existing: invalid type: map, expected path string
+---
+setting: >-
+  python.first_available=[{existing: unused}, {managed: {version: 3.13}}]
+stderr: >
+  python.first_available[1]: python: managed.version: invalid type:
+  floating point `3.13`, expected a string

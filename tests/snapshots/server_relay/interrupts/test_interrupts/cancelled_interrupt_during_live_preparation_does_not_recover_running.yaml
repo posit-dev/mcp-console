@@ -1,0 +1,23 @@
+---
+relay:
+  kind: worker_started
+  pid: 42
+---
+relay:
+  kind: ready
+---
+server:
+  kind: prepare_r
+  library: <cancelled-interrupt-candidate>
+---
+server:
+  kind: interrupt
+  request_id: 0
+---
+relay:
+  kind: interrupt_result
+  request_id: 0
+---
+relay:
+  kind: r_prepared
+  library: <cancelled-interrupt-candidate>

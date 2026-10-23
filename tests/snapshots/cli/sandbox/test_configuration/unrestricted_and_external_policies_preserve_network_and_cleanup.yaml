@@ -1,0 +1,32 @@
+---
+filesystem: unrestricted
+network: restricted
+exit_code: 23
+stdout: >
+  {"network": "denied", "temporary": "<private data>", "input": "literal
+  stdin\u0000\u96ea\n"}
+private_storage_removed: true
+---
+filesystem: unrestricted
+network: enabled
+exit_code: 23
+stdout: >
+  {"network": "allowed", "temporary": "<private data>", "input": "literal
+  stdin\u0000\u96ea\n"}
+private_storage_removed: true
+---
+filesystem: external-sandbox
+network: restricted
+exit_code: 23
+stdout: >
+  {"network": "allowed", "temporary": "<private data>", "input": "literal
+  stdin\u0000\u96ea\n"}
+private_storage_removed: true
+---
+filesystem: external-sandbox
+network: enabled
+exit_code: 23
+stdout: >
+  {"network": "allowed", "temporary": "<private data>", "input": "literal
+  stdin\u0000\u96ea\n"}
+private_storage_removed: true

@@ -1,0 +1,42 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: start background sideband
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: emit output and image before completion
+  timeout_ms: 30000
+result:
+  content:
+    - type: text
+      text: |
+        zod background sideband
+        [output produced while idle]
+        before pending image
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+    - type: text
+      text: |-
+        after pending image
+        [stopped by session restart request before evaluation finished]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false

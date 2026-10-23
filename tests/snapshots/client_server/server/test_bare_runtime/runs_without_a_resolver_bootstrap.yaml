@@ -1,0 +1,37 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        [1] 2
+  isError: false
+---
+send:
+  r: |
+    options(useFancyQuotes = FALSE)
+    conditionMessage(tryCatch(
+      library(mcpConsoleDefinitelyMissingPackage),
+      error = identity
+    ))
+result:
+  content:
+    - type: text
+      text: |
+        [1] "there is no package called 'mcpConsoleDefinitelyMissingPackage'"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: >-
+        dynamic environment resolution is unavailable; install `ir` or `uv` and
+        restart MCP Console
+  isError: true

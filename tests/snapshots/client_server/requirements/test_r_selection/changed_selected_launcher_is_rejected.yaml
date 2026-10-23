@@ -1,0 +1,10 @@
+---
+restart_error:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [r.executable: selected R installation changed at <workspace>/chosen R; restart the server to select it again]
+        session restart did not complete; cell was not run
+  isError: true

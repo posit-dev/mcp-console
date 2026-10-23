@@ -1,0 +1,127 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+    import tempfile
+    from pathlib import Path
+    import matplotlib.pyplot as plt
+
+    assert os.environ["RETICULATE_PYTHON"] == sys.executable
+    assert sys.prefix != sys.base_prefix
+    value = 40
+    temporary = Path(tempfile.gettempdir())
+    (temporary / "owned.txt").write_text("owned")
+    print(temporary)
+result:
+  content:
+    - type: text
+      text: |
+        <worker temporary>
+  isError: false
+---
+send:
+  python: value += 1; print('before error'); raise ValueError('recoverable')
+result:
+  content:
+    - type: text
+      text: |
+        before error
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ValueError: recoverable
+  isError: false
+---
+send:
+  python: value + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: answer = input('value> '); answer
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "value> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    hello
+result:
+  content:
+    - type: text
+      text: |
+        'hello'
+  isError: false
+---
+send:
+  python: |
+    _ = plt.plot([1, 2], [3, 4])
+    plt.gcf().savefig(temporary / "expected.png")
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to selected environment savefig 1>
+      mimeType: image/png
+  isError: false
+---
+send:
+  python: input('interrupt> ')
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "interrupt> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e6>", line 1, in <module>
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: value + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+  python: "'value' in globals()"
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        False
+        [done]
+  isError: false
+---
+send:
+  python: import tempfile; print(tempfile.gettempdir())
+result:
+  content:
+    - type: text
+      text: |
+        <replacement temporary>
+  isError: false

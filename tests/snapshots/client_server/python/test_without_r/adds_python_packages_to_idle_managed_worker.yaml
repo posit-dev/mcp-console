@@ -1,0 +1,235 @@
+---
+send:
+  python: |
+    import os, sqlite3, sys
+
+    identity = object()
+    identity_id = id(identity)
+    worker_pid = os.getpid()
+    managed = _console.sql_connection()
+    managed_id = id(managed)
+    managed.execute("create table retained as select 42 as value")
+    selected = sqlite3.connect(":memory:")
+    selected.execute("create table chosen (value integer)")
+    _console.sql_connection(selected)
+    print("running state created")
+result:
+  content:
+    - type: text
+      text: |
+        running state created
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - six
+  stdin: |
+    live input
+  timeout_ms: 0
+  python: |
+    import os, six, sys, yaml12
+    import subprocess
+
+    assert os.getpid() == worker_pid
+    assert id(identity) == identity_id
+    assert id(managed) == managed_id
+    assert _console.sql_connection() is selected
+    assert managed.execute("select value from retained").fetchone() == (42,)
+    assert (
+        subprocess.check_output(
+            [sys.executable, "-c", "import six, yaml12; print('child ready')"],
+            text=True,
+        ).strip()
+        == "child ready"
+    )
+    assert input() == "live input"
+    print("live packages and state retained")
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: ""]
+        live packages and state retained
+  isError: false
+---
+send:
+  sql: select value from chosen
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        [0 rows]
+  isError: false
+---
+send:
+  python: _console.sql_connection(None)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: select value from retained
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        42
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - more-itertools
+  python: raise ValueError('later cell failed')
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e4>", line 1, in <module>
+        ValueError: later cell failed
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb",
+              "more-itertools",
+              "py-yaml12",
+              "six"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+        - more-itertools
+        - py-yaml12
+        - six
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  python: |
+    import more_itertools
+
+    assert id(identity) == identity_id
+    print("accepted after cell failure")
+result:
+  content:
+    - type: text
+      text: |
+        accepted after cell failure
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import os, subprocess, sys
+    import more_itertools, six, yaml12
+
+    assert "identity" not in globals()
+    assert (
+        subprocess.check_output(
+            ["python", "-c", "import more_itertools, six, yaml12; print('child ready')"],
+            text=True,
+        ).strip()
+        == "child ready"
+    )
+    print("plain restart retained additions")
+result:
+  content:
+    - type: text
+      text: |
+        plain restart retained additions
+  isError: false
+---
+send:
+  python: import os; os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: >-
+    import more_itertools, six, yaml12; print('crash replacement retained
+    additions')
+result:
+  content:
+    - type: text
+      text: |
+        crash replacement retained additions
+  isError: false

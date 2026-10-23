@@ -1,0 +1,114 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        Error: explicit Python executable is not on PATH
+
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    external_python_worker <- Sys.getpid()
+    external_python_state <- 42L
+    stopifnot(
+      identical(
+        Sys.getenv("RETICULATE_PYTHON", unset = NA_character_),
+        "configured-by-user"
+      )
+    )
+    "configured-by-user"
+result:
+  content:
+    - type: text
+      text: |
+        [1] "configured-by-user"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - numpy
+result:
+  content:
+    - type: text
+      text: >-
+        managed Python requirements are disabled because the session uses a
+        user-selected Python environment
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - numpy
+result:
+  content:
+    - type: text
+      text: >-
+        managed Python requirements are disabled because the session uses a
+        user-selected Python environment
+  isError: true
+---
+send:
+  r: external_python_combined_side_effect <- TRUE
+  requirements:
+    python:
+      - numpy
+result:
+  content:
+    - type: text
+      text: >-
+        managed Python requirements are disabled because the session uses a
+        user-selected Python environment
+  isError: true
+---
+send:
+  r: |
+    environment_request <- jsonlite::toJSON(list(
+      requirements = list(packages = I("numpy")),
+      retained_requirements = list(packages = I("numpy"))
+    ), auto_unbox = TRUE)
+    environment_error <- tryCatch(
+      .Call("mcp_console_resolve_python", environment_request),
+      error = conditionMessage
+    )
+    version_request <- jsonlite::toJSON(list(
+      constraints = I(">=3.11")
+    ), auto_unbox = TRUE)
+    version_error <- tryCatch(
+      .Call("mcp_console_resolve_python_version", version_request),
+      error = conditionMessage
+    )
+    cat(environment_error, version_error, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |
+        managed Python requirements are disabled because the session uses a user-selected Python environment
+        managed Python requirements are disabled because the session uses a user-selected Python environment
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(Sys.getpid(), external_python_worker),
+      identical(external_python_state, 42L),
+      !exists("external_python_combined_side_effect", inherits = FALSE),
+      identical(
+        Sys.getenv("RETICULATE_PYTHON", unset = NA_character_),
+        "configured-by-user"
+      )
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

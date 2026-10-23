@@ -1,0 +1,24 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  python: "42"
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/selected-python
+  isError: true
+---
+send:
+  control: restart
+  python: "42"
+result:
+  content:
+    - type: text
+      text: |-
+        [runtime discovery retried]
+        42
+        [done]
+  isError: false

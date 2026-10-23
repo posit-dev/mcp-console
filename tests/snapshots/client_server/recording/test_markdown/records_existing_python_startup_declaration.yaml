@@ -1,0 +1,19 @@
+---
+recorded_startup_requirements:
+  r:
+    - DBI
+    - dbplyr
+    - dplyr
+    - duckdb
+    - ggplot2
+    - nanoarrow
+    - reticulate
+    - tidyverse
+    - yyjsonr
+  python: []
+  duckdb:
+    - icu
+    - json
+    - sqlite
+  python_version: []
+  exclude_newer: ~

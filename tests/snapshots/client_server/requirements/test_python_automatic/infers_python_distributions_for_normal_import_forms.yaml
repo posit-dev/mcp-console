@@ -1,0 +1,35 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import yaml
+    from yaml import safe_load
+    from yaml12 import Yaml
+    import importlib
+
+    yaml_from_importlib = importlib.import_module("yaml")
+    pydash = importlib.import_module("pydash")
+    (
+        yaml.safe_load("answer: 42"),
+        safe_load("answer: 43"),
+        yaml_from_importlib is yaml,
+        Yaml.__name__,
+        pydash.__name__,
+    )
+result:
+  content:
+    - type: text
+      text: |
+        [resolved PyPI distribution 'pyyaml' for Python import 'yaml']
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        ({'answer': 42}, {'answer': 43}, True, 'Yaml', 'pydash')
+  isError: false

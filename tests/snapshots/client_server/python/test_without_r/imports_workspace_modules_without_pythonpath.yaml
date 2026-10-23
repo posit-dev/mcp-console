@@ -1,0 +1,48 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+    import workspace_module
+    import workspace_package
+
+    assert "PYTHONPATH" not in os.environ
+    assert sys.path[0] == ""
+    assert workspace_module.value + workspace_package.value == 42
+    os.chdir("subdirectory")
+    import after_chdir
+
+    after_chdir.value
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+send:
+  control: restart
+  python: |
+    import os
+    import sys
+    import workspace_module
+    import workspace_package
+
+    assert "PYTHONPATH" not in os.environ
+    assert sys.path[0] == ""
+    assert workspace_module.value + workspace_package.value == 42
+    os.chdir("subdirectory")
+    import after_chdir
+
+    after_chdir.value
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        43
+        [done]
+  isError: false

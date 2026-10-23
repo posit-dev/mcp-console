@@ -1,0 +1,6 @@
+---
+scenario: owned SIGTERM before setup with stopped runner and large frame
+stdout: ""
+stderr: ""
+exit_code: 0
+verified_cleanup: runner, manager, and private directory

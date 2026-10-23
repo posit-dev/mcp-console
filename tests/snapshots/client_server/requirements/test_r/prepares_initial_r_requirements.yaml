@@ -1,0 +1,171 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - not a valid requirement !!!
+result:
+  content:
+    - type: text
+      text: |-
+        R package resolution failed with exit status: 1: Error: 
+        ! error in pak subprocess
+        Caused by error in `get_remote_types(refs)`:
+        ! Cannot parse package: not a valid requirement !!!.
+        i See `?pkgdepends::pkg_refs()` for supported package sources.
+        ---
+        Backtrace:
+        1. global ir_resolve_main()
+        2. global ir_resolve_refs(refs_in)
+        3. pak::pkg_deps(<ir-version-dependent arguments>)
+        4. pak:::remote(function(...) { ...
+        5. err$throw(res$error)
+        ---
+        Subprocess backtrace:
+         1. base::withCallingHandlers(cli_message = function(msg) { ...
+         2. get("pkg_deps_internal", asNamespace("pak"))(...)
+         3. pak:::pkg_deps_internal2(pkg, upgrade, dependencies)
+         4. pkgdepends::new_pkg_deps(pkg, config = config)
+         5. pkg_deps$new(refs, ...)
+         6. local initialize(...)
+         7. pkg_plan$new(refs, config, remote_types)
+         8. local initialize(...)
+         9. pkgdepends:::pkgplan_init(self, private, refs, config, remote_types, lockfile)
+        10. pkgdepends::parse_pkg_refs(refs)
+        11. pkgdepends:::get_remote_types(refs)
+        12. base::throw(pkg_error("Cannot parse package{?s}: {.pkg {refs[bad]}}.", ...
+        13. | base::signalCondition(cond)
+        14. global (function (e) ...
+        Execution halted
+        ir: dependency resolution failed
+  isError: true
+transcript_normalization:
+  target: result.content[0].text
+  replacements:
+    ir_pkg_deps_arguments: <ir-version-dependent arguments>
+---
+send:
+  requirements:
+    r:
+      - zeallot
+    python:
+      - example @ https://example.invalid/example.whl
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `example @ https://example.invalid/example.whl` is
+        not accepted: host-side managed resolution accepts named package
+        requirements only
+  isError: true
+---
+send:
+  r: |
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    stopifnot(
+      identical(
+        dirname(find.package("praise")),
+        .libPaths()[[managed_index]]
+      ),
+      normalizePath(.libPaths()[[managed_index + 1L]]) ==
+        normalizePath(Sys.getenv("MCP_CONSOLE_AMBIENT_R_LIBRARY"))
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - zeallot
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    stopifnot(
+      "py-yaml12" %in% reticulate::py_require()$packages,
+      identical(
+        dirname(find.package("praise")),
+        .libPaths()[[managed_index]]
+      ),
+      identical(
+        dirname(find.package("zeallot")),
+        .libPaths()[[managed_index]]
+      ),
+      normalizePath(.libPaths()[[managed_index + 1L]]) ==
+        normalizePath(Sys.getenv("MCP_CONSOLE_AMBIENT_R_LIBRARY"))
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    stopifnot(
+      "py-yaml12" %in% reticulate::py_require()$packages,
+      identical(
+        dirname(find.package("praise")),
+        .libPaths()[[managed_index]]
+      ),
+      identical(
+        dirname(find.package("zeallot")),
+        .libPaths()[[managed_index]]
+      ),
+      normalizePath(.libPaths()[[managed_index + 1L]]) ==
+        normalizePath(Sys.getenv("MCP_CONSOLE_AMBIENT_R_LIBRARY"))
+    )
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

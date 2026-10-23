@@ -1,0 +1,326 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  python: "42"
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get cannot be combined with code, stdin, or control
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  stdin: ""
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get cannot be combined with code, stdin, or control
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  control: restart
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get cannot be combined with code, stdin, or control
+  isError: true
+---
+send:
+  requirements:
+    r: []
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    python: []
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    duckdb: []
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    python_version: []
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    exclude_newer: ~
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    r: ~
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: null, expected a
+        sequence
+  isError: true
+---
+send:
+  requirements:
+    python_version: ~
+    action: get
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: null, expected a
+        sequence
+  isError: true
+---
+send:
+  requirements:
+    r: []
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    python: []
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    duckdb: []
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    python_version: []
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    exclude_newer: ~
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        requirements.action=get/reset takes no package lists or constraint
+        fields
+  isError: true
+---
+send:
+  requirements:
+    r: ~
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: null, expected a
+        sequence
+  isError: true
+---
+send:
+  requirements:
+    python_version: ~
+    action: reset
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: null, expected a
+        sequence
+  isError: true
+---
+send:
+  requirements: {}
+result:
+  content:
+    - type: text
+      text: >-
+        at least one of `requirements.r`, `requirements.python`, or
+        `requirements.duckdb` is required
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false

@@ -1,0 +1,82 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    cache = Path(os.environ["MPLCONFIGDIR"])
+    cache.mkdir(parents=True, exist_ok=True)
+    marker = cache / "session-marker"
+    print(marker.exists())
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  python: |
+    marker.write_text("private")
+    print(marker.read_text())
+result:
+  content:
+    - type: text
+      text: |
+        private
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    print((Path(os.environ["MPLCONFIGDIR"]) / "session-marker").exists())
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    from pathlib import Path
+
+    cache = Path(os.environ["MPLCONFIGDIR"])
+    cache.mkdir(parents=True, exist_ok=True)
+    marker = cache / "session-marker"
+    print(marker.exists())
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  python: |
+    marker.write_text("private")
+    print(marker.read_text())
+result:
+  content:
+    - type: text
+      text: |
+        private
+  isError: false

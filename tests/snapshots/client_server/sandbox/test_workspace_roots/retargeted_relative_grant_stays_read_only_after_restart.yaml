@@ -1,0 +1,52 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python-workspace-writable.yaml
+---
+send:
+  python: |
+    from pathlib import Path
+
+    grant = Path("grant")
+    initial = grant / "initial"
+    _ = initial.write_text("allowed")
+    initial.unlink()
+    print("relative grant used")
+result:
+  content:
+    - type: text
+      text: |
+        relative grant used
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        Warning: refusing changed writable root '<writable-root>'; broad writes require an explicit absolute grant
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+
+    probe = Path(os.environ["HOME"]) / "probe"
+    try:
+        _ = probe.write_text("blocked")
+    except OSError as error:
+        assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+    else:
+        raise AssertionError("retargeted relative grant made home writable")
+    assert probe.read_text() == "unchanged"
+    print("home remains read-only after restart")
+result:
+  content:
+    - type: text
+      text: |
+        home remains read-only after restart
+  isError: false

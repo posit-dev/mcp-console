@@ -1,0 +1,74 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import _mcp_console_sql
+    import sys
+
+
+    class StatefulConnection:
+        description = (("answer",),)
+
+        def __init__(self):
+            self.answer = 42
+
+        def cursor(self):
+            return self
+
+        def execute(self, source):
+            return self
+
+        def fetchmany(self, size):
+            return [(self.answer,)][:size]
+
+
+    dispatch_code = _mcp_console_sql.dispatch.__code__
+
+
+    def exit_sql_dispatch(frame, event, argument):
+        if event == "call" and frame.f_code is dispatch_code:
+            raise SystemExit("selected SQL dispatch exit")
+        return exit_sql_dispatch
+
+
+    connection = StatefulConnection()
+    _console.sql_connection(connection)
+    sys.settrace(exit_sql_dispatch)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: ANSWER
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 362, in dispatch
+          File "<mcp-console:python:e1>", line 26, in exit_sql_dispatch
+        SystemExit: selected SQL dispatch exit
+  isError: false
+---
+send:
+  python: connection.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  sql: ANSWER
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false

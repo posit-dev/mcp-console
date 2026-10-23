@@ -1,0 +1,30 @@
+---
+configuration: project
+---
+send:
+  python: |
+    import os, sys
+    from pathlib import Path
+
+    print(Path(sys.prefix) == Path(os.environ["HOME"]) / ".venv")
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+configuration: CLI
+---
+send:
+  python: |
+    import os, sys
+    from pathlib import Path
+
+    print(Path(sys.prefix) == Path(os.environ["HOME"]) / ".venv")
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false

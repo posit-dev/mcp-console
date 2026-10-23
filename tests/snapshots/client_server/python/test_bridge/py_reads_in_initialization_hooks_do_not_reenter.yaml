@@ -1,0 +1,108 @@
+---
+send:
+  python: hook_value = "existing Python value"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    callback_calls <- 0L
+    after_calls <- 0L
+    options(reticulate.python.beforeInitialized = function() {
+      callback_calls <<- callback_calls + 1L
+      if (callback_calls > 1L) {
+        stop("recursive bridge initialization")
+      }
+      if (FALSE) {
+        options(reticulate.python.beforeInitialized = NULL)
+      }
+      stopifnot(
+        is.null(reticulate::py),
+        is.null(py$hook_value),
+        !reticulate::py_available(initialize = FALSE)
+      )
+    })
+    options(reticulate.python.afterInitialized = function() {
+      after_calls <<- after_calls + 1L
+      stopifnot(identical(py$hook_value, "existing Python value"))
+    })
+    stopifnot(
+      identical(reticulate::py$hook_value, "existing Python value"),
+      callback_calls == 1L,
+      after_calls == 1L
+    )
+    options(reticulate.python.beforeInitialized = NULL)
+    options(reticulate.python.afterInitialized = NULL)
+    cat("initialization callback ran once\n")
+result:
+  content:
+    - type: text
+      text: |
+        initialization callback ran once
+  isError: false
+---
+send:
+  python: hook_value
+result:
+  content:
+    - type: text
+      text: |
+        'existing Python value'
+  isError: false
+---
+send:
+  python: hook_value = "existing Python value"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    callback_calls <- 0L
+    after_calls <- 0L
+    options(reticulate.python.beforeInitialized = function() {
+      callback_calls <<- callback_calls + 1L
+      if (callback_calls > 1L) {
+        stop("recursive bridge initialization")
+      }
+      if (TRUE) {
+        options(reticulate.python.beforeInitialized = NULL)
+      }
+      stopifnot(
+        is.null(reticulate::py),
+        is.null(py$hook_value),
+        !reticulate::py_available(initialize = FALSE)
+      )
+    })
+    options(reticulate.python.afterInitialized = function() {
+      after_calls <<- after_calls + 1L
+      stopifnot(identical(py$hook_value, "existing Python value"))
+    })
+    stopifnot(
+      identical(reticulate::py$hook_value, "existing Python value"),
+      callback_calls == 1L,
+      after_calls == 1L
+    )
+    options(reticulate.python.beforeInitialized = NULL)
+    options(reticulate.python.afterInitialized = NULL)
+    cat("initialization callback ran once\n")
+result:
+  content:
+    - type: text
+      text: |
+        initialization callback ran once
+  isError: false
+---
+send:
+  python: hook_value
+result:
+  content:
+    - type: text
+      text: |
+        'existing Python value'
+  isError: false

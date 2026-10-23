@@ -1,0 +1,53 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send:
+  python: |
+    import os
+    import subprocess
+
+    crash_child = subprocess.Popen(
+        ["/bin/sleep", "60"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    print(f"worker={os.getpid()}")
+    print(f"relay={os.getppid()}")
+    print(f"child={crash_child.pid}")
+    print(f"temp={os.environ['TMPDIR']}")
+result:
+  content:
+    - type: text
+      text: |
+        worker=<worker pid>
+        relay=<relay pid>
+        child=<detached child pid>
+        temp=<sandbox temp>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  process_ids: omitted
+  sandbox_temporary_directory: omitted
+---
+manager_signal: SIGKILL
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: >-
+        [worker relay stdout closed before retirement completed; additionally
+        failed to stop the worker: worker launcher terminated by signal 9]
+  isError: true
+---
+send:
+  r: writeLines("replacement ready")
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        replacement ready
+  isError: false

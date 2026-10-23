@@ -1,0 +1,57 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  r: preview allocation image then fail
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: image
+      data: <image byte-identical to 6 MiB of zero bytes>
+      mimeType: image/png
+    - type: text
+      text: |-
+
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [phase: replacement]
+        [worker starting]
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: "[idle]"
+  isError: false
+---
+send:
+  r: echo after replacement
+result:
+  content:
+    - type: text
+      text: |
+        zod: after replacement
+  isError: false

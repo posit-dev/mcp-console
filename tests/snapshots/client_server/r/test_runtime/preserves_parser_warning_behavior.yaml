@@ -1,0 +1,74 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: invisible(1.0L)
+result:
+  content:
+    - type: text
+      text: |
+        Warning message:
+        integer literal 1.0L contains unnecessary decimal point 
+  isError: false
+---
+send:
+  r: |
+    options(warning.expression = quote(cat("parser warning\n")))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: invisible(1.0L)
+result:
+  content:
+    - type: text
+      text: |
+        parser warning
+  isError: false
+---
+send:
+  r: |
+    options(
+      warning.expression = NULL,
+      warn = 2,
+      error = quote(cat("error handler warn: ", getOption("warn"), "\n", sep = ""))
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    function(x, x) x
+result:
+  content:
+    - type: text
+      text: |
+        Error: repeated formal argument 'x' (<input>:1:13)
+  isError: false
+---
+send:
+  r: |
+    answer <- 42
+    1.0L
+result:
+  content:
+    - type: text
+      text: |
+        Error: (converted from warning) integer literal 1.0L contains unnecessary decimal point
+        error handler warn: 2
+  isError: false
+---
+send:
+  r: answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

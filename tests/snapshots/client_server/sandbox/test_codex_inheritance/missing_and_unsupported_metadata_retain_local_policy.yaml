@@ -1,0 +1,122 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.client-sandbox-python-only.yaml
+---
+send:
+  python: >-
+    import os; assert os.environ['MCP_CONSOLE_SANDBOX'] == '1'; print('local
+    sandbox')
+result:
+  content:
+    - type: text
+      text: |
+        local sandbox
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: >-
+        assert os.environ['MCP_CONSOLE_SANDBOX'] == '1'; print('local sandbox')
+    _meta: {}
+result:
+  content:
+    - type: text
+      text: |
+        local sandbox
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: >-
+        assert os.environ['MCP_CONSOLE_SANDBOX'] == '1'; print('local sandbox')
+    _meta:
+      codex/sandbox-state: {}
+result:
+  content:
+    - type: text
+      text: |
+        local sandbox
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: >-
+        assert os.environ['MCP_CONSOLE_SANDBOX'] == '1'; print('local sandbox')
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: future
+result:
+  content:
+    - type: text
+      text: |
+        local sandbox
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: >-
+        assert os.environ['MCP_CONSOLE_SANDBOX'] == '1'; print('local sandbox')
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system: []
+result:
+  content:
+    - type: text
+      text: |
+        local sandbox
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      timeout_ms: 60000
+      python: raise AssertionError('changed permissions executed code')
+    _meta:
+      codex/sandbox-state:
+        permissionProfile:
+          type: managed
+          file_system:
+            type: restricted
+            entries: []
+          network: restricted
+result:
+  content:
+    - type: text
+      text: >-
+        client sandbox permissions changed; reconnect to apply them before
+        sending more code
+  isError: true
+---
+send:
+  python: print('local sandbox')
+result:
+  content:
+    - type: text
+      text: |
+        local sandbox
+  isError: false
+---
+stderr: |
+  Warning: could not parse Codex sandbox settings; falling back to workspace
+  Warning: could not parse Codex sandbox settings; falling back to workspace
+  Warning: could not parse Codex sandbox settings; falling back to workspace

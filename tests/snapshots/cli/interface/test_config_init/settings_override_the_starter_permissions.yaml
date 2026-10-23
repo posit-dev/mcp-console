@@ -1,0 +1,36 @@
+---
+scenario: clear sandbox
+configuration:
+  sandbox: ~
+---
+scenario: read-only sandbox
+configuration:
+  sandbox:
+    profile: read_only
+---
+scenario: inherited client sandbox
+configuration:
+  sandbox:
+    profile: inherit_codex
+---
+scenario: empty sandbox mapping
+configuration:
+  sandbox: {}
+---
+scenario: replace write grants
+configuration:
+  sandbox:
+    filesystem:
+      read_write: []
+    profile: workspace
+---
+scenario: configured proxy and local binding
+configuration:
+  sandbox:
+    profile: workspace
+    network:
+      proxy:
+        domains:
+          allow:
+            - api.example.com
+      allow_local_binding: true

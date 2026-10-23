@@ -1,0 +1,13 @@
+---
+exit_code: 0
+stdout: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: SKIP (not installed)
+  Checking Python...
+  Python: OK
+  Checking SQL...
+  SQL: OK
+  Shutdown: OK
+  All checks passed. Runtime caches are warm.

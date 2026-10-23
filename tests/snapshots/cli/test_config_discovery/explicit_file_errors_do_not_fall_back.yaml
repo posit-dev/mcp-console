@@ -1,0 +1,52 @@
+---
+state: directory
+command: serve
+exit_code: 1
+stderr: |
+  configuration 'selected.yaml' must be a regular file
+---
+state: directory
+command: sandbox
+exit_code: 1
+stderr: |
+  configuration 'selected.yaml' must be a regular file
+---
+state: malformed
+command: serve
+exit_code: 1
+stderr: >
+  selected.yaml: while parsing a node, did not find expected node content
+  at byte 10 line 2 column 1
+---
+state: malformed
+command: sandbox
+exit_code: 1
+stderr: >
+  selected.yaml: while parsing a node, did not find expected node content
+  at byte 10 line 2 column 1
+---
+state: invalid
+command: serve
+exit_code: 1
+stderr: |
+  selected.yaml: languages must contain at least one of r, python, or sql
+---
+state: invalid
+command: sandbox
+exit_code: 1
+stderr: |
+  selected.yaml: languages must contain at least one of r, python, or sql
+---
+state: empty
+command: serve
+exit_code: 1
+stderr: |
+  selected.yaml: expected one mapping document
+---
+state: empty
+command: sandbox
+exit_code: 1
+stderr: |
+  selected.yaml: expected one mapping document
+---
+empty_mapping_uses_builtin_defaults: true

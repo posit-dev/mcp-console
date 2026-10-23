@@ -1,0 +1,204 @@
+---
+case: invalid tagged scalar
+command: serve
+stderr: >
+  .agents/console/config.yaml: line 1, column 26: invalid or unresolved
+  YAML value
+---
+case: invalid tagged scalar
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: line 1, column 26: invalid or unresolved
+  YAML value
+---
+case: empty
+command: serve
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: empty
+command: sandbox
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: sequence
+command: serve
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: sequence
+command: sandbox
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: tagged sequence
+command: serve
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: tagged sequence
+command: sandbox
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: tagged scalar
+command: serve
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: tagged scalar
+command: sandbox
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: multiple documents
+command: serve
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: multiple documents
+command: sandbox
+stderr: |
+  .agents/console/config.yaml: expected one mapping document
+---
+case: malformed
+command: serve
+stderr: >
+  .agents/console/config.yaml: while parsing a node, did not find expected
+  node content at byte 10 line 2 column 1
+---
+case: malformed
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: while parsing a node, did not find expected
+  node content at byte 10 line 2 column 1
+---
+case: top-level field
+command: serve
+stderr: >
+  .agents/console/config.yaml: profile: unknown field `profile`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+case: top-level field
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: profile: unknown field `profile`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+case: tagged unknown field
+command: serve
+stderr: >
+  .agents/console/config.yaml: profile: unknown field `profile`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+case: tagged unknown field
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: profile: unknown field `profile`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+case: sandbox type
+command: serve
+stderr: >
+  .agents/console/config.yaml: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+case: sandbox type
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+case: tagged sandbox type
+command: serve
+stderr: >
+  .agents/console/config.yaml: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+case: tagged sandbox type
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+case: tagged nested sequence
+command: serve
+stderr: >
+  .agents/console/config.yaml: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+case: tagged nested sequence
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+case: sandbox sequence
+command: serve
+stderr: >
+  .agents/console/config.yaml: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+case: sandbox sequence
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: sandbox: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+case: owned protocol
+command: serve
+stderr: >
+  .agents/console/config.yaml: sandbox: version: unknown field `version`,
+  expected one of `profile`, `tempdir`, `filesystem`, `network`; see
+  docs/CONFIGURATION.md for the public format
+---
+case: owned protocol
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: sandbox: version: unknown field `version`,
+  expected one of `profile`, `tempdir`, `filesystem`, `network`; see
+  docs/CONFIGURATION.md for the public format
+---
+case: owned lifetime
+command: serve
+stderr: >
+  .agents/console/config.yaml: sandbox: lifecycle: unknown field
+  `lifecycle`, expected one of `profile`, `tempdir`, `filesystem`,
+  `network`; see docs/CONFIGURATION.md for the public format
+---
+case: owned lifetime
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: sandbox: lifecycle: unknown field
+  `lifecycle`, expected one of `profile`, `tempdir`, `filesystem`,
+  `network`; see docs/CONFIGURATION.md for the public format
+---
+case: non-string key
+command: serve
+stderr: |
+  .agents/console/config.yaml: line 1, column 43: mapping keys must be strings
+---
+case: non-string key
+command: sandbox
+stderr: |
+  .agents/console/config.yaml: line 1, column 43: mapping keys must be strings
+---
+case: non-finite number
+command: serve
+stderr: >
+  .agents/console/config.yaml: line 1, column 19: non-finite numbers are
+  unsupported
+---
+case: non-finite number
+command: sandbox
+stderr: >
+  .agents/console/config.yaml: line 1, column 19: non-finite numbers are
+  unsupported

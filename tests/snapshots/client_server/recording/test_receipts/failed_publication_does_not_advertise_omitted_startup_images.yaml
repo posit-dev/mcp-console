@@ -1,0 +1,4 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+capture: unpublished startup images are not advertised as retained

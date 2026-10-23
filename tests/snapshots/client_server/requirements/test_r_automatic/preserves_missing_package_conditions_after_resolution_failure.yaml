@@ -1,0 +1,145 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    tryCatch(
+      loadNamespace("notloaded.pkg"),
+      packageNotFoundError = function(e) "expected missing-package error"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        [1] "expected missing-package error"
+  isError: false
+---
+send:
+  r: |
+    describe_missing <- function(expr) {
+      tryCatch(
+        withCallingHandlers(
+          expr,
+          packageNotFoundError = function(e) {
+            cat("calling handler: ")
+            print(class(e))
+          }
+        ),
+        packageNotFoundError = function(e) {
+          print(e)
+          print(list(
+            message = conditionMessage(e),
+            call = deparse(conditionCall(e)),
+            package = e$package,
+            lib.loc = if (is.null(e$lib.loc)) {
+              NULL
+            } else {
+              identical(e$lib.loc, .libPaths())
+            }
+          ))
+          invisible(NULL)
+        }
+      )
+    }
+    describe_missing(loadNamespace("notloaded.pkg"))
+    describe_missing(notloaded.pkg::missing)
+    describe_missing(notloaded.pkg:::missing)
+    describe_missing(library(notloaded.pkg))
+    print(requireNamespace("notloaded.pkg"))
+    print(requireNamespace("notloaded.pkg", quietly = TRUE))
+    suppressWarnings(require(notloaded.pkg, quietly = TRUE))
+    suppressWarnings(library(notloaded.pkg, logical.return = TRUE))
+result:
+  content:
+    - type: text
+      text: >-
+        <condition classes, messages, calls, and fields identical to live
+        Rscript>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  reference: same source in live Rscript --vanilla
+  comparison: exact equality of printed condition details
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      loadNamespace("notloaded.pkg"),
+      packageNotFoundError = function(e) "expected missing-package error"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        [1] "expected missing-package error"
+  isError: false
+---
+send:
+  r: |
+    describe_missing <- function(expr) {
+      tryCatch(
+        withCallingHandlers(
+          expr,
+          packageNotFoundError = function(e) {
+            cat("calling handler: ")
+            print(class(e))
+          }
+        ),
+        packageNotFoundError = function(e) {
+          print(e)
+          print(list(
+            message = conditionMessage(e),
+            call = deparse(conditionCall(e)),
+            package = e$package,
+            lib.loc = if (is.null(e$lib.loc)) {
+              NULL
+            } else {
+              identical(e$lib.loc, .libPaths())
+            }
+          ))
+          invisible(NULL)
+        }
+      )
+    }
+    describe_missing(loadNamespace("notloaded.pkg"))
+    describe_missing(notloaded.pkg::missing)
+    describe_missing(notloaded.pkg:::missing)
+    describe_missing(library(notloaded.pkg))
+    print(requireNamespace("notloaded.pkg"))
+    print(requireNamespace("notloaded.pkg", quietly = TRUE))
+    suppressWarnings(require(notloaded.pkg, quietly = TRUE))
+    suppressWarnings(library(notloaded.pkg, logical.return = TRUE))
+result:
+  content:
+    - type: text
+      text: >-
+        <condition classes, messages, calls, and fields identical to live
+        Rscript>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  reference: same source in live Rscript --vanilla
+  comparison: exact equality of printed condition details
+---
+send:
+  requirements:
+    r:
+      - notloaded.pkg
+result:
+  content:
+    - type: text
+      text: >-
+        R package resolution failed with exit status: 1: synthetic `ir` failure
+        for notloaded.pkg
+  isError: true

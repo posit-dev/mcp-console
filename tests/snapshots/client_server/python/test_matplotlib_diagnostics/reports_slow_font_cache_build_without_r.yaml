@@ -1,0 +1,104 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  timeout_ms: 60000
+  python: |
+    import logging
+    import os
+    from pathlib import Path
+
+    import matplotlib
+
+    private = Path(os.environ["MPLCONFIGDIR"])
+    for cache in private.glob("fontlist-v*.json"):
+        cache.unlink()
+        cache.write_text("{}", encoding="utf-8")
+    os.environ["MCP_CONSOLE_TEST_FONT_DISCOVERY"] = str(private / "discovery.log")
+    os.environ["MCP_CONSOLE_TEST_FONT_GATE"] = "1"
+    os.environ["MCP_CONSOLE_TEST_FONT_STARTED"] = str(private / "font-started")
+    os.environ["MCP_CONSOLE_TEST_FONT_RELEASE"] = str(private / "font-release")
+    logger = logging.getLogger("matplotlib.font_manager")
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("fonts: %(message)s"))
+    logger.addHandler(handler)
+    logger.propagate = False
+    logger.setLevel(logging.WARNING)
+    print(os.environ["MCP_CONSOLE_TEST_FONT_STARTED"])
+    print(os.environ["MCP_CONSOLE_TEST_FONT_RELEASE"])
+result:
+  content:
+    - type: text
+      text: |
+        <font discovery started>
+        <font discovery release>
+  isError: false
+---
+send:
+  timeout_ms: 0
+  python: |
+    import matplotlib.pyplot as plt
+
+    assert matplotlib.rcParams["lines.linewidth"] == 7.25
+    assert matplotlib.get_backend() == "svg"
+    _ = plt.plot([0, 1], [1, 0])
+    plt.close("all")
+    print("plot complete")
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 100
+result:
+  content:
+    - type: text
+      text: |-
+        fonts: Matplotlib is building the font cache; this may take a moment.
+
+        [elapsed: <elapsed>s since admission]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        plot complete
+  isError: false
+---
+send:
+  python: _ = matplotlib.font_manager.findfont('MCP Console missing test font')
+result:
+  content:
+    - type: text
+      text: >
+        fonts: findfont: Font family ['MCP Console missing test font'] not
+        found. Falling back to DejaVu Sans.
+  isError: false

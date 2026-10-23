@@ -1,0 +1,17 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: <100000 multibyte characters on one source line>
+result:
+  content:
+    - type: text
+      text: |
+        [1] 100000
+  isError: false
+transcript_normalization:
+  target: send.r
+  repeated_character: é
+  repeated_character_count: 100000
+  source_utf8_bytes: 200081
+  source_sha256: 35c7ac83f390767db12ec9ab326742eaf3945ae81bc0ac13163e3f1982c6009a

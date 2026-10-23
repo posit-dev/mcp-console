@@ -1,0 +1,28 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: never_run = True
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<site-packages>/sitecustomize.py", line 10, in interrupt_sql
+            raise KeyboardInterrupt
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: |
+    import json
+
+    assert "never_run" not in globals()
+    assert callable(_console.sql_connection)
+    json.loads("42")
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

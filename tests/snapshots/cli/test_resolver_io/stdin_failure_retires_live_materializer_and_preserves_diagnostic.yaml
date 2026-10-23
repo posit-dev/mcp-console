@@ -1,0 +1,10 @@
+---
+completed:
+  id: 1
+  result:
+    Err: >-
+      failed to write resolver stdin: Broken pipe (os error 32): fixture
+      closed stdin before replying
+  control: ~
+  confirmed: true
+materializer_retired: true

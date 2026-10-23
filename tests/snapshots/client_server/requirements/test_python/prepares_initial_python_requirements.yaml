@@ -1,0 +1,92 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - not a valid requirement !!!
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `not a valid requirement !!!` is not accepted:
+        host-side managed resolution accepts named package requirements only
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - not a valid requirement !!!
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `not a valid requirement !!!` is not accepted:
+        host-side managed resolution accepts named package requirements only
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - |-
+        numpy
+        pandas
+result:
+  content:
+    - type: text
+      text: |-
+        Python requirement `numpy
+        pandas` is not accepted: host-side managed resolution accepts named package requirements only
+  isError: true
+---
+send:
+  r: |
+    seed <- tail(reticulate::py_require()$history, 1L)[[1L]]
+    printed_requirements <- capture.output(print(reticulate::py_require()))
+    stopifnot(
+      identical(seed$requested_from, "mcp-console"),
+      identical(seed$action, "set"),
+      isFALSE(seed$exclude_newer_supplied),
+      identical(
+        seed$packages,
+        c("numpy", "pandas", "matplotlib", "plotnine", "py-yaml12")
+      ),
+      length(printed_requirements) > 0L
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import yaml12
+
+    yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        'yaml12'
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false

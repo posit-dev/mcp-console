@@ -1,0 +1,122 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    selected_python <- "<selected python>"
+    Sys.unsetenv("RETICULATE_PYTHON")
+    reticulate::use_python(selected_python, required = TRUE)
+    selection_calls <- 0L
+    assignInNamespace("py_discover_config", local({
+      original <- get("py_discover_config", asNamespace("reticulate"))
+      function(...) {
+        selection_calls <<- selection_calls + 1L
+        config <- original(...)
+        stopifnot(identical(normalizePath(config$python), normalizePath(selected_python)))
+        selected_python <<- config$python
+        config$libpython <- "/missing-reticulate-libpython"
+        config$pythonhome <- "/missing-reticulate-home"
+        config
+      }
+    }), "reticulate")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    owned_value = 41
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    config <- reticulate::py_config()
+    stopifnot(selection_calls == 1L)
+    stopifnot(identical(config$python, selected_python))
+    stopifnot(file.exists(config$libpython))
+    stopifnot(dir.exists(config$pythonhome))
+    stopifnot(!identical(config$pythonhome, dirname(dirname(selected_python))))
+    reticulate::py_to_r(reticulate::py$owned_value) + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    owned_value + 2
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    selected_python <- "<selected python>"
+    Sys.unsetenv("RETICULATE_PYTHON")
+    reticulate::use_python(selected_python, required = TRUE)
+    selection_calls <- 0L
+    assignInNamespace("py_discover_config", local({
+      original <- get("py_discover_config", asNamespace("reticulate"))
+      function(...) {
+        selection_calls <<- selection_calls + 1L
+        config <- original(...)
+        stopifnot(identical(normalizePath(config$python), normalizePath(selected_python)))
+        selected_python <<- config$python
+        config$libpython <- "/missing-reticulate-libpython"
+        config$pythonhome <- "/missing-reticulate-home"
+        config
+      }
+    }), "reticulate")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_run_string("owned_value = 41")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    config <- reticulate::py_config()
+    stopifnot(selection_calls == 1L)
+    stopifnot(identical(config$python, selected_python))
+    stopifnot(file.exists(config$libpython))
+    stopifnot(dir.exists(config$pythonhome))
+    stopifnot(!identical(config$pythonhome, dirname(dirname(selected_python))))
+    reticulate::py_to_r(reticulate::py$owned_value) + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: |
+    owned_value + 2
+result:
+  content:
+    - type: text
+      text: |
+        43
+  isError: false

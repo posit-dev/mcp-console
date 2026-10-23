@@ -1,0 +1,62 @@
+---
+!same-as python-only-writable MCP initialization for this execution mode
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": false,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: false
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  python: import os; worker_pid = os.getpid(); worker_pid
+result:
+  content:
+    - type: text
+      text: |
+        <prewarmed worker pid>
+  isError: false
+---
+send:
+  python: os.getpid()
+result:
+  content:
+    - type: text
+      text: |
+        <same worker pid>
+  isError: false
+---
+input:
+  method: tools/list
+result: <unchanged from initialization>

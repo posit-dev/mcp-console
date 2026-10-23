@@ -1,0 +1,62 @@
+---
+send:
+  python: import os; worker_pid = os.getpid(); steps = []; identity = object()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: steps.append('empty'); import mcp_console_test_empty_pkg
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ModuleNotFoundError: No module named 'mcp_console_test_empty_pkg'.
+
+        MCP Console prepared the inferred PyPI distribution `mcp_console_test_empty_pkg`, but it did not provide the import `mcp_console_test_empty_pkg`.
+
+        Pass the correct distribution through `requirements.python` in the `send` call:
+
+        requirements: {"python": ["correct-distribution-name"]}
+  isError: false
+---
+send:
+  python: steps.append('raises'); import mcp_console_test_raises_pkg
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e3>", line 1, in <module>
+          File "<managed Python>/mcp_console_test_raises_pkg/__init__.py", line 1, in <module>
+            raise RuntimeError("synthetic module initialization failure")
+        RuntimeError: synthetic module initialization failure
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  accepted_python_requirements:
+    - numpy
+    - pandas
+    - matplotlib
+    - plotnine
+    - duckdb
+    - mcp_console_test_empty_pkg
+    - mcp_console_test_raises_pkg
+---
+send:
+  python: >-
+    assert steps == ['empty', 'raises']; assert os.getpid() == worker_pid;
+    print('failed imports did not replay cells')
+result:
+  content:
+    - type: text
+      text: |
+        failed imports did not replay cells
+  isError: false

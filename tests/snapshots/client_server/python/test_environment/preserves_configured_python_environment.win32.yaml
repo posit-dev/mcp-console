@@ -1,0 +1,14 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: explicit Python executable is not on PATH
+  isError: true
+---
+stderr: |
+  explicit Python executable is not on PATH

@@ -1,0 +1,27 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    from joblib import Parallel, delayed
+
+    Parallel(n_jobs=2)(delayed(abs)(value) for value in range(-2, 3))
+  requirements:
+    python:
+      - joblib
+result:
+  content:
+    - type: text
+      text: |
+        [2, 1, 0, 1, 2]
+  isError: false
+---
+send:
+  python: |-
+    from joblib.externals.loky import get_reusable_executor
+    get_reusable_executor().shutdown(wait=True)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

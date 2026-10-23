@@ -1,0 +1,16 @@
+---
+arguments:
+  - mcp-console@0.0.1
+  - serve
+  - --no-config
+log: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: SKIP (not installed)
+  Checking Python...
+  Python: OK
+  Checking SQL...
+  SQL: OK
+  Shutdown: OK
+  All checks passed. Runtime caches are warm.

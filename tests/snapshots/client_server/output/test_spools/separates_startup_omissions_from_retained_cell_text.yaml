@@ -1,0 +1,21 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: "42"
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8052
+        concat:
+          - repeat: s
+            count: 3968
+          - |
+
+            [output omitted: 8380691 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/startup.txt]
+          - repeat: s
+            count: 3956
+          - |
+            cell output
+  isError: false

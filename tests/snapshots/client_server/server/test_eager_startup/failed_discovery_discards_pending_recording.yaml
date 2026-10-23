@@ -1,0 +1,13 @@
+---
+failed_send_count: 1024
+result:
+  content:
+    - type: text
+      text: >-
+        worker R home discovery failed with exit status: 17: fixture R discovery
+        failed
+  isError: true
+---
+stderr: >
+  worker R home discovery failed with exit status: 17: fixture R discovery
+  failed

@@ -1,0 +1,376 @@
+#!/usr/bin/env python3
+import argparse
+import hashlib
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+from checkout_workflow import cache_directory, checkout_owner, exclusive
+
+TARGETS = (
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+)
+
+
+def fail(message: str) -> None:
+    raise SystemExit(f"stage-sandbox-runner: {message}")
+
+
+def git_output(checkout: Path, *arguments: str) -> str:
+    # Pinned cache prefixes plus Codex source paths can exceed Windows MAX_PATH.
+    options = ["-c", "core.longpaths=true"] if sys.platform == "win32" else []
+    result = subprocess.run(
+        ["git", *options, *arguments],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        fail(result.stderr.strip() or result.stdout.strip())
+    return result.stdout.strip()
+
+
+def write_if_changed(path: Path, contents: bytes, mode: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if (
+        not path.exists()
+        or path.read_bytes() != contents
+        # Windows reports the read-only attribute, not POSIX permission bits.
+        or (sys.platform != "win32" and stat.S_IMODE(path.stat().st_mode) != mode)
+    ):
+        path.write_bytes(contents)
+        path.chmod(mode)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Build and stage the pinned private sandbox runner"
+    )
+    parser.add_argument(
+        "checkout",
+        nargs="?",
+        type=Path,
+        default=os.environ.get("MCP_CONSOLE_SANDBOX_SOURCE"),
+    )
+    parser.add_argument("--target", choices=TARGETS)
+    metadata = parser.add_mutually_exclusive_group()
+    metadata.add_argument("--github-output", type=Path)
+    metadata.add_argument(
+        "--describe",
+        action="store_true",
+        help="report source, toolchain, and staging paths without preparing them",
+    )
+    args = parser.parse_args()
+    pin = json.loads((ROOT / "sandbox-runner.json").read_text(encoding="utf-8"))
+    if not re.fullmatch(r"[0-9a-f]{40}", pin["commit"]):
+        fail("sandbox-runner.json must pin a full source commit")
+    if args.describe:
+        checkout = runner_checkout(args, pin)
+        toolchain = checkout / "codex-rs/rust-toolchain.toml"
+        record = ROOT / "target/sandbox-runner-build.json"
+        # Existing records must be valid staging output; corruption requires repair.
+        staged = json.loads(record.read_text()) if record.is_file() else {}
+        print(
+            json.dumps(
+                {
+                    "pin": pin,
+                    "source_checkout": str(checkout),
+                    "source_toolchain": tomllib.loads(toolchain.read_text())[
+                        "toolchain"
+                    ]["channel"]
+                    if toolchain.is_file()
+                    else None,
+                    "build_directory": str(checkout / "codex-rs/target"),
+                    "staging_directory": str(ROOT / "wheel-data/data"),
+                    "build_record": str(record),
+                    "staged_revision": staged.get("source_revision"),
+                    "staged_target": staged.get("target"),
+                },
+                indent=2,
+            )
+        )
+        return
+    if args.github_output is not None:
+        with args.github_output.open("a", encoding="utf-8") as output:
+            for key in ("repository", "commit"):
+                output.write(f"{key}={pin[key]}\n")
+        return
+    if sys.platform not in {"darwin", "linux", "win32"}:
+        fail(f"building private runner artifacts is unsupported on {sys.platform}")
+
+    with checkout_owner(ROOT):
+        stage_locked(args, pin)
+
+
+def stage_locked(args, pin):
+    checkout = runner_checkout(args, pin)
+    # Keep ownership beside the source, outside Git and Cargo's mutable output.
+    # Explicit source overrides and automatic selection share this same lock.
+    source_lock = checkout.with_name(f"{checkout.name}.stage.lock")
+    with exclusive([source_lock], "sandbox source", wait=True):
+        stage(args, pin)
+
+
+def runner_checkout(args: argparse.Namespace, pin: dict) -> Path:
+    return (
+        args.checkout
+        or cache_directory()
+        / "mcp-console/sandbox"
+        / pin["repository"]
+        / pin["commit"]
+        / "source"
+    ).resolve()
+
+
+def stage(args: argparse.Namespace, pin: dict) -> None:
+    checkout = runner_checkout(args, pin)
+    if args.checkout is None:
+        checkout.mkdir(parents=True, exist_ok=True)
+        if not (checkout / ".git").exists():
+            git_output(checkout, "init")
+        if not (checkout / "codex-rs/Cargo.toml").exists():
+            git_output(
+                checkout,
+                "fetch",
+                "--depth",
+                "1",
+                f"https://github.com/{pin['repository']}.git",
+                pin["commit"],
+            )
+            git_output(checkout, "checkout", "--detach", pin["commit"])
+    workspace = checkout / "codex-rs"
+    if not (workspace / "mcp-console-sandbox/Cargo.toml").is_file():
+        fail(f"not a sandbox-runner source checkout: {checkout}")
+    head = git_output(checkout, "rev-parse", "HEAD")
+    if head != pin["commit"]:
+        fail(f"source checkout is at {head}, expected {pin['commit']}")
+    status = git_output(checkout, "status", "--porcelain", "--untracked-files=all")
+    if status:
+        fail(f"source checkout is not clean:\n{status}")
+
+    with (workspace / "rust-toolchain.toml").open("rb") as stream:
+        channel = tomllib.load(stream)["toolchain"]["channel"]
+    toolchain = ["rustup", "run", "--install", channel]
+    target = args.target
+    if target is None:
+        target = subprocess.check_output(
+            [*toolchain, "rustc", "--print", "host-tuple"],
+            cwd=workspace,
+            text=True,
+        ).strip()
+        if target not in TARGETS:
+            fail(f"unsupported native target: {target}")
+
+    # Invoke Cargo on every source build and use its normal freshness checks.
+    # Changes to external tools selected through PATH can require cleaning the
+    # runner's target directory; see RELEASE.md. No local completed-runner cache
+    # bypasses Cargo.
+    environment = os.environ.copy()
+    environment["CARGO_TARGET_DIR"] = str(workspace / "target")
+    binaries = workspace / "target" / target / "release"
+    staged_helper = ROOT / "target/sandbox-runner-bwrap" / target / "bwrap"
+    if "linux" in target:
+        for name in ("CODEX_BWRAP_SOURCE_DIR", "CODEX_SKIP_BWRAP_BUILD"):
+            if name in environment:
+                fail(
+                    f"unset {name}: packaged Bubblewrap must be built from the pinned checkout"
+                )
+        subprocess.run(
+            [
+                *toolchain,
+                "cargo",
+                "build",
+                "--locked",
+                "--release",
+                "-p",
+                "codex-bwrap",
+                "--bin",
+                "bwrap",
+                "--target",
+                target,
+            ],
+            cwd=workspace,
+            env=environment,
+            check=True,
+        )
+        staged_helper.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(binaries / "bwrap", staged_helper)
+        subprocess.run(["strip", "--strip-unneeded", str(staged_helper)], check=True)
+        # Bind the runner to the exact stripped executable we ship. Native
+        # selection hashes and executes one open descriptor, without a PATH
+        # fallback after an integrity failure.
+        environment["CODEX_BWRAP_SHA256"] = hashlib.sha256(
+            staged_helper.read_bytes()
+        ).hexdigest()
+    windows = "windows" in target
+    subprocess.run(
+        [
+            *toolchain,
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "-p",
+            "mcp-console-sandbox",
+            "--bin",
+            "mcp-console-sandbox",
+            "--target",
+            target,
+        ],
+        cwd=workspace,
+        env=environment,
+        check=True,
+    )
+    data = ROOT / "wheel-data/data"
+    libexec = data / "libexec"
+    licenses = data / "share/licenses/mcp-console"
+    libexec.mkdir(parents=True, exist_ok=True)
+    artifacts = []
+    names = (
+        ["mcp-console-sandbox.exe"]
+        if windows
+        else ["mcp-console-sandbox", *(["bwrap"] if "linux" in target else [])]
+    )
+    for name in names:
+        # Strip a temporary copy so unchanged Cargo inputs keep their mtimes.
+        staged = libexec / f".{name}"
+        shutil.copyfile(staged_helper if name == "bwrap" else binaries / name, staged)
+        staged.chmod(0o755)
+        # Preserve the symbolicateable original in Cargo's build directory.
+        strip = (
+            ["strip", "--strip-unneeded"]
+            if "linux" in target
+            else ["xcrun", "strip", "-S", "-x"]
+        )
+        if name != "bwrap" and not windows:
+            subprocess.run([*strip, str(staged)], check=True)
+        destination = libexec / name
+        write_if_changed(destination, staged.read_bytes(), 0o755)
+        staged.unlink()
+        artifacts.append(destination)
+    notices = [(checkout / name, name) for name in ("LICENSE", "NOTICE")]
+    if "linux" in target:
+        notices.append((workspace / "vendor/bubblewrap/COPYING", "bubblewrap-COPYING"))
+        header, terminator, _ = (
+            (workspace / "vendor/bubblewrap/bubblewrap.c")
+            .read_text(encoding="utf-8")
+            .partition("*/")
+        )
+        if not terminator or not header.startswith("/*") or "Copyright" not in header:
+            fail("expected the pinned Bubblewrap copyright header in bubblewrap.c")
+        notice = licenses / "bubblewrap-NOTICE"
+        write_if_changed(
+            notice,
+            (
+                "Bubblewrap companion\n\n"
+                f"Source archive: https://github.com/{pin['repository']}/archive/{head}.tar.gz\n"
+                "C source: codex-rs/vendor/bubblewrap\n"
+                "Build integration: codex-rs/bwrap\n"
+                "License text: bubblewrap-COPYING\n"
+                f"Rust toolchain: {channel} (codex-rs/rust-toolchain.toml)\n\n"
+                f"{header}*/\n"
+            ).encode(),
+            0o644,
+        )
+        artifacts.append(notice)
+
+        # Inspect the shipped ELF, not pkg-config's requested linkage. The pinned
+        # build script emits unqualified rustc-link-lib directives for libcap.
+        dynamic = subprocess.check_output(
+            ["readelf", "-d", "-W", str(staged_helper)],
+            text=True,
+            env=environment | {"LC_ALL": "C"},
+        )
+        needed = sorted(re.findall(r"\(NEEDED\).*\[([^]]+)\]", dynamic))
+        libcap_linkage = (
+            "dynamic"
+            if any(name.startswith("libcap.so.") for name in needed)
+            else "static"
+        )
+        if libcap_linkage == "static":
+            symbols = subprocess.check_output(
+                ["readelf", "-s", "-W", str(binaries / "bwrap")],
+                text=True,
+                env=environment | {"LC_ALL": "C"},
+            )
+            if not re.search(r"\bFUNC\s+\w+\s+\w+\s+\d+\s+cap_get_proc\b", symbols):
+                fail("cannot establish libcap linkage from the helper ELF")
+            notice = environment.get("MCP_CONSOLE_LIBCAP_NOTICE")
+            if (
+                not notice
+                or not Path(notice).is_file()
+                or not Path(notice).read_bytes().strip()
+            ):
+                fail(
+                    "static libcap requires MCP_CONSOLE_LIBCAP_NOTICE pointing to its redistribution notice"
+                )
+            notices.append((Path(notice), "libcap-NOTICE"))
+        provenance = licenses / "bubblewrap-SOURCE.json"
+        write_if_changed(
+            provenance,
+            (
+                json.dumps(
+                    {
+                        "source_repository": pin["repository"],
+                        "source_revision": head,
+                        "source_directory": "codex-rs/vendor/bubblewrap",
+                        "build_script": "codex-rs/bwrap/build.rs",
+                        "wrapper_directory": "codex-rs/bwrap",
+                        "sha256": environment["CODEX_BWRAP_SHA256"],
+                        "elf_needed": needed,
+                        "libcap_linkage": libcap_linkage,
+                    },
+                    indent=2,
+                )
+                + "\n"
+            ).encode(),
+            0o644,
+        )
+        artifacts.append(provenance)
+    for source, name in notices:
+        destination = licenses / name
+        write_if_changed(destination, source.read_bytes(), 0o644)
+        artifacts.append(destination)
+    # Reconcile the owned trees, including artifacts from a different target.
+    for name in ("libexec", "share"):
+        for path in sorted((data / name).rglob("*"), reverse=True):
+            if path.is_dir():
+                if not any(path.iterdir()):
+                    path.rmdir()
+            elif path not in artifacts:
+                path.unlink()
+    build_record = ROOT / "target/sandbox-runner-build.json"
+    write_if_changed(
+        build_record,
+        (
+            json.dumps(
+                {
+                    "source_revision": head,
+                    "target": target,
+                    "artifacts": {
+                        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                        for path in artifacts
+                    },
+                },
+                indent=2,
+            )
+            + "\n"
+        ).encode("utf-8"),
+        0o644,
+    )
+
+
+if __name__ == "__main__":
+    main()

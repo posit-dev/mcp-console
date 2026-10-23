@@ -1,0 +1,25 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |
+    worker_cache <- Sys.getenv("MCP_CONSOLE_TEST_WORKER_UV_CACHE")
+    Sys.setenv(
+      UV_CACHE_DIR = worker_cache,
+      UV_DEFAULT_INDEX = "file:///worker-selected-index"
+    )
+    reticulate::py_require("py-yaml12")
+    invisible(reticulate::py_config())
+    stopifnot(
+      reticulate::py_module_available("yaml12"),
+      identical(Sys.getenv("UV_CACHE_DIR"), worker_cache),
+      identical(
+        Sys.getenv("UV_DEFAULT_INDEX"),
+        "file:///worker-selected-index"
+      )
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

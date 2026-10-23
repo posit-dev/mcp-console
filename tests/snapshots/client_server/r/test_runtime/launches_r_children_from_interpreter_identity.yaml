@@ -1,0 +1,85 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    arguments <- commandArgs()
+    stopifnot(
+      file.exists(arguments[[1L]]),
+      identical(arguments[[1L]], file.path(R.home("bin"), "R")),
+      interactive(),
+      identical(arguments[-1L], c("--quiet", "--interactive", "--no-save")),
+      identical(commandArgs(TRUE), character())
+    )
+    environment_names <- c(
+      "R_HOME",
+      "R_SHARE_DIR",
+      "R_INCLUDE_DIR",
+      "R_DOC_DIR"
+    )
+    script <- tempfile("identity λ ", fileext = ".R")
+    result <- tempfile("identity result λ ", fileext = ".rds")
+    writeLines(
+      c(
+        "arguments <- commandArgs()",
+        "saveRDS(list(arguments = arguments, user = commandArgs(TRUE),",
+        "  interactive = interactive(),",
+        "  environment = Sys.getenv(c('R_HOME', 'R_ARCH', 'R_SHARE_DIR',",
+        "    'R_INCLUDE_DIR', 'R_DOC_DIR'))), commandArgs(TRUE)[[1L]])"
+      ),
+      script,
+      useBytes = TRUE
+    )
+    user <- c(result, "two words", "λ", "--literal")
+    reference <- NULL
+    for (command in c(
+      file.path(R.home("bin"), "R"),
+      file.path(R.home("bin"), "Rscript"),
+      arguments[[1L]]
+    )) {
+      options <- if (basename(command) == "Rscript") {
+        c("--vanilla", script)
+      } else {
+        c("--slave", "--vanilla", paste0("--file=", script), "--args")
+      }
+      output <- system2(
+        command,
+        shQuote(c(options, user)),
+        stdout = TRUE,
+        stderr = TRUE
+      )
+      stopifnot(is.null(attr(output, "status")), identical(output, character()))
+      child <- readRDS(result)
+      if (is.null(reference)) {
+        reference <- child
+      }
+      # The selected launcher supplies the native executable and architecture.
+      file_argument <- paste0("--file=", gsub(" ", "~+~", script, fixed = TRUE))
+      expected <- if (basename(command) == "Rscript") {
+        c("--no-echo", "--no-restore", "--vanilla", file_argument, "--args", user)
+      } else {
+        c("--slave", "--vanilla", file_argument, "--args", user)
+      }
+      stopifnot(
+        file.exists(child$arguments[[1L]]),
+        identical(child$arguments[[1L]], reference$arguments[[1L]]),
+        identical(child$arguments[-1L], expected),
+        identical(child$user, user),
+        identical(child$interactive, FALSE),
+        identical(
+          child$environment[environment_names],
+          Sys.getenv(environment_names)
+        ),
+        identical(child$environment[["R_ARCH"]], reference$environment[["R_ARCH"]])
+      )
+    }
+    unlink(c(script, result))
+    cat(
+      "R interpreter and children retain executable, arguments, and environment\n"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        R interpreter and children retain executable, arguments, and environment
+  isError: false

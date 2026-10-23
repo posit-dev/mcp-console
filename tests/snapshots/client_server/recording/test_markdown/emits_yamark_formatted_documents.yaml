@@ -1,0 +1,71 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: emit image
+result:
+  content:
+    - type: text
+      text: |
+        before image
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+    - type: text
+      text: |
+        after image
+  isError: false
+---
+send:
+  python: |-
+    echo before
+    ````
+    <div>not markdown</div>
+    after
+result:
+  content:
+    - type: text
+      text: |
+        zod python: before
+        ````
+        <div>not markdown</div>
+        after
+  isError: false
+---
+send:
+  sql: |2-
+      --| eval: false
+    echo SELECT 42
+  typo: true
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: unknown field `typo`, expected one of
+        `r`, `python`, `sql`, `control`, `requirements`, `stdin`, `timeout_ms`
+  isError: true
+---
+send:
+  r: echo rejected
+  python: echo rejected
+  requirements:
+    r:
+      - "foo:"
+      - foo#bar
+      - "delete\x7Fcontrol"
+      - "c1-start\x80control"
+      - "c1-end\x9Fcontrol"
+      - "bom\uFEFFvalue"
+      - "noncharacter\uFFFEvalue"
+      - "noncharacter\uFFFFvalue"
+      - line separator
+      - paragraph separator
+result:
+  content:
+    - type: text
+      text: only one of `r`, `python`, or `sql` may be supplied
+  isError: true
+---
+generated documents:
+  transcript.md: Yamark formatted
+  sessions/session-001.qmd: Yamark formatted

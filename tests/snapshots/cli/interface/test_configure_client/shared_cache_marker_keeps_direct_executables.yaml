@@ -1,0 +1,2 @@
+---
+shared_cache_marker: Cargo and non-uv virtualenvs retain their executable paths

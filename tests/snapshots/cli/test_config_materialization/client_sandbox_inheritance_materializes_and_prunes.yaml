@@ -1,0 +1,8 @@
+---
+profiles:
+  - inherit_codex
+  - inherit_codex: {}
+  - inherit_codex:
+      fallback: read_only
+  - inherit_codex:
+      fallback: workspace

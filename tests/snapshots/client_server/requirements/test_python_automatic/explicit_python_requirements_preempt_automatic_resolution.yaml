@@ -1,0 +1,22 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: import yaml12; yaml12.__name__
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: |
+        'yaml12'
+  isError: false

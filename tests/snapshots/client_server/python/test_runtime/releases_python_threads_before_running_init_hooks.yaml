@@ -1,0 +1,76 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    invisible(loadNamespace("reticulate"))
+    hook_failed <- FALSE
+    setHook(
+      "reticulate.onPyInit",
+      function() {
+        if (!hook_failed) {
+          hook_failed <<- TRUE
+          stop("synthetic Python initialization hook failure")
+        }
+      },
+      action = "prepend"
+    )
+    message <- tryCatch(
+      {
+        invisible(reticulate::py_config())
+        "Python initialization unexpectedly succeeded"
+      },
+      error = conditionMessage
+    )
+    cat(message, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        synthetic Python initialization hook failure
+  isError: false
+---
+send:
+  python: |
+    import os
+    import threading
+    import time
+    from pathlib import Path
+
+    directory = Path(os.environ["TMPDIR"])
+    started = directory / "python-init-hook-thread-started"
+    release = directory / "release-python-init-hook-thread"
+    completed = directory / "python-init-hook-thread-completed"
+
+
+    def complete_after_release():
+        started.touch()
+        while not release.exists():
+            time.sleep(0.01)
+        completed.touch()
+
+
+    initialization_thread = threading.Thread(
+        target=complete_after_release,
+        daemon=True,
+    )
+    initialization_thread.start()
+    while not started.exists():
+        time.sleep(0.01)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: hook_input = input("hook> "); hook_input
+  stdin: |
+    after hook
+result:
+  content:
+    - type: text
+      text: |
+        [input requested: "hook> "]
+        'after hook'
+  isError: false

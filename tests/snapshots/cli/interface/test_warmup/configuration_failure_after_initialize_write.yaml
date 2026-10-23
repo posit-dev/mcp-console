@@ -1,0 +1,14 @@
+---
+exit_code: 1
+stdout: |
+  MCP Console warmup
+  Server: FAIL
+  server connection closed before initialization completed
+  Shutdown: FAIL
+  server exited with status 1
+  Warmup found 2 failed checks.
+stderr: >
+  configuration with CLI overrides: unknown: unknown field `unknown`,
+  expected one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format

@@ -1,0 +1,2 @@
+---
+optional_sql_warmup_failure_preserves_runtime_and_later_sql: true

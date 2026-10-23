@@ -1,0 +1,22 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: fail sideband during shutdown
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: "[worker sideband read failed: <invalid frame>]"
+  isError: true
+transcript_normalization:
+  target: result.content[0].text
+  replacements:
+    sideband_failure_detail: <invalid frame>

@@ -1,0 +1,15 @@
+---
+source: file
+stdout: |
+  unchanged stdin: 雪
+  public environment, relative grants, and managed tempdir
+---
+source: YAML environment
+stdout: |
+  unchanged stdin: 雪
+  public environment, relative grants, and managed tempdir
+---
+source: JSON environment
+stdout: |
+  unchanged stdin: 雪
+  public environment, relative grants, and managed tempdir

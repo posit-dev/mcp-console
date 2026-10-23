@@ -1,0 +1,68 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    invisible(suppressWarnings(suppressPackageStartupMessages({
+      base::library(package = mcplibrary, quietly = TRUE)
+      library(
+        "mcpcharacter",
+        help = stats,
+        character.only = TRUE,
+        quietly = TRUE
+      )
+      stopifnot(
+        base::require(mcprequire, quietly = TRUE),
+        base::requireNamespace("mcpnamespace", quietly = TRUE),
+        is.environment(base::loadNamespace("mcpload")),
+        is.environment(mcpinternal:::.__NAMESPACE__.),
+        is.function(mcplibrary::fixture),
+        is.function("mcplibrary"::fixture),
+        is.function(mcplibrary::fixture)
+      )
+    })))
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: |
+    invisible(suppressWarnings(suppressPackageStartupMessages({
+      attached <- "mcpdynamic"
+      stopifnot(do.call(
+        base::library,
+        list(
+          package = attached,
+          help = NULL,
+          character.only = TRUE,
+          logical.return = TRUE,
+          quietly = TRUE
+        )
+      ))
+      package <- "mcpdynamicns"
+      stopifnot(do.call(
+        base::requireNamespace,
+        list(package = package, quietly = TRUE)
+      ))
+    })))
+    42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

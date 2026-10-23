@@ -1,0 +1,102 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |
+    SELECT
+      repeat('a', 1000) AS c01,
+      repeat('b', 1000) AS c02,
+      repeat('c', 1000) AS c03,
+      repeat('d', 1000) AS c04,
+      repeat('e', 1000) AS c05,
+      repeat('f', 1000) AS c06,
+      repeat('g', 1000) AS c07,
+      repeat('h', 1000) AS c08,
+      repeat('i', 1000) AS c09,
+      repeat('j', 1000) AS c10,
+      repeat('k', 1000) AS c11,
+      repeat('l', 1000) AS c12,
+      repeat('m', 1000) AS c13,
+      repeat('n', 1000) AS c14
+    FROM range(21)
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 20 × 12
+           c01                                                                                                                                 c02   c03   c04   c05   c06   c07   c08   c09   c10   c11   c12  
+           <string>                                                                                                                            <str> <str> <str> <str> <str> <str> <str> <str> <str> <str> <str>
+         1 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+         2 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+         3 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+         4 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+         5 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+         6 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+         7 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+         8 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+         9 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        10 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        11 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        12 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        13 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        14 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        15 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        16 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        17 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        18 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        19 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        20 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa… "bbb… "ccc… "ddd… "eee… "fff… "ggg… "hhh… "iii… "jjj… "kkk… "lll…
+        [additional rows omitted]
+        [2 additional columns omitted]
+        [cell values truncated to 160 characters]
+  isError: false
+---
+send:
+  sql: |
+    SELECT repeat('z', 1000) AS value
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          value                                                                                                                                                             
+          <string>                                                                                                                                                          
+        1 "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz…"
+        [cell values truncated to 160 characters]
+  isError: false
+---
+send:
+  sql: |
+    SELECT value
+    FROM range(1000000000000) AS values(value)
+    WHERE value % 97 = 0
+  timeout_ms: 1000
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 20 × 1
+             value
+           <int64>
+         1       0
+         2      97
+         3     194
+         4     291
+         5     388
+         6     485
+         7     582
+         8     679
+         9     776
+        10     873
+        11     970
+        12    1067
+        13    1164
+        14    1261
+        15    1358
+        16    1455
+        17    1552
+        18    1649
+        19    1746
+        20    1843
+        [additional rows omitted]
+  isError: false

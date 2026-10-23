@@ -1,0 +1,20 @@
+---
+bare: |
+  [1] 2
+fields:
+  - control
+  - python
+  - r
+  - requirements
+  - sql
+  - stdin
+  - timeout_ms
+---
+custom: |
+  zod: configured
+fields:
+  - control
+  - r
+  - requirements
+  - stdin
+  - timeout_ms

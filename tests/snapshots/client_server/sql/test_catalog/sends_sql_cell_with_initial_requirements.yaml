@@ -1,0 +1,21 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |
+    LOAD fts;
+    SELECT count(*) AS loaded
+    FROM duckdb_extensions()
+    WHERE extension_name = 'fts' AND loaded
+  requirements:
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+           loaded
+          <int64>
+        1       1
+  isError: false

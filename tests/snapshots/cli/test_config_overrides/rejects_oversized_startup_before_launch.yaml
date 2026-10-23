@@ -1,0 +1,27 @@
+---
+source: "'a'"
+error: >
+  .agents/console/config.yaml: startup encoded source is 32769 bytes;
+  maximum is 32768 bytes
+---
+source: |-
+  '\n'
+error: >
+  configuration from .agents/console/config.yaml with CLI overrides:
+  startup encoded source is 32769 bytes; maximum is 32768 bytes
+---
+source: |-
+  '\x01'
+error: >
+  .agents/console/config.yaml: startup encoded source is 32769 bytes;
+  maximum is 32768 bytes
+---
+source: "'雪'"
+error: >
+  .agents/console/config.yaml: startup encoded source is 32769 bytes;
+  maximum is 32768 bytes
+---
+source: 70,000 leading newlines
+error: >
+  .agents/console/config.yaml: startup encoded source is 140035 bytes;
+  maximum is 32768 bytes

@@ -1,0 +1,36 @@
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: python
+  source: |
+    import os
+
+
+    def write_all(file_descriptor, data):
+        data = memoryview(data)
+        while data:
+            data = data[os.write(file_descriptor, data) :]
+
+
+    write_all(1, b"x" * 4194304)
+    write_all(2, b"y" * 4194304)
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: r_initialization
+  complete: false
+---
+worker:
+  kind: r_initialization
+  complete: true
+---
+stdout: <4194304 bytes>
+stderr: <4194304 bytes>
+---
+worker:
+  kind: completed

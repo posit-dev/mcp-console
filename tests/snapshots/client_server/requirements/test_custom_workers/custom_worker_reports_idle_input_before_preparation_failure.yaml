@@ -1,0 +1,51 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: echo worker ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: worker ready
+  isError: false
+---
+send:
+  r: request input while idle
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "idle> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: |-
+        [idle R callback requested input "idle> " during requirement preparation; collect callback input with send before preparing requirements]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - zeallot
+result:
+  content:
+    - type: text
+      text: "[restart required]"
+  isError: false

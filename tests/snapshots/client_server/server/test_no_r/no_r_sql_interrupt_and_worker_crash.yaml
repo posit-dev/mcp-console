@@ -1,0 +1,155 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: SET threads = 1
+result:
+  content:
+    - type: text
+      text: |
+        Success
+        -------
+        [0 rows]
+  isError: false
+---
+send:
+  sql: CREATE TABLE answers AS SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    def sql_gate(value):
+        input("SQL gate> ")
+        return value
+
+
+    _ = _console.sql_connection().create_function(
+        "sql_gate", sql_gate, ["BIGINT"], "BIGINT", side_effects=True
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT sql_gate(answer) FROM answers
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "SQL gate> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Error: Invalid Input Error: Python exception occurred while executing the UDF: KeyboardInterrupt: 
+  isError: false
+---
+send:
+  sql: SELECT answer FROM answers
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  sql: >-
+    SELECT sum(sqrt(a.i + b.i)) FROM range(1000000000) a(i),
+    range(1000000000) b(i)
+  timeout_ms: 100
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        Error: Query interrupted
+  isError: false
+---
+send:
+  sql: SELECT answer FROM answers
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    os._exit(17)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 17]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: |
+    import yaml12
+
+    "sql_gate" in globals()
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  sql: >-
+    SELECT count(*) AS count FROM information_schema.tables WHERE table_name
+    = 'answers'
+result:
+  content:
+    - type: text
+      text: |
+        count
+        -----
+        0
+  isError: false

@@ -1,0 +1,9 @@
+---
+scenario: standard input closed before launcher exec
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - /bin/cat
+stdout: ""
+exit_code: 0

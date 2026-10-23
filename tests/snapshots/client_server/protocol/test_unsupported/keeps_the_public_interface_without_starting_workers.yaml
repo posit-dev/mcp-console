@@ -1,0 +1,30 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: session
+    arguments:
+      action: restart
+error:
+  code: -32602
+  message: tool not found
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: "[workers are supported only on macOS]"
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [workers are supported only on macOS]
+  isError: true

@@ -1,0 +1,12 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - local::package
+result:
+  content:
+    - type: text
+      text: R package resolution requires `ir` 0.4.0 or later; found `ir` 0.3.0
+  isError: true

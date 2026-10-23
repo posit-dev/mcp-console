@@ -1,0 +1,68 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import threading
+    import time
+    from pathlib import Path
+
+    temporary = Path(os.environ["TMPDIR"])
+    started = temporary / "python-thread-started"
+    release = Path(os.environ["MCP_CONSOLE_TEST_THREAD_RELEASE"])
+    finished = temporary / "python-thread-finished"
+    background_value = "waiting"
+
+
+    def run_in_background():
+        global background_value
+        started.touch()
+        while not release.exists():
+            time.sleep(0.01)
+        background_value = "finished while idle"
+        print("hello from background thread", flush=True)
+        finished.touch()
+
+
+    background_thread = threading.Thread(target=run_in_background)
+    background_thread.start()
+    background_thread.is_alive()
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        hello from background thread
+
+        [idle]
+  isError: false
+---
+send:
+  python: >-
+    background_thread.join(); (background_thread.is_alive(),
+    background_value)
+result:
+  content:
+    - type: text
+      text: |
+        (False, 'finished while idle')
+  isError: false

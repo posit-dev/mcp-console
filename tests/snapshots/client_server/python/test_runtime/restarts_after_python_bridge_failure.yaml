@@ -1,0 +1,55 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    python_worker_marker <- TRUE
+    Sys.setenv(RETICULATE_PYTHON = "/mcp-console-missing-python")
+    invisible(suppressMessages(base::trace(
+      "py_discover_config",
+      tracer = quote(base::signalCondition(base::structure(
+        base::list(message = "synthetic interrupt", call = NULL),
+        class = c("interrupt", "condition")
+      ))),
+      print = FALSE,
+      where = asNamespace("reticulate")
+    )))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |-
+        Python bridge failed during R evaluation
+        Error in py_discover_config(required_module, use_environment) : 
+          Python specified in RETICULATE_PYTHON (/mcp-console-missing-python) does not exist
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 1]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: exists("python_worker_marker", inherits = FALSE)
+result:
+  content:
+    - type: text
+      text: |
+        [1] FALSE
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

@@ -1,0 +1,13 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    print("not run")
+exit_code: 1
+stdout: ""
+stderr: |
+  `mcp-console sandbox` is not supported on this operating system

@@ -1,0 +1,194 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - packaging
+      duckdb: []
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(native_startup == 42L, nzchar(find.package('stats')),
+    !length(.libPaths()[grepl('resolved-r', .libPaths())])); cat('native R
+    available\n')
+result:
+  content:
+    - type: text
+      text: |
+        native R available
+  isError: false
+---
+send:
+  python: import packaging; print('Python available')
+result:
+  content:
+    - type: text
+      text: |
+        Python available
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    python:
+      - six
+  python: raise AssertionError('must not run')
+result:
+  content:
+    - type: text
+      text: >-
+        [R requirements cannot change under r.resolution=disabled
+        (requirements.action=add)]
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - packaging
+      duckdb: []
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: >-
+        R requirements cannot change under r.resolution=disabled
+        (requirements.action=add)
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: import six; print('Python addition available')
+result:
+  content:
+    - type: text
+      text: |
+        Python addition available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "packaging",
+              "six"
+            ],
+            "duckdb": [],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - packaging
+        - six
+      duckdb: []
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false

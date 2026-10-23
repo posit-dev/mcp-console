@@ -1,0 +1,131 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    probe_started <- tempfile("mcp-console-sql-probe-started-")
+    probe_release <- tempfile("mcp-console-sql-probe-release-")
+    cat(probe_started, probe_release, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <probe started>
+        <probe release>
+  isError: false
+---
+send:
+  python: |
+    import ctypes
+    import os
+    import signal
+    import sys
+
+
+    # The native checkpoint accepts Python's pending signal while
+    # PyDLL still holds the GIL and owns the Python call frame.
+    checkpoint_library = ctypes.PyDLL(os.environ["MCP_CONSOLE_SQL_PROBE_LIBRARY"])
+    wait_for_probe_interrupt = checkpoint_library.wait_for_probe_interrupt
+    wait_for_probe_interrupt.argtypes = (
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_void_p,
+    )
+    wait_for_probe_interrupt.restype = ctypes.c_int
+
+
+    class ProbeConnection:
+        description = (("answer",),)
+
+        def cursor(self):
+            return self
+
+        def execute(self, source):
+            return self
+
+        def fetchmany(self, size):
+            return [(42,)][:size]
+
+
+    def pause_provider_probe(frame, event, argument):
+        if event == "call" and frame.f_globals.get("__name__") == "_mcp_console_sql":
+            sys.settrace(None)
+            wakeup_read, wakeup_write = os.pipe()
+            os.set_blocking(wakeup_write, False)
+            previous_wakeup = signal.set_wakeup_fd(wakeup_write)
+            try:
+                with (
+                    open(r.probe_started, "wb", buffering=0) as started,
+                    open(r.probe_release, "rb", buffering=0) as release,
+                ):
+                    assert (
+                        wait_for_probe_interrupt(
+                            started.fileno(),
+                            release.fileno(),
+                            wakeup_read,
+                            ctypes.pythonapi.PyErr_CheckSignals,
+                        )
+                        == 0
+                    )
+            finally:
+                signal.set_wakeup_fd(previous_wakeup)
+                os.close(wakeup_read)
+                os.close(wakeup_write)
+        return pause_provider_probe
+
+
+    _console.sql_connection(ProbeConnection())
+    sys.settrace(pause_provider_probe)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: ANSWER
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 30000
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 362, in dispatch
+          File "<mcp-console:python:e1>", line 45, in pause_provider_probe
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  sql: ANSWER
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false

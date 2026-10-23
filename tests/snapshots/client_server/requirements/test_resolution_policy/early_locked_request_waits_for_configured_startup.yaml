@@ -1,0 +1,128 @@
+---
+!same-as fixed MCP initialization for this execution mode
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - six
+  python: early_cell_ran = True
+  stdin: |
+    withheld
+result:
+  content:
+    - type: text
+      text: >-
+        [Python requirements cannot change under python.managed.resolution=fixed
+        (requirements.action=set)]
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - packaging
+      duckdb: []
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  python: >-
+    import packaging; assert 'early_cell_ran' not in globals();
+    print('configured startup retained')
+result:
+  content:
+    - type: text
+      text: |
+        configured startup retained
+  isError: false
+---
+send:
+  requirements:
+    action: set
+    r: []
+    python:
+      - packaging
+    duckdb: []
+    python_version:
+      - "3.13"
+    exclude_newer: ~
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - packaging
+      duckdb: []
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false

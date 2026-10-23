@@ -1,0 +1,4 @@
+---
+stderr: |
+  mcp-console-sandbox: linux_backend is supported only on Linux
+exit_code: 1

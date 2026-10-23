@@ -1,0 +1,112 @@
+---
+send:
+  python: import os; worker_pid = os.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import threading
+
+    thread_result = []
+    def import_from_thread():
+        try:
+            import mcp_console_thread_missing
+        except ModuleNotFoundError as error:
+            thread_result.append((error.name, str(error)))
+    thread = threading.Thread(target=import_from_thread)
+    thread.start()
+    thread.join()
+    assert thread_result[0][0] == "mcp_console_thread_missing"
+    assert "configuring thread" in thread_result[0][1]
+    print("background import rejected")
+result:
+  content:
+    - type: text
+      text: |
+        background import rejected
+  isError: false
+---
+send:
+  python: |
+    import select, signal, warnings
+
+    read_descriptor, write_descriptor = os.pipe()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        child = os.fork()
+    if child == 0:
+        os.close(read_descriptor)
+        try:
+            import mcp_console_child_missing
+        except ModuleNotFoundError as error:
+            payload = f"{error.name}: {error}"
+        else:
+            payload = "missing import unexpectedly succeeded"
+        os.write(write_descriptor, payload.encode())
+        os._exit(0)
+    os.close(write_descriptor)
+    readable, _, _ = select.select([read_descriptor], [], [], 10)
+    if not readable:
+        os.kill(child, signal.SIGKILL)
+        os.waitpid(child, 0)
+        raise AssertionError("fork child did not finish its import")
+    payload = os.read(read_descriptor, 65536).decode()
+    os.close(read_descriptor)
+    _, status = os.waitpid(child, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
+    assert "mcp_console_child_missing" in payload
+    assert "main worker process" in payload
+    assert os.getpid() == worker_pid
+    print("child import rejected")
+result:
+  content:
+    - type: text
+      text: |
+        child import rejected
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+    sql_missing = []
+    def missing_from_sql():
+        try:
+            import mcp_console_sql_missing
+        except ModuleNotFoundError as error:
+            sql_missing.append(str(error))
+            return 42
+    selected = sqlite3.connect(":memory:")
+    selected.create_function("missing_from_sql", 0, missing_from_sql)
+    _console.sql_connection(selected)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: select missing_from_sql() as value
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        42
+  isError: false
+---
+send:
+  python: >-
+    assert sql_missing == ["No module named 'mcp_console_sql_missing'"];
+    print('SQL did not resolve imports')
+result:
+  content:
+    - type: text
+      text: |
+        SQL did not resolve imports
+  isError: false

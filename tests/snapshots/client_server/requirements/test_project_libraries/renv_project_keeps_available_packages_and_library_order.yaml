@@ -1,0 +1,37 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  r: >-
+    stopifnot(consoleambient::fixture(),
+    identical(as.character(packageVersion("consoleambient")),
+    "0.0.0.9000")); cat("ambient available\n")
+result:
+  content:
+    - type: text
+      text: |
+        ambient available
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(requireNamespace("consoleambient"),
+    consoleambient::fixture()); cat("ambient retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        ambient retained
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(requireNamespace("consolemissing", quietly = TRUE),
+    consolemissing::fixture(), identical(.libPaths()[.libPaths() %in%
+    project_paths], project_paths)); cat("project paths retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        project paths retained
+  isError: false

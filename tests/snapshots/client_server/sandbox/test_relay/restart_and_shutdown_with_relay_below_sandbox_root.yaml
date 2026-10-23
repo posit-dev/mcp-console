@@ -1,0 +1,55 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  python: |
+    import os
+    import subprocess
+
+    child = subprocess.Popen(["/bin/sleep", "60"])
+    print(os.getpgrp(), os.getppid(), os.getpid(), child.pid)
+    print(os.environ["TMPDIR"])
+result:
+  content:
+    - type: text
+      text: |
+        <sandbox root> <relay pid> <worker pid> <descendant pid>
+        <sandbox temp>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  process_ids: omitted
+  sandbox_temporary_directory: omitted
+---
+send:
+  control: restart
+  python: print("replacement ready")
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        replacement ready
+        [done]
+  isError: false
+---
+send:
+  python: |
+    import os
+    import subprocess
+
+    child = subprocess.Popen(["/bin/sleep", "60"])
+    print(os.getpgrp(), os.getppid(), os.getpid(), child.pid)
+    print(os.environ["TMPDIR"])
+result:
+  content:
+    - type: text
+      text: |
+        <sandbox root> <relay pid> <worker pid> <descendant pid>
+        <sandbox temp>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  process_ids: omitted
+  sandbox_temporary_directory: omitted

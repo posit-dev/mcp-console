@@ -1,0 +1,23 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import errno
+    import os
+    import sys
+
+    try:
+        os.write(int(sys.argv[1]), b"escaped")
+    except OSError as error:
+        assert error.errno == errno.EBADF
+    else:
+        raise SystemExit("unlisted inherited descriptor remained writable")
+
+    print("closed")
+  - <inherited fd>
+stdout: |
+  closed

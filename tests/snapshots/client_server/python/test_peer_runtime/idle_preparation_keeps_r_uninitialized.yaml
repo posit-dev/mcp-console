@@ -1,0 +1,62 @@
+---
+send:
+  python: >-
+    import sys; from pathlib import Path; sentinel = object(); original =
+    sentinel; _ = Path('running-python').write_text(sys.executable)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - packaging
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - NumPy>=0
+result:
+  content:
+    - type: text
+      text: >-
+        live Python requirements can only add new distributions; `NumPy>=0`
+        changes already-declared `numpy`; use control: restart with
+        requirements.action: set
+  isError: true
+---
+send:
+  python: |
+    import ctypes
+    import packaging
+
+    try:
+        initialized = bool(ctypes.c_void_p.in_dll(ctypes.CDLL(None), "R_GlobalEnv").value)
+    except ValueError:
+        initialized = False
+    assert not initialized, "idle Python preparation initialized R"
+    assert sentinel is original
+    print("idle preparation uses the Python owner")
+result:
+  content:
+    - type: text
+      text: |
+        idle preparation uses the Python owner
+  isError: false
+---
+send:
+  r: >-
+    stopifnot("packaging" %in% reticulate::py_require()$packages,
+    isTRUE(reticulate::py_config()$ephemeral))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

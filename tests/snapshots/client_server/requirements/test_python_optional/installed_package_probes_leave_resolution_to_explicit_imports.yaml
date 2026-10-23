@@ -1,0 +1,58 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: import mcp_console_test_optional_package as package; package.fallback
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  python: import importlib; importlib.reload(package).fallback
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  python: >-
+    import mcp_console_test_optional_dependency;
+    mcp_console_test_optional_dependency.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: package.delayed_import()
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: import local_script; local_script.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

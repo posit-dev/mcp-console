@@ -1,0 +1,26 @@
+---
+settings:
+  inherit_environment: false
+stdout: |
+  1
+---
+settings:
+  inherit_environment: false
+  environment:
+    MCP_CONSOLE_SANDBOX: project marker
+    PROJECT_VALUE: retained
+stdout: |
+  1
+---
+settings:
+  inherit_environment: true
+stdout: |
+  1
+---
+settings:
+  inherit_environment: true
+  environment:
+    MCP_CONSOLE_SANDBOX: project marker
+    PROJECT_VALUE: retained
+stdout: |
+  1

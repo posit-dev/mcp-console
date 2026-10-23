@@ -1,0 +1,32 @@
+---
+client: codex
+git_marker: directory
+stderr: >
+  Warning: project server "console" in <PROJECT_CONFIG> may take
+  precedence over this global registration when loaded. Update or remove
+  that project entry to use the intended settings.
+project_entry: unchanged
+---
+client: codex
+git_marker: worktree
+stderr: >
+  Warning: project server "console" in <PROJECT_CONFIG> may take
+  precedence over this global registration when loaded. Update or remove
+  that project entry to use the intended settings.
+project_entry: unchanged
+---
+client: claude
+git_marker: directory
+stderr: >
+  Warning: project server "console" in <PROJECT_CONFIG> may take
+  precedence over this global registration when loaded. Update or remove
+  that project entry to use the intended settings.
+project_entry: unchanged
+---
+client: claude
+git_marker: worktree
+stderr: >
+  Warning: project server "console" in <PROJECT_CONFIG> may take
+  precedence over this global registration when loaded. Update or remove
+  that project entry to use the intended settings.
+project_entry: unchanged

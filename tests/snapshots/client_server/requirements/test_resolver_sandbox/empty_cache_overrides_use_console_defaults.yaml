@@ -1,0 +1,4 @@
+---
+default_caches: console-owned
+empty_xdg: HOME fallback
+empty_cache_overrides: Console defaults

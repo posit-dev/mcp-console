@@ -1,0 +1,42 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    before <- reticulate::py_require()
+    namespace <- asNamespace("jsonlite")
+    invisible(suppressMessages(base::trace(
+      "fromJSON",
+      tracer = quote({
+        if (is.character(txt) && grepl('"selection":', txt, fixed = TRUE)) {
+          base::stop(structure(
+            list(message = "activation interrupted", call = NULL),
+            class = c("interrupt", "condition")
+          ))
+        }
+      }),
+      print = FALSE,
+      where = namespace
+    )))
+    outcome <- tryCatch(
+      reticulate::py_require("py-yaml12"),
+      interrupt = function(condition) conditionMessage(condition),
+      error = function(condition) paste("error:", conditionMessage(condition))
+    )
+    stopifnot(
+      identical(outcome, "activation interrupted"),
+      identical(reticulate::py_require(), before)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

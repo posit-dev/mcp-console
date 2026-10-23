@@ -1,0 +1,52 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: exit after invalid stdout
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8097
+        concat:
+          - "zod invalid stdout: � trailing: �"
+          - repeat: x
+            count: 3867
+          - |
+
+            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
+          - repeat: z
+            count: 3862
+          - |-
+            od expected stdout crash tail: <pipe tail bytes>
+            [worker sideband read failed: worker sideband closed]
+            [worker exited with status 86]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+            [idle]
+  isError: true
+---
+send:
+  r: exit after invalid stderr
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8097
+        concat:
+          - "zod invalid stderr: � trailing: �"
+          - repeat: x
+            count: 3867
+          - |
+
+            [output omitted: <omitted byte count> UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/002/cell-001.txt]
+          - repeat: z
+            count: 3862
+          - |-
+            od expected stderr crash tail: <pipe tail bytes>
+            [worker sideband read failed: worker sideband closed]
+            [worker exited with status 86]
+            [worker stopped: in-memory state lost]
+            [starting new worker]
+            [idle]
+  isError: true

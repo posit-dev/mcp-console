@@ -1,0 +1,56 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import subprocess
+    import sys
+
+    selected = os.environ["RETICULATE_PYTHON"]
+    assert "/../" in selected.replace(os.sep, "/")
+    assert os.path.samefile(sys.executable, selected)
+    assert os.path.samefile(sys.prefix, "environment")
+    assert sys.prefix != sys.base_prefix
+    child = subprocess.check_output(
+        [sys.executable, "-c", "import sys; print(sys.executable); print(sys.prefix)"],
+        text=True,
+    ).splitlines()
+    assert os.path.samefile(child[0], selected)
+    assert os.path.samefile(child[1], sys.prefix)
+    print("selected executable and environment retained")
+result:
+  content:
+    - type: text
+      text: |
+        selected executable and environment retained
+  isError: false
+---
+send:
+  control: restart
+  python: |
+    import os
+    import subprocess
+    import sys
+
+    selected = os.environ["RETICULATE_PYTHON"]
+    assert "/../" in selected.replace(os.sep, "/")
+    assert os.path.samefile(sys.executable, selected)
+    assert os.path.samefile(sys.prefix, "environment")
+    assert sys.prefix != sys.base_prefix
+    child = subprocess.check_output(
+        [sys.executable, "-c", "import sys; print(sys.executable); print(sys.prefix)"],
+        text=True,
+    ).splitlines()
+    assert os.path.samefile(child[0], selected)
+    assert os.path.samefile(child[1], sys.prefix)
+    print("selected executable and environment retained")
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        selected executable and environment retained
+        [done]
+  isError: false

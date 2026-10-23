@@ -1,0 +1,6 @@
+Package: mcpconsoleearlysql
+Title: Observe Managed SQL Startup
+Version: 0.0.1
+Authors@R: person("Console", "Tests", email = "tests@example.com", role = c("aut", "cre"))
+Description: Public startup fixture observing and gating managed DuckDB connection creation.
+License: MIT

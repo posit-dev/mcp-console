@@ -1,0 +1,230 @@
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+  python: |
+    import yaml12
+
+    print("startup package available")
+result:
+  content:
+    - type: text
+      text: |
+        startup package available
+  isError: false
+---
+send:
+  python: |
+    import os, subprocess, sys, numpy, pandas, yaml12
+
+    assert "RETICULATE_PYTHON" not in os.environ
+    subprocess.run([sys.executable, "-c", "import numpy, pandas, yaml12"], check=True)
+    identity = object()
+    identity_id = id(identity)
+    print("startup packages available")
+result:
+  content:
+    - type: text
+      text: |
+        startup packages available
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+      - numpy
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    assert id(identity) == identity_id
+    print("same worker")
+result:
+  content:
+    - type: text
+      text: |
+        same worker
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+  python: |
+    assert id(identity) == identity_id
+    print("no-op cell")
+result:
+  content:
+    - type: text
+      text: |
+        no-op cell
+  isError: false
+---
+send:
+  python: |
+    input("old worker> ")
+    open("old-worker-consumed-input", "w").close()
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "old worker> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - more-itertools
+  stdin: |
+    replacement input
+  timeout_ms: 0
+  python: |
+    assert "identity" not in globals()
+    print(input())
+result:
+  content:
+    - type: text
+      text: |-
+        Traceback (most recent call last):
+          File "<mcp-console:python:e5>", line 1, in <module>
+        EOFError
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [input requested: ""]
+        replacement input
+        [done]
+  isError: false
+---
+send:
+  python: |
+    import os, subprocess, sys, numpy, pandas, yaml12, more_itertools
+
+    assert "RETICULATE_PYTHON" not in os.environ
+    probe = "import numpy, pandas, yaml12, more_itertools"
+    subprocess.run([sys.executable, "-c", probe], check=True)
+    subprocess.run(["python", "-c", probe], check=True)
+    print("cumulative packages retained")
+result:
+  content:
+    - type: text
+      text: |
+        cumulative packages retained
+  isError: false
+---
+send:
+  control: restart
+  python: |
+    import os, subprocess, sys, numpy, pandas, yaml12, more_itertools
+
+    assert "RETICULATE_PYTHON" not in os.environ
+    probe = "import numpy, pandas, yaml12, more_itertools"
+    subprocess.run([sys.executable, "-c", probe], check=True)
+    subprocess.run(["python", "-c", probe], check=True)
+    print("cumulative packages retained")
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        cumulative packages retained
+        [done]
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    os._exit(47)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 47]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: |
+    import os, subprocess, sys, numpy, pandas, yaml12, more_itertools
+
+    assert "RETICULATE_PYTHON" not in os.environ
+    probe = "import numpy, pandas, yaml12, more_itertools"
+    subprocess.run([sys.executable, "-c", probe], check=True)
+    subprocess.run(["python", "-c", probe], check=True)
+    print("cumulative packages retained")
+result:
+  content:
+    - type: text
+      text: |
+        cumulative packages retained
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - more-itertools
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - more-itertools
+      - py-yaml12
+  python: |
+    import yaml12, more_itertools
+
+    print("retained restart")
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        retained restart
+        [done]
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import six, yaml12, more_itertools
+
+    42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

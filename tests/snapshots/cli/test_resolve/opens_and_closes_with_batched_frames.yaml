@@ -1,0 +1,20 @@
+---
+input: |
+  {"Open":{"mode":"PythonOnly"}}
+  "Close"
+stdout:
+  - Hello
+  - Completed:
+      id: 0
+      result:
+        Ok:
+          managed: false
+          selections:
+            r_home: ~
+            python: ~
+          local_has_uv: false
+      control: ~
+      confirmed: true
+  - Closed
+stderr: ""
+exit: 0

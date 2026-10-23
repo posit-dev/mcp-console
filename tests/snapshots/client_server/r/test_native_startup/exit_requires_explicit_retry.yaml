@@ -1,0 +1,97 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: stop("cell must not run")
+result:
+  content:
+    - type: text
+      text: |-
+        native profile diagnostic before exit
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 23]
+        [worker stopped: in-memory state lost]
+        [startup may have executed; explicit restart required]
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: stop("retry cell must not run")
+result:
+  content:
+    - type: text
+      text: "[startup may have executed; explicit restart required]"
+  isError: true
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": false,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: false
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    action: set
+    r: []
+result:
+  content:
+    - type: text
+      text: >-
+        dynamic environment resolution is unavailable; install `ir` or `uv` and
+        restart MCP Console
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: native_repaired
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

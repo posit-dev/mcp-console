@@ -1,0 +1,44 @@
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: bootstrap_value
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "R startup> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    R state
+result:
+  content:
+    - type: text
+      text: |
+        [1] "R state"
+  isError: false
+---
+send:
+  r: stopifnot(!"duckdb" %in% loadedNamespaces()); bootstrap_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] "R state"
+  isError: false

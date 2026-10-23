@@ -1,0 +1,55 @@
+---
+override: sandbox
+stderr: |
+  invalid configuration override: expected KEY=VALUE
+---
+override: =value
+stderr: |
+  invalid configuration override '': expected a nonempty dotted key
+---
+override: sandbox..network=restricted
+stderr: >
+  invalid configuration override 'sandbox..network': expected a nonempty
+  dotted key
+---
+override: sandbox.=restricted
+stderr: |
+  invalid configuration override 'sandbox.': expected a nonempty dotted key
+---
+override: sandbox.network=
+stderr: |
+  invalid configuration override 'sandbox.network': expected a value
+---
+override: sandbox={network:}
+stderr: |
+  invalid configuration override 'sandbox': expected a value
+---
+override: sandbox={network restricted}
+stderr: |
+  invalid configuration override 'sandbox': expected ':' or '=' after object key
+---
+override: "sandbox={network: [restricted}"
+stderr: |
+  invalid configuration override 'sandbox': expected ',' or ']'
+---
+override: "sandbox={network: 'restricted}"
+stderr: |
+  invalid configuration override 'sandbox': unterminated quoted string
+---
+override: "sandbox={network: restricted} trailing"
+stderr: |
+  invalid configuration override 'sandbox': unexpected text after value
+---
+override: "sandbox={network: [restricted,, enabled]}"
+stderr: |
+  invalid configuration override 'sandbox': expected a value
+---
+override: extends=.inf
+stderr: |
+  invalid configuration override 'extends': non-finite numbers are unsupported
+---
+override: |-
+  extends=first
+  second
+stderr: |
+  invalid configuration override 'extends': expected an inline value

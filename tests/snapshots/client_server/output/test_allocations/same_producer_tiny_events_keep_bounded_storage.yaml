@@ -1,0 +1,55 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  r: preview same producer
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8052
+        concat:
+          - |
+            preview head
+          - repeat: ab
+            count: 1977
+          - |
+            a
+            [output omitted: 192109 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-002.txt]
+          - repeat: ab
+            count: 1968
+          - |
+
+            preview tail: final diagnostic
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: echo fresh
+result:
+  content:
+    - type: text
+      text: |
+        zod: fresh
+  isError: false

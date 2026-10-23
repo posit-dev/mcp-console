@@ -1,0 +1,4 @@
+---
+error: >-
+  managed Python version resolution failed with exit status: 47: fixture
+  uv resolution failed

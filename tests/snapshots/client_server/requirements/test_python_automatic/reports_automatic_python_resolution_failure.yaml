@@ -1,0 +1,92 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import json
+    import os
+    import sys
+
+    prior_module = json
+    prior_state = {"answer": 42}
+    prior_pid = os.getpid()
+    print(sys.executable)
+result:
+  content:
+    - type: text
+      text: |
+        <running Python>
+  isError: false
+---
+send:
+  python: |
+    automatic_failure_attempts = globals().get("automatic_failure_attempts", 0) + 1
+    prior_state["answer"] += 1
+    import sklearn
+
+    automatic_failure_suffix = True
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e3>", line 3, in <module>
+        ModuleNotFoundError: No module named 'sklearn'.
+
+        MCP Console inferred the PyPI distribution `scikit-learn` from the import `sklearn`, but automatic package resolution failed:
+
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "<running Python>",
+          "packages": [
+            "numpy",
+            "pandas",
+            "matplotlib",
+            "plotnine",
+            "scikit-learn"
+          ]
+        }
+        uv output:
+        synthetic uv failure
+
+        Import names and PyPI distribution names can differ. Retry with the correct distribution declared through `requirements.python` in the `send` call, for example:
+
+        requirements: {"python": ["scikit-learn"]}
+  isError: false
+---
+send:
+  r: '"scikit-learn" %in% reticulate::py_require()$packages'
+result:
+  content:
+    - type: text
+      text: |
+        [1] FALSE
+  isError: false
+---
+send:
+  python: |
+    import json
+
+    (
+        json is prior_module,
+        json.loads('{"answer": 42}')["answer"],
+        prior_state["answer"],
+        automatic_failure_attempts,
+        "automatic_failure_suffix" not in globals(),
+        os.getpid() == prior_pid,
+    )
+result:
+  content:
+    - type: text
+      text: |
+        (True, 42, 43, 1, True, True)
+  isError: false

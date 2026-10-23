@@ -1,0 +1,663 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: >-
+        R requirements cannot change under r.resolution=fixed
+        (requirements.action=set)
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(mcpfirst::fixture()); original_pid <- Sys.getpid();
+    cat('startup available\n')
+result:
+  content:
+    - type: text
+      text: |
+        startup available
+  isError: false
+---
+send:
+  python: print('Python available')
+result:
+  content:
+    - type: text
+      text: |
+        Python available
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - mcpsecond
+    python:
+      - packaging
+  r: stop('must not run')
+  stdin: |
+    withheld
+result:
+  content:
+    - type: text
+      text: >-
+        R requirements cannot change under r.resolution=fixed
+        (requirements.action=add)
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: stopifnot(Sys.getpid() == original_pid); cat('worker retained\n')
+result:
+  content:
+    - type: text
+      text: |
+        worker retained
+  isError: false
+---
+send:
+  requirements:
+    action: set
+    python:
+      - packaging
+  r: stop('must not run')
+  stdin: |
+    withheld
+result:
+  content:
+    - type: text
+      text: >-
+        R requirements cannot change under r.resolution=fixed
+        (requirements.action=set)
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: stopifnot(Sys.getpid() == original_pid); cat('worker retained\n')
+result:
+  content:
+    - type: text
+      text: |
+        worker retained
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - mcpsecond
+    python:
+      - packaging
+  r: stop('must not run')
+  stdin: |
+    withheld
+result:
+  content:
+    - type: text
+      text: >-
+        [R requirements cannot change under r.resolution=fixed
+        (requirements.action=add)]
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: stopifnot(Sys.getpid() == original_pid); cat('worker retained\n')
+result:
+  content:
+    - type: text
+      text: |
+        worker retained
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - packaging
+  r: stop('must not run')
+  stdin: |
+    withheld
+result:
+  content:
+    - type: text
+      text: >-
+        [R requirements cannot change under r.resolution=fixed
+        (requirements.action=set)]
+  isError: true
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: stopifnot(Sys.getpid() == original_pid); cat('worker retained\n')
+result:
+  content:
+    - type: text
+      text: |
+        worker retained
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - packaging
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: import packaging; print('deliberate Python available')
+result:
+  content:
+    - type: text
+      text: |
+        deliberate Python available
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python:
+        - packaging
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: |
+    tryCatch({
+      local({
+        checkpoint <- file("<fixture>/active", "wb", raw = TRUE)
+        on.exit(close(checkpoint))
+        writeChar("1", checkpoint, eos = NULL)
+      })
+      Sys.sleep(60)
+    }, interrupt = function(e) cat("active interrupted\n"))
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  requirements:
+    r:
+      - mcpsecond
+  r: followup_ran <- TRUE
+  timeout_ms: 10000
+result:
+  content:
+    - type: text
+      text: |-
+        active interrupted
+        R requirements cannot change under r.resolution=fixed (requirements.action=add)
+  isError: true
+---
+send:
+  r: >-
+    stopifnot(!exists('followup_ran'), Sys.getpid() == original_pid);
+    cat('worker retained\n')
+result:
+  content:
+    - type: text
+      text: |
+        worker retained
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "mcpfirst"
+            ],
+            "python": [
+              "packaging"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [
+              "3.13"
+            ],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - mcpfirst
+      python:
+        - packaging
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version:
+        - "3.13"
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false

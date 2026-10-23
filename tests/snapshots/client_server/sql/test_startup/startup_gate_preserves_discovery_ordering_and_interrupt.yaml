@@ -1,0 +1,59 @@
+---
+config:
+  startup:
+    language: python
+    code: |
+      import sqlite3
+
+      startup_count = globals().get("startup_count", 0) + 1
+      native = sqlite3.connect(":memory:")
+      _console.sql_connection(native)
+      input("Startup gate> ")
+      _ = native.execute("CREATE TABLE selected AS SELECT 42 AS answer")
+---
+interrupted: false
+---
+!same-as MCP initialization for this execution mode
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  sql: CREATE TABLE first_cell AS SELECT answer FROM selected
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Startup gate> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    continue
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT answer FROM first_cell
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: assert startup_count == 1
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

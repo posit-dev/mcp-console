@@ -1,0 +1,15 @@
+---
+initial: dangerously_allow_all
+override:
+  - /tmp/service.sock
+native:
+  enabled: true
+  mode: full
+  enableSocks5: true
+  enableSocks5Udp: false
+  allowUpstreamProxy: false
+  domains: {}
+  unixSockets:
+    /tmp/service.sock: allow
+  dangerouslyAllowAllUnixSockets: false
+  allowLocalBinding: false

@@ -1,0 +1,37 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: cat("original session\n")
+result:
+  content:
+    - type: text
+      text: |
+        original session
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(requireNamespace("praise", quietly = TRUE)); cat("replacement
+    session\n")
+result:
+  content:
+    - type: text
+      text: |
+        replacement session
+  isError: false

@@ -1,0 +1,427 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [
+              "DBI",
+              "dbplyr",
+              "dplyr",
+              "duckdb",
+              "ggplot2",
+              "nanoarrow",
+              "reticulate",
+              "tidyverse",
+              "yyjsonr"
+            ],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - praise
+    python:
+      - <absolute project path>
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `<absolute project path>` is not accepted: host-side
+        managed resolution accepts named package requirements only
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    python:
+      - ./project
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `./project` is not accepted: host-side managed
+        resolution accepts named package requirements only
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - praise
+    python:
+      - ../project
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `../project` is not accepted: host-side managed
+        resolution accepts named package requirements only
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    python:
+      - file://<absolute project path>
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `file://<absolute project path>` is not accepted:
+        host-side managed resolution accepts named package requirements only
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - praise
+    python:
+      - -e ./project
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `-e ./project` is not accepted: host-side managed
+        resolution accepts named package requirements only
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    python:
+      - example @ https://example.invalid/example.whl
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `example @ https://example.invalid/example.whl` is
+        not accepted: host-side managed resolution accepts named package
+        requirements only
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - praise
+    python:
+      - <absolute archive path>
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `<absolute archive path>` is not accepted: host-side
+        managed resolution accepts named package requirements only
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    python:
+      - ./package.whl
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `./package.whl` is not accepted: host-side managed
+        resolution accepts named package requirements only
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - praise
+    python:
+      - package.whl
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `package.whl` is not accepted: host-side managed
+        resolution accepts named package requirements only
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    python:
+      - package.tar.gz
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `package.tar.gz` is not accepted: host-side managed
+        resolution accepts named package requirements only
+  isError: true
+---
+send:
+  requirements:
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: >-
+        HTTP Error: Failed to download extension "not_a_real_duckdb_extension"
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - requests[socks]>=2,<3; python_version < '0'
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - urllib3!=2.0.0; python_version < '0'
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    requirements <- reticulate::py_require()$packages
+    stopifnot(
+      "requests[socks]>=2,<3; python_version < '0'" %in% requirements,
+      "urllib3!=2.0.0; python_version < '0'" %in% requirements,
+      !any(c(
+        "<absolute project path>", "./project", "../project", "file://<absolute project path>", "-e ./project", "example @ https://example.invalid/example.whl", "<absolute archive path>", "./package.whl", "package.whl", "package.tar.gz"
+      ) %in% requirements)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    selector_worker_pid <- Sys.getpid()
+    selector_sentinel <- 42L
+    packages <- reticulate::py_require()$packages
+    accepted_package_request <- jsonlite::toJSON(list(
+      requirements = list(
+        packages = I(c("requests", "requests[socks]", "requests>=2,<3", "requests[socks]>=2; python_version >= '3.10'")),
+        python_version = I("python3")
+      ),
+      retained_requirements = list(
+        packages = I(c("requests", "requests[socks]", "requests>=2,<3", "requests[socks]>=2; python_version >= '3.10'")),
+        python_version = I(">=3.10")
+      )
+    ), auto_unbox = TRUE)
+    accepted_package_error <- tryCatch(
+      .Call("mcp_console_resolve_python", accepted_package_request),
+      error = conditionMessage
+    )
+    environment_request <- jsonlite::toJSON(list(
+      requirements = list(
+        packages = I(packages),
+        python_version = I("<worker executable path>")
+      ),
+      retained_requirements = list(
+        packages = I(packages),
+        python_version = I(">=3.10")
+      )
+    ), auto_unbox = TRUE)
+    environment_error <- tryCatch(
+      .Call("mcp_console_resolve_python", environment_request),
+      error = conditionMessage
+    )
+    retained_environment_request <- jsonlite::toJSON(list(
+      requirements = list(
+        packages = I(packages),
+        python_version = I(">=3.10")
+      ),
+      retained_requirements = list(
+        packages = I(packages),
+        python_version = I("<worker retained selector>")
+      )
+    ), auto_unbox = TRUE)
+    retained_environment_error <- tryCatch(
+      .Call("mcp_console_resolve_python", retained_environment_request),
+      error = conditionMessage
+    )
+    accepted_version_request <- jsonlite::toJSON(list(
+      constraints = I(c(
+        "3.11", "3.14.0a3", ">=3.9", ">=3.9,<3.13", "==3.12.*",
+        "<worker installation path>"
+      ))
+    ), auto_unbox = TRUE)
+    accepted_version_error <- tryCatch(
+      .Call(
+        "mcp_console_resolve_python_version",
+        accepted_version_request
+      ),
+      error = conditionMessage
+    )
+    rejected_version_errors <- vapply(
+      c("", "./python", "../python", "file:///tmp/python", "python3", "~=3.11", "===3.11"),
+      function(constraint) {
+        request <- jsonlite::toJSON(list(
+          constraints = I(constraint)
+        ), auto_unbox = TRUE)
+        tryCatch(
+          .Call("mcp_console_resolve_python_version", request),
+          error = conditionMessage
+        )
+      },
+      character(1L),
+      USE.NAMES = FALSE
+    )
+    cat(
+      accepted_package_error,
+      environment_error,
+      retained_environment_error,
+      accepted_version_error,
+      rejected_version_errors,
+      sep = "\n"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        Python version constraint `python3` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `<worker executable path>` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `<worker retained selector>` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `<worker installation path>` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `./python` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `../python` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `file:///tmp/python` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `python3` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `~=3.11` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+        Python version constraint `===3.11` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
+  isError: false
+---
+send:
+  r: |
+    identical(Sys.getpid(), selector_worker_pid) &&
+      identical(selector_sentinel, 42L) &&
+      is.null(reticulate::py_require()$python_version)
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  r: |
+    reticulate::py_require("./runtime-project")
+    invisible(reticulate::py_config())
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `./runtime-project` is not accepted: host-side
+        managed resolution accepts named package requirements only
+  isError: false

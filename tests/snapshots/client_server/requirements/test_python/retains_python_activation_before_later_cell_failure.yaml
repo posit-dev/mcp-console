@@ -1,0 +1,42 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: |-
+    invisible(reticulate::py_config())
+    invisible(reticulate::py_require("py-yaml12"))
+    stopifnot(reticulate::py_module_available("yaml12"))
+    tools::pskill(Sys.getpid(), signal = 9L)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  r: |
+    worker_pid <- Sys.getpid()
+    "py-yaml12" %in% reticulate::py_require()$packages
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  python: |
+    import yaml12
+
+    yaml12.__name__
+result:
+  content:
+    - type: text
+      text: |
+        'yaml12'
+  isError: false

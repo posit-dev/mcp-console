@@ -1,0 +1,38 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: complete silently
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: exit unexpectedly
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        zod replacement startup failed
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+  isError: true
+---
+send:
+  r: report managed R requirement
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        zod R requirement: prepared=true
+  isError: false

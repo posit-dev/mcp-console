@@ -1,0 +1,28 @@
+---
+selector: :unknown
+stderr: >
+  .agents/console/config.yaml: extends: unknown field `extends`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+selector: workspace
+stderr: >
+  .agents/console/config.yaml: extends: unknown field `extends`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+selector: workspace_write
+stderr: >
+  .agents/console/config.yaml: extends: unknown field `extends`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format
+---
+selector: workspace-write
+stderr: >
+  .agents/console/config.yaml: extends: unknown field `extends`, expected
+  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
+  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
+  docs/CONFIGURATION.md for the public format

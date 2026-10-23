@@ -1,0 +1,14 @@
+---
+command:
+  - mcp-console
+  - serve
+  - --worker
+  - unused-worker
+  - --no-sandbox
+  - -c
+  - sandbox=null
+  - -c
+  - resolver.sandbox=null
+initialized: true
+exit_status: 0
+stderr: ""

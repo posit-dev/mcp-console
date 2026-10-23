@@ -1,0 +1,110 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    error_hook_calls <- 0L
+    options(error = quote({
+      error_hook_calls <<- error_hook_calls + 1L
+      traceback()
+    }))
+    f <- function() stop("seed traceback")
+    f()
+result:
+  content:
+    - type: text
+      text: |
+        Error in f() : seed traceback
+        No traceback available 
+  isError: false
+---
+send:
+  r: traceback()
+result:
+  content:
+    - type: text
+      text: |
+        2: stop("seed traceback") at #1
+        1: f()
+  isError: false
+---
+send:
+  r: |
+    created <- TRUE
+    (
+result:
+  content:
+    - type: text
+      text: |
+        Error: <text>:4:0: unexpected end of input
+        2: (
+        3: 
+          ^
+  isError: false
+---
+send:
+  r: traceback()
+result:
+  content:
+    - type: text
+      text: |
+        2: stop("seed traceback") at #1
+        1: f()
+  isError: false
+---
+send:
+  r: |
+    created <- TRUE
+    )
+result:
+  content:
+    - type: text
+      text: |
+        Error: <text>:2:1: unexpected ')'
+        1: created <- TRUE
+        2: )
+           ^
+  isError: false
+---
+send:
+  r: traceback()
+result:
+  content:
+    - type: text
+      text: |
+        2: stop("seed traceback") at #1
+        1: f()
+  isError: false
+---
+send:
+  r: |
+    created <- TRUE
+    function(x, x) x
+result:
+  content:
+    - type: text
+      text: |
+        Error: repeated formal argument 'x' (<input>:2:13)
+  isError: false
+---
+send:
+  r: traceback()
+result:
+  content:
+    - type: text
+      text: |
+        2: stop("seed traceback") at #1
+        1: f()
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      error_hook_calls == 1L,
+      !exists("created", envir = globalenv(), inherits = FALSE)
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

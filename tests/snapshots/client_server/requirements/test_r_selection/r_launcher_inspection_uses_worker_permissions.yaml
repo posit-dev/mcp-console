@@ -1,0 +1,12 @@
+---
+inspection_error:
+  content:
+    - type: text
+      text: >
+        r.executable <workspace>/chosen R: R installation inspection failed
+        (exit status: 1): probe cannot write resolver-only directory
+  isError: true
+stderr: |+
+  r.executable <workspace>/chosen R: R installation inspection failed (exit status: 1): probe cannot write resolver-only directory
+
+resolver_grant_did_not_reach_inspection: true

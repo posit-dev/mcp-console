@@ -1,0 +1,20 @@
+---
+choice: venv shorthand
+selected_venv: true
+restart: true
+---
+choice: tilde venv
+selected_venv: true
+restart: true
+---
+choice: existing executable
+selected_venv: true
+restart: true
+---
+choice: first available
+selected_venv: true
+restart: true
+---
+choice: unused broken candidate
+selected_venv: true
+restart: true

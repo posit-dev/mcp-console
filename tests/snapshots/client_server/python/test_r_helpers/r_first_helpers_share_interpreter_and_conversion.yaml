@@ -1,0 +1,50 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    reticulate::use_python(Sys.getenv("MCP_CONSOLE_TEST_PYTHON"), required = TRUE)
+    math <- py_import("math", as = "math_for_r", convert = TRUE, delay_load = FALSE)
+    stopifnot(identical(math$sqrt(49), 7))
+    result <- withVisible(py_run_string(paste(
+      "bridge_value = 40",
+      "bridge_object = object()",
+      "bridge_identity = id(bridge_object)",
+      sep = "\n"
+    )))
+    stopifnot(!result$visible, identical(py_eval("bridge_value + 2"), 42L))
+    main <- py_import("__main__", convert = FALSE)
+    stopifnot(identical(reticulate::py_to_r(main$bridge_value), 40L))
+    raw <- py_eval("[1, 2]", convert = FALSE)
+    stopifnot(
+      inherits(raw, "python.builtin.list"),
+      identical(reticulate::py_to_r(raw), c(1L, 2L))
+    )
+    local_result <- py_run_string("local_value = 7", local = TRUE, convert = FALSE)
+    stopifnot(
+      identical(reticulate::py_to_r(local_result$local_value), 7L),
+      !py_eval("'local_value' in globals()")
+    )
+    py_run_string("bridge_value += 2")
+    cat("R helpers initialized shared Python\n")
+result:
+  content:
+    - type: text
+      text: |
+        R helpers initialized shared Python
+  isError: false
+---
+send:
+  python: |
+    assert bridge_value == 42
+    assert id(bridge_object) == bridge_identity
+    assert "local_value" not in globals()
+    assert r.py_eval("bridge_value") == 42
+    print("R-first state retained")
+result:
+  content:
+    - type: text
+      text: |
+        R-first state retained
+  isError: false

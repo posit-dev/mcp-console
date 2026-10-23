@@ -1,0 +1,67 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  python: |
+    import errno
+    import fcntl
+    import os
+    import stat
+    import subprocess
+    import sys
+    import warnings
+
+    assert "MCP_CONSOLE_SIDEBAND_FD" not in os.environ
+    descriptors = []
+    for direction, mode in (("READ", os.O_RDONLY), ("WRITE", os.O_WRONLY)):
+        assert f"MCP_CONSOLE_SIDEBAND_{direction}_FD" not in os.environ
+        fd = int(os.environ[f"MCP_CONSOLE_TEST_SIDEBAND_{direction}"])
+        descriptors.append(fd)
+        assert stat.S_ISFIFO(os.fstat(fd).st_mode)
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        assert flags & os.O_ACCMODE == mode
+        assert flags & os.O_NONBLOCK
+        assert fcntl.fcntl(fd, fcntl.F_GETFD) & fcntl.FD_CLOEXEC
+
+
+    def require_closed():
+        for fd in descriptors:
+            try:
+                fcntl.fcntl(fd, fcntl.F_GETFD)
+            except OSError as error:
+                assert error.errno == errno.EBADF
+            else:
+                raise AssertionError("child retained sideband")
+
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        child = os.fork()
+    if child == 0:
+        try:
+            require_closed()
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
+    assert os.waitpid(child, 0) == (child, 0)
+    subprocess.run(
+        [sys.executable, os.environ["MCP_CONSOLE_TEST_CLOSED_PROBE"]],
+        close_fds=False,
+        check=True,
+    )
+    print("both pipes isolated")
+result:
+  content:
+    - type: text
+      text: |
+        both pipes isolated
+  isError: false
+---
+send:
+  r: cat('parent sideband remains usable\n')
+result:
+  content:
+    - type: text
+      text: |
+        parent sideband remains usable
+  isError: false

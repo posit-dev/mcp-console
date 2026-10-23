@@ -1,0 +1,41 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import pdb
+
+    debug_value = 41
+    pdb.set_trace()
+    debug_value += 1
+  stdin: |
+    p debug_value
+result:
+  content:
+    - type: text
+      text: |-
+        > <mcp-console:python:e1>(4)<module>()
+        [input requested: "(Pdb) "]
+        41
+        [input requested: "(Pdb) "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    continue
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: debug_value
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

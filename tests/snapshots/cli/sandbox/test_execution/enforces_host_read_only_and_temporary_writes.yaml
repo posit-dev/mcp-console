@@ -1,0 +1,35 @@
+---
+command:
+  - mcp-console
+  - sandbox
+  - --
+  - python
+  - -c
+  - |
+    import errno
+    import os
+    import pathlib
+    import sys
+
+    host_file = pathlib.Path(sys.argv[1])
+    assert host_file.read_text(encoding="utf-8") == "host data"
+    try:
+        host_file.write_text("modified", encoding="utf-8")
+    except OSError as error:
+        assert error.errno == errno.EPERM
+    else:
+        raise SystemExit("host regular-file write was allowed")
+
+    output = pathlib.Path(os.environ["TMPDIR"]) / "result.txt"
+    output.write_text("sandbox temp", encoding="utf-8")
+    print(host_file.read_text(encoding="utf-8"))
+    print(output.read_text(encoding="utf-8"))
+    print(os.environ["TMPDIR"])
+  - host.txt
+stdout: |
+  host data
+  sandbox temp
+  <sandbox temp>
+transcript_normalization:
+  target: stdout line 3
+  sandbox_temporary_directory: omitted

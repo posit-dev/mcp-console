@@ -1,0 +1,26 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  control: restart
+  requirements:
+    r:
+      - praise
+    duckdb:
+      - json
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: report managed R requirement
+result:
+  content:
+    - type: text
+      text: |
+        zod R requirement: prepared=true
+  isError: false

@@ -1,0 +1,31 @@
+---
+send:
+  r: stop('must not execute')
+  requirements:
+    python:
+      - six
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: R cells are unavailable in Python sessions without R
+  isError: true
+---
+send:
+  python: answer = 42; answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

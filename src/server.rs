@@ -1,743 +1,740 @@
-use rmcp::handler::server::tool::ToolRouter;
-use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{
-    CallToolResult, ErrorData as McpError, JsonObject, Meta, ProtocolVersion, ServerCapabilities,
-    ServerInfo,
-};
-use rmcp::{ServerHandler, tool, tool_handler, tool_router};
-use schemars::JsonSchema;
-use serde::Deserialize;
-use serde_json::json;
-use std::collections::BTreeMap;
+mod arguments;
+#[cfg(windows)]
+mod input_windows;
+mod presentation;
+mod sandbox;
+pub(crate) use presentation::{materialized_tool, parameter_schema};
+pub(crate) use sandbox::Configuration as SandboxConfiguration;
+mod startup;
+use std::error::Error;
+use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
+use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
-pub(crate) mod response;
-#[cfg(test)]
-mod tests;
-mod timeouts;
-
-use self::response::{
-    ResponseState, TimeoutBundleReuse, strip_text_stream_meta, timeout_bundle_reuse_for_input,
+use arguments::{Requirements, SendArguments, SendControl};
+use rmcp::{
+    ErrorData, RoleServer, ServerHandler, ServiceExt,
+    handler::server::{
+        common::Extension, router::tool::ToolRouter, tool::ToolCallContext, wrapper::Parameters,
+    },
+    model::{
+        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorCode,
+        Implementation, ServerCapabilities, ServerConfig,
+    },
+    service::RequestContext,
+    tool, tool_handler, tool_router,
 };
-use self::timeouts::{
-    SANDBOX_UPDATE_TIMEOUT, apply_safety_margin, apply_tool_call_margin, parse_timeout,
-};
+use tokio::io::{AsyncRead, ReadBuf};
+use tokio::sync::oneshot;
 
-use crate::backend::{Backend, WorkerLaunch};
-use crate::oversized_output::OversizedOutputMode;
-use crate::sandbox::{SANDBOX_STATE_META_CAPABILITY, SandboxStateUpdate};
-use crate::sandbox_cli::{
-    MISSING_INHERITED_SANDBOX_STATE_MESSAGE, SandboxCliPlan, sandbox_plan_requests_inherited_state,
-};
-use crate::worker_process::{
-    WorkerError, WorkerManager, WriteStdinControlAction, WriteStdinOptions,
-    is_prechecked_follow_up_requires_meta, split_write_stdin_control_prefix,
-};
+use crate::worker_client::WORKER_SHUTDOWN_GRACE;
 
-const BUSY_FOLLOW_UP_RECHECK_WAIT: Duration = Duration::from_millis(25);
+use crate::cell::{LANGUAGES_ENV, Languages};
 
-#[cfg(test)]
-fn repl_tool_description_for_backend(
-    backend: Backend,
-    oversized_output: OversizedOutputMode,
-) -> &'static str {
-    match (backend, oversized_output) {
-        (Backend::R, OversizedOutputMode::Files) => {
-            include_str!("../docs/tool-descriptions/repl_tool_r.md")
+#[derive(Clone)]
+struct ConsoleServer {
+    startup: startup::Startup,
+    deliveries: crate::server_transport::ResponseDeliveries,
+    languages: Languages,
+    language_setting: &'static str,
+    tool_router: ToolRouter<Self>,
+    instructions: String,
+    tool_settings: Arc<crate::settings::Tool>,
+    inheritance: Arc<sandbox::Inheritance>,
+}
+
+impl ConsoleServer {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        input_closed: InputClosed,
+        worker: Option<PathBuf>,
+        relay: Option<PathBuf>,
+        sandbox: SandboxConfiguration,
+        python: Option<crate::settings::PythonChoice>,
+        r: crate::settings::R,
+        startup: Option<crate::settings::startup::Startup>,
+        visibility: Option<Languages>,
+        tool_settings: crate::settings::Tool,
+    ) -> Result<Self, String> {
+        let recording_directory = std::env::current_dir();
+        let (languages, language_setting) = match visibility {
+            Some(languages) => (languages, "languages"),
+            None => (Languages::from_environment()?, LANGUAGES_ENV),
+        };
+        if worker.is_none() && relay.is_some() {
+            return Err("a custom relay requires a custom worker".into());
         }
-        (Backend::R, OversizedOutputMode::Pager) => {
-            include_str!("../docs/tool-descriptions/repl_tool_r_pager.md")
+        // Presentation has no dependency on the client or its discovered capabilities.
+        let (tool_router, instructions) = Self::configured_presentation(
+            languages,
+            worker.is_none(),
+            python.as_ref(),
+            &sandbox.policy,
+            sandbox.no_sandbox,
+            sandbox
+                .profile
+                .as_ref()
+                .is_some_and(crate::settings::ProfileSelection::inherits_codex),
+            &tool_settings,
+        )?;
+        let runtime = Arc::new(startup::Runtime {
+            worker: crate::worker_client::Client::pending(),
+            transcript: crate::transcript::Transcript::pending(
+                recording_directory
+                    .as_ref()
+                    .cloned()
+                    .map_err(|error| std::io::Error::new(error.kind(), error.to_string())),
+            ),
+        });
+        let prelaunch = worker.is_none();
+        let uses_client_profile = sandbox
+            .profile
+            .as_ref()
+            .is_some_and(crate::settings::ProfileSelection::inherits_codex);
+        let inheritance = Arc::new(sandbox::Inheritance::new(sandbox.profile.clone()));
+        let startup_inheritance = inheritance.clone();
+        let startup = startup::Startup::new(
+            input_closed,
+            runtime,
+            prelaunch,
+            move |started, diagnostics| {
+                let sandbox = if uses_client_profile {
+                    sandbox
+                        .clone()
+                        .configure(startup_inheritance.policy(), python.as_ref())?
+                } else {
+                    sandbox.clone()
+                };
+                let configuration = if let Some(program) = worker.clone() {
+                    crate::worker_client::ClientConfiguration::new(
+                        program,
+                        relay.clone(),
+                        sandbox.no_sandbox,
+                        sandbox.policy,
+                    )
+                    .with_resolver_settings(sandbox.resolver)?
+                } else {
+                    crate::worker_client::ClientConfiguration::builtin(
+                        sandbox.no_sandbox,
+                        sandbox.policy,
+                        python.clone(),
+                        r.clone(),
+                        sandbox.resolver,
+                        diagnostics,
+                        started,
+                    )?
+                };
+                let configuration = configuration.with_startup(startup.clone());
+                let transcript = crate::transcript::Transcript::configured(
+                    recording_directory
+                        .as_ref()
+                        .cloned()
+                        .map_err(|error| std::io::Error::new(error.kind(), error.to_string())),
+                    configuration.dynamic_resolution(),
+                    configuration.python_preparation(),
+                    !configuration.python_only(),
+                    configuration.startup_declaration(),
+                );
+                Ok(startup::PreparedRuntime {
+                    configuration,
+                    transcript,
+                })
+            },
+        );
+        if !uses_client_profile {
+            startup.start();
         }
-        (Backend::Python, OversizedOutputMode::Files) => {
-            include_str!("../docs/tool-descriptions/repl_tool_python.md")
-        }
-        (Backend::Python, OversizedOutputMode::Pager) => {
-            include_str!("../docs/tool-descriptions/repl_tool_python_pager.md")
-        }
+        Ok(Self {
+            startup,
+            deliveries: crate::server_transport::ResponseDeliveries::default(),
+            languages,
+            language_setting,
+            tool_router,
+            instructions,
+            tool_settings: Arc::new(tool_settings),
+            inheritance,
+        })
     }
+}
+
+#[tool_router]
+impl ConsoleServer {
+    #[tool]
+    async fn send(
+        &self,
+        Extension(runtime): Extension<Arc<startup::Runtime>>,
+        Extension(call): Extension<crate::transcript::Call>,
+        Extension(delivery): Extension<crate::server_transport::ResponseDeliveryCall>,
+        Extension(started): Extension<Instant>,
+        Parameters(SendArguments {
+            r,
+            python,
+            sql,
+            control,
+            requirements,
+            stdin,
+            timeout_ms,
+        }): Parameters<SendArguments>,
+    ) -> Result<CallToolResult, String> {
+        let cell = match (r, python, sql) {
+            (Some(source), None, None) => Some(crate::cell::Cell {
+                language: crate::cell::Language::R,
+                source,
+            }),
+            (None, Some(source), None) => Some(crate::cell::Cell {
+                language: crate::cell::Language::Python,
+                source,
+            }),
+            (None, None, Some(source)) => Some(crate::cell::Cell {
+                language: crate::cell::Language::Sql,
+                source,
+            }),
+            (None, None, None) => None,
+            _ => {
+                return Err(format!(
+                    "only one of {} may be supplied",
+                    self.languages.cell_fields()
+                ));
+            }
+        };
+        if let Some(requirements) = &requirements {
+            use crate::worker_client::RequirementsAction::{Get, Reset};
+            if matches!(requirements.action, Get | Reset)
+                && (requirements.r.is_some()
+                    || requirements.python.is_some()
+                    || requirements.duckdb.is_some()
+                    || requirements.python_version.is_some()
+                    || requirements.exclude_newer.is_some())
+            {
+                return Err(
+                    "requirements.action=get/reset takes no package lists or constraint fields"
+                        .into(),
+                );
+            }
+            if requirements.action == Get {
+                if cell.is_some() || stdin.is_some() || control.is_some() {
+                    return Err(
+                        "requirements.action=get cannot be combined with code, stdin, or control"
+                            .into(),
+                    );
+                }
+                match tokio::time::timeout(
+                    Duration::from_millis(timeout_ms).saturating_sub(started.elapsed()),
+                    runtime.worker.ready(),
+                )
+                .await
+                {
+                    Ok(Ok(())) => {}
+                    Ok(Err(error)) => {
+                        return Ok(response_to_tool_result(
+                            runtime.worker.startup_failure_response(error),
+                            &call,
+                            &runtime.transcript,
+                            &self.deliveries,
+                            &delivery,
+                        ));
+                    }
+                    Err(_) => {
+                        let response = runtime.worker.starting_response();
+                        return Ok(response_to_tool_result(
+                            response,
+                            &call,
+                            &runtime.transcript,
+                            &self.deliveries,
+                            &delivery,
+                        ));
+                    }
+                }
+                if let Some(response) = runtime.worker.take_prelaunch_failure()? {
+                    return Ok(response_to_tool_result(
+                        response,
+                        &call,
+                        &runtime.transcript,
+                        &self.deliveries,
+                        &delivery,
+                    ));
+                }
+                let snapshot = runtime.worker.inspect_requirements();
+                let json = serde_json::to_string_pretty(&snapshot).expect("requirements JSON");
+                let text = if json.len() <= 8 * 1024 {
+                    json
+                } else {
+                    "The complete requirements declaration is in structuredContent.requirements; supply that object with action=\"set\". The manifest exceeds the text preview limit and is not reproduced here.".into()
+                };
+                let mut result =
+                    CallToolResult::success(vec![rmcp::model::ContentBlock::text(text)]);
+                result.structured_content = Some(snapshot);
+                return Ok(result);
+            }
+        }
+        let requirements = requirements.map(
+            |Requirements {
+                 action,
+                 duckdb,
+                 r,
+                 python,
+                 python_version,
+                 exclude_newer,
+             }| {
+                crate::worker_client::Requirements {
+                    action,
+                    call_id: call.id(),
+                    duckdb: duckdb.unwrap_or_default(),
+                    r: r.unwrap_or_default(),
+                    python: python.unwrap_or_default(),
+                    python_version: python_version.unwrap_or_default(),
+                    exclude_newer,
+                }
+            },
+        );
+        let request = crate::worker_client::SendRequest {
+            cell,
+            stdin,
+            requirements,
+            control: control.map(|control| match control {
+                SendControl::Interrupt => crate::worker_client::SendControl::Interrupt,
+                SendControl::Restart => crate::worker_client::SendControl::Restart,
+            }),
+            deadline: started
+                .checked_add(Duration::from_millis(timeout_ms))
+                .unwrap_or(started),
+            transcript: runtime.transcript.clone(),
+            call_id: call.id(),
+        };
+        let response = async {
+            request.validate(true)?;
+            let initial_restart = matches!(
+                request.control,
+                Some(crate::worker_client::SendControl::Restart)
+            ) && self.startup.retry_failed()?;
+            runtime.worker.send(request, initial_restart).await
+        }
+        .await
+        .unwrap_or_else(crate::worker_client::Response::tool_error);
+        Ok(response_to_tool_result(
+            response,
+            &call,
+            &runtime.transcript,
+            &self.deliveries,
+            &delivery,
+        ))
+    }
+}
+
+fn response_to_tool_result(
+    response: crate::worker_client::Response,
+    call: &crate::transcript::Call,
+    transcript: &crate::transcript::Transcript,
+    deliveries: &crate::server_transport::ResponseDeliveries,
+    delivery: &crate::server_transport::ResponseDeliveryCall,
+) -> CallToolResult {
+    let (content, is_error, response_delivery, parts) = response.into_parts();
+    call.record_result_parts(parts);
+    let mut result_images = Vec::new();
+    let content = content
+        .into_iter()
+        .map(|content| match content {
+            crate::worker_client::Content::Text(text) => ContentBlock::text(text),
+            crate::worker_client::Content::Image {
+                data,
+                mime_type,
+                artifact,
+            } => {
+                result_images.push(artifact);
+                ContentBlock::image(data, mime_type)
+            }
+        })
+        .collect();
+    if let Err(error) = call.record_result_images(result_images) {
+        transcript.disable(error);
+    }
+    if let Some(response_delivery) = response_delivery {
+        deliveries.register(delivery, response_delivery);
+    }
+    if is_error {
+        CallToolResult::error(content)
+    } else {
+        CallToolResult::success(content)
+    }
+}
+
+#[tool_handler(router = self.tool_router)]
+impl ServerHandler for ConsoleServer {
+    fn get_info(&self) -> ServerConfig {
+        let mut capabilities = ServerCapabilities::builder().enable_tools().build();
+        if self.inheritance.enabled() {
+            capabilities.experimental = Some(std::collections::BTreeMap::from_iter([
+                (sandbox::CAPABILITY.to_string(), serde_json::Map::new()),
+                (
+                    sandbox::LEGACY_CAPABILITY.to_string(),
+                    serde_json::Map::new(),
+                ),
+            ]));
+        }
+        ServerConfig::new(capabilities)
+            .with_server_info(Implementation::new(
+                "mcp-console",
+                env!("CARGO_PKG_VERSION"),
+            ))
+            .with_instructions(self.instructions.clone())
+    }
+
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        mut context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        context.extensions.insert(Instant::now());
+        if request.name.as_ref() != "send" {
+            return self
+                .tool_router
+                .call(ToolCallContext::new(self, request, context))
+                .await;
+        }
+        // A response can be visible before its write future settles. Delay only
+        // console operations so transport receipt remains live for cancellation and EOF.
+        let admission = context
+            .extensions
+            .remove::<crate::server_transport::ResponseDeliveryAdmission>()
+            .expect("console operations must carry transport admission");
+        let recording = context
+            .extensions
+            .remove::<crate::server_transport::RecordingCall>()
+            .expect("send carries its recording call");
+        let call = recording.clone().recorded().await;
+        let transcript = self.startup.runtime().transcript.clone();
+        let admitted = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => Err(ErrorData::internal_error(
+                    "request cancelled before execution",
+                    None,
+                )),
+            delivery = admission.admit() => {
+                match delivery {
+                    Ok(delivery) => Ok(delivery),
+                    Err(crate::server_transport::ResponseDeliveryAdmissionError::Cancelled) => {
+                        Err(ErrorData::internal_error(
+                            "request cancelled before execution",
+                            None,
+                        ))
+                    }
+                    Err(crate::server_transport::ResponseDeliveryAdmissionError::Closed) => {
+                        Err(ErrorData::internal_error(
+                            "MCP input closed before request execution",
+                            None,
+                        ))
+                    }
+                }
+            }
+        };
+        let (delivery, operation) = match admitted {
+            Ok(admitted) => admitted,
+            Err(error) => {
+                let recorder = transcript.clone();
+                let recorded_error = error.clone();
+                let completion = recording.clone();
+                if let Err(error) = tokio::task::spawn_blocking(move || {
+                    let _completion = completion;
+                    recorder.finish(call, &Err(recorded_error));
+                })
+                .await
+                {
+                    transcript.disable(format!("transcript task failed: {error}"));
+                }
+                return recording.response(Err(error));
+            }
+        };
+        let sandbox::CaptureResult(inherited) = context
+            .extensions
+            .remove::<sandbox::CaptureResult>()
+            .expect("console operations must carry transport sandbox capture");
+        if self.inheritance.enabled() && inherited.is_ok() {
+            self.startup.start();
+        }
+        context.extensions.insert(delivery.clone());
+        let runtime = self.startup.runtime();
+        let runtime_probe =
+            context.meta.get(crate::warmup::RUNTIME_META) == Some(&serde_json::Value::Bool(true));
+        let runtime_worker = runtime.worker.clone();
+        // A restart can reset completed failed readiness later in this call.
+        // Its wait stays cancellable until initial configuration is accepted.
+        let waiting_for_startup =
+            !runtime.worker.startup_finished() || !runtime.worker.is_configured();
+        context.extensions.insert(runtime);
+        context.extensions.insert(call.clone());
+        // Call the known send route directly so argument decoding errors enter
+        // the bounded renderer before the router converts them to plain text.
+        let send = self
+            .tool_router
+            .map
+            .get("send")
+            .expect("send tool must be registered");
+        let cancellation = context.ct.clone();
+        let validation = inherited
+            .and_then(|()| {
+                SendArguments::validate_fields(
+                    request.arguments.as_ref(),
+                    self.languages,
+                    self.language_setting,
+                )
+            })
+            .and_then(|()| {
+                self.tool_settings
+                    .validate_arguments(request.arguments.as_ref())
+            });
+        let call_future = async {
+            validation.map_err(|message| ErrorData::invalid_params(message, None))?;
+            (send.call)(ToolCallContext::new(self, request, context)).await
+        };
+        let result = if waiting_for_startup {
+            tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => Err(ErrorData::internal_error("request cancelled; poll with an empty send for any admitted cell", None)),
+                result = call_future => result,
+            }
+        } else {
+            call_future.await
+        };
+        let mut result = match result {
+            Err(error) if error.code == ErrorCode::INVALID_PARAMS => Ok(response_to_tool_result(
+                crate::worker_client::Response::tool_error(error.message.into_owned()),
+                &call,
+                &transcript,
+                &self.deliveries,
+                &delivery,
+            )
+            .into()),
+            result => result,
+        };
+        // The warmup driver asks the established discovery owner, not the host
+        // PATH or the wording of a runtime error. Ordinary replies are unchanged.
+        if runtime_probe
+            && let Ok(CallToolResponse::Complete(result)) = &mut result
+            && !result.is_error.unwrap_or(false)
+            && let Some(available) = runtime_worker.r_available()
+        {
+            result.meta.get_or_insert_default().insert(
+                crate::warmup::RUNTIME_META.into(),
+                serde_json::json!({ "r": available }),
+            );
+        }
+        let result = Arc::new(result);
+        let recorder = transcript.clone();
+        let recording_result = Arc::clone(&result);
+        let completion = recording.clone();
+        if let Err(error) = tokio::task::spawn_blocking(move || {
+            let _completion = completion;
+            recorder.finish(call, recording_result.as_ref());
+        })
+        .await
+        {
+            transcript.disable(format!("transcript task failed: {error}"));
+        }
+        let result =
+            Arc::into_inner(result).expect("transcript task should release the tool result");
+        operation.complete();
+        recording.response(result)
+    }
+}
+
+/// Runs the MCP stdio server and owns the selected worker.
+///
+/// Closing MCP input also stops a worker whose evaluation is still running.
+#[allow(clippy::too_many_arguments)]
+pub async fn run(
+    worker: Option<PathBuf>,
+    relay: Option<PathBuf>,
+    sandbox: SandboxConfiguration,
+    python: Option<crate::settings::PythonChoice>,
+    r: crate::settings::R,
+    startup: Option<crate::settings::startup::Startup>,
+    visibility: Option<Languages>,
+    tool_settings: crate::settings::Tool,
+) -> Result<(), Box<dyn Error>> {
+    let (input_closed, wait_for_input_close) = oneshot::channel();
+    let input_closed = InputClosed(Arc::new(Mutex::new(Some(input_closed))));
+    #[cfg(not(windows))]
+    let input = tokio::io::stdin();
+    let server = ConsoleServer::new(
+        input_closed.clone(),
+        worker,
+        relay,
+        sandbox,
+        python,
+        r,
+        startup,
+        visibility,
+        tool_settings,
+    )
+    .map_err(std::io::Error::other)?;
+    let startup = server.startup.clone();
+    let deliveries = server.deliveries.clone();
+    #[cfg(windows)]
+    let input = {
+        let startup = startup.clone();
+        let closed = input_closed.clone();
+        input_windows::Input::new(move || {
+            // Physical EOF can cancel unfinished preparation even if protocol
+            // output is blocked. Once startup finishes, ShutdownReader alone
+            // reports EOF after the queued MCP input has been consumed.
+            if !startup.runtime().worker.startup_finished() {
+                closed.close();
+            }
+        })?
+    };
+    let input = ShutdownReader::new(input, input_closed);
+    let inheritance = server.inheritance.clone();
+    let transport = crate::server_transport::ServerTransport::new(
+        input,
+        tokio::io::stdout(),
+        server.deliveries.clone(),
+    )
+    .with_recording(server.startup.runtime().transcript.clone())
+    .with_send_observer(move |call| {
+        // Pending response reservations do not order runnable handlers. Capture
+        // before dispatch so cancellation or scheduling cannot select a later policy.
+        let inherited = inheritance.capture(call.extensions.get_or_insert_default());
+        call.extensions.insert(sandbox::CaptureResult(inherited));
+    });
+    let recordings = transport.recording_queue();
+    let startup_responses = deliveries.clone();
+    let shutdown = async move {
+        let shutdown_started = wait_for_input_close
+            .await
+            .unwrap_or_else(|_| Instant::now());
+        let deadline = shutdown_started + WORKER_SHUTDOWN_GRACE;
+        let cancellation = startup.cancel(deadline).await;
+        let result = match startup.ready().await {
+            Ok(runtime) => runtime.worker.shutdown(deadline).await,
+            Err(error) => {
+                let runtime = startup.runtime();
+                let retirement = if runtime.worker.is_configured() {
+                    runtime.worker.shutdown(deadline).await
+                } else {
+                    Ok(())
+                };
+                retirement.and_then(|()| startup.finish_failed_preparation(error))
+            }
+        };
+        deliveries
+            .settle_before_close(Instant::now() + WORKER_SHUTDOWN_GRACE)
+            .await;
+        // Cancellation releases response admission, not capture ownership.
+        // Settle every received send before finalizing its journal and projections.
+        recordings.close_and_settle().await;
+        let runtime = startup.runtime();
+        let diagnostics = runtime.transcript.clone();
+        if let Err(error) = tokio::task::spawn_blocking(move || {
+            runtime.worker.finish_recording();
+            runtime.transcript.finalize();
+        })
+        .await
+        {
+            diagnostics.disable(format!("recording finalization task failed: {error}"));
+        }
+        cancellation?;
+        result?;
+        Ok::<(), String>(())
+    };
+
+    tokio::pin!(shutdown);
+    const CLOSED_BEFORE_INITIALIZATION: &str = "server startup cancelled because MCP input closed";
+    let service = tokio::select! {
+        result = server.serve(transport) => match result {
+            Ok(service) => service,
+            Err(error) => {
+                // Shutdown can wake a blocked initialization write before this
+                // branch settles. Preserve its input-closure diagnosis.
+                let closed_by_shutdown = startup_responses.is_closed();
+                shutdown.await.map_err(std::io::Error::other)?;
+                if matches!(&error, rmcp::service::ServerInitializeError::ConnectionClosed(_))
+                    && startup_responses.bootstrap_complete()
+                {
+                    return Ok(());
+                }
+                return Err(match error {
+                    rmcp::service::ServerInitializeError::ConnectionClosed(_) =>
+                        std::io::Error::other(CLOSED_BEFORE_INITIALIZATION).into(),
+                    _ if closed_by_shutdown =>
+                        std::io::Error::other(CLOSED_BEFORE_INITIALIZATION).into(),
+                    error => error.into(),
+                });
+            }
+        },
+        result = &mut shutdown => {
+            result.map_err(std::io::Error::other)?;
+            if startup_responses.bootstrap_complete() {
+                return Ok(());
+            }
+            return Err(std::io::Error::other(CLOSED_BEFORE_INITIALIZATION).into());
+        }
+    };
+    // Once owned preparation/worker retirement and response settling finish,
+    // a blocked protocol write must not keep the process alive.
+    tokio::select! {
+        result = service.waiting() => {
+            shutdown.await.map_err(std::io::Error::other)?;
+            result?;
+        },
+        result = &mut shutdown => result.map_err(std::io::Error::other)?,
+    }
+    Ok(())
 }
 
 #[derive(Clone)]
-struct SharedServer {
-    accepts_sandbox_state_meta: bool,
-    state: Arc<Mutex<ServerState>>,
-}
+struct InputClosed(Arc<Mutex<Option<oneshot::Sender<Instant>>>>);
 
-struct ServerState {
-    worker: WorkerManager,
-    response: ResponseState,
-    oversized_output: OversizedOutputMode,
-}
-
-impl SharedServer {
-    fn new(
-        worker_launch: WorkerLaunch,
-        sandbox_plan: SandboxCliPlan,
-        oversized_output: OversizedOutputMode,
-    ) -> Result<Self, WorkerError> {
-        let accepts_sandbox_state_meta = sandbox_plan_requests_inherited_state(&sandbox_plan);
-        Ok(Self {
-            accepts_sandbox_state_meta,
-            state: Arc::new(Mutex::new(ServerState {
-                worker: WorkerManager::new_with_launch(
-                    worker_launch,
-                    sandbox_plan,
-                    oversized_output,
-                )?,
-                response: ResponseState::new()?,
-                oversized_output,
-            })),
-        })
-    }
-
-    fn state(&self) -> Arc<Mutex<ServerState>> {
-        Arc::clone(&self.state)
-    }
-
-    fn accepts_sandbox_state_meta(&self) -> bool {
-        self.accepts_sandbox_state_meta
-    }
-
-    /// Runs a closure with exclusive access to the combined worker/response state.
-    /// This keeps reply finalization in the same critical section as the worker call it seals.
-    async fn run_state<T, F>(&self, f: F) -> Result<T, McpError>
-    where
-        F: FnOnce(&mut ServerState) -> T + Send + 'static,
-        T: Send + 'static,
-    {
-        let state = self.state.clone();
-        tokio::task::spawn_blocking(move || {
-            let mut state = state.lock().unwrap();
-            f(&mut state)
-        })
-        .await
-        .map_err(|err| McpError::internal_error(err.to_string(), None))
-    }
-
-    fn sandbox_state_update_for_tool_call_meta(
-        accepts_sandbox_state_meta: bool,
-        meta: &Meta,
-    ) -> Result<Option<SandboxStateUpdate>, WorkerError> {
-        if !accepts_sandbox_state_meta {
-            return Ok(None);
-        }
-
-        let Some(raw_meta) = meta.get(SANDBOX_STATE_META_CAPABILITY) else {
-            return Err(WorkerError::Sandbox(
-                MISSING_INHERITED_SANDBOX_STATE_MESSAGE.to_string(),
-            ));
-        };
-        crate::sandbox::log_sandbox_state_meta(raw_meta);
-        let update = crate::sandbox::sandbox_state_update_from_codex_meta(raw_meta)
-            .map_err(WorkerError::Sandbox)?;
-        Ok(Some(update))
-    }
-
-    fn optional_sandbox_state_update_for_tool_call_meta(
-        accepts_sandbox_state_meta: bool,
-        meta: &Meta,
-    ) -> Result<Option<SandboxStateUpdate>, WorkerError> {
-        if !accepts_sandbox_state_meta {
-            return Ok(None);
-        }
-
-        let Some(raw_meta) = meta.get(SANDBOX_STATE_META_CAPABILITY) else {
-            return Ok(None);
-        };
-
-        match crate::sandbox::sandbox_state_update_from_codex_meta(raw_meta) {
-            Ok(update) => Ok(Some(update)),
-            Err(_) => Ok(None),
+impl InputClosed {
+    fn close(&self) {
+        if let Some(sender) = self.0.lock().expect("input closure lock").take() {
+            let _ = sender.send(Instant::now());
         }
     }
-
-    fn apply_tool_call_sandbox_state(
-        state: &mut ServerState,
-        update: Option<SandboxStateUpdate>,
-    ) -> Result<bool, WorkerError> {
-        let Some(update) = update else {
-            return Ok(false);
-        };
-
-        state
-            .worker
-            .update_sandbox_state(update, SANDBOX_UPDATE_TIMEOUT)
-    }
-
-    /// Executes one `repl` call and immediately finalizes the visible reply on the server side.
-    /// The response layer needs `pending_request` after the worker call to decide transcript reuse.
-    async fn run_write_input(
-        &self,
-        input: String,
-        timeout: Duration,
-        meta: Meta,
-    ) -> Result<CallToolResult, McpError> {
-        let worker_timeout = apply_tool_call_margin(timeout);
-        let server_timeout = apply_safety_margin(timeout);
-        let accepts_sandbox_state_meta = self.accepts_sandbox_state_meta();
-        self.run_state(move |state| {
-            let mut raw_input = input;
-            let use_inline_pager_materialization =
-                matches!(state.oversized_output, OversizedOutputMode::Pager);
-            state.worker.refresh_timeout_marker();
-            let parse_tool_call_sandbox_state = || {
-                SharedServer::sandbox_state_update_for_tool_call_meta(
-                    accepts_sandbox_state_meta,
-                    &meta,
-                )
-            };
-            let parse_optional_tool_call_sandbox_state = || {
-                SharedServer::optional_sandbox_state_update_for_tool_call_meta(
-                    accepts_sandbox_state_meta,
-                    &meta,
-                )
-            };
-            let mut suppress_session_end_reset = false;
-            let (sandbox_state_result, local_error_is_mcp_error) = if raw_input.is_empty() {
-                // Empty-input polls only skip metadata when they are truly
-                // draining existing output. In pager mode, empty input can
-                // also be a pure local navigation command and should ignore
-                // inherit metadata until a later worker interaction.
-                let needs_post_poll_reset = state.worker.empty_input_may_auto_reset_after_poll();
-                if state.worker.empty_input_uses_local_pager_state() {
-                    (
-                        match parse_tool_call_sandbox_state() {
-                            Ok(update) => Ok(update),
-                            Err(_) => {
-                                suppress_session_end_reset = true;
-                                Ok(None)
-                            }
-                        },
-                        false,
-                    )
-                } else {
-                    match state.worker.empty_input_requires_spawn() {
-                        Ok(true) => (
-                            parse_tool_call_sandbox_state().and_then(|update| {
-                                let respawned =
-                                    SharedServer::apply_tool_call_sandbox_state(state, update)?;
-                                if respawned {
-                                    state.response.retire_disclosed_timeout_bundle();
-                                }
-                                Ok(None)
-                            }),
-                            true,
-                        ),
-                        Ok(false) if needs_post_poll_reset => (
-                            match parse_tool_call_sandbox_state() {
-                                Ok(update) => Ok(update),
-                                Err(_) => {
-                                    suppress_session_end_reset = true;
-                                    Ok(None)
-                                }
-                            },
-                            false,
-                        ),
-                        Ok(false) => (parse_optional_tool_call_sandbox_state(), false),
-                        Err(err) => (Err(err), true),
-                    }
-                }
-            } else {
-                // A timed-out request still owns busy follow-ups, but a fresh
-                // non-empty call after that request has already settled must
-                // run under the current tool call's sandbox metadata.
-                if state.worker.pending_request() {
-                    state
-                        .worker
-                        .refresh_timeout_marker_with_wait(BUSY_FOLLOW_UP_RECHECK_WAIT);
-                }
-                let restart_control = matches!(
-                    split_write_stdin_control_prefix(&raw_input),
-                    Some((WriteStdinControlAction::Restart, _))
-                );
-                let bare_interrupt = matches!(
-                    split_write_stdin_control_prefix(&raw_input),
-                    Some((WriteStdinControlAction::Interrupt, remaining)) if remaining.is_empty()
-                );
-                if restart_control {
-                    (parse_tool_call_sandbox_state(), true)
-                } else if state.worker.pending_request() && bare_interrupt {
-                    (
-                        match parse_tool_call_sandbox_state() {
-                            Ok(update) => Ok(update),
-                            Err(_) => {
-                                suppress_session_end_reset = true;
-                                Ok(None)
-                            }
-                        },
-                        false,
-                    )
-                } else if state.worker.pending_request() {
-                    let local_pager_follow_up = input_uses_local_pager_state(state, &raw_input);
-                    if local_pager_follow_up
-                        && split_write_stdin_control_prefix(&raw_input).is_none()
-                    {
-                        (Ok(None), false)
-                    } else {
-                        (
-                            match parse_tool_call_sandbox_state().and_then(|update| {
-                                SharedServer::apply_tool_call_sandbox_state(state, update)
-                            }) {
-                                Ok(respawned) => {
-                                    if respawned {
-                                        state.response.retire_disclosed_timeout_bundle();
-                                        raw_input = normalize_input_after_sandbox_respawn(
-                                            &raw_input,
-                                            local_pager_follow_up,
-                                        );
-                                    }
-                                    Ok(None)
-                                }
-                                Err(err) => Err(err),
-                            },
-                            true,
-                        )
-                    }
-                } else {
-                    match state
-                        .worker
-                        .nonexecuting_follow_up_uses_existing_state(&raw_input)
-                    {
-                        Ok(true) => (
-                            match parse_tool_call_sandbox_state() {
-                                Ok(update) => Ok(update),
-                                Err(_) => {
-                                    suppress_session_end_reset = true;
-                                    Ok(None)
-                                }
-                            },
-                            false,
-                        ),
-                        Ok(false) => {
-                            let local_pager_follow_up =
-                                input_uses_local_pager_state(state, &raw_input);
-                            (
-                                match parse_tool_call_sandbox_state().and_then(|update| {
-                                    SharedServer::apply_tool_call_sandbox_state(state, update)
-                                }) {
-                                    Ok(respawned) => {
-                                        if respawned {
-                                            state.response.retire_disclosed_timeout_bundle();
-                                            raw_input = normalize_input_after_sandbox_respawn(
-                                                &raw_input,
-                                                local_pager_follow_up,
-                                            );
-                                        }
-                                        Ok(None)
-                                    }
-                                    Err(err) => Err(err),
-                                },
-                                true,
-                            )
-                        }
-                        Err(err) => (Err(err), true),
-                    }
-                }
-            };
-            let deferred_sandbox_state_update = match sandbox_state_result {
-                Ok(update) => update,
-                Err(err) => {
-                    let mut result = state
-                        .response
-                        .finalize_local_error(err, local_error_is_mcp_error);
-                    strip_text_stream_meta(&mut result);
-                    return result;
-                }
-            };
-            let prior_disclosed_timeout_bundle_id = state.response.disclosed_timeout_bundle_id();
-            let mut timeout_bundle_reuse = timeout_bundle_reuse_for_input(&raw_input);
-            let mut write_options = WriteStdinOptions {
-                pending_state_prechecked: true,
-                deferred_sandbox_state_update,
-                suppress_session_end_reset,
-                ..WriteStdinOptions::default()
-            };
-            let mut retried_after_meta_refresh = false;
-            let result = loop {
-                let result = state.worker.write_stdin(
-                    raw_input.clone(),
-                    worker_timeout,
-                    server_timeout,
-                    write_options.clone(),
-                );
-                match result {
-                    Err(err)
-                        if !retried_after_meta_refresh
-                            && is_prechecked_follow_up_requires_meta(&err) =>
-                    {
-                        let local_pager_follow_up = input_uses_local_pager_state(state, &raw_input);
-                        match parse_tool_call_sandbox_state().and_then(|update| {
-                            SharedServer::apply_tool_call_sandbox_state(state, update)
-                        }) {
-                            Ok(respawned) => {
-                                if respawned {
-                                    state.response.retire_disclosed_timeout_bundle();
-                                    raw_input = normalize_input_after_sandbox_respawn(
-                                        &raw_input,
-                                        local_pager_follow_up,
-                                    );
-                                    timeout_bundle_reuse =
-                                        timeout_bundle_reuse_for_input(&raw_input);
-                                }
-                                retried_after_meta_refresh = true;
-                                write_options.pending_state_prechecked = false;
-                                write_options.deferred_sandbox_state_update = None;
-                                write_options.suppress_session_end_reset = false;
-                                continue;
-                            }
-                            Err(err) => break Err(err),
-                        }
-                    }
-                    other => break other,
-                }
-            };
-            let pending_request_after = state.worker.pending_request();
-            let detached_prefix_item_count = state.worker.detached_prefix_item_count();
-            let respawned_during_write = state.worker.respawned_during_last_write();
-            let mut result = finalize_visible_reply(
-                state,
-                result,
-                pending_request_after,
-                timeout_bundle_reuse,
-                detached_prefix_item_count,
-                use_inline_pager_materialization
-                    && !pending_request_after
-                    && !state.response.has_timeout_bundle_state(),
-            );
-            if respawned_during_write {
-                state
-                    .response
-                    .retire_timeout_bundle_if_matches(prior_disclosed_timeout_bundle_id);
-            }
-            strip_text_stream_meta(&mut result);
-            result
-        })
-        .await
-    }
 }
 
-fn input_uses_local_pager_state(state: &ServerState, input: &str) -> bool {
-    if let Some((_control, remaining)) = split_write_stdin_control_prefix(input) {
-        state
-            .worker
-            .local_pager_follow_up_uses_existing_state(remaining)
-    } else {
-        state
-            .worker
-            .local_pager_follow_up_uses_existing_state(input)
-    }
+/// Reports EOF or reader loss to the owner, sharing one notification with the
+/// non-consuming startup observer.
+struct ShutdownReader<R> {
+    inner: R,
+    input_closed: InputClosed,
 }
 
-fn normalize_input_after_sandbox_respawn(input: &str, local_pager_follow_up: bool) -> String {
-    if let Some((control, remaining)) = split_write_stdin_control_prefix(input) {
-        if matches!(control, WriteStdinControlAction::Restart) && remaining.is_empty() {
-            input.to_string()
-        } else if local_pager_follow_up {
-            String::new()
-        } else {
-            remaining.to_string()
-        }
-    } else if local_pager_follow_up {
-        String::new()
-    } else {
-        input.to_string()
-    }
-}
-
-fn server_info(advertise_sandbox_capabilities: bool) -> ServerInfo {
-    let capabilities = if advertise_sandbox_capabilities {
-        ServerCapabilities::builder()
-            .enable_tools()
-            .enable_experimental_with(sandbox_capabilities())
-            .build()
-    } else {
-        ServerCapabilities::builder().enable_tools().build()
-    };
-    ServerInfo::new(capabilities).with_protocol_version(ProtocolVersion::V_2025_06_18)
-}
-
-#[derive(Clone, Copy)]
-struct LoggedToolRouter<'a, S> {
-    inner: &'a ToolRouter<S>,
-}
-
-impl<'a, S> LoggedToolRouter<'a, S>
-where
-    S: Send + Sync + 'static,
-{
-    fn new(inner: &'a ToolRouter<S>) -> Self {
-        Self { inner }
-    }
-
-    async fn call(
-        &self,
-        context: rmcp::handler::server::tool::ToolCallContext<'_, S>,
-    ) -> Result<CallToolResult, McpError> {
-        let tool = context.name.clone();
-        crate::event_log::log_lazy("tool_call_begin", || {
-            let arguments = context.arguments.clone().unwrap_or_default();
-            let task = context.task.clone();
-            json!({
-                "tool": tool.as_ref(),
-                "arguments": arguments,
-                "task": task,
-                "meta": context.request_context.meta.clone(),
-            })
-        });
-        let result = self.inner.call(context).await;
-        match &result {
-            Ok(result) => {
-                crate::event_log::log_lazy("tool_call_end", || {
-                    let serialized = serde_json::to_value(result)
-                        .unwrap_or_else(|err| json!({"serialize_error": err.to_string()}));
-                    json!({
-                        "tool": tool.as_ref(),
-                        "result": serialized,
-                    })
-                });
-            }
-            Err(err) => {
-                crate::event_log::log_lazy("tool_call_error", || {
-                    json!({
-                        "tool": tool.as_ref(),
-                        "error": err.to_string(),
-                    })
-                });
-            }
-        }
-        result
-    }
-
-    fn list_all(&self) -> Vec<rmcp::model::Tool> {
-        self.inner.list_all()
-    }
-
-    fn get(&self, name: &str) -> Option<&rmcp::model::Tool> {
-        self.inner.get(name)
-    }
-}
-
-macro_rules! define_backend_tool_server {
-    ($server_ty:ident, $repl_doc_path:literal) => {
-        #[derive(Clone)]
-        struct $server_ty {
-            shared: SharedServer,
-            tool_router: ToolRouter<Self>,
-        }
-
-        #[tool_router]
-        impl $server_ty {
-            fn new(
-                worker_launch: WorkerLaunch,
-                sandbox_plan: SandboxCliPlan,
-                oversized_output: OversizedOutputMode,
-            ) -> Result<Self, WorkerError> {
-                Ok(Self {
-                    shared: SharedServer::new(worker_launch, sandbox_plan, oversized_output)?,
-                    tool_router: Self::tool_router(),
-                })
-            }
-
-            fn get_info(&self) -> ServerInfo {
-                server_info(self.shared.accepts_sandbox_state_meta())
-            }
-
-            fn logged_tool_router(&self) -> LoggedToolRouter<'_, Self> {
-                LoggedToolRouter::new(&self.tool_router)
-            }
-
-            #[doc = include_str!($repl_doc_path)]
-            #[tool(
-                name = "repl",
-                annotations(
-                    read_only_hint = false,
-                    destructive_hint = false,
-                    open_world_hint = false
-                )
-            )]
-            async fn repl(
-                &self,
-                meta: Meta,
-                params: Parameters<ReplArgs>,
-            ) -> Result<CallToolResult, McpError> {
-                let ReplArgs { input, timeout_ms } = params.0;
-                let timeout = resolve_timeout_ms(timeout_ms, "repl", true)?;
-                self.shared.run_write_input(input, timeout, meta).await
-            }
-        }
-
-        #[tool_handler(router = self.logged_tool_router())]
-        impl ServerHandler for $server_ty {
-            fn get_info(&self) -> ServerInfo {
-                $server_ty::get_info(self)
-            }
-        }
-    };
-}
-
-fn finalize_visible_reply(
-    state: &mut ServerState,
-    result: Result<crate::worker_protocol::WorkerReply, WorkerError>,
-    pending_request_after: bool,
-    timeout_bundle_reuse: TimeoutBundleReuse,
-    detached_prefix_item_count: usize,
-    use_inline_pager_materialization: bool,
-) -> CallToolResult {
-    match state.oversized_output {
-        OversizedOutputMode::Files => state.response.finalize_worker_result(
-            result,
-            pending_request_after,
-            timeout_bundle_reuse,
-            detached_prefix_item_count,
-        ),
-        OversizedOutputMode::Pager if use_inline_pager_materialization => state
-            .response
-            .materialize_worker_result_inline(result, detached_prefix_item_count),
-        OversizedOutputMode::Pager => state.response.finalize_worker_result(
-            result,
-            pending_request_after,
-            timeout_bundle_reuse,
-            detached_prefix_item_count,
-        ),
-    }
-}
-
-define_backend_tool_server!(RFilesToolServer, "../docs/tool-descriptions/repl_tool_r.md");
-define_backend_tool_server!(
-    RPagerToolServer,
-    "../docs/tool-descriptions/repl_tool_r_pager.md"
-);
-define_backend_tool_server!(
-    PythonFilesToolServer,
-    "../docs/tool-descriptions/repl_tool_python.md"
-);
-define_backend_tool_server!(
-    PythonPagerToolServer,
-    "../docs/tool-descriptions/repl_tool_python_pager.md"
-);
-
-#[derive(Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-struct ReplArgs {
-    input: String,
-    #[serde(default)]
-    timeout_ms: Option<u64>,
-}
-
-fn resolve_timeout_ms(
-    timeout_ms: Option<u64>,
-    tool_name: &str,
-    allow_zero: bool,
-) -> Result<Duration, McpError> {
-    let timeout_secs = timeout_ms.map(|value| Duration::from_millis(value).as_secs_f64());
-    parse_timeout(timeout_secs, tool_name, allow_zero)
-}
-
-fn sandbox_capabilities() -> BTreeMap<String, JsonObject> {
-    let mut capability = JsonObject::new();
-    capability.insert("version".to_string(), json!("1.0.0"));
-    let mut experimental = BTreeMap::new();
-    experimental.insert(SANDBOX_STATE_META_CAPABILITY.to_string(), capability);
-    experimental
-}
-
-async fn run_backend_server<S>(
-    service: S,
-    shutdown_state: Arc<Mutex<ServerState>>,
-) -> Result<(), Box<dyn std::error::Error>>
-where
-    S: ServerHandler + Send + Sync + Clone + 'static,
-{
-    let warm_state = shutdown_state.clone();
-    thread::spawn(move || {
-        crate::event_log::log("worker_warm_start_begin", json!({}));
-        let mut state = warm_state.lock().unwrap();
-        if let Err(err) = state.worker.warm_start() {
-            eprintln!("worker warm start error: {err}");
-            crate::event_log::log(
-                "worker_warm_start_error",
-                json!({
-                    "error": err.to_string(),
-                }),
-            );
-            return;
-        }
-        crate::event_log::log("worker_warm_start_end", json!({"status": "ok"}));
-    });
-
-    crate::event_log::log("server_listen_begin", json!({}));
-    let result: Result<(), Box<dyn std::error::Error>> = async {
-        let running = rmcp::serve_server(service, rmcp::transport::stdio()).await?;
-        running
-            .waiting()
-            .await
-            .map(|_| ())
-            .map_err(|err| err.into())
-    }
-    .await;
-
-    {
-        let mut state = shutdown_state.lock().unwrap();
-        state.worker.shutdown();
-        if let Err(err) = state.response.shutdown() {
-            eprintln!("output bundle cleanup error: {err}");
-            crate::event_log::log(
-                "output_bundle_cleanup_error",
-                json!({
-                    "error": err.to_string(),
-                }),
-            );
+impl<R> ShutdownReader<R> {
+    fn new(inner: R, input_closed: InputClosed) -> Self {
+        Self {
+            inner,
+            input_closed,
         }
     }
-    match &result {
-        Ok(()) => crate::event_log::log("server_listen_end", json!({"status": "ok"})),
-        Err(err) => crate::event_log::log(
-            "server_listen_end",
-            json!({
-                "status": "error",
-                "error": err.to_string(),
-            }),
-        ),
-    }
-    result
 }
 
-pub async fn run(
-    worker_launch: WorkerLaunch,
-    sandbox_plan: SandboxCliPlan,
-    oversized_output: OversizedOutputMode,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let backend = worker_launch.builtin_backend().unwrap_or(Backend::R);
-    crate::event_log::log(
-        "server_run_begin",
-        json!({
-            "backend": worker_launch.label(),
-        }),
-    );
-    match backend {
-        Backend::R => match oversized_output {
-            OversizedOutputMode::Files => {
-                let service = RFilesToolServer::new(worker_launch, sandbox_plan, oversized_output)?;
-                run_backend_server(service.clone(), service.shared.state()).await
+impl<R> Drop for ShutdownReader<R> {
+    fn drop(&mut self) {
+        self.input_closed.close();
+    }
+}
+
+impl<R: AsyncRead + Unpin> AsyncRead for ShutdownReader<R> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let filled = buffer.filled().len();
+        let had_capacity = buffer.remaining() > 0;
+        let poll = Pin::new(&mut self.inner).poll_read(context, buffer);
+        match poll {
+            Poll::Ready(Ok(())) if had_capacity && buffer.filled().len() == filled => {
+                self.input_closed.close();
+                Poll::Ready(Ok(()))
             }
-            OversizedOutputMode::Pager => {
-                let service = RPagerToolServer::new(worker_launch, sandbox_plan, oversized_output)?;
-                run_backend_server(service.clone(), service.shared.state()).await
+            Poll::Ready(Err(error)) => {
+                self.input_closed.close();
+                Poll::Ready(Err(error))
             }
-        },
-        Backend::Python => match oversized_output {
-            OversizedOutputMode::Files => {
-                let service =
-                    PythonFilesToolServer::new(worker_launch, sandbox_plan, oversized_output)?;
-                run_backend_server(service.clone(), service.shared.state()).await
-            }
-            OversizedOutputMode::Pager => {
-                let service =
-                    PythonPagerToolServer::new(worker_launch, sandbox_plan, oversized_output)?;
-                run_backend_server(service.clone(), service.shared.state()).await
-            }
-        },
+            poll => poll,
+        }
     }
 }

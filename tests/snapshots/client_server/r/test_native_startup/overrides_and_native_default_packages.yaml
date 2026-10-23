@@ -1,0 +1,45 @@
+---
+!same-as r-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    stopifnot(
+      identical(native_order, "user first"),
+      identical(getOption("defaultPackages"), "utils"),
+      "package:utils" %in% search(),
+      !("package:stats" %in% search())
+    )
+    cat("native overrides and package selection retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        native overrides and package selection retained
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      identical(native_order, "user first"),
+      identical(getOption("defaultPackages"), "utils"),
+      "package:utils" %in% search(),
+      !("package:stats" %in% search())
+    )
+    cat("native overrides and package selection retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        native overrides and package selection retained
+  isError: false

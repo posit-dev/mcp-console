@@ -1,0 +1,120 @@
+---
+case: removed global scope
+dry_run: false
+exit_code: 2
+stderr: |
+  error: unexpected argument '--scope' found
+
+    tip: to pass '--scope' as a value, use '-- --scope'
+
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
+
+  For more information, try '--help'.
+---
+case: removed global scope
+dry_run: true
+exit_code: 2
+stderr: |
+  error: unexpected argument '--scope' found
+
+    tip: to pass '--scope' as a value, use '-- --scope'
+
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
+
+  For more information, try '--help'.
+---
+case: removed project scope
+dry_run: false
+exit_code: 2
+stderr: |
+  error: unexpected argument '--scope' found
+
+    tip: to pass '--scope' as a value, use '-- --scope'
+
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
+
+  For more information, try '--help'.
+---
+case: removed project scope
+dry_run: true
+exit_code: 2
+stderr: |
+  error: unexpected argument '--scope' found
+
+    tip: to pass '--scope' as a value, use '-- --scope'
+
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
+
+  For more information, try '--help'.
+---
+case: removed auto scope
+dry_run: false
+exit_code: 2
+stderr: |
+  error: unexpected argument '--scope' found
+
+    tip: to pass '--scope' as a value, use '-- --scope'
+
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
+
+  For more information, try '--help'.
+---
+case: removed auto scope
+dry_run: true
+exit_code: 2
+stderr: |
+  error: unexpected argument '--scope' found
+
+    tip: to pass '--scope' as a value, use '-- --scope'
+
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
+
+  For more information, try '--help'.
+---
+case: unsupported global flag
+dry_run: false
+exit_code: 2
+stderr: |
+  error: unexpected argument '--global' found
+
+    tip: to pass '--global' as a value, use '-- --global'
+
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
+
+  For more information, try '--help'.
+---
+case: unsupported global flag
+dry_run: true
+exit_code: 2
+stderr: |
+  error: unexpected argument '--global' found
+
+    tip: to pass '--global' as a value, use '-- --global'
+
+  Usage: mcp-console configure-client --no-warmup <CLIENT>... [-- <SERVE_ARGS>...]
+
+  For more information, try '--help'.
+---
+case: missing directory
+dry_run: false
+exit_code: 1
+stderr: |
+  Project directory does not exist or is not a directory: <DIRECTORY>
+---
+case: missing directory
+dry_run: true
+exit_code: 1
+stderr: |
+  Project directory does not exist or is not a directory: <DIRECTORY>
+---
+case: file
+dry_run: false
+exit_code: 1
+stderr: |
+  Project directory does not exist or is not a directory: <DIRECTORY>
+---
+case: file
+dry_run: true
+exit_code: 1
+stderr: |
+  Project directory does not exist or is not a directory: <DIRECTORY>

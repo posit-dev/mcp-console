@@ -1,0 +1,36 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: preview unicode suffix
+result:
+  content:
+    - type: text
+      text: "preview head\na€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€\n[output omitted: 82111 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]\nba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂ba€🙂\r\npreview tail: final diagnostic\n"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: preview unicode replacement
+result:
+  content:
+    - type: text
+      text: "preview head\nfinal frame\r\npreview tail: final diagnostic\n"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

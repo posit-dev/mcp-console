@@ -1,0 +1,79 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    bridge_value = "Python first"
+    bridge_object = object()
+    bridge_identity = id(bridge_object)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!reticulate::py_available(initialize = FALSE))
+    main <- py_import("__main__")
+    stopifnot(identical(main$bridge_value, "Python first"))
+    py_run_string("bridge_value = 'updated from R'")
+    stopifnot(py_eval("id(bridge_object) == bridge_identity"))
+    py_eval <- function(...) "user helper"
+    stopifnot(
+      identical(py_eval("1 + 1"), "user helper"),
+      identical(
+        get("py_eval", as.environment("tools:mcp-console")),
+        reticulate::py_eval
+      )
+    )
+    cat("Python-first state attached; user mask preserved\n")
+result:
+  content:
+    - type: text
+      text: |
+        Python-first state attached; user mask preserved
+  isError: false
+---
+send:
+  python: |
+    assert bridge_value == "updated from R"
+    assert id(bridge_object) == bridge_identity
+    print("Python-first state retained")
+result:
+  content:
+    - type: text
+      text: |
+        Python-first state retained
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      !exists("py_eval", globalenv(), inherits = FALSE),
+      !exists("main", globalenv(), inherits = FALSE),
+      sum(search() == "tools:mcp-console") == 1L,
+      identical(py_eval, reticulate::py_eval),
+      identical(py_import, reticulate::import),
+      identical(py_run_string, reticulate::py_run_string),
+      identical(py_require, reticulate::py_require),
+      !py_eval("'bridge_object' in globals()")
+    )
+    cat("helpers reinstalled with fresh state\n")
+result:
+  content:
+    - type: text
+      text: |
+        helpers reinstalled with fresh state
+  isError: false

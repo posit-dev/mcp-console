@@ -1,0 +1,61 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  python: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod python: echo
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: Python requirements are unavailable with a custom worker
+  isError: true
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: Python requirements are unavailable with a custom worker
+  isError: true
+---
+send:
+  r: echo must not run
+  requirements:
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: Python requirements are unavailable with a custom worker
+  isError: true
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

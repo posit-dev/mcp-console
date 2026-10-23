@@ -1,0 +1,7 @@
+---
+exit_code: 1
+stdout: ""
+stderr: >
+  failed to launch worker: No such file or directory (os error 2);
+  additionally relay stdout write failed: relay stdout retirement deadline
+  expired

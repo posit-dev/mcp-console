@@ -1,0 +1,161 @@
+---
+!same-as sql-python MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE retained(value INTEGER)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: INSERT INTO retained VALUES (41)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: BEGIN
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: INSERT INTO retained VALUES (99)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: ROLLBACK
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: BEGIN
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: INSERT INTO retained VALUES (1)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: COMMIT
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT sum(value) AS answer FROM retained
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+                       answer
+          <decimal128(38, 0)>
+        1                  42
+  isError: false
+---
+send:
+  python: print(6 * 7)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: "1"
+  sql: SELECT 1
+result:
+  content:
+    - type: text
+      text: only one of `python` or `sql` may be supplied
+  isError: true
+---
+send:
+  r: must not run
+  control: restart
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: "`r` source fields are hidden by `languages`"
+  isError: true
+---
+send:
+  sql: SELECT sum(value) AS answer FROM retained
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+                       answer
+          <decimal128(38, 0)>
+        1                  42
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+
+        [idle]
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  sql: SHOW TABLES
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 0 × 1
+        # ℹ 1 variable: name <string>
+        [0 rows]
+  isError: false

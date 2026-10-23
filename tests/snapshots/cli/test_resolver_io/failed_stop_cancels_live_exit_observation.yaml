@@ -1,0 +1,10 @@
+---
+completed:
+  id: 1
+  result:
+    Err: >-
+      managed Python version resolution cancelled; failed to stop managed
+      Python version resolver `UV`: Permission denied (os error 13)
+  control: Cancelled
+  confirmed: false
+materializer_still_alive: true

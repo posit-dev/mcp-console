@@ -1,0 +1,85 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  python: |
+    assert globals() is __import__("__main__").__dict__
+    assert __name__ == "__main__"
+    assert globals().keys() <= {
+        "__name__", "__doc__", "__package__", "__loader__", "__spec__",
+        "__builtins__", "__annotations__", "r",
+    }
+    assert not {"os", "sys", "tempfile"} & globals().keys()
+    assert not {"os", "sys", "tempfile"} & vars(__import__("builtins")).keys()
+    assert not any(name.startswith("_mcp_console") for name in vars(__import__("builtins")))
+    assert callable(_console.sql_connection)
+    assert hasattr(__import__("builtins"), "r")
+    import os, sys, tempfile
+
+
+    def namespace_callback(value):
+        return value + 1
+
+
+    class NamespaceValue:
+        def __init__(self, value):
+            self.value = value
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(reticulate::py_eval("namespace_callback(41)") == 42L)
+    namespace_r_value <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    assert int(r.namespace_r_value) == 42
+    assert os is __import__("os")
+    assert sys is __import__("sys")
+    assert tempfile is __import__("tempfile")
+    assert (
+        __import__("pickle").loads(__import__("pickle").dumps(namespace_callback))
+        is namespace_callback
+    )
+    assert (
+        __import__("pickle").loads(__import__("pickle").dumps(NamespaceValue(41))).value
+        == 41
+    )
+    os, sys, tempfile = object(), object(), object()
+    namespace_bindings = (os, sys, tempfile)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE namespace_value AS SELECT 42 AS value
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    assert all(a is b for a, b in zip((os, sys, tempfile), namespace_bindings))
+    assert namespace_callback(41) == 42
+    assert globals() is __import__("__main__").__dict__
+    assert not any(name.startswith("_mcp_console") for name in vars(__import__("builtins")))
+    print("user namespace preserved")
+result:
+  content:
+    - type: text
+      text: |
+        user namespace preserved
+  isError: false

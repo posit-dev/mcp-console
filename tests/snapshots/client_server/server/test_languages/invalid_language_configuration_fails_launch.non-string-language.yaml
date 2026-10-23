@@ -1,0 +1,7 @@
+---
+languages:
+  - 1
+stderr: >
+  configuration with CLI overrides: languages[0]: invalid type: integer
+  `1`, expected string or map; see docs/CONFIGURATION.md for the public
+  format

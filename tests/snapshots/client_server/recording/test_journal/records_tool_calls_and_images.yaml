@@ -1,0 +1,66 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: emit image
+  stdin: |
+    recorded stdin
+  requirements:
+    r:
+      - praise
+result:
+  content:
+    - type: text
+      text: |
+        before image
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+      mimeType: image/png
+    - type: text
+      text: |
+        after image
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: "1"
+      python: "1"
+    _meta:
+      progressToken: record-me
+result:
+  content:
+    - type: text
+      text: only one of `r`, `python`, or `sql` may be supplied
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - transcript-fixture
+result:
+  content:
+    - type: text
+      text: Python requirements are unavailable with a custom worker
+  isError: true
+---
+send:
+  requirements:
+    r:
+      - glue
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+input:
+  method: tools/call
+  params:
+    name: missing
+    arguments: {}
+error:
+  code: -32602
+  message: tool not found

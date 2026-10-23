@@ -1,0 +1,104 @@
+---
+scenario: Python defaults remain optional when R is available.
+fixture: The uv wrapper rejects plotnine; the R bridge remains required.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: 1 + 1
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        skipping default Python package `plotnine`: managed Python resolution failed:
+        resolver input:
+        {
+          "python": "3.13.XX (reticulate default)",
+          "packages": [
+            "numpy",
+            "pandas",
+            "matplotlib",
+            "plotnine"
+          ]
+        }
+        uv output:
+        synthetic uv failure
+        [output produced while idle]
+        [1] 2
+  isError: false
+---
+send:
+  python: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false

@@ -1,0 +1,9 @@
+---
+completed:
+  id: 1
+  result:
+    Err: managed Python version resolution interrupted
+  control: Interrupted
+  confirmed: true
+output_readers_closed: true
+subsequent_version: 3.12.7

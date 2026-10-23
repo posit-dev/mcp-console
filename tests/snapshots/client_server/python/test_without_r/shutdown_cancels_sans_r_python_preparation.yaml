@@ -1,0 +1,20 @@
+---
+restart: false
+phase: interrupt
+cell_was_not_run: true
+stderr: ""
+---
+restart: true
+phase: interrupt
+cell_was_not_run: true
+stderr: ""
+---
+restart: false
+phase: inspection-interrupt
+cell_was_not_run: true
+stderr: ""
+---
+restart: true
+phase: inspection-interrupt
+cell_was_not_run: true
+stderr: ""

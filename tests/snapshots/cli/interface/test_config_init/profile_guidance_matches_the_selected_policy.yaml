@@ -1,0 +1,12 @@
+---
+profile: read_only
+guidance: The read_only profile does not grant writes to project files.
+---
+profile: inherit_codex
+guidance: The inherit_codex profile uses permissions supplied by the client.
+---
+profile: inherit with fallback
+guidance: The inherit_codex profile uses permissions supplied by the client.
+---
+profile: no profile
+guidance: Without a named profile, the base policy grants no project writes.

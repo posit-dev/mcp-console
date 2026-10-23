@@ -1,0 +1,134 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: "start background sideband: success"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod background sideband
+        [output produced while idle]
+        zod: echo
+  isError: false
+---
+send:
+  r: "start background sideband: timeout"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: output then complete after release
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        zod background sideband
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        zod cell output before completion
+
+        [elapsed: <elapsed>s since admission]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        zod: output then complete after release
+  isError: false
+---
+send:
+  r: "start background sideband: input"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: request input
+result:
+  content:
+    - type: text
+      text: |-
+        zod background sideband
+        [output produced while idle]
+        [input requested: "zod> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        zod stdin: answer
+  isError: false
+---
+send:
+  r: "start background sideband: language-error"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: language error
+result:
+  content:
+    - type: text
+      text: |
+        zod background sideband
+        [output produced while idle]
+        zod language error
+  isError: false
+---
+send:
+  r: "start background sideband: replacement"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: exit unexpectedly
+result:
+  content:
+    - type: text
+      text: |-
+        zod background sideband
+        [output produced while idle]
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true

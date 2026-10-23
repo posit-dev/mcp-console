@@ -1,0 +1,10 @@
+---
+command: serve
+exit_code: 1
+stderr: |
+  cannot inspect 'selected.yaml': No such file or directory (os error 2)
+---
+command: sandbox
+exit_code: 1
+stderr: |
+  cannot inspect 'selected.yaml': No such file or directory (os error 2)

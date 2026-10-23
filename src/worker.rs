@@ -1,115 +1,59 @@
-use std::thread;
-use std::time::Duration;
+#[cfg(any(unix, windows))]
+mod activity;
+#[cfg(any(unix, windows))]
+mod bootstrap;
+#[cfg(any(unix, windows))]
+mod coordinator;
+#[cfg(any(unix, windows))]
+mod core;
+#[cfg(any(unix, windows))]
+mod embedded_r;
+#[cfg(any(unix, windows))]
+mod input;
+#[cfg(any(unix, windows))]
+mod interrupt;
+#[cfg(any(unix, windows))]
+mod r_integration;
 
-use crate::backend::{Backend, backend_from_env};
-use crate::ipc::{ServerToWorkerIpcMessage, connect_from_env, set_global_ipc};
-use crate::r_session::RSession;
-use crate::worker_protocol::WORKER_MODE_ARG;
-
-pub fn is_worker_mode() -> bool {
-    let bare = std::ffi::OsStr::new(WORKER_MODE_ARG);
-    let flag = std::ffi::OsString::from(format!("--{WORKER_MODE_ARG}"));
-    std::env::args_os().any(|arg| arg == bare || arg == flag)
-}
-
-pub fn run() -> Result<(), Box<dyn std::error::Error>> {
-    match backend_from_env()?.unwrap_or(Backend::R) {
-        Backend::R => run_r_worker(),
-        Backend::Python => crate::python_worker::run(),
-    }
-}
-
-fn run_r_worker() -> Result<(), Box<dyn std::error::Error>> {
-    crate::diagnostics::startup_log("worker: run begin");
-    init_ipc().map_err(|err| {
-        eprintln!("worker ipc init error: {err}");
-        err
-    })?;
-
-    crate::diagnostics::startup_log("worker: starting R session");
-    if let Err(err) = RSession::start_on_current_thread() {
-        if !crate::r_session::protocol_failure_recorded() {
-            eprintln!("failed to start R session: {err}");
-        }
-        return Err(std::io::Error::other(err).into());
-    }
-    crate::diagnostics::startup_log("worker: R session exited");
-
-    Ok(())
-}
-
-fn wait_for_r_session() -> Result<&'static RSession, String> {
-    loop {
-        if let Ok(session) = RSession::global() {
-            return Ok(session);
-        }
-        thread::sleep(Duration::from_millis(5));
-    }
-}
-
+// Keep the rest of the crate dependent on the worker facade. The core owns
+// runtime-neutral sideband state and host callbacks. The coordinator owns
+// language dispatch; activity and bootstrap own native command waiting and
+// process setup. The R backend owns its interpreter and native R events.
+#[cfg(any(unix, windows))]
+pub(crate) use coordinator::run;
+#[cfg(unix)]
+pub(crate) use core::mark_shutting_down;
+#[cfg(any(unix, windows))]
+pub(crate) use core::{
+    bootstrapping, emit_output, is_shutting_down, publish_plot, publish_python_activation,
+    publish_python_activation_failure, publish_r_activation, publish_r_activation_failure,
+    record_bootstrap_interrupt, record_worker_failure, resolve_python, resolve_python_version,
+    resolve_r,
+};
+#[cfg(unix)]
+pub(crate) use input::python_interrupt_wakeup;
+#[cfg(any(unix, windows))]
+pub(crate) use input::{PythonInput, read_python_input};
 #[cfg(windows)]
-fn arm_windows_interrupt_delivery(conn: &crate::ipc::WorkerIpcConnection) -> Result<(), String> {
-    crate::windows_interrupt_observer::notify_interrupt_cleanup_complete()
-        .map_err(|err| format!("failed to finish Windows interrupt cleanup: {err}"))?;
-    match crate::windows_interrupt_observer::rearm()
-        .map_err(|err| format!("failed to rearm Windows interrupt observer: {err}"))?
-    {
-        crate::windows_interrupt_observer::RearmOutcome::Rearmed => {}
-        crate::windows_interrupt_observer::RearmOutcome::InterruptInFlight => {
-            return Err(
-                "Windows interrupt observer found a native dispatch in flight before delivery"
-                    .to_string(),
-            );
-        }
-    }
-    conn.send(crate::ipc::WorkerToServerIpcMessage::InterruptArmed {})
-        .map_err(|err| format!("failed to acknowledge armed Windows interrupt: {err}"))
+pub(crate) use interrupt::with_python_interrupt;
+#[cfg(any(unix, windows))]
+pub(crate) use interrupt::{
+    acknowledge_python_interrupt, begin_python_commit, check_python_selection_interrupt,
+    finish_python_commit, inspect_python, install_python_interrupt,
+    pending as python_interrupt_pending,
+};
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) fn run(_bootstrap_runtimes: bool) -> Result<(), Box<dyn std::error::Error>> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "embedded R workers are supported only on macOS",
+    )
+    .into())
 }
 
-fn init_ipc() -> Result<(), Box<dyn std::error::Error>> {
-    let conn = connect_from_env(Duration::from_secs(2))?;
-    set_global_ipc(conn.clone());
-    if let Err(err) = thread::Builder::new()
-        .name("worker-ipc".to_string())
-        .spawn(move || {
-            loop {
-                match conn.recv(None) {
-                    Some(ServerToWorkerIpcMessage::InputBatch { input }) => {
-                        match wait_for_r_session().and_then(|session| session.begin_input(input)) {
-                            Ok(()) => {}
-                            Err(err) => {
-                                crate::r_session::record_protocol_failure(&err);
-                                break;
-                            }
-                        }
-                    }
-                    Some(ServerToWorkerIpcMessage::Interrupt {}) => {
-                        crate::r_session::discard_pending_input_after_interrupt();
-                        #[cfg(windows)]
-                        if let Err(err) = arm_windows_interrupt_delivery(&conn) {
-                            crate::r_session::record_protocol_failure(&format!(
-                                "failed to arm Windows interrupt delivery: {err}"
-                            ));
-                            break;
-                        }
-                    }
-                    Some(ServerToWorkerIpcMessage::Shutdown {}) => {
-                        if let Err(err) = wait_for_r_session().and_then(RSession::request_shutdown)
-                        {
-                            crate::r_session::record_protocol_failure(&err);
-                            break;
-                        }
-                    }
-                    None => {
-                        // Without IPC, the worker cannot participate in input accounting (prompt,
-                        // request boundaries, etc). Exit immediately so the server can respawn.
-                        std::process::exit(0);
-                    }
-                }
-            }
-        })
-    {
-        eprintln!("worker ipc thread error: {err}");
-    }
-    Ok(())
-}
+#[cfg(any(unix, windows))]
+pub(crate) use r_integration::{
+    available as r_available, ensure_bridge, ensure_initialized as ensure_r,
+    initialized as r_initialized,
+};

@@ -1,0 +1,12 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: stress redraws
+result:
+  content:
+    - type: text
+      text: |
+        stress final
+        useful output
+  isError: false

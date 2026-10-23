@@ -1,0 +1,54 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+
+    original_pid = os.getpid()
+    original_executable = sys.executable
+    answer = 41
+    original_connection = _console.sql_connection()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    action: set
+    python:
+      - numpy
+      - pandas
+      - duckdb==1.4.4
+    duckdb:
+      - not_a_real_duckdb_extension
+result:
+  content:
+    - type: text
+      text: |-
+        DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
+          File "<string>", line 56, in <module>
+            connection.install_extension(extension)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+        _duckdb.HTTPException: HTTP Error: Failed to download extension "not_a_real_duckdb_extension" at URL "http://extensions.duckdb.org/v1.4.4/<duckdb platform>/not_a_real_duckdb_extension.duckdb_extension.gz" (HTTP 404)
+
+        Candidate extensions: "motherduck", "delta", "core_functions", "uc_catalog", "ducklake"
+        For more info, visit https://duckdb.org/docs/stable/extensions/troubleshooting?version=v1.4.4&platform=<duckdb platform>&extension=not_a_real_duckdb_extension
+  isError: true
+---
+send:
+  python: |
+    assert os.getpid() == original_pid
+    assert sys.executable == original_executable
+    assert _console.sql_connection() is original_connection
+    answer + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

@@ -1,0 +1,39 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        Error: selected Python inspection failed (exit status: 1): Traceback (most recent call last):
+          File "<string>", line 145, in <module>
+          File "<string>", line 19, in describe
+        RuntimeError: MCP Console requires Python 3.10 or later
+
+
+        [idle]
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |+
+        Error: selected Python inspection failed (exit status: 1): Traceback (most recent call last):
+          File "<string>", line 145, in <module>
+          File "<string>", line 19, in describe
+        RuntimeError: MCP Console requires Python 3.10 or later
+
+  isError: false
+---
+send:
+  r: stopifnot(!reticulate::py_available(initialize = FALSE)); 42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

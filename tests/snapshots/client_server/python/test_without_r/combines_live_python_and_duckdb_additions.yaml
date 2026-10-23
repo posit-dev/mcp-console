@@ -1,0 +1,131 @@
+---
+send:
+  python: |
+    import os, sqlite3
+
+    worker_pid = os.getpid()
+    identity = object()
+    identity_id = id(identity)
+    managed = _console.sql_connection()
+    managed.execute("create table retained as select 42 as value")
+    selected = sqlite3.connect(":memory:")
+    selected.execute("create table chosen as select 7 as value")
+    _console.sql_connection(selected)
+    print("state created")
+result:
+  content:
+    - type: text
+      text: |
+        state created
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - py-yaml12
+    duckdb:
+      - parquet
+  sql: select value from chosen
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        7
+  isError: false
+---
+send:
+  python: |
+    import os, subprocess, sys, yaml12
+
+    assert os.getpid() == worker_pid
+    assert id(identity) == identity_id
+    assert _console.sql_connection() is selected
+    assert managed.execute("select value from retained").fetchone() == (42,)
+    assert subprocess.check_output(
+        [sys.executable, "-c", "import yaml12; print('child ready')"],
+        text=True,
+    ).strip() == "child ready"
+    print("combined additions retained state")
+result:
+  content:
+    - type: text
+      text: |
+        combined additions retained state
+  isError: false
+---
+send:
+  python: _console.sql_connection(None)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: select value from retained
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        42
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb",
+              "py-yaml12"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "parquet",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+        - py-yaml12
+      duckdb:
+        - icu
+        - json
+        - parquet
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false

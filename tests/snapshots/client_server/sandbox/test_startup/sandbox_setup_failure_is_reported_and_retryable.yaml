@@ -1,0 +1,25 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.yaml
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |-
+        mcp-console-sandbox: create private storage: Not a directory (os error 20)
+        [worker relay exited before readiness]
+  isError: true
+---
+send:
+  r: echo echo
+result:
+  content:
+    - type: text
+      text: |
+        zod: echo
+  isError: false
+---
+stderr: >
+  mcp-console: transcript recording disabled: failed to create temporary
+  capture: Not a directory (os error 20) at path "<temporary capture>"

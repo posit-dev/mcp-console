@@ -1,0 +1,38 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    python <- Sys.getenv("RETICULATE_PYTHON", unset = NA_character_)
+    config <- reticulate::py_config()
+    history <- reticulate::py_require()$history
+    stopifnot(
+      identical(python, "managed"),
+      file.exists(config$python),
+      isTRUE(config$ephemeral),
+      "pandas" %in% reticulate::py_require()$packages,
+      !any(vapply(
+        history,
+        function(request) identical(request$requested_from, "base"),
+        logical(1L)
+      ))
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import io
+    import pandas as pd
+
+    frame = pd.read_csv(io.StringIO("value\n40\n2\n"))
+    int(frame["value"].sum())
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

@@ -1,0 +1,66 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    raw_event_wait <- function() Sys.sleep(0.001)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    raw_state = object()
+    original_raw_state = raw_state
+    # Complete bridge attachment before the blocking-read checkpoint.
+    r.raw_event_wait()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    # Exercise R's temporary SIGINT handler inside the same Python cell.
+    r.raw_event_wait()
+    print("reading raw stdin", flush=True)
+    try:
+        os.read(0, 1)
+    except KeyboardInterrupt:
+        print("raw read interrupted")
+    else:
+        raise AssertionError("raw read completed without an interrupt")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        reading raw stdin
+
+        [elapsed: <elapsed>s since admission]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        raw read interrupted
+  isError: false
+---
+send:
+  python: raw_state is original_raw_state
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false

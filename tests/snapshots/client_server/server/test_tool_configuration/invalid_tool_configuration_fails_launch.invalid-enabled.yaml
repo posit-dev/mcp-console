@@ -1,0 +1,9 @@
+---
+configuration:
+  parameters:
+    timeout_ms:
+      enabled: "false"
+stderr: >
+  configuration with CLI overrides: tool.parameters.timeout_ms.enabled:
+  invalid type: string "false", expected a boolean; see
+  docs/CONFIGURATION.md for the public format

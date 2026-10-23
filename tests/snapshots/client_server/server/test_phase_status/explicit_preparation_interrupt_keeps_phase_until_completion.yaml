@@ -1,0 +1,74 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: import sys; marker = 42; print(sys.executable)
+result:
+  content:
+    - type: text
+      text: |
+        <running Python>
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: |
+        managed Python resolution failed:
+        resolver input:
+        {
+          "python": "<running Python>",
+          "packages": [
+            "numpy",
+            "pandas",
+            "matplotlib",
+            "plotnine",
+            "six"
+          ]
+        }
+        uv output:
+  isError: true
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - six
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: marker
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

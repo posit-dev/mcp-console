@@ -1,0 +1,20 @@
+---
+kind: ~
+writable_root: false
+stdout: |
+  host read
+---
+kind: ~
+writable_root: true
+stdout: |
+  host read
+---
+kind: {}
+writable_root: false
+stdout: |
+  host read
+---
+kind: {}
+writable_root: true
+stdout: |
+  host read

@@ -1,0 +1,54 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: never_run = True
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "startup> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    retry
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<string>", line 109, in initialize_site
+          File "<frozen site>", line <line>, in main
+          File "<frozen site>", line <line>, in execsitecustomize
+          File "<site-packages>/sitecustomize.py", line 8, in <module>
+            raise KeyboardInterrupt("retry startup")
+        KeyboardInterrupt: retry startup
+  isError: false
+---
+send:
+  python: |
+    import builtins
+
+    assert "never_run" not in globals()
+    assert builtins.startup_attempts == 2
+    builtins.startup_input
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "startup> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: "café\0tail\n"
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |
+        'café\x00tail'
+  isError: false

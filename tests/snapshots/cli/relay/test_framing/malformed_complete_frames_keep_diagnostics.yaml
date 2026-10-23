@@ -1,0 +1,24 @@
+---
+frame: malformed
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: fatal
+    message: >-
+      worker sideband read failed: EOF while parsing a value at line 1 column
+      8
+  - kind: worker_sideband_closed
+  - kind: worker_signaled
+    signal: 9
+---
+frame: empty
+events:
+  - kind: stdout_closed
+  - kind: stderr_closed
+  - kind: fatal
+    message: >-
+      worker sideband read failed: EOF while parsing a value at line 1 column
+      0
+  - kind: worker_sideband_closed
+  - kind: worker_signaled
+    signal: 9

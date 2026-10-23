@@ -1,0 +1,50 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    invisible(reticulate::py_config())
+    managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
+    cat(.libPaths()[[managed_index]])
+result:
+  content:
+    - type: text
+      text: <initial managed R library>
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - mcpconsolepreparationfixture
+    python:
+      - py-yaml12
+result:
+  content:
+    - type: text
+      text: >-
+        resolved R library was not added to .libPaths(); further requirement
+        changes are unavailable until session restart
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import yaml12
+
+    yaml12.format_yaml({"answer": 42})
+result:
+  content:
+    - type: text
+      text: |
+        'answer: 42'
+  isError: false

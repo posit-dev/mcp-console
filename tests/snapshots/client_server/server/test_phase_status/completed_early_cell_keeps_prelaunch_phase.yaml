@@ -1,0 +1,46 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  r: must not execute
+  requirements:
+    python:
+      - six
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [phase: startup]
+        [worker starting]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: R cells are unavailable in Python sessions without R
+  isError: true
+---
+send:
+  python: "42"
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

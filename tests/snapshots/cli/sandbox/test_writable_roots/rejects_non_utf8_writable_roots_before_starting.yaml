@@ -1,0 +1,13 @@
+---
+arguments_bytes: |-
+  [b'serve', b'--writable-root', b'non-utf8-\xff']
+exit_code: 1
+stderr: |
+  writable root 'non-utf8-�' is not valid UTF-8
+---
+arguments_bytes: >-
+  [b'sandbox', b'--writable-root', b'non-utf8-\xff', b'--', b'/bin/echo',
+  b'workload started']
+exit_code: 1
+stderr: |
+  writable root 'non-utf8-�' is not valid UTF-8

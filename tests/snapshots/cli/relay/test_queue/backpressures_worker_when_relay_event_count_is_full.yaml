@@ -1,0 +1,8 @@
+---
+stdout_prefix:
+  event: console_output
+  data_prefix: "0000:"
+  repeated_character: x
+exit_code: 1
+stderr: |
+  relay stdout write failed: relay stdout retirement deadline expired

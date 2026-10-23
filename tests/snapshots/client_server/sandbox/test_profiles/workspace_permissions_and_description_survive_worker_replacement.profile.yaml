@@ -1,0 +1,6 @@
+---
+profile: workspace
+fixed_workspace: true
+identical_launches: 4
+network: restricted
+explicit_read_only: []

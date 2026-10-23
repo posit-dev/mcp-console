@@ -1,0 +1,74 @@
+---
+config:
+  startup:
+    language: r
+    code: |
+      # captured-startup-credential-marker
+      native <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+      .console$sql_connection(native)
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE ready (answer INTEGER)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    import subprocess
+
+    marker = "captured-startup-credential-marker"
+    assert marker not in repr(dict(os.environ))
+    assert marker.encode() not in subprocess.check_output(["/usr/bin/env"])
+    for pid in (os.getpid(), os.getppid()):
+        environment = subprocess.check_output(["ps", "eww", "-p", str(pid)])
+        assert marker.encode() not in environment, "captured startup source remains in OS environment"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  sql: CREATE TABLE ready (answer INTEGER)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    import subprocess
+
+    marker = "captured-startup-credential-marker"
+    assert marker not in repr(dict(os.environ))
+    assert marker.encode() not in subprocess.check_output(["/usr/bin/env"])
+    for pid in (os.getpid(), os.getppid()):
+        environment = subprocess.check_output(["ps", "eww", "-p", str(pid)])
+        assert marker.encode() not in environment, "captured startup source remains in OS environment"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+startup: r
+exec_environment_consumed: true

@@ -1,0 +1,51 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    parser_warnings <- 0L
+    globalCallingHandlers(warning = function(w) {
+      parser_warnings <<- parser_warnings + 1L
+      cat("global warning handler\n")
+      invokeRestart("muffleWarning")
+    })
+    invisible(1.0L)
+result:
+  content:
+    - type: text
+      text: |
+        global warning handler
+  isError: false
+---
+send:
+  r: parser_warnings
+result:
+  content:
+    - type: text
+      text: |
+        [1] 1
+  isError: false
+---
+send:
+  r: |
+    globalCallingHandlers(NULL)
+    globalCallingHandlers(warning = function(w) {
+      stop("global warning handler", call. = FALSE)
+    })
+    answer <- 42
+    1.0L
+result:
+  content:
+    - type: text
+      text: |
+        Error: global warning handler
+  isError: false
+---
+send:
+  r: answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

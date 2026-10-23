@@ -1,0 +1,41 @@
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        Python version resolved
+
+        [idle]
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
+        Python import resolved
+
+        [idle]
+  isError: false
+---
+send:
+  requirements:
+    action: get
+result: <bootstrap import committed py-yaml12>
+---
+send:
+  r: bootstrap_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

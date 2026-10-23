@@ -1,0 +1,293 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: CREATE TABLE managed_values AS SELECT 'managed' AS origin
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+
+    class CursorOnlyConnection:
+        def __init__(self, connection):
+            self.connection = connection
+
+        def cursor(self):
+            return self.connection.cursor()
+
+
+    sqlite = sqlite3.connect(":memory:")
+    connection = CursorOnlyConnection(sqlite)
+    _console.sql_connection(connection)
+    del sqlite
+    del connection
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    try:
+        _console.sql_connection(object())
+    except TypeError as error:
+        print(error)
+result:
+  content:
+    - type: text
+      text: |
+        `connection` must provide a callable cursor() method or be None
+  isError: false
+---
+send:
+  sql: CREATE TABLE custom_values (label TEXT, value INTEGER)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: INSERT INTO custom_values VALUES ('a', 2), ('b', NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT label, value FROM custom_values ORDER BY label
+result:
+  content:
+    - type: text
+      text: |
+        label | value
+        ------+------
+        'a'   | 2
+        'b'   | NULL
+  isError: false
+---
+send:
+  sql: SELECT missing FROM missing_values
+result:
+  content:
+    - type: text
+      text: |
+        Error: no such table: missing_values
+  isError: false
+---
+send:
+  sql: |-
+    SELECT 1 AS "tab	header
+    next"
+result:
+  content:
+    - type: text
+      text: |
+        tab\theader\nnext
+        -----------------
+        1
+  isError: false
+---
+send:
+  sql: >-
+    SELECT 1 AS
+    "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+result:
+  content:
+    - type: text
+      text: |
+        ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé…
+        ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+        1
+  isError: false
+---
+send:
+  sql: >-
+    WITH RECURSIVE sequence(value) AS (SELECT 1 UNION ALL SELECT value + 1
+    FROM sequence WHERE value < 20) SELECT replace(printf('%040d', 0), '0',
+    '🐍') AS value_0, replace(printf('%040d', 0), '0', '🐍') AS value_1,
+    replace(printf('%040d', 0), '0', '🐍') AS value_2,
+    replace(printf('%040d', 0), '0', '🐍') AS value_3,
+    replace(printf('%040d', 0), '0', '🐍') AS value_4,
+    replace(printf('%040d', 0), '0', '🐍') AS value_5,
+    replace(printf('%040d', 0), '0', '🐍') AS value_6,
+    replace(printf('%040d', 0), '0', '🐍') AS value_7,
+    replace(printf('%040d', 0), '0', '🐍') AS value_8,
+    replace(printf('%040d', 0), '0', '🐍') AS value_9,
+    replace(printf('%040d', 0), '0', '🐍') AS value_10,
+    replace(printf('%040d', 0), '0', '🐍') AS value_11 FROM sequence
+result:
+  content:
+    - type: text
+      text: |
+        value_0       | value_1        | value_2        | value_3        | value_4        | value_5        | value_6        | value_7        | value_8        | value_9        | value_10       | value_11
+        --------------+----------------+----------------+----------------+----------------+----------------+----------------+----------------+----------------+----------------+----------------+---------------
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+        '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
+  isError: false
+---
+send:
+  sql: |
+    WITH RECURSIVE sequence(value) AS (
+      SELECT 1
+      UNION ALL
+      SELECT value + 1 FROM sequence WHERE value < 25
+    )
+    SELECT value FROM sequence
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+        11
+        12
+        13
+        14
+        15
+        16
+        17
+        18
+        19
+        20
+        [additional rows omitted]
+  isError: false
+---
+send:
+  python: |
+    class ControlValue:
+        def __repr__(self):
+            return "tab\tline\nreturn\rcontrol\x01" + "\t" * 80
+
+
+    class ControlCursor:
+        description = (("value",),)
+
+        def execute(self, source):
+            return self
+
+        def fetchmany(self, size):
+            return [(ControlValue(),)][:size]
+
+        def close(self):
+            pass
+
+
+    class ControlConnection:
+        def cursor(self):
+            return ControlCursor()
+
+
+    _console.sql_connection(ControlConnection())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CONTROL VALUE
+result:
+  content:
+    - type: text
+      text: |
+        value
+        ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+        tab\tline\nreturn\rcontrol\x01\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\…
+        [cell values truncated to 160 characters]
+  isError: false
+---
+send:
+  r: .console$sql_connection(NULL); invisible()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT origin FROM managed_values
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          origin   
+          <string> 
+        1 "managed"
+  isError: false
+---
+send:
+  python: _console.sql_connection(sqlite3.connect(':memory:'))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT 42 AS python_value
+result:
+  content:
+    - type: text
+      text: |
+        python_value
+        ------------
+        42
+  isError: false
+---
+send:
+  python: _console.sql_connection(None)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT origin FROM managed_values
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          origin   
+          <string> 
+        1 "managed"
+  isError: false

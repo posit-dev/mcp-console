@@ -1,0 +1,168 @@
+---
+send:
+  python: |
+    import shutil
+
+    assert shutil.which("R") is None
+    assert shutil.which("Rscript") is None
+    print("no R executable visible")
+result:
+  content:
+    - type: text
+      text: |
+        no R executable visible
+  isError: false
+---
+send:
+  sql: CREATE TABLE managed_marker AS SELECT 7 AS value
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  requirements:
+    python:
+      - raghilda==0.2.1
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    from collections.abc import Sequence
+    from importlib.metadata import version
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+
+    from raghilda.chunker import MarkdownChunker
+    from raghilda.document import MarkdownDocument
+    from raghilda.embedding import EmbeddingProvider, EmbedInputType
+    from raghilda.store import DuckDBStore
+
+    assert version("raghilda") == "0.2.1"
+
+
+    class LocalEmbeddings(EmbeddingProvider):
+        def embed(
+            self,
+            x: Sequence[str],
+            input_type: EmbedInputType = EmbedInputType.DOCUMENT,
+        ) -> list[list[float]]:
+            return [[float("banana" in text.lower()), 1.0] for text in x]
+
+        def get_config(self) -> dict[str, str]:
+            return {"type": "LocalEmbeddings"}
+
+        @classmethod
+        def from_config(cls, config: dict[str, str]) -> "LocalEmbeddings":
+            return cls()
+
+
+    store_directory = TemporaryDirectory()
+    store = DuckDBStore.create(
+        Path(store_directory.name) / "knowledge.duckdb",
+        embed=LocalEmbeddings(),
+    )
+    chunker = MarkdownChunker(chunk_size=1000, target_overlap=0)
+    for origin, text in (
+        ("alpha.md", "Apples are red fruit."),
+        ("beta.md", "Bananas are yellow fruit."),
+    ):
+        store.upsert(chunker.chunk(MarkdownDocument(text, origin=origin)))
+
+    # Scalar vector retrieval needs no downloaded index or model.
+    hits = store.retrieve_vss("bananas", top_k=1)
+    assert [(hit.origin, hit.text) for hit in hits] == [
+        ("beta.md", "Bananas are yellow fruit.")
+    ]
+    print(f"{hits[0].origin}: {hits[0].text}")
+    _console.sql_connection(store.con)
+result:
+  content:
+    - type: text
+      text: |
+        beta.md: Bananas are yellow fruit.
+  isError: false
+---
+send:
+  sql: SELECT origin, text FROM chunks ORDER BY origin LIMIT 2
+result:
+  content:
+    - type: text
+      text: |
+        origin     | text
+        -----------+----------------------------
+        'alpha.md' | 'Apples are red fruit.'
+        'beta.md'  | 'Bananas are yellow fruit.'
+  isError: false
+---
+send:
+  sql: CREATE TEMP TABLE sql_marker AS SELECT 42 AS value
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  python: |
+    marker = store.con.execute("SELECT value FROM sql_marker").fetchone()
+    assert marker == (42,)
+    hits = store.retrieve_vss("apples", top_k=1)
+    assert [(hit.origin, hit.text) for hit in hits] == [
+        ("alpha.md", "Apples are red fruit.")
+    ]
+    print(f"{hits[0].origin}: {hits[0].text}; SQL marker: {marker[0]}")
+result:
+  content:
+    - type: text
+      text: |
+        alpha.md: Apples are red fruit.; SQL marker: 42
+  isError: false
+---
+send:
+  python: _console.sql_connection(None)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: SELECT value FROM managed_marker
+result:
+  content:
+    - type: text
+      text: |
+        value
+        -----
+        7
+  isError: false
+---
+send:
+  python: |
+    assert store.con.execute("SELECT value FROM sql_marker").fetchone() == (42,)
+    hits = store.retrieve_vss("bananas", top_k=1)
+    assert [(hit.origin, hit.text) for hit in hits] == [
+        ("beta.md", "Bananas are yellow fruit.")
+    ]
+    store.con.close()
+    store_directory.cleanup()
+    assert not Path(store_directory.name).exists()
+    print("user-owned store survived restoration; private files removed")
+result:
+  content:
+    - type: text
+      text: |
+        user-owned store survived restoration; private files removed
+  isError: false

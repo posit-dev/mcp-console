@@ -1,0 +1,120 @@
+---
+worker:
+  kind: ready
+---
+relay:
+  kind: evaluate
+  language: r
+  source: |
+    suppressWarnings(
+      invisible(reticulate::py_run_string("initialized_from_r = True"))
+    )
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: r_initialization
+  complete: false
+---
+worker:
+  kind: r_initialization
+  complete: true
+---
+worker:
+  kind: completed
+---
+relay:
+  kind: evaluate
+  language: python
+  source: |
+    import sys
+
+    assert initialized_from_r
+
+
+    def reject_r_console(frame, event, function):
+        if event == "c_call" and getattr(function, "__module__", None) == "rpycall":
+            raise AssertionError("Python console output entered R")
+
+
+    sys.setprofile(reject_r_console)
+    print("Python stdout")
+    assert sys.stdout.write("") == 0
+    assert sys.stderr.write("Python stderr\n") == 14
+    assert sys.stderr.write("") == 0
+    assert sys.stdout.write("🐍\n") == 2
+    assert sys.stderr.write("🐍\n") == 2
+    sys.setprofile(None)
+    raise ValueError("boom")
+---
+worker:
+  kind: cell_started
+---
+worker:
+  kind: console_output
+  data: Python stdout
+---
+worker:
+  kind: console_output
+  data: "\n"
+---
+worker:
+  kind: console_diagnostic
+  data: |
+    Python stderr
+---
+worker:
+  kind: console_output
+  data: |
+    🐍
+---
+worker:
+  kind: console_diagnostic
+  data: |
+    🐍
+---
+worker:
+  kind: console_diagnostic
+  data: |
+    Traceback (most recent call last):
+      File "<mcp-console:python:e1>", line 19, in <module>
+    ValueError: boom
+---
+worker:
+  kind: completed
+---
+relay:
+  kind: evaluate
+  language: python
+  source: |
+    import os
+    import subprocess
+    import sys
+
+    buffer_stdout = sys.stdout.buffer.write(b"buffer stdout\n")
+    sys.stdout.buffer.flush()
+    buffer_stderr = sys.stderr.buffer.write(b"buffer stderr\n")
+    sys.stderr.buffer.flush()
+    direct_stdout = os.write(1, b"direct stdout\n")
+    direct_stderr = os.write(2, b"direct stderr\n")
+    descendant_source = 'import sys\n\nprint("exec descendant stdout")\nsys.stderr.write("exec descendant stderr\\n")\n'
+    exec_descendant = subprocess.run(
+        [sys.executable, "-c", descendant_source],
+        check=True,
+    )
+---
+worker:
+  kind: cell_started
+---
+stdout: |
+  buffer stdout
+  direct stdout
+  exec descendant stdout
+stderr: |
+  buffer stderr
+  direct stderr
+  exec descendant stderr
+---
+worker:
+  kind: completed

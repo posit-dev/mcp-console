@@ -1,0 +1,51 @@
+---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_metadata_package
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    original_lstat = os.lstat
+    original_stat = os.stat
+    payload_inspections = []
+
+
+    def record_lstat(path, *args, **kwargs):
+        if os.path.basename(os.fspath(path)).startswith("payload_"):
+            payload_inspections.append(path)
+        return original_lstat(path, *args, **kwargs)
+
+
+    def record_stat(path, *args, **kwargs):
+        if os.path.basename(os.fspath(path)).startswith("payload_"):
+            payload_inspections.append(path)
+        return original_stat(path, *args, **kwargs)
+
+
+    os.lstat = record_lstat
+    os.stat = record_stat
+    try:
+        import mcp_console_test_metadata_package as package
+    finally:
+        os.lstat = original_lstat
+        os.stat = original_stat
+    assert package.fallback
+    assert payload_inspections == [], len(payload_inspections)
+    print("Optional initialization leaves unrelated data files untouched")
+result:
+  content:
+    - type: text
+      text: |
+        Optional initialization leaves unrelated data files untouched
+  isError: false

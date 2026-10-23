@@ -1,0 +1,3 @@
+---
+console_and_host_caches: true
+uv_git_build_metadata_writable: true

@@ -1,0 +1,62 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: options(showErrorCalls = TRUE)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: if (FALSE) library(mcpconsolenotarealpackage); 42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: library(mcpconsolenotarealpackage)
+result:
+  content:
+    - type: text
+      text: <error output identical to live Rscript>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  reference: same source in live Rscript --vanilla
+  comparison: exact equality, including Calls; excluding Execution halted
+---
+send:
+  r: 42L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: library(mcpconsolenotarealpackage)
+result:
+  content:
+    - type: text
+      text: <error output identical to live Rscript>
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  reference: same source in live Rscript --vanilla
+  comparison: exact equality, including Calls; excluding Execution halted

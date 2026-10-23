@@ -1,0 +1,7 @@
+tests/snapshots/**/*.md whitespace=-blank-at-eof
+tests/snapshots/**/*.qmd whitespace=-blank-at-eof
+# Literal transcript scalars preserve trailing spaces emitted by runtimes.
+tests/snapshots/**/*.yaml whitespace=-blank-at-eol
+*.R text eol=lf
+*.py text eol=lf
+scripts/* text eol=lf

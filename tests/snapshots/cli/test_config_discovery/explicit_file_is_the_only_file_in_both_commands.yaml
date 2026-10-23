@@ -1,0 +1,69 @@
+---
+format: yaml
+command: serve
+placement: before
+selected: selected
+---
+format: yaml
+command: serve
+placement: after
+selected: selected
+---
+format: yaml
+command: serve
+placement: ordered overrides
+selected: last
+---
+format: yaml
+command: sandbox
+placement: before
+selected: selected
+---
+format: yaml
+command: sandbox
+placement: after
+selected: selected
+---
+format: yaml
+command: sandbox
+placement: ordered overrides
+selected: last
+---
+format: json
+command: serve
+placement: before
+selected: selected
+---
+format: json
+command: serve
+placement: after
+selected: selected
+---
+format: json
+command: serve
+placement: ordered overrides
+selected: last
+---
+format: json
+command: sandbox
+placement: before
+selected: selected
+---
+format: json
+command: sandbox
+placement: after
+selected: selected
+---
+format: json
+command: sandbox
+placement: ordered overrides
+selected: last
+---
+home: relative
+discovery_skipped: true
+---
+home: ""
+discovery_skipped: true
+---
+home: ~/console
+discovery_skipped: true

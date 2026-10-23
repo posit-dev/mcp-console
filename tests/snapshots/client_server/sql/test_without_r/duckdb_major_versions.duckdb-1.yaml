@@ -1,0 +1,188 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: import duckdb; print(duckdb.__version__)
+result:
+  content:
+    - type: text
+      text: |
+        1.5.6
+  isError: false
+---
+send:
+  requirements:
+    duckdb:
+      - fts
+      - parquet
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE documents AS SELECT 1 AS id, 'duckdb compatibility' AS body
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        1
+  isError: false
+---
+send:
+  sql: |
+    SET autoinstall_known_extensions = false;
+    LOAD fts; LOAD parquet;
+    PRAGMA create_fts_index('documents', 'id', 'body');
+    SELECT id, NULL AS missing FROM documents
+    WHERE fts_main_documents.match_bm25(id, 'compatibility') IS NOT NULL
+result:
+  content:
+    - type: text
+      text: |
+        id | missing
+        ---+--------
+        1  | NULL
+  isError: false
+---
+send:
+  python: |
+    result = _console.sql_last_result()
+    assert result == {"columns": ("id", "missing"), "rows": [(1, None)]}
+    assert _console.sql_last_result()["rows"] == []
+    print("extensions and native results work")
+result:
+  content:
+    - type: text
+      text: |
+        extensions and native results work
+  isError: false
+---
+send:
+  sql: |
+    BEGIN;
+    CREATE TEMP TABLE transient AS SELECT 42 AS answer;
+    SELECT i FROM range(1000000) AS rows(i)
+result:
+  content:
+    - type: text
+      text: |
+        i
+        --
+        0
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+        11
+        12
+        13
+        14
+        15
+        16
+        17
+        18
+        19
+        [additional rows omitted]
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+    managed = _console.sql_connection()
+    first = _console.sql_last_result(5)
+    assert first["rows"] == [(i,) for i in range(5)]
+    selected = sqlite3.connect(":memory:")
+    _console.sql_connection(selected)
+    assert managed.sql("SELECT answer FROM transient").fetchall() == [(42,)]
+    managed.execute("ROLLBACK")
+    assert managed.execute(
+        "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'transient'"
+    ).fetchall() == [(0,)]
+    _console.sql_connection(managed)
+    print("discarding unread rows frees the connection")
+result:
+  content:
+    - type: text
+      text: |
+        discarding unread rows frees the connection
+  isError: false
+---
+send:
+  sql: SELECT 42 AS answer
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false
+---
+send:
+  python: |
+    assert _console.sql_last_result() == {"columns": ("answer",), "rows": [(42,)]}
+    print("selected connection stays open")
+result:
+  content:
+    - type: text
+      text: |
+        selected connection stays open
+  isError: false
+---
+send:
+  sql: |
+    CREATE SEQUENCE writes;
+    BEGIN;
+    SELECT nextval('writes') AS written FROM range(10000)
+result:
+  content:
+    - type: text
+      text: |
+        written
+        -------
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        8
+        9
+        10
+        11
+        12
+        13
+        14
+        15
+        16
+        17
+        18
+        19
+        20
+        [additional rows omitted]
+  isError: false
+---
+send:
+  python: |
+    _console.sql_connection(managed)
+    assert managed.sql("SELECT currval('writes')").fetchall() == [(10000,)]
+    managed.execute("COMMIT")
+    print("discarding a write result completes its effects")
+result:
+  content:
+    - type: text
+      text: |
+        discarding a write result completes its effects
+  isError: false

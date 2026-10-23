@@ -1,0 +1,9 @@
+---
+host_read: true
+cache_write: true
+host_write_denied: true
+disallowed_host_denied: true
+custom_write: true
+replaced_cache_grants: true
+custom_download_host: true
+captured_policy: true

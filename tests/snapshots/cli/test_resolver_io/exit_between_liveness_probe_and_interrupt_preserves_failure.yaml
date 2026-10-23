@@ -1,0 +1,11 @@
+---
+completed:
+  id: 1
+  result:
+    Err: >-
+      managed Python version resolution failed with exit status: 42: fixture
+      materialization failed before replying
+  control: ~
+  confirmed: true
+output_readers_closed: true
+subsequent_version: 3.12.7

@@ -1,0 +1,104 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    python_interrupt_started <- tempfile("python-interrupt-started-")
+    python_interrupt_release <- tempfile("python-interrupt-release-")
+    # Initialize from R before the Python evaluation checkpoint.
+    invisible(reticulate::py_config())
+    cat(python_interrupt_started, python_interrupt_release, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <interrupt started>
+        <interrupt release>
+  isError: false
+---
+send:
+  python: |
+    import ctypes
+    import os
+    import signal
+
+    checkpoint_library = ctypes.PyDLL(os.environ["MCP_CONSOLE_PYTHON_INTERRUPT_LIBRARY"])
+    wait_for_interrupt = checkpoint_library.wait_for_probe_interrupt
+    wait_for_interrupt.argtypes = (
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_void_p,
+    )
+    wait_for_interrupt.restype = ctypes.c_int
+    python_interrupt_state = 41
+    wakeup_read, wakeup_write = os.pipe()
+    os.set_blocking(wakeup_write, False)
+    previous_wakeup = signal.set_wakeup_fd(wakeup_write)
+    try:
+        with (
+            open(
+                r.python_interrupt_started,
+                "wb",
+                buffering=0,
+            ) as started,
+            open(
+                r.python_interrupt_release,
+                "rb",
+                buffering=0,
+            ) as release,
+        ):
+            assert (
+                wait_for_interrupt(
+                    started.fileno(),
+                    release.fileno(),
+                    wakeup_read,
+                    ctypes.pythonapi.PyErr_CheckSignals,
+                )
+                == 0
+            )
+    finally:
+        signal.set_wakeup_fd(previous_wakeup)
+        os.close(wakeup_read)
+        os.close(wakeup_write)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e1>", line 32, in <module>
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: |
+    python_interrupt_state + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

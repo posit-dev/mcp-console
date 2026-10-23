@@ -1,0 +1,86 @@
+---
+title: Get started
+---
+
+Connect Console to an agent, ask it to run a small analysis, then follow up using the same data.
+This walkthrough uses Python; you don't need to install R or create a Console configuration file.
+
+## Install
+
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) to run Console with `uvx`, without a separate Console installation.
+Console prepares Python and its packages for you, so the first setup can take longer while they download.
+
+If you also want to use R, [install it separately](CLIENTS.md#r-python-and-sql).
+[Install and connect](CLIENTS.md) covers supported platforms and runtime requirements, including the Windows sandbox prerequisite.
+
+<span id="build-from-source"></span>
+
+For a development checkout, see [Build from source](BUILD_FROM_SOURCE.md).
+
+## Connect a client {#connect-your-client}
+
+### Codex and Claude Code
+
+Run the command for your client:
+
+```sh
+uvx mcp-console configure-client codex
+uvx mcp-console configure-client claude
+```
+
+This makes Console available across projects and allows the agent to call its `send` tool, subject to explicit client restrictions.
+Setup checks the runtimes and prepares caches in the background, printing a log path for progress and errors.
+Restart your client after setup so it loads the new tool.
+[MCP clients](CLIENTS.md) covers project registration and other setup options.
+
+### Other MCP clients
+
+In your client's MCP settings, use command `uvx` and arguments `["mcp-console", "serve"]`.
+See [MCP client setup](CLIENTS.md#other-mcp-clients) for a configuration example.
+
+### R and Python packages
+
+Follow [Use Console from R](R.md) to add a Console tool to an ellmer chat, or [Use Console from Python](PYTHON.md) for direct calls and model framework integrations.
+Both guides include client package installation.
+
+Once connected, the agent can run code in a persistent Console session.
+
+## Try an analysis
+
+Ask your agent:
+
+> Use MCP Console to simulate rolling two dice 1,000 times in Python.
+> Plot the distribution of their sums and keep the simulated rolls for follow-up.
+
+The agent can run the simulation and inspect the plot in Console.
+The simulated rolls remain in the session after it responds to you.
+Follow up with:
+
+> Compare those results with the expected probabilities.
+> Use the rolls already in memory, without simulating them again.
+
+The agent can calculate another summary or revise the plot using the existing data.
+[Sessions and languages](BUILTIN_RUNTIME.md) shows how this also works across R, Python, and SQL.
+
+<span id="choose-permissions"></span> <span id="allow-project-writes"></span>
+
+This example works in memory and does not need to write files in your project.
+The built-in default sandbox restricts project writes and direct network access, but allows reading files your account can read, including readable secrets.
+Client setup and configuration can select different permissions; Codex setup defaults to inheriting the client's permissions.
+To let the agent save files in a project, follow [Give a session the access it needs](SANDBOX.md#give-a-session-the-access-it-needs).
+
+## Review the work {#keep-the-session}
+
+Ask the agent:
+
+> Show me the code you ran and the path to the recorded session.
+
+Open `transcript.md` in that directory to review the calls, results, and links to plots.
+The recording stays on the machine where Console runs after the live session ends.
+It contains code, input, and output without redaction, so review it before sharing.
+
+The recording does not preserve live objects for a later session.
+Restarting Console clears the simulated rolls and other objects in memory.
+[Recordings and reports](RECORDING.md) explains how to inspect saved output and reuse the code.
+
+Continue with [Sessions and languages](BUILTIN_RUNTIME.md) to learn how the agent builds on earlier work and combines R, Python, and SQL.

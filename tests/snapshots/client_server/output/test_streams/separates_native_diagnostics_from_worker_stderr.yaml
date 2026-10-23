@@ -1,0 +1,43 @@
+---
+!same-as custom MCP initialization for this execution mode
+---
+fixture:
+  operation: emit_ansi_diagnostics
+  events:
+    - kind: native_stderr
+      data: bmF0aXZlIBtbMw==
+    - kind: native_stderr
+      data: MW3i
+    - kind: native_stderr
+      data: gqxyZWQbWzBtCg==
+    - kind: native_stderr
+      data: G10wO2hpZGRlbg==
+    - kind: native_stderr
+      data: B25hdGl2ZSBzdHJpbmcgZW5kZWQK
+    - kind: native_stderr
+      data: bmF0aXZlIGJlZm9yZSAbXTA7aGlkZGVu
+    - kind: stderr_bytes
+      data: d29ya2VyIGRpYWdub3N0aWMK
+    - kind: native_stderr
+      data: G1xuYXRpdmUgYWZ0ZXIK
+    - kind: stderr_bytes
+      data: d29ya2VyIGJlZm9yZSAbXTA7aGlkZGVu
+    - kind: native_stderr
+      data: bmF0aXZlIGRpYWdub3N0aWMK
+    - kind: stderr_bytes
+      data: G1x3b3JrZXIgYWZ0ZXIK
+---
+send:
+  r: emit_ansi_diagnostics
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        native €red
+        native string ended
+        native before worker diagnostic
+        native after
+        worker before native diagnostic
+        worker after
+  isError: false

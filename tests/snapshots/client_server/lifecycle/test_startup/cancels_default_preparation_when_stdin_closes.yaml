@@ -1,0 +1,18 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: 42L
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
+        [running; poll with an empty send]
+  isError: false
+---
+exit_code: 0
+stdout: ""
+stderr: ""

@@ -1,0 +1,32 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: restart_marker = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+  requirements:
+    python:
+      - not a valid requirement !!!
+result:
+  content:
+    - type: text
+      text: >-
+        Python requirement `not a valid requirement !!!` is not accepted:
+        host-side managed resolution accepts named package requirements only
+  isError: true
+---
+send:
+  python: restart_marker
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

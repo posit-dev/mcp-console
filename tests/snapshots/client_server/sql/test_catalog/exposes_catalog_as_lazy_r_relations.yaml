@@ -1,0 +1,79 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: |
+    CREATE TABLE sql_values AS
+    SELECT * FROM (VALUES ('a', 2), ('b', 5)) AS values(label, value);
+    CREATE VIEW live_sql_values AS SELECT * FROM sql_values
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    connection <- .console$sql_connection()
+    table_values <- dplyr::tbl(connection, "sql_values")
+    lazy_values <- dplyr::tbl(connection, "live_sql_values") |>
+      dplyr::mutate(doubled = value * 2L)
+    cat(
+      c(
+        "same connection: ",
+        identical(connection, .console$sql_connection()),
+        "\n"
+      ),
+      c("lazy table: ", inherits(table_values, "tbl_lazy"), "\n"),
+      c("lazy view: ", inherits(lazy_values, "tbl_lazy"), "\n"),
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        same connection: TRUE
+        lazy table: TRUE
+        lazy view: TRUE
+  isError: false
+---
+send:
+  sql: |
+    INSERT INTO sql_values VALUES ('c', 11)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    values <- lazy_values |>
+      dplyr::arrange(label) |>
+      dplyr::collect()
+    writeLines(paste(values$label, values$value, values$doubled, sep = ":"))
+result:
+  content:
+    - type: text
+      text: |
+        a:2:4
+        b:5:10
+        c:11:22
+  isError: false
+---
+send:
+  r: |
+    rm(list = ls())
+    values <- DBI::dbGetQuery(
+      .console$sql_connection(),
+      "SELECT label, value FROM sql_values ORDER BY label"
+    )
+    writeLines(paste(values$label, values$value, sep = ":"))
+result:
+  content:
+    - type: text
+      text: |
+        a:2
+        b:5
+        c:11
+  isError: false

@@ -1,0 +1,85 @@
+---
+scenario: Launch from home with a workspace fallback.
+fixture: >-
+  HOME is isolated. The worker edits a probe under the launch directory,
+  writes to explicitly granted output and private TMPDIR, then repeats
+  after restart.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.existing-python-client-sandbox.yaml
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+
+    writable = os.environ["TEST_WRITABLE"] == "True"
+    probe = Path(os.environ["TEST_PROBE"])
+    try:
+        _ = probe.write_text("changed")
+    except OSError as error:
+        assert not writable and error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), (
+            error
+        )
+        assert probe.read_text() == "unchanged"
+    else:
+        assert writable, "launch directory granted broad writes"
+    _ = (Path(os.environ["TEST_OUTPUT"]) / "explicit").write_text("allowed")
+    _ = (Path(os.environ["TMPDIR"]) / "private").write_text("allowed")
+    print(
+        "project writes allowed; explicit output and private temp writable"
+        if writable
+        else "broad workspace read-only; explicit output and private temp writable"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        broad workspace read-only; explicit output and private temp writable
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import errno
+    import os
+    from pathlib import Path
+
+    writable = os.environ["TEST_WRITABLE"] == "True"
+    probe = Path(os.environ["TEST_PROBE"])
+    try:
+        _ = probe.write_text("changed")
+    except OSError as error:
+        assert not writable and error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), (
+            error
+        )
+        assert probe.read_text() == "unchanged"
+    else:
+        assert writable, "launch directory granted broad writes"
+    _ = (Path(os.environ["TEST_OUTPUT"]) / "explicit").write_text("allowed")
+    _ = (Path(os.environ["TMPDIR"]) / "private").write_text("allowed")
+    print(
+        "project writes allowed; explicit output and private temp writable"
+        if writable
+        else "broad workspace read-only; explicit output and private temp writable"
+    )
+result:
+  content:
+    - type: text
+      text: |
+        broad workspace read-only; explicit output and private temp writable
+  isError: false
+---
+stderr: >
+  Warning: refusing automatic workspace writes to '<launch>'; falling back
+  to read_only
