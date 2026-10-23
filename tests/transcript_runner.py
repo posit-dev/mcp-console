@@ -359,6 +359,25 @@ class TranscriptRunnerFixture(unittest.TestCase):
             arguments, process.returncode, stdout, stderr
         )
 
+    def read_snapshot_failure(
+        self, process: subprocess.Popen[str], selector: str
+    ) -> str:
+        assert process.stderr is not None
+        terminator = f"{selector} differs from its snapshot\n".encode()
+        output = bytearray()
+        deadline = time.monotonic() + 10
+        while terminator not in output:
+            remaining = deadline - time.monotonic()
+            self.assertGreater(
+                remaining, 0, "snapshot failure diagnostic was not reported"
+            )
+            ready, _, _ = select.select([process.stderr], [], [], remaining)
+            self.assertTrue(ready, "snapshot failure diagnostic was not reported")
+            data = os.read(process.stderr.fileno(), 4096)
+            self.assertTrue(data, "runner exited before reporting snapshot failure")
+            output.extend(data)
+        return output.decode()
+
     def prepare_script(self) -> dict[str, str]:
         scripts = self.root / "scripts"
         scripts.mkdir()
@@ -1564,13 +1583,12 @@ runner: released
             self.assertTrue(ready, "hanging case did not start")
             self.assertEqual(os.read(started, 1), b"1")
             self.assertEqual(os.write(release_failure, b"1"), 1)
-            assert process.stderr is not None
-            receipt = read_lines(process.stderr, 3, "failure limit receipt")
+            receipt = self.read_snapshot_failure(process, failure)
             self.assertIn(f"{failure}: failed", receipt)
             with (self.root / "hang-release").open("wb", buffering=0) as release:
                 self.assertEqual(release.write(b"1"), 1)
             stdout, stderr = process.communicate(timeout=10)
-            stderr = "\n".join(receipt) + "\n" + stderr
+            stderr = receipt + stderr
             self.assertNotEqual(process.returncode, 0, stdout)
             self.assertIn(f"{failure}: failed", stderr)
             self.assertIn("runner: deliberate mismatch", stderr)
@@ -1602,12 +1620,11 @@ runner: released
             self.assertTrue(ready, "failed case did not enter its cleanup")
             self.assertEqual(os.read(started, 1), b"1")
             self.assertEqual(os.write(release_failure, b"1"), 1)
-            assert process.stderr is not None
-            receipt = read_lines(process.stderr, 3, "failure limit receipt")
+            receipt = self.read_snapshot_failure(process, failure)
             self.assertIn(f"{failure}: failed", receipt)
             process.send_signal(signal.SIGINT)
             stdout, stderr = process.communicate(timeout=10)
-            stderr = "\n".join(receipt) + "\n" + stderr
+            stderr = receipt + stderr
             self.assertNotEqual(process.returncode, 0, stdout)
             self.assertIn(f"{failure}: failed", stderr)
             self.assertIn("runner: deliberate mismatch", stderr)
@@ -2044,18 +2061,21 @@ runner: orphan
                 self.assertTrue(ready, "both failing cases did not start")
                 acknowledgements += os.read(started, 2 - len(acknowledgements))
             self.assertEqual(os.write(release_first, b"1"), 1)
-            assert process.stderr is not None
-            # Descriptor reads avoid buffering part of the receipt above the pipe.
-            receipt = read_lines(process.stderr, 3, "first failure limit receipt")
+            # Keep the sibling gated until the complete first diagnostic arrives.
+            observed_stderr = self.read_snapshot_failure(
+                process, "client_server/server/test_tools::first_failure"
+            )
             self.assertEqual(
-                receipt,
+                observed_stderr.splitlines()[:3],
                 [
                     "client_server/server/test_tools::first_failure: failed",
                     "rerun: scripts/test client_server/server/test_tools::first_failure",
                     "Stopping new cases: 1 of 3 transcript cases failed (more than 15%); finishing running cases.",
                 ],
             )
-            observed_stderr = "\n".join(receipt) + "\n"
+            self.assertIn("runner: first actual", observed_stderr)
+            self.assertNotIn("runner: second actual", observed_stderr)
+            self.assertIsNone(process.poll())
             self.assertEqual(os.write(release_second, b"2"), 1)
             stdout, remaining_stderr = process.communicate(timeout=10)
             stderr = observed_stderr + remaining_stderr

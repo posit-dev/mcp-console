@@ -670,6 +670,9 @@ def run_cases(
                             file=sys.stderr,
                             flush=True,
                         )
+                    # Subprocess failures already carry their complete output
+                    # and traceback. Publish them while sibling cases continue.
+                    print(error, file=sys.stderr, flush=True)
                 else:
                     checked_snapshots.update(checked)
                     reporter.finish(index, succeeded=True)
