@@ -934,9 +934,8 @@ def test_times_out_and_polls_running_evaluation(
         # descheduled while the worker reaches its release gate.
         started = wait_for_marker(Path(temporary), "zod-evaluation-started", client)
         started.with_name("zod-release-evaluation").touch()
-        client.send(timeout_ms=3_000)
-        output = last_tool_text(client)
-        assert output == "zod: complete after release\n", output
+        # A poll's wait budget is not an execution deadline.
+        client.expect("zod: complete after release\n", timeout_ms=3_000)
         client.send(r="echo echo")
         compact_previews(client, "x", "y", "z", "s", "p", "ab")
         return client.finish()

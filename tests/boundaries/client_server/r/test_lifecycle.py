@@ -459,9 +459,8 @@ def test_times_out_and_polls_running_evaluation(
         output = last_tool_text(client)
         assert without_elapsed(output) == "\n[running; poll with an empty send]", output
         (Path(temporary) / "release-evaluation").touch()
-        client.send(timeout_ms=3_000)
-        output = last_tool_text(client)
-        assert output == "[1] 42\n", output
+        # A poll's wait budget is not an execution deadline.
+        client.expect("[1] 42\n", timeout_ms=3_000)
         client.send(r="answer + 1")
         return client.finish()
 

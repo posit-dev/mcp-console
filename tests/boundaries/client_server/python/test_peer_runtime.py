@@ -456,6 +456,8 @@ def test_idle_preparation_keeps_r_uninitialized(
             )
         else:
             serve = execution.serve("-c", "cache=host")
+        # Keep the cold cache, but prepare only the required R runtime packages.
+        serve += ("-c", "r.packages=[]")
         with McpClient(binary, serve, environment, root) as client:
             client.initialize_and_list_tools()
             defer_r_bootstrap(client)

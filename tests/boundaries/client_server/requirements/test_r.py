@@ -1,10 +1,12 @@
 #!/usr/bin/env -S uv run --script
 
 import os
+import select
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -17,6 +19,7 @@ from support.assertions import (
     wait_for_idle_output,
 )
 from support.client import McpClient, stop_client
+from support.checkpoints import checkpoint_evidence
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_process_diagnostic
 from support.r import r_test_environment
@@ -441,7 +444,40 @@ def test_failed_mixed_preparation_retains_live_python_activation(
             preparation = client.start_send(
                 requirements={"r": [requirement], "python": ["py-yaml12"]},
             )
-            uv_started.wait("mixed live requirement preparation")
+            # Candidate R and DuckDB preparation precede the Python checkpoint.
+            # Their work uses the request budget; an early MCP reply is a failure,
+            # rather than evidence that the checkpoint just needs more time.
+            deadline = client.response_deadline()
+            while True:
+                streams = [
+                    stream
+                    for stream in (client.stdout, client.stderr)
+                    if not stream.eof
+                ]
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not (
+                    ready := select.select(
+                        [uv_started.descriptor, *streams], [], [], remaining
+                    )[0]
+                ):
+                    raise TimeoutError(
+                        checkpoint_evidence(
+                            "mixed live preparation did not reach Python resolution",
+                            client,
+                        )
+                    )
+                if client.stderr in ready:
+                    client.stderr.fill()
+                if client.stdout in ready:
+                    client.receive(preparation)
+                    raise AssertionError(
+                        f"mixed live preparation returned before Python resolution: {preparation}"
+                    )
+                if uv_started.descriptor in ready:
+                    uv_started.wait(
+                        "mixed live requirement preparation", timeout=0, client=client
+                    )
+                    break
             for package in candidate.iterdir():
                 package.unlink()
             candidate.rmdir()
@@ -453,7 +489,7 @@ def test_failed_mixed_preparation_retains_live_python_activation(
             assert result["content"][0]["text"] == (
                 "resolved R library was not added to .libPaths(); further "
                 "requirement changes are unavailable until session restart"
-            )
+            ), result
 
             client.send(control="restart")
             assert last_result_text(client) == (
