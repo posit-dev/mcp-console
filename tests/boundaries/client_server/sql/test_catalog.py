@@ -348,12 +348,14 @@ def test_queries_a_ragnar_store_created_in_r(
     binary: Path, execution: Execution
 ) -> Transcript:
     environment, _ = r_test_environment()
+    # Suppress Python bootstrap as well as hiding its cell interface. Public
+    # languages configuration only controls tool visibility.
+    environment["MCP_CONSOLE_LANGUAGES"] = "r,sql"
     temporary = tempfile.TemporaryDirectory()
     workspace = Path(temporary.name)
     client = McpClient(
         binary,
-        # These R/SQL operations do not use ragnar's Python document converters.
-        execution.serve("-c", "languages=[r,sql]"),
+        execution.serve(),
         environment,
         current_directory=workspace,
     )
