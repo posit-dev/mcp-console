@@ -437,23 +437,33 @@ def test_browser_input(binary: Path, execution: Execution) -> Transcript:
 def test_times_out_and_polls_running_evaluation(
     binary: Path, execution: Execution
 ) -> Transcript:
-    client = McpClient(binary, execution.serve())
-    client.initialize_and_list_tools()
-    client.send(r="invisible(NULL)")
-    # fmt: r
-    r = code(r"""
-        Sys.sleep(0.25)
-        answer <- 42
-        answer
-        """)
-    client.send(r=r, timeout_ms=10)
-    output = client.transcript[-1]["result"]["content"][0]["text"]
-    assert without_elapsed(output) == "\n[running; poll with an empty send]", output
-    client.send(timeout_ms=3_000)
-    output = client.transcript[-1]["result"]["content"][0]["text"]
-    assert output == "[1] 42\n", output
-    client.send(r="answer + 1")
-    return client.finish()
+    with (
+        tempfile.TemporaryDirectory() as temporary,
+        McpClient(
+            binary, execution.serve(), current_directory=Path(temporary)
+        ) as client,
+    ):
+        client.initialize_and_list_tools()
+        client.expect(r="invisible(NULL)")
+        # Completion is released only after the timed response. A slow server
+        # cannot race a fixed-duration sleep and observe completion instead.
+        # fmt: r
+        r = code(r"""
+            while (!file.exists("release-evaluation")) {
+              Sys.sleep(0.01)
+            }
+            answer <- 42
+            answer
+            """)
+        client.send(r=r, timeout_ms=10)
+        output = last_tool_text(client)
+        assert without_elapsed(output) == "\n[running; poll with an empty send]", output
+        (Path(temporary) / "release-evaluation").touch()
+        client.send(timeout_ms=3_000)
+        output = last_tool_text(client)
+        assert output == "[1] 42\n", output
+        client.send(r="answer + 1")
+        return client.finish()
 
 
 @execution_snapshots

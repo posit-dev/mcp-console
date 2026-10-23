@@ -67,7 +67,6 @@ EXACT_HANDLERS: dict[str, Callable[[WorkerContext, str], LoopAction | None]] = {
     "shutdown output checkpoints": lifecycle.shutdown_output_checkpoints,
     "complete before restart checkpoint": lifecycle.complete_before_restart_checkpoint,
     "report process group": lifecycle.report_process_group,
-    "complete after timeout": lifecycle.complete_after_timeout,
     "complete after release": lifecycle.complete_after_release,
     "output then complete after release": lifecycle.output_then_complete_after_release,
     # Failures

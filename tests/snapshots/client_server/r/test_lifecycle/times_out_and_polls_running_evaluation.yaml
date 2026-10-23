@@ -11,7 +11,9 @@ result:
 ---
 send:
   r: |
-    Sys.sleep(0.25)
+    while (!file.exists("release-evaluation")) {
+      Sys.sleep(0.01)
+    }
     answer <- 42
     answer
   timeout_ms: 10

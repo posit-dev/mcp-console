@@ -917,24 +917,29 @@ def test_times_out_and_polls_running_evaluation(
     binary: Path, execution: Execution
 ) -> Transcript:
     zod = Path(__file__).resolve().parents[3] / "fixtures" / "zod"
-    client = McpClient(
-        binary,
-        execution.serve("--worker", str(zod)),
-    )
-    client.initialize_and_list_tools()
-    client.send(r="echo echo")
-    client.send(
-        r="complete after timeout",
-        timeout_ms=10,
-    )
-    output = client.transcript[-1]["result"]["content"][0]["text"]
-    assert without_elapsed(output) == "\n[running; poll with an empty send]", output
-    client.send(timeout_ms=3_000)
-    output = client.transcript[-1]["result"]["content"][0]["text"]
-    assert output == "zod: complete after timeout\n", output
-    client.send(r="echo echo")
-    compact_previews(client, "x", "y", "z", "s", "p", "ab")
-    return client.finish()
+    with (
+        tempfile.TemporaryDirectory() as temporary,
+        McpClient(
+            binary,
+            execution.serve("--worker", str(zod)),
+            {**os.environ, "TMPDIR": temporary},
+        ) as client,
+    ):
+        client.initialize_and_list_tools()
+        client.expect("zod: echo\n", r="echo echo")
+        client.send(r="complete after release", timeout_ms=10)
+        output = last_tool_text(client)
+        assert without_elapsed(output) == "\n[running; poll with an empty send]", output
+        # Completion cannot race the timed response, even if the server is
+        # descheduled while the worker reaches its release gate.
+        started = wait_for_marker(Path(temporary), "zod-evaluation-started", client)
+        started.with_name("zod-release-evaluation").touch()
+        client.send(timeout_ms=3_000)
+        output = last_tool_text(client)
+        assert output == "zod: complete after release\n", output
+        client.send(r="echo echo")
+        compact_previews(client, "x", "y", "z", "s", "p", "ab")
+        return client.finish()
 
 
 @executions(DIRECT, SANDBOXED)
