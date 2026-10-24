@@ -46,6 +46,16 @@ def r_test_environment() -> tuple[dict[str, str], Path]:
     return environment, home / "bin" / ("Rscript.exe" if os.name == "nt" else "Rscript")
 
 
+def r_duckdb_snapshot_environment() -> dict[str, str]:
+    """Use DuckDB 1.5.6 for exact diagnostics and its native interrupt fixture."""
+    environment, _ = r_test_environment()
+    # A dated repository retains binaries as well as source packages. Pin only
+    # these version-sensitive fixtures; semantic SQL tests still use current R
+    # packages. DuckDB 2.0's Arrow interrupt limitation is tracked in docs/TODO.md.
+    environment["IR_EXCLUDE_NEWER"] = "2026-10-22"
+    return environment
+
+
 def install_r_startup(
     directory: Path, environment: dict[str, str], source: str
 ) -> Path:

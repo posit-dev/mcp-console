@@ -251,7 +251,12 @@ class MCPConsole:
                     # Waiting releases admission for ordinary concurrent calls.
                     # On interruption it reacquires admission before propagating,
                     # so cancellation is published before another send can pass.
-                    self._admission.wait_for(request.future.done)
+                    # CPython may receive SIGINT on the SDK thread while only
+                    # the main thread can run its Python handler. Periodically
+                    # return to Python to dispatch that pending signal even if
+                    # the request has no response; this is not a call deadline.
+                    while not request.future.done():
+                        self._admission.wait(timeout=0.1)
                     return request.future.result()
                 except KeyboardInterrupt:
                     if request is not None:

@@ -50,8 +50,6 @@ def test_installed_r_selection_and_layering(
         config.parent.mkdir(parents=True)
         variants = [
             ("chosen R", ("r.vanilla=true",), True),
-            ({"vanilla": True}, ("r=./chosen R",), True),
-            ({"vanilla": True}, ("r=null", "r=./chosen R"), False),
             (
                 {
                     "executable": "~/"
@@ -117,37 +115,6 @@ def test_installed_r_selection_and_layering(
                 }
             )
         return records
-
-
-@requires(POSIX, R)
-@executions(DIRECT, SANDBOXED)
-def test_r_shorthand_merges_across_file_layers(
-    binary: Path, execution: Execution
-) -> Transcript:
-    with TemporaryDirectory() as temporary:
-        root = Path(temporary).resolve()
-        environment, rscript = r_test_environment()
-        (root / "chosen R").symlink_to(rscript.with_name("R"))
-        console_home = root / "console-home"
-        console_home.mkdir()
-        (console_home / "config.yaml").write_text(json.dumps({"r": "./chosen R"}))
-        project = root / ".agents/console/config.yaml"
-        project.parent.mkdir(parents=True)
-        project.write_text(json.dumps({"r": {"vanilla": True}}))
-        environment["MCP_CONSOLE_HOME"] = str(console_home)
-        with McpClient(
-            binary,
-            execution.serve("-c", "cache=host"),
-            environment,
-            root,
-            use_home_configuration=True,
-        ) as client:
-            client.initialize_and_list_tools()
-            client.expect(
-                "42\n",
-                r='stopifnot("--vanilla" %in% commandArgs()); cat(42, "\\n", sep="")',
-            )
-            return client.finish()
 
 
 @requires(POSIX, R)

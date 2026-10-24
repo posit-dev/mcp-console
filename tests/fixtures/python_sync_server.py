@@ -97,7 +97,14 @@ def main() -> None:
                 sys.stdout.write(encoded[:-2])
                 sys.stdout.flush()
                 tail = encoded[-2:]
-                os.kill(os.getppid(), signal.SIGINT)
+                if mode == "external-interrupt":
+                    with socket.create_connection(
+                        ("127.0.0.1", int(sys.argv[2])), timeout=10
+                    ) as gate:
+                        gate.sendall(b"1")
+                        assert gate.recv(1) == b"1"
+                else:
+                    os.kill(os.getppid(), signal.SIGINT)
             elif source == "hold":
                 Thread(target=hold, args=(request,)).start()
             elif source == "rpc error":

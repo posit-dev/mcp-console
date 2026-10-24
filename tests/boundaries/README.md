@@ -44,7 +44,7 @@ scripts/test --update client_server/server/test_tools::initializes_and_lists_too
 
 A selector names `BOUNDARY/SUITE` or `BOUNDARY/SUITE::CASE`.
 Default runs use the explicit smoke profile; `--full` includes every functional capability-applicable case.
-`--stress` runs the three allocation scale cases with their original workloads and ceilings.
+`--stress` runs allocation and repeated concurrency cases with their original workloads and ceilings.
 Short recovery cases in `--full` check delivery, recording, and image aggregation without claiming bounded allocation growth.
 Selectors retain their scope under every profile.
 See the [validation ladder](../../docs/DEVELOPMENT.md#validation-ladder) for the full workflow, installed-binary override, and build ownership.
@@ -146,7 +146,7 @@ Narrow exceptions require stronger evidence, not weaker assertions:
 - Bounded MCP overflow previews remain literal strings in the output-limit and preview cases.
   Assert the actual response's UTF-8 byte budget and exact emitted head/tail and omission accounting before normalizing fixture-owned paths.
   Keep full raw-stream byte assertions separate, including Unicode and newline bytes; a response preview is not a raw recording.
-- Other synthetic stress output may use `support.evidence.compact_text()` after full assertions.
+- Other synthetic payloads and repetition cases may use `support.evidence.compact_text()` after full assertions.
   Its literal text and repeat/count entries are lossless; retain diagnostics, boundaries, omissions, paths, images, and final states.
 
 `transcript_normalization` is harness metadata, never a wire field.

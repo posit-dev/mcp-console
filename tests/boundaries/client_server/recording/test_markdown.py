@@ -461,12 +461,23 @@ def test_records_polls_input_controls_and_previews(
         ) as client:
             client.initialize_and_list_tools()
             client.expect("zod: ready\n", r="echo ready")
+            request_ids = {"ready": client.transcript[-1]["id"]}
             client.expect("\n[idle]")
+            request_ids["poll"] = client.transcript[-1]["id"]
             waiting = client.send(r="request input")
+            request_ids["input"] = client.transcript[-1]["id"]
             assert "[waiting for stdin]" in last_result_text(client), waiting
             client.expect("zod stdin: supplied answer\n", stdin="supplied answer\n")
+            request_ids["stdin"] = client.transcript[-1]["id"]
+            # Recording retains every real poll, including any collected by
+            # expect(). Keep an explicit extra poll to exercise that identity.
+            polled = client.send()
+            request_ids["extra_poll"] = client.transcript[-1]["id"]
+            assert last_result_text(client) == "\n[idle]", polled
             client.send(control="interrupt")
+            request_ids["interrupt"] = client.transcript[-1]["id"]
             client.send(r="preview huge line")
+            request_ids["preview"] = client.transcript[-1]["id"]
             preview = last_result_text(client)
             assert "[output omitted:" in preview, preview
             transcript = client.finish()
@@ -475,6 +486,17 @@ def test_records_polls_input_controls_and_previews(
             json.loads(line)
             for line in (recording / "capture/events.jsonl").read_text().splitlines()
         ]
+        calls = [event for event in capture if event["event"] == "tool_call"]
+        call_ids: dict[str, int] = {}
+        for name, request_id in request_ids.items():
+            matches = [event for event in calls if event["request_id"] == request_id]
+            assert len(matches) == 1, {
+                "operation": name,
+                "request_id": request_id,
+                "calls": calls,
+            }
+            call_ids[name] = matches[0]["call_id"]
+        assert list(call_ids.values()) == sorted(set(call_ids.values())), call_ids
         source_calls = {
             event["call_id"]
             for event in capture
@@ -490,15 +512,34 @@ def test_records_polls_input_controls_and_previews(
             if event["event"] == "source_associated"
         } == source_calls
         markdown = (recording / "transcript.md").read_text()
-        assert "## Call 2: Poll" in markdown
-        assert "## Call 4: Stdin" in markdown
-        assert "## Call 5: Interrupt" in markdown
-        assert "### Submitted stdin\n\n```text\nsupplied answer\n```" in markdown
-        assert markdown.count("\nzod stdin: supplied answer\n") == 1
-        assert markdown.count("\nzod: ready\n") == 1
-        assert preview in markdown
-        assert "Retained text output for call 1" not in markdown
-        assert "Retained text output for call 6" in markdown
+        headings = [
+            f"## Call {call_ids[name]}: {label}\n"
+            for name, label in (
+                ("ready", "R"),
+                ("poll", "Poll"),
+                ("input", "R"),
+                ("stdin", "Stdin"),
+                ("extra_poll", "Poll"),
+                ("interrupt", "Interrupt"),
+                ("preview", "R"),
+            )
+        ]
+        for heading in headings:
+            assert markdown.count(heading) == 1, markdown
+        positions = [markdown.index(heading) for heading in headings]
+        assert positions == sorted(positions), markdown
+        assert "### Submitted stdin\n\n```text\nsupplied answer\n```" in markdown, (
+            markdown
+        )
+        assert markdown.count("\nzod stdin: supplied answer\n") == 1, markdown
+        assert markdown.count("\nzod: ready\n") == 1, markdown
+        assert preview in markdown, markdown
+        assert f"[Retained text output for call {call_ids['ready']}]" not in markdown, (
+            markdown
+        )
+        assert f"[Retained text output for call {call_ids['preview']}](<" in markdown, (
+            markdown
+        )
         for chatter in (
             "## Protocol",
             "## Worker ready",

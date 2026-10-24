@@ -251,17 +251,7 @@ def _isolate_r_package_cache(environment: dict[str, str], directory: Path) -> No
 def record_resolved_r_library(environment: dict[str, str], directory: Path) -> None:
     real_ir = shutil.which("ir", path=environment.get("PATH"))
     assert real_ir is not None, "ir is required"
-    # Keep real IR libraries and their persistent renv link targets. Otherwise
-    # fixture cleanup leaves shared IR libraries pointing into a removed cache.
-    environment["IR_CACHE_DIR"] = ir_cache_directory(environment)
-    r_cache = Path(
-        environment.get("R_USER_CACHE_DIR")
-        or environment.get("XDG_CACHE_HOME")
-        or Path.home()
-        / ("Library/Caches/org.R-project.R" if sys.platform == "darwin" else ".cache")
-    )
-    renv_root = Path(environment.get("RENV_PATHS_ROOT") or r_cache / "R/renv")
-    environment.setdefault("RENV_PATHS_CACHE", str(renv_root / "cache"))
+    environment.update(r_library_cache_environment(environment))
     _isolate_r_package_cache(environment, directory)
     # Record the result inside an explicitly granted resolver cache.
     environment["UV_TOOL_DIR"] = str(directory)
@@ -427,14 +417,38 @@ def ir_cache_directory(environment: dict[str, str]) -> str:
     return cache
 
 
+def r_library_cache_environment(environment: dict[str, str]) -> dict[str, str]:
+    """Capture ir libraries and their renv targets before redirecting cache homes."""
+    caches = {"IR_CACHE_DIR": ir_cache_directory(environment)}
+    renv_cache = environment.get("RENV_PATHS_CACHE")
+    if not renv_cache:
+        renv_root = environment.get("RENV_PATHS_ROOT")
+        if not renv_root:
+            r_home = environment.get("R_HOME")
+            rscript = (
+                Path(r_home) / "bin" / ("Rscript.exe" if os.name == "nt" else "Rscript")
+                if r_home
+                else shutil.which("Rscript", path=environment.get("PATH"))
+            )
+            assert rscript is not None, "Rscript is required"
+            renv_root = subprocess.run(
+                [rscript, "--vanilla", "-e", "cat(tools::R_user_dir('renv', 'cache'))"],
+                env=environment,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            assert Path(renv_root).is_absolute(), renv_root
+        renv_cache = str(Path(renv_root) / "cache")
+    # A shared ir library must not retain links into a deleted fixture HOME.
+    return caches | {"RENV_PATHS_CACHE": renv_cache}
+
+
 def matplotlib_test_environment(cache_home: Path) -> dict[str, str]:
     environment = os.environ.copy()
     if R.available:
-        cache = ir_cache_directory(environment)
-        environment["IR_CACHE_DIR"] = cache
+        environment.update(r_library_cache_environment(environment))
     environment["XDG_CACHE_HOME"] = str(cache_home)
-    if R.available:
-        assert ir_cache_directory(environment) == cache
     return environment
 
 

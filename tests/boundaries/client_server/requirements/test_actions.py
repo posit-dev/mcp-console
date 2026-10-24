@@ -30,7 +30,7 @@ from support.resolvers import (
 from boundaries.client_server.requirements.test_r_automatic import (
     recording_fixture_r_environment,
 )
-from support.checkpoints import FifoCheckpoint
+from support.checkpoints import FifoCheckpoint, wait_for_path
 
 
 def inspect(client: McpClient) -> dict:
@@ -47,6 +47,63 @@ def inspect(client: McpClient) -> dict:
 
 @executions(DIRECT, SANDBOXED)
 def test_inspection_completes_while_prepared_cells_overlap(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory)
+        with McpClient(
+            binary,
+            execution.serve(
+                *(("--writable-root", str(workspace)) if execution == SANDBOXED else ())
+            ),
+            current_directory=workspace,
+        ) as client:
+            client.initialize_and_list_tools()
+            declaration = inspect(client)
+            client.expect("42\n", python="42")
+            pending = client.start_send(
+                # fmt: python
+                python=code("""
+                    from pathlib import Path
+                    import time
+
+                    Path("started").touch()
+                    while not Path("release").exists():
+                        time.sleep(0.01)
+                    print(42)
+                    """),
+                requirements={"action": "add", "python": ["numpy"]},
+                timeout_ms=int(client.response_timeout * 1_000),
+            )
+            try:
+                wait_for_path(
+                    workspace / "started",
+                    "prepared cell is running",
+                    client=client,
+                    timeout=client.response_timeout,
+                )
+                # Receiving this request's ID before releasing the cell proves
+                # inspection completes while the evaluation response is pending.
+                assert inspect(client) == declaration
+            finally:
+                (workspace / "release").touch()
+            client.receive(pending)
+            assert not pending["result"]["isError"], pending
+            assert pending["result"]["content"] == [{"type": "text", "text": "42\n"}], (
+                pending
+            )
+            transcript = client.finish()
+            return [
+                *transcript[:3],
+                {
+                    "inspection_completed_before_cell_release": True,
+                    "prepared_cell_completed": True,
+                },
+            ]
+
+
+@executions(DIRECT, SANDBOXED)
+def test_inspection_completes_under_repeated_overlap(
     binary: Path, execution: Execution
 ) -> Transcript:
     with McpClient(binary, execution.serve()) as client:
@@ -461,6 +518,10 @@ def test_r_duckdb_replacement_failure_and_reset(
                 "-c",
                 "python.managed.resolution=implicit",
                 "-c",
+                "python.managed.packages=[six]",
+                "-c",
+                "r.packages=[praise]",
+                "-c",
                 "cache=host",
                 *(
                     ("-c", "resolver.sandbox.network=enabled")
@@ -582,7 +643,21 @@ def test_large_manifest_round_trip(binary: Path, execution: Execution) -> Transc
             ]
             == selected
         )
-        return client.finish()
+        original = json.dumps(client.finish())
+        token = "<x*120>"
+        assert token not in original
+        compacted = original.replace("x" * 120, token)
+        assert compacted.replace(token, "x" * 120) == original
+        transcript = json.loads(compacted)
+        transcript.insert(
+            3,
+            {
+                "transcript_normalization": {
+                    "fixture_padding": {"token": token, "character": "x", "count": 120}
+                }
+            },
+        )
+        return transcript
 
 
 @requires(POSIX)

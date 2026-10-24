@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.progress import without_elapsed
 from support.requirements import FILE_READ_DENIAL, POSIX, R, SQL, requires
-from support.assertions import last_tool_text
+from support.assertions import last_tool_text, wait_for_evaluation_output
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient, stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
@@ -21,9 +21,18 @@ from support.normalization import (
     normalize_process_diagnostic,
     normalize_trailing_spaces,
 )
-from support.r import isolated_r_home, r_test_environment
+from support.r import (
+    isolated_r_home,
+    r_duckdb_snapshot_environment,
+    r_test_environment,
+)
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
-from support.previews import assert_preview, cell_text, normalize_preview_paths
+from support.previews import (
+    assert_preview,
+    cell_text,
+    compact_previews,
+    normalize_preview_paths,
+)
 from support.suites import run_this_suite
 from boundaries.client_server.server.test_no_r import no_r_environment
 
@@ -183,9 +192,10 @@ def test_restart_adds_r_and_duckdb_requirements(
             """)
         client.send(sql=sql)
         assert last_tool_text(client) == "[done]"
-        client.send(sql="PRAGMA create_fts_index('restart_documents', 'id', 'body')")
-        assert last_tool_text(client) == "[done]"
+        # DuckDB versions classify PRAGMA results differently. Verify the
+        # created index through a query with a stable, explicit result.
         sql = code(r"""
+            PRAGMA create_fts_index('restart_documents', 'id', 'body');
             SELECT count(*) AS matches
             FROM restart_documents
             WHERE fts_main_restart_documents.match_bm25(id, 'duckdb') IS NOT NULL
@@ -254,16 +264,15 @@ def test_prepares_and_loads_duckdb_extensions(
         assert last_tool_text(client).splitlines()[-1].split() == ["1", "0"]
 
         sql = code(r"""
-            PRAGMA create_fts_index('retained_state', 'answer', 'body')
+            PRAGMA create_fts_index('retained_state', 'answer', 'body');
+            SELECT 'created' AS index_status
             """)
         client.send(sql=sql, requirements={"duckdb": ["fts"]})
-        assert last_tool_text(client) == "[done]"
+        assert last_tool_text(client).splitlines()[-1].split() == ["1", '"created"']
 
-        client.send(
-            requirements={"duckdb": ["fts"]},
-        )
-        assert last_tool_text(client) == "[prepared]"
+        client.expect("[prepared]", requirements={"duckdb": ["fts"]})
 
+        # Repeating preparation must retain the catalog and the created index.
         sql = code(r"""
             SELECT
               'loaded' AS verified
@@ -297,11 +306,7 @@ def test_prepares_and_loads_duckdb_extensions(
         client.send(sql=sql)
         assert last_tool_text(client) == "[done]"
         sql = code(r"""
-            PRAGMA create_fts_index('replacement_state', 'answer', 'body')
-            """)
-        client.send(sql=sql)
-        assert last_tool_text(client) == "[done]"
-        sql = code(r"""
+            PRAGMA create_fts_index('replacement_state', 'answer', 'body');
             SELECT 'loaded' AS verified
             FROM replacement_state
             CROSS JOIN duckdb_extensions() AS extensions
@@ -348,7 +353,8 @@ def test_queries_a_ragnar_store_created_in_r(
     binary: Path, execution: Execution
 ) -> Transcript:
     environment, _ = r_test_environment()
-    # These R/SQL operations do not use ragnar's Python document converters.
+    # Suppress Python bootstrap as well as hiding its cell interface. Public
+    # languages configuration only controls tool visibility.
     environment["MCP_CONSOLE_LANGUAGES"] = "r,sql"
     temporary = tempfile.TemporaryDirectory()
     workspace = Path(temporary.name)
@@ -419,7 +425,8 @@ def test_queries_a_ragnar_store_created_in_r(
         writeLines("ragnar store ready")
         """)
     client.send(r=r)
-    assert normalize_duckdb_progress(client) == "ragnar store ready\n"
+    output = normalize_duckdb_progress(client)
+    assert output == "ragnar store ready\n", output
     client.expect("[prepared]", requirements={"duckdb": ["fts", "vss"]})
     # fmt: r
     r = code(r"""
@@ -441,7 +448,8 @@ def test_queries_a_ragnar_store_created_in_r(
         writeLines("selected the open ragnar reader")
         """)
     client.send(r=r)
-    assert normalize_duckdb_progress(client) == "selected the open ragnar reader\n"
+    output = normalize_duckdb_progress(client)
+    assert output == "selected the open ragnar reader\n", output
     client.send(sql="SELECT origin FROM chunks ORDER BY origin")
     preview = normalize_trailing_spaces(client)
     assert [line.split() for line in preview.splitlines()[-2:]] == [
@@ -473,7 +481,8 @@ def test_queries_a_ragnar_store_created_in_r(
         """)
     client.send(r=r)
     marker = "ragnar store ready\n"
-    assert normalize_duckdb_progress(client) == marker
+    output = normalize_duckdb_progress(client)
+    assert output == marker, output
 
     sql = code(r"""
         LOAD fts;
@@ -562,14 +571,14 @@ def test_evaluates_queries_in_a_persistent_catalog(
 def test_interrupts_running_sql_query(binary: Path, execution: Execution) -> Transcript:
     with tempfile.TemporaryDirectory() as temporary_directory:
         temporary_path = Path(temporary_directory)
-        environment, _ = r_test_environment()
+        environment = r_duckdb_snapshot_environment()
         environment["TMPDIR"] = temporary_directory
         environment["MCP_CONSOLE_SQL_INTERRUPT_LIBRARY"] = str(
             build_interposer(temporary_path, "sql_interrupt_checkpoint")
         )
         client = McpClient(
             binary,
-            execution.serve(),
+            execution.serve("-c", "r.packages=[]"),
             environment,
             current_directory=temporary_path,
         )
@@ -580,11 +589,20 @@ def test_interrupts_running_sql_query(binary: Path, execution: Execution) -> Tra
             # Place the FIFO in the worker's writable temporary directory.
             # fmt: r
             r = code(r"""
+                stopifnot(packageVersion("duckdb") == "1.5.6")
                 interrupt_started <- file.path(tempdir(), "sql-interrupt-started")
                 cat(interrupt_started, "\n", sep = "")
                 """)
-            client.send(r=r)
-            started = FifoCheckpoint.create(Path(last_tool_text(client).strip()))
+            output = wait_for_evaluation_output(
+                client,
+                None,
+                "SQL interrupt checkpoint path",
+                completion_timeout_seconds=client.response_timeout,
+                r=r,
+            )
+            checkpoint = Path(output.strip())
+            assert checkpoint.is_absolute(), output
+            started = FifoCheckpoint.create(checkpoint)
             client.transcript[-1]["result"]["content"][0]["text"] = (
                 "<SQL interrupt checkpoint>\n"
             )
@@ -592,8 +610,7 @@ def test_interrupts_running_sql_query(binary: Path, execution: Execution) -> Tra
                 CREATE TABLE interrupt_state AS
                 SELECT CAST(42 AS INTEGER) AS answer
                 """)
-            client.send(sql=sql)
-            assert last_tool_text(client) == "[done]"
+            client.expect(sql=sql)
 
             # fmt: r
             r = code(r"""
@@ -618,8 +635,7 @@ def test_interrupts_running_sql_query(binary: Path, execution: Execution) -> Tra
                   }
                 })
                 """)
-            client.send(r=r)
-            assert last_tool_text(client) == "[done]"
+            client.expect(r=r)
 
             sql = code(r"""
                 SELECT sum(i) AS total FROM range(1000000000000) AS t(i)
@@ -822,12 +838,22 @@ c:11:22
 @requires(R, SQL)
 @executions(SANDBOXED)
 def test_recovers_from_sql_errors(binary: Path, execution: Execution) -> Transcript:
-    client = McpClient(binary, execution.serve())
+    client = McpClient(
+        binary,
+        execution.serve("-c", "r.packages=[]"),
+        r_duckdb_snapshot_environment(),
+    )
     client.initialize_and_list_tools()
     sql = code(r"""
         SELECT * FROM table_that_does_not_exist
         """)
-    client.send(sql=sql)
+    wait_for_evaluation_output(
+        client,
+        None,
+        "SQL catalog error",
+        completion_timeout_seconds=client.response_timeout,
+        sql=sql,
+    )
     result = client.transcript[-1]["result"]
     assert result.get("isError") is not True, result
     output = result["content"][0]["text"]
@@ -1144,6 +1170,7 @@ def test_keeps_repeated_previews_deterministic(
     assert outputs[0] == outputs[1] == outputs[2]
     assert outputs[0].startswith("# A tibble:")
     normalize_preview_paths(client)
+    compact_previews(client, "😀漢é")
     return client.finish()
 
 

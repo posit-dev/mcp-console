@@ -64,14 +64,19 @@ result:
 ---
 send:
   sql: |
-    PRAGMA create_fts_index('retained_state', 'answer', 'body')
+    PRAGMA create_fts_index('retained_state', 'answer', 'body');
+    SELECT 'created' AS index_status
   requirements:
     duckdb:
       - fts
 result:
   content:
     - type: text
-      text: "[done]"
+      text: |
+        # A tibble: 1 × 1
+          index_status
+          <string>    
+        1 "created"   
   isError: false
 ---
 send:
@@ -140,15 +145,7 @@ result:
 ---
 send:
   sql: |
-    PRAGMA create_fts_index('replacement_state', 'answer', 'body')
-result:
-  content:
-    - type: text
-      text: "[done]"
-  isError: false
----
-send:
-  sql: |
+    PRAGMA create_fts_index('replacement_state', 'answer', 'body');
     SELECT 'loaded' AS verified
     FROM replacement_state
     CROSS JOIN duckdb_extensions() AS extensions

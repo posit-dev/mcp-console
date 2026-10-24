@@ -48,6 +48,9 @@ pub(crate) enum ResponseDeliveryAdmissionError {
 
 #[derive(Default)]
 struct ResponseDeliveryState {
+    // MCP requires request IDs to be unique throughout the session. Duplicate
+    // IDs are invalid traffic, outside this delivery contract.
+    // https://modelcontextprotocol.io/specification/2025-11-25/basic#requests
     active: HashMap<RequestId, ResponseDeliveryCall>,
     /// Every accepted reservation remains here until admission or cancellation.
     pending: HashMap<RequestId, u64>,
@@ -815,7 +818,7 @@ pub(crate) struct RecordingCall {
 impl RecordingCall {
     // rmcp responses have no extensions. Carry instance identity through its
     // handler channel, then remove this envelope before capture or wire encoding.
-    // A JSON-RPC ID can be reused or cancelled before an earlier response arrives.
+    // Cancellation can remove delivery ownership before a response is captured.
     const RESPONSE_ID: &'static str = "mcp-console/internal/recording-call";
 
     pub(crate) async fn recorded(mut self) -> crate::transcript::Call {

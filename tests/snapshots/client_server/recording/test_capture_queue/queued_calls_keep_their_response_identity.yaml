@@ -1,4 +1,4 @@
 ---
 !same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
 ---
-response identity: earlier request instance
+response identity: distinct queued calls

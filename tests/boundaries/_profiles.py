@@ -28,9 +28,10 @@ SMOKE = (
     "cli/sandbox/test_execution::denies_network_access",
 )
 
-# Allocation ceilings require these original workloads. Short recovery cases
-# exercise the functional boundaries in --full; scale runs are explicit.
+# Allocation ceilings and repeated overlap retain their original workloads.
+# Short cases exercise the functional boundaries in --full; scale is explicit.
 STRESS = (
+    "client_server/requirements/test_actions::inspection_completes_under_repeated_overlap",
     "client_server/output/test_recovery::cancelled_control_recovery_keeps_bounded_allocations",
     "client_server/output/test_recovery::recovered_silent_cells_keep_bounded_allocations",
     "client_server/output/test_recovery::recovered_image_omissions_keep_bounded_state",

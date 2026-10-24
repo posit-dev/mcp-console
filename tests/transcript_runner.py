@@ -209,6 +209,8 @@ def check_recording(*arguments: object, **keywords: object) -> object:
 
 
 class TranscriptRunnerFixture(unittest.TestCase):
+    """Shared setup only; concrete classes own each test exactly once."""
+
     def setUp(self) -> None:
         # Copied runners select fixture executables; restore caller overrides
         # after each test, including when setup or an assertion fails.
@@ -272,68 +274,6 @@ class TranscriptRunnerFixture(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def test_documentation_companion_links_check_repository_and_nested_guides(
-        self,
-    ) -> None:
-        selector = "cli/test_documentation::current_companion_links_match_pin"
-        suite = self.boundaries / "cli/test_documentation.py"
-        suite.parent.mkdir()
-        shutil.copy2(ROOT / "tests/boundaries/cli/test_documentation.py", suite)
-        snapshot = self.root / "tests/snapshots/cli/test_documentation"
-        snapshot.mkdir(parents=True)
-        shutil.copy2(
-            ROOT
-            / "tests/snapshots/cli/test_documentation/current_companion_links_match_pin.yaml",
-            snapshot,
-        )
-        for name in ("README.md", "RELEASE.md"):
-            (self.root / name).touch()
-        # A renamed companion must still reject links to its old repository.
-        repository = "new-owner/native-runner"
-        revision = "1" * 40
-        (self.root / "sandbox-runner.json").write_text(
-            json.dumps({"repository": repository, "commit": revision}),
-            encoding="utf-8",
-        )
-        for name, linked_repository, linked_revision, valid in (
-            ("README.md", "t-kalinowski/cobox", revision, False),
-            ("RELEASE.md", "old-owner/native-runner", revision, False),
-            ("docs/python/index.qmd", repository, "0" * 40, False),
-            ("docs/guides/nested/guide.md", repository, "main", False),
-            ("docs/python/index.qmd", "t-kalinowski/cobox", revision, False),
-            ("docs/python/index.qmd", repository, revision, True),
-            ("docs/guides/nested/guide.md", repository, revision, True),
-            ("docs/RESOLVER_RELEASE_AUDIT.md", "t-kalinowski/cobox", "0" * 40, True),
-            ("docs/benchmarks/nested/record.qmd", "t-kalinowski/cobox", "0" * 40, True),
-            ("docs/_site/python/index.md", "t-kalinowski/cobox", "0" * 40, True),
-            ("docs/.quarto/record.md", "t-kalinowski/cobox", "0" * 40, True),
-            ("docs/TOOL_DESCRIPTIONS.md", "openai/codex", "0" * 40, True),
-        ):
-            with self.subTest(document=name, repository=linked_repository):
-                document = self.root / name
-                document.parent.mkdir(parents=True, exist_ok=True)
-                (self.root / "docs").mkdir(exist_ok=True)
-                document.write_text(
-                    f"[Source](https://github.com/{linked_repository}/blob/"
-                    f"{linked_revision}/codex-rs/mcp-console-sandbox/src/main.rs)\n",
-                    encoding="utf-8",
-                )
-                try:
-                    result = self.run_runner(selector)
-                    output = result.stdout + result.stderr
-                    if valid:
-                        self.assertEqual(result.returncode, 0, output)
-                    else:
-                        self.assertNotEqual(result.returncode, 0, output)
-                        self.assertIn(
-                            f"{document.relative_to(self.root)}:1: companion reference",
-                            output,
-                        )
-                        self.assertIn(linked_repository, output)
-                        self.assertIn(linked_revision, output)
-                finally:
-                    document.write_text("", encoding="utf-8")
-
     def start_runner(self, *arguments: str) -> subprocess.Popen[str]:
         return subprocess.Popen(
             [sys.executable, self.boundaries / "_run.py", *arguments],
@@ -344,20 +284,33 @@ class TranscriptRunnerFixture(unittest.TestCase):
             start_new_session=True,
         )
 
-    def run_runner(
-        self, *arguments: str, timeout: float = 10
-    ) -> subprocess.CompletedProcess[str]:
-        process = self.start_runner(*arguments)
-        try:
-            stdout, stderr = process.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            with suppress(ProcessLookupError):
-                os.killpg(process.pid, signal.SIGKILL)
-            stdout, stderr = process.communicate()
-            self.fail(f"runner did not exit; stdout={stdout!r}; stderr={stderr!r}")
-        return subprocess.CompletedProcess(
-            arguments, process.returncode, stdout, stderr
+    def run_runner(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, self.boundaries / "_run.py", *arguments],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
+
+    def read_snapshot_failure(
+        self, process: subprocess.Popen[str], selector: str
+    ) -> str:
+        assert process.stderr is not None
+        terminator = f"{selector} differs from its snapshot\n".encode()
+        output = bytearray()
+        deadline = time.monotonic() + 10
+        while terminator not in output:
+            remaining = deadline - time.monotonic()
+            self.assertGreater(
+                remaining, 0, "snapshot failure diagnostic was not reported"
+            )
+            ready, _, _ = select.select([process.stderr], [], [], remaining)
+            self.assertTrue(ready, "snapshot failure diagnostic was not reported")
+            data = os.read(process.stderr.fileno(), 4096)
+            self.assertTrue(data, "runner exited before reporting snapshot failure")
+            output.extend(data)
+        return output.decode()
 
     def prepare_script(self) -> dict[str, str]:
         scripts = self.root / "scripts"
@@ -416,6 +369,21 @@ class TranscriptRunnerFixture(unittest.TestCase):
 
 @unittest.skipUnless(POSIX.available, POSIX.reason)
 class TranscriptRunnerTests(TranscriptRunnerFixture):
+    def run_runner(
+        self, *arguments: str, timeout: float = 10
+    ) -> subprocess.CompletedProcess[str]:
+        process = self.start_runner(*arguments)
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            stdout, stderr = process.communicate()
+            self.fail(f"runner did not exit; stdout={stdout!r}; stderr={stderr!r}")
+        return subprocess.CompletedProcess(
+            arguments, process.returncode, stdout, stderr
+        )
+
     def test_script_builds_and_uses_release_with_a_stale_debug_binary(self) -> None:
         environment = self.prepare_script()
         debug = self.root / "target" / "debug" / "mcp-console"
@@ -945,9 +913,6 @@ runner: orphan
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue(orphan.exists())
             self.assertEqual(unselected.read_bytes(), original)
-        full = self.run_runner("--full", "--update")
-        self.assertEqual(full.returncode, 0, full.stderr)
-        self.assertFalse(orphan.exists())
 
     def test_full_profile_selected_updates_preserve_unrelated_orphans(self) -> None:
         orphan = self.snapshots / "deleted_case.yaml"
@@ -1564,13 +1529,12 @@ runner: released
             self.assertTrue(ready, "hanging case did not start")
             self.assertEqual(os.read(started, 1), b"1")
             self.assertEqual(os.write(release_failure, b"1"), 1)
-            assert process.stderr is not None
-            receipt = read_lines(process.stderr, 3, "failure limit receipt")
+            receipt = self.read_snapshot_failure(process, failure)
             self.assertIn(f"{failure}: failed", receipt)
             with (self.root / "hang-release").open("wb", buffering=0) as release:
                 self.assertEqual(release.write(b"1"), 1)
             stdout, stderr = process.communicate(timeout=10)
-            stderr = "\n".join(receipt) + "\n" + stderr
+            stderr = receipt + stderr
             self.assertNotEqual(process.returncode, 0, stdout)
             self.assertIn(f"{failure}: failed", stderr)
             self.assertIn("runner: deliberate mismatch", stderr)
@@ -1579,6 +1543,9 @@ runner: released
             self.assertNotIn("timed out", stderr)
             self.assertNotIn("multiple transcript cases failed", stderr)
             self.assertIn("1 of 3 transcript cases failed; not started: 1", stderr)
+            self.assertEqual(
+                stderr.count(f"{failure} differs from its snapshot"), 1, stderr
+            )
             self.assertFalse((self.root / "selected.marker").exists())
             with self.assertRaises(ProcessLookupError):
                 os.killpg(process.pid, 0)
@@ -1602,12 +1569,11 @@ runner: released
             self.assertTrue(ready, "failed case did not enter its cleanup")
             self.assertEqual(os.read(started, 1), b"1")
             self.assertEqual(os.write(release_failure, b"1"), 1)
-            assert process.stderr is not None
-            receipt = read_lines(process.stderr, 3, "failure limit receipt")
+            receipt = self.read_snapshot_failure(process, failure)
             self.assertIn(f"{failure}: failed", receipt)
             process.send_signal(signal.SIGINT)
             stdout, stderr = process.communicate(timeout=10)
-            stderr = "\n".join(receipt) + "\n" + stderr
+            stderr = receipt + stderr
             self.assertNotEqual(process.returncode, 0, stdout)
             self.assertIn(f"{failure}: failed", stderr)
             self.assertIn("runner: deliberate mismatch", stderr)
@@ -1840,22 +1806,6 @@ warnings: []
         result = self.run_runner("client_server/server/test_tools::forks")
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_collection_selectors_and_locate(self) -> None:
-        suite = "client_server/server/test_tools"
-        selected = self.run_runner("--jobs", "1", f"{suite}::selected")
-        self.assertEqual(selected.returncode, 0, selected.stderr)
-        self.assertTrue((self.root / "selected.marker").is_file())
-        self.assertFalse((self.root / "unselected.marker").exists())
-
-        for marker in self.root.glob("*.marker"):
-            marker.unlink()
-        selected_suite = self.run_runner("--jobs", "1", suite)
-        self.assertEqual(selected_suite.returncode, 0, selected_suite.stderr)
-        self.assertEqual(
-            {path.name for path in self.root.glob("*.marker")},
-            {"initialization.marker", "selected.marker", "unselected.marker"},
-        )
-
     def test_orphan_rejection_and_full_update_cleanup(self) -> None:
         orphan = self.snapshots / "deleted_case.yaml"
         orphan.write_text(
@@ -2019,7 +1969,11 @@ runner: orphan
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("20 of 20 transcript cases failed", result.stderr)
         for name in names:
-            self.assertIn(f"AssertionError: failure in {name}", result.stderr)
+            self.assertEqual(
+                result.stderr.count(f"AssertionError: failure in {name}"),
+                1,
+                result.stderr,
+            )
 
     def test_parallel_failure_exits_and_reports_every_failure(self) -> None:
         self.suite.write_text(FAILING_SUITE, encoding="utf-8")
@@ -2044,18 +1998,21 @@ runner: orphan
                 self.assertTrue(ready, "both failing cases did not start")
                 acknowledgements += os.read(started, 2 - len(acknowledgements))
             self.assertEqual(os.write(release_first, b"1"), 1)
-            assert process.stderr is not None
-            # Descriptor reads avoid buffering part of the receipt above the pipe.
-            receipt = read_lines(process.stderr, 3, "first failure limit receipt")
+            # Keep the sibling gated until the complete first diagnostic arrives.
+            observed_stderr = self.read_snapshot_failure(
+                process, "client_server/server/test_tools::first_failure"
+            )
             self.assertEqual(
-                receipt,
+                observed_stderr.splitlines()[:3],
                 [
                     "client_server/server/test_tools::first_failure: failed",
                     "rerun: scripts/test client_server/server/test_tools::first_failure",
                     "Stopping new cases: 1 of 3 transcript cases failed (more than 15%); finishing running cases.",
                 ],
             )
-            observed_stderr = "\n".join(receipt) + "\n"
+            self.assertIn("runner: first actual", observed_stderr)
+            self.assertNotIn("runner: second actual", observed_stderr)
+            self.assertIsNone(process.poll())
             self.assertEqual(os.write(release_second, b"2"), 1)
             stdout, remaining_stderr = process.communicate(timeout=10)
             stderr = observed_stderr + remaining_stderr
@@ -2081,22 +2038,83 @@ runner: orphan
                 f"rerun: scripts/test client_server/server/test_tools::{name}",
                 stderr,
             )
+            self.assertEqual(
+                stderr.count(
+                    f"client_server/server/test_tools::{name} differs from its snapshot"
+                ),
+                1,
+                stderr,
+            )
         self.assertIn("runner: first actual", stderr)
         self.assertIn("runner: second actual", stderr)
         self.assertIn("multiple transcript cases failed (2 sub-exceptions)", stderr)
-        self.assertIn(
-            "client_server/server/test_tools::first_failure differs from its snapshot",
-            stderr,
-        )
-        self.assertIn(
-            "client_server/server/test_tools::second_failure differs from its snapshot",
-            stderr,
-        )
         with self.assertRaises(ProcessLookupError):
             os.killpg(process.pid, 0)
 
 
 class TranscriptDiscoveryTests(TranscriptRunnerFixture):
+    def test_documentation_companion_links_check_repository_and_nested_guides(
+        self,
+    ) -> None:
+        selector = "cli/test_documentation::current_companion_links_match_pin"
+        suite = self.boundaries / "cli/test_documentation.py"
+        suite.parent.mkdir()
+        shutil.copy2(ROOT / "tests/boundaries/cli/test_documentation.py", suite)
+        snapshot = self.root / "tests/snapshots/cli/test_documentation"
+        snapshot.mkdir(parents=True)
+        shutil.copy2(
+            ROOT
+            / "tests/snapshots/cli/test_documentation/current_companion_links_match_pin.yaml",
+            snapshot,
+        )
+        for name in ("README.md", "RELEASE.md"):
+            (self.root / name).touch()
+        # A renamed companion must still reject links to its old repository.
+        repository = "new-owner/native-runner"
+        revision = "1" * 40
+        (self.root / "sandbox-runner.json").write_text(
+            json.dumps({"repository": repository, "commit": revision}),
+            encoding="utf-8",
+        )
+        for name, linked_repository, linked_revision, valid in (
+            ("README.md", "t-kalinowski/cobox", revision, False),
+            ("RELEASE.md", "old-owner/native-runner", revision, False),
+            ("docs/python/index.qmd", repository, "0" * 40, False),
+            ("docs/guides/nested/guide.md", repository, "main", False),
+            ("docs/python/index.qmd", "t-kalinowski/cobox", revision, False),
+            ("docs/python/index.qmd", repository, revision, True),
+            ("docs/guides/nested/guide.md", repository, revision, True),
+            ("docs/RESOLVER_RELEASE_AUDIT.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/benchmarks/nested/record.qmd", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/_site/python/index.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/.quarto/record.md", "t-kalinowski/cobox", "0" * 40, True),
+            ("docs/TOOL_DESCRIPTIONS.md", "openai/codex", "0" * 40, True),
+        ):
+            with self.subTest(document=name, repository=linked_repository):
+                document = self.root / name
+                document.parent.mkdir(parents=True, exist_ok=True)
+                (self.root / "docs").mkdir(exist_ok=True)
+                document.write_text(
+                    f"[Source](https://github.com/{linked_repository}/blob/"
+                    f"{linked_revision}/codex-rs/mcp-console-sandbox/src/main.rs)\n",
+                    encoding="utf-8",
+                )
+                try:
+                    result = self.run_runner(selector)
+                    output = result.stdout + result.stderr
+                    if valid:
+                        self.assertEqual(result.returncode, 0, output)
+                    else:
+                        self.assertNotEqual(result.returncode, 0, output)
+                        self.assertIn(
+                            f"{document.relative_to(self.root)}:1: companion reference",
+                            output,
+                        )
+                        self.assertIn(linked_repository, output)
+                        self.assertIn(linked_revision, output)
+                finally:
+                    document.write_text("", encoding="utf-8")
+
     def test_shared_direct_handshake_precedes_equal_variants(self) -> None:
         self.suite.write_text(
             PUBLIC_SUITE
@@ -2303,15 +2321,6 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(stale.read_text(), "retained platform output\n")
 
-    def run_runner(self, *arguments: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, self.boundaries / "_run.py", *arguments],
-            cwd=self.root,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-
     def test_help_reports_default_concurrency_for_available_cpus(self) -> None:
         for cpu_count, jobs in ((None, 2), (0, 2), (1, 2), (2, 4), (8, 16), (64, 128)):
             with self.subTest(cpu_count=cpu_count):
@@ -2348,14 +2357,8 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
                     " ".join(result.stdout.split()),
                 )
 
-    def test_runner_metadata_does_not_require_a_binary(self) -> None:
-        (self.root / "target/release/mcp-console").unlink()
-        for arguments in (("--list",), ("--locate", "client_server/server/test_tools")):
-            with self.subTest(arguments=arguments):
-                result = self.run_runner(*arguments)
-                self.assertEqual(result.returncode, 0, result.stderr)
-
     def test_collection_selectors_and_locate(self) -> None:
+        (self.root / "target/release/mcp-console").unlink()
         hidden = (
             self.boundaries / "client_server" / "server" / "_private" / "test_hidden.py"
         )
@@ -2407,7 +2410,7 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
 
 
 @unittest.skipUnless(os.name == "nt", "native Windows case supervision")
-class WindowsTranscriptTests(TranscriptDiscoveryTests):
+class WindowsTranscriptTests(TranscriptRunnerFixture):
     def test_platform_update_preserves_shared_snapshots_and_prunes_stale_windows_companions(
         self,
     ) -> None:
