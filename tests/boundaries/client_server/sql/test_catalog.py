@@ -29,9 +29,11 @@ from support.r import (
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.previews import (
     assert_preview,
-    cell_text,
+    cell_output_path,
     compact_previews,
     normalize_preview_paths,
+    recording_events,
+    session_directory,
 )
 from support.suites import run_this_suite
 from boundaries.client_server.server.test_no_r import no_r_environment
@@ -975,8 +977,7 @@ def test_previews_schema_and_exact_values(
           pillar.subtle = TRUE
         ))
         """)
-    client.send(r=r)
-    assert last_tool_text(client) == "[done]"
+    client.expect(r=r)
 
     sql = code(r"""
         SELECT
@@ -990,7 +991,7 @@ def test_previews_schema_and_exact_values(
           {'name': 'Ada', 'active': true} AS person
         FROM range(21)
         """)
-    client.send(sql=sql)
+    client.expect(None, sql=sql)
     values = last_tool_text(client)
 
     sql = code(r"""
@@ -1008,7 +1009,7 @@ def test_previews_schema_and_exact_values(
           11 AS column_name_11_is_deliberately_long,
           12 AS column_name_12_is_deliberately_long
         """)
-    client.send(sql=sql)
+    client.expect(None, sql=sql)
     long_names = last_tool_text(client)
 
     sql = code(r"""
@@ -1018,7 +1019,7 @@ def test_previews_schema_and_exact_values(
           CAST(NULL AS VARCHAR[]) AS tags
         WHERE FALSE
         """)
-    client.send(sql=sql)
+    client.expect(None, sql=sql)
     empty = last_tool_text(client)
     client.expect(r='stopifnot(!"arrow" %in% loadedNamespaces())')
     transcript = client.finish()
@@ -1056,7 +1057,7 @@ def test_uses_200_column_default(binary: Path, execution: Execution) -> Transcri
           5 AS column_name_05_abcdefghijkl,
           6 AS column_name_06_abcdefghijkl
         """)
-    client.send(sql=sql)
+    client.expect(None, sql=sql)
     output = last_tool_text(client)
     for column in range(1, 7):
         assert f"column_name_{column:02}_abcdefghijkl" in output
@@ -1094,21 +1095,24 @@ def test_bounds_query_previews_without_materializing_results(
           repeat('n', 1000) AS c14
         FROM range(21)
         """)
-    client.send(sql=sql)
+    client.expect(None, sql=sql)
     wide = last_tool_text(client)
 
     sql = code(r"""
         SELECT repeat('z', 1000) AS value
         """)
-    client.send(sql=sql)
+    client.expect(None, sql=sql)
     long_cell = last_tool_text(client)
 
     sql = code(r"""
+        SET memory_limit = '64MB';
         SELECT value
         FROM range(1000000000000) AS values(value)
         WHERE value % 97 = 0
         """)
-    client.send(sql=sql, timeout_ms=1000)
+    # A response deadline is not a query-completion deadline. Exercise polling
+    # while keeping the trillion-row result bounded by the preview contract.
+    client.expect(None, sql=sql, timeout_ms=0)
     large = last_tool_text(client)
     normalize_preview_paths(client)
     transcript = client.finish()
@@ -1120,7 +1124,6 @@ def test_bounds_query_previews_without_materializing_results(
     assert "a" * 161 not in wide
     assert f'"{"z" * 159}…"' in long_cell
     assert "[cell values truncated to 160 characters]" in long_cell
-    assert without_elapsed(large) != "\n[running; poll with an empty send]"
     assert len(large.encode("utf-8")) <= 8 * 1024
     assert "[additional rows omitted]" in large
     return transcript
@@ -1150,21 +1153,30 @@ def test_keeps_repeated_previews_deterministic(
           repeat('extra', 2000) AS c13
         FROM range(21)
         """)
-    client.send(sql=sql)
-    assert last_tool_text(client) == "[done]"
+    client.expect(sql=sql)
 
     sql = code(r"""
         SELECT * FROM wide_values
         """)
     outputs = []
     retained = []
-    for call_id in range(2, 5):
-        client.send(sql=sql)
+    for _ in range(3):
+        client.expect(None, sql=sql, timeout_ms=0)
         output = last_tool_text(client)
-        raw = cell_text(client, call_id)
+        session = session_directory(client)
+        (call,) = [
+            event
+            for event in recording_events(session)
+            if event["event"] == "tool_call"
+            and event["request_id"] == client.transcript[-1]["id"]
+        ]
+        # Polls consume call IDs without starting cells. Follow the submitted
+        # request through the public journal instead of counting exchanges.
+        path = cell_output_path(session, call["call_id"])
+        raw = path.read_bytes().decode("utf-8", errors="replace")
         assert_preview(output, raw)
         retained.append(raw)
-        outputs.append(output.replace(f"cell-{call_id:03}.txt", "cell-<cell>.txt"))
+        outputs.append(output.replace(path.name, "cell-<cell>.txt"))
 
     assert retained[0] == retained[1] == retained[2]
     assert outputs[0] == outputs[1] == outputs[2]

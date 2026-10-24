@@ -70,7 +70,7 @@ result:
   isError: false
 ---
 send:
-  timeout_ms: 3000
+  timeout_ms: 0
 result:
   content:
     - type: text

@@ -79,6 +79,9 @@ For shutdown output, establish cell completion and its recorded `cell_output` ev
 Sleeps, broader matching, and longer timeouts do not establish ordering.
 
 `wait_for_evaluation_output()` submits once, accumulates every text delta, and bounds transport receives with its completion budget.
+`client.expect()` uses that collector with the client's existing response budget and checks exact successful output (`[done]` by default).
+Use `client.expect(None, ...)` when asserting the collected content separately, such as SQL preview row, column, and byte limits.
+An initial `timeout_ms=0` exercises polling without making query speed part of those assertions.
 Give cold preparation an explicit longer budget.
 The default `send` observation deadline can return while setup is still running; establish completion before dependent requests.
 Use the client's preparation budget for resolver collection and initial requirements inspection.
