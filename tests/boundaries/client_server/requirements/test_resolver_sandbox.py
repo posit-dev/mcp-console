@@ -25,7 +25,7 @@ from support.normalization import code
 from support.progress import without_elapsed
 from support.records import ToolResult, Transcript
 from support.r import r_test_environment
-from support.resolvers import ir_cache_directory
+from support.resolvers import r_library_cache_environment
 from boundaries.client_server.python.test_without_r import environment
 
 
@@ -231,17 +231,7 @@ def test_custom_worker_captures_duckdb_cache_before_live_r(
             cache = root / "extensions" if explicit else home / ".duckdb/extensions"
             resolver_env = {
                 "HOME": str(home),
-                "IR_CACHE_DIR": env.get(
-                    "IR_CACHE_DIR",
-                    str(
-                        Path(env["HOME"])
-                        / (
-                            "Library/Caches/org.R-project.R/R/ir"
-                            if sys.platform == "darwin"
-                            else ".cache/R/ir"
-                        )
-                    ),
-                ),
+                **r_library_cache_environment(env),
             }
             if explicit:
                 resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(cache)
@@ -300,17 +290,7 @@ def duckdb_cache(
             cache = root / "extensions" if explicit else home / ".duckdb/extensions"
             resolver_env = {"HOME": str(home)}
             if r:
-                resolver_env["IR_CACHE_DIR"] = env.get(
-                    "IR_CACHE_DIR",
-                    str(
-                        Path(env["HOME"])
-                        / (
-                            "Library/Caches/org.R-project.R/R/ir"
-                            if sys.platform == "darwin"
-                            else ".cache/R/ir"
-                        )
-                    ),
-                )
+                resolver_env.update(r_library_cache_environment(env))
             if explicit:
                 resolver_env["MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY"] = str(cache)
             config = root / ".agents/console/config.yaml"
@@ -331,7 +311,17 @@ def duckdb_cache(
                 result = client.transcript[-1]["result"]
                 assert not result.get("isError"), result
                 assert str(cache) in last_tool_text(client), last_tool_text(client)
-                assert list(cache.glob("v*/**/sqlite_scanner.duckdb_extension"))
+                assert list(cache.glob("v*/**/sqlite_scanner.duckdb_extension")), (
+                    cache,
+                    list(cache.rglob("*.duckdb_extension")),
+                    client.transcript,
+                )
+                if r:
+                    client.expect(
+                        lambda output: Path(output.strip()).is_dir(),
+                        r='cat(normalizePath(find.package("jsonlite")))',
+                    )
+                    package_directory = Path(last_tool_text(client).strip())
                 wait_for_evaluation_output(
                     client,
                     None,
@@ -360,6 +350,9 @@ def duckdb_cache(
                 )
                 assert str(cache) in last_tool_text(client), last_tool_text(client)
                 client.finish()
+        if r:
+            # The shared ir library must survive this resolver HOME's cleanup.
+            assert package_directory.is_dir(), package_directory
     return [
         {
             "resolver_home_cache": True,
@@ -591,7 +584,7 @@ def test_bootstraps_reticulate_uv_with_host_cache_policy(binary: Path) -> Transc
     with TemporaryDirectory() as directory:
         root = Path(directory).resolve()
         env, _ = r_test_environment()
-        env["IR_CACHE_DIR"] = ir_cache_directory(env)
+        env.update(r_library_cache_environment(env))
         env.update(XDG_CACHE_HOME=str(root / "cache"), RETICULATE_UV="managed")
         for name in (
             "RETICULATE_PYTHON",
