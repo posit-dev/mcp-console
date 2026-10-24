@@ -38,6 +38,9 @@ Reference: [Retrieve the last SQL result](RUNTIME_REFERENCE.md#retrieve-the-last
 
 ## Turn the code into a report {#render-a-reviewed-copy}
 
+Jupyter mode produces non-executable source archives with the selected kernelspec recorded in metadata.
+See [Jupyter history and exports](JUPYTER.md#history-and-exports) for their limitations; the IR rendering workflow below applies to the built-in worker.
+
 Each `sessions/session-NNN.qmd` is a starting point for a report, **not a replay or checkpoint**.
 It contains the R, Python, and SQL source associated with that worker, including failed evaluations, rejected calls, and source submitted alongside a control.
 Restarts and automatic worker replacement begin a separate document; an interrupt that preserves the worker stays in the same document.

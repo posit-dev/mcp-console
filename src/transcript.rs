@@ -88,6 +88,7 @@ struct TranscriptState {
     dynamic_resolution: bool,
     python_preparation: bool,
     r_available: bool,
+    jupyter_kernel: Option<String>,
     startup_requirements: crate::worker_client::Declaration,
     metadata_known: bool,
     storage: Arc<CaptureStorage>,
@@ -142,6 +143,7 @@ impl Transcript {
             false,
             true,
             crate::worker_client::Declaration::default(),
+            None,
         )
     }
     pub(crate) fn configured(
@@ -150,6 +152,7 @@ impl Transcript {
         python_preparation: bool,
         r_available: bool,
         startup_requirements: crate::worker_client::Declaration,
+        jupyter_kernel: Option<String>,
     ) -> Self {
         let storage = Arc::new(CaptureStorage::default());
         Self(
@@ -160,6 +163,7 @@ impl Transcript {
                 dynamic_resolution,
                 python_preparation,
                 r_available,
+                jupyter_kernel,
                 startup_requirements,
                 metadata_known: true,
                 storage: storage.clone(),
@@ -172,7 +176,14 @@ impl Transcript {
         )
     }
     pub(crate) fn pending(working_directory: std::io::Result<PathBuf>) -> Self {
-        let value = Self::configured(working_directory, false, false, false, Default::default());
+        let value = Self::configured(
+            working_directory,
+            false,
+            false,
+            false,
+            Default::default(),
+            None,
+        );
         value.0.lock().expect("transcript lock").metadata_known = false;
         value
     }
@@ -183,6 +194,7 @@ impl Transcript {
             state.dynamic_resolution = configuration.dynamic_resolution;
             state.python_preparation = configuration.python_preparation;
             state.r_available = configuration.r_available;
+            state.jupyter_kernel = configuration.jupyter_kernel.clone();
             state.startup_requirements = configuration.startup_requirements.clone();
             state.metadata_known = true;
             state.capture()?.append(
@@ -190,6 +202,7 @@ impl Transcript {
                     dynamic_resolution: configuration.dynamic_resolution,
                     python_preparation: configuration.python_preparation,
                     r_available: configuration.r_available,
+                    jupyter_kernel: configuration.jupyter_kernel.as_deref(),
                     startup_requirements: &configuration.startup_requirements,
                 },
                 Utc::now(),
@@ -248,7 +261,7 @@ impl Transcript {
             // finish() associates otherwise unclaimed source only if this same
             // worker still owns output; actual replacement changes that owner.
             let has_source = request.arguments.as_ref().is_some_and(|arguments| {
-                ["r", "python", "sql"]
+                ["code", "r", "python", "sql"]
                     .iter()
                     .any(|language| arguments.get(*language).is_some_and(Value::is_string))
             });
@@ -442,6 +455,7 @@ impl ActiveTranscript {
                     configuration.r_available,
                     &configuration.startup_requirements,
                     configuration.metadata_known,
+                    configuration.jupyter_kernel.as_deref(),
                 )
             });
         let (projections, pending_projection_failure) = match projections {

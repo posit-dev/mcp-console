@@ -169,7 +169,7 @@ struct Project {
     python: Option<python::Python>,
     #[serde(deserialize_with = "r_settings")]
     r: Option<R>,
-    languages: Option<Vec<crate::cell::Language>>,
+    languages: Option<Vec<BuiltinLanguage>>,
     #[serde(default = "inherit_by_default")]
     inherit_environment: bool,
     #[serde(deserialize_with = "environment")]
@@ -178,6 +178,14 @@ struct Project {
     sandbox: Option<sandbox::Sandbox>,
     #[serde(deserialize_with = "sandbox::mapping")]
     resolver: Resolver,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum BuiltinLanguage {
+    R,
+    Python,
+    Sql,
 }
 
 #[derive(Clone, Default, serde::Serialize, Deserialize)]
@@ -251,11 +259,17 @@ pub(crate) struct Captured {
     pub resolver_sandbox_requested: bool,
 }
 
+pub(crate) enum ToolInterface {
+    Configured,
+    Jupyter(crate::cell::Languages),
+}
+
 pub fn discover(
     directory: &Path,
     overrides: &crate::cli::ConfigOverrides,
+    interface: ToolInterface,
 ) -> Result<Captured, String> {
-    read(directory, overrides).map(|(captured, _)| captured)
+    read_for_tool(directory, overrides, interface).map(|(captured, _)| captured)
 }
 
 #[derive(Default, Deserialize)]
@@ -268,6 +282,14 @@ struct AdapterOverrides {
 pub(crate) fn read(
     directory: &Path,
     overrides: &crate::cli::ConfigOverrides,
+) -> Result<(Captured, Value), String> {
+    read_for_tool(directory, overrides, ToolInterface::Configured)
+}
+
+fn read_for_tool(
+    directory: &Path,
+    overrides: &crate::cli::ConfigOverrides,
+    interface: ToolInterface,
 ) -> Result<(Captured, Value), String> {
     // The R adapter transports the same ordered overrides in a file so tool
     // prose and valid startup programs are not bounded by process argv limits.
@@ -322,7 +344,7 @@ pub(crate) fn read(
         (_, true) => format!("configuration from {files}"),
         (_, false) => format!("configuration from {files} with CLI overrides"),
     };
-    capture(directory, value, name)
+    capture(directory, value, name, interface)
 }
 
 pub fn from_configuration_environment(
@@ -336,13 +358,14 @@ pub fn from_configuration_environment(
     if !overrides.values.is_empty() {
         source.push_str(" with CLI overrides");
     }
-    capture(directory, Some(value), source).map(|(captured, _)| captured)
+    capture(directory, Some(value), source, ToolInterface::Configured).map(|(captured, _)| captured)
 }
 
 fn capture(
     directory: &Path,
     value: Option<Value>,
     name: String,
+    interface: ToolInterface,
 ) -> Result<(Captured, Value), String> {
     let configured = value.is_some();
     let mut value = value.unwrap_or_else(|| serde_json::json!({}));
@@ -397,9 +420,9 @@ fn capture(
             let mut languages = crate::cell::Languages::default();
             for language in selected {
                 match language {
-                    crate::cell::Language::R => languages.r = true,
-                    crate::cell::Language::Python => languages.python = true,
-                    crate::cell::Language::Sql => languages.sql = true,
+                    BuiltinLanguage::R => languages.r = true,
+                    BuiltinLanguage::Python => languages.python = true,
+                    BuiltinLanguage::Sql => languages.sql = true,
                 }
             }
             Ok(languages)
@@ -407,7 +430,10 @@ fn capture(
         .transpose()?;
     project
         .tool
-        .validate(languages)
+        .validate(match interface {
+            ToolInterface::Configured => languages,
+            ToolInterface::Jupyter(languages) => Some(languages),
+        })
         .map_err(|error| format!("{name}: {error}"))?;
     let sandbox_requested = project.sandbox.is_some();
     let profile = project

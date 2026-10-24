@@ -51,6 +51,7 @@ impl ConsoleServer {
         input_closed: InputClosed,
         worker: Option<PathBuf>,
         relay: Option<PathBuf>,
+        jupyter: Option<crate::jupyter::Configuration>,
         sandbox: SandboxConfiguration,
         python: Option<crate::settings::PythonChoice>,
         r: crate::settings::R,
@@ -59,9 +60,10 @@ impl ConsoleServer {
         tool_settings: crate::settings::Tool,
     ) -> Result<Self, String> {
         let recording_directory = std::env::current_dir();
-        let (languages, language_setting) = match visibility {
-            Some(languages) => (languages, "languages"),
-            None => (Languages::from_environment()?, LANGUAGES_ENV),
+        let (languages, language_setting) = match (&jupyter, visibility) {
+            (Some(jupyter), _) => (jupyter.languages(), "--jupyter-kernel"),
+            (None, Some(languages)) => (languages, "languages"),
+            (None, None) => (Languages::from_environment()?, LANGUAGES_ENV),
         };
         if worker.is_none() && relay.is_some() {
             return Err("a custom relay requires a custom worker".into());
@@ -69,7 +71,7 @@ impl ConsoleServer {
         // Presentation has no dependency on the client or its discovered capabilities.
         let (tool_router, instructions) = Self::configured_presentation(
             languages,
-            worker.is_none(),
+            worker.is_none() && jupyter.is_none(),
             python.as_ref(),
             &sandbox.policy,
             sandbox.no_sandbox,
@@ -88,7 +90,7 @@ impl ConsoleServer {
                     .map_err(|error| std::io::Error::new(error.kind(), error.to_string())),
             ),
         });
-        let prelaunch = worker.is_none();
+        let prelaunch = worker.is_none() && jupyter.is_none();
         let uses_client_profile = sandbox
             .profile
             .as_ref()
@@ -107,7 +109,13 @@ impl ConsoleServer {
                 } else {
                     sandbox.clone()
                 };
-                let configuration = if let Some(program) = worker.clone() {
+                let configuration = if let Some(selection) = &jupyter {
+                    crate::worker_client::ClientConfiguration::jupyter(
+                        selection,
+                        sandbox.no_sandbox,
+                        sandbox.policy,
+                    )?
+                } else if let Some(program) = worker.clone() {
                     crate::worker_client::ClientConfiguration::new(
                         program,
                         relay.clone(),
@@ -134,8 +142,9 @@ impl ConsoleServer {
                         .map_err(|error| std::io::Error::new(error.kind(), error.to_string())),
                     configuration.dynamic_resolution(),
                     configuration.python_preparation(),
-                    !configuration.python_only(),
+                    jupyter.is_none() && !configuration.python_only(),
                     configuration.startup_declaration(),
+                    jupyter.as_ref().map(|selection| selection.kernel.clone()),
                 );
                 Ok(startup::PreparedRuntime {
                     configuration,
@@ -169,6 +178,7 @@ impl ConsoleServer {
         Extension(delivery): Extension<crate::server_transport::ResponseDeliveryCall>,
         Extension(started): Extension<Instant>,
         Parameters(SendArguments {
+            code,
             r,
             python,
             sql,
@@ -178,20 +188,24 @@ impl ConsoleServer {
             timeout_ms,
         }): Parameters<SendArguments>,
     ) -> Result<CallToolResult, String> {
-        let cell = match (r, python, sql) {
-            (Some(source), None, None) => Some(crate::cell::Cell {
+        let cell = match (code, r, python, sql) {
+            (Some(source), None, None, None) => Some(crate::cell::Cell {
+                language: crate::cell::Language::Kernel,
+                source,
+            }),
+            (None, Some(source), None, None) => Some(crate::cell::Cell {
                 language: crate::cell::Language::R,
                 source,
             }),
-            (None, Some(source), None) => Some(crate::cell::Cell {
+            (None, None, Some(source), None) => Some(crate::cell::Cell {
                 language: crate::cell::Language::Python,
                 source,
             }),
-            (None, None, Some(source)) => Some(crate::cell::Cell {
+            (None, None, None, Some(source)) => Some(crate::cell::Cell {
                 language: crate::cell::Language::Sql,
                 source,
             }),
-            (None, None, None) => None,
+            (None, None, None, None) => None,
             _ => {
                 return Err(format!(
                     "only one of {} may be supplied",
@@ -201,6 +215,9 @@ impl ConsoleServer {
         };
         if let Some(requirements) = &requirements {
             use crate::worker_client::RequirementsAction::{Get, Reset};
+            if self.languages.kernel && requirements.action != Get {
+                return Err("dependency preparation is unavailable with Jupyter kernels; install packages in the kernel environment before launch".into());
+            }
             if matches!(requirements.action, Get | Reset)
                 && (requirements.r.is_some()
                     || requirements.python.is_some()
@@ -546,6 +563,7 @@ impl ServerHandler for ConsoleServer {
 pub async fn run(
     worker: Option<PathBuf>,
     relay: Option<PathBuf>,
+    jupyter: Option<crate::jupyter::Configuration>,
     sandbox: SandboxConfiguration,
     python: Option<crate::settings::PythonChoice>,
     r: crate::settings::R,
@@ -561,6 +579,7 @@ pub async fn run(
         input_closed.clone(),
         worker,
         relay,
+        jupyter,
         sandbox,
         python,
         r,

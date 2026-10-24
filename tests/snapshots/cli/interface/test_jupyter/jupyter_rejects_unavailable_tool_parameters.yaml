@@ -1,0 +1,48 @@
+---
+command: >-
+  mcp-console serve --no-config --no-sandbox --jupyter-kernel
+  unused-kernel -c tool.parameters.r.description=Unavailable field.
+exit_code: 1
+stdout: ""
+stderr: >
+  configuration with CLI overrides: tool.parameters.r: unknown or
+  unavailable parameter
+---
+command: >-
+  mcp-console serve --no-config --no-sandbox --jupyter-kernel
+  unused-kernel -c tool.parameters.sql.description=Unavailable field.
+exit_code: 1
+stdout: ""
+stderr: >
+  configuration with CLI overrides: tool.parameters.sql: unknown or
+  unavailable parameter
+---
+command: >-
+  mcp-console serve --no-config --no-sandbox --jupyter-kernel
+  unused-kernel -c
+  tool.parameters.requirements.parameters.python.description=Unavailable
+  field.
+exit_code: 1
+stdout: ""
+stderr: >
+  configuration with CLI overrides:
+  tool.parameters.requirements.parameters.python: unknown or unavailable
+  parameter
+---
+command: >-
+  mcp-console serve --no-config --no-sandbox --jupyter-kernel
+  unused-kernel -c tool.parameters.cod.description=Unavailable field.
+exit_code: 1
+stdout: ""
+stderr: >
+  configuration with CLI overrides: tool.parameters.cod: unknown or
+  unavailable parameter
+---
+command: >-
+  mcp-console config resolve --no-config -c
+  tool.parameters.code.description=Unavailable field.
+exit_code: 1
+stdout: ""
+stderr: >
+  configuration with CLI overrides: tool.parameters.code: unknown or
+  unavailable parameter

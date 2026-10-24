@@ -1,0 +1,28 @@
+---
+scenario: A published ipykernel kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  TCP transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  code: |-
+    answer = 40
+    answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        [IPKernelApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+        42
+  isError: false
+---
+send:
+  code: answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

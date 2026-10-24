@@ -71,6 +71,7 @@ website:
       - section: Other tasks
         contents:
         - SANDBOX_COMMAND.md
+        - JUPYTER.md
     - id: build
       title: Build
       style: docked
@@ -150,6 +151,7 @@ website:
         contents:
         - RESOLVER_RELEASE_AUDIT.md
         - benchmarks/transcript-concurrency.md
+        - benchmarks/jupyter.md
         - href: https://github.com/posit-dev/mcp-console/blob/main/RELEASE.md
           text: Release procedure
   page-footer:

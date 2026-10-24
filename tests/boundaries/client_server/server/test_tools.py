@@ -135,6 +135,18 @@ def test_initializes_and_lists_tools(
         "configured-r-sql.yaml": {"languages": ("r", "sql")},
         "r-only.yaml": {"bootstrap_languages": "r"},
     }
+    if POSIX.available:
+        variants.update(
+            {
+                "jupyter.yaml": {"jupyter": True},
+            }
+        )
+        if execution == SANDBOXED:
+            variants.update(
+                {
+                    "jupyter-writable.yaml": {"jupyter": True, "writable": True},
+                }
+            )
     if execution == SANDBOXED:
         variants.update(
             {
@@ -213,6 +225,55 @@ def test_initializes_and_lists_tools(
     return TranscriptWithCompanions(baseline, companions)
 
 
+def _jupyter_initialization(
+    binary: Path, execution: Execution, *, writable: bool
+) -> Transcript:
+    # Discovery is lazy: this canonical schema needs neither installed kernels
+    # nor Jupyter packages, and never asks the selected worker to start.
+    environment = os.environ.copy()
+    environment.pop("MCP_CONSOLE_LANGUAGES", None)
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory)
+        with McpClient(
+            binary,
+            execution.serve(
+                "--no-config",
+                "--jupyter-kernel",
+                "unused-kernel",
+                "--jupyter-python",
+                sys.executable,
+                *(
+                    (
+                        "--writable-root",
+                        str(workspace),
+                        "-c",
+                        "sandbox.network={proxy: {mode: limited}, sockets: {unix_sockets: dangerously_allow_all}, allow_local_binding: true}",
+                    )
+                    if writable
+                    else ()
+                ),
+            ),
+            environment,
+            current_directory=workspace,
+            record_in_project=False,
+        ) as client:
+            client.initialize_and_list_tools()
+            (send,) = client.transcript[-1]["result"]["tools"]
+            assert send["name"] == "send", send
+            assert set(send["inputSchema"]["properties"]) == {
+                "code",
+                "control",
+                "stdin",
+                "timeout_ms",
+                "requirements",
+            }, send
+            assert (
+                client.transcript[0]["result"]["instructions"]
+                == (send["description"].split("\n\n", 1)[0])
+            )
+            return client.finish()
+
+
 def _initializes_and_lists_tools(
     binary: Path,
     execution: Execution,
@@ -228,7 +289,10 @@ def _initializes_and_lists_tools(
     sandbox_profile: str | None = None,
     bootstrap_languages: str | None = None,
     languages: tuple[str, ...] | None = None,
+    jupyter: bool = False,
 ) -> Transcript:
+    if jupyter:
+        return _jupyter_initialization(binary, execution, writable=writable)
     environment = os.environ.copy()
     environment.pop("MCP_CONSOLE_LANGUAGES", None)
     if bootstrap_languages is not None:

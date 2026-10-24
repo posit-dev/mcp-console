@@ -42,6 +42,55 @@ def options(binary: Path, execution: Execution) -> dict:
     }
 
 
+def test_clients_forward_jupyter_kernel_source(binary: Path) -> Transcript:
+    source = 'answer = "café Ω"\nprint(answer)'
+    results = []
+
+    async def exercise(console) -> None:
+        assert set(console.send_tool.input_schema["properties"]) == {"code"}
+        for call in (console.send, console):
+            output = call(code=source)
+            assert (await output if inspect.isawaitable(output) else output) == source
+
+    with tempfile.TemporaryDirectory() as directory:
+        for mode in ("sync", "async"):
+            root = Path(directory) / mode
+            root.mkdir()
+            settings = {
+                "command": sys.executable,
+                "args": ["-u", ROOT / "tests/fixtures/python_sync_server.py", "kernel"],
+                "server_parameters": {
+                    "cwd": root,
+                    "env": dict(os.environ, MCP_CONSOLE_HOME=str(root)),
+                },
+            }
+            if mode == "sync":
+                with MCPConsole(**settings) as console:
+                    asyncio.run(exercise(console))
+            else:
+
+                async def asynchronous() -> None:
+                    async with AsyncMCPConsole(**settings) as console:
+                        await exercise(console)
+
+                asyncio.run(asynchronous())
+            requests = [
+                json.loads(line)
+                for line in (root / "requests.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            calls = [
+                request["params"]
+                for request in requests
+                if request["method"] == "tools/call"
+            ]
+            assert calls == [{"name": "send", "arguments": {"code": source}}] * 2
+            assert (root / "closed").exists()
+            results.append({"client": mode, "calls": calls, "closed": True})
+    return results
+
+
 def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcript:
     from agents.tool_context import ToolContext
 

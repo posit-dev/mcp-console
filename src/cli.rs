@@ -180,6 +180,18 @@ pub enum Command {
         #[arg(long, value_name = "PATH", conflicts_with = "no_sandbox")]
         writable_root: Vec<PathBuf>,
 
+        /// Run an installed local Jupyter kernel instead of the built-in worker
+        #[arg(long, value_name = "NAME", conflicts_with_all = ["worker", "relay"])]
+        jupyter_kernel: Option<String>,
+
+        /// Python with jupyter_client installed (defaults to python3)
+        #[arg(long, value_name = "PATH", requires = "jupyter_kernel")]
+        jupyter_python: Option<PathBuf>,
+
+        /// Jupyter transport (auto selects a private sandbox transport)
+        #[arg(long, value_enum, requires = "jupyter_kernel")]
+        jupyter_transport: Option<crate::jupyter::Transport>,
+
         /// Replace the runtime worker during development
         #[arg(long, hide = true, value_name = "PATH")]
         worker: Option<PathBuf>,

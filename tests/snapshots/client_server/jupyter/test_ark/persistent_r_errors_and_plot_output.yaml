@@ -1,0 +1,47 @@
+---
+scenario: A published ark kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  TCP transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  code: answer <- 40; answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  code: stop("intentional kernel error")
+result:
+  content:
+    - type: text
+      text: |
+        Error:
+        ! intentional kernel error
+  isError: false
+---
+send:
+  code: answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  code: |
+    par(mar = rep(0, 4), bg = "white")
+    plot.new()
+    rect(0.25, 0.25, 0.75, 0.75, col = "red", border = NA)
+result:
+  content:
+    - type: image
+      data: "<PNG: 800 x 600, red center, white corner>"
+      mimeType: image/png
+  isError: false

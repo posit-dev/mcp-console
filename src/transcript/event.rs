@@ -92,6 +92,8 @@ pub(super) enum Event<'a> {
         dynamic_resolution: bool,
         python_preparation: bool,
         r_available: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        jupyter_kernel: Option<&'a str>,
         startup_requirements: &'a crate::worker_client::Declaration,
     },
     StartupFailed {

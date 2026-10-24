@@ -91,6 +91,62 @@ impl ClientConfiguration {
         )
     }
 
+    pub(crate) fn jupyter(
+        selection: &crate::jupyter::Configuration,
+        no_sandbox: bool,
+        mut sandbox_settings: crate::settings::SandboxSettings,
+    ) -> Result<Self, String> {
+        let transport = selection.launch(no_sandbox, &mut sandbox_settings)?;
+        let mut arguments: Vec<OsString> = vec![
+            "-u".into(),
+            "-c".into(),
+            include_str!("../jupyter/worker.py").into(),
+            "--kernel".into(),
+            selection.kernel.clone().into(),
+            "--transport".into(),
+            transport.name().into(),
+        ];
+        if cfg!(target_os = "linux")
+            && !no_sandbox
+            && sandbox_settings
+                .get("proxy")
+                .and_then(|proxy| proxy.get("enabled"))
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+        {
+            // The pinned runner's managed-network path always isolates the
+            // workload's network namespace. This bootstrap must never run with
+            // host interfaces: it changes numeric loopback binds to wildcard.
+            arguments.extend([
+                "--namespace-ipykernel".into(),
+                include_str!("../jupyter/namespace_ipykernel.py").into(),
+            ]);
+        }
+        if !no_sandbox
+            && crate::settings::Tempdir::from_settings(&sandbox_settings)
+                == crate::settings::Tempdir::Managed
+        {
+            arguments.push("--private-runtime".into());
+        }
+        Ok(Self::with_arguments(
+            selection.python.clone(),
+            arguments,
+            None,
+            no_sandbox,
+            sandbox_settings,
+            Environment {
+                startup: Default::default(),
+                local_runtime: None,
+                custom_worker: true,
+                duckdb_extensions: Default::default(),
+                duckdb_r_targets: Vec::new(),
+                python: None,
+                r: None,
+                r_resolver: RResolver::Disabled,
+            },
+        ))
+    }
+
     pub(crate) fn builtin(
         no_sandbox: bool,
         sandbox_settings: crate::settings::SandboxSettings,

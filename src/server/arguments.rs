@@ -14,12 +14,16 @@ impl SendArguments {
             return Ok(());
         };
         for language in [
+            crate::cell::Language::Kernel,
             crate::cell::Language::R,
             crate::cell::Language::Python,
             crate::cell::Language::Sql,
         ] {
             let field = crate::cell::Languages::field(language);
             if arguments.contains_key(field) && !languages.enables(language) {
+                if matches!(language, crate::cell::Language::Kernel) {
+                    return Err("`code` cells require --jupyter-kernel".into());
+                }
                 return Err(if setting == crate::cell::LANGUAGES_ENV {
                     format!("`{field}` cells are disabled by `{setting}`")
                 } else {
@@ -49,6 +53,8 @@ impl SendArguments {
 #[derive(Deserialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SendArguments {
+    /// Evaluate one complete cell in the selected Jupyter kernel's language.
+    pub(super) code: Option<String>,
     #[schemars(description = super::presentation::r_description())]
     pub(super) r: Option<String>,
     #[schemars(description = super::presentation::python_description())]

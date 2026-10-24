@@ -1,0 +1,51 @@
+---
+scenario: A published ipykernel kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  code: |
+    import base64
+    from IPython.display import Image, display
+
+    display(Image(data=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aSuoAAAAASUVORK5CYII=")))
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to the submitted one-pixel PNG>
+      mimeType: image/png
+  isError: false
+---
+send:
+  code: |-
+    name = input("Name: ")
+    print("hello", name)
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Name: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    Ada
+result:
+  content:
+    - type: text
+      text: |
+        hello Ada
+  isError: false
+---
+send:
+  code: name
+result:
+  content:
+    - type: text
+      text: |
+        'Ada'
+  isError: false

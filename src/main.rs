@@ -14,6 +14,7 @@ mod console_paths;
 mod input_watch;
 #[cfg(any(unix, windows))]
 mod jsonl;
+mod jupyter;
 mod local_runtime;
 #[cfg(unix)]
 mod process_descriptors;
@@ -127,6 +128,9 @@ fn main() -> ExitCode {
         cli::Command::Serve {
             worker,
             relay,
+            jupyter_kernel,
+            jupyter_python,
+            jupyter_transport,
             no_sandbox,
             writable_root,
             overrides: command_overrides,
@@ -134,7 +138,19 @@ fn main() -> ExitCode {
             if let Err(error) = overrides.extend(command_overrides) {
                 return exit_with_error(error);
             }
-            match run_server(worker, relay, no_sandbox, writable_root, &overrides) {
+            let jupyter = jupyter_kernel.map(|kernel| jupyter::Configuration {
+                kernel,
+                python: jupyter_python.unwrap_or_else(|| "python3".into()),
+                transport: jupyter_transport.unwrap_or_default(),
+            });
+            match run_server(
+                worker,
+                relay,
+                jupyter,
+                no_sandbox,
+                writable_root,
+                &overrides,
+            ) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => exit_with_error(error),
             }
@@ -238,6 +254,7 @@ fn resolve_configuration(
 fn run_server(
     worker: Option<std::path::PathBuf>,
     relay: Option<std::path::PathBuf>,
+    jupyter: Option<jupyter::Configuration>,
     no_sandbox: bool,
     writable_roots: Vec<std::path::PathBuf>,
     overrides: &cli::ConfigOverrides,
@@ -257,9 +274,34 @@ fn run_server(
         resolver,
         sandbox_requested,
         resolver_sandbox_requested,
-    } = settings::discover(&directory, overrides)?;
+    } = settings::discover(
+        &directory,
+        overrides,
+        match &jupyter {
+            Some(jupyter) => settings::ToolInterface::Jupyter(jupyter.languages()),
+            None => settings::ToolInterface::Configured,
+        },
+    )?;
     if no_sandbox && (sandbox_requested || resolver_sandbox_requested) {
         return Err("explicit sandbox or resolver.sandbox permissions require sandboxing; remove them when using --no-sandbox".into());
+    }
+    if let Some(jupyter) = &jupyter {
+        if jupyter.kernel.is_empty() {
+            return Err("--jupyter-kernel requires a nonempty kernelspec name".into());
+        }
+        for (name, configured) in [
+            ("startup", startup.is_some()),
+            ("python", python.is_some()),
+            ("r", r.is_some()),
+            ("languages", languages.is_some()),
+        ] {
+            if configured {
+                return Err(format!("{name} settings cannot be combined with --jupyter-kernel; configure the installed kernelspec instead").into());
+            }
+        }
+        if cfg!(windows) {
+            return Err("Jupyter workers currently require macOS or Linux".into());
+        }
     }
     if startup.is_some() && (worker.is_some() || relay.is_some()) {
         return Err("startup requires the built-in worker and relay".into());
@@ -298,6 +340,7 @@ fn run_server(
     let result = runtime.block_on(server::run(
         worker,
         relay,
+        jupyter,
         sandbox,
         python,
         r.unwrap_or_default(),

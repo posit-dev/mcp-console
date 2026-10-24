@@ -1,0 +1,146 @@
+---
+scenario: The published ipykernel kernel works in the default read-only sandbox.
+fixture: >-
+  No transport or sandbox permissions are configured. Host TCP and Unix
+  listeners accept baseline connections outside the sandbox; a host file
+  contains a protected sentinel.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.yaml
+---
+send:
+  code: |-
+    answer = 42
+    print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        <python-packages>/jupyter_client/localinterfaces.py:58: UserWarning: Unexpected error discovering local network interfaces: [Errno 1] Operation not permitted
+          ret = f(**kwargs)
+        <python-packages>/jupyter_client/localinterfaces.py:58: UserWarning: Unexpected error discovering local network interfaces: [Errno 1] Operation not permitted
+          ret = f(**kwargs)
+        [IPKernelApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+        42
+  isError: false
+---
+send:
+  code: |
+    import os
+    import tempfile
+    from pathlib import Path
+
+    private = Path(tempfile.gettempdir()) / "kernel-permission-probe"
+    private.write_text("private")
+    assert private.read_text() == "private"
+    private.unlink()
+    print("private temp: writable")
+    host = Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_HOST_FILE"])
+    assert host.read_text() == "original\n"
+    try:
+        host.write_text("changed")
+    except OSError as error:
+        assert error.errno == int(os.environ["MCP_CONSOLE_TEST_JUPYTER_FILE_ERRNO"]), error
+        print("host file:", error)
+    else:
+        raise AssertionError("host file unexpectedly writable")
+result:
+  content:
+    - type: text
+      text: |
+        private temp: writable
+        host file: [Errno 30] Read-only file system: '<workspace>/host-sentinel'
+  isError: false
+---
+send:
+  code: |
+    exec(Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"]).read_text())
+result:
+  content:
+    - type: text
+      text: |
+        host TCP: [Errno 111] Connection refused
+        external TCP: [Errno 101] Network is unreachable
+        host Unix: [Errno 1] Operation not permitted
+        external HTTP through proxy: denied (403)
+        external CONNECT through proxy: denied (403)
+        host CONNECT through proxy: denied (403)
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        <python-packages>/jupyter_client/localinterfaces.py:58: UserWarning: Unexpected error discovering local network interfaces: [Errno 1] Operation not permitted
+          ret = f(**kwargs)
+        <python-packages>/jupyter_client/localinterfaces.py:58: UserWarning: Unexpected error discovering local network interfaces: [Errno 1] Operation not permitted
+          ret = f(**kwargs)
+        [IPKernelApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+        [idle]
+  isError: false
+---
+send:
+  code: '"answer" in globals()'
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  code: |-
+    answer = 42
+    print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  code: |
+    import os
+    import tempfile
+    from pathlib import Path
+
+    private = Path(tempfile.gettempdir()) / "kernel-permission-probe"
+    private.write_text("private")
+    assert private.read_text() == "private"
+    private.unlink()
+    print("private temp: writable")
+    host = Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_HOST_FILE"])
+    assert host.read_text() == "original\n"
+    try:
+        host.write_text("changed")
+    except OSError as error:
+        assert error.errno == int(os.environ["MCP_CONSOLE_TEST_JUPYTER_FILE_ERRNO"]), error
+        print("host file:", error)
+    else:
+        raise AssertionError("host file unexpectedly writable")
+result:
+  content:
+    - type: text
+      text: |
+        private temp: writable
+        host file: [Errno 30] Read-only file system: '<workspace>/host-sentinel'
+  isError: false
+---
+send:
+  code: |
+    exec(Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"]).read_text())
+result:
+  content:
+    - type: text
+      text: |
+        host TCP: [Errno 111] Connection refused
+        external TCP: [Errno 101] Network is unreachable
+        host Unix: [Errno 1] Operation not permitted
+        external HTTP through proxy: denied (403)
+        external CONNECT through proxy: denied (403)
+        host CONNECT through proxy: denied (403)
+  isError: false

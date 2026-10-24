@@ -292,6 +292,17 @@ stdout: |
         --writable-root <PATH>
             Allow writes to an additional path (temporary launch option)
 
+        --jupyter-kernel <NAME>
+            Run an installed local Jupyter kernel instead of the built-in worker
+
+        --jupyter-python <PATH>
+            Python with jupyter_client installed (defaults to python3)
+
+        --jupyter-transport <JUPYTER_TRANSPORT>
+            Jupyter transport (auto selects a private sandbox transport)
+            
+            [possible values: auto, tcp, ipc]
+
     -h, --help
             Print help (see a summary with '-h')
 ---

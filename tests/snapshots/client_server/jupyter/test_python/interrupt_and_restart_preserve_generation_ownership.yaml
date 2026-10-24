@@ -1,0 +1,86 @@
+---
+scenario: A published ipykernel kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport. A file marker proves that an interruptible Python
+  evaluation reached its gate.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  code: |-
+    answer = 42
+    print("ready")
+result:
+  content:
+    - type: text
+      text: |
+        ready
+  isError: false
+---
+send:
+  code: |
+    from pathlib import Path
+    import threading
+
+    try:
+        Path("interrupt-ready").touch()
+        threading.Event().wait()
+    except KeyboardInterrupt:
+        print("interrupted")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |
+        interrupted
+  isError: false
+---
+send:
+  code: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  code: '"answer" in globals()'
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  code: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

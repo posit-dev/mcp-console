@@ -48,6 +48,7 @@ struct Metadata {
     python_requirements: Vec<String>,
     dynamic_resolution: bool,
     r_available: bool,
+    jupyter_kernel: Option<String>,
     metadata_known: bool,
 }
 struct QuartoWriter {
@@ -66,6 +67,7 @@ impl Writers {
         r_available: bool,
         requirements: &crate::worker_client::Declaration,
         metadata_known: bool,
+        jupyter_kernel: Option<&str>,
     ) -> Result<Self, String> {
         let markdown = super::create_private_file(&directory.join("transcript.md"))
             .map_err(|e| e.to_string())?;
@@ -83,6 +85,7 @@ impl Writers {
                     python_requirements: requirements.python.clone(),
                     dynamic_resolution,
                     r_available,
+                    jupyter_kernel: jupyter_kernel.map(str::to_owned),
                     metadata_known,
                 },
                 ..Default::default()
@@ -131,12 +134,14 @@ impl Documents {
             Event::EnvironmentDiscovered {
                 dynamic_resolution,
                 r_available,
+                jupyter_kernel,
                 startup_requirements,
                 ..
             } => {
                 self.metadata.metadata_known = true;
                 self.metadata.dynamic_resolution = *dynamic_resolution;
                 self.metadata.r_available = *r_available;
+                self.metadata.jupyter_kernel = jupyter_kernel.map(str::to_owned);
                 self.metadata.requirements(
                     &serde_json::to_value(startup_requirements).map_err(|e| e.to_string())?,
                 );
@@ -165,8 +170,13 @@ impl Documents {
                 // association, never stdin or request metadata.
                 let mut sources = Vec::new();
                 if let Some(arguments) = &request.arguments {
-                    for language in ["r", "python", "sql"] {
-                        if let Some(contents) = arguments.get(language).and_then(Value::as_str) {
+                    for (field, language) in [
+                        ("code", "text"),
+                        ("r", "r"),
+                        ("python", "python"),
+                        ("sql", "sql"),
+                    ] {
+                        if let Some(contents) = arguments.get(field).and_then(Value::as_str) {
                             sources.push(QuartoSource {
                                 language,
                                 contents: contents.into(),
@@ -284,20 +294,32 @@ impl QuartoWriter {
 title: MCP Console session
 ",
         );
-        writeln!(
-            document,
-            "# From a working copy, run `ir render {filename}` in a prepared environment.
+        if self.metadata.jupyter_kernel.is_some() {
+            document.push_str(
+                "# Jupyter source archive; recreate the original kernel environment to replay.\n",
+            );
+        } else {
+            writeln!(
+                document,
+                "# From a working copy, run `ir render {filename}` in a prepared environment.
 # IR rendering requires R on the render host, including for Python-only documents."
-        )
-        .unwrap();
-        if !self.metadata.metadata_known {
+            )
+            .unwrap();
+        }
+        if !self.metadata.metadata_known || self.metadata.jupyter_kernel.is_some() {
             document.push_str(
                 "execute:
   eval: false
 ",
             );
         }
-        if !self.metadata.metadata_known {
+        if let Some(kernel) = &self.metadata.jupyter_kernel {
+            document.push_str("mcp-console:\n  jupyter-kernel: ");
+            document.push_str(&yaml_string(kernel));
+            document.push_str("\n  original-working-directory: ");
+            document.push_str(&yaml_string(&self.metadata.working_directory));
+            document.push('\n');
+        } else if !self.metadata.metadata_known {
             document.push_str(
                 "mcp-console:
   environment: unknown
@@ -348,12 +370,18 @@ title: MCP Console session
 ",
         );
         for source in &self.sources {
-            push_quarto_fence(
-                &mut document,
-                &format!("{{{}}}", source.language),
-                source.language,
-                &source.contents,
-            );
+            if self.metadata.jupyter_kernel.is_some() || source.language == "text" {
+                // A generic kernelspec need not have a Quarto execution engine.
+                // Preserve its source without claiming it can be replayed here.
+                push_fence(&mut document, source.language, &source.contents);
+            } else {
+                push_quarto_fence(
+                    &mut document,
+                    &format!("{{{}}}", source.language),
+                    source.language,
+                    &source.contents,
+                );
+            }
         }
         document
     }
@@ -701,6 +729,7 @@ fn submitted_source(request: &CallToolRequestParams) -> Option<Source<'_>> {
     let arguments = request.arguments.as_ref()?;
     let mut source = None;
     for (field, label, language) in [
+        ("code", "Jupyter", "text"),
         ("r", "R", "r"),
         ("python", "Python", "python"),
         ("sql", "SQL", "sql"),
@@ -743,7 +772,7 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     if arguments.keys().any(|key| {
         !matches!(
             key.as_str(),
-            "r" | "python" | "sql" | "stdin" | "control" | "requirements" | "timeout_ms"
+            "code" | "r" | "python" | "sql" | "stdin" | "control" | "requirements" | "timeout_ms"
         )
     }) {
         return None;
@@ -752,7 +781,7 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     if source.is_none()
         && arguments
             .keys()
-            .any(|key| matches!(key.as_str(), "r" | "python" | "sql"))
+            .any(|key| matches!(key.as_str(), "code" | "r" | "python" | "sql"))
     {
         return None;
     }
@@ -762,7 +791,7 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     };
     let options = arguments
         .iter()
-        .filter(|(key, _)| !matches!(key.as_str(), "r" | "python" | "sql" | "stdin"))
+        .filter(|(key, _)| !matches!(key.as_str(), "code" | "r" | "python" | "sql" | "stdin"))
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
     Some(Send {

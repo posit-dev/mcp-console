@@ -133,6 +133,16 @@ NO_SANDBOX = Requirement(
 )
 
 SQL = Requirement("SQL", WORKER.available, "requires a supported built-in SQL worker")
+JUPYTER = Requirement(
+    "Jupyter kernel dependencies",
+    POSIX.available and bool(os.environ.get("MCP_CONSOLE_TEST_JUPYTER_PYTHON")),
+    "requires POSIX and MCP_CONSOLE_TEST_JUPYTER_PYTHON with jupyter_client and ipykernel",
+)
+ARK = Requirement(
+    "ark kernel",
+    bool(os.environ.get("MCP_CONSOLE_TEST_ARK")),
+    "requires MCP_CONSOLE_TEST_ARK selecting a published ark executable",
+)
 R_EVENT_LOOP = Requirement(
     "R event loop",
     WORKER.available,

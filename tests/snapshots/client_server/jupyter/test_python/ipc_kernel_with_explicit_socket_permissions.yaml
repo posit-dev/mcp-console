@@ -1,0 +1,16 @@
+---
+scenario: A published ipykernel kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport.
+---
+!same-as jupyter MCP initialization for this execution mode
+---
+send:
+  code: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

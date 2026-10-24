@@ -304,6 +304,7 @@ fn evaluate_cell(
             r.begin_graphics()?;
         }
         let result = match cell.language {
+            Language::Kernel => Err("kernel cells require a Jupyter worker".to_string()),
             Language::R => r.evaluate_r(cell.source),
             Language::Python => python.evaluate(&cell.source),
             Language::Sql => sql.evaluate(&cell.source),
