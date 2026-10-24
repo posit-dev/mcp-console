@@ -20,7 +20,7 @@ from support.checkpoints import FifoCheckpoint, wait_for_worker_file
 from support.client import McpClient, stop_client
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
-from support.r import r_test_environment
+from support.r import r_duckdb_snapshot_environment, r_test_environment
 from support.native import SHARED_LIBRARY_FLAG, build_interposer
 from support.records import Transcript
 from support.suites import run_this_suite
@@ -80,9 +80,11 @@ def test_prepares_builtin_extensions_without_downloads(
 def test_gets_selects_and_resets_the_active_native_connection(
     binary: Path, execution: Execution
 ) -> Transcript:
-    environment, _ = r_test_environment()
+    environment = r_duckdb_snapshot_environment()
     environment["RETICULATE_PYTHON"] = ""
-    with McpClient(binary, execution.serve(), environment) as client:
+    with McpClient(
+        binary, execution.serve("-c", "r.packages=[]"), environment
+    ) as client:
         client.initialize_and_list_tools()
         # fmt: r
         r = code(r"""

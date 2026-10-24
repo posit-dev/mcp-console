@@ -86,6 +86,11 @@ An unscoped full run audits orphan snapshots; only a successful full update remo
 Focused updates preserve unselected cases.
 Never hand-edit snapshots.
 
+Four SQL cases use the `2026-10-22` R repository snapshot through `r_duckdb_snapshot_environment()` in [shared R support](../tests/support/r.py): `recovers_from_sql_errors`, `interrupts_running_sql_query`, `gets_selects_and_resets_the_active_native_connection`, and `managed_r_defaults`.
+This retains DuckDB 1.5.6 binaries for exact error transcripts and the native interrupt fixture; the cases prepare only runtime infrastructure, adding RSQLite when needed.
+Other SQL cases continue to resolve current packages.
+Before advancing the date, verify the complete error diagnostics and interrupt completion; [RT-5](TODO.md#runtime-and-resource-limits) tracks DuckDB 2.0.0's Arrow cancellation limitation.
+
 The shared selector syntax works on every platform.
 Windows native cases also use `CLASS.CASE`, for example `WindowsConsole.test_python_without_r`.
 `--list` and `--locate` do not acquire build ownership.

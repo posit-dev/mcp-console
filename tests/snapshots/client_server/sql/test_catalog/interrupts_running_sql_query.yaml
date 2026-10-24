@@ -3,6 +3,7 @@
 ---
 send:
   r: |
+    stopifnot(packageVersion("duckdb") == "1.5.6")
     interrupt_started <- file.path(tempdir(), "sql-interrupt-started")
     cat(interrupt_started, "\n", sep = "")
 result:

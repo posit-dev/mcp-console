@@ -39,6 +39,11 @@ Current documentation must continue to state the limits.
 Once the supported DuckDB R versions include [upstream streaming support](https://github.com/duckdb/duckdb-r/pull/2587), use the ordinary DBI retrieval path and delete the adapter and Arrow-specific retained-result branches.
 Preserve the existing public data-frame, row-limit, preview, and cleanup contracts; exact preview formatting has a separate use for the scratch catalog.
 
+**RT-5 — Restore interrupt completion during R DuckDB 2.0.0 Arrow fetching.** A running SQL query can remain active after an interrupt while Console fetches an Arrow result.
+In [DuckDB 2.0.0's execution path](https://github.com/duckdb/duckdb-r/blob/v2.0.0/src/statement.cpp#L440-L478), the interrupt handler covers statement submission, but a streamed result runs as it is read after that handler is disabled.
+Reproduce through Console's SQL API and verify interrupt completion and retained connection state before changing the adapter or advancing the [dated SQL fixtures](DEVELOPMENT.md#selecting-and-sizing-test-runs).
+Production package selection remains unchanged; the fixture date does not establish DuckDB 2.0.0 cancellation support.
+
 ## Sandbox and platforms
 
 **SP-1 — Review evidence for macOS policy exceptions.** Check each application extension against the actual sandboxed workflow and selected native pin.
