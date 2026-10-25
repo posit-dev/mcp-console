@@ -118,7 +118,7 @@ Elapsed/phase notices describe observations, not a queue position or completion 
 
 Use `note` to record observations, questions, or the purpose of a step.
 It can accompany code, input, requirements, or a control operation without changing that operation.
-Console retains the text in the recording and presents it as prose before any same-call code in `transcript.md`.
+Console retains the text in the recording and presents it as prose before any same-call code in `transcript.md` and the associated session QMD.
 It does not evaluate the note.
 
 ```json
@@ -128,7 +128,7 @@ It does not evaluate the note.
 A note-only call returns `[done]` without waiting for the runtime or collecting output from a running cell.
 Adding `timeout_ms` does not turn it into a poll; use an empty `send` to collect output.
 Omitting `note` or supplying `null` adds no annotation.
-Notes follow the existing [recording retention and failure behavior](RECORDING_REFERENCE.md).
+The [recording reference](RECORDING_REFERENCE.md) explains session association, retention, and failure behavior.
 
 ### Server readiness
 

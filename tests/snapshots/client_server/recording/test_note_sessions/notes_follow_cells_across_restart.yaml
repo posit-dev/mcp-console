@@ -1,0 +1,65 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  note: |-
+    ## First measurement
+
+    Record the initial value.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: print('original')
+  note: Use the original worker for the baseline.
+result:
+  content:
+    - type: text
+      text: |
+        original
+  isError: false
+---
+send:
+  note: The baseline is ready; this concludes the first session.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+  python: print('replacement')
+  note: |-
+    ## Follow-up
+
+    Repeat with a fresh worker.
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        replacement
+        [done]
+  isError: false
+---
+send:
+  note: The follow-up is complete.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

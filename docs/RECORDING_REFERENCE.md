@@ -47,16 +47,20 @@ Notes appear as prose before any source in the same call; the journal retains th
 It preserves response previews and omission notices while leaving routine protocol and lifecycle details in the journal.
 Results describe response assembly; local transport delivery is recorded separately in `capture/events.jsonl`.
 
-Each `sessions/session-NNN.qmd` contains source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
+Each `sessions/session-NNN.qmd` contains notes and source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
 Source admitted before worker acquisition stays pending until its worker is known, even if an initial response has already returned.
 A validation-rejected restart leaves its source with the surviving addressed worker.
-A failed acquisition does not create a session, and a session without source need not create a QMD.
-Source without a worker association remains in the journal and Markdown transcript.
+A note submitted with source follows that source's worker association, including across a restart.
+Without source, a note belongs to the worker current when the call is received, or waits for the next actual worker if none exists.
+Notes can create a QMD for a worker that receives no source.
+QMD entries follow original call order, with each note before any source from the same call, even when source association is delayed.
+A failed acquisition does not create a session, and a session without source or notes need not create a QMD.
+Source and notes without a worker association remain in the journal and Markdown transcript.
 
 QMD metadata records accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
 Retained R requirements carry into replacement sessions; rejected additions do not change metadata, and replacement declarations do not rewrite the retiring session's document.
 The original working directory is descriptive metadata rather than an execution root.
-QMDs omit notes, results, images, input, polls, and control wrappers.
+QMDs omit results, images, input, polls, and control wrappers.
 Existing recordings are not migrated or rewritten.
 
 ### Output intervals

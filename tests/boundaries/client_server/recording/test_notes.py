@@ -12,13 +12,13 @@ from boundaries.client_server.recording.test_intervals import events
 from support.client import McpClient
 from support.execution import RUNTIME, Execution, executions
 from support.normalization import normalize_recording
-from support.records import Transcript
+from support.records import TranscriptWithCompanions
 
 
 @executions(RUNTIME)
 def test_records_notes_with_and_without_code(
     binary: Path, execution: Execution
-) -> Transcript:
+) -> TranscriptWithCompanions:
     with tempfile.TemporaryDirectory() as directory:
         workspace = Path(directory)
         if os.name != "nt":
@@ -83,4 +83,35 @@ def test_records_notes_with_and_without_code(
         assert markdown.index(notes[2]) < markdown.index(notes[3])
         assert "## Call 1: Note\n\n" + notes[0] in markdown
         assert "Use sample A.\n\n### Submitted stdin" in markdown
-        return normalize_recording(transcript, workspace)
+        quarto_path = recording / "sessions/session-001.qmd"
+        quarto = quarto_path.read_text(encoding="utf-8")
+        read_only = not bool(quarto_path.stat().st_mode & 0o222)
+        assert read_only, quarto_path
+        for note in [*notes, "Use sample A."]:
+            assert quarto.count(note) == 1, quarto
+        assert (
+            notes[1]
+            + "\n\n```{python}\n#| error: true\ntotal = 6 * 7; print(total)\n```"
+            in quarto
+        ), quarto
+        ordered = [
+            notes[0],
+            notes[1],
+            "total = 6 * 7; print(total)",
+            notes[2],
+            "label = input('label: '); print(label, total)",
+            notes[3],
+            "Use sample A.",
+            "total = -1",
+            "\nprint(total)\n",
+        ]
+        positions = [quarto.index(text) for text in ordered]
+        assert positions == sorted(positions), quarto
+        return TranscriptWithCompanions(
+            normalize_recording(transcript, workspace),
+            {
+                "qmd.yaml": normalize_recording(
+                    [{"qmd": quarto, "read_only": read_only}], workspace
+                )
+            },
+        )

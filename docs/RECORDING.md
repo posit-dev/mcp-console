@@ -10,8 +10,8 @@ Review them before sharing.
 
 Ask the agent for the recording's path, then open `transcript.md` in that directory.
 It shows calls and results across all worker sessions, including recorded images and links to retained output.
-Links labeled “Session NNN source (QMD)” open source documents in `sessions/session-NNN.qmd`, one for each worker session that received source.
-Those files contain code and environment metadata; notes, recorded results, and images remain in `transcript.md` and the capture files.
+Links labeled “Session NNN source (QMD)” open session documents in `sessions/session-NNN.qmd`, one for each worker session that received source or notes.
+Those files contain notes, code, and environment metadata; recorded results and images remain in `transcript.md` and the capture files.
 Raw text and images are grouped under `capture/sessions/NNN/` by worker session and observed startup, cell, or post-cell interval.
 Completed files are read-only; copy a file before editing it.
 For the dice example in [Get started](getting-started.qmd), you can inspect both the simulation and the later comparison that reused its results.
@@ -39,7 +39,8 @@ It can also stand alone between cells:
 }
 ```
 
-Notes appear as prose in `transcript.md`, before code submitted in the same call.
+Notes appear as prose in `transcript.md` and the associated session QMD, before code submitted in the same call.
+Each QMD preserves call order, so notes sent between cells remain between those cells even when their worker associations become known later.
 A note-only call returns without waiting for a running cell or collecting its output.
 You can use these annotations to retrace an investigation or draft a narrative when reviewing the recording.
 
@@ -63,9 +64,11 @@ Reference: [Retrieve the last SQL result](RUNTIME_REFERENCE.md#retrieve-the-last
 ## Turn the code into a report {#render-a-reviewed-copy}
 
 Each `sessions/session-NNN.qmd` is a starting point for a report, **not a replay or checkpoint**.
-It contains the R, Python, and SQL source associated with that worker, including failed evaluations, rejected calls, and source submitted alongside a control.
+It contains notes and the R, Python, and SQL source associated with that worker, including failed evaluations, rejected calls, and source submitted alongside a control.
 Restarts and automatic worker replacement begin a separate document; an interrupt that preserves the worker stays in the same document.
-The documents omit notes, interactive input, polling, control operations, output, and recorded images.
+A note sent with code follows that code into its worker's document.
+A note without code belongs to the current worker, or the next worker if none exists yet.
+The documents omit interactive input, polling, control operations, output, and recorded images.
 
 Copy it before editing:
 
