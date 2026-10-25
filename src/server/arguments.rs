@@ -28,7 +28,7 @@ impl SendArguments {
             }
         }
         let mut fields = languages.fields();
-        fields.extend(["control", "requirements", "stdin", "timeout_ms"]);
+        fields.extend(["note", "control", "requirements", "stdin", "timeout_ms"]);
         if let Some(unknown) = arguments
             .keys()
             .find(|field| !fields.contains(&field.as_str()))
@@ -55,6 +55,11 @@ pub(super) struct SendArguments {
     pub(super) python: Option<String>,
     #[schemars(description = super::presentation::sql_description())]
     pub(super) sql: Option<String>,
+    /// Plain text or Markdown journal annotation, recorded as prose before any same-call code.
+    /// Use it to record observations, questions, or the purpose of a step. May accompany other
+    /// arguments or stand alone. A note-only call returns without waiting for or collecting
+    /// worker output. Notes are not evaluated.
+    pub(super) note: Option<String>,
     #[serde(default = "default_timeout_ms")]
     #[schemars(description = super::presentation::timeout_description())]
     pub(super) timeout_ms: u64,

@@ -21,7 +21,7 @@ Choose a nonempty subset of `r`, `python`, and `sql`.
 A later list replaces the whole list.
 This controls the tool schema and accepted source fields, not interpreter availability or permissions.
 SQL can use a hidden R or Python provider.
-Requirements, polling, input, and controls remain available unless hidden through `tool.parameters`.
+Notes, requirements, polling, input, and controls remain available unless hidden through `tool.parameters`.
 
 A hidden source field is rejected even when its value is `null`.
 Exposing a language does not install its runtime.
@@ -85,7 +85,7 @@ Each entry under `tool.parameters.<name>` accepts:
 | `tool.parameters.<name>.parameters`  | Mapping of nested parameter names to the same settings             | Customize fields inside an object parameter. Omission keeps their defaults; scalar fields accept no nested names.                                                             |
 | `tool.parameters.<name>.schema`      | Unchanged metadata mapping from `config resolve --full`, or `null` | Read-only inspection of argument types/constraints. Changing metadata is invalid; omit it when writing configuration by hand.                                                 |
 
-Available top-level names are `r`, `python`, `sql`, `requirements`, `control`, `stdin`, and `timeout_ms`.
+Available top-level names are `r`, `python`, `sql`, `note`, `requirements`, `control`, `stdin`, and `timeout_ms`.
 Source fields are available only for the selected `languages`.
 Under `tool.parameters.requirements.parameters`, the names are `action`, `r`, `python`, `python_version`, `duckdb`, and `exclude_newer`.
 Each uses the same parameter settings above.

@@ -1,6 +1,6 @@
 # Recording reference
 
-Console retains calls, source, input, requirements, output, and artifacts on the execution host, without redaction.
+Console retains calls, notes, source, input, requirements, output, and artifacts on the execution host, without redaction.
 For reading a recording, retrieving omitted output, or making a report, see [Recordings and reports](RECORDING.md).
 
 ## Storage and retention
@@ -11,7 +11,7 @@ Console does not create a project `.agents` directory just to select project sto
 There is no aggregate quota or automatic cleanup, so remove old recordings deliberately.
 
 The first received MCP `tools/call` targeting `send` activates a recording for the Console process.
-Polls, input, controls, rejected submissions, and requests cancelled before execution all activate recording.
+Notes, polls, input, controls, rejected submissions, and requests cancelled before execution all activate recording.
 Initialization, tool discovery, pings, startup output, and startup failure alone do not create a persistent recording.
 
 Console retains preceding protocol traffic and startup text/images temporarily.
@@ -42,7 +42,8 @@ recording/
 └── transcript.md
 ```
 
-`transcript.md` records calls, source, results, polls, input, controls, and worker session boundaries, with links to source documents and retained output.
+`transcript.md` records calls, notes, source, results, polls, input, controls, and worker session boundaries, with links to source documents and retained output.
+Notes appear as prose before any source in the same call; the journal retains the original `note` string in that call's arguments.
 It preserves response previews and omission notices while leaving routine protocol and lifecycle details in the journal.
 Results describe response assembly; local transport delivery is recorded separately in `capture/events.jsonl`.
 
@@ -55,13 +56,13 @@ Source without a worker association remains in the journal and Markdown transcri
 QMD metadata records accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
 Retained R requirements carry into replacement sessions; rejected additions do not change metadata, and replacement declarations do not rewrite the retiring session's document.
 The original working directory is descriptive metadata rather than an execution root.
-QMDs omit results, images, input, polls, and control wrappers.
+QMDs omit notes, results, images, input, polls, and control wrappers.
 Existing recordings are not migrated or rewritten.
 
 ### Output intervals
 
 Each actual worker session numbers executed cells from `001`.
-Polls, input, controls, and rejected source do not create cells.
+Notes, polls, input, controls, and rejected source do not create cells.
 Source remains in the journal and documents even when it does not execute.
 
 Output belongs to the interval in which Console observes it:

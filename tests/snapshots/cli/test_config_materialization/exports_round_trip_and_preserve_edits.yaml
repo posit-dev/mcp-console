@@ -134,6 +134,15 @@ result:
             type:
               - string
               - "null"
+          note:
+            description: |-
+              Plain text or Markdown journal annotation, recorded as prose before any same-call code.
+              Use it to record observations, questions, or the purpose of a step. May accompany other
+              arguments or stand alone. A note-only call returns without waiting for or collecting
+              worker output. Notes are not evaluated.
+            type:
+              - string
+              - "null"
           control:
             description: >-
               Apply control before same-call stdin/code. `interrupt` requests a

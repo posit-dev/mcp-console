@@ -106,6 +106,7 @@ def test_configures_captured_tool_surface(
                 fields = set(tool["inputSchema"]["properties"])
                 assert fields == {
                     *languages,
+                    "note",
                     "control",
                     "requirements",
                     "stdin",

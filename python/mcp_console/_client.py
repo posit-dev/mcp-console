@@ -172,6 +172,7 @@ class AsyncMCPConsole:
         r: str | None = None,
         python: str | None = None,
         sql: str | None = None,
+        note: str | None = None,
         control: Literal["interrupt", "restart"] | None = None,
         requirements: Requirements | None = None,
         stdin: str | None = None,
@@ -189,6 +190,8 @@ class AsyncMCPConsole:
             r: One complete R cell.
             python: One complete Python cell.
             sql: One complete SQL cell on the selected connection.
+            note: Plain text or Markdown journal entry. May accompany code or
+                be sent alone without polling or consuming output.
             control: Interrupt the active operation or restart the runtime.
             requirements: Declaration keyed by r, python, or duckdb, with optional
                 python_version and exclude_newer constraints. action defaults to
@@ -233,6 +236,7 @@ class AsyncMCPConsole:
             "r": r,
             "python": python,
             "sql": sql,
+            "note": note,
             "control": control,
             "requirements": requirements,
             "stdin": stdin,

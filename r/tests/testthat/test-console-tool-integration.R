@@ -226,7 +226,7 @@ test_that("console_tool exposes configured descriptions and omits hidden paramet
     arguments <- send@arguments@properties
     expect_setequal(
       names(arguments),
-      c("r", "control", "stdin", "requirements")
+      c("r", "note", "control", "stdin", "requirements")
     )
     expect_identical(arguments$r@json$description, "Run one R cell.")
     expect_identical(

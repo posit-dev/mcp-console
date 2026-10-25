@@ -635,6 +635,13 @@ fn render_tool_call(
 "
     )
     .expect("writing to a String cannot fail");
+    if let Some(note) = send.note {
+        document.push_str(note);
+        if !note.ends_with('\n') {
+            document.push('\n');
+        }
+        document.push('\n');
+    }
     if let Some(source) = send.source {
         push_fence(document, source.language, source.contents);
     }
@@ -659,6 +666,7 @@ fn render_tool_call(
 
 struct Send<'a> {
     source: Option<Source<'a>>,
+    note: Option<&'a str>,
     stdin: Option<&'a str>,
     options: Map<String, Value>,
 }
@@ -678,6 +686,9 @@ impl Send<'_> {
         }
         if self.options.contains_key("requirements") {
             return "Requirements";
+        }
+        if self.note.is_some() {
+            return "Note";
         }
         if self.options.is_empty() || self.options.keys().all(|key| key == "timeout_ms") {
             "Poll"
@@ -708,6 +719,9 @@ fn submitted_source(request: &CallToolRequestParams) -> Option<Source<'_>> {
         let Some(value) = arguments.get(field) else {
             continue;
         };
+        if value.is_null() {
+            continue;
+        }
         let value = value.as_str()?;
         if source
             .replace(Source {
@@ -735,6 +749,7 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
         None => {
             return Some(Send {
                 source: None,
+                note: None,
                 stdin: None,
                 options: Map::new(),
             });
@@ -743,7 +758,7 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     if arguments.keys().any(|key| {
         !matches!(
             key.as_str(),
-            "r" | "python" | "sql" | "stdin" | "control" | "requirements" | "timeout_ms"
+            "r" | "python" | "sql" | "note" | "stdin" | "control" | "requirements" | "timeout_ms"
         )
     }) {
         return None;
@@ -751,22 +766,30 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     let source = submitted_source(request);
     if source.is_none()
         && arguments
-            .keys()
-            .any(|key| matches!(key.as_str(), "r" | "python" | "sql"))
+            .iter()
+            .any(|(key, value)| matches!(key.as_str(), "r" | "python" | "sql") && !value.is_null())
     {
         return None;
     }
     let stdin = match arguments.get("stdin") {
+        Some(Value::Null) | None => None,
         Some(stdin) => Some(stdin.as_str()?),
-        None => None,
+    };
+    let note = match arguments.get("note") {
+        Some(Value::Null) | None => None,
+        Some(note) => Some(note.as_str()?),
     };
     let options = arguments
         .iter()
-        .filter(|(key, _)| !matches!(key.as_str(), "r" | "python" | "sql" | "stdin"))
+        .filter(|(key, _)| !matches!(key.as_str(), "r" | "python" | "sql" | "note" | "stdin"))
+        .filter(|(key, value)| {
+            !matches!(key.as_str(), "control" | "requirements") || !value.is_null()
+        })
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
     Some(Send {
         source,
+        note,
         stdin,
         options,
     })

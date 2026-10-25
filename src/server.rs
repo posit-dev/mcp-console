@@ -172,12 +172,25 @@ impl ConsoleServer {
             r,
             python,
             sql,
+            note,
             control,
             requirements,
             stdin,
             timeout_ms,
         }): Parameters<SendArguments>,
     ) -> Result<CallToolResult, String> {
+        // The request recorder already owns the note. Standalone annotations
+        // neither claim a worker operation nor consume its pending output.
+        if note.is_some()
+            && r.is_none()
+            && python.is_none()
+            && sql.is_none()
+            && control.is_none()
+            && requirements.is_none()
+            && stdin.is_none()
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text("[done]")]));
+        }
         let cell = match (r, python, sql) {
             (Some(source), None, None) => Some(crate::cell::Cell {
                 language: crate::cell::Language::R,

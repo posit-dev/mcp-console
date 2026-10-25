@@ -42,6 +42,74 @@ def options(binary: Path, execution: Execution) -> dict:
     }
 
 
+def test_clients_record_notes_with_and_without_code(binary: Path) -> Transcript:
+    notes = [
+        "## Investigation\n\nCheck the observed **total**.",
+        "The total is 42; compare it with the expected value next. λ",
+    ]
+
+    async def exercise(console) -> list[str]:
+        outputs = []
+        for arguments in (
+            {"python": "print(6 * 7)", "note": notes[0]},
+            {"note": notes[1]},
+        ):
+            output = console.send(**arguments)
+            outputs.append(await output if inspect.isawaitable(output) else output)
+        assert outputs == ["42\n", "[done]"], outputs
+        return outputs
+
+    async def run() -> Transcript:
+        transcript = []
+        with tempfile.TemporaryDirectory() as directory:
+            for client_type in (AsyncMCPConsole, MCPConsole):
+                workspace = Path(directory) / client_type.__name__
+                (workspace / ".agents/console").mkdir(parents=True)
+                settings = {
+                    "command": binary,
+                    "args": DIRECT.serve(
+                        "--no-config",
+                        "-c",
+                        "languages=[python]",
+                        "-c",
+                        "python=" + json.dumps(sys.executable),
+                    ),
+                    "server_parameters": {
+                        "cwd": str(workspace),
+                        "env": dict(os.environ, MCP_CONSOLE_HOME=str(workspace)),
+                    },
+                }
+                if client_type is AsyncMCPConsole:
+                    async with client_type(**settings) as console:
+                        outputs = await exercise(console)
+                else:
+                    with client_type(**settings) as console:
+                        outputs = await exercise(console)
+                (recording,) = (workspace / ".agents/console/sessions").iterdir()
+                events = [
+                    json.loads(line)
+                    for line in (recording / "capture/events.jsonl")
+                    .read_text(encoding="utf-8")
+                    .splitlines()
+                ]
+                recorded_notes = [
+                    event["request"]["arguments"]["note"]
+                    for event in events
+                    if event["event"] == "tool_call"
+                ]
+                assert recorded_notes == notes, recorded_notes
+                transcript.append(
+                    {
+                        "client": client_type.__name__,
+                        "outputs": outputs,
+                        "notes": recorded_notes,
+                    }
+                )
+        return transcript
+
+    return asyncio.run(run())
+
+
 def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcript:
     from agents.tool_context import ToolContext
 
@@ -415,6 +483,7 @@ def test_callable_tools_follow_connected_server_fields(
                         "r",
                         "python",
                         "sql",
+                        "note",
                         "control",
                         "requirements",
                         "stdin",
@@ -425,7 +494,7 @@ def test_callable_tools_follow_connected_server_fields(
                     "custom",
                     custom,
                     "echo configured",
-                    {"r", "control", "requirements", "stdin", "timeout_ms"},
+                    {"r", "note", "control", "requirements", "stdin", "timeout_ms"},
                 ),
             ):
                 async with AsyncMCPConsole(**settings) as console:
@@ -572,6 +641,7 @@ def test_responses_preserves_schema_text_and_images(
                 "r",
                 "python",
                 "sql",
+                "note",
                 "stdin",
                 "control",
                 "requirements",

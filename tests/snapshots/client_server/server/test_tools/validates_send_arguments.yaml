@@ -10,8 +10,22 @@ result:
     - type: text
       text: >-
         failed to deserialize parameters: unknown field `wait_ms`, expected one
-        of `r`, `python`, `sql`, `control`, `requirements`, `stdin`,
+        of `r`, `python`, `sql`, `note`, `control`, `requirements`, `stdin`,
         `timeout_ms`
+  isError: true
+---
+send:
+  python: sentinel = -1
+  note: 42
+  control: restart
+  stdin: |
+    must not queue
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: integer `42`, expected a
+        string
   isError: true
 ---
 send:
@@ -148,8 +162,22 @@ result:
     - type: text
       text: >-
         failed to deserialize parameters: unknown field `wait_ms`, expected one
-        of `r`, `python`, `sql`, `control`, `requirements`, `stdin`,
+        of `r`, `python`, `sql`, `note`, `control`, `requirements`, `stdin`,
         `timeout_ms`
+  isError: true
+---
+send:
+  python: sentinel = -1
+  note: 42
+  control: restart
+  stdin: |
+    must not queue
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: integer `42`, expected a
+        string
   isError: true
 ---
 send:

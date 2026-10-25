@@ -18,10 +18,10 @@ result:
           - "failed to deserialize parameters: unknown field `argument head "
           - repeat: éλ
             count: 1001
-          - "[… omitted 8416 rendered UTF-8 bytes; not retained …]"
+          - "[… omitted 8424 rendered UTF-8 bytes; not retained …]"
           - repeat: éλ
-            count: 991
-          - " argument tail`, expected one of `r`, `python`, `sql`, `control`, `requirements`, `stdin`, `timeout_ms`"
+            count: 989
+          - " argument tail`, expected one of `r`, `python`, `sql`, `note`, `control`, `requirements`, `stdin`, `timeout_ms`"
   isError: true
 ---
 send:

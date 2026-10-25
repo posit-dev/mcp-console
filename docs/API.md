@@ -13,6 +13,7 @@ Collect its result before submitting another cell.
 | Argument             | Meaning                                                                                                                     |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `r`, `python`, `sql` | Optional source string. At most one may be non-null. The configured language selection determines which fields are exposed. |
+| `note`               | Optional plain text or Markdown string annotating the recording; see [Journal notes](#journal-notes).                       |
 | `timeout_ms`         | Nonnegative integer; maximum observation wait, normally 60,000 milliseconds. It does not cancel execution.                  |
 | `stdin`              | Optional string of exact input bytes encoded as UTF-8. No newline is added.                                                 |
 | `control`            | `interrupt` or `restart`.                                                                                                   |
@@ -112,6 +113,22 @@ A long poll such as `{"timeout_ms": 300000}` returns early on completion or mana
 Completion returns text/images, or `[done]` when empty.
 An idle poll returns pending idle output and `[idle]`.
 Elapsed/phase notices describe observations, not a queue position or completion guarantee.
+
+### Journal notes
+
+Use `note` to record observations, questions, or the purpose of a step.
+It can accompany code, input, requirements, or a control operation without changing that operation.
+Console retains the text in the recording and presents it as prose before any same-call code in `transcript.md`.
+It does not evaluate the note.
+
+```json
+{ "note": "Check whether the missing values are confined to one batch." }
+```
+
+A note-only call returns `[done]` without waiting for the runtime or collecting output from a running cell.
+Adding `timeout_ms` does not turn it into a poll; use an empty `send` to collect output.
+Omitting `note` or supplying `null` adds no annotation.
+Notes follow the existing [recording retention and failure behavior](RECORDING_REFERENCE.md).
 
 ### Server readiness
 
