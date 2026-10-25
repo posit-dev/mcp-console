@@ -439,7 +439,9 @@ fn resolve_r_with_process(
             "PKG_SUBPROCESS_TIMEOUT",
             PAK_SUBPROCESS_STARTUP_TIMEOUT_MILLISECONDS,
         )
-        .args(["--isolated", "--vanilla"]);
+        // Only the final library-path expression needs this option. ir forwards
+        // architecture arguments, not default-package selection, to its resolver.
+        .args(["--isolated", "--vanilla", "--default-packages=NULL"]);
     let _program =
         super::r_program::RProgram::append(&mut command, MANAGED_R_LIBRARY_RESOLVER_SOURCE)?;
     command

@@ -17,7 +17,7 @@ send:
 result:
   content:
     - type: text
-      text: managed Python cache warmup interrupted
+      text: managed Python resolution interrupted
   isError: true
 ---
 send:

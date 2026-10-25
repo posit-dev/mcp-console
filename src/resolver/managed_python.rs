@@ -2,17 +2,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use serde::Serialize;
+use sha2::Digest as _;
 
 use super::ManagedPython;
 
 use super::process::{ResolverOutput, ResolverProcess, ResolverStopHandle, resolver_command};
 
-const PYTHON_PATH_SOURCE: &str = r#"
-import sys
-
-with open(sys.argv[-1], "w", encoding="utf-8") as stream:
-    stream.write(sys.executable)
-"#;
+const PYTHON_PATH_SOURCE: &str = include_str!("programs/python_environment.py");
 
 #[derive(Serialize)]
 struct ResolverInput<'a> {
@@ -112,7 +108,6 @@ uv output:
             python.display()
         ));
     }
-    warm_matplotlib(&python, &resolver, &mut on_started)?;
     Ok(ManagedPython {
         python,
         requirements,
@@ -233,7 +228,13 @@ where
         command.arg("--with").arg(package);
     }
     command
-        .args(["--", "python", "-c", PYTHON_PATH_SOURCE])
+        .args(["--", "python", "-I", "-c", PYTHON_PATH_SOURCE])
+        .arg(
+            sha2::Sha256::digest(PYTHON_PATH_SOURCE.as_bytes())
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>(),
+        )
         .arg(output_path)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -243,37 +244,12 @@ where
     // A no-cache tool environment is deleted when `uv tool run` exits,
     // so it cannot back a retained MCP Console session.
     command.env_remove("UV_NO_CACHE");
-    run_resolver_command(command, resolver, on_started, program, "managed Python")
-}
-
-fn warm_matplotlib<F>(
-    python: &Path,
-    resolver: &ResolverProcess,
-    on_started: &mut Option<F>,
-) -> Result<(), String>
-where
-    F: FnOnce(ResolverStopHandle) -> Result<(), String>,
-{
-    let mut command = resolver_command(python);
-    // Matplotlib checks its config directory before its separate Linux cache.
-    // A read-only host config must not redirect warmup to private temporary data.
+    // Reuse uv's selected interpreter process for optional font preparation.
+    // Its success receipt belongs to the same captured cache as the worker.
     if let Some(cache) = crate::python::matplotlib_cache_directory() {
         command.env("MPLCONFIGDIR", cache);
     }
-    command
-        .args(["-I", "-c", "import matplotlib.font_manager"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    run_resolver_command(
-        command,
-        resolver,
-        on_started,
-        python,
-        "managed Python cache warmup",
-    )?;
-    resolver.check_control("managed Python cache warmup")?;
-    Ok(())
+    run_resolver_command(command, resolver, on_started, program, "managed Python")
 }
 
 fn resolver_error(output: &ResolverOutput) -> String {

@@ -1,0 +1,13 @@
+---
+scenario: initial
+fixture: No R; seeded Python with a recording Matplotlib font manager.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  python: value = 1
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

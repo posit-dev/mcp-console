@@ -174,6 +174,24 @@ The hidden `resolve` process materializes environments under the separate [resol
 The preparation owner publishes a result only after its process and I/O cleanup contract completes.
 The server owns accepted declarations, not the materializer.
 
+Managed Python reports the selected interpreter and warms its optional Matplotlib font cache in the same `uv` child.
+Later preparations can skip the font-manager import when a successful receipt matches the current interpreter, preparation source, Matplotlib version and entry-point files, and font-cache files.
+When no explicit Matplotlib cache directory is available, warming still runs but does not publish a reusable receipt.
+Existing Python environments remain supplied by the user and receive no managed font preparation.
+
+DuckDB preparation can skip loading the engine and checking installed extensions when its receipt matches the current interpreter, preparation source, provider package files, requested extensions, selected cache, and installed extension files.
+It publishes a receipt only after installation and connection closure succeed.
+The lightweight Python or R validation child remains; R runs it without default packages.
+R's native DuckDB cache selection is not cached when no explicit extension directory is available.
+
+These receipts are optional performance hints in already selected caches.
+They compare current file paths, sizes, and modification/change times with stored data; they do not authenticate artifacts or select paths, executables, or filesystem grants.
+Missing or changed packages, cache files, preparation source, or requested extensions invalidate the corresponding receipt.
+Native package and extension loading remains responsible for validating the artifacts it uses.
+
+R library preparation continues through the public `ir run` interface, which starts a final R child to report the prepared library path.
+That small child runs with `--default-packages=NULL`; Console does not infer library paths from ir's private cache layout.
+
 Installation warmup captures a private launch hint and gives preparation host permissions without changing cache selection or worker enforcement.
 The controller removes that hint from resolver and worker launches so their subprocesses do not inherit it.
 Older selected releases may ignore the hint and retain ordinary preparation.

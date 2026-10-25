@@ -2,6 +2,7 @@ use std::path::Path;
 use std::process::Stdio;
 
 use serde::Serialize;
+use sha2::Digest as _;
 
 use super::process::{ResolverProcess, ResolverStopHandle, resolver_command};
 
@@ -11,6 +12,7 @@ const SOURCE: &str = include_str!("programs/duckdb_extensions.py");
 struct ResolverInput<'a> {
     extensions: &'a [String],
     extension_directory: &'a Path,
+    recipe: String,
 }
 
 pub(crate) fn python_duckdb_available(
@@ -35,6 +37,10 @@ pub(crate) fn resolve_python_duckdb_extensions(
     let input = serde_json::to_vec(&ResolverInput {
         extensions,
         extension_directory,
+        recipe: sha2::Sha256::digest(SOURCE.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
     })
     .expect("DuckDB extension resolver input should serialize as JSON");
     run(managed_python, input, on_started).map(|_| ())

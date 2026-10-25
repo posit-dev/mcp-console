@@ -14,8 +14,72 @@ base::local({
     base::all(base::grepl("^[a-z][a-z0-9_]*$", extensions))
   )
 
-  storage <- base::tempfile("mcp-console-duckdb-resolver-")
   extension_directory <- Sys.getenv("MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY")
+  file_identity <- function(paths) {
+    paths <- sort(paths)
+    information <- file.info(paths)
+    stopifnot(!anyNA(information$size))
+    list(
+      paths = normalizePath(paths, winslash = "/", mustWork = TRUE),
+      size = information$size,
+      modified = as.numeric(information$mtime),
+      changed = as.numeric(information$ctime)
+    )
+  }
+  preparation_identity <- function() {
+    packages <- lapply(c("DBI", "duckdb", "jsonlite"), function(package) {
+      file_identity(list.files(
+        find.package(package),
+        full.names = TRUE,
+        recursive = TRUE,
+        all.files = TRUE,
+        no.. = TRUE
+      ))
+    })
+    as.character(jsonlite::toJSON(
+      list(
+        recipe = input$recipe,
+        runtime = list(
+          version = R.version.string,
+          executable = file_identity(commandArgs()[[1L]])
+        ),
+        packages = packages,
+        extensions = sort(extensions),
+        cache = normalizePath(
+          extension_directory,
+          winslash = "/",
+          mustWork = FALSE
+        ),
+        artifacts = file_identity(list.files(
+          extension_directory,
+          pattern = "[.]duckdb_extension([.]info)?$",
+          full.names = TRUE,
+          recursive = TRUE
+        ))
+      ),
+      auto_unbox = TRUE,
+      digits = NA
+    ))
+  }
+  receipt <- file.path(extension_directory, ".mcp-console-r-duckdb.json")
+  # Cache hints never supply package paths or permissions. Match current
+  # identities directly, including installed artifacts and package contents.
+  # Native host-default storage remains owned by DuckDB when no root is given.
+  if (nzchar(extension_directory)) {
+    reused <- tryCatch(
+      file.exists(receipt) &&
+        identical(
+          readLines(receipt, warn = FALSE, encoding = "UTF-8"),
+          preparation_identity()
+        ),
+      error = function(condition) FALSE
+    )
+    if (reused) {
+      return(invisible())
+    }
+  }
+
+  storage <- base::tempfile("mcp-console-duckdb-resolver-")
   connection <- DBI::dbConnect(
     duckdb::duckdb(
       dbdir = ":memory:",
@@ -27,7 +91,11 @@ base::local({
       )
     )
   )
-  base::on.exit(DBI::dbDisconnect(connection), add = TRUE)
+  disconnect_attempted <- FALSE
+  base::on.exit(
+    if (!disconnect_attempted) DBI::dbDisconnect(connection),
+    add = TRUE
+  )
   DBI::dbExecute(connection, "SET enable_progress_bar = false")
   if (Sys.getenv("CODEX_NETWORK_PROXY_ACTIVE") == "1") {
     # Extension INSTALL does not consume the proxy environment itself.
@@ -61,6 +129,19 @@ base::local({
     DBI::dbExecute(
       connection,
       base::paste("INSTALL", identifier)
+    )
+  }
+  disconnect_attempted <- TRUE
+  DBI::dbDisconnect(connection)
+  if (nzchar(extension_directory)) {
+    # Partial or concurrent receipt writes are harmless misses: reuse requires
+    # exact equality with the full current identity. Failed installs never get here.
+    tryCatch(
+      {
+        dir.create(extension_directory, recursive = TRUE, showWarnings = FALSE)
+        writeLines(preparation_identity(), receipt, useBytes = TRUE)
+      },
+      error = function(condition) invisible()
     )
   }
 })

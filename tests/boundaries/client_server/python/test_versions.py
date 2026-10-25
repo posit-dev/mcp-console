@@ -951,60 +951,79 @@ def test_interrupts_python_cache_warmup_without_committing(
         cleanup.callback(warmup_started.close)
         warmup_release = FifoCheckpoint.create(temporary / "warmup-release")
         cleanup.callback(warmup_release.close)
+        site = temporary / "site-packages"
+        package = site / "matplotlib"
+        package.mkdir(parents=True)
+        (package / "__init__.py").write_text(
+            "import os\ndef get_cachedir(): return os.environ['MPLCONFIGDIR']\n",
+            encoding="utf-8",
+        )
+        (package / "font_manager.py").write_text(
+            # fmt: python
+            code("""
+                import os
+                import signal
+                from pathlib import Path
+
+                preflight = Path(os.environ["MCP_CONSOLE_TEST_PREFLIGHT_WARMUP"])
+                blocked = Path(os.environ["MCP_CONSOLE_TEST_BLOCKED_WARMUP"])
+                if not preflight.exists():
+                    preflight.touch()
+                elif not blocked.exists():
+                    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+                    blocked.touch()
+                    with open(
+                        os.environ["MCP_CONSOLE_TEST_WARMUP_STARTED"], "wb", buffering=0
+                    ) as started:
+                        started.write(b"1")
+                    signal.sigwait({signal.SIGINT})
+                    with open(
+                        os.environ["MCP_CONSOLE_TEST_WARMUP_RELEASE"], "rb", buffering=0
+                    ) as release:
+                        assert release.read(1) == b"1"
+                """),
+            encoding="utf-8",
+        )
+        metadata = site / "matplotlib-1.0.dist-info"
+        metadata.mkdir()
+        (metadata / "METADATA").write_text(
+            "Metadata-Version: 2.3\nName: matplotlib\nVersion: 1.0\n",
+            encoding="utf-8",
+        )
+        font_cache = temporary / "font-cache"
+        font_cache.mkdir()
         write_python_executable(
             fake_python,
             # fmt: python
             code("""
                 #!/usr/bin/env python3
                 import os
-                import signal
                 import sys
-                from pathlib import Path
 
 
                 def main() -> None:
                     arguments = sys.argv[1:]
-                    if arguments and arguments[0] == "-c":
-                        Path(arguments[-1]).write_text(
-                            os.environ["MCP_CONSOLE_TEST_UV_PYTHON"],
-                            encoding="utf-8",
-                        )
-                        return
-                    if arguments[:2] == ["-I", "-c"]:
-                        if len(arguments) == 4:
-                            # Report this selected fixture while executing the
-                            # real inspection program in isolated CPython.
-                            program = "import sys; sys.executable = sys.argv.pop(1); "
-                            os.execv(
-                                sys.executable,
-                                [
-                                    sys.executable,
-                                    "-I",
-                                    "-c",
-                                    program + arguments[2],
-                                    sys.argv[0],
-                                    arguments[3],
-                                ],
-                            )
-                        preflight = Path(os.environ["MCP_CONSOLE_TEST_PREFLIGHT_WARMUP"])
-                        if not preflight.exists():
-                            preflight.touch()
-                            return
-                        blocked = Path(os.environ["MCP_CONSOLE_TEST_BLOCKED_WARMUP"])
-                        if not blocked.exists():
-                            signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
-                            blocked.touch()
-                            with open(
-                                os.environ["MCP_CONSOLE_TEST_WARMUP_STARTED"], "wb", buffering=0
-                            ) as started:
-                                started.write(b"1")
-                            signal.sigwait({signal.SIGINT})
-                            with open(
-                                os.environ["MCP_CONSOLE_TEST_WARMUP_RELEASE"], "rb", buffering=0
-                            ) as release:
-                                assert release.read(1) == b"1"
-                        return
-                    raise SystemExit(f"unexpected fake Python arguments: {arguments!r}")
+                    assert arguments[:2] == ["-I", "-c"], arguments
+                    assert len(arguments) in (4, 5), arguments
+                    # Run the actual resolver/inspection source, reporting this
+                    # fixture as selected. Only the merged resolver sees the
+                    # font-manager package with the cancellation checkpoint.
+                    program = "import sys; sys.executable = sys.argv.pop(1); "
+                    injected_arguments = [sys.argv[0]]
+                    if len(arguments) == 5:
+                        program += "sys.path.insert(0, sys.argv.pop(1)); "
+                        injected_arguments.append(os.environ["MCP_CONSOLE_TEST_SITE"])
+                    os.execv(
+                        sys.executable,
+                        [
+                            sys.executable,
+                            "-I",
+                            "-c",
+                            program + arguments[2],
+                            *injected_arguments,
+                            *arguments[3:],
+                        ],
+                    )
 
 
                 if __name__ == "__main__":
@@ -1017,6 +1036,10 @@ def test_interrupts_python_cache_warmup_without_committing(
             temporary,
             resolver_python=fake_python,
             extra_environment={
+                # The fake module writes no font list, so preparation must
+                # import it on each attempt rather than reuse a host receipt.
+                "MPLCONFIGDIR": str(font_cache),
+                "MCP_CONSOLE_TEST_SITE": str(site),
                 "MCP_CONSOLE_TEST_PREFLIGHT_WARMUP": str(preflight_warmup),
                 "MCP_CONSOLE_TEST_BLOCKED_WARMUP": str(blocked_warmup),
                 "MCP_CONSOLE_TEST_WARMUP_STARTED": str(warmup_started.path),
@@ -1045,7 +1068,7 @@ def test_interrupts_python_cache_warmup_without_committing(
         preparation_result = preparation["result"]
         assert preparation_result["isError"] is True, preparation_result
         preparation_text = preparation_result["content"][0]["text"]
-        assert "cache warmup" in preparation_text, preparation_text
+        assert "managed Python" in preparation_text, preparation_text
         assert "interrupt" in preparation_text, preparation_text
         interrupt_result = interrupt["result"]
         assert interrupt_result.get("isError") is not True, interrupt_result
@@ -1061,7 +1084,7 @@ def test_interrupts_python_cache_warmup_without_committing(
 @requires(POSIX)
 @executions(DIRECT, SANDBOXED)
 @requires(R)
-def test_stops_before_cache_warmup_after_python_resolver_interrupt(
+def test_stops_before_inspection_after_python_resolver_interrupt(
     binary: Path,
     execution: Execution,
 ) -> Transcript:
@@ -1073,7 +1096,7 @@ def test_stops_before_cache_warmup_after_python_resolver_interrupt(
         cleanup.callback(tool_run_started.close)
         tool_run_release = FifoCheckpoint.create(temporary / "tool-run-release")
         cleanup.callback(tool_run_release.close)
-        unexpected_warmup = temporary / "unexpected-warmup"
+        unexpected_inspection = temporary / "unexpected-inspection"
         write_python_executable(
             fake_python,
             # fmt: python
@@ -1088,7 +1111,9 @@ def test_stops_before_cache_warmup_after_python_resolver_interrupt(
                 def main() -> None:
                     arguments = sys.argv[1:]
                     blocked = Path(os.environ["MCP_CONSOLE_TEST_BLOCK_TOOL_RUN"])
-                    if arguments and arguments[0] == "-c":
+                    assert arguments[:2] == ["-I", "-c"], arguments
+                    assert len(arguments) in (4, 5), arguments
+                    if len(arguments) == 5:
                         if blocked.exists():
                             # Block SIGINT before publishing readiness, so an
                             # early interrupt stays pending for sigwait().
@@ -1102,31 +1127,23 @@ def test_stops_before_cache_warmup_after_python_resolver_interrupt(
                                 os.environ["MCP_CONSOLE_TEST_TOOL_RUN_RELEASE"], "rb", buffering=0
                             ) as release:
                                 assert release.read(1) == b"1"
-                        Path(arguments[-1]).write_text(
-                            os.environ["MCP_CONSOLE_TEST_UV_PYTHON"],
-                            encoding="utf-8",
-                        )
-                        return
-                    if arguments[:2] == ["-I", "-c"]:
-                        if blocked.exists():
-                            Path(os.environ["MCP_CONSOLE_TEST_UNEXPECTED_WARMUP"]).touch()
-                        if len(arguments) == 4:
-                            # Report this selected fixture while executing the
-                            # real inspection program in isolated CPython.
-                            program = "import sys; sys.executable = sys.argv.pop(1); "
-                            os.execv(
-                                sys.executable,
-                                [
-                                    sys.executable,
-                                    "-I",
-                                    "-c",
-                                    program + arguments[2],
-                                    sys.argv[0],
-                                    arguments[3],
-                                ],
-                            )
-                        return
-                    raise SystemExit(f"unexpected fake Python arguments: {arguments!r}")
+                    elif blocked.exists():
+                        Path(os.environ["MCP_CONSOLE_TEST_UNEXPECTED_INSPECTION"]).touch()
+                    # Both phases run the real source with the selected fixture
+                    # identity. The resolver deliberately completes after SIGINT;
+                    # Console must stop before starting the inspection phase.
+                    program = "import sys; sys.executable = sys.argv.pop(1); "
+                    os.execv(
+                        sys.executable,
+                        [
+                            sys.executable,
+                            "-I",
+                            "-c",
+                            program + arguments[2],
+                            sys.argv[0],
+                            *arguments[3:],
+                        ],
+                    )
 
 
                 if __name__ == "__main__":
@@ -1142,7 +1159,7 @@ def test_stops_before_cache_warmup_after_python_resolver_interrupt(
                 "MCP_CONSOLE_TEST_BLOCK_TOOL_RUN": str(block_tool_run),
                 "MCP_CONSOLE_TEST_TOOL_RUN_STARTED": str(tool_run_started.path),
                 "MCP_CONSOLE_TEST_TOOL_RUN_RELEASE": str(tool_run_release.path),
-                "MCP_CONSOLE_TEST_UNEXPECTED_WARMUP": str(unexpected_warmup),
+                "MCP_CONSOLE_TEST_UNEXPECTED_INSPECTION": str(unexpected_inspection),
             },
         )
         block_tool_run.touch()
@@ -1172,8 +1189,8 @@ def test_stops_before_cache_warmup_after_python_resolver_interrupt(
         assert "interrupt" in preparation_text, preparation_text
         interrupt_result = interrupt["result"]
         assert interrupt_result.get("isError") is not True, interrupt_result
-        assert not unexpected_warmup.exists(), (
-            "cache warmup started after the resolver accepted an interrupt"
+        assert not unexpected_inspection.exists(), (
+            "Python inspection started after the resolver accepted an interrupt"
         )
 
         client.send()

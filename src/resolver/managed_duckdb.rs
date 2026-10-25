@@ -1,6 +1,7 @@
 use std::process::Stdio;
 
 use serde::Serialize;
+use sha2::Digest as _;
 
 use super::process::{ResolverProcess, ResolverStopHandle, resolver_command};
 
@@ -9,6 +10,7 @@ const MANAGED_DUCKDB_EXTENSION_RESOLVER_SOURCE: &str = include_str!("programs/du
 #[derive(Serialize)]
 struct ResolverInput<'a> {
     extensions: &'a [String],
+    recipe: String,
 }
 
 pub(crate) fn resolve_duckdb_extensions(
@@ -16,12 +18,18 @@ pub(crate) fn resolve_duckdb_extensions(
     extensions: &[String],
     on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
 ) -> Result<(), String> {
-    let input = serde_json::to_vec(&ResolverInput { extensions })
-        .expect("DuckDB extension resolver input should serialize as JSON");
+    let input = serde_json::to_vec(&ResolverInput {
+        extensions,
+        recipe: sha2::Sha256::digest(MANAGED_DUCKDB_EXTENSION_RESOLVER_SOURCE.as_bytes())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+    })
+    .expect("DuckDB extension resolver input should serialize as JSON");
 
     let rscript = managed_r.rscript();
     let mut command = resolver_command(rscript);
-    command.arg("--vanilla");
+    command.args(["--vanilla", "--default-packages=NULL"]);
     let _program =
         super::r_program::RProgram::append(&mut command, MANAGED_DUCKDB_EXTENSION_RESOLVER_SOURCE)?;
     command
