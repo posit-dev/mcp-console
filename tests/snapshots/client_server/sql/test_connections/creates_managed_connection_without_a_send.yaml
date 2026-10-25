@@ -1,4 +1,0 @@
----
-r_and_python_managed_connections_open_before_send: true
-startup_catalog_retained: true
-ping_available_during_warmup: true
