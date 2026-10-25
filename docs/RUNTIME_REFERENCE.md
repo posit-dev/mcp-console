@@ -19,6 +19,21 @@ Submit one complete R, Python, or SQL cell, inspect its result, and then submit 
 Language visibility changes tool fields, not the availability of a SQL provider.
 Tool discovery is independent of [server readiness](API.md#server-readiness).
 
+## Memory guard
+
+Console checks the worker process tree's resident memory every five seconds, including while the session is idle.
+If its combined resident memory exceeds 90% of total physical host RAM, Console forcibly stops the worker.
+The client receives a memory-limit banner with the observed usage and advice to use a smaller dataset or process data in chunks.
+An idle session retains this explanation until the next call.
+Live objects are lost, and replacement follows the ordinary worker cleanup and recovery rules.
+
+The limit uses total physical RAM, not the RAM currently free, and is enabled without configuration.
+Accounting includes the worker launcher and observable descendants; shared resident pages can be counted in more than one process.
+The guard does not reserve memory or enforce a container's lower memory limit.
+Allocations between checks, other applications, or descendants no longer observable in the process tree can still exhaust memory.
+Package preparation runs separately and is outside this guard.
+With the sandbox enabled, the native runner retains responsibility for descendant cleanup; `--no-sandbox` stops only the direct worker.
+
 ## R
 
 R cells run in persistent global state with native console behavior.

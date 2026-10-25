@@ -302,6 +302,10 @@ pub(super) fn run(command: Command) -> Result<(), String> {
                             let _ = child.kill();
                             break;
                         }
+                        if grace_millis == 0 {
+                            let _ = child.kill();
+                            break;
+                        }
                         send_stdin.take();
                         let _ = send_sideband.send(ServerMessage::Shutdown);
                     }

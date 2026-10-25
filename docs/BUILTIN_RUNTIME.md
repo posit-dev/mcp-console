@@ -24,6 +24,10 @@ Each connection has one session and runs one code cell at a time.
 Restarting clears live objects and in-memory database state; reconnecting starts a new session.
 Recordings preserve a record of the work, not a saved session that can be resumed.
 
+The [memory guard](RUNTIME_REFERENCE.md#memory-guard) checks the worker and its descendants every five seconds.
+If their resident memory exceeds 90% of total host RAM, Console stops the session and reports why.
+Use a smaller dataset or process data in chunks before trying again; the stopped session's objects are lost.
+
 ## Combine languages in one session {#r-and-python-interoperability}
 
 Console embeds R, Python, and DuckDB in the same process.

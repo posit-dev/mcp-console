@@ -20,6 +20,7 @@ pub(super) enum WorkerEvent {
     },
     ResumeBootstrap,
     Relay(RelayEvent),
+    MemoryLimit(String),
     TransportFailure(String),
     RetireOperation {
         error: String,
@@ -365,6 +366,15 @@ fn dispatch_worker_events(
                     ),
                 };
                 if let Err(error) = result {
+                    candidates.clear();
+                    fail_dispatch(&operation, &mut startup, &interrupts, error);
+                    semantic_failure = true;
+                }
+            }
+            WorkerEvent::MemoryLimit(error) => {
+                // The command transport must remain open for immediate
+                // relay-owned termination. This is a session policy failure.
+                if !retiring {
                     candidates.clear();
                     fail_dispatch(&operation, &mut startup, &interrupts, error);
                     semantic_failure = true;

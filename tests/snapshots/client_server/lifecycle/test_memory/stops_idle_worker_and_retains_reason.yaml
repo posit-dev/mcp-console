@@ -1,0 +1,56 @@
+---
+scenario: The memory guard stops an idle worker before the next client call.
+fixture: >-
+  A custom worker executes Python. Native host observations report 1024
+  MiB of RAM and host-controlled resident memory in one selected process.
+  The failing sample is 950 MiB; the idle case first verifies that 900 MiB
+  survives. No large allocation is made.
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import subprocess
+    import sys
+    import tempfile
+    from pathlib import Path
+
+    session_marker = "original session"
+    print(os.getpid())
+result:
+  content:
+    - type: text
+      text: |
+        <worker pid>
+  isError: false
+---
+send:
+  python: assert session_marker == "original session"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [Session stopped by the memory guard: worker process tree used 950 MiB, exceeding 90% of host RAM (1024 MiB). Session objects were lost. Use a smaller dataset or process it in chunks before trying again.]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  python: |
+    assert "session_marker" not in globals()
+    print("replacement ready")
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        replacement ready
+  isError: false

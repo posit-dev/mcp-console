@@ -87,6 +87,7 @@ An aborted partial frame ends that transport; shutdown or interruption must not 
 The first shutdown/EOF retirement fixes the worker deadline.
 Later observations cannot renew it.
 The relay closes stdin and requests worker shutdown concurrently, then terminates and reaps the direct child if it does not exit.
+An already-expired worker deadline, including zero grace, force-stops the child without requesting graceful worker shutdown.
 Fatal transport failures retire immediately.
 The server's interrupt grace and optional follow-up cell are defined in [send ordering](API.md#operations), not by a new wire message.
 
