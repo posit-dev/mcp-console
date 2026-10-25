@@ -1,0 +1,3 @@
+---
+read_only_if_exists: []
+export: preserves an explicit empty override

@@ -1,0 +1,4 @@
+---
+read_only_if_exists: >-
+  preserved for workers and preparation, regardless of current path
+  existence

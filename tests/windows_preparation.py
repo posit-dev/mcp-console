@@ -158,7 +158,12 @@ class WindowsPreparation(unittest.TestCase):
                     self.assertEqual(policy["network"], "restricted")
                     self.assertEqual(
                         policy["filesystem"],
-                        {"read_only": [], "read_write": [], "deny": []},
+                        {
+                            "read_only": [],
+                            "read_write": [],
+                            "deny": [],
+                            "read_only_if_exists": [],
+                        },
                     )
                 else:
                     self.assertTrue(policy["network"]["allow_local_binding"])

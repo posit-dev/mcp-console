@@ -71,3 +71,36 @@ test_that("materialization and pruning retain client sandbox inheritance", {
     expect_identical(as.list(pruned)$sandbox, as.list(requested))
   }
 })
+
+test_that("materialization and pruning preserve optional read-only paths", {
+  with_sandbox_directory({
+    binary <- sandbox_test_binary()
+    project <- normalizePath(getwd(), winslash = "/")
+    paths <- file.path(project, c("existing", "missing"))
+    dir.create(paths[[1]])
+    for (optional_paths in list(paths, character())) {
+      requested <- ConsoleConfig(
+        sandbox = SandboxPolicy(
+          filesystem = SandboxFilesystem(
+            read_only = character(),
+            read_write = character(),
+            deny = character(),
+            read_only_if_exists = optional_paths
+          )
+        )
+      )
+      config <- materialize_console_config(
+        requested,
+        path = binary,
+        project = project
+      )
+      expect_identical(
+        config@sandbox@filesystem@read_only_if_exists,
+        optional_paths
+      )
+      pruned <- prune_console_config(config, path = binary, project = project)
+      expect_identical(as.list(pruned), as.list(requested))
+    }
+    expect_false(file.exists(paths[[2]]))
+  })
+})

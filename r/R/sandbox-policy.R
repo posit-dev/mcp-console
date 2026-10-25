@@ -68,6 +68,9 @@ config_flag <- function() {
 #' * `read_only` permits reads and prevents writes where it overrides a
 #'   broader writable path. For example, permit project writes but protect
 #'   `"./data"` with `read_only = "./data"`.
+#' * `read_only_if_exists` applies the same restriction only to paths present
+#'   when the sandbox policy is captured. Missing paths remain subject to their
+#'   parent permissions and can be created beneath a writable parent.
 #' * `deny` blocks reading and writing the named paths and their contents.
 #'   Use it for files the worker should not see, such as `"./secrets"`.
 #'
@@ -88,10 +91,15 @@ config_flag <- function() {
 #' Linux mount masking can also prevent a narrower read exception beneath a
 #' denied directory from being visible.
 #'
-#' The runner normally protects `.git`, `.agents`, `.codex`, and `.aws` from
-#' writes beneath writable roots. Explicit grants can override these protections.
-#' If you grant an ancestor of the project, list protected project paths in
-#' `read_only` explicitly. Add `"./.claude"` there if it should also be protected.
+#' A writable root permits changes throughout its subtree, including metadata.
+#' The `"workspace"` profile adds read-only rules for `.git`, `.agents`, `.codex`,
+#' `.aws`, and `.claude` at the workspace root, including missing paths.
+#' On Linux, protecting a missing path can create a host-visible mount target
+#' while the sandbox runs; forced termination can leave it behind.
+#' To protect existing metadata without creating these targets, use
+#' `profile = "read_only"`, `read_write = "."`, and list the metadata paths in
+#' `read_only_if_exists`. Missing metadata can then be created and changed.
+#' This option does not remove protections supplied by another rule or profile.
 #'
 #' @section Choosing network access:
 #' The `network` argument selects one of three arrangements:
@@ -233,6 +241,9 @@ config_flag <- function() {
 #'   paths granting reads, reads and writes, or denying both, respectively.
 #'   For `SandboxDomains()`, `deny` instead contains hostname patterns or IP
 #'   literals whose proxy connections should be blocked.
+#' @param read_only_if_exists Character vector of literal filesystem paths to
+#'   protect from writes only if present when the sandbox policy is captured.
+#'   Missing paths are skipped; this does not prevent their later creation.
 #' @return An S7 configuration object. The constructor is also its S7 class.
 #' @examples
 #' # Read host files; write only private temporary storage; no worker network
@@ -325,7 +336,8 @@ SandboxFilesystem <- S7::new_class(
   properties = list(
     read_only = config_string_list(),
     read_write = config_string_list(),
-    deny = config_string_list()
+    deny = config_string_list(),
+    read_only_if_exists = config_string_list()
   )
 )
 
@@ -505,6 +517,7 @@ config_mapping <- function(fields) {
   fields <- fields[!vapply(fields, is.null, logical(1))]
   arrays <- c(
     "read_only",
+    "read_only_if_exists",
     "read_write",
     "deny",
     "allow",

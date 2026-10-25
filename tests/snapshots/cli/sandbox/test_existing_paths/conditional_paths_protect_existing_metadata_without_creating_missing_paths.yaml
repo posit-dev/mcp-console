@@ -1,0 +1,5 @@
+---
+stdout: |
+  existing metadata protected; missing paths absent
+  missing paths can be created
+host_during_execution: no missing metadata mount targets

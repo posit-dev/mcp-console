@@ -1,0 +1,9 @@
+---
+scenario: optional read-only metadata paths with all sandbox processes killed
+stdout: |
+  ready
+host_entries_while_running:
+  - ordinary
+host_entries_after_sigkill:
+  - ordinary
+exit_code: -9

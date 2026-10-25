@@ -10,7 +10,12 @@
 \alias{InheritCodexSandboxProfile}
 \title{Configure sandbox filesystem and network access}
 \usage{
-SandboxFilesystem(read_only = NULL, read_write = NULL, deny = NULL)
+SandboxFilesystem(
+  read_only = NULL,
+  read_write = NULL,
+  deny = NULL,
+  read_only_if_exists = NULL
+)
 
 SandboxDomains(allow = NULL, deny = NULL)
 
@@ -43,6 +48,10 @@ SandboxPolicy(
 paths granting reads, reads and writes, or denying both, respectively.
 For \code{SandboxDomains()}, \code{deny} instead contains hostname patterns or IP
 literals whose proxy connections should be blocked.}
+
+\item{read_only_if_exists}{Character vector of literal filesystem paths to
+protect from writes only if present when the sandbox policy is captured.
+Missing paths are skipped; this does not prevent their later creation.}
 
 \item{allow}{Character vector of hostname patterns or IP literals permitted
 by the proxy. Unmatched destinations are denied; matching \code{deny} rules win.}
@@ -144,6 +153,9 @@ permit project writes, or \code{"./output"} to permit only an output directory.
 \item \code{read_only} permits reads and prevents writes where it overrides a
 broader writable path. For example, permit project writes but protect
 \code{"./data"} with \code{read_only = "./data"}.
+\item \code{read_only_if_exists} applies the same restriction only to paths present
+when the sandbox policy is captured. Missing paths remain subject to their
+parent permissions and can be created beneath a writable parent.
 \item \code{deny} blocks reading and writing the named paths and their contents.
 Use it for files the worker should not see, such as \code{"./secrets"}.
 }
@@ -165,10 +177,15 @@ portable choice. Linux skips absent write roots and can reject file roots.
 Linux mount masking can also prevent a narrower read exception beneath a
 denied directory from being visible.
 
-The runner normally protects \code{.git}, \code{.agents}, \code{.codex}, and \code{.aws} from
-writes beneath writable roots. Explicit grants can override these protections.
-If you grant an ancestor of the project, list protected project paths in
-\code{read_only} explicitly. Add \code{"./.claude"} there if it should also be protected.
+A writable root permits changes throughout its subtree, including metadata.
+The \code{"workspace"} profile adds read-only rules for \code{.git}, \code{.agents}, \code{.codex},
+\code{.aws}, and \code{.claude} at the workspace root, including missing paths.
+On Linux, protecting a missing path can create a host-visible mount target
+while the sandbox runs; forced termination can leave it behind.
+To protect existing metadata without creating these targets, use
+\code{profile = "read_only"}, \code{read_write = "."}, and list the metadata paths in
+\code{read_only_if_exists}. Missing metadata can then be created and changed.
+This option does not remove protections supplied by another rule or profile.
 }
 
 \section{Choosing network access}{

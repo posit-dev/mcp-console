@@ -116,11 +116,12 @@ Create `./output` before launch.
 `sandbox.filesystem` and `resolver.sandbox.filesystem` each require a mapping.
 Fields within that mapping are:
 
-| Field        | Accepted values      | Access to each path and its descendants                             |
-| ------------ | -------------------- | ------------------------------------------------------------------- |
-| `read_only`  | List of path strings | Permit reads, with no writes at that path.                          |
-| `read_write` | List of path strings | Permit reads and writes, including creation, editing, and deletion. |
-| `deny`       | List of path strings | Deny reads and writes.                                              |
+| Field                 | Accepted values      | Access to each path and its descendants                                             |
+| --------------------- | -------------------- | ----------------------------------------------------------------------------------- |
+| `read_only`           | List of path strings | Permit reads, with no writes at that path.                                          |
+| `read_only_if_exists` | List of path strings | Apply a read-only rule only if the path exists when the sandbox policy is captured. |
+| `read_write`          | List of path strings | Permit reads and writes, including creation, editing, and deletion.                 |
+| `deny`                | List of path strings | Deny reads and writes.                                                              |
 
 Each list defaults to `[]` within a supplied mapping.
 Paths are concrete paths, not globs.
@@ -155,6 +156,29 @@ macOS can grant creation at absent paths; Linux skips absent write roots until a
 Linux cannot reliably reopen a narrower read beneath a broader denied mount.
 Create intended writable directories first.
 Console does not grant extra paths or switch backends to make an unsupported policy work.
+
+### Protect only existing metadata
+
+On Linux, protecting a missing path with `read_only` or the `workspace` profile can create a mount target in the host directory.
+These targets are visible while the sandbox runs and can remain after forced termination.
+An empty `.git` directory can affect tools that use it to identify a project root.
+
+To permit project writes and protect existing metadata without creating missing metadata paths:
+
+```yaml
+sandbox:
+  profile: read_only
+  filesystem:
+    read_write: [.]
+    read_only_if_exists: [.git, .agents, .codex, .aws, .claude]
+```
+
+`read_only_if_exists` checks paths when the sandbox policy is captured.
+Missing paths are skipped, so sandboxed code can create and change them under a writable parent.
+The check does not continuously protect metadata created later.
+Existing paths retain the normal read-only rules, including protection of referenced Git worktree metadata.
+This option does not remove restrictions from another rule, an inherited policy, or the `workspace` profile.
+Keep `workspace` or explicit `read_only` entries when preventing creation of missing metadata is required.
 
 ### Grant writes to one directory
 
