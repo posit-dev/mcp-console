@@ -27,6 +27,7 @@ result:
 send:
   sql: |
     SELECT * FROM wide_values
+  timeout_ms: 0
 result:
   content:
     - type: text
@@ -117,6 +118,7 @@ result:
 send:
   sql: |
     SELECT * FROM wide_values
+  timeout_ms: 0
 result:
   content:
     - type: text
@@ -207,6 +209,7 @@ result:
 send:
   sql: |
     SELECT * FROM wide_values
+  timeout_ms: 0
 result:
   content:
     - type: text

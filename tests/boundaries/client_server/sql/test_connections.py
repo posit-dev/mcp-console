@@ -866,11 +866,11 @@ def test_allows_python_dbapi_callbacks_to_select_an_r_connection(
             )
 
             release.release()
-            client.send(timeout_ms=3_000)
+            client.expect(None, timeout_ms=0)
             preview = last_tool_text(client)
             assert "callback_value" in preview and "41" in preview, preview
 
-            client.send(sql="SELECT value FROM managed_values")
+            client.expect(None, sql="SELECT value FROM managed_values")
             preview = last_tool_text(client)
             assert "value" in preview and "42" in preview
 
