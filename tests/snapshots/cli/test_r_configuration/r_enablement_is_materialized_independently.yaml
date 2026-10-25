@@ -1,0 +1,75 @@
+---
+overrides: []
+full: false
+r: ~
+languages: ~
+---
+overrides: []
+full: true
+r:
+  enabled: true
+  vanilla: false
+  resolution: implicit
+languages:
+  - r
+  - python
+  - sql
+---
+overrides:
+  - r.enabled=false
+full: false
+r:
+  enabled: false
+languages: ~
+---
+overrides:
+  - r.enabled=false
+full: true
+r:
+  enabled: false
+  vanilla: false
+  resolution: implicit
+languages:
+  - r
+  - python
+  - sql
+---
+overrides:
+  - r.enabled=false
+  - r.enabled=true
+full: false
+r: ~
+languages: ~
+---
+overrides:
+  - r.enabled=false
+  - r.enabled=true
+full: true
+r:
+  enabled: true
+  vanilla: false
+  resolution: implicit
+languages:
+  - r
+  - python
+  - sql
+---
+overrides:
+  - r.enabled=false
+  - r=null
+full: false
+r: ~
+languages: ~
+---
+overrides:
+  - r.enabled=false
+  - r=null
+full: true
+r:
+  enabled: true
+  vanilla: false
+  resolution: implicit
+languages:
+  - r
+  - python
+  - sql

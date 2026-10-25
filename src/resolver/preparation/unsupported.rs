@@ -6,8 +6,9 @@ pub(crate) struct Preparation;
 
 impl Preparation {
     pub(crate) fn open_local(
-        _: super::Mode,
-        _: Option<crate::settings::SandboxSettings>,
+        _: super::DiscoveryPolicy,
+        _: crate::settings::SandboxSettings,
+        _: bool,
         _: Option<&std::ffi::OsStr>,
         _: Option<crate::local_runtime::RInstallation>,
         _: crate::process_output::Diagnostics,

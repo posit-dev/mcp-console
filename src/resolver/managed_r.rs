@@ -157,11 +157,17 @@ impl ManagedRResolverConfiguration {
 
 pub(crate) fn discover(
     python: &super::ManagedPythonResolverConfiguration,
+    preparation: super::preparation::RPreparation,
     on_started: impl FnOnce(ResolverStopHandle) -> Result<(), String>,
 ) -> Result<(Option<ManagedRBootstrap>, PathBuf), String> {
     let resolver = ResolverProcess::new();
     let mut on_started = Some(on_started);
     let rscript = discover_rscript(&resolver, &mut on_started)?;
+    if matches!(preparation, super::preparation::RPreparation::Disabled) {
+        // Native R remains available without package preparation. In particular,
+        // do not start R and load reticulate to discover a discarded uv bootstrap.
+        return Ok((None, rscript));
+    }
     let ir = select_ir_command(python);
     if ir.is_none() && !probe_ambient_uv(&resolver, &mut on_started, &rscript, python)? {
         return Ok((None, rscript));

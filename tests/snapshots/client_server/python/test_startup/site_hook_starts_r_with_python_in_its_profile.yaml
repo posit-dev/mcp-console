@@ -1,0 +1,40 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    answer <- reticulate::py_eval("__import__('builtins').site_answer")
+    stopifnot(initialization_calls == 1L)
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: profile_started
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  python: |
+    import builtins
+    import numpy as np
+
+    assert builtins.site_calls == 1
+    assert builtins.pth_calls == builtins.pth_calls_before_r > 0
+    assert int(r["initialization_calls"]) == 1
+    r.callback_array = np.array([40, 2])
+    int(r["sum(callback_array)"])
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

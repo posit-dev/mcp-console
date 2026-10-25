@@ -1,0 +1,38 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    failure <- tryCatch(reticulate::py_config(), error = identity)
+    stopifnot(
+      inherits(failure, "python.builtin.ValueError"),
+      grepl(
+        "R-first plotting setup failed",
+        conditionMessage(failure),
+        fixed = TRUE
+      )
+    )
+    second <- tryCatch(reticulate::py_config(), error = conditionMessage)
+    stopifnot(identical(
+      second,
+      "R/Python attachment is incomplete; restart required"
+    ))
+    cat("R-first setup error retained\n")
+result:
+  content:
+    - type: text
+      text: |
+        R-first setup error retained
+  isError: false
+---
+send:
+  python: |
+    assert startup_count == 1
+    assert id(runtime_identity) == runtime_identity_id
+    print("Python setup retried without replaying hooks")
+result:
+  content:
+    - type: text
+      text: |
+        Python setup retried without replaying hooks
+  isError: false

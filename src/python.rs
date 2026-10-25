@@ -49,7 +49,7 @@ pub(crate) enum SqlProvider {
 
 pub(crate) use platform::configure_worker_environment as configure_native_worker_environment;
 
-pub(crate) use reticulate::configure_worker_environment as configure_r_environment;
+pub(crate) use reticulate::with_r_startup_environment;
 
 thread_local! {
     static ADAPTER: std::cell::RefCell<Option<std::rc::Rc<reticulate::Adapter>>> = const { std::cell::RefCell::new(None) };
@@ -75,6 +75,13 @@ fn adapter() -> Option<std::rc::Rc<reticulate::Adapter>> {
     ADAPTER.with(|slot| slot.borrow().clone())
 }
 
+fn pending_executable() -> Option<Result<&'static std::path::Path, String>> {
+    Some(match SELECTION.get()?.pending_python.as_ref()? {
+        crate::local_runtime::PendingPython::Executable(path) => Ok(path),
+        crate::local_runtime::PendingPython::Unavailable(error) => Err(error.clone()),
+    })
+}
+
 pub(crate) fn attach_bridge() -> Result<bool, String> {
     adapter()
         .ok_or("R bridge is unavailable")?
@@ -94,18 +101,29 @@ pub(crate) fn ensure_initialized() -> Result<bool, String> {
     if library::runtime_configured()? {
         return Ok(true);
     }
-    if !crate::worker::r_initialized()
-        && let Some(candidate) = requirements::materialized()
-    {
+    if let Some(candidate) = requirements::materialized() {
         return startup::initialize_native(&candidate.selected, true);
     }
     let selection = SELECTION
         .get()
         .ok_or("Python capability is not configured")?;
-    if !crate::worker::r_initialized()
-        && let Some(python) = &selection.python
-    {
+    if let Some(python) = &selection.python {
         return startup::initialize_native(&python.selected, python.managed);
+    }
+    // Capture the executable before native R startup, but run mutable Python
+    // inspection only when Python is needed and under its ordinary policy.
+    if let Some(executable) = pending_executable() {
+        let selected = match executable.and_then(crate::worker::inspect_python) {
+            Ok(selected) => selected,
+            Err(error) => {
+                crate::worker::emit_output(
+                    crate::worker_protocol::ConsoleChannel::Diagnostic,
+                    format!("Error: {error}\n").as_bytes(),
+                );
+                return Ok(false);
+            }
+        };
+        return startup::initialize_native(&selected, false);
     }
     if !crate::worker::r_initialized()
         && let Some(explicit) = std::env::var_os("RETICULATE_PYTHON")
@@ -205,13 +223,6 @@ pub(crate) fn use_r_sql() -> Result<(), String> {
 
 pub(crate) fn r_sql_connection_selected() -> Result<bool, String> {
     library::r_sql_connection_selected()
-}
-
-pub(crate) fn initialize_managed_sql() -> Result<(), String> {
-    if ensure_initialized()? && library::runtime_configured()? {
-        library::initialize_managed_sql()?;
-    }
-    Ok(())
 }
 
 pub(crate) fn initialize_sql_source(source: &str) -> Result<bool, String> {

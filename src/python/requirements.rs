@@ -356,7 +356,7 @@ pub(crate) fn initialize(
         state.retry_initialization = false;
         Ok(())
     })?;
-    // Runtime initialization is demand-driven, always after worker readiness.
+    // Publish only once the runtime has adopted the prepared environment.
     crate::worker::publish_python_activation(requirements)
 }
 

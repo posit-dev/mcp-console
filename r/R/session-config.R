@@ -67,6 +67,8 @@ ConfigDiscovery <- S7::new_class(
 #'   later deliberate requirement changes; fixed keeps the startup declaration; disabled uses
 #'   preinstalled R packages and requires an empty or omitted package list.
 #' @param vanilla `NULL`, `TRUE`, or `FALSE`; controls native R startup files.
+#' @param enabled `NULL`, `TRUE`, or `FALSE`; `FALSE` disables R discovery and
+#'   initialization, including when R is installed on the host.
 #' @inherit ConsoleConfig return
 #' @examples
 #' RConfig(packages = "dplyr", resolution = "fixed")
@@ -84,9 +86,16 @@ RConfig <- S7::new_class(
       "fixed",
       "disabled"
     )),
-    vanilla = config_flag()
+    vanilla = config_flag(),
+    enabled = config_flag()
   ),
   validator = function(self) {
+    if (
+      identical(self@enabled, FALSE) &&
+        (!is.null(self@executable) || length(self@packages))
+    ) {
+      return("disabled R cannot select an executable or startup packages")
+    }
     if (identical(self@resolution, "disabled") && length(self@packages)) {
       "packages must be empty when resolution = disabled"
     }
@@ -463,6 +472,14 @@ ConsoleConfig <- S7::new_class(
     startup = NULL | StartupConfig
   ),
   validator = function(self) {
+    if (
+      !is.null(self@r) &&
+        identical(self@r@enabled, FALSE) &&
+        !is.null(self@startup) &&
+        identical(self@startup@language, "r")
+    ) {
+      return("R startup source requires r.enabled = TRUE")
+    }
     if (
       identical(self@sandbox, FALSE) &&
         !is.null(self@resolver) &&

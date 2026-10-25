@@ -1,4 +1,20 @@
 ---
+setting: r.enabled=1
+stderr: >
+  configuration with CLI overrides: r: enabled: invalid type: integer `1`,
+  expected a boolean; see docs/CONFIGURATION.md for the public format
+---
+setting: r.enabled=null
+stderr: >
+  configuration with CLI overrides: r: enabled: invalid type: null,
+  expected a boolean; see docs/CONFIGURATION.md for the public format
+---
+setting: r.enabled="false"
+stderr: >
+  configuration with CLI overrides: r: enabled: invalid type: string
+  "false", expected a boolean; see docs/CONFIGURATION.md for the public
+  format
+---
 setting: r.vanilla=1
 stderr: >
   configuration with CLI overrides: r: vanilla: invalid type: integer `1`,
@@ -39,5 +55,5 @@ stderr: >
 setting: r.profiles=true
 stderr: >
   configuration with CLI overrides: r: profiles: unknown field `profiles`,
-  expected one of `executable`, `packages`, `resolution`, `vanilla`; see
-  docs/CONFIGURATION.md for the public format
+  expected one of `enabled`, `executable`, `packages`, `resolution`,
+  `vanilla`; see docs/CONFIGURATION.md for the public format

@@ -43,7 +43,7 @@ def test_rejects_invalid_preparation_frames(binary: Path) -> Transcript:
             (
                 "versioned_open",
                 '{"Open":{"mode":"PythonOnly","version":1}}\n',
-                "invalid resolver JSON: unknown field `version`, expected `mode` or `installation` at line 1 column 38",
+                "invalid resolver JSON: unknown field `version`, expected one of `mode`, `r_preparation`, `installation` at line 1 column 38",
             ),
             (
                 "malformed_json",

@@ -14,6 +14,7 @@ from yaml12 import format_yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.python.test_startup import selected_python
+from boundaries.client_server.recording.test_boundaries import await_event
 from support.python import isolated_python
 from boundaries.client_server.python.test_without_r import (
     environment as without_r_environment,
@@ -66,6 +67,7 @@ def python_bootstrap(
     fail_once: bool = False,
     startup_error: bool = False,
     request_input: bool = True,
+    configured_startup: bool = True,
     server_environment: dict[str, str] | None = None,
 ):
     with tempfile.TemporaryDirectory() as temporary, ExitStack() as resources:
@@ -107,6 +109,21 @@ def python_bootstrap(
                         builtins.bootstrap_input = input("startup> ")
                 """),
         )
+        if configured_startup:
+            # Python itself is lazy. An explicit connection startup program
+            # gives these admission and interruption cases eager work to hold.
+            configuration = root / ".agents/console/config.yaml"
+            configuration.parent.mkdir(parents=True)
+            configuration.write_text(
+                json.dumps(
+                    {
+                        "startup": {
+                            "language": "python",
+                            "code": "import sqlite3; _console.sql_connection(sqlite3.connect(':memory:'))",
+                        },
+                    }
+                )
+            )
         environment = selected_python(root, python)
         environment["MCP_CONSOLE_LANGUAGES"] = (
             "r,python,sql" if startup_error else "python,sql"
@@ -124,10 +141,11 @@ def python_bootstrap(
             root,
         ) as client:
             try:
-                reached.wait(
-                    "embedded Python starts before initialize or send",
-                    timeout=client.response_timeout,
-                )
+                if configured_startup:
+                    reached.wait(
+                        "configured startup initializes Python before initialize or send",
+                        timeout=client.response_timeout,
+                    )
                 yield client, release
             finally:
                 release.release()
@@ -247,45 +265,54 @@ def test_restart_retires_bootstrap_before_new_cell(
 
 @executions(DIRECT, SANDBOXED)
 @requires(PROCESS_EVENTS)
-def test_failed_bootstrap_withholds_cell_and_replaces_worker(
+def test_first_python_setup_crash_retires_worker_without_replay(
     binary: Path, execution: Execution
 ) -> list:
     with python_bootstrap(
-        binary, execution, sans_r=True, output=False, fail_once=True
+        binary,
+        execution,
+        sans_r=True,
+        output=False,
+        fail_once=True,
+        configured_startup=False,
     ) as (client, release):
         root = release.path.parent
+        client.initialize_and_list_tools()
+        # The first public Python cell admits setup. The site hook crashes
+        # before its source runs; replacement must never replay that source.
+        client.send(python="never_run = True", timeout_ms=0)
+        assert without_elapsed(last_result_text(client)) == RUNNING
+        with closing(FifoCheckpoint.attach(root / "reached")) as reached:
+            reached.wait("first Python cell enters interpreter setup")
         old = capture_process_identity(
             host_process_id(int((root / "worker").read_text()), client.process.pid)
         )
-        client.initialize_and_list_tools()
-        client.send(python="never_run = True", timeout_ms=0)
-        assert without_elapsed(last_result_text(client)) == RUNNING
         release.release()
         output = wait_for_evaluation_output(
             client,
             lambda text: (
                 "[worker exited with status 47]" in text and text.endswith("[idle]")
             ),
-            "failed bootstrap replacement",
+            "failed first-use interpreter setup retires its worker",
             expected_error=True,
         )
         assert (
             "[worker stopped: in-memory state lost]\n[starting new worker]" in output
         ), output
-        with closing(FifoCheckpoint.attach(root / "reached")) as reached:
-            reached.wait("replacement hook after failure")
-        assert not live_processes([old]), "failed bootstrap survived replacement"
+        assert not live_processes([old]), "failed setup survived replacement"
         client.send(
             python="assert 'never_run' not in globals(); counter = 1; counter",
             stdin="replacement\n",
             timeout_ms=0,
         )
         assert without_elapsed(last_result_text(client)) == RUNNING
+        with closing(FifoCheckpoint.attach(root / "reached")) as reached:
+            reached.wait("replacement first Python cell enters interpreter setup")
         release.release()
         wait_for_evaluation_output(
             client,
             '[input requested: "startup> "]\n1\n',
-            "new cell after failed bootstrap",
+            "new cell after failed first-use setup",
         )
         client.send(python="counter")
         assert last_result_text(client) == "1\n"
@@ -699,7 +726,12 @@ def test_cancelled_response_preserves_bootstrap_and_first_cell(
 
 
 @contextmanager
-def managed_bootstrap(binary: Path, execution: Execution, *, inspect: bool = False):
+def managed_bootstrap(
+    binary: Path,
+    execution: Execution,
+    *,
+    inspect: bool = False,
+):
     # Hold a replacement before process creation, leaving its startup owner
     # observable without racing registration or transport readiness.
     # fmt: python
@@ -708,6 +740,7 @@ def managed_bootstrap(binary: Path, execution: Execution, *, inspect: bool = Fal
         import sys
 
         os.environ["MCP_CONSOLE_TEST_SPAWN_SERVER"] = str(os.getpid())
+        os.environ["MCP_CONSOLE_TEST_RELAY_READ_PID"] = str(os.getpid())
         os.environ["DYLD_INSERT_LIBRARIES" if sys.platform == "darwin" else "LD_PRELOAD"] = (
             os.environ.pop("MCP_CONSOLE_TEST_SPAWN_LIBRARY")
         )
@@ -724,6 +757,12 @@ def managed_bootstrap(binary: Path, execution: Execution, *, inspect: bool = Fal
         )
         release = resources.enter_context(
             closing(FifoCheckpoint.create(root / "release"))
+        )
+        bootstrapped = resources.enter_context(
+            closing(FifoCheckpoint.create(root / "bootstrapped"))
+        )
+        bootstrap_release = resources.enter_context(
+            closing(FifoCheckpoint.create(root / "bootstrap-release"))
         )
         identities = root / "workers"
         launching = resources.enter_context(
@@ -765,13 +804,22 @@ def managed_bootstrap(binary: Path, execution: Execution, *, inspect: bool = Fal
             root / "inventories.json"
         )
         environment.update(
-            MCP_CONSOLE_TEST_SPAWN_LIBRARY=str(
-                build_interposer(root, "resolver_spawn_interposer")
+            MCP_CONSOLE_TEST_SPAWN_LIBRARY=os.pathsep.join(
+                str(build_interposer(root, fixture))
+                for fixture in (
+                    ("resolver_spawn_interposer",)
+                    if inspect
+                    else ("resolver_spawn_interposer", "relay_stdout_read_interposer")
+                )
             ),
             MCP_CONSOLE_TEST_SPAWN_ARMED=str(root / "spawn-armed"),
             MCP_CONSOLE_TEST_SPAWN_ORDINAL="1",
             MCP_CONSOLE_TEST_SPAWN_STARTED=str(launching.path),
             MCP_CONSOLE_TEST_SPAWN_RELEASE=str(launch.path),
+            MCP_CONSOLE_TEST_RELAY_READ_MATCH='"kind":"runtime_initialized"',
+            MCP_CONSOLE_TEST_RELAY_READ_BYTEWISE="1",
+            MCP_CONSOLE_TEST_RELAY_READ_BLOCKED=str(bootstrapped.path),
+            MCP_CONSOLE_TEST_RELAY_READ_RELEASE=str(bootstrap_release.path),
         )
         with McpClient(
             Path(sys.executable),
@@ -790,21 +838,36 @@ def managed_bootstrap(binary: Path, execution: Execution, *, inspect: bool = Fal
             response_timeout=600,
         ) as client:
             try:
-                reached.wait("first generation bootstrap", timeout=600)
-                # Map the live worker's namespace PID to a host process identity
-                # before replacement, so reused namespace PIDs cannot compare equal.
-                worker = capture_process_identity(
-                    host_process_id(int(identities.read_text()), client.process.pid)
-                )
+                client.initialize_and_list_tools()
+                worker = None
+                if not inspect:
+                    bootstrapped.wait(
+                        "default worker's bootstrap receipt is held", client=client
+                    )
+                    client.send(requirements={"action": "get"})
+                    ready = await_event(client, root, "worker_ready")
+                    started = await_event(
+                        client,
+                        root,
+                        "worker_started",
+                        lambda event: event["session_id"] == ready["session_id"],
+                    )
+                    worker = capture_process_identity(
+                        host_process_id(started["pid"], client.process.pid)
+                    )
+                    assert not identities.exists(), (
+                        "unused default worker initialized Python"
+                    )
                 yield client, release, reached, identities, worker, launching, launch
             finally:
                 launch.release()
                 release.release()
+                bootstrap_release.release()
 
 
 @requires(POSIX, NATIVE_FIXTURES)
 @executions(DIRECT, SANDBOXED)
-def test_restart_during_bootstrap_inspection_is_quiet(
+def test_restart_during_first_python_inspection_is_quiet(
     binary: Path, execution: Execution
 ) -> list:
     with managed_bootstrap(binary, execution, inspect=True) as (
@@ -816,18 +879,40 @@ def test_restart_during_bootstrap_inspection_is_quiet(
         launching,
         launch,
     ):
-        client.initialize_and_list_tools()
+        marker = identities.with_name("discarded-cell")
+        client.expect(
+            RUNNING,
+            # fmt: python
+            python=code("""
+                from pathlib import Path
+
+                Path("discarded-cell").write_text("discarded cell ran")
+                """),
+            timeout_ms=0,
+        )
+        reached.wait("first Python cell enters managed inspection", timeout=600)
+        worker = capture_process_identity(
+            host_process_id(int(identities.read_text()), client.process.pid)
+        )
         identities.with_name("spawn-armed").touch()
-        pending = client.start_send(control="restart", python="42")
+        pending = client.start_send(control="restart", python="42", timeout_ms=0)
         launching.wait("replacement process creation is held")
         launch.release()
-        reached.wait("replacement bootstrap inspection", timeout=600)
+        reached.wait(
+            "replacement first Python cell enters managed inspection", timeout=600
+        )
+        assert not live_processes([worker]), "previous inspection worker survived"
         release.release()
         client.receive(pending)
-        assert last_result_text(client) == (
-            "[worker stopped: in-memory state lost]\n[starting new worker]\n42\n[done]"
-        ), pending
-        assert not live_processes([worker]), "previous bootstrap worker survived"
+        wait_for_evaluation_output(
+            client,
+            "[active evaluation stopped by session restart request]\n"
+            "[worker stopped: in-memory state lost]\n[starting new worker]\n42\n[done]",
+            "quiet restart completes its replacement cell",
+            received=pending,
+            completion_timeout_seconds=client.response_timeout,
+        )
+        assert not marker.exists(), "restart ran or replayed the discarded cell"
         return client.finish()[3:]
 
 
@@ -846,7 +931,6 @@ def test_first_declaration_replaces_blocked_bootstrap(
         launching,
         launch,
     ):
-        client.initialize_and_list_tools()
         identities.with_name("spawn-armed").touch()
         client.send(
             python="counter = 1; input('first cell> ')",
@@ -861,9 +945,9 @@ def test_first_declaration_replaces_blocked_bootstrap(
         assert without_elapsed(last_result_text(client)) == RUNNING
         assert phase_progress(last_result_text(client)) == "startup"
         launch.release()
-        reached.wait("replacement generation bootstrap", timeout=600)
+        reached.wait("replacement first Python cell enters setup", timeout=600)
         workers = identities.read_text().splitlines()
-        assert len(workers) == 2, workers
+        assert len(workers) == 1, workers
         assert (
             capture_process_identity(
                 host_process_id(int(workers[-1]), client.process.pid)
@@ -900,7 +984,6 @@ def test_failed_declaration_preserves_bootstrap_and_reset_remains_allowed(
         launching,
         launch,
     ):
-        client.initialize_and_list_tools()
         root = release.path.parent
         inventory = root / "inventories.json"
         write_uv_python_inventories(
@@ -914,7 +997,8 @@ def test_failed_declaration_preserves_bootstrap_and_reset_remains_allowed(
         assert "Python version constraints" in last_result_text(client), (
             last_result_text(client)
         )
-        assert len(identities.read_text().splitlines()) == 1
+        assert live_processes([worker]), "failed declaration retired the default worker"
+        assert not identities.exists(), "failed declaration initialized unused Python"
         client.send(requirements={"action": "set"})
         assert last_result_text(client) == "[prepared]"
         identities.with_name("spawn-armed").touch()
@@ -930,9 +1014,9 @@ def test_failed_declaration_preserves_bootstrap_and_reset_remains_allowed(
         assert without_elapsed(last_result_text(client)) == RUNNING
         assert phase_progress(last_result_text(client)) == "startup"
         launch.release()
-        reached.wait("reset starts its replacement bootstrap", timeout=600)
+        reached.wait("reset replacement's first Python cell enters setup", timeout=600)
         workers = identities.read_text().splitlines()
-        assert len(workers) == 2, workers
+        assert len(workers) == 1, workers
         assert (
             capture_process_identity(
                 host_process_id(int(workers[-1]), client.process.pid)

@@ -20,6 +20,7 @@ languages: [sql, python]
 Choose a nonempty subset of `r`, `python`, and `sql`.
 A later list replaces the whole list.
 This controls the tool schema and accepted source fields, not interpreter availability or permissions.
+Use [`r.enabled: false`](RUNTIME_CONFIGURATION.md#python-environment-selection) to disable the R runtime independently.
 SQL can use a hidden R or Python provider.
 Requirements, polling, input, and controls remain available unless hidden through `tool.parameters`.
 

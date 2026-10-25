@@ -10,10 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.requirements.test_r_automatic import (
     recording_fixture_r_environment,
 )
-from boundaries.client_server.python.test_peer_runtime import (
-    DEFER_R_STARTUP,
-    defer_r_bootstrap,
-)
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
@@ -144,28 +140,26 @@ def test_replaces_library_prepared_before_r_initialization(
         environment, _ = recording_fixture_r_environment(
             root, ("consolefirst", "consolesecond")
         )
-        modules = root / "modules"
-        modules.mkdir()
-        (modules / "sitecustomize.py").write_text(DEFER_R_STARTUP)
         profile = root / ".Rprofile"
         profile.write_text(
             'writeLines("started", file.path(Sys.getenv("TMPDIR"), "r-started"))\n'
         )
         environment.update(
             RETICULATE_PYTHON=sys.executable,
-            RETICULATE_PYTHONPATH=str(modules),
+            MCP_CONSOLE_LANGUAGES="python,sql",
             R_PROFILE_USER=str(profile),
             TMPDIR=str(root),
         )
         with McpClient(
             binary,
-            execution.serve("-c", "cache=host"),
+            execution.serve("-c", "cache=host", "-c", "languages=[r,python,sql]"),
             environment,
             root,
             use_r_startup_files=True,
         ) as client:
             client.initialize_and_list_tools()
-            defer_r_bootstrap(client)
+            # Hiding R defers its native profile until the Python bridge is
+            # used, while public requirements can still prepare R libraries.
             client.expect(
                 "[done]",
                 # fmt: python
@@ -179,15 +173,13 @@ def test_replaces_library_prepared_before_r_initialization(
             )
             client.expect("[prepared]", requirements={"r": ["consolefirst"]})
             client.expect("[done]", python="assert not r_started.exists()")
-            client.expect(
-                "[done]",
-                # fmt: r
-                r=code(r"""
-                    native_paths <- .libPaths()
-                    prepared_library <- dirname(find.package("consolefirst"))
-                    stopifnot(prepared_library %in% native_paths)
-                    """),
-            )
+            # fmt: r
+            source = code(r"""
+                native_paths <- .libPaths()
+                prepared_library <- dirname(find.package("consolefirst"))
+                stopifnot(prepared_library %in% native_paths)
+                """)
+            client.expect("[done]", python=f"_ = r[{source!r}]")
             client.expect(
                 "[done]", python='assert r_started.read_text() == "started\\n"'
             )
@@ -195,23 +187,23 @@ def test_replaces_library_prepared_before_r_initialization(
                 "[prepared]",
                 requirements={"r": ["consolefirst", "consolesecond"]},
             )
+            # fmt: r
+            source = code(r"""
+                paths <- .libPaths()
+                replacement <- dirname(find.package("consolesecond"))
+                stopifnot(
+                  !prepared_library %in% paths,
+                  identical(
+                    paths[!paths %in% replacement],
+                    native_paths[!native_paths %in% prepared_library]
+                  ),
+                  consolefirst::fixture(),
+                  consolesecond::fixture()
+                )
+                cat("pre-initialization library replaced\n")
+                """)
             client.expect(
-                "pre-initialization library replaced\n",
-                # fmt: r
-                r=code(r"""
-                    paths <- .libPaths()
-                    replacement <- dirname(find.package("consolesecond"))
-                    stopifnot(
-                      !prepared_library %in% paths,
-                      identical(
-                        paths[!paths %in% replacement],
-                        native_paths[!native_paths %in% prepared_library]
-                      ),
-                      consolefirst::fixture(),
-                      consolesecond::fixture()
-                    )
-                    cat("pre-initialization library replaced\n")
-                    """),
+                "pre-initialization library replaced\n", python=f"_ = r[{source!r}]"
             )
             return client.finish()
 

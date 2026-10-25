@@ -1,4 +1,19 @@
 ---
+scenario: >-
+  An R startup package initializes Python before Console attaches its
+  bridge.
+fixture: >-
+  Native R startup is eager; retained Python state is checked through R
+  and Python follow-up cells.
+---
+send:
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
 send:
   control: restart
   requirements:
@@ -30,6 +45,9 @@ send:
       identical(find("py")[[1L]], "tools:mcp-console"),
       identical(find(".console")[[1L]], "tools:mcp-console")
     )
+    if (TRUE) {
+      stopifnot(identical(Sys.getenv("RETICULATE_PYTHON"), "managed"))
+    }
 result:
   content:
     - type: text
@@ -41,7 +59,9 @@ send:
     import json
     import subprocess
 
-    if not True:
+    if True:
+        assert "==" + ".".join(map(str, sys.version_info[:3])) == '<selected Python version>'
+    else:
         assert os.path.samefile(sys.executable, os.environ["MCP_CONSOLE_TEST_PYTHON"])
         assert os.path.realpath(sys.prefix) == os.path.realpath(
             os.environ["MCP_CONSOLE_TEST_PYTHON_PREFIX"]

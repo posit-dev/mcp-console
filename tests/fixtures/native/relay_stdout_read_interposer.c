@@ -155,6 +155,13 @@ static ssize_t delayed_read(int descriptor, void *buffer, size_t length) {
         return (ssize_t)count;
     }
     read_function read_next = next_read();
+    // Deliver complete earlier frames before withholding a later match, even
+    // when the pipe coalesces Ready and RuntimeInitialized into one native read.
+    // This opt-in checkpoint needs no extra buffer or protocol parser.
+    if (length > 1 && target_process() && !atomic_load(&claimed) &&
+        getenv("MCP_CONSOLE_TEST_RELAY_READ_BYTEWISE") != NULL) {
+        length = 1;
+    }
     ssize_t result = read_next(descriptor, buffer, length);
     const char *match = getenv("MCP_CONSOLE_TEST_RELAY_READ_MATCH");
     if (result <= 0 || !target_process() || match == NULL ||

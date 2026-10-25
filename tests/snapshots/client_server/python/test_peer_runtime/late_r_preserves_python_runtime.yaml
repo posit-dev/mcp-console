@@ -1,4 +1,9 @@
 ---
+scenario: Python runs independently before the R/Python bridge attaches.
+fixture: >-
+  R native startup has completed; reticulate has not initialized its
+  Python adapter.
+---
 send:
   python: |
     import builtins
@@ -25,7 +30,7 @@ send:
         except ValueError:
             return False
 
-    assert not r_initialized(), "R initialized before Python demand"
+    assert r_initialized(), "native R startup was not eager"
     assert builtins.peer_startups == 1
     persistent = object()
     connection = sqlite3.connect(":memory:")
@@ -35,7 +40,7 @@ send:
     np.set_printoptions(linewidth=73)
     before = (id(persistent), id(connection), sys.executable, sys.prefix,
               os.environ.get("MPLCONFIGDIR"), os.environ.get("XDG_CACHE_HOME"))
-    print("Python live; R absent")
+    print("Python live; R bridge unattached")
     original_streams = (sys.stdout, sys.stderr)
     redirected_stdout = io.StringIO()
     redirected_stderr = io.StringIO()
@@ -44,7 +49,7 @@ result:
   content:
     - type: text
       text: |
-        Python live; R absent
+        Python live; R bridge unattached
   isError: false
 ---
 send:

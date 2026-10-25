@@ -53,6 +53,24 @@ An explicit selection overrides launch-time `RETICULATE_PYTHON`.
 A broken environment fails rather than falling back to another interpreter.
 The session's filesystem and network permissions still apply.
 
+Python initializes when a Python cell, SQL provider, configured startup program, or R/Python bridge first needs it.
+For R-capable sessions on Unix, inspection of an existing Python environment also waits until first use; an unusable environment therefore fails at that operation.
+The executable choice is captured at connection startup, so R startup files cannot silently select a different environment.
+Windows retains its preparation-policy inspection before worker launch.
+
+To use only Python and SQL, including on a host with R installed:
+
+```yaml
+r:
+  enabled: false
+python: .venv
+languages: [python, sql]
+```
+
+Omit `python` to use managed Python instead.
+With R disabled, Console skips R discovery and startup, and SQL uses a Python provider.
+`languages` controls the tool's accepted source fields independently of runtime availability.
+
 ### Managed Python
 
 ```yaml
@@ -122,6 +140,7 @@ r:
 | -------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `r`            | Executable path, mapping, or `null` | Select an installation and its package/startup settings. Omission or `null` uses normal R discovery and defaults.                  |
 | `r.executable` | Nonempty path string                | Installed R executable or ordinary launcher. Omission uses installation hints and `PATH` discovery.                                |
+| `r.enabled`    | `true` or `false`                   | Default: `true`. Set `false` to skip R discovery, preparation, and initialization, even when R is installed or `R_HOME` is set.    |
 | `r.vanilla`    | `true` or `false`                   | Request R's native `--vanilla` startup. Default: `false`, retaining normal environment files, profiles, and workspace restoration. |
 
 For `r.packages` and `r.resolution`, see [Package settings](PACKAGE_CONFIGURATION.md).
@@ -134,6 +153,9 @@ Console retains the selected installation across runtime restarts.
 If its captured executable or resources change incompatibly, start a new server connection.
 Executables and the code they load are trusted inputs; selecting them does not make them immutable sandbox assets.
 
+Disabled R cannot select an R executable, request R startup packages, or run an R startup program.
+`r.resolution: disabled` only disables R package preparation; it keeps the R runtime available.
+
 <span id="startup-package-declarations"></span> <span id="default-startup-packages"></span> <span id="dependency-resolution-policies"></span> <span id="resolution-policies"></span>
 
 Startup declarations, default packages, and resolution policies are documented in [Package settings](PACKAGE_CONFIGURATION.md).
@@ -141,6 +163,8 @@ Startup declarations, default packages, and resolution policies are documented i
 ## Control R startup files {#native-r-startup}
 
 R uses normal native startup by default: environment files, profiles, workspace restoration, `.First()`, and default-package attachment are R's responsibility.
+This startup runs eagerly when R is enabled and available, independently of `languages`.
+Use `r.enabled: false` to disable R entirely.
 Startup has the session's ordinary permissions.
 Console passes `--quiet`, `--interactive`, and `--no-save`, and does not save a workspace at shutdown.
 
@@ -157,6 +181,11 @@ Use [resolver environment settings](ENVIRONMENT.md#where-to-set-variables) for p
 See [R startup and libraries](ENVIRONMENT.md#r-startup-and-libraries) for the recognized native variables.
 
 Console attaches its bridges and managed graphics after native startup, so startup plots use R's native device.
+When managed Python has been prepared but not initialized, R startup files see its absolute executable path in `RETICULATE_PYTHON`.
+Console restores `managed` before attaching bridges unless startup changed the variable.
+Python initialized during native R startup can retain the temporary path in its cached `os.environ`; Console does not refresh that cached value.
+If a startup file initializes a different interpreter from the captured selection, Console reports an error.
+
 A profile diagnostic that R survives does not make the session unusable.
 If R fails initialization or is interrupted, fix the startup file externally and explicitly restart; ordinary calls do not retry initialization.
 Edits to `.Rprofile` take effect on runtime restart because R reads the file again, even though YAML configuration remains captured for the server connection.
@@ -166,6 +195,7 @@ Edits to `.Rprofile` take effect on runtime restart because R reads the file aga
 <span id="session-startup"></span>
 
 Without a `startup` setting, SQL uses the session's managed DuckDB connection.
+Console creates that connection on the first SQL operation or connection-helper access.
 Use startup source to create and select a different connection before the first SQL cell:
 
 ```yaml

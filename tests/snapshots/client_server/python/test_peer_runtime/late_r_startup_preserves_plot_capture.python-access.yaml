@@ -1,8 +1,15 @@
 ---
+scenario: >-
+  An R startup package initializes Python before Console attaches its
+  bridge.
+fixture: >-
+  Native R startup is eager; retained Python state is checked through R
+  and Python follow-up cells.
+---
 !same-as python-only MCP initialization for this execution mode
 ---
 send:
-  python: before_r = object(); before_r_identity = id(before_r)
+  python: before_followup = object(); followup_identity = id(before_followup)
 result:
   content:
     - type: text
@@ -12,7 +19,7 @@ result:
 send:
   python: |
     assert 3 < r.pi < 4
-    assert id(before_r) == before_r_identity and id(early_object) == early_identity and sys.executable == early_executable
+    assert id(before_followup) == followup_identity and id(early_object) == early_identity and sys.executable == early_executable
 result:
   content:
     - type: text
@@ -42,6 +49,9 @@ send:
       identical(find("py")[[1L]], "tools:mcp-console"),
       identical(find(".console")[[1L]], "tools:mcp-console")
     )
+    if (FALSE) {
+      stopifnot(identical(Sys.getenv("RETICULATE_PYTHON"), "managed"))
+    }
 result:
   content:
     - type: text
@@ -50,13 +60,13 @@ result:
 ---
 send:
   python: >-
-    assert id(before_r) == before_r_identity; assert early_executable ==
-    sys.executable; print('startup package attached to running Python')
+    assert id(before_followup) == followup_identity; assert early_executable
+    == sys.executable; print('startup Python retained across follow-up')
 result:
   content:
     - type: text
       text: |
-        startup package attached to running Python
+        startup Python retained across follow-up
   isError: false
 ---
 send:
@@ -80,7 +90,9 @@ send:
     import json
     import subprocess
 
-    if not False:
+    if False:
+        assert "==" + ".".join(map(str, sys.version_info[:3])) == ''
+    else:
         assert os.path.samefile(sys.executable, os.environ["MCP_CONSOLE_TEST_PYTHON"])
         assert os.path.realpath(sys.prefix) == os.path.realpath(
             os.environ["MCP_CONSOLE_TEST_PYTHON_PREFIX"]

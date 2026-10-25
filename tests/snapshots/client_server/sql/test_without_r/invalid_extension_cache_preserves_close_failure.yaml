@@ -7,7 +7,7 @@ result:
     - type: text
       text: |
         skipping default DuckDB extension `sqlite`: DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
-          File "<string>", line 56, in <module>
+          File "<string>", line 104, in <module>
             connection.install_extension(extension)
             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
         _duckdb.IOException: IO Error: Failed to create directory "<temporary>/invalid-cache": File exists

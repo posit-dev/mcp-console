@@ -31,7 +31,7 @@ result:
     - type: text
       text: |-
         DuckDB extension resolution failed with exit status: 1: Traceback (most recent call last):
-          File "<string>", line 56, in <module>
+          File "<string>", line 104, in <module>
             connection.install_extension(extension)
             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
         _duckdb.HTTPException: HTTP Error: Failed to download extension "not_a_real_duckdb_extension" at URL "http://extensions.duckdb.org/v1.4.4/<duckdb platform>/not_a_real_duckdb_extension.duckdb_extension.gz" (HTTP 404)

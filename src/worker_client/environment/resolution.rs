@@ -353,7 +353,10 @@ impl Client {
                     existing
                 } else {
                     let opened = crate::resolver::preparation::Preparation::open_local(
-                        crate::resolver::preparation::Mode::Custom,
+                        crate::resolver::preparation::DiscoveryPolicy {
+                            mode: crate::resolver::preparation::Mode::Custom,
+                            r_preparation: crate::resolver::preparation::RPreparation::Discover,
+                        },
                         self.0.resolver_settings.clone(),
                         self.0.no_sandbox,
                         std::env::var_os("RETICULATE_PYTHON").as_deref(),

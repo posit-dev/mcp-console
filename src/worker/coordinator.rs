@@ -40,6 +40,7 @@ fn run_session(bootstrap_runtimes: bool) -> Result<(), Box<dyn Error>> {
             r_settings: Default::default(),
             automatic_python_resolution: false,
             python: None,
+            pending_python: None,
         },
     );
     interrupt::normalize_signal()?;
@@ -109,22 +110,13 @@ impl Coordinator {
         // serialized interpreter thread and never enters a user evaluation.
         let languages = crate::cell::Languages::from_environment()?;
         core::set_bootstrapping(true);
-        let startup_configured = self.startup.is_some();
         let startup_complete = self.initialize_startup();
-        let complete = if startup_complete && languages.enables(Language::Python) {
-            crate::python::ensure_initialized().map_err(io::Error::other)?
-        } else {
-            true
-        };
-        if startup_complete && complete && languages.enables(Language::R) && super::r_available() {
+        // Native R startup owns process-wide environment changes, so it remains
+        // eager when available. Python and the default SQL connection initialize
+        // through their first cell or bridge/helper use; configured startup above
+        // still runs exactly once before any user cell.
+        if startup_complete && languages.enables(Language::R) && super::r_available() {
             super::ensure_r().map_err(io::Error::other)?;
-        }
-        if !startup_configured
-            && complete
-            && languages.enables(Language::Sql)
-            && !core::bootstrap_interrupted()
-        {
-            self.sql.initialize().map_err(io::Error::other)?;
         }
         self.r.finish_graphics().map_err(io::Error::other)?;
         // Acknowledge late signals before publishing the bootstrap receipt.

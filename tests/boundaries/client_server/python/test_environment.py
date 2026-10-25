@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.progress import without_elapsed
-from support.assertions import last_result_text
+from support.assertions import last_result_text, wait_for_evaluation_output
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.events import Events
@@ -31,28 +31,6 @@ from support.requirements import (
 )
 from support.suites import run_this_suite
 from boundaries.client_server.server.test_no_r import no_r_environment
-
-
-def bootstrap_diagnostic(client: McpClient, ending: str) -> str:
-    # Establish transport readiness, then observe startup diagnostics before
-    # admitting code. Otherwise their idle/cell placement races with admission.
-    result = client.send(requirements={"action": "get"}, timeout_ms=600_000)
-    assert not result["isError"], result
-    client.transcript.pop()
-    start = len(client.transcript)
-    deadline = time.monotonic() + client.response_timeout
-    output = ""
-    while True:
-        result = client.send(timeout_ms=0)
-        current = last_result_text(client)
-        assert not result["isError"] and current.endswith("\n[idle]"), result
-        output += current.removesuffix("\n[idle]")
-        if output.endswith(ending):
-            break
-        assert time.monotonic() < deadline, "bootstrap diagnostic did not arrive"
-    result["content"][0]["text"] = output + "\n[idle]"
-    client.transcript[start:] = [client.transcript[-1]]
-    return output
 
 
 @executions(DIRECT, SANDBOXED)
@@ -77,8 +55,6 @@ def test_preserves_configured_python_environment(
         transcript, errors = client.finish_with_standard_error(expected_exit_status=1)
         assert errors == "explicit Python executable is not on PATH\n", errors
         return transcript + [{"stderr": errors}]
-    expected = "Error: explicit Python executable is not on PATH\n"
-    assert bootstrap_diagnostic(client, expected) == expected
     # fmt: r
     r = code(r"""
         external_python_worker <- Sys.getpid()
@@ -91,10 +67,11 @@ def test_preserves_configured_python_environment(
         )
         "configured-by-user"
         """)
-    client.send(r=r)
+    client.expect('[1] "configured-by-user"\n', r=r)
     assert last_result_text(client) == '[1] "configured-by-user"\n', last_result_text(
         client
     )
+    client.expect("Error: explicit Python executable is not on PATH\n", python="1 + 1")
     disabled = (
         "managed Python requirements are disabled because the session uses a "
         "user-selected Python environment"
@@ -221,14 +198,14 @@ def test_rejects_python_older_than_3_10(
         transcript, errors = client.finish_with_standard_error(expected_exit_status=1)
         assert errors == error + "\n", errors
         return transcript + [{"stderr": errors}]
-    startup_error = bootstrap_diagnostic(
-        client, "RuntimeError: MCP Console requires Python 3.10 or later\n\n"
+    client.expect("[1] 42\n", r="42L")
+    output = wait_for_evaluation_output(
+        client,
+        None,
+        "first Python use rejects an old interpreter",
+        completion_timeout_seconds=client.response_timeout,
+        python="6 * 7",
     )
-    client.send(python="6 * 7")
-    result = client.transcript[-1]["result"]
-    assert result["isError"] is False, result
-    output = result["content"][0]["text"]
-    assert output == startup_error, output
     assert output.startswith(
         "Error: selected Python inspection failed (exit status: 1): Traceback"
     ), output
@@ -619,7 +596,7 @@ def test_prints_requirements_with_host_uv_cache(
               )
             )
             """)
-        client.send(r=r)
+        client.expect("[done]", r=r)
         assert last_result_text(client) == "[done]", client.transcript[-1]
         records = [
             json.loads(line)
@@ -633,8 +610,8 @@ def test_prints_requirements_with_host_uv_cache(
         }
         assert all(record == expected for record in records), records
         if execution == DIRECT:
-            # Bridge attachment checks the bootstrapped declaration before
-            # py_require adds yaml12. This local dry-run inherits worker settings.
+            # First bridge attachment checks the declaration including yaml12.
+            # This local dry-run inherits worker settings.
             diagnostics = [
                 json.loads(line)
                 for line in Path(str(uv_record) + ".diagnostics")
@@ -660,6 +637,7 @@ def test_prints_requirements_with_host_uv_cache(
                 "pandas",
                 "matplotlib",
                 "plotnine",
+                "py-yaml12",
             ], diagnostic
             assert diagnostic["environment"] == {
                 "UV_CACHE_DIR": str(worker_cache),

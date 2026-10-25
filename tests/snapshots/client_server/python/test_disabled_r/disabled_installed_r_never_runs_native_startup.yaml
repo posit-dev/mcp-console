@@ -1,0 +1,28 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: answer = 1 + 1; answer
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: R cells are unavailable in Python sessions without R
+  isError: true
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false

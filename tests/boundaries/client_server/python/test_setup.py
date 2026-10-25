@@ -11,7 +11,7 @@ from contextlib import contextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import NATIVE_FIXTURES, POSIX, requires
+from support.requirements import NATIVE_FIXTURES, POSIX, R, requires
 from support.assertions import (
     assert_exact_interleaving,
     last_result_text,
@@ -32,7 +32,6 @@ from support.resolvers import (
 )
 from support.r import install_r_startup, r_test_environment
 from support.suites import run_this_suite
-from boundaries.client_server.python.test_environment import bootstrap_diagnostic
 
 
 @contextmanager
@@ -1336,6 +1335,66 @@ def test_retries_matplotlib_setup_after_interrupt(
 
 
 @executions(DIRECT, SANDBOXED)
+@requires(R)
+def test_reports_r_first_setup_error_without_replaying_hooks(
+    binary: Path, execution: Execution
+) -> Transcript:
+    # fmt: python
+    source = code("""
+        import sys
+
+        startup_count = globals().get("startup_count", 0) + 1
+        runtime_identity = object()
+        runtime_identity_id = id(runtime_identity)
+
+
+        class FailingPyplot:
+            def show(self, *args):
+                pass
+
+            def __setattr__(self, name: str, value: object) -> None:
+                sys.modules.pop("matplotlib.pyplot")
+                raise ValueError("R-first plotting setup failed")
+
+
+        FailingPyplot.show.__module__ = "matplotlib.pyplot"
+        sys.modules["matplotlib.pyplot"] = FailingPyplot()
+        """)
+    with startup_client(binary, execution, source) as client:
+        client.expect(
+            "R-first setup error retained\n",
+            # fmt: r
+            r=code("""
+                failure <- tryCatch(reticulate::py_config(), error = identity)
+                stopifnot(
+                  inherits(failure, "python.builtin.ValueError"),
+                  grepl(
+                    "R-first plotting setup failed",
+                    conditionMessage(failure),
+                    fixed = TRUE
+                  )
+                )
+                second <- tryCatch(reticulate::py_config(), error = conditionMessage)
+                stopifnot(identical(
+                  second,
+                  "R/Python attachment is incomplete; restart required"
+                ))
+                cat("R-first setup error retained\\n")
+                """),
+        )
+        client.expect(
+            "Python setup retried without replaying hooks\n",
+            # fmt: python
+            python=code("""
+                assert startup_count == 1
+                assert id(runtime_identity) == runtime_identity_id
+                print("Python setup retried without replaying hooks")
+                """),
+        )
+        return client.finish()
+
+
+@executions(DIRECT, SANDBOXED)
 def test_reports_matplotlib_setup_error_once(
     binary: Path, execution: Execution
 ) -> Transcript:
@@ -1356,7 +1415,13 @@ def test_reports_matplotlib_setup_error_once(
         runtime_identity_id = id(runtime_identity)
         """)
     with startup_client(binary, execution, source) as client:
-        output = bootstrap_diagnostic(client, "ValueError: matplotlib setup failed\n")
+        output = wait_for_evaluation_output(
+            client,
+            None,
+            "first Python use reports plotting setup failure",
+            completion_timeout_seconds=client.response_timeout,
+            python="pass",
+        )
         assert output.startswith("Traceback (most recent call last):\n"), output
         assert output.count("ValueError: matplotlib setup failed\n") == 1, output
         assert output.endswith("ValueError: matplotlib setup failed\n"), output

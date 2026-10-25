@@ -1,4 +1,9 @@
 ---
+scenario: Python runs independently before the R/Python bridge attaches.
+fixture: >-
+  R native startup has completed; reticulate has not initialized its
+  Python adapter.
+---
 send:
   python: |
     import signal

@@ -30,14 +30,6 @@ pub(crate) struct Bridge {
 }
 
 impl Bridge {
-    pub(crate) fn initialize(&self) -> Result<(), String> {
-        if crate::worker::r_available() {
-            self.r_backend()?.initialize_managed()
-        } else {
-            crate::python::initialize_managed_sql()
-        }
-    }
-
     pub(crate) fn initialize_r_source(&self, source: &str) -> Result<bool, String> {
         self.r_backend()?.initialize_source(source)
     }

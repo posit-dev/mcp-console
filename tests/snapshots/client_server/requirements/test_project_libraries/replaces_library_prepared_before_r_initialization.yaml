@@ -33,10 +33,10 @@ result:
   isError: false
 ---
 send:
-  r: |
-    native_paths <- .libPaths()
-    prepared_library <- dirname(find.package("consolefirst"))
-    stopifnot(prepared_library %in% native_paths)
+  python: >-
+    _ = r['native_paths <- .libPaths()\nprepared_library <-
+    dirname(find.package("consolefirst"))\nstopifnot(prepared_library %in%
+    native_paths)\n']
 result:
   content:
     - type: text
@@ -63,19 +63,13 @@ result:
   isError: false
 ---
 send:
-  r: |
-    paths <- .libPaths()
-    replacement <- dirname(find.package("consolesecond"))
-    stopifnot(
-      !prepared_library %in% paths,
-      identical(
-        paths[!paths %in% replacement],
-        native_paths[!native_paths %in% prepared_library]
-      ),
-      consolefirst::fixture(),
-      consolesecond::fixture()
-    )
-    cat("pre-initialization library replaced\n")
+  python: >-
+    _ = r['paths <- .libPaths()\nreplacement <-
+    dirname(find.package("consolesecond"))\nstopifnot(\n  !prepared_library
+    %in% paths,\n  identical(\n    paths[!paths %in%
+    replacement],\n    native_paths[!native_paths %in%
+    prepared_library]\n  ),\n  consolefirst::fixture(),\n  consolesecond::fixture()\n)\ncat("pre-initialization
+    library replaced\\n")\n']
 result:
   content:
     - type: text

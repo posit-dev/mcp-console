@@ -547,6 +547,7 @@ fn native_probe() {
             automatic_python_resolution: false,
             r: false,
             installation: None,
+            pending_python: None,
             python: Some(crate::local_runtime::Python {
                 selected: Box::new(initial.clone()),
                 explicit: None,
@@ -651,6 +652,20 @@ fn native_probe() {
         let configuration =
             crate::python::inspect_native(std::path::Path::new(&executable), |_| Ok(()))
                 .expect("inspect selected Python executable");
+        let _runtime = crate::python::Runtime::new(crate::local_runtime::WorkerSelection {
+            r_settings: Default::default(),
+            automatic_python_resolution: false,
+            r: false,
+            installation: None,
+            pending_python: None,
+            python: Some(crate::local_runtime::Python {
+                selected: Box::new(configuration.clone()),
+                explicit: Some(executable.into()),
+                managed: false,
+                duckdb_extension_directory: None,
+            }),
+        })
+        .expect("configure native Python runtime");
         crate::python::initialize_selected(&configuration).expect("initialize known Python");
         assert!(
             crate::python::setup_runtime(

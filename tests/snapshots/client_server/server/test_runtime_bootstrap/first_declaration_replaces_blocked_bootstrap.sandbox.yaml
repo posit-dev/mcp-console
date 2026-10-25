@@ -2,6 +2,58 @@
 !same-as writable MCP initialization for this execution mode
 ---
 send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [
+              "numpy",
+              "pandas",
+              "matplotlib",
+              "plotnine",
+              "duckdb"
+            ],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - duckdb
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
   python: counter = 1; input('first cell> ')
   requirements:
     action: set

@@ -48,6 +48,22 @@ pub(crate) struct Selection {
     pub(crate) automatic_python_resolution: bool,
     // In managed sessions, None leaves R declarations and selection hints lazy.
     pub(crate) python: Option<Python>,
+    // Capture the existing selection or its lookup error before native R startup.
+    // Inspection and failure reporting wait until Python is actually needed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) pending_python: Option<PendingPython>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(
+    tag = "kind",
+    content = "value",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
+pub(crate) enum PendingPython {
+    Executable(PathBuf),
+    Unavailable(String),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -71,6 +87,8 @@ pub(crate) struct WorkerSelection {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub(crate) automatic_python_resolution: bool,
     pub(crate) python: Option<Python>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) pending_python: Option<PendingPython>,
 }
 
 impl Selection {
@@ -164,6 +182,7 @@ impl Selection {
                 managed: managed.is_some(),
                 duckdb_extension_directory,
             }),
+            pending_python: None,
         };
         Ok((selection, managed))
     }
@@ -226,6 +245,7 @@ impl Selection {
                 r_settings: self.r_settings.clone(),
                 automatic_python_resolution: self.automatic_python_resolution,
                 python: self.python.clone(),
+                pending_python: self.pending_python.clone(),
             })
             .map_err(|error| format!("cannot encode runtime selections: {error}"))?,
         );

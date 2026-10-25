@@ -53,5 +53,5 @@ result:
       text: |
         idle Python ready
         [output produced while idle]
-        c("py-yaml12", "numpy", "pandas", "matplotlib", "plotnine")
+        c("numpy", "pandas", "matplotlib", "plotnine", "py-yaml12")
   isError: false

@@ -63,6 +63,22 @@ One connection-owned background task discovers runtimes, prepares defaults, and 
 MCP initialization, tool discovery, and pings do not wait.
 Workers supplied through internal testing hooks are launched on demand.
 
+Native R startup remains eager when R is enabled and available, independently of model-visible languages.
+Python initialization and the default SQL connection wait for their first consumer; configured startup source remains eager and runs exactly once.
+`r.enabled: false` bypasses R discovery, preparation, and native startup without changing the model-visible language setting.
+An existing Python with R disabled needs interpreter inspection but no retained dependency-preparation process.
+Disabled R package preparation discovers R's installation without probing an unused `ir` or reticulate bootstrap.
+
+Unix R-capable sessions capture an existing Python's absolute executable choice before native startup and inspect it inside the worker policy at first use.
+Windows retains its earlier inspection inside the separate resolver policy.
+For an uninitialized prepared managed Python, native R startup temporarily receives its executable path in `RETICULATE_PYTHON` instead of `managed`.
+Console restores the unchanged hint before bridge attachment and preserves profile edits.
+An interpreter initialized by native R startup must agree with the captured existing or prepared managed Python selection; Console does not silently adopt a different environment.
+When R first requests Python, native setup runs site hooks before ordinary reticulate conversion attachment and NumPy import.
+A site hook that explicitly calls R can attach conversion during setup; the outer setup retains ownership of site processing, runtime completion, and the initial Python thread state.
+Returning from that callback does not repeat site processing or reticulate initialization hooks.
+The adapter retains that setup outcome so its initialization hook can report a failure without rerunning user hooks.
+
 With the `inherit_codex` sandbox profile, startup waits for the first `send` to capture client authority before creating any preparation or execution process.
 Capture happens in transport request order before asynchronous handler dispatch; a cancelled first request cannot let a later request select the connection's permissions.
 The server translates supported permissions or selects the configured fallback, defaulting to `read_only`, then composes local permissions and selects caches.
@@ -75,6 +91,7 @@ The metadata adapter and its supported limits live in [`src/server/sandbox.rs`](
 
 Transport readiness connects command, input, output, and resolver services before built-in interpreter bootstrap.
 It does not mean either interpreter is initialized.
+The bootstrap receipt confirms eager startup has settled; it does not force unused Python or SQL initialization.
 Unchanged requirements do not wait for bootstrap.
 When R is available, changed requirements wait for built-in bootstrap before reserving environment changes, including replacement of an unused worker.
 This prevents retirement from interrupting a native R startup attempt that began after replacement was selected.

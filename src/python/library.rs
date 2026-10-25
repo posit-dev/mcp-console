@@ -799,31 +799,6 @@ pub(super) fn r_sql_connection_selected() -> Result<bool, String> {
     })
 }
 
-pub(super) fn initialize_managed_sql() -> Result<(), String> {
-    api()?.with_gil(|api| {
-        // The GIL covers the call, exception inspection, and reference release.
-        unsafe {
-            let function = api.function(c"_mcp_console_sql", c"initialize_managed_connection")?;
-            let result = (api.call_no_args)(function);
-            if result.is_null() {
-                let interrupted =
-                    (api.err_exception_matches)(api.keyboard_interrupt as *mut PyObject) != 0;
-                api.display_pending_exception();
-                if interrupted {
-                    crate::worker::record_bootstrap_interrupt();
-                    return Ok(());
-                }
-                return Err(python_function_error(
-                    c"_mcp_console_sql",
-                    c"initialize_managed_connection",
-                ));
-            }
-            (api.dec_ref)(result);
-            Ok(())
-        }
-    })
-}
-
 pub(super) fn configure_native_sql() -> Result<(), String> {
     api()?.with_gil(|api| api.call_unit(c"_mcp_console_sql", c"enable_native"))
 }

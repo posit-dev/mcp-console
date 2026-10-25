@@ -26,6 +26,10 @@
         if (!identical(behavior, "observe")) {
           return(invisible())
         }
+        writeLines(
+          "connection opened",
+          Sys.getenv("MCP_CONSOLE_TEST_SQL_OBSERVED")
+        )
         signal <- fifo(
           Sys.getenv("MCP_CONSOLE_TEST_SQL_STARTED"),
           open = "wb",
@@ -93,22 +97,6 @@
           exit = bquote(.(observe_disconnect)(conn))
         ))
       }
-    }
-    if (startsWith(behavior, "probe-interrupt-")) {
-      target <- substring(behavior, nchar("probe-interrupt-") + 1L)
-      probed <- FALSE
-      observe_probe <- function(package) {
-        if (identical(package, target) && !probed) {
-          probed <<- TRUE
-          readline("SQL warmup> ")
-        }
-      }
-      suppressMessages(trace(
-        "system.file",
-        where = baseenv(),
-        print = FALSE,
-        tracer = bquote(.(observe_probe)(package))
-      ))
     }
   }
 }

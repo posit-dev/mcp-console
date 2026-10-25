@@ -1,0 +1,16 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+
+    assert sys.prefix == os.environ["MCP_CONSOLE_TEST_EXPECTED_PREFIX"]
+    print("captured Python selection")
+result:
+  content:
+    - type: text
+      text: |
+        captured Python selection
+  isError: false

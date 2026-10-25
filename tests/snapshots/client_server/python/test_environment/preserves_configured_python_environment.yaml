@@ -2,17 +2,6 @@
 !same-as python-only MCP initialization for this execution mode
 ---
 send:
-  timeout_ms: 0
-result:
-  content:
-    - type: text
-      text: |-
-        Error: explicit Python executable is not on PATH
-
-        [idle]
-  isError: false
----
-send:
   r: |
     external_python_worker <- Sys.getpid()
     external_python_state <- 42L
@@ -28,6 +17,15 @@ result:
     - type: text
       text: |
         [1] "configured-by-user"
+  isError: false
+---
+send:
+  python: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        Error: explicit Python executable is not on PATH
   isError: false
 ---
 send:

@@ -78,9 +78,10 @@ pub(crate) fn ensure_initialized() -> Result<(), String> {
 }
 
 fn initialize(installation: &RInstallation) -> Result<(), String> {
-    crate::python::configure_r_environment().map_err(|error| error.to_string())?;
-    embedded_r::initialize_r(installation, R_SETTINGS.get().unwrap().vanilla)
-        .map_err(|error| error.to_string())?;
+    crate::python::with_r_startup_environment(|| {
+        embedded_r::initialize_r(installation, R_SETTINGS.get().unwrap().vanilla)
+            .map_err(|error| error.to_string())
+    })?;
     let runtime = Rc::new(embedded_r::Runtime::initialize().map_err(|error| error.to_string())?);
     RUNTIME.with(|slot| *slot.borrow_mut() = Some(runtime.clone()));
     if core::bootstrapping()

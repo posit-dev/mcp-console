@@ -1,0 +1,30 @@
+---
+send:
+  python: |
+    from pathlib import Path
+
+    Path("discarded-cell").write_text("discarded cell ran")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: restart
+  python: "42"
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        42
+        [done]
+  isError: false

@@ -1,0 +1,2 @@
+---
+sql_initialization_failure_preserves_runtime_and_later_sql: true

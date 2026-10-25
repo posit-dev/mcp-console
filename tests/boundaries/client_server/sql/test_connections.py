@@ -1302,17 +1302,14 @@ def display_width(text: str) -> int:
 
 @requires(R, POSIX, SQL)
 @executions(DIRECT, SANDBOXED)
-def test_interrupts_sql_warmup_without_losing_worker(
+def test_interrupts_managed_sql_initialization_without_losing_worker(
     binary: Path, execution: Execution
 ) -> Transcript:
     for with_r, behavior in (
         (False, "interrupt"),
-        (False, "metadata-interrupt"),
         (True, "interrupt"),
         (True, "setup-interrupt"),
         (True, "setup-interrupt-disconnect-error"),
-        (True, "probe-interrupt-DBI"),
-        (True, "probe-interrupt-duckdb"),
     ):
         with startup_sql_client(binary, execution, with_r, behavior) as (
             client,
@@ -1322,7 +1319,7 @@ def test_interrupts_sql_warmup_without_losing_worker(
             wait_for_evaluation_output(
                 client,
                 '[input requested: "SQL warmup> "]\n[waiting for stdin]',
-                "managed SQL warmup interruption checkpoint",
+                "first-use managed SQL interruption checkpoint",
                 sql="CREATE TABLE withheld_cell AS SELECT 1",
                 timeout_ms=0,
                 completion_timeout_seconds=client.response_timeout,
@@ -1338,12 +1335,12 @@ def test_interrupts_sql_warmup_without_losing_worker(
                 assert "optional SQL disconnect failed" in last_tool_text(client), (
                     result
                 )
-            # The interrupt receipt can precede completion of the early cell's
-            # admission. Observe that completion before submitting another cell.
+            # The interrupt receipt can precede the active cell's completion.
+            # Observe that completion before submitting another cell.
             wait_for_evaluation_output(
                 client,
                 None,
-                "interrupted startup cell completes",
+                "interrupted SQL initialization cell completes",
                 completion_timeout_seconds=client.response_timeout,
             )
             if with_r:
@@ -1364,19 +1361,20 @@ def test_interrupts_sql_warmup_without_losing_worker(
                     )
             else:
                 client.expect(python="assert startup_sql_pid == os.getpid()")
-            client.send(
-                sql="SELECT count(*) AS withheld FROM information_schema.tables WHERE table_name = 'withheld_cell'"
+            client.expect(
+                None,
+                sql="SELECT count(*) AS withheld FROM information_schema.tables WHERE table_name = 'withheld_cell'",
             )
             assert "0" in last_tool_text(client), client.transcript[-1]
-            client.send(sql="SELECT answer FROM startup_catalog")
+            client.expect(None, sql="SELECT answer FROM startup_catalog")
             assert "42" in last_tool_text(client), client.transcript[-1]
             client.finish()
-    return [{"sql_warmup_interrupt_withholds_cell_and_retains_worker": True}]
+    return [{"sql_initialization_interrupt_withholds_cell_and_retains_worker": True}]
 
 
 @requires(R, POSIX, SQL)
 @executions(DIRECT, SANDBOXED)
-def test_optional_sql_warmup_failure_preserves_runtime(
+def test_managed_sql_initialization_failure_preserves_runtime(
     binary: Path, execution: Execution
 ) -> Transcript:
     for with_r, behavior in (
@@ -1384,18 +1382,10 @@ def test_optional_sql_warmup_failure_preserves_runtime(
         (True, "setup-error-disconnect-error"),
         (False, "error"),
         (False, "import-error"),
-        (False, "metadata-error"),
         (False, "system-exit"),
     ):
         with startup_sql_client(binary, execution, with_r, behavior) as (client, _, _):
-            if with_r:
-                client.send(
-                    r='stopifnot(startup_sql_pid == Sys.getpid()); cat("R available after SQL warmup failure\\n")'
-                )
-            else:
-                client.send(
-                    python='assert startup_sql_pid == os.getpid(); print("Python available after SQL warmup failure")'
-                )
+            client.expect(None, sql="SELECT 42 AS answer")
             result = client.transcript[-1]["result"]
             assert result.get("isError") is not True, result
             output = last_tool_text(client)
@@ -1409,23 +1399,34 @@ def test_optional_sql_warmup_failure_preserves_runtime(
                         startup_allow_sql_setup <- TRUE
                         """),
                 )
+            elif behavior == "import-error":
+                assert "DuckDB is unavailable" in output, result
             else:
                 assert "optional SQL warmup failed" in output, result
-            assert "available after SQL warmup failure" in output, result
             assert "[worker" not in output, result
             if behavior == "system-exit":
                 assert "SystemExit: optional SQL warmup failed" in output, result
+            if with_r:
+                client.expect(
+                    "R available after SQL initialization failure\n",
+                    r='stopifnot(startup_sql_pid == Sys.getpid()); cat("R available after SQL initialization failure\\n")',
+                )
+            else:
+                client.expect(
+                    "Python available after SQL initialization failure\n",
+                    python='assert startup_sql_pid == os.getpid(); print("Python available after SQL initialization failure")',
+                )
             if not with_r:
                 client.expect(
                     python="import sqlite3; selected = sqlite3.connect(':memory:'); _console.sql_connection(selected)"
                 )
-                client.send(sql="SELECT 42 AS answer")
+                client.expect(None, sql="SELECT 42 AS answer")
                 assert "42" in last_tool_text(client), client.transcript[-1]
                 client.expect(python="_console.sql_connection(None)")
-            client.send(sql="SELECT 42 AS answer")
+            client.expect(None, sql="SELECT 42 AS answer")
             assert "42" in last_tool_text(client), client.transcript[-1]
             client.finish()
-    return [{"optional_sql_warmup_failure_preserves_runtime_and_later_sql": True}]
+    return [{"sql_initialization_failure_preserves_runtime_and_later_sql": True}]
 
 
 @requires(R, POSIX, SQL)
@@ -1435,10 +1436,10 @@ def test_closes_provisional_connections_after_sql_setup_failure(
 ) -> Transcript:
     with startup_sql_client(binary, execution, True, "setup-error") as (client, _, _):
         for attempt in (1, 2):
-            if attempt == 2:
-                client.send(sql="SELECT 42 AS answer")
-                assert "optional SQL warmup setup failed" in last_tool_text(client)
-            client.send(
+            client.expect(None, sql="SELECT 42 AS answer")
+            assert "optional SQL warmup setup failed" in last_tool_text(client)
+            client.expect(
+                None,
                 # fmt: r
                 r=code(f"""
                     stopifnot(
@@ -1467,7 +1468,7 @@ def test_closes_provisional_connections_after_sql_setup_failure(
                 suppressMessages(invisible(untrace("dbExecute", where = asNamespace("DBI"))))
                 """),
         )
-        client.send(sql="SELECT 42 AS answer")
+        client.expect(None, sql="SELECT 42 AS answer")
         assert "42" in last_tool_text(client), client.transcript[-1]
         client.expect(
             # fmt: r
@@ -1543,6 +1544,7 @@ def startup_sql_client(
             environment.update(
                 MCP_CONSOLE_TEST_SQL_STARTED=str(started.path),
                 MCP_CONSOLE_TEST_SQL_RELEASE=str(release.path),
+                MCP_CONSOLE_TEST_SQL_OBSERVED=str(root / "connection-opened"),
                 MCP_CONSOLE_TEST_SQL_BEHAVIOR=behavior,
             )
             args = (
@@ -1561,7 +1563,7 @@ def startup_sql_client(
 
 @requires(R, POSIX, SQL)
 @executions(DIRECT, SANDBOXED)
-def test_creates_managed_connection_without_a_send(
+def test_creates_managed_connection_on_first_use(
     binary: Path, execution: Execution
 ) -> Transcript:
     for with_r in (True, False):
@@ -1570,17 +1572,31 @@ def test_creates_managed_connection_without_a_send(
             started,
             release,
         ):
-            started.wait("actual managed connection without send", timeout=60)
+            if with_r:
+                client.expect(r="stopifnot(startup_sql_pid == Sys.getpid())")
+            else:
+                client.expect(python="assert startup_sql_pid == os.getpid()")
+            assert not (release.path.parent / "connection-opened").exists(), (
+                "ordinary interpreter initialization opened a managed SQL connection"
+            )
+            client.send(sql="SELECT answer FROM startup_catalog", timeout_ms=0)
+            started.wait("first SQL cell opens the managed connection")
             client.request("ping")
             release.release()
-            client.send(sql="SELECT answer FROM startup_catalog")
+            wait_for_evaluation_output(
+                client,
+                lambda output: "42" in output,
+                "first SQL query uses the initialized catalog",
+                completion_timeout_seconds=client.response_timeout,
+            )
+            client.expect(None, sql="SELECT answer FROM startup_catalog")
             assert "42" in last_tool_text(client), client.transcript[-1]
             client.finish()
     return [
         {
-            "r_and_python_managed_connections_open_before_send": True,
+            "r_and_python_managed_connections_wait_for_first_use": True,
             "startup_catalog_retained": True,
-            "ping_available_during_warmup": True,
+            "ping_available_during_initialization": True,
         }
     ]
 
