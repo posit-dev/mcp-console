@@ -80,6 +80,7 @@ Give each fact one primary home:
 | --------------- | ------------------------------------------------------------------------------------------------------ |
 | Tool summary    | When to choose Console, sequential cells, polling, state persistence, and the selected trust boundary. |
 | Language fields | Display rules, plots, exact bridge/connection helper names.                                            |
+| `session`       | Session selection and creation, concurrent work, aggregate polls, and deferred named-session restart.  |
 | `timeout_ms`    | Observation only; recommend long polls for unfinished work.                                            |
 | `stdin`         | Exact queued bytes, no added newline.                                                                  |
 | `control`       | Interruption and restart effects, including state loss.                                                |
