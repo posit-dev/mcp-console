@@ -1,0 +1,50 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    answer = input("alpha> ")
+    print("alpha output:", answer)
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "alpha> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  python: |
+    answer = input("beta> ")
+    print("beta output:", answer)
+  session: beta
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "beta> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    alpha answer
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        alpha output: alpha answer
+  isError: false
+---
+send:
+  stdin: |
+    beta answer
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        beta output: beta answer
+  isError: false

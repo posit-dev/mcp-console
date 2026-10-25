@@ -303,7 +303,7 @@ def test_eager_exit_does_not_authorize_unused_replacement(
             deadline = time.monotonic() + client.response_timeout
             output = ""
             while True:
-                result = client.send()
+                result = client.send(session="default")
                 output += result["content"][0]["text"].removesuffix("\n[idle]")
                 if result.get("isError"):
                     break

@@ -18,6 +18,7 @@ base64 = "0.23.1"
 chrono = { version = "0.4.45", default-features = false, features = ["now"] }
 clap = { version = "4.6.7", features = ["derive", "wrap_help"] }
 ctor = "1.0.13"
+futures-util = { version = "0.3.34", default-features = false, features = ["std"] }
 harp = { git = "https://github.com/t-kalinowski/ark", rev = "2411df0d1f75d53f88d4bb39bd41ee9c26222757" }
 html2text = "0.17.3"
 libc = "0.2.190"

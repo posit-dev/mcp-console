@@ -20,7 +20,8 @@ result:
       text: Python preparation cancelled by restart
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

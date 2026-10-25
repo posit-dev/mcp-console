@@ -470,7 +470,7 @@ def test_finishes_ansi_at_polls_but_preserves_split_utf8(
                     release.release()
                     processed.wait("ANSI bytes reached the output tape")
                     raw += data
-                    result = client.send(timeout_ms=0)
+                    result = client.send(session="default", timeout_ms=0)
                     assert without_elapsed_result(result) == {
                         "content": [{"type": "text", "text": expected + running}],
                         "isError": False,
@@ -480,7 +480,7 @@ def test_finishes_ansi_at_polls_but_preserves_split_utf8(
                     ).read_bytes() == raw
                 release.release()
                 assert without_elapsed(last_tool_text(client)) == "€\n" + running
-                client.send()
+                client.send(session="default")
                 assert last_tool_text(client) == "[done]", client.transcript[-1]
                 return client.finish()
             finally:
@@ -542,22 +542,24 @@ def test_keeps_partial_utf8_across_polls_and_orders_stream_switches(
                     release.release()
                     processed.wait("direct bytes reached the output tape")
                     raw += data
-                    result = client.send(timeout_ms=0)
+                    result = client.send(session="default", timeout_ms=0)
                     assert without_elapsed_result(result) == {
                         "content": [{"type": "text", "text": expected + running}],
                         "isError": False,
                     }, result
-                    assert without_elapsed_result(client.send(timeout_ms=0))[
-                        "content"
-                    ] == [{"type": "text", "text": running}]
+                    assert without_elapsed_result(
+                        client.send(session="default", timeout_ms=0)
+                    )["content"] == [{"type": "text", "text": running}]
                     assert (cell_output_path(session, 3)).read_bytes() == raw
                 release.release()
-                assert client.send()["content"] == [{"type": "text", "text": "�"}]
+                assert client.send(session="default")["content"] == [
+                    {"type": "text", "text": "�"}
+                ]
                 assert client.send(r="42")["content"] == [
                     {"type": "text", "text": "��"}
                 ]
                 assert (cell_output_path(session, 13)).read_bytes() == b"\x82\xac"
-                assert client.send()["content"] == [
+                assert client.send(session="default")["content"] == [
                     {"type": "text", "text": "\n[idle]"}
                 ]
                 return client.finish()
@@ -641,11 +643,11 @@ def test_compacts_each_polled_output_segment(
             client,
         )
 
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_tool_text(client)) == (
             "output 10%\n[running; poll with an empty send]"
         )
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert (
             without_elapsed(last_tool_text(client))
             == "\n[running; poll with an empty send]"
@@ -655,7 +657,7 @@ def test_compacts_each_polled_output_segment(
             temporary_path, "zod-release-redraw-completion", client
         )
         release_fixture_checkpoint(release, client=client)
-        client.send(timeout_ms=3_000)
+        client.send(session="default", timeout_ms=3_000)
         assert last_tool_text(client) == "output 100%\n"
         compact_previews(client, "x", "y", "z", "s", "p", "ab")
         return client.finish()
@@ -889,7 +891,7 @@ def test_drains_background_stderr_while_idle(
             root=log,
             client=client,
         )
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         output = last_tool_text(client)
         assert output.endswith("\n[idle]"), output[-100:]
         assert len(output.encode()) <= TEXT_BUDGET
@@ -975,7 +977,7 @@ def test_drains_pending_sideband_output_while_running(
         (image_started.parent / "zod-release-image").touch()
         wait_for_marker(temporary_path, "zod-image-processed", client)
 
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         result = client.transcript[-1]["result"]
         assert without_elapsed_result(result) == {
             "content": [
@@ -996,7 +998,7 @@ def test_drains_pending_sideband_output_while_running(
         ) == "before pending image\nafter pending image\n"
 
         (image_started.parent / "zod-release-image-completion").touch()
-        client.send(timeout_ms=3_000)
+        client.send(session="default", timeout_ms=3_000)
         assert last_tool_text(client) == "[done]"
         compact_previews(client, "x", "y", "z", "s", "p", "ab")
         return client.finish()

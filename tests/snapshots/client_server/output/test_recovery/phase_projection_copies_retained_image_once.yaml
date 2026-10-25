@@ -23,6 +23,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -40,7 +41,8 @@ result:
         [worker starting]
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

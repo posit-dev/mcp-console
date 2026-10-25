@@ -297,7 +297,7 @@ def test_invalid_early_cell_does_not_poison_default_startup(
                     phase_progress(last_result_text(client)) == "dependency preparation"
                 )
                 release.release()
-                failure = client.send()
+                failure = client.send(session="default")
                 assert failure["isError"]
                 assert (
                     last_result_text(client)
@@ -322,9 +322,9 @@ def test_accepts_zero_timeout_cell_during_discovery(binary: Path) -> Transcript:
             r='started <- get0("started", ifnotfound = 0L) + 1L; started', timeout_ms=0
         )
         assert without_elapsed(last_result_text(client)) == RUNNING
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_result_text(client)) == RUNNING
-        client.send(timeout_ms=250)
+        client.send(session="default", timeout_ms=250)
         assert without_elapsed(last_result_text(client)) == RUNNING
         age, silent = elapsed_progress(last_result_text(client))
         assert age >= 0.2 and silent
@@ -333,7 +333,7 @@ def test_accepts_zero_timeout_cell_during_discovery(binary: Path) -> Transcript:
         client.request("ping")
         release.release()
         client.response_timeout = 600
-        client.send(timeout_ms=600_000)
+        client.send(session="default", timeout_ms=600_000)
         assert last_result_text(client) == "[1] 1\n"
         client.send(r="started")
         assert last_result_text(client) == "[1] 1\n"
@@ -543,12 +543,12 @@ def test_early_replacement_requirements_withholds_cell_until_prepared(
         assert phase_progress(last_result_text(client)) == "dependency preparation"
         client.send(python="counter += 1", timeout_ms=20)
         assert client.transcript[-1]["result"]["isError"]
-        client.send(timeout_ms=20)
+        client.send(session="default", timeout_ms=20)
         assert without_elapsed(last_result_text(client)) == RUNNING
         assert phase_progress(last_result_text(client)) == "dependency preparation"
         fixture.release.release()
         client.response_timeout = 600
-        client.send(timeout_ms=600_000)
+        client.send(session="default", timeout_ms=600_000)
         assert last_result_text(client) == "1\n", last_result_text(client)
         client.send(python="counter")
         assert last_result_text(client) == "1\n"
@@ -644,7 +644,7 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
                     client=client,
                 )
                 client.initialize_and_list_tools()
-                pending = client.start_send(timeout_ms=10_000)
+                pending = client.start_send(session="default", timeout_ms=10_000)
                 client.request("ping")
                 (root / "write-armed").touch()
                 submitted = client.start_send(
@@ -798,7 +798,7 @@ def early_requirements_with_pending_poll(
                 )
             client.initialize_and_list_tools()
             if not completed_response:
-                pending = client.start_send(timeout_ms=600_000)
+                pending = client.start_send(session="default", timeout_ms=600_000)
                 client.request("ping")
             (root / "write-armed").touch()
             try:
@@ -816,7 +816,7 @@ def early_requirements_with_pending_poll(
                         submitted
                     )
                     assert phase_progress(last_result_text(client)) == "startup"
-                    submitted = client.start_send(timeout_ms=600_000)
+                    submitted = client.start_send(session="default", timeout_ms=600_000)
                     discovery.release()
                     prepared.wait(
                         "initial polling does not block candidate preparation"

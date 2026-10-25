@@ -176,7 +176,7 @@ def test_preserves_initialize_buffered_during_startup(
         invocations = fixture.invocations()
         client.initialize_and_list_tools()
         client.request("ping")
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert last_tool_text(client) == (
             "\n[phase: dependency preparation]\n[worker starting]"
         )
@@ -304,7 +304,7 @@ def test_first_cell_prepares_defaults_after_running_response(
             "tibble",
             "utf8",
         }, preparation
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_tool_text(client)) == RUNNING
         assert phase_progress(last_tool_text(client)) == "dependency preparation", (
             last_tool_text(client)
@@ -553,7 +553,7 @@ def test_restart_replaces_first_use_cell_and_stdin(
         fixture.wait_for_resolver_exit()
         release.release()
         parked.wait("cancelled startup task returned to the pool")
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_tool_text(client)) == RUNNING
         assert "phase:" not in last_tool_text(client)
         new_cell_release.release()
@@ -562,7 +562,7 @@ def test_restart_replaces_first_use_cell_and_stdin(
             "[input requested: \"replacement> \"]\n'replacement still usable'\n"
         )
         assert "phase:" not in last_tool_text(client)
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         return client.finish()
 

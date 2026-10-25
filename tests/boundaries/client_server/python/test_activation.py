@@ -1058,7 +1058,7 @@ def test_retries_interrupted_startup_with_prepared_candidate_without_r(
                 child_pid = host_process_id(
                     int((root / "probe-pid").read_text()), client.process.pid
                 )
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 assert (
                     without_elapsed(last_result_text(client))
                     == "\n[running; poll with an empty send]"
@@ -1168,7 +1168,7 @@ def test_retries_interrupted_startup_probe_with_live_r_and_sql(
                 # The zero-timeout response can precede the probe and still
                 # report preparation. Observe again at the held probe, then
                 # retain the settled progress cut for the submitted cell.
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 assert (
                     without_elapsed(last_result_text(client))
                     == "\n[running; poll with an empty send]"

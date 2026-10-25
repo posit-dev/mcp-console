@@ -5,7 +5,8 @@ use super::super::lifecycle::{
     RequirementChangeState, WorkerGeneration,
 };
 use super::super::{
-    Client, EnvironmentPreparationAdmissionFailure, PreparationOutcome, Response, WorkerState,
+    Client, EnvironmentPreparationAdmissionFailure, PreparationOutcome, Response, SessionKind,
+    WorkerState,
 };
 use super::requirements::{RequirementDelta, Requirements, push_duckdb_r_target};
 use super::resolution::EnvironmentResolutionFailure;
@@ -162,8 +163,12 @@ impl Client {
         if delta.is_empty() {
             return Ok(PrepareResult::Prepared);
         }
+        // Named sessions can remain stopped after confirmed retirement. Their
+        // next declaration uses prestart preparation, with no live state to patch.
+        let stopped_named =
+            self.0.session_kind == SessionKind::Named && matches!(*worker, WorkerState::Stopped);
         self.require_explicit_restart(&delta)?;
-        if self.0.python_only && !replace_default {
+        if self.0.python_only && !replace_default && !stopped_named {
             match &*worker {
                 WorkerState::Initial => {}
                 WorkerState::Running(_) => {
@@ -188,13 +193,14 @@ impl Client {
                 );
             }
         };
-        if !delta.restart_required
+        if (!delta.restart_required || stopped_named)
             && self.requirement_change_state(generation)? == RequirementChangeState::RestartRequired
         {
             return Ok(PrepareResult::RestartRequired);
         }
         if !delta.restart_required
             && matches!(*worker, WorkerState::Stopped)
+            && !stopped_named
             && matches!(intent, PreparationIntent::Standalone)
         {
             return Ok(PrepareResult::RestartRequired);
@@ -312,7 +318,11 @@ impl Client {
                 lifecycle.processes.resolver = None;
                 *environment = resolved;
                 self.record_accepted_python(&environment);
-                self.publish_requirements(&environment);
+                if stopped_named {
+                    self.publish_replacement_requirements(&environment);
+                } else {
+                    self.publish_requirements(&environment);
+                }
                 self.record_requirements(action, call_id, &environment);
                 Ok(PrepareResult::Prepared)
             }

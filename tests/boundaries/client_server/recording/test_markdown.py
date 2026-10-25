@@ -471,7 +471,7 @@ def test_records_polls_input_controls_and_previews(
             request_ids["stdin"] = client.transcript[-1]["id"]
             # Recording retains every real poll, including any collected by
             # expect(). Keep an explicit extra poll to exercise that identity.
-            polled = client.send()
+            polled = client.send(session="default")
             request_ids["extra_poll"] = client.transcript[-1]["id"]
             assert last_result_text(client) == "\n[idle]", polled
             client.send(control="interrupt")

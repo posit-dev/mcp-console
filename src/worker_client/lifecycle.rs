@@ -30,7 +30,7 @@ impl WorkerGeneration {
     }
 }
 
-/// Owns admission and process cancellation for the implicit session.
+/// Owns admission and process cancellation for one session.
 pub(super) struct LifecycleControl {
     pub(super) state: LifecycleState,
     pub(super) generation: WorkerGeneration,
@@ -138,6 +138,12 @@ pub(super) enum OldGenerationCommitDisposition {
     DiscardForReplacement,
 }
 
+pub(super) enum RestartLaunch {
+    Idle,
+    Followup,
+    OnNextSend,
+}
+
 impl LifecycleControl {
     pub(super) fn new() -> Self {
         Self {
@@ -204,6 +210,10 @@ impl LifecycleControl {
 
     pub(super) fn starting(&self) -> bool {
         self.startup_observation().is_some()
+    }
+
+    pub(super) fn has_worker(&self) -> bool {
+        self.processes.worker.is_some()
     }
 
     pub(super) fn startup_observation(&self) -> Option<Weak<AtomicBool>> {
@@ -597,7 +607,7 @@ impl Client {
         &self,
         requirements: super::Requirements,
         grace: Duration,
-        defer_idle: bool,
+        launch: RestartLaunch,
         control: Option<&ControlledSendAdmission>,
     ) -> Result<RestartAttempt, String> {
         let mut restart = if requirements.action == super::RequirementsAction::Add
@@ -666,7 +676,7 @@ impl Client {
         match self.replace_worker(
             &mut restart.evaluation,
             restart.generation.clone(),
-            !defer_idle,
+            launch,
             restart.processes.worker.as_ref(),
         ) {
             Ok(replacement) => {
@@ -814,7 +824,7 @@ impl Client {
         &self,
         evaluation: &mut Option<EvaluationReservation>,
         generation: WorkerGeneration,
-        report_idle: bool,
+        launch: RestartLaunch,
         retiring_worker: Option<&platform::WorkerShutdownHandle>,
     ) -> Result<WorkerReplacement, RestartFailure> {
         let mut worker = self
@@ -853,6 +863,17 @@ impl Client {
 
         let mut response = self.settle_reserved_evaluation(evaluation.take(), retired_worker)?;
 
+        self.0
+            .startup_permitted
+            .store(true, std::sync::atomic::Ordering::Release);
+        if matches!(launch, RestartLaunch::OnNextSend) {
+            response.push_notice("stopped");
+            return Ok(WorkerReplacement {
+                response,
+                ready: true,
+            });
+        }
+
         let mut worker = match self.0.worker.lock() {
             Ok(worker) => worker,
             Err(_) => {
@@ -867,9 +888,6 @@ impl Client {
         }
         response.push_notice_line(super::output::WORKER_STARTING_NOTICE);
 
-        self.0
-            .startup_permitted
-            .store(true, std::sync::atomic::Ordering::Release);
         let completion_generation = generation.clone();
         if let Err(mut failure) = self.start_worker(
             &mut worker,
@@ -894,7 +912,7 @@ impl Client {
             });
         }
         response.extend(self.0.output.take());
-        if report_idle {
+        if matches!(launch, RestartLaunch::Idle) {
             response.push_notice(super::output::WORKER_IDLE_NOTICE);
         }
         Ok(WorkerReplacement {
@@ -1609,11 +1627,15 @@ mod tests {
         };
         let response = render_response(SendResponse::Completed(response));
         let mut reservation = Some(evaluation.reserve_for_restart().unwrap());
-        let failure =
-            match client.replace_worker(&mut reservation, WorkerGeneration::new(), true, None) {
-                Ok(_) => panic!("replacement unexpectedly succeeded outside a restart"),
-                Err(failure) => failure,
-            };
+        let failure = match client.replace_worker(
+            &mut reservation,
+            WorkerGeneration::new(),
+            RestartLaunch::Idle,
+            None,
+        ) {
+            Ok(_) => panic!("replacement unexpectedly succeeded outside a restart"),
+            Err(failure) => failure,
+        };
         assert_eq!(failure.message, "worker restart state changed");
         assert!(reservation.is_some());
         let (_, _, delivery, _) = response.into_parts();

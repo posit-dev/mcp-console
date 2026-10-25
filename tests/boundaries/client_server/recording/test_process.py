@@ -450,7 +450,7 @@ def test_first_rejected_send_publishes_the_observed_prelude(
                 ).read_text() == "retained startup text\n"
                 image = next(e for e in prelude if e["event"] == "image_retained")
                 assert (recording / image["path"]).read_bytes() == expected_image
-                assert not client.send()["isError"]
+                assert not client.send(session="default")["isError"]
                 assert not client.send(stdin="unused input")["isError"]
                 transcript = client.finish()
             events = recording_events(recording)

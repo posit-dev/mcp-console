@@ -144,7 +144,7 @@ def bootstrap_output(
     collected = ""
     deadline = time.monotonic() + client.response_timeout
     while True:
-        result = client.send(**send_arguments)
+        result = client.send(session="default", **send_arguments)
         assert not result["isError"], result
         output = last_result_text(client)
         assert output.endswith(terminal), repr(output)
@@ -328,7 +328,7 @@ def queued_input(client: McpClient, release: FifoCheckpoint) -> list:
     assert without_elapsed(last_result_text(client)) == RUNNING, repr(
         last_result_text(client)
     )
-    client.send(timeout_ms=20)
+    client.send(session="default", timeout_ms=20)
     assert without_elapsed(last_result_text(client)) == RUNNING, repr(
         last_result_text(client)
     )
@@ -678,7 +678,7 @@ def test_cancelled_response_preserves_bootstrap_and_first_cell(
         finally:
             profile.pause_results(False)
             result_release.release()
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_result_text(client)) == RUNNING
         assert "result" not in pending
         release.release()
@@ -857,7 +857,7 @@ def test_first_declaration_replaces_blocked_bootstrap(
         assert without_elapsed(last_result_text(client)) == RUNNING
         assert phase_progress(last_result_text(client)) == "startup"
         launching.wait("replacement process creation is held")
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_result_text(client)) == RUNNING
         assert phase_progress(last_result_text(client)) == "startup"
         launch.release()
@@ -926,7 +926,7 @@ def test_failed_declaration_preserves_bootstrap_and_reset_remains_allowed(
         assert without_elapsed(last_result_text(client)) == RUNNING
         assert phase_progress(last_result_text(client)) == "startup"
         launching.wait("reset process creation is held")
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_result_text(client)) == RUNNING
         assert phase_progress(last_result_text(client)) == "startup"
         launch.release()

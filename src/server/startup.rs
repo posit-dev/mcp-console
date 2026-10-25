@@ -46,6 +46,23 @@ struct Cancellation {
 }
 
 impl Startup {
+    /// Each name owns preparation and execution; only captured launch settings
+    /// and connection closure are shared with the default session.
+    pub fn named(&self, name: &str) -> Self {
+        let runtime = Arc::new(Runtime {
+            worker: crate::worker_client::Client::pending_named(),
+            transcript: self.runtime.transcript.for_session(name),
+        });
+        runtime.worker.record_with(runtime.transcript.clone());
+        Self {
+            runtime,
+            cancellation: Arc::new(Mutex::new(Cancellation::default())),
+            input_closed: self.input_closed.clone(),
+            prelaunch: false,
+            initialize: self.initialize.clone(),
+        }
+    }
+
     pub fn new(
         input_closed: super::InputClosed,
         runtime: Arc<Runtime>,
@@ -76,6 +93,10 @@ impl Startup {
             }
             control.started = true;
         }
+        // Windows' reader can observe EOF before queued MCP input registers
+        // this name. Finished sessions still drain through ShutdownReader.
+        #[cfg(windows)]
+        self.input_closed.cancel_startup_after_physical_eof();
         let control = self.cancellation.clone();
         let completion = control.clone();
         let worker = self.runtime.worker.clone();

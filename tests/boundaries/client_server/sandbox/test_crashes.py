@@ -149,7 +149,7 @@ def _wait_for_generation_failure(client: McpClient) -> None:
     deadline = time.monotonic() + 5
     poll_start = len(client.transcript)
     while True:
-        result = client.send()
+        result = client.send(session="default")
         if result.get("isError") is True:
             assert result["content"][0]["text"] == (
                 "[worker relay stdout closed before retirement completed; "

@@ -161,7 +161,7 @@ def test_send_timeout_includes_blocked_requirements_resolver(
                 "\n[running; poll with an empty send]"
             )
             evaluation_release.release()
-            assert _tool_text(client.send()) == "[done]"
+            assert _tool_text(client.send(session="default")) == "[done]"
             transcript = client.finish_active()
             finished = True
         finally:
@@ -719,7 +719,7 @@ def test_idle_runtime_r_resolution_owns_environment_until_activation(
             evaluation_received.wait()
             release.release()
             activation_released = True
-            assert _tool_text(client.send()) == "[done]"
+            assert _tool_text(client.send(session="default")) == "[done]"
             transcript = client.finish_active()
             finished = True
         finally:

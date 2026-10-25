@@ -31,6 +31,7 @@ result:
   isError: true
 ---
 send:
+  session: default
   timeout_ms: 20
 result:
   content:
@@ -42,6 +43,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 600000
 result:
   content:

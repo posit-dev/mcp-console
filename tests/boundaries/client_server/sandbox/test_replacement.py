@@ -180,7 +180,7 @@ def test_restarts_after_worker_exit_with_partial_sideband(binary: Path) -> Trans
                     ],
                     "isError": True,
                 }, result
-                assert client.send(timeout_ms=0) == {
+                assert client.send(session="default", timeout_ms=0) == {
                     "content": [
                         {
                             "type": "text",
@@ -190,7 +190,7 @@ def test_restarts_after_worker_exit_with_partial_sideband(binary: Path) -> Trans
                     "isError": False,
                 }
                 startup_release.touch()
-                client.send(timeout_ms=15_000)
+                client.send(session="default", timeout_ms=15_000)
                 assert last_tool_text(client) == "[idle]"
 
                 client.send(r="echo echo")
@@ -250,7 +250,7 @@ def test_replaces_worker_after_relay_exit(binary: Path) -> Transcript:
             release_fixture_checkpoint(
                 started.parent / "zod-release-relay-exit", client=client
             )
-            client.send()
+            client.send(session="default")
 
             result = client.transcript[-1]["result"]
             assert result["isError"] is True, result

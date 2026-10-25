@@ -14,7 +14,8 @@ result:
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

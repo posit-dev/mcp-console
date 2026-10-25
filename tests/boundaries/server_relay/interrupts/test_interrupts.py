@@ -48,7 +48,7 @@ def test_interrupts_and_reports_result(
     )
     client._wait_for(EVALUATING_NAME)
     assert _tool_text(client.send(control="interrupt", timeout_ms=0)) == "[done]"
-    assert _tool_text(client.send()) == "\n[idle]"
+    assert _tool_text(client.send(session="default")) == "\n[idle]"
     return client.finish_active()
 
 
@@ -158,7 +158,7 @@ def test_control_only_interrupt_targets_blocked_controlled_restart_resolver(
                 if content["type"] == "text"
             )
             assert "R package resolution failed with exit status: 130" in error, error
-            assert _tool_text(client.send()) == "\n[idle]"
+            assert _tool_text(client.send(session="default")) == "\n[idle]"
 
             before_cleanup = client._read_open_capture(capture)
             assert not any(entry.keys() == {"server"} for entry in before_cleanup), (
@@ -270,7 +270,7 @@ def test_controlled_interrupt_orders_stdin_before_new_evaluation(
     )
     output = _tool_text(result)
     if output.endswith("[running; poll with an empty send]"):
-        output += _tool_text(client.send())
+        output += _tool_text(client.send(session="default"))
     old = output.index("old evaluation finished from stdin\n")
     new = output.index("new evaluation ran\n")
     assert old < new, output
@@ -511,7 +511,7 @@ def test_controlled_interrupt_does_not_run_cell_while_evaluation_remains_active(
 
         release.release()
         released = True
-        assert _tool_text(client.send(timeout_ms=3_000)) == (
+        assert _tool_text(client.send(session="default", timeout_ms=3_000)) == (
             "old evaluation eventually finished\n"
         )
         transcript = client.finish_active()
@@ -561,7 +561,7 @@ def test_control_only_interrupt_timeout_zero_returns_after_grace_then_poll_colle
 
         release.release()
         released = True
-        assert _tool_text(client.send(timeout_ms=3_000)) == (
+        assert _tool_text(client.send(session="default", timeout_ms=3_000)) == (
             "old evaluation eventually finished\n"
         )
         transcript = client.finish_active()
@@ -673,7 +673,7 @@ def test_controlled_interrupt_does_not_wait_for_an_existing_poll(
         )
         # Stdin reaches the relay only after this send claims the evaluation.
         poll_stdin_received.wait()
-        ownership = client.send(timeout_ms=0)
+        ownership = client.send(session="default", timeout_ms=0)
         assert ownership == {
             "content": [
                 {
@@ -836,7 +836,7 @@ def test_cancelled_interrupt_during_live_preparation_does_not_recover_running(
             preparation_sent.wait()
             client.client.receive(preparation)
             assert _tool_text(preparation["result"]) == "[prepared]"
-            assert _tool_text(client.send()) == "\n[idle]"
+            assert _tool_text(client.send(session="default")) == "\n[idle]"
             transcript = client.finish_active()
             finished = True
         finally:

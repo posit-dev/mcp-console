@@ -1,0 +1,93 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  python: "42"
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  session: alpha
+  python: "42"
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  session: alpha
+  timeout_ms: 60000
+id: <cancelled request 1>
+---
+send:
+  session: alpha
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[worker evaluation is already being polled]"
+  isError: true
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  session: alpha
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 60000
+id: <cancelled request 2>
+---
+send:
+  session: alpha
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: "[worker evaluation is already being polled]"
+  isError: true
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 2>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  session: alpha
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false

@@ -147,7 +147,7 @@ def test_eof_before_retry_admission_exits_cleanly(binary: Path) -> Transcript:
         ) as client:
             try:
                 client.initialize_and_list_tools()
-                failure = client.send()
+                failure = client.send(session="default")
                 assert failure["isError"] is True, failure
                 assert SETUP_FAILURE in str(failure), failure
                 restart = client.start_send(control="restart", timeout_ms=0)

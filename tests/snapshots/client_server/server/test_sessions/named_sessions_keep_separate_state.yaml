@@ -1,0 +1,67 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: value = 'default state'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: value = 'alpha state'
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: value = 'beta state'
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: value
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        'alpha state'
+  isError: false
+---
+send:
+  python: value
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        'beta state'
+  isError: false
+---
+send:
+  python: value
+result:
+  content:
+    - type: text
+      text: |
+        'default state'
+  isError: false
+---
+send:
+  python: value
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        'default state'
+  isError: false

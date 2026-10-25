@@ -1,4 +1,4 @@
-"""Explicit restart retries failed initial setup without replaying rejected cells."""
+"""Initial setup retries preserve ownership and do not replay rejected cells."""
 
 import base64
 import json
@@ -125,7 +125,7 @@ def test_retry_retains_preparation_startup_and_idle_output(
                     """),
             )
             client.initialize_and_list_tools()
-            failure = client.send()
+            failure = client.send(session="default")
             assert failure.get("isError"), failure
             assert "selected Python executable is not an absolute file" in str(failure)
             (recording,) = (root / ".agents/console/sessions").iterdir()
@@ -189,7 +189,7 @@ def test_retry_retains_preparation_startup_and_idle_output(
                 root=log.parent,
                 client=client,
             )
-            client.send()
+            client.send(session="default")
             preview = last_tool_text(client)
             assert preview.endswith("\n[idle]"), preview
             omitted = assert_preview(preview.removesuffix("\n[idle]"), idle_text)
@@ -284,7 +284,7 @@ def test_code_free_retry_starts_prepared_replacement(
                 assert failure.get("isError"), failure
                 assert "require `uv` on PATH" in str(failure), failure
                 expose_uv(root)
-                assert client.send() == failure
+                assert client.send(session="default") == failure
                 client.expect(
                     "[runtime discovery retried]\n[idle]",
                     control="restart",
@@ -456,6 +456,61 @@ def test_restart_repairs_missing_selected_python(
             )
 
 
+@requires(POSIX)
+@executions(DIRECT, SANDBOXED)
+def test_named_code_retries_missing_selected_python(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        python = root / "selected-python"
+        python.symlink_to(sys.executable)
+        environment = without_r(root)
+        environment["RETICULATE_PYTHON"] = str(python)
+        with McpClient(binary, execution.serve(), environment, root) as client:
+            client.initialize_and_list_tools()
+            client.expect(python="default_value = 42")
+            python.unlink()
+            failure = client.send(session="alpha", python="rejected_cell = True")
+            assert failure.get("isError"), failure
+            assert "selected Python executable is not an absolute file" in str(failure)
+            python.symlink_to(sys.executable)
+            assert client.send(session="alpha") == failure
+            assert client.send(session="alpha", stdin="rejected input\n") == failure
+            client.expect(
+                '[input requested: "retry> "]\naccepted input\n',
+                session="alpha",
+                # fmt: python
+                python=code("""
+                    assert "rejected_cell" not in globals()
+                    answer = input("retry> ")
+                    print(answer)
+                    """),
+                stdin="accepted input\n",
+            )
+            client.expect("42\n", python="default_value")
+            python.unlink()
+            failure = client.send(session="beta", python="rejected_cell = True")
+            assert failure.get("isError"), failure
+            assert "selected Python executable is not an absolute file" in str(failure)
+            python.symlink_to(sys.executable)
+            client.expect(
+                "\n[stopped]",
+                session="beta",
+                control="restart",
+            )
+            client.expect("\n[stopped]", session="beta")
+            assert client.send(timeout_ms=0)["structuredContent"] == {
+                "sessions": [
+                    {"session": "alpha", "status": "idle"},
+                    {"session": "default", "status": "idle"},
+                ]
+            }
+            return json.loads(
+                json.dumps(client.finish()).replace(str(root), "<workspace>")
+            )
+
+
 @requires(R, command("rustc"))
 def test_restart_repairs_failed_r_discovery(binary: Path) -> Transcript:
     r_environment, _ = r_test_environment()
@@ -513,13 +568,13 @@ def test_restart_refreshes_failed_inspection_evidence(
             failure = client.send(python="raise AssertionError('must not run')")
             assert "initial setup is broken" in str(failure), failure
             break_inspection("repair is still incomplete")
-            assert client.send() == failure
+            assert client.send(session="default") == failure
             refreshed = client.send(control="restart")
             assert refreshed.get("isError"), refreshed
             assert "repair is still incomplete" in str(refreshed), refreshed
             assert "initial setup is broken" not in str(refreshed), refreshed
             assert attempts.read_text().splitlines() == ["probe", "probe"]
-            assert client.send() == refreshed
+            assert client.send(session="default") == refreshed
             transcript, stderr = client.finish_with_standard_error(
                 expected_exit_status=1
             )
@@ -608,7 +663,7 @@ def retry_inspection(
             ) as client,
         ):
             client.initialize_and_list_tools()
-            assert client.send().get("isError")
+            assert client.send(session="default").get("isError")
             (site / "sitecustomize.py").write_text(
                 # fmt: python
                 code(f"""
@@ -701,7 +756,7 @@ def test_requirements_retry_stdin_reaches_early_input_cell(
             ) as client,
         ):
             client.initialize_and_list_tools()
-            failure = client.send()
+            failure = client.send(session="default")
             assert failure.get("isError"), failure
             assert "require `uv` on PATH" in str(failure), failure
             (root / "uv").symlink_to(fixture["RETICULATE_UV"])
@@ -882,7 +937,7 @@ def cancelled_retry_preparation(
             ) as client,
         ):
             client.initialize_and_list_tools()
-            failure = client.send()
+            failure = client.send(session="default")
             assert failure.get("isError"), failure
             assert "require `uv` on PATH" in str(failure), failure
             (root / "uv").symlink_to(fixture["RETICULATE_UV"])
@@ -963,7 +1018,7 @@ def cancelled_retry_preparation(
                     for event in events
                 ):
                     return None
-                result = client.send()
+                result = client.send(session="default")
                 return (
                     journal
                     if result.get("isError")
@@ -1046,7 +1101,7 @@ def test_interrupted_retry_can_be_restarted(
             ],
             "isError": True,
         }, failure
-        assert client.send() == failure
+        assert client.send(session="default") == failure
         (attempts.parent / "inspection-mode").write_text("ready")
         repaired = client.send(
             control="restart", python="assert 'rejected_cell' not in globals(); 42"

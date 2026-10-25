@@ -138,12 +138,12 @@ def test_reports_partial_retention_and_later_unretained_output(
                 # Intermediate polls would reset the inline budget and split counts.
                 release_fixture_checkpoint(release, client=client)
                 processed.wait(timeout=client.response_timeout)
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 first = client.transcript[-1]
                 first_text = last_tool_text(client)
                 release_fixture_checkpoint(release, client=client)
                 processed.wait(timeout=client.response_timeout)
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 second = client.transcript[-1]
                 second_text = last_tool_text(client)
 
@@ -238,7 +238,7 @@ def test_reports_omitted_bytes_retained_at_the_file_limit(
             # Keep all output pending until the server acknowledges completion;
             # intermediate polls would reset the inline budget and split counts.
             completed.wait(timeout=client.response_timeout)
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         output = last_tool_text(client)
         assert client.temporary_directory is not None
         workspace = Path(client.temporary_directory.name)

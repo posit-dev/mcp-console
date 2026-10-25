@@ -89,8 +89,27 @@ struct ResponseDeliveryAdmissionNode {
 struct ResponseDeliveryCallState {
     active: bool,
     operation_finished: bool,
-    delivery: Option<ResponseDelivery>,
+    delivery: Option<ResponseDeliveryGroup>,
     admission: Option<Arc<ResponseDeliveryAdmissionNode>>,
+}
+
+/// One aggregate poll can claim output from several independent sessions.
+/// They all share the MCP response's delivery outcome.
+#[derive(Default)]
+struct ResponseDeliveryGroup(Vec<ResponseDelivery>);
+
+impl ResponseDeliveryGroup {
+    fn delivered(self) {
+        for delivery in self.0 {
+            delivery.delivered();
+        }
+    }
+
+    fn unclaimed(self) {
+        for delivery in self.0 {
+            delivery.unclaimed();
+        }
+    }
 }
 
 /// Keeps one console request registered until its response write finishes.
@@ -199,7 +218,7 @@ impl ResponseDeliveries {
         state: &mut ResponseDeliveryState,
         request_id: RequestId,
         admission: Option<Arc<ResponseDeliveryAdmissionNode>>,
-    ) -> (ResponseDeliveryCall, Option<ResponseDelivery>) {
+    ) -> (ResponseDeliveryCall, Option<ResponseDeliveryGroup>) {
         let call = ResponseDeliveryCall::new(!state.closed, admission);
         let replaced = if state.closed {
             None
@@ -366,7 +385,7 @@ impl ResponseDeliveries {
         &self,
         request_id: &RequestId,
         expected: &ResponseDeliveryCall,
-    ) -> Option<ResponseDelivery> {
+    ) -> Option<ResponseDeliveryGroup> {
         let mut state = self.lock();
         let current = state.active.get(request_id)?;
         if !current.is(expected) {
@@ -676,14 +695,15 @@ impl ResponseDeliveryCall {
             !state.operation_finished,
             "response delivery must register before operation completion"
         );
-        assert!(
-            state.delivery.replace(delivery).is_none(),
-            "a response can register only one delivery acknowledgment"
-        );
+        state
+            .delivery
+            .get_or_insert_with(Default::default)
+            .0
+            .push(delivery);
         Ok(())
     }
 
-    fn cancel(&self) -> (bool, Option<ResponseDelivery>) {
+    fn cancel(&self) -> (bool, Option<ResponseDeliveryGroup>) {
         let mut state = self.lock();
         state.active = false;
         let delivery = state.delivery.take();
@@ -695,7 +715,7 @@ impl ResponseDeliveryCall {
         }
     }
 
-    fn complete_operation(&self) -> (bool, Option<ResponseDelivery>) {
+    fn complete_operation(&self) -> (bool, Option<ResponseDeliveryGroup>) {
         let mut state = self.lock();
         assert!(
             !state.operation_finished,
@@ -709,7 +729,7 @@ impl ResponseDeliveryCall {
         (false, None)
     }
 
-    fn abandon(&self) -> Option<ResponseDelivery> {
+    fn abandon(&self) -> Option<ResponseDeliveryGroup> {
         let mut state = self.lock();
         state.active = false;
         state.operation_finished = true;
@@ -717,7 +737,7 @@ impl ResponseDeliveryCall {
         state.delivery.take()
     }
 
-    fn finish_write(&self) -> Option<ResponseDelivery> {
+    fn finish_write(&self) -> Option<ResponseDeliveryGroup> {
         let mut state = self.lock();
         state.active = false;
         Self::finish_admission(&mut state);
@@ -775,14 +795,14 @@ impl Drop for ResponseDeliveryOperation {
 
 impl ResponseDeliveryWrite {
     fn delivered(mut self) {
-        self.finish(ResponseDelivery::delivered);
+        self.finish(ResponseDeliveryGroup::delivered);
     }
 
     fn unclaimed(mut self) {
-        self.finish(ResponseDelivery::unclaimed);
+        self.finish(ResponseDeliveryGroup::unclaimed);
     }
 
-    fn finish(&mut self, settle_delivery: impl FnOnce(ResponseDelivery)) {
+    fn finish(&mut self, settle_delivery: impl FnOnce(ResponseDeliveryGroup)) {
         if self.finished {
             return;
         }
@@ -799,7 +819,7 @@ impl ResponseDeliveryWrite {
 
 impl Drop for ResponseDeliveryWrite {
     fn drop(&mut self) {
-        self.finish(ResponseDelivery::unclaimed);
+        self.finish(ResponseDeliveryGroup::unclaimed);
     }
 }
 
@@ -1087,7 +1107,14 @@ where
                 self.deliveries.close();
                 return None;
             }
-            let recorder = recording.clone();
+            let session = call
+                .params
+                .arguments
+                .as_ref()
+                .and_then(|arguments| arguments.get("session"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("default");
+            let recorder = recording.for_session(session);
             let call_id = recording.reserve_call_id();
             let at = chrono::Utc::now();
             let request_id = request.id.clone();

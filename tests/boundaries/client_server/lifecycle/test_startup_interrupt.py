@@ -139,7 +139,7 @@ def test_interrupts_first_cell_before_resolver_registration(
         (root / "armed").unlink()
         release.release()
         client.response_timeout = 600
-        client.send(timeout_ms=600_000)
+        client.send(session="default", timeout_ms=600_000)
         client.send(
             r='exists("startup_cell_ran", inherits = FALSE)', timeout_ms=600_000
         )
@@ -175,7 +175,7 @@ def test_interrupts_first_cell_between_resolver_phases(
         (root / "armed").unlink()
         release.release()
         client.response_timeout = 600
-        client.send(timeout_ms=600_000)
+        client.send(session="default", timeout_ms=600_000)
         client.send(
             r='exists("startup_cell_ran", inherits = FALSE)', timeout_ms=600_000
         )
@@ -210,7 +210,7 @@ def test_interrupts_first_cell_admitted_during_stdin_startup(
         (root / "armed").unlink()
         release.release()
         client.response_timeout = 600
-        client.send(timeout_ms=600_000)
+        client.send(session="default", timeout_ms=600_000)
         client.send(
             r='exists("startup_cell_ran", inherits = FALSE)', timeout_ms=600_000
         )

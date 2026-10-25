@@ -90,7 +90,8 @@ result:
         [done]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

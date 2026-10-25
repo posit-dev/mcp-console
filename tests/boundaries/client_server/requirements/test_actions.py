@@ -132,14 +132,14 @@ def test_inspection_completes_under_repeated_overlap(
                         result
                     )
         idle = [
-            client.start_send(**arguments)
+            client.start_send(session="default", **arguments)
             for arguments in ({}, {"requirements": {"action": "get"}}) * 8
         ]
         client.receive_many(idle)
         for entry in idle:
             result = entry["result"]
             assert not result["isError"], result
-            if entry["send"]:
+            if "requirements" in entry["send"]:
                 assert result["structuredContent"] == declaration, result
             else:
                 assert result["content"] == [{"type": "text", "text": "\n[idle]"}], (

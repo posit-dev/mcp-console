@@ -1916,7 +1916,7 @@ def test_failed_managed_preparation_preserves_worker_and_input(
                     stdin="rejected interrupt input\n",
                 )
                 assert client.transcript[-1]["result"]["isError"], client.transcript[-1]
-                client.send()
+                client.send(session="default")
                 assert "[waiting for stdin]" in last_result_text(client), (
                     client.transcript[-1]
                 )

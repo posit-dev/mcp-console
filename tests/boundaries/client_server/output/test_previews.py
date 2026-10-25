@@ -96,7 +96,7 @@ after final image
         for block in result["content"]:
             if block["type"] == "text":
                 block["text"] = block["text"].replace(session.name, "<run ID>")
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         client.send(r="echo fresh")
         assert last_tool_text(client) == "zod: fresh\n"
@@ -290,7 +290,9 @@ def test_edits_mcp_unicode_preview_without_changing_raw_stream(
             assert (
                 cell_output_path(session_directory(client), 1 + 2 * call_id)
             ).read_bytes() == raw
-            assert client.send()["content"] == [{"type": "text", "text": "\n[idle]"}]
+            assert client.send(session="default")["content"] == [
+                {"type": "text", "text": "\n[idle]"}
+            ]
         normalize_preview_paths(client)
         return client.finish()
 
@@ -486,7 +488,7 @@ def test_preserves_active_prompt_and_state_after_text_flood(
         assert last_tool_text(client) == "\n[waiting for stdin]"
         control.send_control(0, "read_preview_input")
         control.wait_for(0, "preview_input_processed")
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "received answer\n", last_tool_text(client)
         return client.finish()
 
@@ -618,7 +620,7 @@ def test_combines_old_worker_and_replacement_cell_under_one_budget(
         )
         assert not result.get("isError", False), result
         normalize_preview_paths(client)
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         return client.finish()
 

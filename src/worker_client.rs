@@ -112,11 +112,18 @@ impl SendRequest {
     }
 }
 
-/// A cloneable handle to the single implicit session, including its startup.
+/// A cloneable handle to one session, including its startup.
 #[derive(Clone)]
 pub(crate) struct Client(Arc<ClientInner>);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SessionKind {
+    Default,
+    Named,
+}
+
 struct ClientInner {
+    session_kind: SessionKind,
     configuration: OnceLock<ClientConfiguration>,
     startup: Mutex<tokio::sync::watch::Sender<Option<Result<(), String>>>>,
     /// Identity of connection startup, including the interval before admission.
@@ -298,10 +305,19 @@ struct ActiveEvaluation {
 
 impl Client {
     pub(crate) fn pending() -> Self {
+        Self::pending_session(SessionKind::Default)
+    }
+
+    pub(crate) fn pending_named() -> Self {
+        Self::pending_session(SessionKind::Named)
+    }
+
+    fn pending_session(session_kind: SessionKind) -> Self {
         let (startup, _) = tokio::sync::watch::channel(None);
         let lifecycle = LifecycleControl::new();
         let startup_generation = lifecycle.generation.clone();
         Self(Arc::new(ClientInner {
+            session_kind,
             configuration: OnceLock::new(),
             startup: Mutex::new(startup),
             startup_generation,

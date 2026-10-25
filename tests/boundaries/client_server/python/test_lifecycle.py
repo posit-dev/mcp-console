@@ -222,7 +222,7 @@ def test_interrupts_running_python_evaluation(
             )
             release.release()
             release = None
-            client.send()
+            client.send(session="default")
             assert "KeyboardInterrupt" in last_result_text(client)
 
             client.send(
@@ -741,7 +741,7 @@ def test_interrupts_live_python_resolver(
                 "managed Python resolution cancelled by interrupt"
             )
 
-            client.send()
+            client.send(session="default")
             assert last_result_text(client) == "\n[idle]"
 
             client.send(
@@ -805,7 +805,7 @@ def test_restart_cancels_live_python_preparation(
 
             watchdog = threading.Thread(target=release_if_calls_block)
             watchdog.start()
-            poll = client.start_send()
+            poll = client.start_send(session="default")
             second_prepare = client.start_send(
                 requirements={"python": ["py-yaml12"]},
             )

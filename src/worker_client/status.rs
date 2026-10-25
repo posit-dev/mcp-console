@@ -95,6 +95,49 @@ impl Source {
 }
 
 impl Client {
+    /// Observe session owners without waiting for a running cell or preparation.
+    pub(crate) fn session_status(&self) -> &'static str {
+        if !self.0.startup_observation_complete.load(Ordering::Acquire) {
+            return "starting";
+        }
+        if !self.is_configured() {
+            return "stopped";
+        }
+        let Ok(lifecycle) = self.0.lifecycle.try_lock() else {
+            return "running";
+        };
+        match lifecycle.state {
+            LifecycleState::ShuttingDown { .. } => return "stopped",
+            LifecycleState::Restarting { .. } => return "starting",
+            LifecycleState::Ready => {}
+        }
+        if lifecycle.starting()
+            || lifecycle
+                .processes
+                .resolver
+                .as_ref()
+                .is_some_and(|resolver| resolver.phase_observation().phase().is_some())
+        {
+            return "starting";
+        }
+        let generation = lifecycle.generation.clone();
+        let has_worker = lifecycle.has_worker();
+        drop(lifecycle);
+        let Ok(evaluation) = self.0.evaluation.try_lock() else {
+            return "running";
+        };
+        if let Some(active) = evaluation
+            .as_ref()
+            .filter(|active| active.evaluation.admission.generation.is(&generation))
+        {
+            let status = active.evaluation.session_status();
+            if status != "idle" || has_worker {
+                return status;
+            }
+        }
+        if has_worker { "idle" } else { "stopped" }
+    }
+
     pub(super) fn status_generation(&self) -> Option<WorkerGeneration> {
         Some(self.0.lifecycle.try_lock().ok()?.generation.clone())
     }
