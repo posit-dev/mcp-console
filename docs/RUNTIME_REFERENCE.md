@@ -153,11 +153,11 @@ Use read-only attachment for databases outside writable sandbox paths.
 
 R exposes `.console$sql_connection()` and Python exposes `_console.sql_connection()`:
 
-| Argument                | Result                                     |
-| ----------------------- | ------------------------------------------ |
-| Omitted                 | Return the exact active native connection. |
-| DBI / DB-API connection | Select it for later SQL cells.             |
-| `NULL` / `None`         | Restore the session's managed default.     |
+| Argument                | Result                                                         |
+| ----------------------- | -------------------------------------------------------------- |
+| Omitted                 | Return the active connection, bridged when needed.             |
+| DBI / DB-API connection | Select it for later SQL cells, including a bridged connection. |
+| `NULL` / `None`         | Restore the session's managed default.                         |
 
 Select SQLite from Python:
 
@@ -176,8 +176,30 @@ connection <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
 ```
 
 The latest selection controls SQL.
-The getter only returns a connection owned by its own runtime; it reports the other runtime's helper when necessary.
-Console does not provide interchangeable wrappers.
+Either helper can retrieve or select a connection from either runtime through reticulate.
+Retrieving it preserves the selection and any unread SQL result.
+The connection keeps its native interface.
+
+For a Python connection, R returns a reticulate proxy.
+Select the Python `connection` above from R, call its methods, and convert the returned rows explicitly:
+
+```r
+.console$sql_connection(py$connection)
+connection_proxy <- .console$sql_connection()
+rows <- connection_proxy$execute("SELECT 42 AS answer")$fetchall()
+reticulate::py_to_r(rows)
+```
+
+For an R DBI connection, Python returns an opaque handle (`PyCapsule`).
+Pass it to R functions through `r`:
+
+```python
+_console.sql_connection(r.connection)
+connection_handle = _console.sql_connection()
+r["DBI::dbGetQuery"](connection_handle, "SELECT 42 AS answer")
+```
+
+The handle has no DB-API methods; the R function operates on the original DBI connection.
 
 User connections remain user-owned.
 Reset does not close them, commit their transactions, or discard the managed catalog.

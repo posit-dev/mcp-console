@@ -87,10 +87,13 @@ def assert_tool_guidance(tool: dict, languages: set[str], *, custom: bool) -> No
                 "active native Python connection",
             ):
                 assert instruction in python, python
+            assert "bridged DBI connection" in python
+            assert "errors if" not in python
             if "r" in languages:
-                assert "errors if SQL uses R" in python
+                assert "opaque R DBI handle" in python
+                assert "r['DBI::dbGetQuery']" in python
             else:
-                assert "errors if another runtime owns SQL" in python
+                assert "opaque bridged handle" in python
                 assert "on Python-owned DuckDB" in python
                 assert "`r.name`" not in python
                 assert "R plot rules" not in python

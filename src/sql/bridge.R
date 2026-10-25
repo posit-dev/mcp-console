@@ -118,15 +118,22 @@ base::local(
     sql_connection <- function(connection) {
       if (missing(connection)) {
         if (.Call("mcp_console_sql_has_python_connection")) {
-          stop(paste(
-            "The active SQL connection belongs to Python;",
-            "use _console.sql_connection() in Python"
-          ))
+          python <- reticulate::import("_mcp_console_sql", convert = FALSE)
+          return(python$sql_connection())
         }
         if (.Call("mcp_console_sql_take_restore_request")) {
           selected_connection <<- NULL
         }
         return(ensure_connection())
+      }
+      if (inherits(connection, "python.builtin.PyCapsule")) {
+        # Reticulate wraps native DBI objects in R-object capsules. Unwrap
+        # before validation; unrelated capsules remain invalid connections.
+        connection <- reticulate::py_to_r(connection)
+      } else if (inherits(connection, "python.builtin.object")) {
+        python <- reticulate::import("_mcp_console_sql", convert = FALSE)
+        python$sql_connection(connection)
+        return(invisible(NULL))
       }
       if (is.null(connection)) {
         connection <- ensure_managed_connection()

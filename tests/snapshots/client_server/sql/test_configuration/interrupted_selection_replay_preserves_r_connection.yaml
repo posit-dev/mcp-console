@@ -44,7 +44,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 145, in use_r
+          File "<string>", line 156, in use_r
           File "<SQL selection checkpoint>", line 10, in selection_checkpoint
           File "<string>", line 50, in _console_input
         KeyboardInterrupt
