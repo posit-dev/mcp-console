@@ -24,6 +24,11 @@ def read_lines(
     *,
     timeout: float | None = 10,
 ) -> list[str]:
+    """Read an exact batch ending at a test-controlled producer gate.
+
+    Include every record before the next command or checkpoint in count:
+    pipe reads may combine adjacent records into one chunk.
+    """
     # Startup can use the enclosing case deadline instead of an I/O deadline.
     descriptor = stream.fileno()  # type: ignore[attr-defined]
     output = bytearray()
