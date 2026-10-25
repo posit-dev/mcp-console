@@ -98,6 +98,9 @@ If the response says work is still running, [poll without resubmitting the code]
 Keep the connection open for the conversation and repeat your setup after a restart or reconnect.
 Setup calls use the same enabled arguments and sandbox permissions as later calls.
 
+For application operations alongside the agent's MCP connection, use the optional [integrator control channel](INTEGRATOR_CONTROL.md).
+It can evaluate setup code, inspect session state, and preview pending output through a local socket.
+
 ## Describe the data and workflow
 
 Give the model information about the workspace it will receive: available tables or objects, column meanings, helper functions, and conventions for reporting results.

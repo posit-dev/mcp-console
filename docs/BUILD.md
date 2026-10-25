@@ -15,12 +15,13 @@ It also shows how to prepare R objects or initialize a session from application 
 
 ## Choose an integration
 
-| Your application                 | Start here                                                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| An ellmer chat in R              | [Use Console from R](R.md), including session configuration and a complete analysis example.                        |
-| Python code or a model framework | [Use Console from Python](PYTHON.md), with synchronous and asynchronous clients and framework adapters.             |
-| Your own MCP client              | [Drive send directly](SEND_OPERATIONS.md): submit cells, collect output, answer input, interrupt work, and restart. |
-| An existing coding agent         | [Install and connect](CLIENTS.md), then use the same configuration files to customize its Console session.          |
+| Your application                        | Start here                                                                                                                              |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| An ellmer chat in R                     | [Use Console from R](R.md), including session configuration and a complete analysis example.                                            |
+| Python code or a model framework        | [Use Console from Python](PYTHON.md), with synchronous and asynchronous clients and framework adapters.                                 |
+| Your own MCP client                     | [Drive send directly](SEND_OPERATIONS.md): submit cells, collect output, answer input, interrupt work, and restart.                     |
+| A front end sharing the agent's session | [Integrator control channel](INTEGRATOR_CONTROL.md): inspect state, preview output, and submit application code through a local socket. |
+| An existing coding agent                | [Install and connect](CLIENTS.md), then use the same configuration files to customize its Console session.                              |
 
 Use the supplied adapters when integrating with a model framework so the model receives the connected server's actual tool schema.
 For exact fields and signatures, see [Tool settings](TOOL_CONFIGURATION.md), the [send tool](API.md), the [R API](https://posit-dev.github.io/mcp-console/r/reference/), and the [Python API](https://posit-dev.github.io/mcp-console/python/reference/).
@@ -28,6 +29,6 @@ For exact fields and signatures, see [Tool settings](TOOL_CONFIGURATION.md), the
 ## Interface stability
 
 Console is a development preview; public interfaces can change, with their changes documented.
-Build against the documented configuration, MCP tool, and client packages.
+Build against the documented configuration, MCP tool, integrator socket, and client packages.
 Hidden subcommands, internal environment handoffs, process layouts, and recording journal schemas are implementation interfaces, not public compatibility contracts.
 See the [interface boundaries](API.md#what-is-not-a-public-compatibility-contract) for details.
