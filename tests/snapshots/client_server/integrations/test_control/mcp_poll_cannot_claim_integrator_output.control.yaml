@@ -1,0 +1,22 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: |
+    print("integrator pending", flush=True)
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+    print("integrator finished")
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          integrator pending
+          integrator finished
+    isError: false

@@ -1,0 +1,80 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: pass
+  record: false
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: "[done]"
+    isError: false
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  code: pass
+  record: false
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: "[done]"
+    isError: false
+---
+request:
+  id: "3"
+  op: preview
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text:
+          text_bytes: 8088
+          concat:
+            - repeat: a
+              count: 3968
+            - |
+
+              [output omitted: 17164 UTF-8 bytes; retained logs: .agents/console/sessions/<recording ID>/capture/sessions/001/]
+
+              […]
+
+              […]
+            - repeat: c
+              count: 3968
+    isError: false
+---
+request:
+  id: "4"
+  op: preview
+response:
+  id: "4"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text:
+          text_bytes: 8088
+          concat:
+            - repeat: a
+              count: 3968
+            - |
+
+              [output omitted: 17164 UTF-8 bytes; retained logs: .agents/console/sessions/<recording ID>/capture/sessions/001/]
+
+              […]
+
+              […]
+            - repeat: c
+              count: 3968
+    isError: false

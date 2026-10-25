@@ -1,0 +1,13 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: |
+    print("private before", flush=True)
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+    print("private after")
+  record: false

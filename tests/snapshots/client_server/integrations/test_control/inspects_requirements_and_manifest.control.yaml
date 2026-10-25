@@ -1,0 +1,29 @@
+---
+request:
+  id: "1"
+  op: requirements
+response:
+  id: "1"
+  result:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: false
+    runtime_requirements:
+      r: []
+      python: []
+---
+request:
+  id: "2"
+  op: manifest
+response:
+  id: "2"
+  result:
+    r: []
+    python: []
+    duckdb: []
+    python_version: []
+    exclude_newer: ~

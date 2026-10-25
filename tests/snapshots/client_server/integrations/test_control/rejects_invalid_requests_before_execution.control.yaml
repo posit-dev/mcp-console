@@ -1,0 +1,132 @@
+---
+request:
+  id: "1"
+  op: status
+  extra: true
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: unknown field `extra`, expected `id`
+---
+request:
+  id: "2"
+  op: unknown
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: >-
+      unknown variant `unknown`, expected one of `status`, `preview`,
+      `requirements`, `manifest`, `evaluate` at line 1 column 27
+---
+request:
+  id: "3"
+  op: evaluate
+  language: julia
+  code: sentinel = 1
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: unknown variant `julia`, expected one of `r`, `python`, `sql`
+---
+request:
+  id: "4"
+  op: evaluate
+  language: python
+  code: sentinel = 1
+  busy: skip
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: unknown variant `skip`, expected `reject` or `wait`
+---
+request:
+  id: "5"
+  op: evaluate
+  language: python
+  code: sentinel = 1
+  record: "false"
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: 'invalid type: string "false", expected a boolean'
+---
+request:
+  wire: "\n"
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: EOF while parsing a value at line 2 column 0
+---
+request:
+  wire: >
+    {"id":"duplicate","op":"evaluate","language":"python","code":"sentinel =
+    1","code":"sentinel = 2"}
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: duplicate field `code`
+---
+request:
+  wire: |
+    {"id":"duplicate","op":"status","op":"preview"}
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: duplicate field `op` at line 1 column 36
+---
+request:
+  id: "9"
+  op: evaluate
+  language: python
+  code: sentinel = 1
+  wait_ms: 10
+response:
+  id: "9"
+  error:
+    code: invalid_request
+    message: wait_ms is required with busy=wait and forbidden with busy=reject
+---
+request:
+  id: "10"
+  op: evaluate
+  language: python
+  code: sentinel = 1
+  busy: wait
+response:
+  id: "10"
+  error:
+    code: invalid_request
+    message: wait_ms is required with busy=wait and forbidden with busy=reject
+---
+request:
+  id: split
+  op: evaluate
+  language: python
+  code: print('🦀')
+response:
+  id: split
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          🦀
+    isError: false
+---
+request:
+  id: after
+  op: status
+response:
+  id: after
+  result:
+    state: idle
+    idle: true
+    evaluation: ~

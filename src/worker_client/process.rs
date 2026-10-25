@@ -1292,6 +1292,10 @@ impl WorkerShutdownHandle {
         self.operation.is_bootstrapping()
     }
 
+    pub(super) fn phase_observation(&self) -> Option<&'static str> {
+        self.operation.phase_observation()
+    }
+
     /// Requests relay-owned worker shutdown and enforces bounded relay retirement.
     ///
     /// The shared generation operation joins all relay transport tasks once.

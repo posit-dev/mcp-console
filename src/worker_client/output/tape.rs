@@ -248,6 +248,59 @@ impl OutputTape {
         state.drain(cut)
     }
 
+    pub(in crate::worker_client) fn preview(&self) -> Vec<Content> {
+        self.snapshot().preview()
+    }
+
+    pub(in crate::worker_client) fn snapshot(&self) -> Response {
+        let state = self.lock();
+        let mut response = state
+            .recovered
+            .as_ref()
+            .map(Response::snapshot)
+            .unwrap_or_default();
+        for (_, sealed) in &state.sealed {
+            response.extend(sealed.snapshot());
+        }
+        let mut current = state.current.response.snapshot();
+        // Finishing a copy reveals a pending progress frame without changing
+        // how later carriage returns or split terminal controls are interpreted.
+        state.terminal.clone().finish(&mut current.preview);
+        let output = if state.cell_active {
+            &state.cell_output
+        } else {
+            &state.session_output
+        };
+        let source = match output {
+            Some(output) => Source {
+                owner: state.owner,
+                file: Some(output.record().inspection_copy()),
+                journal: None,
+                raw_bytes: state.raw_bytes,
+                retained_bytes: output.retained_bytes(),
+                discarded_bytes: output.discarded_bytes(),
+            },
+            None => Source {
+                owner: state.owner,
+                raw_bytes: state.raw_bytes,
+                ..state.process_output.clone()
+            },
+        };
+        current.preview.source(source);
+        response.extend(current);
+        response
+    }
+
+    /// Return output held aside by an integrator evaluation to the front of
+    /// the MCP stream, preserving any response recovered in the meantime.
+    pub(in crate::worker_client) fn restore_prelude(&self, mut prelude: Response) {
+        let mut state = self.lock();
+        if let Some(recovered) = state.recovered.take() {
+            prelude.extend(recovered);
+        }
+        state.recovered = Some(prelude);
+    }
+
     pub(in crate::worker_client) fn take_prelude(&self) -> Response {
         self.take_prelude_before(|| {})
     }
@@ -285,6 +338,7 @@ impl OutputTape {
         &self,
         transcript: &crate::transcript::Transcript,
         call_id: Option<u64>,
+        omit_from_projections: bool,
     ) -> Result<(), String> {
         let mut state = self.lock();
         if state.cell_active {
@@ -296,7 +350,7 @@ impl OutputTape {
         state.seal(true);
         state.finish_idle_interval();
         state.cell_active = true;
-        match transcript.create_cell_output(call_id) {
+        match transcript.create_cell_output(call_id, omit_from_projections) {
             Ok(output) => state.cell_output = output,
             Err(error) => state.recording_notice(Some(format!("cell output file was not created: {error}; text omitted from inline responses will be permanently discarded"))),
         }

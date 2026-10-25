@@ -1,0 +1,66 @@
+---
+request:
+  id: "1"
+  op: preview
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: image
+        data: <PNG byte-identical to captured agent plot>
+        mimeType: image/png
+      - type: text
+        text:
+          text_bytes: 8080
+          concat:
+            - repeat: x
+              count: 3968
+            - |
+
+              [output omitted: 16065 UTF-8 bytes; raw log: .agents/console/sessions/<recording ID>/capture/sessions/001/cell-002.txt]
+            - repeat: x
+              count: 3967
+            - "\n"
+    isError: false
+---
+request:
+  id: "2"
+  op: preview
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: image
+        data: <PNG byte-identical to captured agent plot>
+        mimeType: image/png
+      - type: text
+        text:
+          text_bytes: 8080
+          concat:
+            - repeat: x
+              count: 3968
+            - |
+
+              [output omitted: 16065 UTF-8 bytes; raw log: .agents/console/sessions/<recording ID>/capture/sessions/001/cell-002.txt]
+            - repeat: x
+              count: 3967
+            - "\n"
+    isError: false
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  code: plot(3:1); invisible(grDevices::dev.off())
+  record: false
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: image
+        data: <PNG byte-identical to captured integrator plot>
+        mimeType: image/png
+    isError: false

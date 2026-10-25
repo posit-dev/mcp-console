@@ -172,6 +172,10 @@ pub enum Command {
         #[command(flatten)]
         overrides: ConfigOverrides,
 
+        /// Listen for integrator JSONL requests on a private Unix socket
+        #[arg(long, value_name = "PATH")]
+        control_socket: Option<PathBuf>,
+
         /// Run evaluated code and dependency resolution with host permissions
         #[arg(long)]
         no_sandbox: bool,

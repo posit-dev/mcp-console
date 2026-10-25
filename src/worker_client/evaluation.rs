@@ -11,6 +11,8 @@ const CELL_COMPLETION_GRACE: Duration = Duration::from_millis(1);
 
 pub(super) struct Evaluation {
     pub(super) admission: super::admission::CellAdmission,
+    origin: Origin,
+    omit_from_projections: bool,
     state: Mutex<EvaluationState>,
     changed: tokio::sync::Notify,
     delivery_changed: Arc<tokio::sync::Notify>,
@@ -22,6 +24,7 @@ pub(super) struct Evaluation {
 }
 
 struct EvaluationState {
+    retain_idle_prelude: bool,
     phase: EvaluationPhase,
     completion_cut: Option<OutputCut>,
     /// Prior operation and lifecycle output transferred into this cell's response.
@@ -50,6 +53,12 @@ struct EvaluationState {
     stdin: Option<super::platform::StdinSender>,
     pending_stdin: String,
     observed_worker_revision: u64,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Origin {
+    Mcp,
+    Integrator,
 }
 
 struct InputRequest {
@@ -135,12 +144,15 @@ impl Evaluation {
     ) -> Self {
         let delivery_changed = Arc::new(tokio::sync::Notify::new());
         Self {
+            origin: Origin::Mcp,
+            omit_from_projections: transcript.take_projection_omission(call_id),
             admission: super::admission::CellAdmission::new(
                 generation,
                 transcript.clone(),
                 call_id,
             ),
             state: Mutex::new(EvaluationState {
+                retain_idle_prelude: false,
                 phase: EvaluationPhase::Evaluating,
                 completion_cut: None,
                 control_prelude: Some(control_prelude),
@@ -168,6 +180,64 @@ impl Evaluation {
             runtime: tokio::runtime::Handle::current(),
             admitted_at: Instant::now(),
         }
+    }
+
+    pub(super) fn owned_by(mut self, origin: Origin, changed: Arc<tokio::sync::Notify>) -> Self {
+        self.origin = origin;
+        self.delivery_changed = changed.clone();
+        let state = self.state.get_mut().expect("new evaluation state");
+        state.delivery_changed = changed;
+        state.retain_idle_prelude = origin == Origin::Integrator;
+        self
+    }
+
+    pub(super) fn is_integrator(&self) -> bool {
+        self.origin == Origin::Integrator
+    }
+
+    pub(super) fn restore_idle_prelude(&self) {
+        let idle = self
+            .state
+            .lock()
+            .expect("evaluation state")
+            .idle_prelude
+            .take();
+        if let Some(idle) = idle {
+            self.output.restore_prelude(idle);
+        }
+    }
+
+    pub(super) fn observation(&self) -> (&'static str, bool) {
+        let Ok(state) = self.state.try_lock() else {
+            return ("busy", false);
+        };
+        let phase = match state.phase {
+            EvaluationPhase::Evaluating if state.input_request.is_some() => "input_requested",
+            EvaluationPhase::Evaluating => "evaluating",
+            EvaluationPhase::CellCompletionGrace(_) => "completing",
+            EvaluationPhase::ReplacementStarting => "restarting",
+            EvaluationPhase::Complete(_) => "awaiting_result",
+        };
+        (phase, state.cell_entered)
+    }
+
+    pub(super) fn preview(&self) -> Option<Vec<super::Content>> {
+        let state = self.state.try_lock().ok()?;
+        let mut response = state
+            .control_prelude
+            .as_ref()
+            .map(Response::snapshot)
+            .unwrap_or_default();
+        if !state.retain_idle_prelude
+            && let Some(idle) = &state.idle_prelude
+        {
+            response.extend_logical_region(idle.snapshot());
+        }
+        if let Some(reclaimed) = &state.reclaimed {
+            response.extend_logical_region(reclaimed.snapshot());
+        }
+        response.extend_logical_region(self.output.snapshot());
+        Some(response.preview())
     }
 
     fn claim_wait(self: &Arc<Self>) -> Result<WaitClaim, String> {
@@ -342,8 +412,11 @@ impl Evaluation {
         if state.cell_entered {
             return Err("worker sent a duplicate cell start".into());
         }
-        self.output
-            .begin_cell_output(&self.transcript, self.call_id)?;
+        self.output.begin_cell_output(
+            &self.transcript,
+            self.call_id,
+            self.omit_from_projections,
+        )?;
         state.cell_entered = true;
         Ok(())
     }
@@ -626,6 +699,9 @@ impl Evaluation {
     /// Signaling does not transfer another send's polling or delivery ownership.
     /// An empty interrupt observes output only when it can claim it atomically.
     pub(super) fn claim_for_interrupt(self: &Arc<Self>) -> Result<Option<WaitClaim>, String> {
+        if self.is_integrator() {
+            return Ok(None);
+        }
         self.try_claim_wait(WaitKind::Interrupt)
     }
 
@@ -644,6 +720,9 @@ impl Evaluation {
         self: &Arc<Self>,
         deadline: Instant,
     ) -> Result<Option<WaitClaim>, String> {
+        if self.is_integrator() {
+            return Err("worker is evaluating an integrator request".into());
+        }
         loop {
             let delivered = self.delivery_changed.notified();
             tokio::pin!(delivered);
@@ -666,6 +745,44 @@ impl Evaluation {
             )
             .await
             .map_err(|_| "previous send response delivery is still pending".to_string())?;
+        }
+    }
+
+    /// Integrator ownership lasts through completion, including socket closure.
+    /// Input requests remain observable through status without draining output.
+    pub(super) async fn wait_terminal(&self, _claim: WaitClaim) -> Result<EvaluationWait, String> {
+        loop {
+            let changed = self.changed.notified();
+            tokio::pin!(changed);
+            changed.as_mut().enable();
+            self.finish_cell_completion_grace();
+            let (ready, grace) = {
+                let state = self
+                    .state
+                    .lock()
+                    .map_err(|_| "worker evaluation state lock poisoned")?;
+                (
+                    if state.retired {
+                        state.restart_handoff.is_some()
+                    } else {
+                        matches!(state.phase, EvaluationPhase::Complete(_))
+                    },
+                    match state.phase {
+                        EvaluationPhase::CellCompletionGrace(deadline) => {
+                            Some(deadline.saturating_duration_since(Instant::now()))
+                        }
+                        _ => None,
+                    },
+                )
+            };
+            if ready && let EvaluationStatus::Report(result) = self.reported_state(false)? {
+                return Ok(result);
+            }
+            if let Some(grace) = grace {
+                let _ = tokio::time::timeout(grace, changed).await;
+            } else {
+                changed.await;
+            }
         }
     }
 
@@ -837,6 +954,9 @@ impl EvaluationState {
 }
 
 impl EvaluationReservation {
+    pub(super) fn is_integrator(&self) -> bool {
+        self.evaluation.is_integrator()
+    }
     pub(super) fn unfinished(&self) -> bool {
         self.unfinished
     }
@@ -928,7 +1048,9 @@ fn take_owned_response(
     cut: OutputCut,
 ) -> Response {
     let mut cell = output.drain_through(cut);
-    if let Some(mut idle) = state.idle_prelude.take() {
+    if !state.retain_idle_prelude
+        && let Some(mut idle) = state.idle_prelude.take()
+    {
         idle.extend_cell_after_idle_prelude(cell);
         cell = idle;
     }

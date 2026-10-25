@@ -1,0 +1,4 @@
+---
+exit_code: 1
+stderr: |
+  control socket path already exists

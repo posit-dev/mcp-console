@@ -1,0 +1,31 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: hidden_value = 42; print('hidden integrator output')
+  record: false
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          hidden integrator output
+    isError: false
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  code: print("visible integrator output")
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          visible integrator output
+    isError: false

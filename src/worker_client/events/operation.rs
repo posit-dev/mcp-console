@@ -187,6 +187,23 @@ impl WorkerOperationState {
         Ok(matches!(self.lock()?.bootstrap, Bootstrap::Running))
     }
 
+    pub(in crate::worker_client) fn phase_observation(&self) -> Option<&'static str> {
+        let Ok(state) = self.0.state.try_lock() else {
+            return Some("busy");
+        };
+        if state.failure.is_some() {
+            Some("failed")
+        } else if matches!(state.bootstrap, Bootstrap::Running) {
+            Some("starting")
+        } else if state.idle_input.is_some() {
+            Some("input_requested")
+        } else if state.operation.is_some() || state.environment_preparation_reserved {
+            Some("busy")
+        } else {
+            None
+        }
+    }
+
     pub(in crate::worker_client) fn abort_bootstrap_cell(&self) -> Result<(), String> {
         let mut state = self.lock()?;
         let operation = state

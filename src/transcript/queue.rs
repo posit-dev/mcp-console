@@ -23,6 +23,8 @@ pub(super) struct ProtocolEvents {
     image_metadata_bytes: usize,
     next_artifact_id: u64,
     process_output_bytes: u64,
+    /// Only calls still awaiting cell entry; interval owners carry the choice later.
+    pub(super) omitted_calls: std::collections::BTreeSet<u64>,
 }
 
 #[derive(Serialize)]
@@ -327,6 +329,7 @@ impl ProtocolEvents {
 
     pub(super) fn stop(&mut self, error: String) {
         self.failure.get_or_insert(error);
+        self.omitted_calls.clear();
         self.retained_events -= self.pending.len();
         self.retained_bytes -= self
             .pending
@@ -420,9 +423,23 @@ impl Transcript {
             self.queue_event(QueuedEvent::Event(Event::SourceAdmitted { call_id }));
         }
     }
+    /// The evaluation retains this choice through retirement, including a late
+    /// cell-entry receipt after source admission has already settled.
+    pub(crate) fn take_projection_omission(&self, call_id: Option<u64>) -> bool {
+        call_id.is_some_and(|call_id| {
+            self.1
+                .lock()
+                .expect("protocol capture lock")
+                .omitted_calls
+                .remove(&call_id)
+        })
+    }
     pub(crate) fn source_finished(&self, call_id: Option<u64>) {
         if let Some(call_id) = call_id {
-            self.queue_event(QueuedEvent::Event(Event::SourceFinished { call_id }));
+            self.observe(|events| {
+                events.omitted_calls.remove(&call_id);
+                Some((QueuedEvent::Event(Event::SourceFinished { call_id }), ()))
+            });
         }
     }
     /// Bind waiting source to its first worker without replaying it onto replacement.
@@ -466,6 +483,7 @@ impl Transcript {
                 session_id,
                 cell_id: None,
                 interval: Interval::Startup,
+                omit_from_projections: false,
             });
             events.image_number = 0;
             events.image_bytes = 0;
@@ -507,7 +525,11 @@ impl Transcript {
         events.owner = None;
         events.cell_call = None;
     }
-    pub(super) fn start_cell(&self, call_id: Option<u64>) -> Option<Owner> {
+    pub(super) fn start_cell(
+        &self,
+        call_id: Option<u64>,
+        omit_from_projections: bool,
+    ) -> Option<Owner> {
         let call_id = call_id?;
         self.observe(|events| {
             let previous = events.owner?;
@@ -515,6 +537,7 @@ impl Transcript {
                 session_id: previous.session_id,
                 cell_id: Some(previous.cell_id.unwrap_or(0) + 1),
                 interval: Interval::Cell,
+                omit_from_projections,
             };
             events.cell_call = Some(call_id);
             events.owner = Some(owner);
