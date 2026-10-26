@@ -921,6 +921,7 @@ def test_restart_during_first_python_inspection_is_quiet(
             "[active evaluation stopped by session restart request]\n"
             "[worker stopped: in-memory state lost]\n[starting new worker]\n42\n[done]",
             "quiet restart completes its replacement cell",
+            controlled_completion=True,
             received=pending,
             completion_timeout_seconds=client.response_timeout,
         )
