@@ -641,6 +641,7 @@ def test_startup_containment_and_preparation_isolation(binary: Path) -> Transcri
             assert not (root / "forbidden").exists()
             # Keep the replacement cell open after its native profile finishes,
             # so profile output and controlled completion use separate replies.
+            deadline = client.response_deadline()
             pending = client.start_send(
                 control="restart",
                 requirements={"action": "set", "r": ["MASS"]},
@@ -665,7 +666,7 @@ def test_startup_containment_and_preparation_isolation(binary: Path) -> Transcri
             )
             reached.wait(
                 "replacement cell entered after native startup",
-                timeout=client.response_timeout,
+                timeout=max(0, deadline - time.monotonic()),
                 client=client,
             )
             client.receive(pending)
@@ -678,7 +679,7 @@ def test_startup_containment_and_preparation_isolation(binary: Path) -> Transcri
                 client,
                 prefix + RUNNING,
                 "replacement native profile output before completion",
-                completion_timeout_seconds=client.response_timeout,
+                completion_timeout_seconds=max(0, deadline - time.monotonic()),
                 received=pending,
             )
             release.release()
@@ -687,7 +688,7 @@ def test_startup_containment_and_preparation_isolation(binary: Path) -> Transcri
                 prefix + "[done]",
                 "explicit restart and host preparation",
                 controlled_completion=True,
-                completion_timeout_seconds=client.response_timeout,
+                completion_timeout_seconds=max(0, deadline - time.monotonic()),
                 received=pending,
             )
             assert (workspace / "attempts").read_text().splitlines() == [
