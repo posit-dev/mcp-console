@@ -46,8 +46,8 @@ pub fn configure_environment(command: &mut std::process::Command, settings: &San
 pub type SandboxSettings = Map<String, Value>;
 
 // Retain conditional rules through configuration export. Capture existence once
-// when selecting a launch policy, before handing ordinary read rules to the runner.
-const READ_ONLY_IF_EXISTS: &str = "_console_read_only_if_exists";
+// when selecting a launch policy, before handing ordinary rules to the runner.
+const IF_EXISTS: &str = "_console_if_exists";
 
 pub(crate) fn environment_path(settings: &SandboxSettings, name: &str) -> Option<PathBuf> {
     let inherit = settings.get("inherit_environment") != Some(&Value::Bool(false));

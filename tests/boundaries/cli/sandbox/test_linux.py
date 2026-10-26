@@ -52,6 +52,8 @@ def test_optional_read_only_paths_leave_no_host_mount_targets_after_sigkill(
                 "sandbox.filesystem.read_write=[.]",
                 "-c",
                 "sandbox.filesystem.read_only_if_exists=[.git, .agents, .codex, .aws, .claude]",
+                "-c",
+                "sandbox.filesystem.deny_if_exists=[private, credentials]",
                 "--",
                 sys.executable,
                 "-c",
@@ -116,7 +118,7 @@ def test_optional_read_only_paths_leave_no_host_mount_targets_after_sigkill(
                 stream.close()
     return [
         {
-            "scenario": "optional read-only metadata paths with all sandbox processes killed",
+            "scenario": "optional read-only and denied paths with all sandbox processes killed",
             "stdout": "ready\n",
             "host_entries_while_running": ["ordinary"],
             "host_entries_after_sigkill": ["ordinary"],

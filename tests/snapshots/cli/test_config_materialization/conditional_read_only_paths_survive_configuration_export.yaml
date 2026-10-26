@@ -1,4 +1,4 @@
 ---
-read_only_if_exists: >-
+conditional_paths: >-
   preserved for workers and preparation, regardless of current path
   existence

@@ -122,6 +122,7 @@ Fields within that mapping are:
 | `read_only_if_exists` | List of path strings | Apply a read-only rule only if the path exists when the sandbox policy is captured. |
 | `read_write`          | List of path strings | Permit reads and writes, including creation, editing, and deletion.                 |
 | `deny`                | List of path strings | Deny reads and writes.                                                              |
+| `deny_if_exists`      | List of path strings | Apply a deny rule only if the path exists when the sandbox policy is captured.      |
 
 Each list defaults to `[]` within a supplied mapping.
 Paths are concrete paths, not globs.
@@ -159,7 +160,7 @@ Console does not grant extra paths or switch backends to make an unsupported pol
 
 ### Protect only existing metadata
 
-On Linux, protecting a missing path with `read_only` or the `workspace` profile can create a mount target in the host directory.
+On Linux, protecting a missing path with `read_only`, `deny`, or the `workspace` profile can create a mount target in the host directory.
 These targets are visible while the sandbox runs and can remain after forced termination.
 An empty `.git` directory can affect tools that use it to identify a project root.
 
@@ -173,12 +174,15 @@ sandbox:
     read_only_if_exists: [.git, .agents, .codex, .aws, .claude]
 ```
 
-`read_only_if_exists` checks paths when the sandbox policy is captured.
-Missing paths are skipped, so sandboxed code can create and change them under a writable parent.
-The check does not continuously protect metadata created later.
-Existing paths retain the normal read-only rules, including protection of referenced Git worktree metadata.
-This option does not remove restrictions from another rule, an inherited policy, or the `workspace` profile.
-Keep `workspace` or explicit `read_only` entries when preventing creation of missing metadata is required.
+Use `deny_if_exists` the same way to block reads and writes to existing paths without creating missing ones, for example `deny_if_exists: [./secrets, ./.env]`.
+
+Both options check paths once, when the sandbox policy is captured.
+Missing paths keep their parent permissions, so sandboxed code can create, read, and change them under a writable parent.
+This also applies if the host creates a missing path after the sandbox starts; restart Console to capture the new restriction.
+Existing paths retain the normal read-only or deny rules; existing read-only Git metadata also protects referenced worktree metadata.
+These options do not remove restrictions from another rule, an inherited policy, or the `workspace` profile.
+Ordinary `read_only` and `deny` rules and the default profiles are unchanged.
+Keep `workspace` or explicit `read_only` or `deny` entries when preventing creation of missing paths is required.
 
 ### Grant writes to one directory
 

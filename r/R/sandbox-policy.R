@@ -73,6 +73,9 @@ config_flag <- function() {
 #'   parent permissions and can be created beneath a writable parent.
 #' * `deny` blocks reading and writing the named paths and their contents.
 #'   Use it for files the worker should not see, such as `"./secrets"`.
+#' * `deny_if_exists` blocks reads and writes only for paths present when the
+#'   sandbox policy is captured. Missing paths keep their parent permissions,
+#'   even if the host creates them later.
 #'
 #' More specific paths take precedence over broader paths. At the same path,
 #' `deny` wins over `read_write`, then `read_only`; list order has no effect.
@@ -244,6 +247,9 @@ config_flag <- function() {
 #' @param read_only_if_exists Character vector of literal filesystem paths to
 #'   protect from writes only if present when the sandbox policy is captured.
 #'   Missing paths are skipped; this does not prevent their later creation.
+#' @param deny_if_exists Character vector of literal filesystem paths to deny
+#'   reads and writes only if present when the sandbox policy is captured.
+#'   Missing paths are skipped, even if they are created later.
 #' @return An S7 configuration object. The constructor is also its S7 class.
 #' @examples
 #' # Read host files; write only private temporary storage; no worker network
@@ -337,7 +343,8 @@ SandboxFilesystem <- S7::new_class(
     read_only = config_string_list(),
     read_write = config_string_list(),
     deny = config_string_list(),
-    read_only_if_exists = config_string_list()
+    read_only_if_exists = config_string_list(),
+    deny_if_exists = config_string_list()
   )
 )
 
@@ -520,6 +527,7 @@ config_mapping <- function(fields) {
     "read_only_if_exists",
     "read_write",
     "deny",
+    "deny_if_exists",
     "allow",
     "unix_sockets",
     "packages",

@@ -1,4 +1,4 @@
-"""Conditional read-only permissions avoid mount targets for absent paths."""
+"""Conditional permissions avoid mount targets for absent paths."""
 
 import json
 import os
@@ -30,6 +30,8 @@ def test_conditional_paths_protect_existing_metadata_without_creating_missing_pa
         (workspace / ".git").write_text("gitdir: git-metadata\n")
         (workspace / ".agents").mkdir()
         (workspace / ".agents/keep").write_text("unchanged")
+        (workspace / "private").mkdir()
+        (workspace / "private/keep").write_text("secret")
         config = root / "policy.json"
         config.write_text(
             json.dumps(
@@ -44,6 +46,11 @@ def test_conditional_paths_protect_existing_metadata_without_creating_missing_pa
                                 ".codex",
                                 ".aws",
                                 ".claude",
+                            ],
+                            "deny_if_exists": [
+                                "private",
+                                "host-created",
+                                "sandbox-created",
                             ],
                         },
                     }
@@ -65,16 +72,37 @@ def test_conditional_paths_protect_existing_metadata_without_creating_missing_pa
                     assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
                 else:
                     raise AssertionError(name)
+            secret = Path("private/keep")
+            try:
+                secret.read_text()
+            except OSError as error:
+                # Linux masks denied directories, hiding their children.
+                assert error.errno in (errno.EACCES, errno.EPERM, errno.ENOENT), error
+            else:
+                raise AssertionError("private content was readable")
+            try:
+                secret.write_text("changed")
+            except OSError as error:
+                assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+            else:
+                raise AssertionError("private content was writable")
             absent = (".codex", ".aws", ".claude")
-            assert all(not Path(name).exists() for name in absent)
+            assert all(
+                not Path(name).exists() for name in (*absent, "host-created", "sandbox-created")
+            )
             Path("ordinary").write_text("allowed")
-            print("existing metadata protected; missing paths absent", flush=True)
+            print(
+                "existing metadata read-only; private content denied; missing paths absent",
+                flush=True,
+            )
             assert sys.stdin.readline() == "continue\n"
-            # Skipped rules allow new metadata after policy capture.
-            for name in absent:
+            # Skipped rules stay omitted even when the host creates a path later.
+            assert Path("host-created/keep").read_text() == "from host"
+            Path("host-created/keep").write_text("from sandbox")
+            for name in (*absent, "sandbox-created"):
                 Path(name).mkdir()
                 (Path(name) / "created").write_text("allowed")
-            print("missing paths can be created")
+            print("paths created after launch remain readable and writable")
             """)
         with subprocess.Popen(
             [
@@ -96,28 +124,38 @@ def test_conditional_paths_protect_existing_metadata_without_creating_missing_pa
         ) as process:
             try:
                 ready = read_lines(process.stdout, 1, "sandbox permission checks")
-                assert ready == ["existing metadata protected; missing paths absent"]
+                assert ready == [
+                    "existing metadata read-only; private content denied; missing paths absent"
+                ]
                 assert sorted(path.name for path in workspace.iterdir()) == [
                     ".agents",
                     ".git",
                     "git-metadata",
                     "ordinary",
+                    "private",
                 ]
+                (workspace / "host-created").mkdir()
+                (workspace / "host-created/keep").write_text("from host")
                 output, error = process.communicate("continue\n", timeout=15)
                 assert process.returncode == 0 and error == "", (output, error)
-                assert output == "missing paths can be created\n"
+                assert (
+                    output
+                    == "paths created after launch remain readable and writable\n"
+                )
             finally:
                 if process.poll() is None:
                     process.stdin.close()
                     process.wait(timeout=15)
         assert (metadata / "HEAD").read_text() == "unchanged"
         assert (workspace / ".agents/keep").read_text() == "unchanged"
-        for name in (".codex", ".aws", ".claude"):
+        assert (workspace / "private/keep").read_text() == "secret"
+        assert (workspace / "host-created/keep").read_text() == "from sandbox"
+        for name in (".codex", ".aws", ".claude", "sandbox-created"):
             assert (workspace / name / "created").read_text() == "allowed"
     return [
         {
             "stdout": "\n".join([*ready, output.strip()]) + "\n",
-            "host_during_execution": "no missing metadata mount targets",
+            "host_during_execution": "no missing conditional permission mount targets",
         }
     ]
 

@@ -14,7 +14,8 @@ SandboxFilesystem(
   read_only = NULL,
   read_write = NULL,
   deny = NULL,
-  read_only_if_exists = NULL
+  read_only_if_exists = NULL,
+  deny_if_exists = NULL
 )
 
 SandboxDomains(allow = NULL, deny = NULL)
@@ -52,6 +53,10 @@ literals whose proxy connections should be blocked.}
 \item{read_only_if_exists}{Character vector of literal filesystem paths to
 protect from writes only if present when the sandbox policy is captured.
 Missing paths are skipped; this does not prevent their later creation.}
+
+\item{deny_if_exists}{Character vector of literal filesystem paths to deny
+reads and writes only if present when the sandbox policy is captured.
+Missing paths are skipped, even if they are created later.}
 
 \item{allow}{Character vector of hostname patterns or IP literals permitted
 by the proxy. Unmatched destinations are denied; matching \code{deny} rules win.}
@@ -158,6 +163,9 @@ when the sandbox policy is captured. Missing paths remain subject to their
 parent permissions and can be created beneath a writable parent.
 \item \code{deny} blocks reading and writing the named paths and their contents.
 Use it for files the worker should not see, such as \code{"./secrets"}.
+\item \code{deny_if_exists} blocks reads and writes only for paths present when the
+sandbox policy is captured. Missing paths keep their parent permissions,
+even if the host creates them later.
 }
 
 More specific paths take precedence over broader paths. At the same path,

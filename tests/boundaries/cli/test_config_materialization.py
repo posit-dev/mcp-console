@@ -86,6 +86,7 @@ def test_conditional_read_only_paths_survive_configuration_export(
             "read_write": ["."],
             "deny": [],
             "read_only_if_exists": [".git", "missing"],
+            "deny_if_exists": ["private", "missing-private"],
         }
         config.write_text(
             json.dumps(
@@ -98,6 +99,7 @@ def test_conditional_read_only_paths_survive_configuration_export(
         for exists in (False, True):
             if exists:
                 (root / ".git").mkdir()
+                (root / "private").mkdir()
             for mode in ("--full", "--prune"):
                 result = resolve(
                     binary, root, "--config-file", str(config), mode, "--format", "json"
@@ -108,9 +110,10 @@ def test_conditional_read_only_paths_survive_configuration_export(
                     assert policy["filesystem"] == filesystem, policy
                 config.write_text(result.stdout)
         assert not (root / "missing").exists()
+        assert not (root / "missing-private").exists()
     return [
         {
-            "read_only_if_exists": "preserved for workers and preparation, regardless of current path existence"
+            "conditional_paths": "preserved for workers and preparation, regardless of current path existence"
         }
     ]
 
@@ -121,8 +124,14 @@ def test_empty_conditional_read_only_list_survives_configuration_export(
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         config = root / "policy.json"
+        filesystem = {"read_only_if_exists": [], "deny_if_exists": []}
         config.write_text(
-            json.dumps({"sandbox": {"filesystem": {"read_only_if_exists": []}}})
+            json.dumps(
+                {
+                    "sandbox": {"filesystem": filesystem},
+                    "resolver": {"sandbox": {"filesystem": filesystem}},
+                }
+            )
         )
         for mode in ("--full", "--prune"):
             result = resolve(
@@ -130,15 +139,21 @@ def test_empty_conditional_read_only_list_survives_configuration_export(
             )
             assert result.returncode == 0 and result.stderr == "", result
             settings = json.loads(result.stdout)
-            assert settings["sandbox"]["filesystem"] == {
-                "read_only": [],
-                "read_write": [],
-                "deny": [],
-                "read_only_if_exists": [],
-            }, settings["sandbox"]
+            for policy in (settings["sandbox"], settings["resolver"]["sandbox"]):
+                assert policy["filesystem"] == {
+                    "read_only": [],
+                    "read_write": [],
+                    "deny": [],
+                    "read_only_if_exists": [],
+                    "deny_if_exists": [],
+                }, policy
             config.write_text(result.stdout)
     return [
-        {"read_only_if_exists": [], "export": "preserves an explicit empty override"}
+        {
+            "read_only_if_exists": [],
+            "deny_if_exists": [],
+            "export": "preserves explicit empty overrides for workers and preparation",
+        }
     ]
 
 
@@ -788,6 +803,7 @@ def test_prunes_nested_values_without_losing_empty_overrides(
                     "read_write": [],
                     "deny": [],
                     "read_only_if_exists": [],
+                    "deny_if_exists": [],
                 }
             },
             "python": {"managed": {"packages": [], "resolution": "explicit"}},
@@ -1198,6 +1214,7 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
                         "read_write": [],
                         "deny": [],
                         "read_only_if_exists": [],
+                        "deny_if_exists": [],
                     }
                     | source["sandbox"]["filesystem"]
                 )

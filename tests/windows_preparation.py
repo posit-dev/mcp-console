@@ -163,6 +163,7 @@ class WindowsPreparation(unittest.TestCase):
                             "read_write": [],
                             "deny": [],
                             "read_only_if_exists": [],
+                            "deny_if_exists": [],
                         },
                     )
                 else:
