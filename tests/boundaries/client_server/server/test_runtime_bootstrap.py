@@ -175,6 +175,15 @@ def bootstrap_output(
     client.transcript[start:] = [client.transcript[-1]]
 
 
+def record_blocked_python_setup(client: McpClient) -> None:
+    # Admission can observe worker startup or host preparation. The caller's
+    # setup gate establishes that both finished and local Python setup is held.
+    submitted = client.transcript[-1]
+    client.expect(RUNNING, timeout_ms=0)
+    assert "phase:" not in last_result_text(client), last_result_text(client)
+    submitted["result"] = client.transcript.pop()["result"]
+
+
 @executions(DIRECT)
 @requires(NATIVE_FIXTURES)
 def test_interrupt_before_bootstrap_publication_discards_waiting_cell(
@@ -280,10 +289,10 @@ def test_first_python_setup_crash_retires_worker_without_replay(
         client.initialize_and_list_tools()
         # The first public Python cell admits setup. The site hook crashes
         # before its source runs; replacement must never replay that source.
-        client.send(python="never_run = True", timeout_ms=0)
-        assert without_elapsed(last_result_text(client)) == RUNNING
+        client.expect(RUNNING, python="never_run = True", timeout_ms=0)
         with closing(FifoCheckpoint.attach(root / "reached")) as reached:
             reached.wait("first Python cell enters interpreter setup")
+        record_blocked_python_setup(client)
         old = capture_process_identity(
             host_process_id(int((root / "worker").read_text()), client.process.pid)
         )
@@ -300,14 +309,15 @@ def test_first_python_setup_crash_retires_worker_without_replay(
             "[worker stopped: in-memory state lost]\n[starting new worker]" in output
         ), output
         assert not live_processes([old]), "failed setup survived replacement"
-        client.send(
+        client.expect(
+            RUNNING,
             python="assert 'never_run' not in globals(); counter = 1; counter",
             stdin="replacement\n",
             timeout_ms=0,
         )
-        assert without_elapsed(last_result_text(client)) == RUNNING
         with closing(FifoCheckpoint.attach(root / "reached")) as reached:
             reached.wait("replacement first Python cell enters interpreter setup")
+        record_blocked_python_setup(client)
         release.release()
         wait_for_evaluation_output(
             client,
@@ -891,6 +901,7 @@ def test_restart_during_first_python_inspection_is_quiet(
             timeout_ms=0,
         )
         reached.wait("first Python cell enters managed inspection", timeout=600)
+        record_blocked_python_setup(client)
         worker = capture_process_identity(
             host_process_id(int(identities.read_text()), client.process.pid)
         )
