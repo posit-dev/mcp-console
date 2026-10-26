@@ -150,6 +150,7 @@ website:
         contents:
         - RESOLVER_RELEASE_AUDIT.md
         - benchmarks/transcript-concurrency.md
+        - benchmarks/first-evaluation.md
         - href: https://github.com/posit-dev/mcp-console/blob/main/RELEASE.md
           text: Release procedure
   page-footer:
