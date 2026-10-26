@@ -12,10 +12,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.capture import read_lines
+from support.capture import read_lines, read_relay_ready
 from support.checkpoints import FifoCheckpoint
 from support.native import LOADER_VARIABLE, build_interposer
-from support.capture import assert_worker_started
 from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, WORKER, requires
 from support.suites import run_this_suite
@@ -30,6 +29,7 @@ def pipe_relay(
         root = Path(directory)
         environment = os.environ.copy()
         environment["TMPDIR"] = directory
+        ready = FifoCheckpoint.create(root / "ready-written")
         blocked = FifoCheckpoint.create(root / "writer-blocked")
         release = FifoCheckpoint.create(root / "worker-exit")
         interposer = build_interposer(root, "sideband_pipe_io")
@@ -52,8 +52,8 @@ def pipe_relay(
         )
         try:
             assert process.stdin and process.stdout and process.stderr
-            assert_worker_started(receive(process))
-            assert receive(process) == {"kind": "ready"}
+            ready.wait("both relay startup records were written")
+            read_relay_ready(process.stdout)
             send(process, {"kind": "stdin", "data": "start\n"})
             yield process, root, blocked, release
         finally:
@@ -65,6 +65,7 @@ def pipe_relay(
             if process.returncode is None:
                 os.killpg(process.pid, signal.SIGKILL)
             process.communicate(timeout=5)
+            ready.close()
             blocked.close()
             release.close()
 
