@@ -243,8 +243,31 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           "R_HOME=$rHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Run native Windows development and installation checks
+        id: windows-checks
         run: |
           scripts/check.cmd --full
+      # Temporary native regeneration for PR 187; preserve the failed gate.
+      - name: Record current Windows session transcripts
+        id: refresh-windows-snapshots
+        if: ${{ failure() && steps.windows-checks.outcome == 'failure' }}
+        run: |
+          scripts/test.cmd --update `
+            client_server/requirements/test_r::stops_live_preparation_for_idle_callback_input `
+            client_server/sandbox/test_workspace_roots::workspace_guard_uses_console_home
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Upload Windows session transcript evidence
+        if: ${{ !cancelled() && steps.refresh-windows-snapshots.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-session-transcripts
+          path: |
+            tests/snapshots/client_server/requirements/test_r/stops_live_preparation_for_idle_callback_input.win32.yaml
+            tests/snapshots/client_server/sandbox/test_workspace_roots/workspace_guard_uses_console_home.win32.yaml
+            tests/snapshots/client_server/sandbox/test_workspace_roots/workspace_guard_uses_console_home.win32.relative-home.yaml
+            .dev-workflow/runs
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
       - name: Run stress regressions
         run: scripts/test.cmd --stress --jobs 6
       - name: Check R package on Windows
