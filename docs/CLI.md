@@ -156,6 +156,7 @@ mcp-console warmup -c 'languages=[python,sql]'
 ```
 
 `warmup` starts a server, initializes an MCP connection, discovers its tools, and evaluates a small check in each enabled language before shutting down.
+It checks the default session, selecting it explicitly when the server advertises named sessions.
 It prepares the configured startup packages and reuses the same dependency caches as `serve`, so a later session with the same settings can reuse them.
 The first run may download Python, packages, and DuckDB extensions.
 

@@ -573,7 +573,8 @@ class ReleaseScriptTests(ReleaseFixture):
                 json.loads(sys.stdin.readline())
                 startup = json.loads(sys.stdin.readline())
                 assert startup["params"]["name"] == "send"
-                assert set(startup["params"]["arguments"]) == {"timeout_ms"}
+                assert set(startup["params"]["arguments"]) == {"timeout_ms", "session"}
+                assert startup["params"]["arguments"]["session"] == "default"
                 assert startup["params"]["arguments"]["timeout_ms"] > 0
                 if os.environ.get("FAKE_MCP_STARTUP_HANG"):
                     signal.pause()
