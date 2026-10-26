@@ -201,11 +201,13 @@ fn permissions(settings: &SandboxSettings) -> Value {
         .and_then(|fs| fs.get("entries"))
         .and_then(Value::as_array)
     {
-        let mut filesystem = json!({ "read_only": [], "read_write": [], "deny": [] });
+        let mut filesystem = json!({ "read_only": [], "read_write": [], "deny": [], "read_only_if_exists": [], "deny_if_exists": [] });
         for entry in entries {
             let access = match entry["access"].as_str().expect("captured access") {
+                "read" if entry.get(super::IF_EXISTS).is_some() => "read_only_if_exists",
                 "read" => "read_only",
                 "write" => "read_write",
+                "deny" if entry.get(super::IF_EXISTS).is_some() => "deny_if_exists",
                 "deny" => "deny",
                 _ => unreachable!(),
             };

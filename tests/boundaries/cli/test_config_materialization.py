@@ -75,6 +75,88 @@ def test_cache_directory_round_trips_without_creating_storage(
     ]
 
 
+def test_conditional_read_only_paths_survive_configuration_export(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        config = root / "policy.json"
+        filesystem = {
+            "read_only": ["always"],
+            "read_write": ["."],
+            "deny": [],
+            "read_only_if_exists": [".git", "missing"],
+            "deny_if_exists": ["private", "missing-private"],
+        }
+        config.write_text(
+            json.dumps(
+                {
+                    "sandbox": {"filesystem": filesystem},
+                    "resolver": {"sandbox": {"filesystem": filesystem}},
+                }
+            )
+        )
+        for exists in (False, True):
+            if exists:
+                (root / ".git").mkdir()
+                (root / "private").mkdir()
+            for mode in ("--full", "--prune"):
+                result = resolve(
+                    binary, root, "--config-file", str(config), mode, "--format", "json"
+                )
+                assert result.returncode == 0 and result.stderr == "", result
+                settings = json.loads(result.stdout)
+                for policy in (settings["sandbox"], settings["resolver"]["sandbox"]):
+                    assert policy["filesystem"] == filesystem, policy
+                config.write_text(result.stdout)
+        assert not (root / "missing").exists()
+        assert not (root / "missing-private").exists()
+    return [
+        {
+            "conditional_paths": "preserved for workers and preparation, regardless of current path existence"
+        }
+    ]
+
+
+def test_empty_conditional_read_only_list_survives_configuration_export(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        config = root / "policy.json"
+        filesystem = {"read_only_if_exists": [], "deny_if_exists": []}
+        config.write_text(
+            json.dumps(
+                {
+                    "sandbox": {"filesystem": filesystem},
+                    "resolver": {"sandbox": {"filesystem": filesystem}},
+                }
+            )
+        )
+        for mode in ("--full", "--prune"):
+            result = resolve(
+                binary, root, "--config-file", str(config), mode, "--format", "json"
+            )
+            assert result.returncode == 0 and result.stderr == "", result
+            settings = json.loads(result.stdout)
+            for policy in (settings["sandbox"], settings["resolver"]["sandbox"]):
+                assert policy["filesystem"] == {
+                    "read_only": [],
+                    "read_write": [],
+                    "deny": [],
+                    "read_only_if_exists": [],
+                    "deny_if_exists": [],
+                }, policy
+            config.write_text(result.stdout)
+    return [
+        {
+            "read_only_if_exists": [],
+            "deny_if_exists": [],
+            "export": "preserves explicit empty overrides for workers and preparation",
+        }
+    ]
+
+
 def test_managed_cache_mode_and_console_alias_share_defaults(
     binary: Path,
 ) -> Transcript:
@@ -715,7 +797,15 @@ def test_prunes_nested_values_without_losing_empty_overrides(
             "environment": {"EMPTY": ""},
             "inherit_environment": False,
             "resolver": {"environment": {"EMPTY": ""}, "inherit_environment": True},
-            "sandbox": {"filesystem": {"read_only": [], "read_write": [], "deny": []}},
+            "sandbox": {
+                "filesystem": {
+                    "read_only": [],
+                    "read_write": [],
+                    "deny": [],
+                    "read_only_if_exists": [],
+                    "deny_if_exists": [],
+                }
+            },
             "python": {"managed": {"packages": [], "resolution": "explicit"}},
         }, settings
         selected = root / "pruned.json"
@@ -1119,7 +1209,13 @@ def test_permission_and_environment_exports_round_trip(binary: Path) -> Transcri
             if "filesystem" in source.get("sandbox", {}):
                 assert (
                     settings["sandbox"]["filesystem"]
-                    == {"read_only": [], "read_write": [], "deny": []}
+                    == {
+                        "read_only": [],
+                        "read_write": [],
+                        "deny": [],
+                        "read_only_if_exists": [],
+                        "deny_if_exists": [],
+                    }
                     | source["sandbox"]["filesystem"]
                 )
             if source.get("sandbox", {}).get("profile") == "workspace":

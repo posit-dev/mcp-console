@@ -1,0 +1,5 @@
+---
+stdout: |
+  existing metadata read-only; private content denied; missing paths absent
+  paths created after launch remain readable and writable
+host_during_execution: no missing conditional permission mount targets

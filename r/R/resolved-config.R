@@ -263,8 +263,10 @@ config_node_from_json <- function(class, fields, children = list()) {
     names(fields),
     c(
       "read_only",
+      "read_only_if_exists",
       "read_write",
       "deny",
+      "deny_if_exists",
       "allow",
       "unix_sockets",
       "packages",

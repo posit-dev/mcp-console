@@ -5,7 +5,7 @@ use std::path::{Component, Path, PathBuf};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::{Value, json};
 
-use super::SandboxSettings;
+use super::{IF_EXISTS, SandboxSettings};
 
 // Option means omitted, not an explicit YAML null.
 pub(super) fn supplied<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
@@ -185,6 +185,8 @@ struct Filesystem {
     read_only: Vec<String>,
     read_write: Vec<String>,
     deny: Vec<String>,
+    read_only_if_exists: Vec<String>,
+    deny_if_exists: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -377,6 +379,8 @@ impl Sandbox {
                 (filesystem.read_only, "read"),
                 (filesystem.read_write, "write"),
                 (filesystem.deny, "deny"),
+                (filesystem.read_only_if_exists, "read_only_if_exists"),
+                (filesystem.deny_if_exists, "deny_if_exists"),
             ]
             .into_iter()
             .flat_map(|(paths, access)| {
@@ -386,7 +390,17 @@ impl Sandbox {
                     let path = path.to_str().ok_or_else(|| {
                         format!("{prefix}.filesystem: expanded path must be UTF-8")
                     })?;
-                    Ok(json!({"path": {"type": "path", "path": path}, "access": access}))
+                    let native_access = match access {
+                        "read_only_if_exists" => "read",
+                        "deny_if_exists" => "deny",
+                        _ => access,
+                    };
+                    let mut entry =
+                        json!({"path": {"type": "path", "path": path}, "access": native_access});
+                    if matches!(access, "read_only_if_exists" | "deny_if_exists") {
+                        entry[IF_EXISTS] = true.into();
+                    }
+                    Ok(entry)
                 })
             })
             .collect::<Result<_, String>>()?;
@@ -621,6 +635,12 @@ pub(crate) fn capture_filesystem_paths(
     {
         let mut captured = Vec::with_capacity(entries.len());
         for mut entry in entries.drain(..) {
+            let if_exists = context == PolicyContext::Launch
+                && entry
+                    .as_object_mut()
+                    .expect("filesystem entry")
+                    .remove(IF_EXISTS)
+                    .is_some();
             let write = entry.get("access").and_then(Value::as_str) == Some("write");
             let mut guarded = false;
             if entry.pointer("/path/type").and_then(Value::as_str) == Some("path")
@@ -636,6 +656,20 @@ pub(crate) fn capture_filesystem_paths(
                     guarded = root.guarded;
                 } else {
                     *path = resolve_writable_root(PathBuf::from(&*path), workspace)?;
+                }
+                if if_exists {
+                    // Inspect the link itself, retaining native symlink validation.
+                    // This is a policy snapshot, not synchronization with host edits
+                    // between capture and the runner's mount setup.
+                    match std::fs::symlink_metadata(&*path) {
+                        Ok(_) => {}
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                        Err(error) => {
+                            return Err(format!(
+                                "cannot inspect conditional filesystem path '{path}': {error}"
+                            ));
+                        }
+                    }
                 }
             }
             if guarded {

@@ -45,6 +45,8 @@ def test_materializes_home_paths_and_preserves_literal_values(
             "read_only": ["~/data"],
             "read_write": ["~/output", "./~/literal", "~someone/data", "${DATA}/data"],
             "deny": ["~"],
+            "read_only_if_exists": ["~/optional-data"],
+            "deny_if_exists": ["~/optional-private"],
         }
         selected = root / "config.json"
         source = {
@@ -80,6 +82,8 @@ def test_materializes_home_paths_and_preserves_literal_values(
                 "read_only": [str(home / "data")],
                 "read_write": [str(home / "output"), *filesystem["read_write"][1:]],
                 "deny": [str(home)],
+                "read_only_if_exists": [str(home / "optional-data")],
+                "deny_if_exists": [str(home / "optional-private")],
             }, settings
             assert settings["environment"] == source["environment"], settings
             assert settings["tool"]["instructions"] == source["tool"]["instructions"], (
@@ -176,13 +180,15 @@ def test_materializes_resolver_home_paths(binary: Path) -> Transcript:
             "-c",
             "resolver.environment.HOME=/resolver-home",
             "-c",
-            "resolver.sandbox.filesystem={read_only: [~/data], read_write: [~/cache], deny: [~/private]}",
+            "resolver.sandbox.filesystem={read_only: [~/data], read_write: [~/cache], deny: [~/private], read_only_if_exists: [~/optional-data], deny_if_exists: [~/optional-private]}",
         )
         assert result.returncode == 0 and result.stderr == "", result
         assert json.loads(result.stdout)["resolver"]["sandbox"]["filesystem"] == {
             "read_only": [str(root / "data")],
             "read_write": [str(root / "cache")],
             "deny": [str(root / "private")],
+            "read_only_if_exists": [str(root / "optional-data")],
+            "deny_if_exists": [str(root / "optional-private")],
         }, result
     return [{"resolver_paths_use_launch_home": True}]
 

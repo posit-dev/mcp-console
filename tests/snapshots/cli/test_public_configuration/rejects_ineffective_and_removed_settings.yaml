@@ -229,8 +229,9 @@ stderr: >
 path: sandbox.filesystem
 stderr: >
   configuration with CLI overrides: sandbox: filesystem: entries: unknown
-  field `entries`, expected one of `read_only`, `read_write`, `deny`; see
-  docs/CONFIGURATION.md for the public format
+  field `entries`, expected one of `read_only`, `read_write`, `deny`,
+  `read_only_if_exists`, `deny_if_exists`; see docs/CONFIGURATION.md for
+  the public format
 ---
 path: sandbox.filesystem.read_write
 stderr: >

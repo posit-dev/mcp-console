@@ -11,6 +11,8 @@ sandbox:
     read_only: []
     read_write: []
     deny: []
+    read_only_if_exists: []
+    deny_if_exists: []
 python:
   managed:
     resolution: explicit

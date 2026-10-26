@@ -6,14 +6,17 @@ Run with `uv run --no-project tests/windows.py` after `cargo build`.
 import ctypes
 import base64
 import csv
-from contextlib import ExitStack
+from concurrent.futures import CancelledError
+from contextlib import ExitStack, contextmanager
 import hashlib
 import io
 import json
 import os
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 import re
+import select
+import socket
 import shutil
 import subprocess
 import sys
@@ -25,9 +28,11 @@ import unittest
 import zipfile
 
 from windows_gate import Gate
-from support.checkpoints import wait_for_path
+from support.checkpoints import wait_for_checkpoint, wait_for_path
+from support.events import Events
 from support.installation import native_console
 from support.normalization import code
+from support.progress import RUNNING, without_elapsed
 from support.r import r_duckdb_snapshot_environment, r_test_environment
 from windows_distribution import NATIVE_SUFFIXES, inspect_artifacts
 
@@ -247,17 +252,71 @@ class Session:
         return result
 
     def expect(self, expected: str, **arguments) -> dict:
+        return self._expect_output(expected, complete=True, **arguments)
+
+    def expect_running(self, expected: str, **arguments) -> dict:
+        return self._expect_output(expected, complete=False, **arguments)
+
+    def _expect_output(self, expected: str, *, complete: bool, **arguments) -> dict:
         deadline = time.monotonic() + self.timeout
-        result = self.send(**arguments, timeout_ms=0)
+        observations = []
+        content = []
+        arguments = {**arguments, "timeout_ms": 0}
         while True:
-            assert not result.get("isError"), result
-            output = json.dumps(result, ensure_ascii=False)
-            if expected in output:
-                return result
-            assert "running;" in output or "waiting for stdin" in output, result
             remaining = deadline - time.monotonic()
-            assert remaining > 0, f"did not observe {expected!r}: {result}"
-            result = self.send(timeout_ms=min(1000, max(1, int(remaining * 1000))))
+            assert remaining > 0, f"did not observe {expected!r}: {observations}"
+            previous_timeout = self.timeout
+            self.timeout = min(previous_timeout, remaining)
+            try:
+                result = self.send(**arguments)
+            except Empty as error:
+                raise AssertionError(
+                    f"did not observe {expected!r}: {observations}"
+                ) from error
+            finally:
+                self.timeout = previous_timeout
+            observations.append(result)
+            assert not result.get("isError"), observations
+            progress = ""
+            for original in result.get("content", []):
+                part = dict(original)
+                if part["type"] == "text":
+                    text = without_elapsed(part["text"])
+                    if text.endswith(RUNNING):
+                        progress = RUNNING
+                        text = text.removesuffix(RUNNING)
+                    elif text.endswith("[waiting for stdin]"):
+                        progress = "[waiting for stdin]"
+                        text = (
+                            ""
+                            if text == "\n" + progress
+                            else text.removesuffix(progress)
+                        )
+                    if not text or (text == "[done]" and content):
+                        continue
+                    part["text"] = text
+                    if content and content[-1]["type"] == "text":
+                        content[-1] = {
+                            **content[-1],
+                            "text": content[-1]["text"] + text,
+                        }
+                        continue
+                content.append(part)
+            observed = {**result, "content": [dict(part) for part in content]}
+            if progress:
+                if observed["content"] and observed["content"][-1]["type"] == "text":
+                    observed["content"][-1]["text"] += progress
+                else:
+                    observed["content"].append({"type": "text", "text": progress})
+            observed_complete = not progress
+            if expected in json.dumps(observed, ensure_ascii=False) and (
+                observed_complete == complete
+            ):
+                return observed
+            assert progress, observations
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, f"did not observe {expected!r}: {observations}"
+            arguments = {"timeout_ms": min(1000, max(1, int(remaining * 1000)))}
 
     def close(self):
         self.process.stdin.close()
@@ -276,9 +335,103 @@ class Session:
             self.directory.cleanup()
 
 
+@contextmanager
+def startup_output_gate(session: Session):
+    """Hold R after output until a later public completion poll is recorded."""
+    recordings = Path(session.directory.name) / ".agents/console/sessions"
+    failures = Queue()
+
+    def completion_poll():
+        for journal in recordings.glob("*/capture/events.jsonl"):
+            events.watch_file(journal)
+            prefix_seen = False
+            collected = ""
+            for line in journal.read_bytes().splitlines(keepends=True):
+                if not line.endswith(b"\n"):
+                    continue
+                event = json.loads(line)
+                if (
+                    not prefix_seen
+                    and event["event"] == "tool_result"
+                    and "result" in event
+                ):
+                    result = event["result"]
+                    text = "".join(
+                        part.get("text", "") for part in result.get("content", [])
+                    )
+                    collected += without_elapsed(text).removesuffix(RUNNING)
+                    if "R_SMOKE 4" in collected:
+                        assert not result.get("isError"), event
+                        assert text.endswith("[running; poll with an empty send]"), (
+                            event
+                        )
+                        prefix_seen = True
+                elif prefix_seen and event["event"] == "tool_call":
+                    request = event["request"]
+                    if request["name"] == "send" and set(
+                        request.get("arguments", {})
+                    ) <= {"timeout_ms"}:
+                        return journal
+        return None
+
+    with Events() as events, socket.create_server(("127.0.0.1", 0)) as listener:
+
+        def release_after_poll():
+            try:
+                ready, _, _ = select.select(
+                    [listener, events.cancel_reader], [], [], session.timeout
+                )
+                if events.cancelled:
+                    return
+                assert listener in ready, "R did not connect to its output checkpoint"
+                connection, _ = listener.accept()
+                with connection:
+                    wait_for_checkpoint(
+                        completion_poll,
+                        "completion poll after R startup output",
+                        root=recordings,
+                        recursive=True,
+                        timeout=session.timeout,
+                        events=events,
+                    )
+                    connection.sendall(b"1")
+            except CancelledError:
+                pass
+            except BaseException as error:
+                failures.put(error)
+
+        release = Thread(target=release_after_poll, daemon=True)
+        release.start()
+        try:
+            # fmt: r
+            yield code(r"""
+                gate <- socketConnection(
+                  host = "127.0.0.1",
+                  port = PORT,
+                  blocking = TRUE,
+                  open = "r+b"
+                )
+                cat("R_SMOKE", 2 + 2, "\n")
+                flush.console()
+                stopifnot(identical(readBin(gate, "raw", 1L), charToRaw("1")))
+                close(gate)
+                cat("R_SMOKE_COMPLETE\n")
+                """).replace("PORT", str(listener.getsockname()[1]))
+        finally:
+            events.cancel()
+            release.join(timeout=10)
+            assert not release.is_alive(), "R output checkpoint did not stop"
+            if not failures.empty():
+                error = failures.get_nowait()
+                if active_error := sys.exception():
+                    active_error.add_note(f"R output checkpoint: {error!r}")
+                else:
+                    raise error
+
+
 def exercise_input_and_interrupt(session: Session) -> None:
     """The same public, network-independent scenario for direct execution and Windows MXC."""
-    result = session.expect(
+    result = session.expect_running(
         "waiting for stdin",
         # fmt: r
         r=dedent("""
@@ -289,7 +442,7 @@ def exercise_input_and_interrupt(session: Session) -> None:
     assert "waiting for stdin" in json.dumps(result), result
     result = session.expect("Windows", stdin="Windows\n")
     assert "Windows" in json.dumps(result), result
-    result = session.expect(
+    result = session.expect_running(
         "Loop ready", r='saved <- 42; cat("Loop ready\\n"); repeat {}'
     )
     assert "running" in json.dumps(result), result
@@ -320,7 +473,7 @@ def exercise_sql_interrupt(session: Session) -> None:
             print("SQL callback ready")
             """),
     )
-    session.expect("waiting for stdin", sql="SELECT sql_gate() AS answer")
+    session.expect_running("waiting for stdin", sql="SELECT sql_gate() AS answer")
     result = session.send(control="interrupt", timeout_ms=10000)
     output = json.dumps(result)
     assert not result.get("isError") and "running;" not in output, result
@@ -346,9 +499,6 @@ def exercise_r_sql(session: Session) -> None:
             """),
     )
     session.expect("7654321", sql="SELECT * FROM frame")
-    # Result rows can arrive before the cell's completion receipt.
-    settled = session.send()
-    assert not settled.get("isError") and "running;" not in json.dumps(settled), settled
     result = session.send(
         sql="SELECT sum(i::DOUBLE) FROM range(1000000000000) AS values(i)",
         timeout_ms=1000,
@@ -1178,7 +1328,7 @@ class WindowsConsole(unittest.TestCase):
         )
         self.assertIn("Python alone: 42", json.dumps(result))
         self.assertFalse(result.get("isError"), result)
-        result = session.expect(
+        result = session.expect_running(
             "waiting for stdin", python="name = input('Name: '); print(name)"
         )
         self.assertIn("waiting for stdin", json.dumps(result))
@@ -1666,20 +1816,33 @@ class WindowsConsole(unittest.TestCase):
                 try:
                     session.initialize()
                     session.request("tools/list", {})
-                    session.expect("R_SMOKE 4", r='cat("R_SMOKE", 2 + 2, "\\n")')
-                    inspection = session.send(requirements={"action": "get"})
-                    self.assertFalse(inspection.get("isError"), inspection)
-                    self.assertTrue(inspection["structuredContent"]["prepared"])
-                    session.expect(
-                        "PYTHON_SMOKE 4",
-                        # fmt: python
-                        python=code("""
-                            import os
+                    with startup_output_gate(session) as source:
+                        result = session.expect("R_SMOKE 4", r=source)
+                        self.assertEqual(
+                            result,
+                            {
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "R_SMOKE 4 \nR_SMOKE_COMPLETE\n",
+                                    }
+                                ],
+                                "isError": False,
+                            },
+                        )
+                        inspection = session.send(requirements={"action": "get"})
+                        self.assertFalse(inspection.get("isError"), inspection)
+                        self.assertTrue(inspection["structuredContent"]["prepared"])
+                        session.expect(
+                            "PYTHON_SMOKE 4",
+                            # fmt: python
+                            python=code("""
+                                import os
 
-                            assert os.environ["PROCESSOR_ARCHITECTURE"] == "AMD64"
-                            print("PYTHON_SMOKE", 2 + 2)
-                            """),
-                    )
+                                assert os.environ["PROCESSOR_ARCHITECTURE"] == "AMD64"
+                                print("PYTHON_SMOKE", 2 + 2)
+                                """),
+                        )
                     session.expect("1234567", sql="SELECT 1234567 AS sql_smoke")
                     session.expect(
                         "RESTART_SMOKE 4",
@@ -2257,7 +2420,7 @@ class WindowsConsole(unittest.TestCase):
     def test_interrupt_waiting_for_input(self):
         session = self.session()
         session.send(r="1L")
-        result = session.expect("waiting for stdin", r="readline('Name: ')")
+        result = session.expect_running("waiting for stdin", r="readline('Name: ')")
         self.assertIn("waiting for stdin", json.dumps(result))
         result = session.send(control="interrupt", timeout_ms=1000)
         self.assertNotIn("waiting for stdin", json.dumps(result))

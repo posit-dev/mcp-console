@@ -53,6 +53,50 @@ test_that("workspace and tempdir selectors preserve their public wire shape", {
   expect_error(SandboxPolicy(profile = "workspace_write"), "profile")
 })
 
+test_that("optional read-only paths preserve their public wire shape", {
+  filesystem <- SandboxFilesystem(
+    read_write = ".",
+    read_only_if_exists = c(".git", ".agents")
+  )
+  expect_identical(
+    as.list(SandboxPolicy(filesystem = filesystem)),
+    list(
+      filesystem = list(
+        read_write = list("."),
+        read_only_if_exists = list(".git", ".agents")
+      )
+    )
+  )
+  expect_identical(
+    policy_json(SandboxPolicy(
+      filesystem = SandboxFilesystem(read_only_if_exists = character())
+    )),
+    '{"filesystem":{"read_only_if_exists":[]}}'
+  )
+})
+
+test_that("optional denied paths preserve their public wire shape", {
+  filesystem <- SandboxFilesystem(
+    read_write = ".",
+    deny_if_exists = c(".env", "secrets")
+  )
+  expect_identical(
+    as.list(SandboxPolicy(filesystem = filesystem)),
+    list(
+      filesystem = list(
+        read_write = list("."),
+        deny_if_exists = list(".env", "secrets")
+      )
+    )
+  )
+  expect_identical(
+    policy_json(SandboxPolicy(
+      filesystem = SandboxFilesystem(deny_if_exists = character())
+    )),
+    '{"filesystem":{"deny_if_exists":[]}}'
+  )
+})
+
 test_that("omitted mappings and explicit empties stay distinct", {
   expect_identical(policy_json(SandboxPolicy()), "{}")
   expect_identical(
