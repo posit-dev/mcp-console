@@ -747,6 +747,29 @@ jobs:
             -o "$RUNNER_TEMP/transcript-metrics/resource-usage.txt" \
             uv run --script tests/boundaries/_run.py --full --jobs 6
 
+      # Temporary native regeneration for PR 187; preserve the failed gate.
+      - name: Record current Linux writable-roots transcript
+        id: refresh-linux-snapshot
+        if: ${{ failure() && runner.os == 'Linux' && steps.transcripts.outcome == 'failure' }}
+        env:
+          GITHUB_PAT: ${{ github.token }}
+        run: |
+          scripts/test --update \
+            client_server/sandbox/test_writable_roots::writable_roots_reach_every_runner_launch_on_linux
+
+      - name: Upload Linux session transcript evidence
+        if: ${{ !cancelled() && steps.refresh-linux-snapshot.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-session-transcript
+          path: |
+            tests/snapshots/client_server/sandbox/test_writable_roots/writable_roots_reach_every_runner_launch_on_linux.yaml
+            tests/snapshots/client_server/sandbox/test_writable_roots/writable_roots_reach_every_runner_launch_on_linux.runner.yaml
+            .dev-workflow/runs
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Run stress regressions
         run: uv run --script tests/boundaries/_run.py --stress --jobs 6
 
