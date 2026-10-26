@@ -1,5 +1,8 @@
 # MCP Console
 
+> **MCP Console has moved to [posit-dev/mcp-console](https://github.com/posit-dev/mcp-console).** Use that repository for new issues, pull requests, and development, and visit the [documentation website](https://posit-dev.github.io/mcp-console/).
+> This repository preserves earlier issues, pull requests, reviews, and Git history.
+
 An interactive workbench for agents working with data in R, Python, and SQL.
 
 Load data once, explore questions, refine plots, read help, and debug code with objects and models still in memory.
