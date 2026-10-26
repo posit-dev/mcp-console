@@ -5,14 +5,44 @@
 use std::collections::HashMap;
 use std::io;
 use std::mem::{MaybeUninit, size_of, size_of_val};
+use std::sync::mpsc;
 
 use super::ProcessMemory;
 
-pub(super) fn snapshot(root_pid: u32) -> io::Result<HashMap<u32, ProcessMemory>> {
+pub(super) fn total_memory() -> u64 {
+    let mut name = [libc::CTL_HW, libc::HW_MEMSIZE];
+    let mut bytes = 0_u64;
+    let mut size = size_of_val(&bytes);
+    // SAFETY: HW_MEMSIZE writes a u64 into the supplied buffer. A failed or
+    // incomplete read retains the monitor's unavailable-host-RAM result.
+    let result = unsafe {
+        libc::sysctl(
+            name.as_mut_ptr(),
+            name.len() as libc::c_uint,
+            (&mut bytes as *mut u64).cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if result == 0 && size == size_of_val(&bytes) {
+        bytes
+    } else {
+        0
+    }
+}
+
+pub(super) fn snapshot(
+    root_pid: u32,
+    cancelled: &mpsc::Receiver<()>,
+) -> io::Result<Option<HashMap<u32, ProcessMemory>>> {
     let mut processes = HashMap::new();
     let mut pending = vec![(root_pid, None)];
-    let mut children = Vec::<libc::pid_t>::new();
+    let mut children = vec![0 as libc::pid_t; 16];
     while let Some((pid, parent)) = pending.pop() {
+        if cancelled.try_recv() != Err(mpsc::TryRecvError::Empty) {
+            return Ok(None);
+        }
         if processes.contains_key(&pid) {
             continue;
         }
@@ -40,15 +70,12 @@ pub(super) fn snapshot(root_pid: u32) -> io::Result<HashMap<u32, ProcessMemory>>
                 resident_bytes: information.pti_resident_size,
             },
         );
-        // A null buffer asks for a PID count, not a byte count. Keep one spare
-        // slot so a filled buffer is distinguishable from a complete list.
-        let count =
-            unsafe { libc::proc_listchildpids(pid as libc::pid_t, std::ptr::null_mut(), 0) };
-        if count < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        children.resize(count as usize + 1, 0);
+        // Grow from actual children: a null-buffer capacity query can estimate
+        // the entire host process population even with a parent-PID filter.
         loop {
+            if cancelled.try_recv() != Err(mpsc::TryRecvError::Empty) {
+                return Ok(None);
+            }
             let bytes = libc::c_int::try_from(size_of_val(children.as_slice()))
                 .map_err(|_| io::Error::other("child process list is too large"))?;
             // SAFETY: the buffer holds exactly the supplied byte count.
@@ -71,5 +98,5 @@ pub(super) fn snapshot(root_pid: u32) -> io::Result<HashMap<u32, ProcessMemory>>
             children.resize(children.len() * 2, 0);
         }
     }
-    Ok(processes)
+    Ok(Some(processes))
 }

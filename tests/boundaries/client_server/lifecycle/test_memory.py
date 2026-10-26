@@ -116,13 +116,16 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                     client.send(
                         # fmt: python
                         python=code("""
-                            child = subprocess.Popen(
-                                [sys.executable, "-c", "import signal; signal.pause()"],
-                                stdin=subprocess.DEVNULL,
-                                stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL,
-                            )
-                            print(child.pid)
+                            children = [
+                                subprocess.Popen(
+                                    [sys.executable, "-c", "import signal; signal.pause()"],
+                                    stdin=subprocess.DEVNULL,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                )
+                                for _ in range(17)
+                            ]
+                            print(children[-1].pid)
                             """),
                     )
                     descendant = host_process_id(

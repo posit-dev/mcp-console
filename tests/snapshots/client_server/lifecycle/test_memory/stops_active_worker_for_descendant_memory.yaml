@@ -27,13 +27,16 @@ result:
 ---
 send:
   python: |
-    child = subprocess.Popen(
-        [sys.executable, "-c", "import signal; signal.pause()"],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    print(child.pid)
+    children = [
+        subprocess.Popen(
+            [sys.executable, "-c", "import signal; signal.pause()"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        for _ in range(17)
+    ]
+    print(children[-1].pid)
 result:
   content:
     - type: text

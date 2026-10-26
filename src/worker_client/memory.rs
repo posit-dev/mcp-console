@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+#[cfg(not(target_os = "macos"))]
 use sysinfo::{MemoryRefreshKind, System};
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
@@ -33,20 +34,28 @@ impl MemoryMonitor {
     pub(super) fn start(root_pid: u32, on_limit: impl FnOnce(String) + Send + 'static) -> Self {
         let (cancellation, cancelled) = mpsc::channel();
         let thread = thread::spawn(move || {
+            #[cfg(not(target_os = "macos"))]
             let mut system = System::new();
             loop {
                 match cancelled.recv_timeout(CHECK_INTERVAL) {
                     Err(mpsc::RecvTimeoutError::Timeout) => {}
                     Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => return,
                 }
-                system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
-                #[cfg(target_os = "linux")]
-                let snapshot = linux::snapshot();
+                #[cfg(not(target_os = "macos"))]
+                let total = {
+                    system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
+                    system.total_memory()
+                };
                 #[cfg(target_os = "macos")]
-                let snapshot = macos::snapshot(root_pid);
+                let total = macos::total_memory();
+                #[cfg(target_os = "linux")]
+                let snapshot = linux::snapshot().map(Some);
+                #[cfg(target_os = "macos")]
+                let snapshot = macos::snapshot(root_pid, &cancelled);
                 #[cfg(any(target_os = "linux", target_os = "macos"))]
                 let processes = match snapshot {
-                    Ok(processes) => processes,
+                    Ok(Some(processes)) => processes,
+                    Ok(None) => return,
                     Err(error) => {
                         on_limit(format!(
                             "Session stopped because the memory guard could not read process memory: {error}."
@@ -79,7 +88,6 @@ impl MemoryMonitor {
                     return;
                 }
 
-                let total = system.total_memory();
                 if total == 0 {
                     on_limit(
                         "Session stopped because the memory guard could not read host RAM."
