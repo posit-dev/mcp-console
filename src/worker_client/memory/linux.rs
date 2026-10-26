@@ -35,52 +35,63 @@ pub(super) fn snapshot(
             resident_bytes,
         },
     );
-    loop {
+    // Parent metadata remains available without CONFIG_PROC_CHILDREN. Walk
+    // each candidate's ancestry without retaining unrelated process records.
+    // A single enumeration also finishes when the owned tree keeps forking.
+    // Top-level entries count each process, not threads.
+    for entry in fs::read_dir("/proc")?.flatten() {
         if cancelled.try_recv() != Err(mpsc::TryRecvError::Empty) {
             return Ok(None);
         }
-        let mut added = false;
-        // Parent metadata remains available without CONFIG_PROC_CHILDREN. Scan
-        // it again for children observed before their parents, retaining only
-        // our tree. This trades extra stat reads for memory independent of the
-        // host process count. Top-level entries count each process, not threads.
-        for entry in fs::read_dir("/proc")?.flatten() {
+        let Some(pid) = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        let mut ancestor = pid;
+        let mut ancestry = Vec::new();
+        loop {
             if cancelled.try_recv() != Err(mpsc::TryRecvError::Empty) {
                 return Ok(None);
             }
-            let Some(pid) = entry
-                .file_name()
-                .to_str()
-                .and_then(|name| name.parse::<u32>().ok())
-            else {
-                continue;
-            };
-            if processes.contains_key(&pid) {
-                continue;
+            if processes.contains_key(&ancestor) {
+                // Read only owned RSS, adding parents before their children so
+                // an unreadable or disappearing ancestor leaves no orphaned
+                // records in the sampled tree.
+                for (pid, parent) in ancestry.into_iter().rev() {
+                    if cancelled.try_recv() != Err(mpsc::TryRecvError::Empty) {
+                        return Ok(None);
+                    }
+                    let directory = PathBuf::from(format!("/proc/{pid}"));
+                    let Some(resident_bytes) = read_resident_bytes(&directory, page_size as u64)
+                    else {
+                        break;
+                    };
+                    processes.insert(
+                        pid,
+                        ProcessMemory {
+                            parent: Some(parent),
+                            resident_bytes,
+                        },
+                    );
+                }
+                break;
             }
-            let directory = entry.path();
+            // PID churn can make separately observed parent links form a cycle.
+            if ancestor == 0 || ancestry.iter().any(|(pid, _)| *pid == ancestor) {
+                break;
+            }
+            let directory = PathBuf::from(format!("/proc/{ancestor}"));
             let Some(parent) = read_parent(&directory) else {
-                continue;
+                break;
             };
-            if !processes.contains_key(&parent) {
-                continue;
-            }
-            // Processes can exit or become unreadable between these reads.
-            if let Some(resident_bytes) = read_resident_bytes(&directory, page_size as u64) {
-                processes.insert(
-                    pid,
-                    ProcessMemory {
-                        parent: Some(parent),
-                        resident_bytes,
-                    },
-                );
-                added = true;
-            }
-        }
-        if !added {
-            return Ok(Some(processes));
+            ancestry.push((ancestor, parent));
+            ancestor = parent;
         }
     }
+    Ok(Some(processes))
 }
 
 fn read_parent(directory: &Path) -> Option<u32> {
