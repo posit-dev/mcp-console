@@ -17,6 +17,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.snapshots import execution_snapshots
 from support.normalization import code
 from support.records import Transcript
+from support.progress import RUNNING
 from support.requirements import POSIX, R, SANDBOX, requires
 from support.r import r_test_environment
 from support.resolvers import bare_runtime_environment
@@ -588,13 +589,23 @@ def test_interrupted_profile_is_not_replayed(
 
 @requires(R, SANDBOX)
 def test_startup_containment_and_preparation_isolation(binary: Path) -> Transcript:
-    with tempfile.TemporaryDirectory() as temporary:
+    with tempfile.TemporaryDirectory() as temporary, ExitStack() as resources:
         root = Path(temporary).resolve()
         workspace = root / "workspace"
         workspace.mkdir()
         environment = startup_environment(workspace, managed=True)
         environment["IR_REFRESH"] = "1"
         environment["CONSOLE_FORBIDDEN_STARTUP_WRITE"] = str(root / "forbidden")
+        reached = resources.enter_context(
+            closing(FifoCheckpoint.create(workspace / "cell-reached"))
+        )
+        release = resources.enter_context(
+            closing(FifoCheckpoint.create(workspace / "cell-release"))
+        )
+        environment.update(
+            MCP_CONSOLE_TEST_CELL_REACHED=str(reached.path),
+            MCP_CONSOLE_TEST_CELL_RELEASE=str(release.path),
+        )
         # fmt: r
         profile = code(r"""
             cat("attempt\n", file = "attempts", append = TRUE)
@@ -612,28 +623,73 @@ def test_startup_containment_and_preparation_isolation(binary: Path) -> Transcri
             cat("native profile contained\n")
             """)
         (workspace / ".Rprofile").write_text(profile)
-        with McpClient(
-            binary,
-            writable_arguments(SANDBOXED, workspace),
-            environment,
-            current_directory=workspace,
-            use_r_startup_files=True,
-        ) as client:
+        with (
+            McpClient(
+                binary,
+                writable_arguments(SANDBOXED, workspace),
+                environment,
+                current_directory=workspace,
+                use_r_startup_files=True,
+            ) as client,
+            ExitStack() as cleanup,
+        ):
+            cleanup.callback(release.release)
             client.initialize_and_list_tools()
             client.expect("native profile contained\n", r="invisible(NULL)")
             assert not (workspace / "home/.duckdb/extensions").exists()
             assert (workspace / "attempts").read_text().splitlines() == ["attempt"]
             assert not (root / "forbidden").exists()
-            output = wait_for_evaluation_output(
-                client,
-                None,
-                "explicit restart and host preparation",
-                completion_timeout_seconds=client.response_timeout,
+            # Keep the replacement cell open after its native profile finishes,
+            # so profile output and controlled completion use separate replies.
+            pending = client.start_send(
                 control="restart",
                 requirements={"action": "set", "r": ["MASS"]},
-                r="invisible(NULL)",
+                # fmt: r
+                r=code(r"""
+                    reached <- fifo(
+                      Sys.getenv("MCP_CONSOLE_TEST_CELL_REACHED"),
+                      "wb",
+                      blocking = TRUE
+                    )
+                    writeBin(charToRaw("1"), reached)
+                    close(reached)
+                    release <- fifo(
+                      Sys.getenv("MCP_CONSOLE_TEST_CELL_RELEASE"),
+                      "rb",
+                      blocking = TRUE
+                    )
+                    invisible(readBin(release, "raw", 1L))
+                    close(release)
+                    """),
+                timeout_ms=0,
             )
-            assert "native profile contained" in output, output
+            reached.wait(
+                "replacement cell entered after native startup",
+                timeout=client.response_timeout,
+                client=client,
+            )
+            client.receive(pending)
+            prefix = (
+                "[worker stopped: in-memory state lost]\n"
+                "[starting new worker]\n"
+                "native profile contained\n"
+            )
+            wait_for_evaluation_output(
+                client,
+                prefix + RUNNING,
+                "replacement native profile output before completion",
+                completion_timeout_seconds=client.response_timeout,
+                received=pending,
+            )
+            release.release()
+            wait_for_evaluation_output(
+                client,
+                prefix + "[done]",
+                "explicit restart and host preparation",
+                controlled_completion=True,
+                completion_timeout_seconds=client.response_timeout,
+                received=pending,
+            )
             assert (workspace / "attempts").read_text().splitlines() == [
                 "attempt",
                 "attempt",

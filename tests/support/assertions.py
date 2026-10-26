@@ -207,6 +207,7 @@ def wait_for_evaluation_output(
     description: str,
     *,
     expected_error: bool | None = False,
+    controlled_completion: bool = False,
     completion_timeout_seconds: float = 3,
     initial_cuts: tuple[str, ...] = (),
     output_cuts: list[str] | None = None,
@@ -267,7 +268,12 @@ def wait_for_evaluation_output(
                 cuts.append(collected[len("".join(cuts)) :])
                 break
         else:
-            if output != "[done]" or not collected:
+            # A combined control-and-cell call always reports completion. Its
+            # marker remains meaningful when an earlier poll took all output.
+            if output == "[done]" and controlled_completion and collected:
+                if not collected.endswith("\n"):
+                    output = "\n" + output
+            if output != "[done]" or not collected or controlled_completion:
                 collected += output
                 cuts.append(output)
             assert expected is None or (

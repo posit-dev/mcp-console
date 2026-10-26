@@ -526,6 +526,7 @@ def test_restart_replaces_first_use_cell_and_stdin(
             client,
             "replacement only\n[done]",
             "replacement managed input",
+            controlled_completion=True,
             stdin="\n",
         )
         assert last_tool_text(client).count("replacement only\n") == 1, (
