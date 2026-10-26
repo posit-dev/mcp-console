@@ -89,6 +89,8 @@ Never hand-edit snapshots.
 Four SQL cases use the `2026-10-22` R repository snapshot through `r_duckdb_snapshot_environment()` in [shared R support](../tests/support/r.py): `recovers_from_sql_errors`, `interrupts_running_sql_query`, `gets_selects_and_resets_the_active_native_connection`, and `managed_r_defaults`.
 This retains DuckDB 1.5.6 binaries for exact error transcripts and the native interrupt fixture; the cases prepare only runtime infrastructure, adding RSQLite when needed.
 Other SQL cases continue to resolve current packages.
+Native Windows `WindowsConsole.test_sql_with_r` and `WindowsSandbox.test_network_enabled_sql` use the same snapshot for their shared R DuckDB interrupt scenario.
+The shared and Windows interrupt scenarios assert DuckDB 1.5.6 before starting the long query, so a lost pin fails before cancellation is exercised.
 Before advancing the date, verify the complete error diagnostics and interrupt completion; [RT-5](TODO.md#runtime-and-resource-limits) tracks DuckDB 2.0.0's Arrow cancellation limitation.
 
 The shared selector syntax works on every platform.
