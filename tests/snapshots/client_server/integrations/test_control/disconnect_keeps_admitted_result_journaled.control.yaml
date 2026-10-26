@@ -11,3 +11,5 @@ request:
         gate.read(1)
     print("private after")
   record: false
+  busy: wait
+  wait_ms: 30000

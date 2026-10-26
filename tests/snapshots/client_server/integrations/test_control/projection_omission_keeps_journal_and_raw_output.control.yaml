@@ -5,6 +5,8 @@ request:
   language: python
   code: hidden_value = 42; print('hidden integrator output')
   record: false
+  busy: wait
+  wait_ms: 30000
 response:
   id: "1"
   result:

@@ -111,6 +111,8 @@ request:
   op: evaluate
   language: python
   code: print('🦀')
+  busy: wait
+  wait_ms: 30000
 response:
   id: split
   result:

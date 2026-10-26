@@ -10,6 +10,8 @@ request:
     with open('<workspace>/release', "rb", buffering=0) as gate:
         gate.read(1)
     print("integrator finished")
+  busy: wait
+  wait_ms: 30000
 response:
   id: "1"
   result:

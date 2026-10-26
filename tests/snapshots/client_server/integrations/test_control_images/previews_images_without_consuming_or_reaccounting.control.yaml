@@ -55,6 +55,8 @@ request:
   language: r
   code: plot(3:1); invisible(grDevices::dev.off())
   record: false
+  busy: wait
+  wait_ms: 30000
 response:
   id: "3"
   result:

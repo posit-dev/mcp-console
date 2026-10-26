@@ -120,15 +120,17 @@ def test_evaluates_shared_state_without_mcp_output(
             client.initialize_and_list_tools()
             client.expect("agent ready\n", python="shared = 40; print('agent ready')")
             with ControlClient(endpoint) as control:
-                status = control.request(op="status")
-                assert status["result"]["state"] == "idle", status
                 assert stat.S_IMODE(endpoint.stat().st_mode) == 0o600
                 result = control.request(
                     op="evaluate",
                     language="python",
                     code="shared += 2; print('integrator output')",
+                    busy="wait",
+                    wait_ms=30000,
                 )
                 assert result_text(result) == "integrator output\n", result
+                status = control.request(op="status")
+                assert status["result"]["state"] == "idle", status
                 client.expect("\n[idle]")
                 client.expect("42\n", python="print(shared)")
                 transcript = client.finish()
@@ -200,6 +202,8 @@ def test_rejects_invalid_requests_before_execution(
                     "op": "evaluate",
                     "language": "python",
                     "code": "print('🦀')",
+                    "busy": "wait",
+                    "wait_ms": 30000,
                 }
                 frame = json.dumps(request, ensure_ascii=False).encode() + b"\n"
                 split = frame.index("🦀".encode()) + 1
@@ -242,6 +246,8 @@ def test_evaluates_r_on_the_session_thread(
                     op="evaluate",
                     language="r",
                     code='shared <- shared + 2L; cat("integrator R\\n")',
+                    busy="wait",
+                    wait_ms=30000,
                 )
                 assert result_text(result) == "integrator R\n", result
                 client.expect("[1] 42\n", r="shared")
@@ -376,6 +382,8 @@ def test_projection_omission_keeps_journal_and_raw_output(
                             language="python",
                             code=hidden_source,
                             record=False,
+                            busy="wait",
+                            wait_ms=30000,
                         )
                     )
                     == "hidden integrator output\n"
@@ -507,7 +515,13 @@ def test_mcp_poll_cannot_claim_integrator_output(
                 print("integrator finished")
                 """)
             with ControlClient(endpoint) as control:
-                pending = control.start(op="evaluate", language="python", code=source)
+                pending = control.start(
+                    op="evaluate",
+                    language="python",
+                    code=source,
+                    busy="wait",
+                    wait_ms=30000,
+                )
                 try:
                     entered.wait(client=client)
                     response = client.send()
@@ -635,7 +649,12 @@ def test_disconnect_keeps_admitted_result_journaled(
             try:
                 with ControlClient(endpoint) as control:
                     control.start(
-                        op="evaluate", language="python", code=source, record=False
+                        op="evaluate",
+                        language="python",
+                        code=source,
+                        record=False,
+                        busy="wait",
+                        wait_ms=30000,
                     )
                     entered.wait(client=client)
                 release.release()
@@ -837,7 +856,13 @@ def test_restart_keeps_integrator_output_out_of_mcp(
                     gate.read(1)
                 """)
             with ControlClient(endpoint) as control:
-                pending = control.start(op="evaluate", language="python", code=source)
+                pending = control.start(
+                    op="evaluate",
+                    language="python",
+                    code=source,
+                    busy="wait",
+                    wait_ms=30000,
+                )
                 try:
                     entered.wait(client=client)
                     restarted = client.send(

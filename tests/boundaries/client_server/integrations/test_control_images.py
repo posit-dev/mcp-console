@@ -2,6 +2,7 @@
 
 import base64
 import json
+import os
 import re
 import sys
 import tempfile
@@ -13,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.integrations.test_control import (
     ControlClient,
     result_text,
+    wait_for_queued_integrator,
 )
 from boundaries.client_server.python.test_without_r import selected_environment
 from support.assertions import assert_result_content
@@ -21,13 +23,14 @@ from support.client import McpClient
 from support.evidence import compact_text
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_recording
+from support.native import LOADER_VARIABLE, build_interposer
 from support.previews import OMISSION, assert_preview, recording_events
 from support.records import TranscriptWithCompanions
-from support.requirements import POSIX, R, requires
+from support.requirements import NATIVE_FIXTURES, POSIX, R, requires
 from support.suites import run_this_suite
 
 
-@requires(POSIX, R)
+@requires(NATIVE_FIXTURES, POSIX, R)
 @executions(DIRECT, SANDBOXED)
 def test_previews_images_without_consuming_or_reaccounting(
     binary: Path, execution: Execution
@@ -40,11 +43,24 @@ def test_previews_images_without_consuming_or_reaccounting(
         arguments = ["--control-socket", str(endpoint)]
         if execution == SANDBOXED:
             arguments += ["--writable-root", str(root)]
+        environment = dict(
+            os.environ,
+            MCP_CONSOLE_TEST_ACK_REACHED=str(root / "ack-reached"),
+            MCP_CONSOLE_TEST_ACK_RELEASE=str(root / "ack-release"),
+        )
+        environment[LOADER_VARIABLE] = str(
+            build_interposer(root, "control_response_ack")
+        )
         with (
             closing(FifoCheckpoint.create(root / "entered")) as entered,
             closing(FifoCheckpoint.create(root / "release")) as release,
+            closing(FifoCheckpoint.create(root / "ack-reached")) as ack_reached,
+            closing(FifoCheckpoint.create(root / "ack-release")) as ack_release,
             McpClient(
-                binary, execution.serve(*arguments), current_directory=root
+                binary,
+                execution.serve(*arguments),
+                environment,
+                current_directory=root,
             ) as client,
         ):
             client.initialize_and_list_tools()
@@ -116,6 +132,9 @@ def test_previews_images_without_consuming_or_reaccounting(
                     public_encoded = content[0]["data"]
                     release.release()
                     client.receive(pending)
+                    ack_reached.wait(
+                        "complete MCP response written before acknowledgment"
+                    )
                     result = pending["result"]["content"]
                     assert [block["type"] for block in result] == ["image", "text"]
                     omitted = assert_preview(result[1]["text"], emitted)
@@ -125,9 +144,20 @@ def test_previews_images_without_consuming_or_reaccounting(
                         image_reference="captured agent plot",
                     )
                     hidden_source = "plot(3:1); invisible(grDevices::dev.off())"
-                    hidden = control.request(
-                        op="evaluate", language="r", code=hidden_source, record=False
+                    # Receiving the MCP frame does not acknowledge its delivery
+                    # inside the server. Queue behind that retained owner.
+                    hidden_call = control.start(
+                        op="evaluate",
+                        language="r",
+                        code=hidden_source,
+                        record=False,
+                        busy="wait",
+                        wait_ms=30000,
                     )
+                    wait_for_queued_integrator(client, root, hidden_source)
+                    ack_release.release()
+                    hidden = control.receive(hidden_call)
+                    assert "result" in hidden, hidden
                     (hidden_block,) = hidden["result"]["content"]
                     assert hidden_block["type"] == "image", hidden
                     hidden_encoded = hidden_block["data"]
@@ -194,6 +224,7 @@ def test_previews_images_without_consuming_or_reaccounting(
                 )
             finally:
                 release.release()
+                ack_release.release()
 
 
 @requires(POSIX)
@@ -274,6 +305,8 @@ def test_preview_does_not_publish_omission_for_completed_intervals(
                                 language="python",
                                 code="pass",
                                 record=False,
+                                busy="wait",
+                                wait_ms=30000,
                             )
                         )
                         == "[done]"

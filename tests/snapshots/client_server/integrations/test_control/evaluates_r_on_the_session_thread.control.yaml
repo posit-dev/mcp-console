@@ -4,6 +4,8 @@ request:
   op: evaluate
   language: r
   code: shared <- shared + 2L; cat("integrator R\n")
+  busy: wait
+  wait_ms: 30000
 response:
   id: "1"
   result:

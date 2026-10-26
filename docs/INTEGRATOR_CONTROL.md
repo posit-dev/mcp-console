@@ -106,6 +106,7 @@ Choose one of these policies:
 The deadline covers startup and waiting for admission.
 Once admitted, the evaluation runs to completion; `wait_ms` does not limit execution time.
 A pending MCP result retains its delivery owner, so an integrator wait may also depend on the MCP client collecting that result.
+Use `busy: "wait"` when submitting after an MCP response: the server can still be acknowledging delivery after the client receives the complete frame.
 Requests do not reserve a position ahead of other callers.
 Worker replacement, including automatic recovery after failure, invalidates a request waiting for the previous worker connection.
 
