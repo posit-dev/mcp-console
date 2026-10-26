@@ -223,7 +223,7 @@ class McpClient:
                 arguments.get("control") is not None
                 and any(
                     arguments.get(language) is not None
-                    for language in ("r", "python", "sql")
+                    for language in ("r", "python", "sql", "code")
                 )
             ),
             completion_timeout_seconds=self.response_timeout,
