@@ -1,9 +1,11 @@
 ---
-scenario: The memory guard stops an active worker whose child exceeds the limit.
+scenario: >-
+  The memory guard stops an active worker whose children together exceed
+  the limit.
 fixture: >-
   A custom worker executes Python. Native host observations report 1024
-  MiB of RAM and host-controlled resident memory in one selected process.
-  The failing sample is 950 MiB; the idle case first verifies that 900 MiB
+  MiB of RAM and host-controlled resident memory in 17 children. The
+  failing sample is 950 MiB; the idle case first verifies that 900 MiB
   survives. No large allocation is made.
 ---
 !same-as custom MCP initialization for this execution mode
@@ -36,12 +38,12 @@ send:
         )
         for _ in range(17)
     ]
-    print(children[-1].pid)
+    print(*(child.pid for child in children))
 result:
   content:
     - type: text
       text: |
-        <child pid>
+        <child pids>
   isError: false
 ---
 send:

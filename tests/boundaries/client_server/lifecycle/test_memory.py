@@ -41,7 +41,7 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
             "MCP_CONSOLE_TEST_MEMORY_ROOT": directory,
             LOADER_VARIABLE: str(build_interposer(root, "worker_memory")),
         }
-        descendant = None
+        descendants: list[int] = []
         try:
             writable_root = (
                 ("--writable-root", directory) if execution == SANDBOXED else ()
@@ -64,14 +64,15 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                 client.transcript.append(
                     {
                         "scenario": (
-                            "The memory guard stops an active worker whose child exceeds the limit."
+                            "The memory guard stops an active worker whose children together exceed the limit."
                             if active
                             else "The memory guard stops an idle worker before the next client call."
                         ),
                         "fixture": (
                             "A custom worker executes Python. Native host observations report "
-                            "1024 MiB of RAM and host-controlled resident memory in one "
-                            "selected process. The failing sample is 950 MiB; the idle case "
+                            "1024 MiB of RAM and host-controlled resident memory in "
+                            + ("17 children. " if active else "one selected process. ")
+                            + "The failing sample is 950 MiB; the idle case "
                             "first verifies that 900 MiB survives. No large allocation is made."
                         ),
                     }
@@ -94,7 +95,7 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                     int(last_tool_text(client)), client.process.pid
                 )
                 client.transcript[-1]["result"]["content"][0]["text"] = "<worker pid>\n"
-                target = worker
+                targets = [(worker, 950)]
                 if not active:
                     allocations.start()
                     (root / "target").write_text(f"{worker} 900", encoding="utf-8")
@@ -125,15 +126,19 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                                 )
                                 for _ in range(17)
                             ]
-                            print(children[-1].pid)
+                            print(*(child.pid for child in children))
                             """),
                     )
-                    descendant = host_process_id(
-                        int(last_tool_text(client)), client.process.pid
-                    )
-                    target = descendant
+                    descendants = [
+                        host_process_id(int(pid), client.process.pid)
+                        for pid in last_tool_text(client).split()
+                    ]
+                    assert len(set(descendants)) == 17, descendants
+                    # All 17 children are needed: any 16 total at most 896 MiB,
+                    # below 90% of 1024 MiB regardless of enumeration order.
+                    targets = list(zip(descendants, [56] * 16 + [54], strict=True))
                     client.transcript[-1]["result"]["content"][0]["text"] = (
-                        "<child pid>\n"
+                        "<child pids>\n"
                     )
                     client.send(
                         # fmt: python
@@ -149,7 +154,11 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                     )
                     wait_for_worker_file(root, "memory-cell-running", client)
                 events.watch_process(worker)
-                (root / "target").write_text(f"{target} 950", encoding="utf-8")
+                (root / "next-target").write_text(
+                    "".join(f"{pid} {resident_mib}\n" for pid, resident_mib in targets),
+                    encoding="utf-8",
+                )
+                (root / "next-target").replace(root / "target")
                 assert events.wait(15) == {worker}, (
                     "memory guard did not stop the worker without a client poll"
                 )
@@ -174,11 +183,11 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                 assert not process_exists(worker), (
                     "memory guard left the old worker alive"
                 )
-                if descendant is not None:
-                    assert not process_exists(descendant), (
-                        "memory guard left the worker's child alive"
-                    )
-                    descendant = None
+                survivors = [pid for pid in descendants if process_exists(pid)]
+                assert not survivors, (
+                    f"memory guard left the worker's children alive: {survivors}"
+                )
+                descendants.clear()
                 client.send(
                     # fmt: python
                     python=code("""
@@ -193,7 +202,8 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                 )
                 return client.finish()
         finally:
-            stop_process_id(descendant)
+            for descendant in descendants:
+                stop_process_id(descendant)
 
 
 @requires(NATIVE_FIXTURES, PROCESS_EVENTS)

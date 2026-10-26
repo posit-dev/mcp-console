@@ -36,7 +36,9 @@ static uint64_t resident_bytes(int pid) {
     if (target == NULL) return 0;
     int selected = 0;
     unsigned int resident_mib = 0;
-    int count = fscanf(target, "%d %u", &selected, &resident_mib);
+    int count;
+    while ((count = fscanf(target, "%d %u", &selected, &resident_mib)) == 2 &&
+           selected != pid) {}
     fclose(target);
     if (count != 2 || selected != pid) return 0;
     if (snprintf(path, sizeof(path), "%s/sampled", root) >= (int)sizeof(path)) _exit(125);
