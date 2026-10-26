@@ -84,6 +84,8 @@ Use `read_relay_ready()` for the ordered `worker_started` and `ready` handshake,
 
 `wait_for_evaluation_output()` submits once, accumulates every text delta, and bounds transport receives with its completion budget.
 `client.expect()` uses that collector with the client's existing response budget and checks exact successful output (`[done]` by default).
+Combined control-and-cell calls retain their final `[done]` marker even when earlier polls took all output.
+When collecting such a call directly, including a later stdin or empty-poll continuation, pass `controlled_completion=True` to `wait_for_evaluation_output()`; `client.expect()` selects this for its own combined submissions.
 Use `client.expect(None, ...)` when asserting the collected content separately, such as SQL preview row, column, and byte limits.
 An initial `timeout_ms=0` exercises polling without making query speed part of those assertions.
 Give cold preparation an explicit longer budget.

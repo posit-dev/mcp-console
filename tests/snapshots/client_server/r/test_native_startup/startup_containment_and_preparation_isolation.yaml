@@ -16,7 +16,22 @@ send:
     action: set
     r:
       - MASS
-  r: invisible(NULL)
+  r: |
+    reached <- fifo(
+      Sys.getenv("MCP_CONSOLE_TEST_CELL_REACHED"),
+      "wb",
+      blocking = TRUE
+    )
+    writeBin(charToRaw("1"), reached)
+    close(reached)
+    release <- fifo(
+      Sys.getenv("MCP_CONSOLE_TEST_CELL_RELEASE"),
+      "rb",
+      blocking = TRUE
+    )
+    invisible(readBin(release, "raw", 1L))
+    close(release)
+  timeout_ms: 0
 result:
   content:
     - type: text
