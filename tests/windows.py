@@ -1844,7 +1844,7 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn("42", json.dumps(session.send(python="r.r_value")))
 
     def test_python_site_hook_reports_r_profile_embedding_limit(self):
-        from boundaries.client_server.python.test_startup import site_hook_calls_r
+        from support.python_startup import site_hook_calls_r
         from support.execution import DIRECT
 
         # Reticulate's Windows embedding probe is unimplemented. Before
