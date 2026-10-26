@@ -35,6 +35,7 @@ def test_eof_retires_every_named_worker_and_descendant(
         with observed_sandbox_descendants(root, environment) as observe:
             client = McpClient(binary, execution.serve(), environment, root)
             identities = []
+            namespaces = set()
             try:
                 client.initialize_and_list_tools()
                 for session in ("default", "alpha", "beta"):
@@ -69,6 +70,9 @@ def test_eof_retires_every_named_worker_and_descendant(
                                         "worker": os.getpid(),
                                         "relay": os.getppid(),
                                         "child": child_pid,
+                                        "pid_namespace": (
+                                            os.stat("/proc/self/ns/pid").st_ino if sys.platform == "linux" else None
+                                        ),
                                     },
                                     sort_keys=True,
                                 )
@@ -76,12 +80,21 @@ def test_eof_retires_every_named_worker_and_descendant(
                             """),
                     )
                     pids = json.loads(last_result_text(client))
+                    namespace = pids.pop("pid_namespace")
+                    if sys.platform == "linux":
+                        assert isinstance(namespace, int) and namespace > 0
+                        assert namespace not in namespaces, namespace
+                        namespaces.add(namespace)
+                    else:
+                        assert namespace is None, namespace
                     assert set(pids) == {"worker", "relay", "child"}, pids
                     assert all(
                         isinstance(pid, int) and pid > 0 for pid in pids.values()
                     )
                     observed = {
-                        name: host_process_id(pid, client.process.pid)
+                        name: host_process_id(
+                            pid, client.process.pid, pid_namespace=namespace
+                        )
                         for name, pid in pids.items()
                     }
                     current = [
@@ -100,7 +113,9 @@ def test_eof_retires_every_named_worker_and_descendant(
                     )
                     client.transcript[-1]["transcript_normalization"] = {
                         "target": "result.content[0].text",
-                        "process_ids": "omitted after live identity assertions",
+                        "process_ids_and_namespace": (
+                            "omitted after live identity and namespace assertions"
+                        ),
                     }
                 assert len(live_processes(identities)) == 9
                 transcript = client.finish()

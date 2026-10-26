@@ -30,6 +30,9 @@ send:
                 "worker": os.getpid(),
                 "relay": os.getppid(),
                 "child": child_pid,
+                "pid_namespace": (
+                    os.stat("/proc/self/ns/pid").st_ino if sys.platform == "linux" else None
+                ),
             },
             sort_keys=True,
         )
@@ -43,7 +46,8 @@ result:
   isError: false
 transcript_normalization:
   target: result.content[0].text
-  process_ids: omitted after live identity assertions
+  process_ids_and_namespace: >-
+    omitted after live identity and namespace assertions
 ---
 send:
   session: alpha
@@ -74,6 +78,9 @@ send:
                 "worker": os.getpid(),
                 "relay": os.getppid(),
                 "child": child_pid,
+                "pid_namespace": (
+                    os.stat("/proc/self/ns/pid").st_ino if sys.platform == "linux" else None
+                ),
             },
             sort_keys=True,
         )
@@ -87,7 +94,8 @@ result:
   isError: false
 transcript_normalization:
   target: result.content[0].text
-  process_ids: omitted after live identity assertions
+  process_ids_and_namespace: >-
+    omitted after live identity and namespace assertions
 ---
 send:
   session: beta
@@ -118,6 +126,9 @@ send:
                 "worker": os.getpid(),
                 "relay": os.getppid(),
                 "child": child_pid,
+                "pid_namespace": (
+                    os.stat("/proc/self/ns/pid").st_ino if sys.platform == "linux" else None
+                ),
             },
             sort_keys=True,
         )
@@ -131,4 +142,5 @@ result:
   isError: false
 transcript_normalization:
   target: result.content[0].text
-  process_ids: omitted after live identity assertions
+  process_ids_and_namespace: >-
+    omitted after live identity and namespace assertions
