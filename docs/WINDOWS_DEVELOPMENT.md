@@ -56,6 +56,10 @@ The ordinary gate runs native Windows acceptance.
 The full gate adds applicable shared boundary cases, tooling, wheel, and source-install checks.
 Shared selectors and snapshot rules are documented in [Development](DEVELOPMENT.md#validation-ladder) and [Boundary tests](../tests/boundaries/README.md).
 
+The native test client's `Session.expect()` collects all output through cell completion before returning, checking every response for MCP errors.
+Use `expect_running()` for input prompts or loop readiness, followed by the intended stdin or interrupt request.
+A matching output fragment or requirements inspection does not establish completion; explicit-timeout `send()` calls retain their intermediate-state behavior.
+
 For installed acceptance, `MCP_CONSOLE_TEST_BINARY` selects the installed public command.
 A copied uv launcher also needs `MCP_CONSOLE_TEST_NATIVE_BINARY` for fixtures requiring the actual native executable or bundle relocation.
 
