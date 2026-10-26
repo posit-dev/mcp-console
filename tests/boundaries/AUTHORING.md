@@ -78,6 +78,10 @@ Process startup does not prove a cell log has closed.
 For shutdown output, establish cell completion and its recorded `cell_output` event before asserting which file owns later bytes.
 Sleeps, broader matching, and longer timeouts do not establish ordering.
 
+For direct pipe fixtures, `read_lines()` consumes an exact batch up to the producer's next command or checkpoint gate.
+Count all records in that batch; adjacent records may arrive in one read.
+Use `read_relay_ready()` for the ordered `worker_started` and `ready` handshake, and release the worker only after checking both records.
+
 `wait_for_evaluation_output()` submits once, accumulates every text delta, and bounds transport receives with its completion budget.
 `client.expect()` uses that collector with the client's existing response budget and checks exact successful output (`[done]` by default).
 Use `client.expect(None, ...)` when asserting the collected content separately, such as SQL preview row, column, and byte limits.
