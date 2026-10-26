@@ -6,7 +6,7 @@ send:
     import os
     import sys
 
-    assert sys.prefix == os.environ["MCP_CONSOLE_TEST_EXPECTED_PREFIX"]
+    assert os.path.samefile(sys.prefix, os.environ["MCP_CONSOLE_TEST_EXPECTED_PREFIX"])
     print("captured Python selection")
 result:
   content:

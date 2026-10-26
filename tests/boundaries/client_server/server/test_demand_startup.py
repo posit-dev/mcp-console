@@ -248,7 +248,7 @@ def test_r_startup_preserves_captured_python_selection(
                     import os
                     import sys
 
-                    assert sys.prefix == os.environ["MCP_CONSOLE_TEST_EXPECTED_PREFIX"]
+                    assert os.path.samefile(sys.prefix, os.environ["MCP_CONSOLE_TEST_EXPECTED_PREFIX"])
                     print("captured Python selection")
                     """),
             )
@@ -354,6 +354,7 @@ def test_rejects_r_startup_replacing_captured_python(
                 Sys.setenv(RETICULATE_PYTHON = {
                   json.dumps(str(other))
                 })
+                reticulate::py_require(character(), action = "set")
                 reticulate::py_run_string("profile_value = 41")
                 """),
         )

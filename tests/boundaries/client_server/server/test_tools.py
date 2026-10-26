@@ -117,6 +117,10 @@ def test_initializes_and_lists_tools(
         "bare.yaml": {"bare": True},
         "python-only.yaml": {"python_only": True},
         "existing-python.yaml": {"python_only": True, "bootstrap_languages": "python"},
+        "existing-python-sql.yaml": {
+            "python_only": True,
+            "bootstrap_languages": "python,sql",
+        },
         "automatic.yaml": {"python_resolution": "implicit"},
         "configured-python-automatic.yaml": {
             "bootstrap_languages": "python",
