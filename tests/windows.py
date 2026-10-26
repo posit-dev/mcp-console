@@ -1843,6 +1843,29 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn("41", json.dumps(session.send(r="py$python_value")))
         self.assertIn("42", json.dumps(session.send(python="r.r_value")))
 
+    def test_python_site_hook_reports_r_profile_embedding_limit(self):
+        from boundaries.client_server.python.test_startup import site_hook_calls_r
+        from support.execution import DIRECT
+
+        # Reticulate's Windows embedding probe is unimplemented. Before
+        # Console's R adapter exists, a native profile therefore cannot attach
+        # reticulate to Python while that Python's site hook is starting R.
+        site_hook_calls_r(
+            BINARY,
+            DIRECT,
+            start_r_in_hook=True,
+            expected_profile_error=(
+                'Error in py_set_attr(R, "__getattr__", getter) : \n'
+                "  ModuleNotFoundError: No module named 'rpytools'\n"
+                "Run `reticulate::py_last_error()` for details.\n"
+                "Error in sitecustomize; set PYTHONVERBOSE for traceback:\n"
+                "RuntimeError: reticulate did not install Python-side R access\n"
+                "Error in py_eval_impl(code, convert) : \n"
+                "  AttributeError: module 'builtins' has no attribute 'site_answer'\n"
+                "Run `reticulate::py_last_error()` for details.\n"
+            ),
+        )
+
     def relay_session(self, scenario):
         directory = tempfile.TemporaryDirectory(prefix="console relay ")
         self.addCleanup(directory.cleanup)

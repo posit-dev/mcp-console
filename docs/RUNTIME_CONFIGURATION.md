@@ -190,6 +190,11 @@ A profile diagnostic that R survives does not make the session unusable.
 If R fails initialization or is interrupted, fix the startup file externally and explicitly restart; ordinary calls do not retry initialization.
 Edits to `.Rprofile` take effect on runtime restart because R reads the file again, even though YAML configuration remains captured for the server connection.
 
+On Windows, a Python startup hook that starts R cannot initialize reticulate from an R profile.
+Reticulate cannot detect the already-running Python interpreter in that native-startup path and reports `ModuleNotFoundError: No module named 'rpytools'`.
+Move those cross-language calls out of startup hooks and profiles into ordinary cells after startup.
+The same nested startup is supported on macOS and Linux.
+
 ## Select a SQL connection at startup {#session-startup-source}
 
 <span id="session-startup"></span>

@@ -47,6 +47,12 @@ R = Requirement(
     ),
     "requires R_HOME or R on PATH",
 )
+RETICULATE_EMBEDDED_DISCOVERY = Requirement(
+    "reticulate embedding discovery",
+    os.name != "nt",
+    "reticulate cannot detect already-running Python during native Windows R profiles; "
+    "WindowsConsole.test_python_site_hook_reports_r_profile_embedding_limit checks the diagnostic",
+)
 SANDBOX = Requirement(
     "sandbox",
     sys.platform in {"darwin", "linux"},

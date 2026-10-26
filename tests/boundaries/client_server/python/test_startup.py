@@ -19,6 +19,7 @@ from support.requirements import (
     FRAMEWORK_PYTHON,
     PYTHON_FRAMEWORK,
     R,
+    RETICULATE_EMBEDDED_DISCOVERY,
     POSIX,
     SQL,
     command,
@@ -199,8 +200,13 @@ def test_python_first_site_hooks_precede_numpy(
 
 
 def site_hook_calls_r(
-    binary: Path, execution: Execution, *, start_r_in_hook: bool
+    binary: Path,
+    execution: Execution,
+    *,
+    start_r_in_hook: bool,
+    expected_profile_error: str | None = None,
 ) -> list:
+    assert expected_profile_error is None or start_r_in_hook
     with TemporaryDirectory() as temporary:
         root = Path(temporary)
         python, site = isolated_python(root)
@@ -264,7 +270,7 @@ def site_hook_calls_r(
         ) as client:
             client.initialize_and_list_tools()
             client.expect(
-                "[1] 42\n",
+                expected_profile_error or "[1] 42\n",
                 r=("" if start_r_in_hook else initialize_counter)
                 # fmt: r
                 + code("""
@@ -273,6 +279,8 @@ def site_hook_calls_r(
                     answer
                     """),
             )
+            if expected_profile_error is not None:
+                return client.finish()
             if start_r_in_hook:
                 client.expect("True\n", python="profile_started")
             client.expect(
@@ -300,7 +308,7 @@ def test_r_first_site_hook_calls_r_without_repeating_initialization(
     return site_hook_calls_r(binary, execution, start_r_in_hook=False)
 
 
-@requires(R, command("uv"))
+@requires(R, command("uv"), RETICULATE_EMBEDDED_DISCOVERY)
 @executions(DIRECT, SANDBOXED)
 def test_site_hook_starts_r_with_python_in_its_profile(
     binary: Path, execution: Execution
