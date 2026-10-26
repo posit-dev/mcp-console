@@ -63,7 +63,20 @@ static ssize_t observed_write(int fd, const void *buffer, size_t length) {
         memcmp(buffer, prefix, sizeof(prefix) - 1) == 0) {
         atomic_store(&writer, fd);
     }
-    if (fd != atomic_load(&writer)) return write(fd, buffer, length);
+    if (fd != atomic_load(&writer)) {
+        ssize_t result = write(fd, buffer, length);
+        int error = errno;
+        const char ready[] = "{\"kind\":\"ready\"}\n";
+        if (result == (ssize_t)(sizeof(ready) - 1) &&
+            length == sizeof(ready) - 1 &&
+            memcmp(buffer, ready, sizeof(ready) - 1) == 0) {
+            // The relay writes this frame through an owned stdout duplicate.
+            // Notify only after both ordered startup records are in the pipe.
+            mark("ready-written", true);
+        }
+        errno = error;
+        return result;
+    }
     if (!(fcntl(fd, F_GETFL) & O_NONBLOCK)) _exit(93);
     if (faults) {
         int step = atomic_fetch_add(&write_step, 1);
