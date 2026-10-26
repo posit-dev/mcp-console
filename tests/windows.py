@@ -28,7 +28,7 @@ from windows_gate import Gate
 from support.checkpoints import wait_for_path
 from support.installation import native_console
 from support.normalization import code
-from support.r import r_test_environment
+from support.r import r_duckdb_snapshot_environment, r_test_environment
 from windows_distribution import NATIVE_SUFFIXES, inspect_artifacts
 
 from windows_cargo import WindowsCargo  # noqa: F401 -- include build acceptance
@@ -337,6 +337,7 @@ def exercise_r_sql(session: Session) -> None:
         "R connection ready",
         # fmt: r
         r=code("""
+            stopifnot(packageVersion("duckdb") == "1.5.6")
             retained_pid <- Sys.getpid()
             managed <- .console$sql_connection()
             stopifnot(DBI::dbGetQuery(managed, "SELECT * FROM retained")$answer == 1234567)
@@ -1602,7 +1603,11 @@ class WindowsConsole(unittest.TestCase):
         session.expect("1234567", control="restart", sql="SELECT 1234567 AS answer")
 
     def test_sql_with_r(self):
-        session = self.session()
+        session = self.session(
+            environment=dict(
+                r_duckdb_snapshot_environment(), RETICULATE_PYTHON=sys.executable
+            )
+        )
         exercise_r_sql(session)
 
     def test_startup_without_processor_architecture(self):
@@ -2087,8 +2092,8 @@ class WindowsConsole(unittest.TestCase):
                     )
                 session.close()
 
-    def session(self, *, defer_bootstrap=False):
-        session = Session(defer_bootstrap=defer_bootstrap)
+    def session(self, *, environment=None, defer_bootstrap=False):
+        session = Session(environment, defer_bootstrap=defer_bootstrap)
         self.addCleanup(session.close)
         session.initialize()
         return session
