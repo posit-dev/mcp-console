@@ -219,6 +219,13 @@ class McpClient:
             self,
             expected,
             "expected send output",
+            controlled_completion=(
+                arguments.get("control") is not None
+                and any(
+                    arguments.get(language) is not None
+                    for language in ("r", "python", "sql")
+                )
+            ),
             completion_timeout_seconds=self.response_timeout,
             **arguments,
         )

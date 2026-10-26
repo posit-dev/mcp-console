@@ -268,6 +268,7 @@ def test_restart_retires_bootstrap_before_new_cell(
             client,
             "[input requested: \"startup> \"]\n'new generation'\n[done]",
             "replacement cell input",
+            controlled_completion=True,
         )
         return client.finish()[3:]
 
