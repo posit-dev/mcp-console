@@ -242,6 +242,7 @@ class SandboxInstallationTests(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("binary", type=Path)
+    parser.add_argument("tests", nargs="*", metavar="TEST")
     args = parser.parse_args()
     SandboxInstallationTests.binary_source = args.binary.resolve()
-    unittest.main(argv=[sys.argv[0]])
+    unittest.main(argv=[sys.argv[0], *args.tests])

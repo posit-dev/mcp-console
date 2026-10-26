@@ -48,16 +48,16 @@ The isolated `sitecustomize` fixtures are covered by the shared boundary tests.
 
 ## Validation ladder
 
-| Command                             | Purpose                                                                       |
-| ----------------------------------- | ----------------------------------------------------------------------------- |
-| `scripts/test --full --list`        | Discover functional cases without building.                                   |
-| `scripts/test --locate SELECTOR`    | Find source and snapshots.                                                    |
-| `scripts/test BOUNDARY/SUITE::CASE` | Focused red/green loop.                                                       |
-| `scripts/test --update SELECTOR`    | Regenerate an intentional snapshot change; then rerun without `--update`.     |
-| `scripts/format`                    | Format all supported sources; inspect every reported result and the diff.     |
-| `scripts/check`                     | Ordinary final local gate. `--quick` is an alias, not a narrower gate.        |
-| `scripts/check --full`              | Applicable functional, tooling, and installation checks.                      |
-| `scripts/test --stress`             | Original allocation-scale workloads, separate from ordinary functional cases. |
+| Command                             | Purpose                                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| `scripts/test --full --list`        | Discover functional cases without building.                                             |
+| `scripts/test --locate SELECTOR`    | Find source and snapshots.                                                              |
+| `scripts/test BOUNDARY/SUITE::CASE` | Focused red/green loop.                                                                 |
+| `scripts/test --update SELECTOR`    | Regenerate an intentional snapshot change; then rerun without `--update`.               |
+| `scripts/format`                    | Format all supported sources; inspect every reported result and the diff.               |
+| `scripts/check`                     | Ordinary final local gate. `--quick` is an alias, not a narrower gate.                  |
+| `scripts/check --full`              | Applicable functional, tooling, and installation checks.                                |
+| `scripts/test --stress`             | Original allocation and concurrency workloads, separate from ordinary functional cases. |
 
 Start behavior changes with a failing public regression.
 For a refactor, establish the existing public baseline.
@@ -71,7 +71,7 @@ The link check scans Markdown and Quarto sources recursively and compares both t
 Dated audit and benchmark records retain their original revisions; rendered website output is excluded.
 The full gate adds applicable tooling, shared functional, and installation checks; installation runs last because it can replace staging/build directories.
 
-CI runs the comprehensive profiles, including Unix allocation stress.
+CI runs the comprehensive profiles, including concurrency stress on every platform and allocation stress on Unix.
 CI pins uv's Python catalogue so interpreter-dependent tracebacks and debugger transcripts change only with an intentional tool update.
 After restoring shared compiler data, CI discards Console's own build artifacts so cached timestamps cannot hide source changes in the checkout.
 Compiler caches preserve Cargo's `CACHEDIR.TAG` alongside profile directories so Cargo can verify the restored target directory before cleaning.
@@ -85,6 +85,13 @@ Selectors retain their scope under every profile.
 An unscoped full run audits orphan snapshots; only a successful full update removes them.
 Focused updates preserve unselected cases.
 Never hand-edit snapshots.
+
+Four SQL cases use the `2026-10-22` R repository snapshot through `r_duckdb_snapshot_environment()` in [shared R support](../tests/support/r.py): `recovers_from_sql_errors`, `interrupts_running_sql_query`, `gets_selects_and_resets_the_active_native_connection`, and `managed_r_defaults`.
+This retains DuckDB 1.5.6 binaries for exact error transcripts and the native interrupt fixture; the cases prepare only runtime infrastructure, adding RSQLite when needed.
+Other SQL cases continue to resolve current packages.
+Native Windows `WindowsConsole.test_sql_with_r` and `WindowsSandbox.test_network_enabled_sql` use the same snapshot for their shared R DuckDB interrupt scenario.
+The shared and Windows interrupt scenarios assert DuckDB 1.5.6 before starting the long query, so a lost pin fails before cancellation is exercised.
+Before advancing the date, verify the complete error diagnostics and interrupt completion; [RT-5](TODO.md#runtime-and-resource-limits) tracks DuckDB 2.0.0's Arrow cancellation limitation.
 
 The shared selector syntax works on every platform.
 Windows native cases also use `CLASS.CASE`, for example `WindowsConsole.test_python_without_r`.

@@ -63,15 +63,60 @@ def test_host_interrupt_cancels_wait_and_discards_partial_reply(
 ) -> Transcript:
     previous = signal.signal(signal.SIGINT, signal.default_int_handler)
     try:
-        with tempfile.TemporaryDirectory() as directory:
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            socket.socket() as listener,
+            ThreadPoolExecutor(max_workers=1) as pool,
+        ):
             root = Path(directory)
-            with client(root) as console:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            listener.settimeout(10)
+            caller_returned = threading.Event()
+            rescued = threading.Event()
+            caller_thread = threading.get_ident()
+            sdk_thread: int | None = None
+            call_tool = Client.call_tool
+
+            async def observe_thread(
+                self: Client, name: str, arguments: dict[str, object]
+            ) -> CallToolResult:
+                nonlocal sdk_thread
+                sdk_thread = threading.get_ident()
+                return await call_tool(self, name, arguments)
+
+            def interrupt_after_partial_reply() -> None:
+                try:
+                    with listener.accept()[0] as gate:
+                        gate.settimeout(10)
+                        assert gate.recv(1) == b"1"
+                        assert sdk_thread is not None and sdk_thread != caller_thread
+                        # Process-directed signals may reach any thread. Force that
+                        # path while the main caller is waiting for this response.
+                        signal.pthread_kill(sdk_thread, signal.SIGINT)
+                        gate.sendall(b"1")
+                    caller_returned.wait(timeout=10)
+                finally:
+                    if not caller_returned.is_set():
+                        rescued.set()
+                        signal.pthread_kill(caller_thread, signal.SIGINT)
+
+            with (
+                patch.object(Client, "call_tool", observe_thread),
+                client(
+                    root, "external-interrupt", str(listener.getsockname()[1])
+                ) as console,
+            ):
+                guard = pool.submit(interrupt_after_partial_reply)
                 try:
                     console.send(python="cancel wait")
                 except KeyboardInterrupt:
                     pass
                 else:
                     raise AssertionError("host interrupt did not reach the caller")
+                finally:
+                    caller_returned.set()
+                guard.result(timeout=5)
                 recovered = console.send(python="recovered")
                 assert recovered == "recovered", (
                     recovered,
@@ -90,6 +135,9 @@ def test_host_interrupt_cancels_wait_and_discards_partial_reply(
             assert recovery["params"]["arguments"] == {"python": "recovered"}
             assert interrupt["params"]["arguments"] == {"control": "interrupt"}
             assert (root / "closed").exists()
+            assert not rescued.is_set(), (
+                "host interrupt needed a second signal to wake the caller"
+            )
     finally:
         signal.signal(signal.SIGINT, previous)
     return [

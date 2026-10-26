@@ -352,6 +352,7 @@ class WebsiteTests(unittest.TestCase):
             "requirements/index.html",
             "sandbox/index.html",
             "recording/index.html",
+            "jupyter/index.html",
             "sandbox_command/index.html",
         )
         navigation = []
@@ -641,6 +642,7 @@ class WebsiteTests(unittest.TestCase):
             "build_on_console/index.html",
             "send_operations/index.html",
             "recording/index.html",
+            "jupyter/index.html",
         ):
             self.assertIn(target, links)
         runtime = self.pages[self.site / "runtime_reference/index.html"]
@@ -659,6 +661,7 @@ class WebsiteTests(unittest.TestCase):
                     "build_on_console",
                     "send_operations",
                     "sandbox_command",
+                    "jupyter",
                 },
             )
 

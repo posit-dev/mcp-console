@@ -199,7 +199,7 @@ def test_py_reads_during_native_selection_do_not_attach(
 
 
 @requires(R)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_py_access_preserves_initialization_errors_and_retries(
     binary: Path, execution: Execution
 ) -> Transcript:

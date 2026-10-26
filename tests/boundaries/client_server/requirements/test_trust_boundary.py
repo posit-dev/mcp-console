@@ -17,7 +17,7 @@ from support.client import McpClient
 from support.normalization import code
 from support.records import Transcript
 from support.r import r_test_environment
-from support.resolvers import ir_cache_directory
+from support.resolvers import r_library_cache_environment
 from support.requirements import POSIX, R, SANDBOX, command, requires
 from boundaries.client_server.python.test_without_r import environment
 
@@ -359,9 +359,9 @@ def test_worker_replaces_selected_r_resolver(binary: Path) -> Transcript:
         ir = selected_resolver("ir")
         (tools / "ir").symlink_to(ir)
         env.update(
+            **r_library_cache_environment(r_env),
             R_HOME=r_env["R_HOME"],
             PATH=os.pathsep.join((str(tools), r_env["PATH"])),
-            IR_CACHE_DIR=ir_cache_directory(r_env),
             UV_CACHE_DIR=str(root / "cache/uv"),
             RETICULATE_PYTHON=sys.executable,
             RETICULATE_UV=selected_resolver("uv"),

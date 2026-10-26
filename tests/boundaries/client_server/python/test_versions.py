@@ -20,7 +20,7 @@ from support.normalization import code
 from support.r import r_test_environment
 from support.records import Transcript
 from support.resolvers import (
-    ir_cache_directory,
+    r_library_cache_environment,
     named_requirement_error,
     normalize_duckdb_resolution_error,
     python_inventory_client,
@@ -708,7 +708,7 @@ def test_uses_reticulate_managed_uv_for_python_resolution(
         original_path = os.environ.get("PATH", "")
         real_uv = shutil.which("uv", path=original_path)
         assert real_uv is not None, "real uv is required"
-        host_ir_cache = ir_cache_directory(os.environ.copy())
+        host_r_caches = r_library_cache_environment(os.environ.copy())
         r_home = subprocess.run(
             ["R", "RHOME"],
             check=True,
@@ -793,7 +793,7 @@ def test_uses_reticulate_managed_uv_for_python_resolution(
         environment["MCP_CONSOLE_LANGUAGES"] = "r"
         environment["RETICULATE_UV"] = "managed"
         environment["R_USER_CACHE_DIR"] = str(r_user_cache)
-        environment["IR_CACHE_DIR"] = host_ir_cache
+        environment.update(host_r_caches)
         environment["UV_TOOL_DIR"] = str(temporary)
         environment["UV_CACHE_DIR"] = str(temporary / "wrong-cache")
         environment["UV_PYTHON_INSTALL_DIR"] = str(temporary / "wrong-python")

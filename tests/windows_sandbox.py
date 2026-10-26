@@ -20,6 +20,7 @@ from textwrap import dedent
 from support.installation import native_console
 from support.normalization import code
 from support.public_configuration import INVALID_CONFIGURATIONS
+from support.r import r_duckdb_snapshot_environment
 from support.windows_mxc import requires_mxc
 from support.windows_firewall import application_rules
 
@@ -361,7 +362,11 @@ class WindowsSandbox(unittest.TestCase):
     def test_network_enabled_sql(self):
         from windows import exercise_r_sql
 
-        session = worker_session(sandbox=True, overrides=['sandbox.network="enabled"'])
+        session = worker_session(
+            r_duckdb_snapshot_environment(),
+            sandbox=True,
+            overrides=['sandbox.network="enabled"'],
+        )
         try:
             session.initialize()
             exercise_r_sql(session)

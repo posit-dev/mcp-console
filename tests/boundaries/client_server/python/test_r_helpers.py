@@ -66,7 +66,7 @@ def test_names_and_help_leave_python_uninitialized(
 
 
 @requires(R)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_missing_python_preserves_diagnostic_and_r_operation(
     binary: Path, execution: Execution
 ) -> Transcript:
