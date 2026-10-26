@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use super::events::{
     OperationResult, ReadyCommitOutcome, WorkerEvent, WorkerEventDispatcher, WorkerOperationState,
 };
+use super::memory::MemoryMonitor;
 use super::output::SendFailure;
 use super::transport::{
     self, OutputNotifier, PreparedTransport, RelayInput, RelayOutput, WriterAbort,
@@ -115,6 +116,7 @@ impl LauncherExit {
 }
 
 struct RelayTasks {
+    memory: Option<MemoryMonitor>,
     dispatcher: WorkerEventDispatcher,
     command_writer: RelayCommandThread,
     event_reader: thread::JoinHandle<()>,
@@ -366,6 +368,7 @@ impl WorkerRuntime {
                     "launcher stderr read failed: {error}"
                 )));
             })?;
+        let launcher_pid = child.child.id();
         let child = Arc::new(Mutex::new(child));
 
         let operation = WorkerOperationState::new(builtin);
@@ -397,6 +400,7 @@ impl WorkerRuntime {
                 output,
                 state: Mutex::new(RetirementState {
                     tasks: Some(Box::new(RelayTasks {
+                        memory: None,
                         dispatcher,
                         command_writer,
                         event_reader,
@@ -416,6 +420,21 @@ impl WorkerRuntime {
             ready_commit,
             relay,
         };
+
+        let shutdown = worker.shutdown_handle();
+        let memory = MemoryMonitor::start(launcher_pid, move |message| {
+            shutdown.stop_for_memory(message);
+        });
+        worker
+            .relay
+            .retirement
+            .state
+            .lock()
+            .expect("generation retirement lock")
+            .tasks
+            .as_mut()
+            .expect("owned generation tasks")
+            .memory = Some(memory);
 
         if let Err(error) = on_started(worker.shutdown_handle()) {
             let error = worker.startup_failure(error);
@@ -1292,6 +1311,21 @@ impl WorkerShutdownHandle {
         self.operation.is_bootstrapping()
     }
 
+    fn stop_for_memory(&self, message: String) {
+        let deadline = Instant::now();
+        // Reserve immediate termination before failure wakes a replacement or
+        // restart. They must share this deadline and the existing cleanup owner.
+        self.reserve_shutdown(deadline, relay_retirement_deadline(deadline));
+        // Startup has its own waiter; preserve the same reason in its ordered
+        // event stream before shutdown can produce transport/exit diagnostics.
+        let _ = self
+            .commands
+            .events
+            .send(WorkerEvent::MemoryLimit(message.clone()));
+        self.operation.fail(message);
+        self.request_shutdown(deadline, relay_retirement_deadline(deadline));
+    }
+
     /// Requests relay-owned worker shutdown and enforces bounded relay retirement.
     ///
     /// The shared generation operation joins all relay transport tasks once.
@@ -1378,9 +1412,15 @@ impl WorkerShutdownHandle {
         }
         let (deadline, _) = state.budgets.expect("reserved retirement");
         let (allowance, requested) = state.requested.clone().expect("requested retirement");
-        let tasks = state.tasks.take().expect("owned generation tasks");
+        let mut tasks = state.tasks.take().expect("owned generation tasks");
         state.finishing = true;
         drop(state);
+        // Stop sampling before the launcher is reaped and its PID can be reused.
+        // The monitor only requests shutdown; it never joins its own owner.
+        let memory = tasks
+            .memory
+            .as_mut()
+            .map_or(Ok(()), MemoryMonitor::cancel_and_join);
         let retirement_deadline = relay_retirement_deadline(deadline);
         let barrier_deadline = if allowance == RelayRetirementAllowance::Always {
             retirement_deadline
@@ -1410,7 +1450,10 @@ impl WorkerShutdownHandle {
         let diagnostics = join_diagnostic_reader(tasks.diagnostic_reader);
         let outcome = tasks.dispatcher.join();
         let joined = combine_shutdown_results(
-            combine_shutdown_results(command_writer, event_reader),
+            combine_shutdown_results(
+                memory,
+                combine_shutdown_results(command_writer, event_reader),
+            ),
             diagnostics,
         );
         let io = match (joined, outcome) {

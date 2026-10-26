@@ -426,17 +426,20 @@ def ready_without_send(
                 client.request("ping")
                 if close:
                     try:
-                        client.close()
+                        transcript = client.finish()
                         # An exited broker can await host reaping after its
                         # owner exits. Require kernel exit evidence without
-                        # granting any additional shutdown time.
+                        # granting any additional shutdown time. finish() must
+                        # first confirm a graceful exit, not cleanup's PID kill.
                         survivors = sorted(
                             {pid for pid, _, _ in descendants} - retirement.wait(0)
                         )
                         assert not survivors, (
-                            f"prelaunch resources survived MCP closure: {survivors}"
+                            f"prelaunch resources survived MCP closure: {survivors}; "
+                            f"captured identities: {descendants}; "
+                            f"identities still present: {live_processes(descendants)}"
                         )
-                        return [*client.finish(), {"prelaunch_resources_retired": True}]
+                        return [*transcript, {"prelaunch_resources_retired": True}]
                     finally:
                         kill_processes(descendants)
                 release.release()

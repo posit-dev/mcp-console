@@ -200,6 +200,9 @@ fn supervise_worker(
                     retirement.start_if_idle(|| deadline);
                 }
                 stopping.store(true, Ordering::SeqCst);
+                if deadline <= Instant::now() {
+                    return force_stop_worker(child, Some(exit), String::new());
+                }
                 let _ = stdin.send(StdinWrite::Close);
                 let _ = sideband.send(SidebandWrite::Message(ServerMessage::Shutdown));
             }

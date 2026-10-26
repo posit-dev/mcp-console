@@ -18,6 +18,9 @@ mod status;
 mod events;
 
 #[cfg(any(unix, windows))]
+mod memory;
+
+#[cfg(any(unix, windows))]
 mod transport;
 
 #[cfg(any(unix, windows))]

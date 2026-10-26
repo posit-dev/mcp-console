@@ -706,6 +706,7 @@ def test_prepares_managed_python_at_startup_and_restart(
                 client,
                 lambda output: "replacement input\n" in output,
                 "replacement Python input",
+                controlled_completion=True,
                 completion_timeout_seconds=client.response_timeout,
                 control="restart",
                 requirements={"python": ["more-itertools"]},
