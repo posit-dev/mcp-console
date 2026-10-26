@@ -556,9 +556,13 @@ def test_restart_replaces_first_use_cell_and_stdin(
         client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_tool_text(client)) == RUNNING
         assert "phase:" not in last_tool_text(client)
+        # Queue input while the replacement is still held so this response
+        # cannot accidentally stand in for its eventual completion receipt.
+        client.send(stdin="replacement still usable\n", timeout_ms=0)
+        assert without_elapsed(last_tool_text(client)) == RUNNING
+        assert "phase:" not in last_tool_text(client)
         new_cell_release.release()
-        client.send(stdin="replacement still usable\n")
-        assert last_tool_text(client) == (
+        client.expect(
             "[input requested: \"replacement> \"]\n'replacement still usable'\n"
         )
         assert "phase:" not in last_tool_text(client)
