@@ -27,7 +27,7 @@ def test_r_defers_python_and_sql_until_use(
 ) -> Transcript:
     with tempfile.TemporaryDirectory() as temporary:
         workspace = Path(temporary)
-        modules = workspace / "modules"
+        modules = workspace / "modules 日本語"
         modules.mkdir()
         marker = workspace / "python-started"
         (modules / "sitecustomize.py").write_text(
@@ -42,7 +42,12 @@ def test_r_defers_python_and_sql_until_use(
                 """),
         )
         environment, _ = r_test_environment()
-        environment["RETICULATE_PYTHONPATH"] = str(modules)
+        environment.update(
+            RETICULATE_PYTHONPATH=str(modules),
+            PYTHONHOME="unused-python-home",
+            PYTHONPLATLIBDIR="unused-python-layout",
+            VIRTUAL_ENV="unused-virtualenv",
+        )
         arguments = execution.serve(
             "--no-config",
             "-c",
@@ -63,9 +68,14 @@ def test_r_defers_python_and_sql_until_use(
                 "Python initialized on demand\n",
                 # fmt: python
                 python=code("""
+                    import os
                     import sys
 
                     assert "duckdb" not in sys.modules
+                    assert "PYTHONHOME" not in os.environ
+                    assert "PYTHONPLATLIBDIR" not in os.environ
+                    expected_virtualenv = sys.prefix if sys.prefix != sys.base_prefix else None
+                    assert os.environ.get("VIRTUAL_ENV") == expected_virtualenv
                     answer = 41
                     print("Python initialized on demand")
                     """),

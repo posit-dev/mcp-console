@@ -20,9 +20,14 @@ result:
 ---
 send:
   python: |
+    import os
     import sys
 
     assert "duckdb" not in sys.modules
+    assert "PYTHONHOME" not in os.environ
+    assert "PYTHONPLATLIBDIR" not in os.environ
+    expected_virtualenv = sys.prefix if sys.prefix != sys.base_prefix else None
+    assert os.environ.get("VIRTUAL_ENV") == expected_virtualenv
     answer = 41
     print("Python initialized on demand")
 result:

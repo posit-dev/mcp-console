@@ -118,6 +118,47 @@ pub(super) fn configure_process_environment(selected: &super::NativePython) -> R
             std::env::set_var("PYTHONPATH", path);
         }
     }
+    #[cfg(windows)]
+    synchronize_loaded_crt_environment()?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn synchronize_loaded_crt_environment() -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+
+    // Native R can load the shared CRT before deferred Python initialization.
+    // CPython reads its _wenviron, not the Win32 environment that Rust updates.
+    // Console uses a static CRT, so libc::wputenv would update the wrong copy.
+    let module = unsafe { GetModuleHandleW(windows_sys::w!("ucrtbase.dll")) };
+    if module.is_null() {
+        return Ok(()); // No loaded shared CRT has an environment copy to update.
+    }
+    let address = unsafe { GetProcAddress(module, c"_wputenv_s".as_ptr().cast()) }
+        .ok_or("loaded Windows CRT does not export _wputenv_s")?;
+    let putenv: unsafe extern "C" fn(*const u16, *const u16) -> libc::c_int =
+        unsafe { std::mem::transmute(address) };
+    for name in [
+        "PYTHONHOME",
+        "PYTHONPLATLIBDIR",
+        "PATH",
+        "VIRTUAL_ENV",
+        "PYTHONPATH",
+    ] {
+        let value = std::env::var_os(name).unwrap_or_default();
+        let name_wide = std::ffi::OsStr::new(name)
+            .encode_wide()
+            .chain([0])
+            .collect::<Vec<_>>();
+        let value_wide = value.encode_wide().chain([0]).collect::<Vec<_>>();
+        let status = unsafe { putenv(name_wide.as_ptr(), value_wide.as_ptr()) };
+        if status != 0 {
+            return Err(format!(
+                "cannot synchronize Python environment {name}: CRT error {status}"
+            ));
+        }
+    }
     Ok(())
 }
 
