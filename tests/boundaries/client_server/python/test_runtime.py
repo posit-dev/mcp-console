@@ -20,6 +20,7 @@ from support.assertions import (
 )
 from support.checkpoints import FifoCheckpoint, wait_for_worker_file
 from support.client import McpClient, stop_client
+from support.evidence import compact_text
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_test_environment, reference_plots
@@ -1182,6 +1183,10 @@ def test_reads_unicode_nul_and_long_python_input(
         )
         client.send(python="saved_object is original_object")
         assert last_result_text(client) == "True\n"
+        for entry in client.transcript:
+            arguments = entry.get("send", {})
+            if "stdin" in arguments:
+                arguments["stdin"] = compact_text(arguments["stdin"], "🐍")
         return client.finish()
 
 

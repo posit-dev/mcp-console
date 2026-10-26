@@ -522,10 +522,18 @@ class InstallationTests(unittest.TestCase):
                             )
                             self.assertEqual(result.returncode, 0, result.stdout)
                             print(result.stdout, flush=True)
-                for installed in (
-                    binary,
-                    directory / "uv-bin" / "mcp-console",
-                    directory / "wheel-bin" / "mcp-console",
+                launch_checks = (
+                    "SandboxInstallationTests.test_runs_original_binary",
+                    "SandboxInstallationTests.test_resolves_private_runner_through_public_symlink",
+                    "SandboxInstallationTests.test_relocates_the_bundle_without_a_writable_home_or_path_lookup",
+                )
+                # Every installation must launch, follow its public symlink,
+                # and relocate. Bundle damage and allocation checks exercise
+                # the same copied layout, so run them once against the wheel.
+                for installed, checks in (
+                    (binary, launch_checks),
+                    (directory / "uv-bin" / "mcp-console", launch_checks),
+                    (directory / "wheel-bin" / "mcp-console", ()),
                 ):
                     with self.subTest(installer=installed):
                         result = subprocess.run(
@@ -533,6 +541,7 @@ class InstallationTests(unittest.TestCase):
                                 sys.executable,
                                 str(ROOT / "tests" / "sandbox_installation.py"),
                                 str(installed),
+                                *checks,
                             ],
                             check=False,
                             capture_output=True,

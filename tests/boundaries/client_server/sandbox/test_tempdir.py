@@ -42,6 +42,7 @@ def test_host_temp_preserves_environment_and_r_cleans_its_session(
         settings = {
             "cache": "host",
             "python": sys.executable,
+            "r": {"packages": []},
             "languages": ["r", "python"],
             "environment": {
                 "TMPDIR": str(temporary),
@@ -132,11 +133,13 @@ def test_host_temp_preserves_environment_and_r_cleans_its_session(
         return transcript
 
 
-@requires(POSIX, SANDBOX, R)
+@requires(POSIX, SANDBOX)
 def test_workspace_profile_retains_managed_temp_cleanup(binary: Path) -> Transcript:
-    environment, _ = r_test_environment()
     with TemporaryDirectory() as directory, TemporaryDirectory() as temporary:
         workspace = Path(directory).resolve()
+        tools = workspace / "tools"
+        tools.mkdir()
+        environment = python_only_environment(tools)
         environment["TMPDIR"] = temporary
         environment["TEST_HOST_TEMP"] = temporary
         caller_owned = Path(temporary) / "keep"

@@ -11,7 +11,7 @@ result:
   isError: false
 ---
 send:
-  r: complete after timeout
+  r: complete after release
   timeout_ms: 10
 result:
   content:
@@ -28,7 +28,7 @@ result:
   content:
     - type: text
       text: |
-        zod: complete after timeout
+        zod: complete after release
   isError: false
 ---
 send:

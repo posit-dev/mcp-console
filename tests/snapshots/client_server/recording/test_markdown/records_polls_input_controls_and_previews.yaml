@@ -39,6 +39,15 @@ result:
         zod stdin: supplied answer
   isError: false
 ---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
 send:
   control: interrupt
 result:

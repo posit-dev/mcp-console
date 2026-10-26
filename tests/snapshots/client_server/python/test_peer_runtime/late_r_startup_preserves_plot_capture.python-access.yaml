@@ -10,7 +10,9 @@ result:
   isError: false
 ---
 send:
-  python: assert 3 < r.pi < 4
+  python: |
+    assert 3 < r.pi < 4
+    assert id(before_r) == before_r_identity and id(early_object) == early_identity and sys.executable == early_executable
 result:
   content:
     - type: text

@@ -69,15 +69,8 @@ result:
   isError: false
 ---
 send:
-  sql: PRAGMA create_fts_index('restart_documents', 'id', 'body')
-result:
-  content:
-    - type: text
-      text: "[done]"
-  isError: false
----
-send:
   sql: |
+    PRAGMA create_fts_index('restart_documents', 'id', 'body');
     SELECT count(*) AS matches
     FROM restart_documents
     WHERE fts_main_restart_documents.match_bm25(id, 'duckdb') IS NOT NULL

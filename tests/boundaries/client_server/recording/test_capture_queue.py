@@ -1,6 +1,5 @@
 #!/usr/bin/env -S uv run --script
 
-import json
 import os
 import sys
 import tempfile
@@ -22,7 +21,7 @@ from support.suites import run_this_suite
 
 
 @requires(NATIVE_FIXTURES)
-def test_reused_request_id_keeps_the_assembled_calls_identity(
+def test_queued_calls_keep_their_response_identity(
     binary: Path,
 ) -> Transcript:
     with (
@@ -39,33 +38,22 @@ def test_reused_request_id_keeps_the_assembled_calls_identity(
             reached.wait(
                 "first result retained before response assembly", client=client
             )
-            # Deliberately bypass the client's unique-ID guard to exercise malformed
-            # traffic without attributing the earlier response to this later call.
-            reused = {"id": first["id"], "send": {"r": "echo reused"}}
-            client.transcript.append(reused)
-            client.stdin.write(
-                json.dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "id": reused["id"],
-                        "method": "tools/call",
-                        "params": {"name": "send", "arguments": reused["send"]},
-                    }
-                )
-                + "\n"
-            )
-            client.stdin.flush()
+            # The later request is received while the earlier result waits for
+            # capture. MCP request IDs remain unique throughout the session.
+            second = client.start_send(r="echo queued")
             assert client.request("ping")["result"] == {}
         finally:
             profile.pause_results(False)
             release.release()
-        client.receive(first)
+        client.receive_many([first, second])
         assert first["result"] == {
             "content": [{"type": "text", "text": "\n[idle]"}],
             "isError": False,
         }, first
-        # rmcp may cancel the newer instance when forwarding the earlier response.
-        # The journal must link the response that actually reached transport.
+        assert second["result"] == {
+            "content": [{"type": "text", "text": "zod: queued\n"}],
+            "isError": False,
+        }, second
         client.finish()
         (recording,) = (Path(directory) / "sessions").iterdir()
         events = recording_events(recording)
@@ -89,29 +77,44 @@ def test_reused_request_id_keeps_the_assembled_calls_identity(
             assert frame["sequence"] < call["sequence"]
         (activation,) = [e for e in events if e["event"] == "recording_activated"]
         assert received[0]["sequence"] < activation["sequence"] < calls[0]["sequence"]
+        request_ids = {first["id"], second["id"]}
         assembled = [
-            e["message"]
+            e
             for e in events
             if e["event"] == "protocol"
             and e["direction"] == "assembled"
-            and e["message"].get("id") == first["id"]
+            and e["message"].get("id") in request_ids
         ]
-        assert assembled == [
-            {
-                "jsonrpc": "2.0",
-                "id": first["id"],
-                "result": {"tool_result_call_id": 2},
-            }
-        ], assembled
-        assert [
-            e["call_id"]
+        delivered = [
+            e
             for e in events
-            if e["event"] == "delivery" and e["request_id"] == first["id"]
-        ] == [2]
+            if e["event"] == "delivery" and e["request_id"] in request_ids
+        ]
+        assert len(assembled) == len(delivered) == 2, (assembled, delivered)
+        for call_id, request in ((2, first), (3, second)):
+            (response,) = [e for e in assembled if e["message"]["id"] == request["id"]]
+            assert response["message"] == {
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": {"tool_result_call_id": call_id},
+            }, response
+            (delivery,) = [e for e in delivered if e["request_id"] == request["id"]]
+            assert delivery["call_id"] == call_id and delivery["delivered"], delivery
+            (result,) = [
+                e
+                for e in events
+                if e["event"] == "tool_result" and e["call_id"] == call_id
+            ]
+            assert (
+                calls[call_id - 1]["sequence"]
+                < result["sequence"]
+                < response["sequence"]
+                < delivery["sequence"]
+            ), (result, response, delivery)
         assert events[-1]["event"] == "recording_ended"
         return [
             *client.transcript[:3],
-            {"response identity": "earlier request instance"},
+            {"response identity": "distinct queued calls"},
         ]
 
 

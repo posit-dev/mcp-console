@@ -12,21 +12,10 @@ result:
         {
           "requirements": {
             "r": [
-              "DBI",
-              "dbplyr",
-              "dplyr",
-              "duckdb",
-              "ggplot2",
-              "nanoarrow",
-              "reticulate",
-              "tidyverse",
-              "yyjsonr"
+              "praise"
             ],
             "python": [
-              "numpy",
-              "pandas",
-              "matplotlib",
-              "plotnine"
+              "six"
             ],
             "duckdb": [
               "icu",
@@ -54,20 +43,9 @@ result:
   structuredContent:
     requirements:
       r:
-        - DBI
-        - dbplyr
-        - dplyr
-        - duckdb
-        - ggplot2
-        - nanoarrow
-        - reticulate
-        - tidyverse
-        - yyjsonr
+        - praise
       python:
-        - numpy
-        - pandas
-        - matplotlib
-        - plotnine
+        - six
       duckdb:
         - icu
         - json
@@ -617,21 +595,10 @@ result:
         {
           "requirements": {
             "r": [
-              "DBI",
-              "dbplyr",
-              "dplyr",
-              "duckdb",
-              "ggplot2",
-              "nanoarrow",
-              "reticulate",
-              "tidyverse",
-              "yyjsonr"
+              "praise"
             ],
             "python": [
-              "numpy",
-              "pandas",
-              "matplotlib",
-              "plotnine"
+              "six"
             ],
             "duckdb": [
               "icu",
@@ -659,20 +626,9 @@ result:
   structuredContent:
     requirements:
       r:
-        - DBI
-        - dbplyr
-        - dplyr
-        - duckdb
-        - ggplot2
-        - nanoarrow
-        - reticulate
-        - tidyverse
-        - yyjsonr
+        - praise
       python:
-        - numpy
-        - pandas
-        - matplotlib
-        - plotnine
+        - six
       duckdb:
         - icu
         - json

@@ -245,6 +245,8 @@ jobs:
       - name: Run native Windows development and installation checks
         run: |
           scripts/check.cmd --full
+      - name: Run stress regressions
+        run: scripts/test.cmd --stress --jobs 6
       - name: Check R package on Windows
         env:
           MCP_CONSOLE_TEST_BINARY: ${{ github.workspace }}/target/release/mcp-console.exe
@@ -701,6 +703,27 @@ jobs:
           # Build optional Ragnar dependencies before the bounded sandbox case.
           prewarm_r --with ragnar
 
+          # Match the four dated SQL fixtures, including their RSQLite addition.
+          sql_snapshot_date="$(PYTHONPATH=tests python3 -c 'from support.r import r_duckdb_snapshot_environment; print(r_duckdb_snapshot_environment()["IR_EXCLUDE_NEWER"])')"
+          prewarm_sql_snapshot() {
+            IR_EXCLUDE_NEWER="$sql_snapshot_date" ir run \
+              --rscript "$(command -v Rscript)" \
+              --with DBI \
+              --with duckdb \
+              --with jsonlite \
+              --with nanoarrow \
+              --with pillar \
+              --with reticulate \
+              --with tibble \
+              --with utf8 \
+              --isolated \
+              --vanilla \
+              "$@" \
+              -e 'stopifnot(packageVersion("duckdb") == "1.5.6"); sessionInfo(package = "duckdb")'
+          }
+          prewarm_sql_snapshot
+          prewarm_sql_snapshot --with RSQLite
+
       - name: Run transcripts
         id: transcripts
         env:
@@ -724,7 +747,7 @@ jobs:
             -o "$RUNNER_TEMP/transcript-metrics/resource-usage.txt" \
             uv run --script tests/boundaries/_run.py --full --jobs 6
 
-      - name: Run allocation stress regressions
+      - name: Run stress regressions
         run: uv run --script tests/boundaries/_run.py --stress --jobs 6
 
       - name: Summarize transcript measurements

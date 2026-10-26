@@ -20,17 +20,7 @@ result:
       text: |-
         {
           "requirements": {
-            "r": [
-              "DBI",
-              "dbplyr",
-              "dplyr",
-              "duckdb",
-              "ggplot2",
-              "nanoarrow",
-              "reticulate",
-              "tidyverse",
-              "yyjsonr"
-            ],
+            "r": [],
             "python": [
               "numpy",
               "pandas",
@@ -62,16 +52,7 @@ result:
         }
   structuredContent:
     requirements:
-      r:
-        - DBI
-        - dbplyr
-        - dplyr
-        - duckdb
-        - ggplot2
-        - nanoarrow
-        - reticulate
-        - tidyverse
-        - yyjsonr
+      r: []
       python:
         - numpy
         - pandas

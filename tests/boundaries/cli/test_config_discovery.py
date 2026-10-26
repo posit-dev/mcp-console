@@ -68,16 +68,30 @@ def observe_environment(
                 )
             )
             """)
+        resolving = "resolve" in arguments
+        tail = ("--format", "json")
+        if not resolving:
+            tail = ("--", sys.executable, "-c", script)
         result = subprocess.run(
-            [binary, *arguments, "--", sys.executable, "-c", script],
+            [binary, *arguments, *tail],
             cwd=workspace,
             env=environment,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=10 if resolving else 30,
         )
         assert result.returncode == 0 and result.stderr == "", result
-        assert result.stdout == expected + "\n", result
+        if resolving:
+            configured = json.loads(result.stdout).get("environment", {})
+            selected = (
+                "|".join(
+                    configured.get(name, "unset") for name in (LABEL, "KEEP", "ADDED")
+                )
+                + "\n"
+            )
+        else:
+            selected = result.stdout
+        assert selected == expected + "\n", result
 
 
 @requires(SANDBOX, R)
@@ -95,124 +109,102 @@ def test_layers_global_project_and_cli_in_both_commands(binary: Path) -> Transcr
         environment = os.environ | {"MCP_CONSOLE_HOME": str(home)}
         for name in (LABEL, "KEEP", "ADDED"):
             environment.pop(name, None)
-        for command in ("serve", "sandbox"):
-            project = workspace / CONFIG
-            write_config(
-                project,
-                {"environment": {LABEL: "project", "ADDED": "project"}},
-            )
-            cases = (
-                ("default", (command,), "project|home|project"),
-                (
-                    "client default below files",
-                    (
-                        "--default-config",
-                        "environment={MCP_CONSOLE_TEST_DISCOVERY: client, KEEP: client}",
-                        command,
-                    ),
-                    "project|home|project",
-                ),
-                (
-                    "client default without files",
-                    (
-                        command,
-                        "--no-config",
-                        "--default-config",
-                        "environment={MCP_CONSOLE_TEST_DISCOVERY: client, KEEP: client}",
-                    ),
-                    "client|client|unset",
-                ),
-                (
-                    "ordered overrides",
-                    (
-                        "-c",
-                        "environment.MCP_CONSOLE_TEST_DISCOVERY=first",
-                        command,
-                        "-c",
-                        "environment.MCP_CONSOLE_TEST_DISCOVERY=last",
-                    ),
-                    "last|home|project",
-                ),
-                ("before", ("--no-project-config", command), "home|home|unset"),
-                ("after", (command, "--no-project-config"), "home|home|unset"),
-                (
-                    "no global before",
-                    ("--no-global-config", command),
-                    "project|unset|project",
-                ),
-                (
-                    "no global after",
-                    (command, "--no-global-config"),
-                    "project|unset|project",
-                ),
-                (
-                    "no global with overrides",
-                    (
-                        "--no-global-config",
-                        "-c",
-                        "environment.MCP_CONSOLE_TEST_DISCOVERY=first",
-                        command,
-                        "-c",
-                        "environment.MCP_CONSOLE_TEST_DISCOVERY=last",
-                    ),
-                    "last|unset|project",
-                ),
-                ("no config before", ("--no-config", command), "unset|unset|unset"),
-                ("no config after", (command, "--no-config"), "unset|unset|unset"),
-                (
-                    "both scopes excluded",
-                    ("--no-global-config", command, "--no-project-config"),
-                    "unset|unset|unset",
-                ),
-                (
-                    "both",
-                    (
-                        "--no-project-config",
-                        command,
-                        "--no-config",
-                        "-c",
-                        "environment.ADDED=cli",
-                    ),
-                    "unset|unset|cli",
-                ),
-            )
-            for placement, arguments, label in cases:
-                observe_environment(binary, workspace, environment, arguments, label)
-                records.append(
-                    {"command": command, "flag": placement, "selected": label}
-                )
-            project.unlink()
-            for arguments in ((command,), (command, "--no-project-config")):
-                observe_environment(
-                    binary, workspace, environment, arguments, "home|home|unset"
-                )
-                records.append(
-                    {
-                        "command": command,
-                        "arguments": list(arguments),
-                        "project": "absent",
-                        "selected": "home",
-                    }
-                )
-            observe_environment(
-                binary,
-                workspace,
-                environment,
-                (command, "--no-global-config", "-c", "environment.ADDED=cli"),
+        command = ("config", "resolve")
+        project = workspace / CONFIG
+        write_config(project, {"environment": {LABEL: "project", "ADDED": "project"}})
+        first = ("-c", f"environment.{LABEL}=first")
+        last = ("-c", f"environment.{LABEL}=last")
+        cases = [
+            ("default", (), (), "project|home|project"),
+            ("ordered overrides", first, last, "last|home|project"),
+            (
+                "no global with overrides",
+                ("--no-global-config", *first),
+                last,
+                "last|unset|project",
+            ),
+            (
+                "both scopes excluded",
+                ("--no-global-config",),
+                ("--no-project-config",),
+                "unset|unset|unset",
+            ),
+            (
+                "both",
+                ("--no-project-config",),
+                ("--no-config", "-c", "environment.ADDED=cli"),
                 "unset|unset|cli",
+            ),
+        ]
+        for flag, expected in (
+            ("--no-project-config", "home|home|unset"),
+            ("--no-global-config", "project|unset|project"),
+            ("--no-config", "unset|unset|unset"),
+        ):
+            cases.extend(
+                (
+                    (f"{flag} before", (flag,), (), expected),
+                    (f"{flag} after", (), (flag,), expected),
+                )
+            )
+        for placement, before, after, label in cases:
+            observe_environment(
+                binary, workspace, environment, (*before, *command, *after), label
+            )
+            records.append({"flag": placement, "selected": label})
+        project.unlink()
+        for flags, expected in (
+            ((), "home|home|unset"),
+            (("--no-project-config",), "home|home|unset"),
+            (("--no-global-config", "-c", "environment.ADDED=cli"), "unset|unset|cli"),
+        ):
+            observe_environment(
+                binary, workspace, environment, (*command, *flags), expected
             )
             records.append(
-                {
-                    "command": command,
-                    "project": "absent",
-                    "global": "excluded",
-                    "selected": "unset|unset|cli",
-                }
+                {"flags": list(flags), "project": "absent", "selected": expected}
             )
+        # Resolve the precedence matrix once, then check that both launch
+        # commands apply those settings to their evaluated environment.
+        write_config(project, {"environment": {LABEL: "project", "ADDED": "project"}})
+        for command in ("serve", "sandbox"):
+            arguments = (
+                "-c",
+                "cache=invalid",
+                "-c",
+                "environment.MCP_CONSOLE_TEST_DISCOVERY=42",
+                command,
+                "-c",
+                "cache=host",
+                "-c",
+                "environment.MCP_CONSOLE_TEST_DISCOVERY=last",
+            )
+            observe_environment(
+                binary, workspace, environment, arguments, "last|home|project"
+            )
+            records.append({"command": command, "selected": "last|home|project"})
+            # Both command parsers must still accept discovery controls on
+            # either side of the subcommand, without starting a runtime.
+            for flags in (
+                ("--no-project-config",),
+                ("--no-global-config",),
+                ("--no-config",),
+                ("--default-config", "environment.KEEP=client"),
+            ):
+                for arguments in ((*flags, command), (command, *flags)):
+                    result = subprocess.run(
+                        [binary, *arguments, "--help"],
+                        cwd=workspace,
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    assert result.returncode == 0 and result.stderr == "", result
+                    assert f"Usage: mcp-console {command}" in result.stdout, result
     return records
 
 
-@requires(SANDBOX, R)
 def test_layers_ordered_overrides_on_home_and_defaults(binary: Path) -> Transcript:
     records = []
     with TemporaryDirectory() as temporary:
@@ -225,47 +217,43 @@ def test_layers_ordered_overrides_on_home_and_defaults(binary: Path) -> Transcri
         environment = os.environ | {"MCP_CONSOLE_HOME": str(home)}
         for name in (LABEL, "KEEP", "ADDED"):
             environment.pop(name, None)
+        command = ("config", "resolve")
         for configured in (False, True):
             if configured:
                 write_config(
                     home / "config.yaml",
                     {"environment": {LABEL: "home", "KEEP": "home"}},
                 )
-            for command in ("serve", "sandbox"):
-                arguments = (
-                    "--no-project-config",
-                    "-c",
-                    "cache=invalid",
-                    "-c",
-                    "environment.MCP_CONSOLE_TEST_DISCOVERY=42",
-                    command,
-                    "-c",
-                    "cache=host",
-                    "-c",
-                    "environment={MCP_CONSOLE_TEST_DISCOVERY: last, ADDED: cli}",
-                )
-                expected = "last|" + ("home" if configured else "unset") + "|cli"
-                observe_environment(binary, workspace, environment, arguments, expected)
-                records.append(
-                    {"command": command, "home": configured, "environment": expected}
-                )
+            arguments = (
+                "--no-project-config",
+                "-c",
+                "cache=invalid",
+                "-c",
+                "environment.MCP_CONSOLE_TEST_DISCOVERY=42",
+                *command,
+                "-c",
+                "cache=host",
+                "-c",
+                "environment={MCP_CONSOLE_TEST_DISCOVERY: last, ADDED: cli}",
+            )
+            expected = "last|" + ("home" if configured else "unset") + "|cli"
+            observe_environment(binary, workspace, environment, arguments, expected)
+            records.append({"home": configured, "environment": expected})
         (home / "config.yaml").unlink()
-        for command in ("serve", "sandbox"):
-            observe_environment(
-                binary,
-                workspace,
-                environment,
-                (command, "--no-project-config"),
-                "unset|unset|unset",
-            )
-            records.append(
-                {
-                    "command": command,
-                    "home": False,
-                    "overrides": False,
-                    "environment": "unset|unset|unset",
-                }
-            )
+        observe_environment(
+            binary,
+            workspace,
+            environment,
+            (*command, "--no-project-config"),
+            "unset|unset|unset",
+        )
+        records.append(
+            {
+                "home": False,
+                "overrides": False,
+                "environment": "unset|unset|unset",
+            }
+        )
     return records
 
 

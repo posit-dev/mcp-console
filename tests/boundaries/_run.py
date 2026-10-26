@@ -659,8 +659,11 @@ def run_cases(
                     reporter.cancel(index, str(cancelled))
                 except BaseException as error:
                     reporter.finish(index, succeeded=False)
-                    errors.append(error)
-                    failed_selectors.append(f"{suite_name}::{case_name}")
+                    selector = f"{suite_name}::{case_name}"
+                    errors.append(
+                        RuntimeError(f"{selector} failed; see diagnostic above")
+                    )
+                    failed_selectors.append(selector)
                     if not stopped and len(failed_selectors) * 100 > len(selected) * 15:
                         stopped = True
                         reporter.close()
@@ -671,6 +674,10 @@ def run_cases(
                             file=sys.stderr,
                             flush=True,
                         )
+                    # Publish the complete failure while sibling cases continue;
+                    # keep only its summary for the final exception group.
+                    TracebackException.from_exception(error).print()
+                    sys.stderr.flush()
                 else:
                     checked_snapshots.update(checked)
                     reporter.finish(index, succeeded=True)

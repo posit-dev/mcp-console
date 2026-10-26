@@ -172,11 +172,6 @@ def report_process_group(context: WorkerContext, source: str) -> None:
     send(context.writer, {"kind": "completed"})
 
 
-def complete_after_timeout(context: WorkerContext, source: str) -> None:
-    time.sleep(0.25)
-    echo(context, source)
-
-
 def complete_after_release(context: WorkerContext, source: str) -> None:
     publish_marker(context.root / "zod-evaluation-started")
     while not (context.root / "zod-release-evaluation").exists():

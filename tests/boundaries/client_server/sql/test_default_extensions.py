@@ -12,7 +12,7 @@ from support.assertions import last_tool_text, wait_for_worker_ready
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
-from support.r import r_test_environment
+from support.r import r_duckdb_snapshot_environment
 from support.records import Transcript
 from support.requirements import R, SQL, requires
 from boundaries.client_server.sql.test_without_r import environment, sql_client
@@ -78,14 +78,14 @@ def assert_semantic_defaults(
 def test_managed_r_defaults(binary: Path, execution: Execution) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         workspace = Path(directory)
-        env, _ = r_test_environment()
+        env = r_duckdb_snapshot_environment()
         env.update(
             RETICULATE_PYTHON="",
             MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY=str(workspace / "extensions"),
         )
         with McpClient(
             binary,
-            execution.serve("-c", "cache=host"),
+            execution.serve("-c", "cache=host", "-c", "r.packages=[]"),
             env,
             current_directory=workspace,
         ) as client:

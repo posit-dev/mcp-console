@@ -78,6 +78,10 @@ Console can use any database with an R DBI or Python DB-API driver.
 By default, Console prepares an in-memory DuckDB database.
 The agent can use it to query data frames and keep tables and views available between calls.
 
+With the R DuckDB package 2.0.0, an interrupt can leave a SQL query running while Console fetches its result through Arrow.
+Restart the session if the query does not stop; restarting clears its in-memory state.
+This known limitation is tracked in [open runtime work](TODO.md#runtime-and-resource-limits).
+
 To work with another database, your agent can create a connection object in R or Python and select it for subsequent SQL calls.
 The selected connection determines the SQL dialect and transaction behavior.
 Access to database files and servers depends on the session's [filesystem and network permissions](SANDBOX.md).
