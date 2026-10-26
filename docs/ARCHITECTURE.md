@@ -35,6 +35,7 @@ On Unix it becomes the runner through `exec`; on Windows it waits for the runner
 Console must not introduce another native supervisor that competes for the runner's resources.
 
 The server samples the owned launcher's process tree outside the worker sandbox for the [memory guard](RUNTIME_REFERENCE.md#memory-guard).
+On macOS, it enumerates that tree with libproc and reads only resident memory, avoiding retained records for unrelated host processes.
 The sampler only requests retirement: it reserves an immediate worker deadline, retains the failure reason, and uses the existing generation shutdown owner.
 The relay force-stops its direct worker, and the native runner still owns descendant cleanup.
 Retirement cancels and joins the sampler before reaping the launcher, so a reused PID cannot become the next sample's root.

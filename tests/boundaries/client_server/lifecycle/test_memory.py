@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.assertions import last_tool_text
+from support.allocations import AllocationProfile
 from support.checkpoints import FifoCheckpoint, wait_for_worker_file
 from support.client import McpClient
 from support.events import Events
@@ -47,10 +48,17 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
             )
             with (
                 closing(FifoCheckpoint.create(root / "sampled")) as sampled,
+                closing(AllocationProfile(root)) as allocations,
                 McpClient(
                     binary,
                     execution.serve("--worker", str(fixtures / "zod"), *writable_root),
-                    environment,
+                    {
+                        **environment,
+                        **allocations.environment,
+                        LOADER_VARIABLE: environment[LOADER_VARIABLE]
+                        + ":"
+                        + allocations.environment[LOADER_VARIABLE],
+                    },
                 ) as client,
             ):
                 client.transcript.append(
@@ -88,6 +96,7 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                 client.transcript[-1]["result"]["content"][0]["text"] = "<worker pid>\n"
                 target = worker
                 if not active:
+                    allocations.start()
                     (root / "target").write_text(f"{worker} 900", encoding="utf-8")
                     sampled.wait(
                         "first below-limit memory sample", timeout=15, client=client
@@ -97,6 +106,10 @@ def memory_case(binary: Path, execution: Execution, *, active: bool) -> Transcri
                     sampled.wait(
                         "second below-limit memory sample", timeout=15, client=client
                     )
+                    # The first full scan must fit the existing recovery
+                    # allocation budget regardless of unrelated host processes.
+                    _, largest = allocations.stop()
+                    assert largest <= 64 * 1024, largest
                     client.send(python='assert session_marker == "original session"')
                     assert last_tool_text(client) == "[done]"
                 if active:

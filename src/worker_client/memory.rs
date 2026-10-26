@@ -8,11 +8,13 @@ use std::thread;
 use std::time::Duration;
 
 use sysinfo::{MemoryRefreshKind, System};
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
 
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
 
 const CHECK_INTERVAL: Duration = Duration::from_secs(5);
 const MIB: u64 = 1024 * 1024;
@@ -39,7 +41,11 @@ impl MemoryMonitor {
                 }
                 system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
                 #[cfg(target_os = "linux")]
-                let processes = match linux::snapshot() {
+                let snapshot = linux::snapshot();
+                #[cfg(target_os = "macos")]
+                let snapshot = macos::snapshot(root_pid);
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                let processes = match snapshot {
                     Ok(processes) => processes,
                     Err(error) => {
                         on_limit(format!(
@@ -48,7 +54,7 @@ impl MemoryMonitor {
                         return;
                     }
                 };
-                #[cfg(not(target_os = "linux"))]
+                #[cfg(not(any(target_os = "linux", target_os = "macos")))]
                 let processes: HashMap<u32, ProcessMemory> = {
                     system.refresh_processes_specifics(
                         ProcessesToUpdate::All,
