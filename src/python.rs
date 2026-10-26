@@ -428,16 +428,43 @@ mod platform {
         let name = name.to_str().map_err(io::Error::other)?;
         if overwrite || std::env::var_os(name).is_none() {
             let value = value.to_str().map_err(io::Error::other)?;
-            let assignment = CString::new(format!("{name}={value}")).map_err(io::Error::other)?;
-            // Set the Win32 environment before loading interpreter libraries,
-            // whose CRTs retain their own environment copies. _putenv also
-            // updates Console's CRT view and copies its argument.
-            unsafe {
-                std::env::set_var(name, value);
-                if libc::putenv(assignment.as_ptr()) != 0 {
-                    return Err(io::Error::last_os_error());
-                }
-            }
+            synchronize_crt_environment(name, std::ffi::OsStr::new(value))?;
+        }
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    pub(super) fn synchronize_crt_environment(
+        name: &str,
+        value: &std::ffi::OsStr,
+    ) -> io::Result<()> {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+
+        let name_wide = std::ffi::OsStr::new(name)
+            .encode_wide()
+            .chain([0])
+            .collect::<Vec<_>>();
+        let value_wide = value.encode_wide().chain([0]).collect::<Vec<_>>();
+        // Both setters update the Win32 environment too. Console links its
+        // CRT statically; R and CPython can retain another loaded CRT's copy.
+        // Update that copy even after native R startup, when restoring hints
+        // such as RETICULATE_PYTHON before attaching the managed bridge.
+        let status = unsafe { libc::wputenv_s(name_wide.as_ptr(), value_wide.as_ptr()) };
+        if status != 0 {
+            return Err(io::Error::from_raw_os_error(status));
+        }
+        let module = unsafe { GetModuleHandleW(windows_sys::w!("ucrtbase.dll")) };
+        if module.is_null() {
+            return Ok(()); // No loaded shared CRT has an environment copy to update.
+        }
+        let address = unsafe { GetProcAddress(module, c"_wputenv_s".as_ptr().cast()) }
+            .ok_or_else(|| io::Error::other("loaded Windows CRT does not export _wputenv_s"))?;
+        let putenv: unsafe extern "C" fn(*const u16, *const u16) -> libc::c_int =
+            unsafe { std::mem::transmute(address) };
+        let status = unsafe { putenv(name_wide.as_ptr(), value_wide.as_ptr()) };
+        if status != 0 {
+            return Err(io::Error::from_raw_os_error(status));
         }
         Ok(())
     }
