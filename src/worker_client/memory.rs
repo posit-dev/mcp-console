@@ -49,7 +49,7 @@ impl MemoryMonitor {
                 #[cfg(target_os = "macos")]
                 let total = macos::total_memory();
                 #[cfg(target_os = "linux")]
-                let snapshot = linux::snapshot().map(Some);
+                let snapshot = linux::snapshot(root_pid, &cancelled);
                 #[cfg(target_os = "macos")]
                 let snapshot = macos::snapshot(root_pid, &cancelled);
                 #[cfg(any(target_os = "linux", target_os = "macos"))]
