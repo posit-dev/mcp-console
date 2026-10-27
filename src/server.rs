@@ -7,7 +7,7 @@ mod presentation;
 mod sandbox;
 pub(crate) use presentation::{materialized_tool, parameter_schema};
 pub(crate) use sandbox::Configuration as SandboxConfiguration;
-mod startup;
+pub(crate) mod startup;
 use std::error::Error;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -98,7 +98,7 @@ impl ConsoleServer {
         let inheritance = Arc::new(sandbox::Inheritance::new(sandbox.profile.clone()));
         let startup_inheritance = inheritance.clone();
         let startup = startup::Startup::new(
-            input_closed,
+            Some(input_closed),
             runtime,
             prelaunch,
             move |started, diagnostics| {
@@ -701,7 +701,7 @@ pub async fn run(
 }
 
 #[derive(Clone)]
-struct InputClosed(Arc<Mutex<Option<oneshot::Sender<Instant>>>>);
+pub(crate) struct InputClosed(Arc<Mutex<Option<oneshot::Sender<Instant>>>>);
 
 impl InputClosed {
     fn close(&self) {

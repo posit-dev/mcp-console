@@ -463,6 +463,7 @@ def _mcp_console_print_exception(
     _getattr=_builtins.getattr,
     _id=_builtins.id,
     _zip=_builtins.zip,
+    _record_error=_services.report_execution_error,
 ):
     # Build every frame first so filtering retains Python's source positions.
     rendered = _traceback.TracebackException.from_exception(error, limit=_sys.maxsize)
@@ -498,7 +499,9 @@ def _mcp_console_print_exception(
             remove_private_frames(child, child_summary)
 
     remove_private_frames(error, rendered)
-    _sys.stderr.write("".join(rendered.format()))
+    traceback = list(rendered.format())
+    _record_error(error, traceback)
+    _sys.stderr.write("".join(traceback))
 
 
 def _mcp_console_collect_plots(
@@ -605,6 +608,7 @@ def _mcp_console_eval_cell(
     _print_exception=_mcp_console_print_exception,
     _ValueError=_builtins.ValueError,
     _SyntaxError=_builtins.SyntaxError,
+    _display_result=_services.display_result,
 ):
     try:
         module = _parse(source, filename=filename, mode="exec")
@@ -627,7 +631,7 @@ def _mcp_console_eval_cell(
             if statements is not None:
                 _exec(statements, _main.__dict__)
             if expression is not None:
-                _sys.displayhook(_eval(expression, _main.__dict__))
+                _display_result(_eval(expression, _main.__dict__))
         except _BaseException as error:
             if _isinstance(error, _SystemExit):
                 raise

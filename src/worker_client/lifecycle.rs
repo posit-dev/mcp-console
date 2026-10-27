@@ -75,6 +75,15 @@ pub(super) enum SelectedInterruptTarget {
     NoTarget,
 }
 
+/// Pins the current operation before its blocking interrupt acknowledgment.
+pub(crate) struct IntegratorInterrupt(SelectedInterruptTarget);
+
+impl IntegratorInterrupt {
+    pub(crate) fn interrupt(self) -> Result<(), String> {
+        self.0.interrupt()
+    }
+}
+
 impl SelectedInterruptTarget {
     fn interrupt(&self) -> Result<(), String> {
         match self {
@@ -541,8 +550,12 @@ impl Client {
             .ensure_startup(generation)
     }
 
-    pub(super) fn interrupt_standalone_blocking(&self) -> Result<(), String> {
-        self.select_interrupt_target(false)?.interrupt()
+    pub(crate) fn interrupt_standalone_blocking(&self) -> Result<(), String> {
+        self.select_interrupt()?.interrupt()
+    }
+
+    pub(crate) fn select_interrupt(&self) -> Result<IntegratorInterrupt, String> {
+        self.select_interrupt_target(false).map(IntegratorInterrupt)
     }
 
     pub(super) fn interrupt_blocking(&self) -> Result<SelectedInterruptTarget, String> {

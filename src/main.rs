@@ -14,6 +14,7 @@ mod console_paths;
 mod input_watch;
 #[cfg(any(unix, windows))]
 mod jsonl;
+mod kernel;
 mod local_runtime;
 #[cfg(unix)]
 mod process_descriptors;
@@ -64,6 +65,40 @@ fn main() -> ExitCode {
     let cli = cli::Cli::parse();
     let mut overrides = cli.overrides;
     match cli.command {
+        cli::Command::Kernel {
+            language,
+            connection_file,
+            jupyter_python,
+            no_sandbox,
+            overrides: command_overrides,
+        } => {
+            if let Err(error) = overrides.extend(command_overrides) {
+                return exit_with_error(error);
+            }
+            match kernel::launch(
+                language,
+                &connection_file,
+                jupyter_python.as_deref(),
+                &overrides,
+                no_sandbox,
+            ) {
+                Ok(code) => code,
+                Err(error) => exit_with_error(error),
+            }
+        }
+        cli::Command::KernelController {
+            language,
+            no_sandbox,
+            overrides: command_overrides,
+        } => {
+            if let Err(error) = overrides.extend(command_overrides) {
+                return exit_with_error(error);
+            }
+            match kernel::run(language, &overrides, no_sandbox) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => exit_with_error(error),
+            }
+        }
         cli::Command::Warmup {
             overrides: command_overrides,
             no_sandbox,

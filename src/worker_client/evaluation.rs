@@ -43,6 +43,7 @@ struct EvaluationState {
     input_request: Option<InputRequest>,
     /// Worker entry remains observed after restart closes response capture.
     cell_entered: bool,
+    language_failed: bool,
     /// Whether one `send` currently owns the right to drain this evaluation's response.
     waiting: bool,
     /// Restart or controlled handoff permanently retires this evaluation.
@@ -164,6 +165,7 @@ impl Evaluation {
                 controlled_completion,
                 input_request: None,
                 cell_entered: false,
+                language_failed: false,
                 waiting: false,
                 retired: false,
                 restart_handoff: None,
@@ -442,24 +444,26 @@ impl Evaluation {
 
     /// Queues text and briefly defers any outstanding input report for its receipt.
     pub(super) fn submit_stdin(&self, stdin: String) -> Result<(), String> {
+        self.state
+            .lock()
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?
+            .submit_stdin(stdin)
+    }
+
+    /// Deliver a managed-input reply without claiming the integrator's result.
+    pub(super) fn submit_integrator_stdin(&self, stdin: String) -> Result<(), String> {
         let mut state = self
             .state
             .lock()
             .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        if stdin.is_empty() {
-            return Ok(());
+        if !self.is_integrator()
+            || state.retired
+            || !matches!(state.phase, EvaluationPhase::Evaluating)
+            || state.input_request.is_none()
+        {
+            return Err("integrator evaluation is not waiting for input".into());
         }
-
-        if let Some(request) = state.input_request.as_mut() {
-            request.report_at = Instant::now() + INPUT_REQUEST_GRACE;
-        }
-        #[cfg(any(unix, windows))]
-        if let Some(writer) = &state.stdin {
-            writer.send(stdin)?;
-            return Ok(());
-        }
-        state.pending_stdin.push_str(&stdin);
-        Ok(())
+        state.submit_stdin(stdin)
     }
 
     #[cfg(any(unix, windows))]
@@ -522,6 +526,25 @@ impl Evaluation {
             report_at: Instant::now() + INPUT_REQUEST_GRACE,
         });
         self.changed.notify_one();
+        Ok(())
+    }
+
+    pub(super) fn execution_error(
+        &self,
+        error: crate::worker_protocol::ExecutionError,
+    ) -> Result<(), String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
+        if !state.cell_entered || state.language_failed {
+            return Err(
+                "worker reported an execution error outside its cell or more than once".into(),
+            );
+        }
+        state.language_failed = true;
+        self.output
+            .publish_kernel_event(super::KernelEvent::ExecutionError(error));
         Ok(())
     }
 
@@ -918,6 +941,22 @@ impl Evaluation {
 }
 
 impl EvaluationState {
+    fn submit_stdin(&mut self, stdin: String) -> Result<(), String> {
+        if stdin.is_empty() {
+            return Ok(());
+        }
+        if let Some(request) = self.input_request.as_mut() {
+            request.report_at = Instant::now() + INPUT_REQUEST_GRACE;
+        }
+        #[cfg(any(unix, windows))]
+        if let Some(writer) = &self.stdin {
+            writer.send(stdin)?;
+            return Ok(());
+        }
+        self.pending_stdin.push_str(&stdin);
+        Ok(())
+    }
+
     fn track_delivery(&mut self, response: &mut Response) {
         assert!(
             self.delivery.is_none(),

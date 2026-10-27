@@ -216,8 +216,19 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     let status = run_repl_cell();
     clear_cell_source();
     match status {
-        0 | 1 => Ok(()),
+        0 => {
+            super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "RError",
+                harp::exec::r_peek_error_buffer(),
+            ));
+            Ok(())
+        }
+        1 => Ok(()),
         2 => {
+            super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "SyntaxError",
+                "Incomplete code",
+            ));
             emit_output(ConsoleChannel::Diagnostic, b"Error: Incomplete code\n");
             Ok(())
         }

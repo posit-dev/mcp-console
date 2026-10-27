@@ -202,7 +202,8 @@ fn native_python_setup_runs_cells_without_r() {
         loop {
             let message = receive_python_probe(&mut reader, &mut child);
             match message {
-                WorkerMessage::ConsoleOutput { data } => output.push_str(&data),
+                WorkerMessage::ConsoleOutput { data }
+                | WorkerMessage::ExecutionResult { text: data } => output.push_str(&data),
                 WorkerMessage::ConsoleDiagnostic { data } => diagnostic.push_str(&data),
                 WorkerMessage::Completed => break,
                 _ => panic!("unexpected native Python response"),
@@ -290,7 +291,7 @@ fn native_python_activation_preserves_runtime_without_r() {
         ));
         loop {
             match receive_python_probe(&mut reader, &mut child) {
-                WorkerMessage::ConsoleOutput { .. } => {}
+                WorkerMessage::ConsoleOutput { .. } | WorkerMessage::ExecutionResult { .. } => {}
                 WorkerMessage::Completed => break,
                 _ => panic!("native activation setup failed"),
             }
@@ -299,7 +300,8 @@ fn native_python_activation_preserves_runtime_without_r() {
         let mut diagnostic = String::new();
         loop {
             match receive_python_probe(&mut reader, &mut child) {
-                WorkerMessage::ConsoleOutput { data } => output.push_str(&data),
+                WorkerMessage::ConsoleOutput { data }
+                | WorkerMessage::ExecutionResult { text: data } => output.push_str(&data),
                 WorkerMessage::ConsoleDiagnostic { data } => diagnostic.push_str(&data),
                 WorkerMessage::Completed => break,
                 _ => panic!("unexpected native activation response"),

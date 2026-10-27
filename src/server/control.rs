@@ -14,7 +14,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::{JoinHandle, JoinSet};
 
 use super::ConsoleServer;
-use crate::worker_client::{Content, IntegratorError, Response};
+use crate::worker_client::{Content, IntegratorError, IntegratorWait, Response};
 
 const MAX_FRAME: usize = 1024 * 1024;
 const MAX_CONNECTIONS: usize = 64;
@@ -324,9 +324,9 @@ async fn handle(
                 ..
             } => {
                 let wait = match (busy, wait_ms) {
-                    (Busy::Reject, None) => None,
+                    (Busy::Reject, None) => IntegratorWait::Reject,
                     (Busy::Wait, Some(milliseconds)) => {
-                        Some(Duration::from_millis(milliseconds.into()))
+                        IntegratorWait::Timeout(Duration::from_millis(milliseconds.into()))
                     }
                     _ => {
                         return Err((

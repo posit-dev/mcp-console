@@ -118,6 +118,34 @@ impl ConfigOverrides {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Run a single-language Jupyter kernel through the Python transport adapter
+    #[command(display_order = 2)]
+    Kernel {
+        #[command(flatten)]
+        overrides: ConfigOverrides,
+        /// Source language for every execution in this kernel
+        #[arg(long, value_enum, value_name = "LANG")]
+        language: crate::kernel::Language,
+        /// Jupyter connection file supplied by the kernel manager
+        #[arg(long, value_name = "PATH")]
+        connection_file: PathBuf,
+        /// Python executable with the optional Jupyter dependencies installed
+        #[arg(long, value_name = "PATH")]
+        jupyter_python: Option<PathBuf>,
+        /// Run evaluated code and dependency resolution with host permissions
+        #[arg(long)]
+        no_sandbox: bool,
+    },
+    /// Private process-owned controller transport for the Jupyter adapter
+    #[command(hide = true)]
+    KernelController {
+        #[command(flatten)]
+        overrides: ConfigOverrides,
+        #[arg(long, value_enum)]
+        language: crate::kernel::Language,
+        #[arg(long)]
+        no_sandbox: bool,
+    },
     /// Check the configured server and runtimes and warm their caches
     ///
     /// Dependency preparation runs with host permissions, using the same caches

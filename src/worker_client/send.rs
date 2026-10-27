@@ -22,13 +22,19 @@ pub(super) fn send_response_from_wait(wait: EvaluationWait) -> SendResponse {
         EvaluationWait::ReplacementStarting(output) => SendResponse::ReplacementStarting(output),
         EvaluationWait::ReplacementReady(output) => SendResponse::ReplacementReady(output),
         EvaluationWait::Completed(output) => SendResponse::Completed(output),
-        EvaluationWait::Reclaimed(output) | EvaluationWait::Restarted(output) => {
+        EvaluationWait::Reclaimed(output) => SendResponse::Restarted(output),
+        EvaluationWait::Restarted(mut output) => {
+            output.restarted();
             SendResponse::Restarted(output)
         }
     }
 }
 
 impl Client {
+    pub(crate) fn kernel_events(&self) -> tokio::sync::mpsc::UnboundedReceiver<super::KernelEvent> {
+        self.0.output.kernel_events()
+    }
+
     /// Interprets preparation, control, evaluation, stdin, and polling for the session.
     pub(crate) async fn send(
         &self,

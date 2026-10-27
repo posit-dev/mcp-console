@@ -1,4 +1,4 @@
-//! Share initial preparation attempts while the MCP connection owns cancellation.
+//! Share initial preparation attempts under the owning transport's cancellation.
 #[cfg(unix)]
 use std::mem::MaybeUninit;
 #[cfg(unix)]
@@ -9,21 +9,21 @@ use std::sync::{Arc, Mutex};
 
 const REGISTRATION_CLOSED: &str = "MCP connection closed during runtime preparation";
 
-pub(super) struct Runtime {
+pub(crate) struct Runtime {
     pub worker: crate::worker_client::Client,
     pub transcript: crate::transcript::Transcript,
 }
 
-pub(super) struct PreparedRuntime {
+pub(crate) struct PreparedRuntime {
     pub configuration: crate::worker_client::ClientConfiguration,
     pub transcript: crate::transcript::Transcript,
 }
 
 #[derive(Clone)]
-pub(super) struct Startup {
+pub(crate) struct Startup {
     runtime: Arc<Runtime>,
     cancellation: Arc<Mutex<Cancellation>>,
-    input_closed: super::InputClosed,
+    input_closed: Option<super::InputClosed>,
     prelaunch: bool,
     initialize: Arc<Initializer>,
 }
@@ -47,7 +47,7 @@ struct Cancellation {
 
 impl Startup {
     pub fn new(
-        input_closed: super::InputClosed,
+        input_closed: Option<super::InputClosed>,
         runtime: Arc<Runtime>,
         prelaunch: bool,
         initialize: impl Fn(
@@ -239,15 +239,35 @@ impl Startup {
             Err(error)
         }
     }
+
+    /// A managed kernel reports setup failure to its execute request. Later
+    /// shutdown must distinguish that result from unconfirmed resource cleanup.
+    pub(crate) fn confirm_preparation_retired(&self, error: String) -> Result<(), String> {
+        let control = self.cancellation.lock().expect("startup cancellation lock");
+        if control
+            .resolvers
+            .iter()
+            .all(|resolver| resolver.cleanup_confirmed() && resolver.retirement_confirmed())
+        {
+            Ok(())
+        } else {
+            Err(error)
+        }
+    }
 }
 
 /// Observe peer closure without consuming queued MCP messages, even when the
 /// protocol task is blocked writing its initialization response.
 #[cfg(unix)]
 fn observe_input<T>(
-    input_closed: super::InputClosed,
+    input_closed: Option<super::InputClosed>,
     initialize: impl FnOnce() -> Result<T, String>,
 ) -> Result<T, String> {
+    // The kernel controller reads its private pipe independently of preparation.
+    // Only MCP needs this extra, non-consuming startup EOF observer.
+    let Some(input_closed) = input_closed else {
+        return initialize();
+    };
     let mut input = MaybeUninit::<libc::stat>::uninit();
     // SAFETY: `input` points to writable storage for the descriptor's status.
     if unsafe { libc::fstat(libc::STDIN_FILENO, input.as_mut_ptr()) } != 0 {
@@ -280,7 +300,7 @@ fn observe_input<T>(
 
 #[cfg(not(unix))]
 fn observe_input<T>(
-    _input_closed: super::InputClosed,
+    _input_closed: Option<super::InputClosed>,
     initialize: impl FnOnce() -> Result<T, String>,
 ) -> Result<T, String> {
     initialize()

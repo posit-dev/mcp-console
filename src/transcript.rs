@@ -131,10 +131,7 @@ pub(crate) struct Call {
 
 enum CallSource {
     Mcp,
-    #[cfg(unix)]
-    Integrator {
-        include_in_projections: bool,
-    },
+    Integrator { include_in_projections: bool },
 }
 #[derive(Clone)]
 pub(crate) struct Artifact {
@@ -250,7 +247,6 @@ impl Transcript {
         )
     }
 
-    #[cfg(unix)]
     pub(crate) fn begin_integrator(
         &self,
         request_id: &RequestId,
@@ -280,7 +276,6 @@ impl Transcript {
     ) -> Call {
         let (origin, omit_from_projections) = match source {
             CallSource::Mcp => (None, false),
-            #[cfg(unix)]
             CallSource::Integrator {
                 include_in_projections,
             } => (Some("integrator"), !include_in_projections),

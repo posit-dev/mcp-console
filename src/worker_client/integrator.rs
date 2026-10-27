@@ -14,6 +14,13 @@ pub(crate) enum IntegratorError {
     Failed(String),
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum IntegratorWait {
+    Reject,
+    Timeout(Duration),
+    Forever,
+}
+
 impl From<String> for IntegratorError {
     fn from(message: String) -> Self {
         Self::Failed(message)
@@ -21,10 +28,33 @@ impl From<String> for IntegratorError {
 }
 
 impl Client {
+    /// The caller associates this reply with its outstanding managed-input event.
+    /// Select and enqueue under lifecycle ownership so it cannot reach a replacement.
+    pub(crate) fn integrator_stdin(&self, input: String) -> Result<(), String> {
+        let active = self.evaluation()?;
+        let lifecycle = self
+            .0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        lifecycle.ensure_generation(&lifecycle.generation)?;
+        if let Some(active) = active.as_ref() {
+            lifecycle.ensure_generation(&active.evaluation.admission.generation)?;
+            return active.evaluation.submit_integrator_stdin(input);
+        }
+        #[cfg(any(unix, windows))]
+        if let Some(worker) = lifecycle.worker_connection()
+            && worker.is_bootstrapping()?
+        {
+            return worker.write_startup_stdin(input);
+        }
+        Err("integrator worker is not waiting for startup input".into())
+    }
+
     pub(crate) async fn integrator_evaluate(
         &self,
         cell: crate::cell::Cell,
-        wait: Option<Duration>,
+        wait: IntegratorWait,
         transcript: crate::transcript::Transcript,
         call_id: Option<u64>,
         mut cancelled: tokio::sync::watch::Receiver<bool>,
@@ -40,14 +70,17 @@ impl Client {
                 .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
             (lifecycle.generation.clone(), lifecycle.worker_connection())
         };
-        let deadline = wait.map(|wait| Instant::now() + wait);
-        if let Some(deadline) = deadline {
-            pending(deadline, &mut cancelled, self.ready()).await??;
-        } else {
+        let deadline = match wait {
+            IntegratorWait::Timeout(duration) => Some(Instant::now() + duration),
+            IntegratorWait::Reject | IntegratorWait::Forever => None,
+        };
+        if matches!(wait, IntegratorWait::Reject) {
             self.startup_result()
                 .borrow()
                 .clone()
                 .ok_or(IntegratorError::Busy)??;
+        } else {
+            pending(deadline, &mut cancelled, self.ready()).await??;
         }
         self.validate_cell(&cell)?;
         let mut first_attempt = true;
@@ -58,21 +91,21 @@ impl Client {
             let changed = self.0.admission_changed.notified();
             tokio::pin!(changed);
             changed.as_mut().enable();
-            let operation = match deadline {
-                Some(deadline) => {
+            let operation = match wait {
+                IntegratorWait::Timeout(_) | IntegratorWait::Forever => {
                     pending(deadline, &mut cancelled, self.0.admission.read()).await?
                 }
-                None => self
+                IntegratorWait::Reject => self
                     .0
                     .admission
                     .try_read()
                     .map_err(|_| IntegratorError::Busy)?,
             };
-            let preparation = match deadline {
-                Some(deadline) => {
+            let preparation = match wait {
+                IntegratorWait::Timeout(_) | IntegratorWait::Forever => {
                     pending(deadline, &mut cancelled, self.0.preparation.read()).await?
                 }
-                None => self
+                IntegratorWait::Reject => self
                     .0
                     .preparation
                     .try_read()
@@ -109,7 +142,7 @@ impl Client {
                 // Tokio timeouts can return an already-ready future after their
                 // deadline. Only a zero-duration first attempt is an idle probe.
                 if deadline.is_some_and(|deadline| Instant::now() >= deadline)
-                    && (wait != Some(Duration::ZERO) || !first_attempt)
+                    && (!matches!(wait, IntegratorWait::Timeout(Duration::ZERO)) || !first_attempt)
                 {
                     return Err(IntegratorError::Timeout);
                 }
@@ -135,9 +168,9 @@ impl Client {
             }
             drop(preparation);
             drop(operation);
-            let Some(deadline) = deadline else {
+            if matches!(wait, IntegratorWait::Reject) {
                 return Err(IntegratorError::Busy);
-            };
+            }
             first_attempt = false;
             if !waiting_recorded {
                 transcript.protocol(
@@ -251,7 +284,7 @@ impl Client {
 }
 
 async fn pending<T>(
-    deadline: Instant,
+    deadline: Option<Instant>,
     cancelled: &mut tokio::sync::watch::Receiver<bool>,
     future: impl std::future::Future<Output = T>,
 ) -> Result<T, IntegratorError> {
@@ -261,6 +294,12 @@ async fn pending<T>(
     tokio::select! {
         biased;
         _ = cancelled.changed() => Err(IntegratorError::Cancelled),
-        result = tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), future) => result.map_err(|_| IntegratorError::Timeout),
+        result = async {
+            match deadline {
+                Some(deadline) => tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), future)
+                    .await.map_err(|_| IntegratorError::Timeout),
+                None => Ok(future.await),
+            }
+        } => result,
     }
 }

@@ -61,6 +61,29 @@ Previously pending MCP output stays with MCP.
 Inspection copies bounded presentation state without draining output, sealing terminal frames, accounting omissions, or acknowledging delivery.
 The socket does not select a new sandbox authority or add interpreter execution threads.
 
+### Jupyter controller
+
+The `kernel` entry point launches the embedded Python Jupyter adapter in an infrastructure Python environment.
+The adapter owns the standard Jupyter sockets and starts one native `kernel-controller` child over private JSONL pipes.
+Both processes remain outside the workload sandbox.
+The controller uses the integrator admission and terminal collector above; it does not add another execution lifecycle.
+Its source language is fixed by the launch arguments.
+
+[`kernel/controller.rs`](../src/kernel/controller.rs) owns the private command and event schema.
+Execution, exact UTF-8 input, interrupt, and shutdown commands carry request IDs.
+Raw stream, image, expression-result, managed-input, and structured-error events precede the matching execution completion.
+The raw subscription observes the existing output tape before MCP preview budgets apply.
+Interrupt selection captures the current preparation or execution target before asynchronous delivery.
+Input must match the active execution and an outstanding managed request.
+
+Jupyter transport setup precedes preparation, which starts with the first execution's stdin policy.
+The native controller uses configured sandbox authority without MCP client metadata.
+Frontend disconnection does not close the private pipes or retire live objects.
+Private pipe closure or shutdown retires native resources, settles the execution collector, and finalizes recordings.
+A Jupyter restart request follows the same cleanup and exits both processes; the manager launches the replacement from configuration.
+No Jupyter output-observation receipt is inferred from writing a message.
+See [Jupyter kernels](JUPYTER.md) for launch and frontend behavior.
+
 ## Startup and runtime ownership
 
 The server captures configuration once and constructs tool presentation from it.

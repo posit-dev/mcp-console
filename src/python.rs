@@ -166,6 +166,10 @@ impl Runtime {
         let filename = format!("<mcp-console:python:e{}>", self.next_evaluation_id);
         self.next_evaluation_id += 1;
         if !ensure_initialized()? {
+            crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "PythonInitializationError",
+                "Python initialization did not complete",
+            ));
             return Ok(());
         }
         evaluate_embedded(source, &filename)

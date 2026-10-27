@@ -725,6 +725,10 @@ pub(super) fn evaluate(source: &str, filename: &str) -> Result<(), String> {
             if (api.err_exception_matches)(api.system_exit as *mut PyObject) != 0 {
                 (api.err_print)();
             } else {
+                crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                    "PythonError",
+                    "Python evaluation failed",
+                ));
                 api.display_pending_exception();
             }
         } else {
@@ -1206,6 +1210,10 @@ impl PythonApi {
                 // Database errors are normally caught by the Python adapter.
                 // Escaping exceptions such as KeyboardInterrupt remain ordinary
                 // console output and must not fall through to an R provider.
+                crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                    "SQLError",
+                    "SQL evaluation failed",
+                ));
                 self.display_pending_exception();
                 return Ok(super::SqlProvider::Handled);
             }

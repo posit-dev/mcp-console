@@ -3,6 +3,11 @@
 Console retains calls, source, input, requirements, output, and artifacts on the execution host, without redaction.
 For reading a recording, retrieving omitted output, or making a report, see [Recordings and reports](RECORDING.md).
 
+Jupyter kernels use the same recording owner through integrator execution.
+`silent` and `store_history` control Jupyter publication and history; they do not disable Console's audit recording.
+Shutdown settles the execution and recording before the kernel process exits, including when the request asks for restart.
+The replacement starts a new recording from launch configuration.
+
 ## Storage and retention
 
 If `.agents/console` already exists in the launch directory, recordings use `.agents/console/sessions/<run-id>/`.

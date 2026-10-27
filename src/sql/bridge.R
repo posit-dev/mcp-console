@@ -723,7 +723,14 @@ base::local(
         )
         if (nchar(output, type = "bytes") + 1L <= response_bytes) {
           # MCP carries UTF-8 even when R runs in the C locale.
-          writeLines(enc2utf8(output), useBytes = TRUE)
+          if (sink.number() == 0L) {
+            .Call(
+              "mcp_console_sql_publish_result",
+              paste0(enc2utf8(output), "\n")
+            )
+          } else {
+            writeLines(enc2utf8(output), useBytes = TRUE)
+          }
           return(invisible(NULL))
         }
         if (visible_rows > 0L) {
@@ -765,12 +772,13 @@ base::local(
             render_preview(preview)
           }
           complete <- TRUE
+          ""
         },
         error = function(error) {
           cat("Error: ", conditionMessage(error), "\n", sep = "")
+          conditionMessage(error)
         }
       )
-      invisible(NULL)
     }
 
     interrupted <- FALSE

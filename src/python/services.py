@@ -56,6 +56,20 @@ def resolve_import(module: str, distribution: str) -> str:
     )
 
 
+def report_execution_error(
+    error: BaseException, traceback: list[str] | None = None
+) -> None:
+    execution_error(
+        json.dumps(
+            {
+                "ename": type(error).__name__,
+                "evalue": str(error),
+                "traceback": [] if traceback is None else traceback,
+            }
+        )
+    )
+
+
 def install_interrupt() -> None:
     signal.signal(signal.SIGINT, interrupt)
 
@@ -64,6 +78,28 @@ def install_interrupt() -> None:
 # restoring input and interrupt hooks preserves user stream redirections.
 sys.stdout = _Output(sys.stdout, write)
 sys.stderr = _Output(sys.stderr, diagnostic)
+_console_stdout = sys.stdout
+_default_displayhook = sys.__displayhook__
+
+
+def display_result(value: object, _repr: Callable[[object], str] = repr) -> None:
+    # User hooks and redirected stdout retain their ordinary display semantics.
+    if sys.displayhook is not _default_displayhook or sys.stdout is not _console_stdout:
+        sys.displayhook(value)
+        return
+    if value is None:
+        return
+    builtins._ = None
+    text = _repr(value)
+    execution_result(text + "\n")
+    builtins._ = value
+
+
+def display_text_result(text: str) -> None:
+    if sys.stdout is _console_stdout:
+        execution_result(text)
+    else:
+        sys.stdout.write(text)
 
 
 def install_services() -> None:
