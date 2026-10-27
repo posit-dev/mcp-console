@@ -287,6 +287,7 @@ class WebsiteTests(unittest.TestCase):
         public_commands = [
             "mcp-console --help",
             "mcp-console serve --help",
+            "mcp-console kernel --help",
             "mcp-console warmup --help",
             "mcp-console sandbox --help",
             "mcp-console config --help",

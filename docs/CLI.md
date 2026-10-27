@@ -1,6 +1,6 @@
 # Command-line reference
 
-Use `serve` to run the MCP server, `warmup` to check the runtimes and warm caches, `sandbox` to run one command under a sandbox, `config init` to create shared settings, `config resolve` to inspect configuration, and `configure-client` to register Console with a client.
+Use `kernel` to run a [single-language Jupyter kernel](JUPYTER.md), `serve` to run the MCP server, `warmup` to check the runtimes and warm caches, `sandbox` to run one command under a sandbox, `config init` to create shared settings, `config resolve` to inspect configuration, and `configure-client` to register Console with a client.
 Console runs on the local host; it does not create remote connections.
 
 See [Install and connect](CLIENTS.md) for supported hosts and runtime setup.

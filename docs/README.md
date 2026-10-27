@@ -24,6 +24,7 @@ These guides introduce Console through a session with your agent:
 | ------------------------------------------------------------ | --------------------------------------------------- |
 | Install Console or connect an MCP client                     | [Install and connect](CLIENTS.md)                   |
 | Use Console from R                                           | [Use Console from R](R.md)                          |
+| Run a single-language Jupyter kernel with Kallichore         | [Jupyter kernels](JUPYTER.md)                       |
 | Use Console from Python                                      | [Use Console from Python](PYTHON.md)                |
 | Explore data across R, Python, and SQL                       | [Sessions and languages](BUILTIN_RUNTIME.md)        |
 | Use packages or an existing Python environment               | [Packages and environments](REQUIREMENTS.md)        |
