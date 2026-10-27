@@ -1,0 +1,117 @@
+---
+scenario: A published ark kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter-reticulate.direct.yaml
+---
+send:
+  python: |
+    import asyncio
+
+    event = asyncio.Event()
+    task = asyncio.create_task(event.wait())
+    await asyncio.sleep(0)
+    print(task.done())
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  python: |-
+    event.set()
+    await task
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  python: raise ValueError("shared kernel error")
+result:
+  content:
+    - type: text
+      text: |
+        ---------------------------------------------------------------------------
+        ValueError                                Traceback (most recent call last)
+        Cell In[3], line 1
+        ----> 1 raise ValueError("shared kernel error")
+
+        ValueError: shared kernel error
+  isError: false
+---
+send:
+  python: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: |-
+    name = input("Python name: ")
+    print("hello", name)
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "Python name: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    Ada
+result:
+  content:
+    - type: text
+      text: |
+        hello Ada
+  isError: false
+---
+send:
+  r: >-
+    r_name <- readline("R name: "); cat("hello ", r_name, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "R name: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    Grace
+result:
+  content:
+    - type: text
+      text: |
+        hello Grace
+  isError: false
+---
+send:
+  python: name + ' ' + r.r_name
+result:
+  content:
+    - type: text
+      text: |
+        'Ada Grace'
+  isError: false
+---
+send:
+  r: cat("R still ready\n")
+result:
+  content:
+    - type: text
+      text: |
+        R still ready
+  isError: false

@@ -19,10 +19,10 @@ result:
     - type: text
       text: |-
         Traceback (most recent call last):
-          File "<string>", line 536, in <module>
+          File "<string>", line 693, in <module>
             main()
             ~~~~^^
-          File "<string>", line 532, in main
+          File "<string>", line 689, in main
             asyncio.run(Adapter(options).run())
             ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
           File "<python-stdlib>/asyncio/runners.py", line 196, in run
@@ -34,12 +34,12 @@ result:
           File "<python-stdlib>/asyncio/base_events.py", line 726, in run_until_complete
             return future.result()
                    ~~~~~~~~~~~~~^^
-          File "<string>", line 522, in run
+          File "<string>", line 677, in run
             raise outcome
-          File "<string>", line 514, in run
+          File "<string>", line 669, in run
             task.result()
             ~~~~~~~~~~~^^
-          File "<string>", line 141, in interrupt
+          File "<string>", line 164, in interrupt
             raise RuntimeError("Jupyter startup interrupted")
         RuntimeError: Jupyter startup interrupted
         [worker sideband read failed: worker sideband closed]

@@ -1,0 +1,75 @@
+---
+scenario: A published ark kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  TCP transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter-reticulate.direct.yaml
+---
+send:
+  r: |
+    shared <- 40L
+    r_pid <- Sys.getpid()
+    cat("R ready\n")
+result:
+  content:
+    - type: text
+      text: |
+        R ready
+  isError: false
+---
+send:
+  python: |
+    import os
+
+    print("same process:", os.getpid() == r.r_pid)
+    from_python = r.shared + 2
+    print(from_python)
+result:
+  content:
+    - type: text
+      text: |
+        same process: True
+        42
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(reticulate::py$from_python == 42L);
+    print(reticulate::py$from_python)
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  code: cat(shared + 2L, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  requirements:
+    r:
+      - DBI
+result:
+  content:
+    - type: text
+      text: >-
+        dependency preparation is unavailable with Jupyter kernels; install
+        packages in the kernel environment before launch
+  isError: true
+---
+send:
+  python: print(from_python)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

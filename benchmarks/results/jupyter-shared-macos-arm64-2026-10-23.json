@@ -1,0 +1,1502 @@
+{
+  "method": {
+    "launches_per_variant": 5,
+    "warm_cells_per_launch": 30,
+    "source": "x = 1",
+    "startup_interval": "Before MCP process launch through the first completed assignment, including MCP initialization and tool discovery.",
+    "warm_interval": "One complete public send call after the first assignment.",
+    "dependency_preparation": "None: existing Python executable and published R library selected; ir/uv absent from child PATH; R resolution disabled.",
+    "execution": "Variants ending in -sandbox use the default read-only sandbox; other variants use direct execution. Normal Console recording in a new temporary workspace per launch.",
+    "cache_state": "Installed-runtime caches remain warm. Jupyter launches use fresh IPython profiles; direct launches use fresh Jupyter configuration directories, and sandboxed launches use disposable worker caches.",
+    "memory": "ps RSS after warm cells for Console and all descendants; includes shared-page double counting, excludes benchmark client, is not peak RSS.",
+    "sample_order": "Round robin in listed variant order, one new launch per variant per round.",
+    "shared_initialization": "builtin-r-python and ark-shared-ipykernel-python variants execute invisible(NULL) in R before the first Python assignment, within the startup interval."
+  },
+  "host": {
+    "platform": "macOS-26.7.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M4 Max",
+    "logical_cpus": 16,
+    "memory_bytes": 137438953472
+  },
+  "binary": {
+    "path": "<checkout>/target/release/mcp-console",
+    "bytes": 12391632,
+    "sha256": "9b8d63ba8fc4e001dfcd99a16176045d9770cf1913972d4cbe40eb449e789a52"
+  },
+  "dependencies": {
+    "python": "3.13.16 (main, Oct  3 2026, 00:54:36) [Clang 22.1.3 ]",
+    "jupyter_client": "8.10.0",
+    "ipykernel": "7.4.0",
+    "pyzmq": "27.2.0",
+    "ark": "Ark 0.1.252",
+    "r_and_reticulate": "R version 4.6.1 (2026-06-24)\nreticulate 1.47.0"
+  },
+  "variants": {
+    "builtin-r-python": {
+      "status": "ok",
+      "samples": [
+        {
+          "first_result_seconds": 1.2194929160177708,
+          "warm_cell_seconds": [
+            0.003307666047476232,
+            0.0031959170009940863,
+            0.003173957928083837,
+            0.0034072500420734286,
+            0.003217875026166439,
+            0.003142082947306335,
+            0.0032024580286815763,
+            0.003183291992172599,
+            0.003205416025593877,
+            0.003212875104509294,
+            0.0031853329855948687,
+            0.003202624968253076,
+            0.003121541114524007,
+            0.003175124991685152,
+            0.0031794579699635506,
+            0.0031450409442186356,
+            0.00317349995020777,
+            0.0031469169771298766,
+            0.0031362500740215182,
+            0.003141000051982701,
+            0.0031262499978765845,
+            0.0030507500050589442,
+            0.0030577919678762555,
+            0.0030931250657886267,
+            0.003120915964245796,
+            0.003141416935250163,
+            0.003249499946832657,
+            0.0032791249686852098,
+            0.002990292035974562,
+            0.004058125079609454
+          ],
+          "warm_median_seconds": 0.0031745414598844945,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 134384,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 37426,
+                "parent_pid": 37403,
+                "rss_kib": 10288,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37427,
+                "parent_pid": 37426,
+                "rss_kib": 5168,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37447,
+                "parent_pid": 37426,
+                "rss_kib": 4848,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37448,
+                "parent_pid": 37447,
+                "rss_kib": 114080,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.4762037909822538,
+          "warm_cell_seconds": [
+            0.003319542040117085,
+            0.0033742079976946115,
+            0.003341458970680833,
+            0.003400541958399117,
+            0.0033120840089395642,
+            0.003307500039227307,
+            0.0033532080706208944,
+            0.0032416670583188534,
+            0.0029293750412762165,
+            0.0034850420197471976,
+            0.0034604999236762524,
+            0.003692333004437387,
+            0.003054708009585738,
+            0.004335790988989174,
+            0.003256708034314215,
+            0.003294916939921677,
+            0.0020329171093180776,
+            0.0031113330041989684,
+            0.003261249978095293,
+            0.0035130829783156514,
+            0.0032625410240143538,
+            0.0032444170210510492,
+            0.0029459999641403556,
+            0.0033780409721657634,
+            0.0033167500514537096,
+            0.0032093330519273877,
+            0.0033012089552357793,
+            0.0031761249992996454,
+            0.0039094999665394425,
+            0.003384500043466687
+          ],
+          "warm_median_seconds": 0.0033097920240834355,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 133664,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 37669,
+                "parent_pid": 37403,
+                "rss_kib": 10256,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37670,
+                "parent_pid": 37669,
+                "rss_kib": 5200,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37716,
+                "parent_pid": 37669,
+                "rss_kib": 4912,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37717,
+                "parent_pid": 37716,
+                "rss_kib": 113296,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.2945800829911605,
+          "warm_cell_seconds": [
+            0.0036720409989356995,
+            0.0036428329767659307,
+            0.0035123330308124423,
+            0.0034063749480992556,
+            0.0034923750208690763,
+            0.0034318340476602316,
+            0.003278749994933605,
+            0.0033528750063851476,
+            0.0032324170460924506,
+            0.003563124919310212,
+            0.003340834053233266,
+            0.00343000004068017,
+            0.0035221249563619494,
+            0.0035555000649765134,
+            0.004387416993267834,
+            0.00368899991735816,
+            0.003691833931952715,
+            0.003605916048400104,
+            0.0035946660209447145,
+            0.003624500008299947,
+            0.003683250048197806,
+            0.0034890000242739916,
+            0.003281207988038659,
+            0.003331167041324079,
+            0.0032865419052541256,
+            0.003215540898963809,
+            0.0032965000718832016,
+            0.0031062500784173608,
+            0.0034179590875282884,
+            0.0032900000223889947
+          ],
+          "warm_median_seconds": 0.0034604170359671116,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 133104,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 37925,
+                "parent_pid": 37403,
+                "rss_kib": 10224,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37926,
+                "parent_pid": 37925,
+                "rss_kib": 5120,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37969,
+                "parent_pid": 37925,
+                "rss_kib": 4880,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37970,
+                "parent_pid": 37969,
+                "rss_kib": 112880,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.2315389160066843,
+          "warm_cell_seconds": [
+            0.003183749970048666,
+            0.003456292091868818,
+            0.0032030000584200025,
+            0.0032154159853234887,
+            0.0031361249275505543,
+            0.003166500013321638,
+            0.003135083010420203,
+            0.003118499997071922,
+            0.003924707998521626,
+            0.003132999991066754,
+            0.0031900829635560513,
+            0.0030954580288380384,
+            0.003098707995377481,
+            0.003102625021710992,
+            0.0031217089854180813,
+            0.0029972089687362313,
+            0.0031714589567855,
+            0.0031158329220488667,
+            0.0031256249640136957,
+            0.0030914159724488854,
+            0.0031309580663219094,
+            0.0035420830827206373,
+            0.0028875829884782434,
+            0.003046666970476508,
+            0.0030580000020563602,
+            0.003049416933208704,
+            0.003113499958999455,
+            0.00395675003528595,
+            0.0035244170576334,
+            0.0031190409790724516
+          ],
+          "warm_median_seconds": 0.0031282915151678026,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 132944,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 38126,
+                "parent_pid": 37403,
+                "rss_kib": 10192,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38127,
+                "parent_pid": 38126,
+                "rss_kib": 5152,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38145,
+                "parent_pid": 38126,
+                "rss_kib": 4896,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38146,
+                "parent_pid": 38145,
+                "rss_kib": 112704,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.1950514169875532,
+          "warm_cell_seconds": [
+            0.002994250040501356,
+            0.0032122499542310834,
+            0.0033352499594911933,
+            0.0031538340263068676,
+            0.003058374975807965,
+            0.003230083966627717,
+            0.0032322920160368085,
+            0.0033979580039158463,
+            0.0033819160889834166,
+            0.0031877500005066395,
+            0.003234207979403436,
+            0.003366291057318449,
+            0.0029925419948995113,
+            0.003311375039629638,
+            0.003382125054486096,
+            0.003437708946876228,
+            0.0032849169801920652,
+            0.003156375023536384,
+            0.0032221670262515545,
+            0.0032877910416573286,
+            0.0031590419821441174,
+            0.0032314170384779572,
+            0.0033196250442415476,
+            0.0032332909759134054,
+            0.0031212500762194395,
+            0.0030572079122066498,
+            0.0032262500608339906,
+            0.0032223750604316592,
+            0.0032152499770745635,
+            0.0032062920508906245
+          ],
+          "warm_median_seconds": 0.003228167013730854,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 132416,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 38292,
+                "parent_pid": 37403,
+                "rss_kib": 10288,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38293,
+                "parent_pid": 38292,
+                "rss_kib": 5120,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38314,
+                "parent_pid": 38292,
+                "rss_kib": 4912,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38315,
+                "parent_pid": 38314,
+                "rss_kib": 112096,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        }
+      ],
+      "first_result_median_seconds": 1.2315389160066843,
+      "warm_cell_median_seconds": 0.003230750502552837
+    },
+    "ark-shared-ipykernel-python": {
+      "status": "ok",
+      "samples": [
+        {
+          "first_result_seconds": 1.9063417500583455,
+          "warm_cell_seconds": [
+            0.006117540993727744,
+            0.005894750007428229,
+            0.006666834000498056,
+            0.0059581659734249115,
+            0.006090542068704963,
+            0.005807165987789631,
+            0.005939957918599248,
+            0.005846124957315624,
+            0.005749375093728304,
+            0.00456050003413111,
+            0.0058872089721262455,
+            0.005859832977876067,
+            0.005888625048100948,
+            0.006452083005569875,
+            0.006795209017582238,
+            0.006014041020534933,
+            0.005952958017587662,
+            0.006200542091391981,
+            0.006008458905853331,
+            0.005909500061534345,
+            0.005909832892939448,
+            0.005815000040456653,
+            0.005516165983863175,
+            0.005635291920043528,
+            0.006268500001169741,
+            0.006099457968957722,
+            0.005810791975818574,
+            0.006013166974298656,
+            0.006130874971859157,
+            0.0058887500781565905
+          ],
+          "warm_median_seconds": 0.005924895405769348,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 376592,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 37459,
+                "parent_pid": 37403,
+                "rss_kib": 9856,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37460,
+                "parent_pid": 37459,
+                "rss_kib": 5056,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37461,
+                "parent_pid": 37460,
+                "rss_kib": 45552,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 37462,
+                "parent_pid": 37461,
+                "rss_kib": 316128,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.9629508750513196,
+          "warm_cell_seconds": [
+            0.0064153330167755485,
+            0.005827417015098035,
+            0.00593654194381088,
+            0.005887334002181888,
+            0.005767624941654503,
+            0.00575295789167285,
+            0.006060125073418021,
+            0.0058590000262483954,
+            0.005787833943031728,
+            0.0060111250495538116,
+            0.005958666908554733,
+            0.005562666920013726,
+            0.005921666976064444,
+            0.006075457902625203,
+            0.005948500009253621,
+            0.005697583081200719,
+            0.005848667002283037,
+            0.005637165973894298,
+            0.005623542005196214,
+            0.005967624951153994,
+            0.0059532501036301255,
+            0.00573037494905293,
+            0.0053769160294905305,
+            0.005978166009299457,
+            0.0058701669331640005,
+            0.005938999936915934,
+            0.005892249988391995,
+            0.005598249961622059,
+            0.005614083958789706,
+            0.005911208922043443
+          ],
+          "warm_median_seconds": 0.005878750467672944,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 378512,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 37728,
+                "parent_pid": 37403,
+                "rss_kib": 9920,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37729,
+                "parent_pid": 37728,
+                "rss_kib": 5040,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37769,
+                "parent_pid": 37729,
+                "rss_kib": 45376,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 37783,
+                "parent_pid": 37769,
+                "rss_kib": 318176,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.970373084070161,
+          "warm_cell_seconds": [
+            0.006494374945759773,
+            0.006296791951172054,
+            0.005854042014107108,
+            0.005956624983809888,
+            0.005888291052542627,
+            0.005797624937258661,
+            0.00596516695804894,
+            0.005991042009554803,
+            0.005935666034929454,
+            0.005824416060931981,
+            0.0058843339793384075,
+            0.005997791071422398,
+            0.006161583005450666,
+            0.005987167009152472,
+            0.005978874978609383,
+            0.005864624981768429,
+            0.005895625101402402,
+            0.006038166000507772,
+            0.00583129096776247,
+            0.005728416028432548,
+            0.005662167095579207,
+            0.005756375030614436,
+            0.006001874920912087,
+            0.00598483404610306,
+            0.005828915978781879,
+            0.006069250055588782,
+            0.005792792071588337,
+            0.005690707941539586,
+            0.005838416051119566,
+            0.005846124957315624
+          ],
+          "warm_median_seconds": 0.005891958076972514,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 379216,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 37991,
+                "parent_pid": 37403,
+                "rss_kib": 9840,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37992,
+                "parent_pid": 37991,
+                "rss_kib": 5040,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37995,
+                "parent_pid": 37992,
+                "rss_kib": 45408,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 37996,
+                "parent_pid": 37995,
+                "rss_kib": 318928,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 2.0484761249972507,
+          "warm_cell_seconds": [
+            0.006540833041071892,
+            0.006232416024431586,
+            0.005940707982517779,
+            0.005918125039897859,
+            0.006819917005486786,
+            0.006524374941363931,
+            0.006415124982595444,
+            0.0069560830015689135,
+            0.0059002910275012255,
+            0.006613750010728836,
+            0.006376708042807877,
+            0.006079124985262752,
+            0.00606104196049273,
+            0.0059082499938085675,
+            0.007255916018038988,
+            0.0063205420738086104,
+            0.0064160419860854745,
+            0.005910707986913621,
+            0.005985999945551157,
+            0.0061503329779952765,
+            0.006026833085343242,
+            0.006305667106062174,
+            0.006255208980292082,
+            0.006011166959069669,
+            0.006136292009614408,
+            0.006559167057275772,
+            0.006459292024374008,
+            0.006213832995854318,
+            0.005822000093758106,
+            0.006298084044829011
+          ],
+          "warm_median_seconds": 0.006243812502361834,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 373376,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 38157,
+                "parent_pid": 37403,
+                "rss_kib": 9776,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38158,
+                "parent_pid": 38157,
+                "rss_kib": 5072,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38159,
+                "parent_pid": 38158,
+                "rss_kib": 45456,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 38161,
+                "parent_pid": 38159,
+                "rss_kib": 313072,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.8872165420325473,
+          "warm_cell_seconds": [
+            0.0062162079848349094,
+            0.00587808305863291,
+            0.005733790923841298,
+            0.005617292015813291,
+            0.006245875032618642,
+            0.006109916022978723,
+            0.006209583021700382,
+            0.006058249971829355,
+            0.006050082971341908,
+            0.006136917043477297,
+            0.00610370805952698,
+            0.0059770840452983975,
+            0.00597170798573643,
+            0.005914457957260311,
+            0.006172999972477555,
+            0.006070750067010522,
+            0.006044958019629121,
+            0.005958207999356091,
+            0.005926541052758694,
+            0.005643834010697901,
+            0.005836291005834937,
+            0.005800917046144605,
+            0.006031708908267319,
+            0.00572404102422297,
+            0.005892834044061601,
+            0.005797583027742803,
+            0.005887333070859313,
+            0.006106790970079601,
+            0.005810207920148969,
+            0.006058624945580959
+          ],
+          "warm_median_seconds": 0.005974396015517414,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 376128,
+            "process_count": 4,
+            "processes": [
+              {
+                "pid": 38326,
+                "parent_pid": 37403,
+                "rss_kib": 9840,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38327,
+                "parent_pid": 38326,
+                "rss_kib": 5040,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38328,
+                "parent_pid": 38327,
+                "rss_kib": 45248,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 38329,
+                "parent_pid": 38328,
+                "rss_kib": 316000,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        }
+      ],
+      "first_result_median_seconds": 1.9629508750513196,
+      "warm_cell_median_seconds": 0.005953104060608894
+    },
+    "builtin-r-python-sandbox": {
+      "status": "ok",
+      "samples": [
+        {
+          "first_result_seconds": 1.5980765420245007,
+          "warm_cell_seconds": [
+            0.0032837499165907502,
+            0.0030734590254724026,
+            0.0032136249355971813,
+            0.0031242920085787773,
+            0.002930999966338277,
+            0.003525958047248423,
+            0.00321629096288234,
+            0.0031614579493179917,
+            0.0030770829180255532,
+            0.0031092079589143395,
+            0.0031608749413862824,
+            0.0032321669859811664,
+            0.00346679100766778,
+            0.0031668749870732427,
+            0.003128084004856646,
+            0.00314775004517287,
+            0.003144292044453323,
+            0.003141875029541552,
+            0.003211874980479479,
+            0.0032154169166460633,
+            0.0031875839922577143,
+            0.0032356660813093185,
+            0.0031549580162391067,
+            0.003229249967262149,
+            0.002660708036273718,
+            0.0032840000931173563,
+            0.0031993340235203505,
+            0.003128416952677071,
+            0.0030664170626550913,
+            0.003070708946324885
+          ],
+          "warm_median_seconds": 0.003161166445352137,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 156016,
+            "process_count": 6,
+            "processes": [
+              {
+                "pid": 37497,
+                "parent_pid": 37403,
+                "rss_kib": 10368,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37537,
+                "parent_pid": 37497,
+                "rss_kib": 10448,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 37551,
+                "parent_pid": 37537,
+                "rss_kib": 5216,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37570,
+                "parent_pid": 37497,
+                "rss_kib": 9072,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 37571,
+                "parent_pid": 37570,
+                "rss_kib": 4912,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37572,
+                "parent_pid": 37571,
+                "rss_kib": 116000,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.5287387919379398,
+          "warm_cell_seconds": [
+            0.0032900000223889947,
+            0.0032514999620616436,
+            0.0031033330596983433,
+            0.002787542063742876,
+            0.003327583079226315,
+            0.003143124980852008,
+            0.003199207945726812,
+            0.0031512919813394547,
+            0.0031650420278310776,
+            0.003177958889864385,
+            0.0028161249356344342,
+            0.0031912080012261868,
+            0.0032008750131353736,
+            0.0031153340823948383,
+            0.0032542500412091613,
+            0.003147665993310511,
+            0.0032105828868225217,
+            0.003192832926288247,
+            0.00309429201297462,
+            0.003154416917823255,
+            0.0031617090571671724,
+            0.0031360830180346966,
+            0.0032270000083371997,
+            0.0032466670963913202,
+            0.002807874931022525,
+            0.0035426249960437417,
+            0.003174707992002368,
+            0.002796333050355315,
+            0.003146125003695488,
+            0.0032195410458371043
+          ],
+          "warm_median_seconds": 0.0031698750099167228,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 155216,
+            "process_count": 6,
+            "processes": [
+              {
+                "pid": 37818,
+                "parent_pid": 37403,
+                "rss_kib": 10320,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37819,
+                "parent_pid": 37818,
+                "rss_kib": 10384,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 37820,
+                "parent_pid": 37819,
+                "rss_kib": 5232,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37839,
+                "parent_pid": 37818,
+                "rss_kib": 9056,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 37841,
+                "parent_pid": 37839,
+                "rss_kib": 4912,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37843,
+                "parent_pid": 37841,
+                "rss_kib": 115312,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.7271965000545606,
+          "warm_cell_seconds": [
+            0.003563457983545959,
+            0.0034811249934136868,
+            0.0032891250448301435,
+            0.003286167047917843,
+            0.0032863749656826258,
+            0.001912709092721343,
+            0.00310833309777081,
+            0.003285875078290701,
+            0.0034986670361831784,
+            0.003310833009891212,
+            0.0031424169428646564,
+            0.003294792026281357,
+            0.0032830419950187206,
+            0.003448333009146154,
+            0.0034584159730002284,
+            0.0034021250903606415,
+            0.0033603340853005648,
+            0.003605874953791499,
+            0.0033942500595003366,
+            0.0035431249998509884,
+            0.003218958037905395,
+            0.0031593330204486847,
+            0.0031638341024518013,
+            0.002977916970849037,
+            0.003133083926513791,
+            0.0031015840359032154,
+            0.003143792040646076,
+            0.003240124904550612,
+            0.0034477500012144446,
+            0.0032525829738005996
+          ],
+          "warm_median_seconds": 0.0032862710068002343,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 155104,
+            "process_count": 6,
+            "processes": [
+              {
+                "pid": 38035,
+                "parent_pid": 37403,
+                "rss_kib": 10352,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38036,
+                "parent_pid": 38035,
+                "rss_kib": 10432,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38037,
+                "parent_pid": 38036,
+                "rss_kib": 5200,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38056,
+                "parent_pid": 38035,
+                "rss_kib": 9040,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38057,
+                "parent_pid": 38056,
+                "rss_kib": 4896,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38060,
+                "parent_pid": 38057,
+                "rss_kib": 115184,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.5452942909905687,
+          "warm_cell_seconds": [
+            0.003376582986675203,
+            0.0034866660134866834,
+            0.0028256670339033008,
+            0.0032466250704601407,
+            0.003180291038006544,
+            0.003962459042668343,
+            0.003397667082026601,
+            0.0032238330459222198,
+            0.0033265419770032167,
+            0.003295582951977849,
+            0.003224374959245324,
+            0.0034679999807849526,
+            0.002962708007544279,
+            0.002991416957229376,
+            0.0031417079735547304,
+            0.0031921250047162175,
+            0.0032346249790862203,
+            0.0032664170721545815,
+            0.003190208924934268,
+            0.0032876250334084034,
+            0.0034127080580219626,
+            0.0032007499830797315,
+            0.00331033393740654,
+            0.003338499926030636,
+            0.0035695420810952783,
+            0.0033846660517156124,
+            0.003198083024471998,
+            0.0019537090556696057,
+            0.0031227919971570373,
+            0.002866542083211243
+          ],
+          "warm_median_seconds": 0.0032406250247731805,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 154912,
+            "process_count": 6,
+            "processes": [
+              {
+                "pid": 38210,
+                "parent_pid": 37403,
+                "rss_kib": 10368,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38212,
+                "parent_pid": 38210,
+                "rss_kib": 10416,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38213,
+                "parent_pid": 38212,
+                "rss_kib": 5248,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38240,
+                "parent_pid": 38210,
+                "rss_kib": 9072,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38241,
+                "parent_pid": 38240,
+                "rss_kib": 4896,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38242,
+                "parent_pid": 38241,
+                "rss_kib": 114912,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 1.5519610840128735,
+          "warm_cell_seconds": [
+            0.0034213330363854766,
+            0.0032404590165242553,
+            0.0032726250356063247,
+            0.0033062080619856715,
+            0.002772584091871977,
+            0.0033439170802012086,
+            0.0032647090265527368,
+            0.003129791934043169,
+            0.0031786670442670584,
+            0.0031717499950900674,
+            0.003186417045071721,
+            0.0032342500053346157,
+            0.0028871670365333557,
+            0.002144250087440014,
+            0.0033178749727085233,
+            0.0033672500867396593,
+            0.003257709089666605,
+            0.003034166991710663,
+            0.0035532910842448473,
+            0.00356749992351979,
+            0.003440790926106274,
+            0.003334500011987984,
+            0.0035444169770926237,
+            0.0032579589169472456,
+            0.0033260839991271496,
+            0.003473833086900413,
+            0.0033238750183954835,
+            0.003321791999042034,
+            0.0032120419200509787,
+            0.0032354999566450715
+          ],
+          "warm_median_seconds": 0.0032686670310795307,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 154640,
+            "process_count": 6,
+            "processes": [
+              {
+                "pid": 38368,
+                "parent_pid": 37403,
+                "rss_kib": 10368,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38369,
+                "parent_pid": 38368,
+                "rss_kib": 10400,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38370,
+                "parent_pid": 38369,
+                "rss_kib": 5248,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38393,
+                "parent_pid": 38368,
+                "rss_kib": 9040,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38394,
+                "parent_pid": 38393,
+                "rss_kib": 4896,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38395,
+                "parent_pid": 38394,
+                "rss_kib": 114688,
+                "executable": "<checkout>/target/release/mcp-console"
+              }
+            ]
+          }
+        }
+      ],
+      "first_result_median_seconds": 1.5519610840128735,
+      "warm_cell_median_seconds": 0.0032176245003938675
+    },
+    "ark-shared-ipykernel-python-sandbox": {
+      "status": "ok",
+      "samples": [
+        {
+          "first_result_seconds": 2.664242417085916,
+          "warm_cell_seconds": [
+            0.007424167008139193,
+            0.006992083974182606,
+            0.007006124942563474,
+            0.008323959074914455,
+            0.007569334004074335,
+            0.0070924588944762945,
+            0.0067645839881151915,
+            0.0074035420548170805,
+            0.007182291941717267,
+            0.008283209055662155,
+            0.007389624952338636,
+            0.007176124956458807,
+            0.00684795796405524,
+            0.0072203329764306545,
+            0.006681250059045851,
+            0.006367790978401899,
+            0.00709700002335012,
+            0.007017250056378543,
+            0.006535375025123358,
+            0.006498457980342209,
+            0.007056583068333566,
+            0.007575333002023399,
+            0.007512292009778321,
+            0.007540666963905096,
+            0.00774312496650964,
+            0.007721457979641855,
+            0.006934166071005166,
+            0.006992165930569172,
+            0.006892333971336484,
+            0.0065594170009717345
+          ],
+          "warm_median_seconds": 0.007094729458913207,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 419088,
+            "process_count": 5,
+            "processes": [
+              {
+                "pid": 37584,
+                "parent_pid": 37403,
+                "rss_kib": 9952,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37585,
+                "parent_pid": 37584,
+                "rss_kib": 9360,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 37587,
+                "parent_pid": 37585,
+                "rss_kib": 5072,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37589,
+                "parent_pid": 37587,
+                "rss_kib": 45632,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 37590,
+                "parent_pid": 37589,
+                "rss_kib": 349072,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 2.7287692909594625,
+          "warm_cell_seconds": [
+            0.006372832925990224,
+            0.006241833092644811,
+            0.0061510419473052025,
+            0.005839083110913634,
+            0.0059071669820696115,
+            0.0061428750632330775,
+            0.00608645798638463,
+            0.0058633750304579735,
+            0.0061087500071153045,
+            0.005607999977655709,
+            0.0070702501107007265,
+            0.006287749973125756,
+            0.006210207939147949,
+            0.005973124993033707,
+            0.006222542026080191,
+            0.006312416982837021,
+            0.006560915964655578,
+            0.0068775840336456895,
+            0.006606917013414204,
+            0.006034707999788225,
+            0.006027417024597526,
+            0.006323500070720911,
+            0.006326209055259824,
+            0.0065234999638050795,
+            0.0062405000207945704,
+            0.006496166926808655,
+            0.006250750040635467,
+            0.006318209110759199,
+            0.006276375032030046,
+            0.006055125035345554
+          ],
+          "warm_median_seconds": 0.0062411665567196906,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 419616,
+            "process_count": 5,
+            "processes": [
+              {
+                "pid": 37855,
+                "parent_pid": 37403,
+                "rss_kib": 9952,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37856,
+                "parent_pid": 37855,
+                "rss_kib": 9392,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 37857,
+                "parent_pid": 37856,
+                "rss_kib": 5024,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 37858,
+                "parent_pid": 37857,
+                "rss_kib": 45120,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 37859,
+                "parent_pid": 37858,
+                "rss_kib": 350128,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 2.647448290954344,
+          "warm_cell_seconds": [
+            0.006303542060777545,
+            0.0061948749935254455,
+            0.005989499972201884,
+            0.005635165958665311,
+            0.005631917039863765,
+            0.006107707973569632,
+            0.005791916977614164,
+            0.005982582923024893,
+            0.00619524996727705,
+            0.005914250039495528,
+            0.005783250089734793,
+            0.005831124959513545,
+            0.005936624947935343,
+            0.005842291982844472,
+            0.006590291974134743,
+            0.006184666999615729,
+            0.006487958948127925,
+            0.005992542020976543,
+            0.006414333009161055,
+            0.0063552079955115914,
+            0.006101249950006604,
+            0.005788334063254297,
+            0.006129042012616992,
+            0.006310958997346461,
+            0.0062364579644054174,
+            0.006444291910156608,
+            0.006334415986202657,
+            0.007888583932071924,
+            0.00762987497728318,
+            0.006695750053040683
+          ],
+          "warm_median_seconds": 0.00615685450611636,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 421792,
+            "process_count": 5,
+            "processes": [
+              {
+                "pid": 38081,
+                "parent_pid": 37403,
+                "rss_kib": 9952,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38082,
+                "parent_pid": 38081,
+                "rss_kib": 9312,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38083,
+                "parent_pid": 38082,
+                "rss_kib": 5056,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38084,
+                "parent_pid": 38083,
+                "rss_kib": 45472,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 38085,
+                "parent_pid": 38084,
+                "rss_kib": 352000,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 2.6413974999450147,
+          "warm_cell_seconds": [
+            0.006377458921633661,
+            0.006353250006213784,
+            0.006001665955409408,
+            0.0058958749286830425,
+            0.005715582985430956,
+            0.006031583063304424,
+            0.006154875038191676,
+            0.005785749992355704,
+            0.005973375053144991,
+            0.005875666975043714,
+            0.005811459035612643,
+            0.005576167022809386,
+            0.005955583998002112,
+            0.0060497920494526625,
+            0.005858666962012649,
+            0.0058133749989792705,
+            0.005977374967187643,
+            0.0056914170272648335,
+            0.005842207930982113,
+            0.0058495840057730675,
+            0.00582774996291846,
+            0.005946290912106633,
+            0.005705083021894097,
+            0.005921958014369011,
+            0.005887499894015491,
+            0.005854625022038817,
+            0.005926833022385836,
+            0.005840125028043985,
+            0.0056140420492738485,
+            0.00595899997279048
+          ],
+          "warm_median_seconds": 0.0058815834345296025,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 420000,
+            "process_count": 5,
+            "processes": [
+              {
+                "pid": 38253,
+                "parent_pid": 37403,
+                "rss_kib": 9856,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38254,
+                "parent_pid": 38253,
+                "rss_kib": 9360,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38255,
+                "parent_pid": 38254,
+                "rss_kib": 5104,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38256,
+                "parent_pid": 38255,
+                "rss_kib": 45776,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 38257,
+                "parent_pid": 38256,
+                "rss_kib": 349904,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        },
+        {
+          "first_result_seconds": 2.6477784169837832,
+          "warm_cell_seconds": [
+            0.006198166054673493,
+            0.00587304204236716,
+            0.005934667075052857,
+            0.006021125009283423,
+            0.005683958064764738,
+            0.006122334045358002,
+            0.005765457986854017,
+            0.0059899999760091305,
+            0.0061942500760778785,
+            0.005832083988934755,
+            0.006015749997459352,
+            0.00578987505286932,
+            0.0057931250194087625,
+            0.005849708104506135,
+            0.005729541997425258,
+            0.006080416962504387,
+            0.005851916968822479,
+            0.005649832892231643,
+            0.005832333932630718,
+            0.00578333402518183,
+            0.0059157079085707664,
+            0.0058895000256598,
+            0.00588345795404166,
+            0.005499999970197678,
+            0.005597125040367246,
+            0.005865916959010065,
+            0.005892292014323175,
+            0.005858917022123933,
+            0.005921375006437302,
+            0.005620375042781234
+          ],
+          "warm_median_seconds": 0.005862416990566999,
+          "after_warm_rss": {
+            "available": true,
+            "total_rss_kib": 426592,
+            "process_count": 5,
+            "processes": [
+              {
+                "pid": 38406,
+                "parent_pid": 37403,
+                "rss_kib": 9984,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38407,
+                "parent_pid": 38406,
+                "rss_kib": 9328,
+                "executable": "<checkout>/target/libexec/mcp-console-sandbox"
+              },
+              {
+                "pid": 38408,
+                "parent_pid": 38407,
+                "rss_kib": 5040,
+                "executable": "<checkout>/target/release/mcp-console"
+              },
+              {
+                "pid": 38409,
+                "parent_pid": 38408,
+                "rss_kib": 45424,
+                "executable": "<published-python>/bin/python"
+              },
+              {
+                "pid": 38410,
+                "parent_pid": 38409,
+                "rss_kib": 356816,
+                "executable": "<published-ark>/ark"
+              }
+            ]
+          }
+        }
+      ],
+      "first_result_median_seconds": 2.6477784169837832,
+      "warm_cell_median_seconds": 0.006093853968195617
+    }
+  },
+  "source_revision": "d1061713f32c1d0365eeafbb5bd0ae0ddb675c50",
+  "source_provenance": {
+    "benchmark_script_sha256": "639cd31b781e628cb16d6bc6184357330ef63979f912135da4d4efafcfc8576f",
+    "raw_results_sha256": "b716f52d826738043c0eb6602f7adde75f37ef4aa8cd1d67292154bfc917fb9d",
+    "public_suite_record": "20261023-160015-k021xa7t",
+    "standard_check_record": "20261023-160133-r49afzd2"
+  }
+}

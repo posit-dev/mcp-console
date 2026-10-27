@@ -52,12 +52,16 @@ def jupyter_client(
     binary: Path,
     kernel: str = "ipykernel",
     *,
+    reticulate: bool = False,
+    reticulate_ipykernel: bool = False,
     transport: str | None = None,
     execution: Execution = DIRECT,
     startup_gate: Path | None = None,
     kernel_fixture: str | None = None,
 ) -> Iterator[tuple[McpClient, Path]]:
     assert kernel in {"ipykernel", "ark"}
+    assert not reticulate or kernel == "ark"
+    assert not reticulate_ipykernel or reticulate
     assert startup_gate is None or kernel == "ipykernel"
     assert kernel_fixture is None or (kernel == "ipykernel" and startup_gate is None)
     transport = transport or ("ipc" if kernel == "ipykernel" else "tcp")
@@ -128,6 +132,14 @@ def jupyter_client(
             ]
             language = "R"
             environment["RUST_LOG"] = "error"
+        if reticulate:
+            library = Path(os.environ["MCP_CONSOLE_TEST_RETICULATE_LIBRARY"])
+            assert library.is_absolute() and library.is_dir(), library
+            environment.update(
+                R_LIBS_USER=str(library),
+                RETICULATE_PYTHON=str(python),
+                _RETICULATE_POSITRON_DISABLE_VARIABLE_INSPECTORS_="1",
+            )
         (specification / "kernel.json").write_text(
             json.dumps({"argv": argv, "display_name": name, "language": language}),
             encoding="utf-8",
@@ -142,6 +154,8 @@ def jupyter_client(
                 str(python),
                 "--jupyter-transport",
                 transport,
+                *(("--jupyter-reticulate",) if reticulate else ()),
+                *(("--jupyter-reticulate-ipykernel",) if reticulate_ipykernel else ()),
                 *(
                     (
                         "--writable-root",

@@ -142,7 +142,11 @@ impl ConsoleServer {
                         .map_err(|error| std::io::Error::new(error.kind(), error.to_string())),
                     configuration.dynamic_resolution(),
                     configuration.python_preparation(),
-                    jupyter.is_none() && !configuration.python_only(),
+                    jupyter
+                        .as_ref()
+                        .map_or(!configuration.python_only(), |selection| {
+                            selection.reticulate
+                        }),
                     configuration.startup_declaration(),
                     jupyter.as_ref().map(|selection| selection.kernel.clone()),
                 );

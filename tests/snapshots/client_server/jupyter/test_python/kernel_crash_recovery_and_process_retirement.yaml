@@ -48,10 +48,10 @@ result:
     - type: text
       text: |2-
           + Exception Group Traceback (most recent call last):
-          |   File "<string>", line 536, in <module>
+          |   File "<string>", line 693, in <module>
           |     main()
           |     ~~~~^^
-          |   File "<string>", line 532, in main
+          |   File "<string>", line 689, in main
           |     asyncio.run(Adapter(options).run())
           |     ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
           |   File "<python-stdlib>/asyncio/runners.py", line 196, in run
@@ -63,12 +63,12 @@ result:
           |   File "<python-stdlib>/asyncio/base_events.py", line 726, in run_until_complete
           |     return future.result()
           |            ~~~~~~~~~~~~~^^
-          |   File "<string>", line 522, in run
+          |   File "<string>", line 677, in run
           |     raise outcome
-          |   File "<string>", line 514, in run
+          |   File "<string>", line 669, in run
           |     task.result()
           |     ~~~~~~~~~~~^^
-          |   File "<string>", line 439, in serve
+          |   File "<string>", line 583, in serve
           |     async with asyncio.TaskGroup() as group:
           |                ~~~~~~~~~~~~~~~~~^^
           |   File "<python-stdlib>/asyncio/taskgroups.py", line 71, in __aexit__
@@ -81,7 +81,7 @@ result:
           | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
           +-+---------------- 1 ----------------
             | Traceback (most recent call last):
-            |   File "<string>", line 147, in watch_child
+            |   File "<string>", line 170, in watch_child
             |     raise RuntimeError(f"Jupyter kernel exited with status {status}")
             | RuntimeError: Jupyter kernel exited with status 7
             +------------------------------------
