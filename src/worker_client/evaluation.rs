@@ -236,7 +236,11 @@ impl Evaluation {
         if let Some(reclaimed) = &state.reclaimed {
             response.extend_logical_region(reclaimed.snapshot());
         }
-        response.extend_logical_region(self.output.snapshot());
+        response.extend_logical_region(if self.is_integrator() {
+            self.output.snapshot_cell()
+        } else {
+            self.output.snapshot()
+        });
         Some(response.preview())
     }
 
@@ -980,6 +984,14 @@ impl EvaluationReservation {
     }
 
     pub(super) fn take_output(&mut self, output: &OutputTape) -> (Response, Response) {
+        if self.is_integrator() && !self.unfinished && self.completion.is_none() {
+            // The private collector already owns the completed cell's cut.
+            // Later intervals and recovered MCP replies stay with MCP.
+            return (
+                self.reclaimed.take().unwrap_or_default(),
+                Response::default(),
+            );
+        }
         let cut = self
             .completion_cut
             .unwrap_or_else(|| self.evaluation.finish_cell_output());
@@ -990,7 +1002,7 @@ impl EvaluationReservation {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let current_output = take_owned_response(&mut state, output, cut);
         drop(state);
-        let post_completion = if self.completion_cut.is_some() {
+        let post_completion = if self.completion_cut.is_some() && !self.is_integrator() {
             output.take()
         } else {
             Response::default()
@@ -1047,7 +1059,11 @@ fn take_owned_response(
     output: &OutputTape,
     cut: OutputCut,
 ) -> Response {
-    let mut cell = output.drain_through(cut);
+    let mut cell = if state.retain_idle_prelude {
+        output.drain_cell_through(cut)
+    } else {
+        output.drain_through(cut)
+    };
     if !state.retain_idle_prelude
         && let Some(mut idle) = state.idle_prelude.take()
     {

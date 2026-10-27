@@ -976,6 +976,10 @@ impl Client {
                 // Sideband results are never recovered by an MCP control response.
                 let _ = delivery.recv();
             }
+            // The private collector restores its held MCP prelude before
+            // acknowledging. Retain that output and any later MCP recovery or
+            // post-cell intervals ahead of the restart's own notices.
+            response.extend_logical_region(self.0.output.take());
             if retired_worker {
                 response.push_notice(super::output::WORKER_STOPPED_NOTICE);
             }

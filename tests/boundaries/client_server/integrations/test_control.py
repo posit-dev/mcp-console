@@ -14,13 +14,14 @@ from typing import Any, Self
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.python.test_without_r import selected_environment
+from support.allocations import AllocationProfile
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import McpClient, TextReader
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_recording
 from support.previews import recording_events
 from support.records import Transcript, TranscriptWithCompanions
-from support.requirements import POSIX, R, requires
+from support.requirements import NATIVE_FIXTURES, POSIX, R, requires
 from support.suites import run_this_suite
 
 
@@ -539,6 +540,143 @@ def test_mcp_poll_cannot_claim_integrator_output(
             return TranscriptWithCompanions(
                 transcript,
                 {"control.yaml": normalize_recording(control.transcript, root)},
+            )
+
+
+@requires(POSIX)
+@executions(DIRECT)
+@requires(NATIVE_FIXTURES)
+def test_cancelled_mcp_control_keeps_recovery_out_of_integrator_result(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-control-"
+    ) as directory:
+        root = Path(directory)
+        (root / "python3").symlink_to(sys.executable)
+        endpoint = root / "control.sock"
+        with (
+            closing(FifoCheckpoint.create(root / "entered")) as entered,
+            closing(FifoCheckpoint.create(root / "release")) as release,
+            closing(FifoCheckpoint.create(root / "result-reached")) as result_reached,
+            closing(FifoCheckpoint.create(root / "result-release")) as result_release,
+            closing(AllocationProfile(root)) as profile,
+            McpClient(
+                binary,
+                execution.serve("--control-socket", str(endpoint)),
+                {
+                    **selected_environment(root),
+                    **profile.environment,
+                    "MCP_CONSOLE_TEST_RESULT_REACHED": str(result_reached.path),
+                    "MCP_CONSOLE_TEST_RESULT_RELEASE": str(result_release.path),
+                },
+                root,
+            ) as client,
+        ):
+            client.transcript.append(
+                {
+                    "scenario": "Cancelled MCP control keeps its error separate from an integrator cell.",
+                    "fixture": "The Python cell ignores SIGINT and waits at a FIFO. A native checkpoint holds the MCP result before journaling so cancellation follows result assembly.",
+                }
+            )
+            client.initialize_and_list_tools()
+            client.expect(python="sentinel = 0")
+            # fmt: python
+            source = code(f"""
+                import signal
+
+                previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+                print("integrator pending", flush=True)
+                with open({str(entered.path)!r}, "wb", buffering=0) as gate:
+                    gate.write(b"1")
+                with open({str(release.path)!r}, "rb", buffering=0) as gate:
+                    gate.read(1)
+                signal.signal(signal.SIGINT, previous_handler)
+                print("integrator finished")
+                """)
+            with (
+                ControlClient(endpoint) as control,
+                ControlClient(endpoint) as inspector,
+            ):
+                pending = control.start(
+                    op="evaluate",
+                    language="python",
+                    code=source,
+                )
+                try:
+                    entered.wait(client=client)
+                    interrupted = []
+                    recordings = root / ".agents/console/sessions"
+                    wait_for_checkpoint(
+                        lambda: next(
+                            (
+                                path
+                                for path in recordings.glob(
+                                    "*/capture/sessions/*/cell-*.txt"
+                                )
+                                if path.read_text() == "integrator pending\n"
+                            ),
+                            None,
+                        ),
+                        "integrator output captured before preview",
+                        root=recordings,
+                        recursive=True,
+                        client=client,
+                    )
+                    profile.pause_results(True)
+                    for _ in range(2):
+                        request = client.start_send(
+                            control="interrupt", python="sentinel = 99"
+                        )
+                        interrupted.append(request)
+                        result_reached.wait(
+                            "MCP interrupt result owns delivery", client=client
+                        )
+                        client.notify(
+                            "notifications/cancelled", requestId=request["id"]
+                        )
+                        assert client.request("ping")["result"] == {}
+                        result_release.release()
+                    profile.pause_results(False)
+                    preview = inspector.request(op="preview")
+                    release.release()
+                    result = control.receive(pending)
+                    assert (
+                        result_text(result)
+                        == "integrator pending\nintegrator finished\n"
+                    ), result
+                    assert result_text(preview) == "integrator pending\n", preview
+                    recovered = client.send()
+                    assert recovered == {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "\n".join(
+                                    [
+                                        "interrupted evaluation is still active; cell was not run"
+                                    ]
+                                    * 2
+                                ),
+                            }
+                        ],
+                        "isError": True,
+                    }, recovered
+                    assert all("result" not in request for request in interrupted), (
+                        interrupted
+                    )
+                    client.expect("\n[idle]")
+                    client.expect("0\n", python="print(sentinel)")
+                    transcript = normalize_recording(client.finish(), root)
+                finally:
+                    profile.pause_results(False)
+                    result_release.release()
+                    release.release()
+            return TranscriptWithCompanions(
+                transcript,
+                {
+                    "control.yaml": normalize_recording(control.transcript, root),
+                    "preview.yaml": inspector.transcript,
+                },
             )
 
 
