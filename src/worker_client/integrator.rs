@@ -49,6 +49,18 @@ impl Client {
                 .clone()
                 .ok_or(IntegratorError::Busy)??;
         }
+        // Readiness retains successful configuration even when prelaunch failed.
+        // MCP owns that failure flag and its output; an integrator must neither
+        // consume them nor admit a cell that the evaluator would skip as failed.
+        if self
+            .0
+            .startup_failed
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(IntegratorError::Failed(
+                "worker startup failed; code was not run".into(),
+            ));
+        }
         self.validate_cell(&cell)?;
         let mut first_attempt = true;
         let mut waiting_recorded = false;
