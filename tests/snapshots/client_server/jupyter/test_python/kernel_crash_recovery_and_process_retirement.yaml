@@ -1,0 +1,126 @@
+---
+scenario: >-
+  A kernel crash loses state; explicit restart recovers and reaps prior
+  processes.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  code: |-
+    import os
+    print(os.getpid())
+result:
+  content:
+    - type: text
+      text: |
+        <original kernel PID>
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  code: |-
+    import os
+    print(os.getpid())
+result:
+  content:
+    - type: text
+      text: |
+        <crashing kernel PID>
+  isError: false
+---
+send:
+  code: os._exit(7)
+result:
+  content:
+    - type: text
+      text: |2-
+          + Exception Group Traceback (most recent call last):
+          |   File "<string>", line 536, in <module>
+          |     main()
+          |     ~~~~^^
+          |   File "<string>", line 532, in main
+          |     asyncio.run(Adapter(options).run())
+          |     ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+          |   File "<python-stdlib>/asyncio/runners.py", line 196, in run
+          |     return runner.run(main)
+          |            ~~~~~~~~~~^^^^^^
+          |   File "<python-stdlib>/asyncio/runners.py", line 119, in run
+          |     return self._loop.run_until_complete(task)
+          |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+          |   File "<python-stdlib>/asyncio/base_events.py", line 726, in run_until_complete
+          |     return future.result()
+          |            ~~~~~~~~~~~~~^^
+          |   File "<string>", line 522, in run
+          |     raise outcome
+          |   File "<string>", line 514, in run
+          |     task.result()
+          |     ~~~~~~~~~~~^^
+          |   File "<string>", line 439, in serve
+          |     async with asyncio.TaskGroup() as group:
+          |                ~~~~~~~~~~~~~~~~~^^
+          |   File "<python-stdlib>/asyncio/taskgroups.py", line 71, in __aexit__
+          |     return await self._aexit(et, exc)
+          |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+          |   File "<python-stdlib>/asyncio/taskgroups.py", line 173, in _aexit
+          |     raise BaseExceptionGroup(
+          |     ...<2 lines>...
+          |     ) from None
+          | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+          +-+---------------- 1 ----------------
+            | Traceback (most recent call last):
+            |   File "<string>", line 147, in watch_child
+            |     raise RuntimeError(f"Jupyter kernel exited with status {status}")
+            | RuntimeError: Jupyter kernel exited with status 7
+            +------------------------------------
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 1]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  code: 6 * 7
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  code: |-
+    import os
+    print(os.getpid())
+result:
+  content:
+    - type: text
+      text: |
+        <replacement kernel PID>
+  isError: false
+---
+processes: Restart, crash, and shutdown each retired the kernel process.

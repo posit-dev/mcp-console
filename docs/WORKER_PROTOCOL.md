@@ -5,6 +5,8 @@ It evolves in lockstep without an independent version.
 
 The `--worker` and `--relay` launch overrides are internal testing hooks, not part of Console's public API.
 Test worker fixtures must match the current build's protocol.
+The public `--jupyter-kernel` option launches a Console-owned adapter that implements this interface and connects to a kernel through the standard Jupyter protocol; kernels do not implement Console's private messages.
+See [Jupyter kernels](JUPYTER.md) for setup and supported behavior.
 
 [`src/worker_protocol.rs`](../src/worker_protocol.rs) defines the exact message objects.
 [`src/jsonl.rs`](../src/jsonl.rs), [`src/sideband.rs`](../src/sideband.rs), and the boundary tests define framing and endpoints.
@@ -175,6 +177,22 @@ The relay can forcibly terminate and reap the direct child after grace; descenda
 
 Outside intentional retirement, unexpected sideband EOF or worker exit, including status zero, fails the generation.
 Closure and direct-worker outcome do not prove native cleanup.
+
+## Jupyter adapter
+
+The adapter maps a public `code` cell to `evaluate` with `language: "kernel"` and forwards its source to the selected kernel.
+Dependency changes are rejected by the server before dispatch; the adapter implements no preparation callbacks.
+
+`ready` follows Jupyter's kernel and IOPub readiness handshake.
+The active execution's `busy` status produces `cell_started`.
+Both its shell `execute_reply` and IOPub `idle` status must arrive before `completed`, so a shell reply cannot discard pending IOPub results.
+Kernel language errors remain diagnostic output followed by completion.
+Jupyter input requests consume newline-terminated strings from the generation's queued stdin; direct kernel-process stdin is unavailable.
+
+The relay signals and reaps the adapter, which owns the kernel child and translates interruption according to the kernelspec's interrupt mode.
+Adapter shutdown requests kernel shutdown, then terminates and reaps an unresponsive kernel within the relay's retirement allowance.
+Kernel exit ends the adapter even while idle.
+The runner's descendant-retirement barrier still governs sandboxed replacement; adapter exit alone is not that receipt.
 
 ## Test worker fixtures {#custom-worker-conformance}
 

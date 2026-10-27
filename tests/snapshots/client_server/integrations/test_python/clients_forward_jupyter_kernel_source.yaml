@@ -1,0 +1,28 @@
+---
+client: sync
+calls:
+  - name: send
+    arguments:
+      code: |-
+        answer = "café Ω"
+        print(answer)
+  - name: send
+    arguments:
+      code: |-
+        answer = "café Ω"
+        print(answer)
+closed: true
+---
+client: async
+calls:
+  - name: send
+    arguments:
+      code: |-
+        answer = "café Ω"
+        print(answer)
+  - name: send
+    arguments:
+      code: |-
+        answer = "café Ω"
+        print(answer)
+closed: true

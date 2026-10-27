@@ -183,8 +183,18 @@ pub(crate) fn parameter_schema(languages: Languages) -> Map<String, Value> {
             .expect("requirement property schema")
             .remove("default");
     }
+    if languages.kernel {
+        let requirements = &mut properties["requirements"];
+        let fields = requirements["properties"]
+            .as_object_mut()
+            .expect("requirements schema properties");
+        fields.retain(|name, _| name == "action");
+        fields["action"]["enum"] = serde_json::json!(["get"]);
+        requirements["required"] = serde_json::json!(["action"]);
+    }
     // Configured fields stay visible even when an interpreter is unavailable.
     for (field, enabled) in [
+        ("code", languages.kernel),
         ("r", languages.r),
         ("python", languages.python),
         ("sql", languages.sql),
@@ -210,6 +220,9 @@ impl Profile {
     }
 
     fn summary(&self) -> String {
+        if self.languages.kernel {
+            return "Persistent Jupyter kernel session. Send code in the selected kernel's language and reuse objects across calls.".into();
+        }
         let names = if self.languages.r && self.languages.python && self.languages.sql {
             "R, Python, and SQL".to_string()
         } else {
@@ -240,7 +253,9 @@ impl Profile {
         description.push_str("\n\nSend one complete ");
         description.push_str(&self.languages.cell_fields());
         description.push_str(sections::SEND_WORKFLOW);
-        if self.builtin {
+        if self.languages.kernel {
+            description.push_str("\n\nThe installed kernel supplies evaluation, display, history, and packages. Console returns text and supported images; interactive displays are unavailable. Dependency preparation and Console's built-in SQL and language helpers are unavailable.");
+        } else if self.builtin {
             description.push_str(sections::DISPLAY);
             description.push_str("\n\n");
             description.push_str(&self.language_guidance());
@@ -260,7 +275,13 @@ impl Profile {
         description.push(' ');
         if self.timeout {
             description.push_str(sections::POLLING);
-            description.push_str(sections::DEFAULTS);
+            description.push_str(if self.languages.kernel {
+                " Default: `timeout_ms=60000` (60 seconds)."
+            } else {
+                sections::DEFAULTS
+            });
+        } else if self.languages.kernel {
+            description.push_str("If work is still running, poll with an empty `send`; do not resubmit the cell. Each call waits for output for up to 60 seconds and returns early when work finishes or needs input.");
         } else {
             description.push_str(sections::POLLING_DEFAULT_TIMEOUT);
         }
@@ -271,6 +292,7 @@ impl Profile {
             policy,
             no_sandbox,
             self.uses_client_profile,
+            !self.languages.kernel,
         ));
         description
     }
@@ -310,6 +332,15 @@ impl Profile {
     }
 
     fn configure_fields(&self, properties: &mut Map<String, Value>) {
+        if self.languages.kernel {
+            properties["stdin"]["description"] = "Answer Jupyter input requests with newline-terminated text. Input queues before a bundled cell; unread input can satisfy later requests. Restart discards queued input. Direct reads from the kernel process's stdin are unsupported.".into();
+            properties["control"]["description"] = "Apply control before same-call input or code. interrupt requests kernel interruption; a following cell runs only if prior work stops. restart discards the kernel's live state and queued input, then sends bundled input and code to the replacement.".into();
+            properties["timeout_ms"]["description"] = "Wait for output for up to this many milliseconds (default 60,000). Use 300000 for a long poll; it returns early when work finishes or needs input. 0 returns immediately. Expiry leaves execution running; poll with an empty send.".into();
+            let requirements = &mut properties["requirements"];
+            requirements["description"] = "Inspect Console's empty dependency declaration with action=get. Package installation and dependency changes are unavailable; use packages already installed in the kernel environment.".into();
+            requirements["properties"]["action"]["description"] = "get returns the empty Console declaration, not an installed-package inventory. Use it alone without code, stdin, or control.".into();
+            return;
+        }
         if self.builtin {
             for (field, description) in [
                 ("r", r_description_for(self.languages)),
@@ -437,12 +468,21 @@ fn description_for_launch(
     policy: &SandboxSettings,
     no_sandbox: bool,
     uses_client_profile: bool,
+    preparation: bool,
 ) -> String {
     if uses_client_profile {
-        return "The sandbox base comes from Codex metadata on the first send, or the configured fallback (default: read_only). Missing metadata is silent; malformed metadata warns on server stderr. Explicit Console permissions apply to the selected base. Full access disables Console's sandbox. Reconnect to change client permissions. Package preparation has separate permissions unless sandboxing is disabled; use only trusted dependencies.".into();
+        let mut description = "The sandbox base comes from Codex metadata on the first send, or the configured fallback (default: read_only). Missing metadata is silent; malformed metadata warns on server stderr. Explicit Console permissions apply to the selected base. Full access disables Console's sandbox. Reconnect to change client permissions.".to_string();
+        if preparation {
+            description.push_str(" Package preparation has separate permissions unless sandboxing is disabled; use only trusted dependencies.");
+        }
+        return description;
     }
     if no_sandbox {
-        return "Evaluated code runs without a sandbox, with the server's permissions, including filesystem and network access. Package preparation may execute installation or build code; use only trusted dependencies.".into();
+        let mut description = "Evaluated code runs without a sandbox, with the server's permissions, including filesystem and network access.".to_string();
+        if preparation {
+            description.push_str(" Package preparation may execute installation or build code; use only trusted dependencies.");
+        }
+        return description;
     }
     let network_access = if policy.contains_key("proxy") {
         "can access the network subject to the launcher's proxy settings"
@@ -489,9 +529,13 @@ fn description_for_launch(
             writable.join(", ")
         }
     );
-    format!(
-        "Evaluated code can read host files subject to configured restrictions and {network_access}. {writable}. Package preparation may execute installation or build code with separate filesystem and network permissions; use only trusted dependencies."
-    )
+    let mut description = format!(
+        "Evaluated code can read host files subject to configured restrictions and {network_access}. {writable}."
+    );
+    if preparation {
+        description.push_str(" Package preparation may execute installation or build code with separate filesystem and network permissions; use only trusted dependencies.");
+    }
+    description
 }
 
 pub(super) fn stdin_description() -> String {

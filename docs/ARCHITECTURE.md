@@ -34,6 +34,11 @@ The frontend verifies the pinned companion before launch.
 On Unix it becomes the runner through `exec`; on Windows it waits for the runner.
 Console must not introduce another native supervisor that competes for the runner's resources.
 
+The public [Jupyter mode](JUPYTER.md) uses `relay → Python adapter → local Jupyter kernel` inside the same execution boundary.
+The compile-time embedded [adapter](../src/jupyter/worker.py) owns the kernel child, translates Jupyter messages into Console worker events, and reaps the kernel before its own normal exit.
+The relay owns the adapter; native enforcement and descendant cleanup remain with the runner.
+The installed kernelspec supplies the runtime and its packages, so this mode does not use Console's dependency preparation or built-in interpreter coordination.
+
 ## Ownership
 
 | Owner             | Responsibility                                                                                                 |
@@ -62,6 +67,7 @@ The adapter removes the file after synchronous materialization or the server's i
 One connection-owned background task discovers runtimes, prepares defaults, and prelaunches the built-in worker.
 MCP initialization, tool discovery, and pings do not wait.
 Workers supplied through internal testing hooks are launched on demand.
+Jupyter adapters also launch on demand; tool discovery and dependency inspection do not start the kernel.
 
 With the `inherit_codex` sandbox profile, startup waits for the first `send` to capture client authority before creating any preparation or execution process.
 Capture happens in transport request order before asynchronous handler dispatch; a cancelled first request cannot let a later request select the connection's permissions.

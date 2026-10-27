@@ -25,6 +25,7 @@ These guides introduce Console through a session with your agent:
 | Install Console or connect an MCP client                     | [Install and connect](CLIENTS.md)               |
 | Use Console from R                                           | [Use Console from R](R.md)                      |
 | Use Console from Python                                      | [Use Console from Python](PYTHON.md)            |
+| Use an installed Jupyter kernel                              | [Jupyter kernels](JUPYTER.md)                   |
 | Explore data across R, Python, and SQL                       | [Sessions and languages](BUILTIN_RUNTIME.md)    |
 | Use packages or an existing Python environment               | [Packages and environments](REQUIREMENTS.md)    |
 | Give the agent access to files or a service                  | [Sandbox and trust](SANDBOX.md)                 |

@@ -1,0 +1,153 @@
+---
+scenario: A published ipykernel kernel executes persistent cells.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": false,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: false
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  code: |-
+    answer = 40
+    answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  code:
+    text_bytes: 102413
+    concat:
+      - "# "
+      - repeat: x
+        count: 102400
+      - |-
+
+        answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  code: |
+    import sys
+
+    print("stdout café", flush=True)
+    print("stderr Ω", file=sys.stderr, flush=True)
+result:
+  content:
+    - type: text
+      text: |
+        stdout café
+        stderr Ω
+  isError: false
+---
+send:
+  code: raise ValueError("intentional kernel error")
+result:
+  content:
+    - type: text
+      text: |
+        ---------------------------------------------------------------------------
+        ValueError                                Traceback (most recent call last)
+        Cell In[4], line 1
+        ----> 1 raise ValueError("intentional kernel error")
+
+        ValueError: intentional kernel error
+  isError: false
+---
+send:
+  code: answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: "`r` source fields are hidden by `--jupyter-kernel`"
+  isError: true
+---
+send:
+  python: 1 + 1
+result:
+  content:
+    - type: text
+      text: "`python` source fields are hidden by `--jupyter-kernel`"
+  isError: true
+---
+send:
+  sql: SELECT 1
+result:
+  content:
+    - type: text
+      text: "`sql` source fields are hidden by `--jupyter-kernel`"
+  isError: true
+---
+send:
+  requirements:
+    python:
+      - requests
+result:
+  content:
+    - type: text
+      text: >-
+        dependency preparation is unavailable with Jupyter kernels; install
+        packages in the kernel environment before launch
+  isError: true
+---
+send:
+  code: answer + 2
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+recording: Generic kernel source is retained in plain text Quarto fences.

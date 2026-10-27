@@ -61,7 +61,11 @@ def main() -> None:
                         "description": "Fixture send",
                         "inputSchema": {
                             "type": "object",
-                            "properties": {"python": {"type": "string"}},
+                            "properties": {
+                                "code" if mode == "kernel" else "python": {
+                                    "type": "string"
+                                }
+                            },
                         },
                     }
                 ]
@@ -79,7 +83,7 @@ def main() -> None:
                 reply(request, output("missing request cancellation"))
                 continue
             arguments = request["params"]["arguments"]
-            source = arguments.get("python", "")
+            source = arguments.get("code" if mode == "kernel" else "python", "")
             if source == "cancel wait":
                 abandoned = request["id"]
                 encoded = (

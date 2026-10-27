@@ -183,7 +183,9 @@ The value of `sandbox.network` or `resolver.sandbox.network` selects the network
 | `network: enabled`      | Host networking; filesystem enforcement remains.       |
 | `network: {proxy: {…}}` | Restricted native networking with a managed proxy.     |
 
-Worker networking defaults to restricted without a proxy.
+Built-in worker networking defaults to restricted without a proxy.
+The optional [Jupyter worker](JUPYTER.md#private-kernel-communication) adds private kernel communication automatically: temporary-directory Unix sockets on macOS, or isolated-namespace loopback with a deny-all proxy on Linux.
+These Jupyter defaults do not permit host services or external destinations.
 Resolver networking defaults to its [download proxy](PACKAGE_CONFIGURATION.md#expanded-public-default).
 Explicit scalar values also remove that generated resolver proxy.
 

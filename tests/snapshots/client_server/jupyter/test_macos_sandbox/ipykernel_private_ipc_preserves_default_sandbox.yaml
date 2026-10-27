@@ -1,0 +1,160 @@
+---
+scenario: The published ipykernel kernel works in the default read-only sandbox.
+fixture: >-
+  No transport or sandbox permissions are configured. Host TCP and Unix
+  listeners accept baseline connections outside the sandbox; a host file
+  contains a protected sentinel.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.yaml
+---
+send:
+  code: |-
+    answer = 42
+    print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        <python-packages>/ipykernel/iostream.py:73: UserWarning: Couldn't bind IOPub Pipe to 127.0.0.1: Operation not permitted (addr='tcp://127.0.0.1:*')
+        subprocess output will be unavailable.
+          self._setup_pipe_in()
+        42
+  isError: false
+---
+send:
+  code: |
+    import os
+    import tempfile
+    from pathlib import Path
+
+    private = Path(tempfile.gettempdir()) / "kernel-permission-probe"
+    private.write_text("private")
+    assert private.read_text() == "private"
+    private.unlink()
+    print("private temp: writable")
+    host = Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_HOST_FILE"])
+    assert host.read_text() == "original\n"
+    try:
+        host.write_text("changed")
+    except OSError as error:
+        assert error.errno == int(os.environ["MCP_CONSOLE_TEST_JUPYTER_FILE_ERRNO"]), error
+        print("host file:", error)
+    else:
+        raise AssertionError("host file unexpectedly writable")
+result:
+  content:
+    - type: text
+      text: |
+        private temp: writable
+        host file: [Errno 1] Operation not permitted: '<workspace>/host-sentinel'
+  isError: false
+---
+send:
+  code: |
+    exec(Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"]).read_text())
+result:
+  content:
+    - type: text
+      text: |
+        private Unix: roundtrip
+        host TCP: [Errno 1] Operation not permitted
+        external TCP: [Errno 1] Operation not permitted
+        host Unix: [Errno 1] Operation not permitted
+        host Unix through private symlink: [Errno 1] Operation not permitted
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [IPKernelApp] ERROR | Exception during subprocesses termination
+        Traceback (most recent call last):
+          File "<python-packages>/ipykernel/kernelbase.py", line 1645, in _at_shutdown
+            await self._progressively_terminate_all_children()
+          File "<python-packages>/ipykernel/kernelbase.py", line 1623, in _progressively_terminate_all_children
+            if not self._process_children():
+                   ~~~~~~~~~~~~~~~~~~~~~~^^
+          File "<python-packages>/ipykernel/kernelbase.py", line 1606, in _process_children
+            all_children = kernel_process.children(recursive=True)
+          File "<python-packages>/psutil/__init__.py", line 978, in children
+            ppid_map = _ppid_map()
+          File "<python-packages>/psutil/__init__.py", line 256, in _ppid_map
+            for pid in pids():
+                       ~~~~^^
+          File "<python-packages>/psutil/__init__.py", line 1485, in pids
+            ret = sorted(_psplatform.pids())
+                         ~~~~~~~~~~~~~~~~^^
+          File "<python-packages>/psutil/_psosx.py", line 320, in pids
+            ls = cext.pids()
+        PermissionError: [Errno 1] Operation not permitted (originated from sysctl() malloc 1/3)
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        <python-packages>/ipykernel/iostream.py:73: UserWarning: Couldn't bind IOPub Pipe to 127.0.0.1: Operation not permitted (addr='tcp://127.0.0.1:*')
+        subprocess output will be unavailable.
+          self._setup_pipe_in()
+        [idle]
+  isError: false
+---
+send:
+  code: '"answer" in globals()'
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  code: |-
+    answer = 42
+    print(answer)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  code: |
+    import os
+    import tempfile
+    from pathlib import Path
+
+    private = Path(tempfile.gettempdir()) / "kernel-permission-probe"
+    private.write_text("private")
+    assert private.read_text() == "private"
+    private.unlink()
+    print("private temp: writable")
+    host = Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_HOST_FILE"])
+    assert host.read_text() == "original\n"
+    try:
+        host.write_text("changed")
+    except OSError as error:
+        assert error.errno == int(os.environ["MCP_CONSOLE_TEST_JUPYTER_FILE_ERRNO"]), error
+        print("host file:", error)
+    else:
+        raise AssertionError("host file unexpectedly writable")
+result:
+  content:
+    - type: text
+      text: |
+        private temp: writable
+        host file: [Errno 1] Operation not permitted: '<workspace>/host-sentinel'
+  isError: false
+---
+send:
+  code: |
+    exec(Path(os.environ["MCP_CONSOLE_TEST_JUPYTER_NETWORK_PROBE"]).read_text())
+result:
+  content:
+    - type: text
+      text: |
+        private Unix: roundtrip
+        host TCP: [Errno 1] Operation not permitted
+        external TCP: [Errno 1] Operation not permitted
+        host Unix: [Errno 1] Operation not permitted
+        host Unix through private symlink: [Errno 1] Operation not permitted
+  isError: false

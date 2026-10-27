@@ -1,0 +1,50 @@
+---
+scenario: A live kernel remains in startup until its Jupyter channels are ready.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport. A FIFO holds the acquired kernel before ipykernel
+  initialization across a 1.5-second public poll.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  code: |-
+    answer = 42
+    print(answer)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 1500
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  code: answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

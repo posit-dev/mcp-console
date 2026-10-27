@@ -169,6 +169,7 @@ class AsyncMCPConsole:
     async def send(
         self,
         *,
+        code: str | None = None,
         r: str | None = None,
         python: str | None = None,
         sql: str | None = None,
@@ -177,15 +178,18 @@ class AsyncMCPConsole:
         stdin: str | None = None,
         timeout_ms: int | None = None,
     ) -> str:
-        """Run or control the persistent R, Python, and SQL console.
+        """Run or control the persistent console.
 
-        Send at most one of r, python, or sql per call.
+        Send at most one of code, r, python, or sql per call.
+        The connected server's schema determines which source fields are available.
         If output ends in ``[running; poll with an empty send]``, call again
         without code or stdin until completion before submitting another cell.
         `console(...)` is an alias for `send(...)`.
         If tool configuration hides `timeout_ms`, poll without that argument.
 
         Args:
+            code: One complete cell in the selected Jupyter kernel's language.
+                Requires a server launched with `--jupyter-kernel`.
             r: One complete R cell.
             python: One complete Python cell.
             sql: One complete SQL cell on the selected connection.
@@ -230,6 +234,7 @@ class AsyncMCPConsole:
             ```
         """
         arguments = {
+            "code": code,
             "r": r,
             "python": python,
             "sql": sql,

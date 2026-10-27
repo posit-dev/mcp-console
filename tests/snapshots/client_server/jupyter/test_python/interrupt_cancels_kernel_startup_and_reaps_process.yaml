@@ -1,0 +1,59 @@
+---
+scenario: >-
+  Interrupt cancels kernel startup before Jupyter readiness and discards
+  the pending cell.
+fixture: >-
+  An isolated kernelspec selects the test host's installed release using
+  IPC transport. A Python launcher records its PID and blocks on a FIFO
+  before starting the released ipykernel.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.jupyter.direct.yaml
+---
+send:
+  code: |
+    from pathlib import Path
+
+    Path("must-not-run").write_text("unexpected execution")
+result:
+  content:
+    - type: text
+      text: |-
+        Traceback (most recent call last):
+          File "<string>", line 536, in <module>
+            main()
+            ~~~~^^
+          File "<string>", line 532, in main
+            asyncio.run(Adapter(options).run())
+            ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+          File "<python-stdlib>/asyncio/runners.py", line 196, in run
+            return runner.run(main)
+                   ~~~~~~~~~~^^^^^^
+          File "<python-stdlib>/asyncio/runners.py", line 119, in run
+            return self._loop.run_until_complete(task)
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+          File "<python-stdlib>/asyncio/base_events.py", line 726, in run_until_complete
+            return future.result()
+                   ~~~~~~~~~~~~~^^
+          File "<string>", line 522, in run
+            raise outcome
+          File "<string>", line 514, in run
+            task.result()
+            ~~~~~~~~~~~^^
+          File "<string>", line 141, in interrupt
+            raise RuntimeError("Jupyter startup interrupted")
+        RuntimeError: Jupyter startup interrupted
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 1]
+  isError: true
+---
+send:
+  control: interrupt
+  timeout_ms: 3000
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; phase: startup]
+        [running; poll with an empty send]
+  isError: false

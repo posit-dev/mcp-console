@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Language {
+    Kernel,
     R,
     Python,
     Sql,
@@ -19,6 +20,7 @@ pub(crate) const LANGUAGES_ENV: &str = "MCP_CONSOLE_LANGUAGES";
 #[derive(Clone, Copy, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Languages {
+    pub(crate) kernel: bool,
     pub(crate) r: bool,
     pub(crate) python: bool,
     pub(crate) sql: bool,
@@ -26,11 +28,16 @@ pub(crate) struct Languages {
 
 impl Languages {
     pub(crate) fn fields(self) -> Vec<&'static str> {
-        [Language::R, Language::Python, Language::Sql]
-            .into_iter()
-            .filter(|language| self.enables(*language))
-            .map(Self::field)
-            .collect()
+        [
+            Language::Kernel,
+            Language::R,
+            Language::Python,
+            Language::Sql,
+        ]
+        .into_iter()
+        .filter(|language| self.enables(*language))
+        .map(Self::field)
+        .collect()
     }
 
     pub(crate) fn cell_fields(self) -> String {
@@ -68,6 +75,7 @@ impl Languages {
 
     pub(crate) fn all() -> Self {
         Self {
+            kernel: false,
             r: true,
             python: true,
             sql: true,
@@ -75,16 +83,13 @@ impl Languages {
     }
 
     pub(crate) fn configure(self, command: &mut std::process::Command) {
-        let fields = [Language::R, Language::Python, Language::Sql]
-            .into_iter()
-            .filter(|language| self.enables(*language))
-            .map(Self::field)
-            .collect::<Vec<_>>();
+        let fields = self.fields();
         command.env(LANGUAGES_ENV, fields.join(","));
     }
 
     pub(crate) fn enables(self, language: crate::cell::Language) -> bool {
         match language {
+            crate::cell::Language::Kernel => self.kernel,
             crate::cell::Language::R => self.r,
             crate::cell::Language::Python => self.python,
             crate::cell::Language::Sql => self.sql,
@@ -93,6 +98,7 @@ impl Languages {
 
     pub(crate) fn field(language: crate::cell::Language) -> &'static str {
         match language {
+            crate::cell::Language::Kernel => "code",
             crate::cell::Language::R => "r",
             crate::cell::Language::Python => "python",
             crate::cell::Language::Sql => "sql",
