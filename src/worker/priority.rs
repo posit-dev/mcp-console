@@ -8,7 +8,15 @@ use std::sync::Mutex;
 
 use crate::worker_protocol::{PriorityEvent, PriorityExecution, ServerMessage, WorkerMessage};
 
-static R_REQUESTS: Mutex<VecDeque<(u64, String)>> = Mutex::new(VecDeque::new());
+struct RQueue {
+    requests: VecDeque<(u64, String)>,
+    wake_pending: bool,
+}
+
+static R_REQUESTS: Mutex<RQueue> = Mutex::new(RQueue {
+    requests: VecDeque::new(),
+    wake_pending: false,
+});
 static INGRESS_FAILURE: Mutex<Option<String>> = Mutex::new(None);
 thread_local! {
     static OWNER: Cell<Option<(u64, bool)>> = const { Cell::new(None) };
@@ -80,11 +88,17 @@ pub(super) fn ingress(mut reader: crate::sideband::Reader) -> io::Result<crate::
                         execution: PriorityExecution::RReentrant,
                         source,
                     } => {
-                        R_REQUESTS
-                            .lock()
-                            .expect("priority R queue")
-                            .push_back((request_id, source));
-                        if commands.send(&ServerMessage::PriorityReady).is_err() {
+                        let wake = {
+                            let mut queue = R_REQUESTS.lock().expect("priority R queue");
+                            queue.requests.push_back((request_id, source));
+                            !std::mem::replace(&mut queue.wake_pending, true)
+                        };
+                        // Serial admission consumes the ordinary command before
+                        // foreground execution begins, leaving pipe capacity for
+                        // one small wakeup. R events can finish many requests
+                        // without reading that frame; never enqueue another until
+                        // the coordinator consumes it.
+                        if wake && commands.send(&ServerMessage::PriorityReady).is_err() {
                             break;
                         }
                     }
@@ -100,12 +114,23 @@ pub(super) fn ingress(mut reader: crate::sideband::Reader) -> io::Result<crate::
     Ok(coordinator)
 }
 
+pub(super) fn consume_r_wakeup() {
+    // Rearm under the enqueue guard before checking for work. A racing request
+    // is either handled here or carries a new wakeup for the next idle wait.
+    R_REQUESTS.lock().expect("priority R queue").wake_pending = false;
+    run_r();
+}
+
 pub(super) extern "C" fn run_r() {
     // R event dispatch can itself reenter this hook. Never nest priority work.
     if active() || super::core::bootstrapping() {
         return;
     }
-    let request = R_REQUESTS.lock().expect("priority R queue").pop_front();
+    let request = R_REQUESTS
+        .lock()
+        .expect("priority R queue")
+        .requests
+        .pop_front();
     if let Some((request_id, source)) = request {
         run(request_id, false, || {
             super::r_integration::evaluate_priority(&source)

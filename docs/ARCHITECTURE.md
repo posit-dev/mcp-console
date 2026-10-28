@@ -66,6 +66,7 @@ The socket does not select a new sandbox authority.
 
 Explicit priority requests use a separate connection-owned result slot and bounded output tape.
 The worker ingress thread dispatches Python requests to a background thread and queues R requests for the owning thread's event hook.
+R requests share one pending coordinator wakeup; only consuming that wakeup clears it, so event-hook execution cannot fill the command pipe with unread notifications.
 Neither path claims the ordinary evaluation or its output.
 Restart and worker failure settle the priority slot through the same connection's retirement events.
 Managed output follows the current thread's request identity; native streams retain foreground attribution.

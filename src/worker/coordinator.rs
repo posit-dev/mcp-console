@@ -193,7 +193,7 @@ impl Coordinator {
         }
 
         match message {
-            ServerMessage::PriorityReady => super::priority::run_r(),
+            ServerMessage::PriorityReady => super::priority::consume_r_wakeup(),
             ServerMessage::EvaluatePriority { .. } => {
                 unreachable!("priority commands are handled by ingress")
             }
