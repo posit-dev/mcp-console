@@ -21,10 +21,18 @@ from openai_codex.async_client import AsyncCodexClient
 from pydantic import RootModel
 from shiny import App, Inputs, Outputs, Session, reactive, render, ui
 
+from inspection import PYTHON_SOURCE, R_SOURCE
+
 MODEL = "gpt-6-luna"
 LOGGER = logging.getLogger(__name__)
 # Console previews retain up to 8 MiB of encoded images in addition to text.
 RESPONSE_LIMIT = 16 * 1024 * 1024
+
+
+class ControlError(RuntimeError):
+    def __init__(self, error: dict[str, str]) -> None:
+        self.code = error["code"]
+        super().__init__(error["message"])
 
 
 async def request(endpoint: Path, **fields: Any) -> dict[str, Any]:
@@ -36,7 +44,7 @@ async def request(endpoint: Path, **fields: Any) -> dict[str, Any]:
         await writer.drain()
         response = json.loads(await reader.readline())
         if "error" in response:
-            raise RuntimeError(response["error"]["message"])
+            raise ControlError(response["error"])
         return response["result"]
     finally:
         writer.close()
@@ -65,6 +73,7 @@ def make_app(binary: Path, workspace: Path) -> App:
             ".entry pre {white-space: pre-wrap; overflow-wrap: anywhere;}"
             ".ghost {opacity: .55; border-left: 3px solid #aaa; padding-left: 1rem;}"
             ".assistant {background: #f4f7fa; padding: .7rem;}"
+            ".variables pre {font-size: .8rem; white-space: pre-wrap; overflow-wrap: anywhere;}"
         ),
         ui.h2("Console integration fixture"),
         ui.output_text("connection_state"),
@@ -109,7 +118,19 @@ def make_app(binary: Path, workspace: Path) -> App:
                     ui.input_action_button("evaluate", "Evaluate"),
                 ),
             ),
-            col_widths=(6, 6),
+            ui.card(
+                ui.card_header("Variables"),
+                ui.card_body(
+                    ui.h6("R global environment"),
+                    ui.output_text_verbatim("r_variables"),
+                    ui.h6("Python __main__"),
+                    ui.output_text_verbatim("python_variables"),
+                    fillable=False,
+                    min_height=0,
+                    class_="variables",
+                ),
+            ),
+            col_widths=(4, 5, 3),
             row_heights="minmax(0, 1fr)",
         ),
         padding="0.75rem",
@@ -123,6 +144,11 @@ def make_app(binary: Path, workspace: Path) -> App:
         agent_status = reactive.value("Idle")
         transcript_entries = reactive.value([])
         pending = reactive.value([])
+        variable_views = {
+            "r": reactive.value("Waiting for variables…"),
+            "python": reactive.value("Waiting for variables…"),
+        }
+        immediate = asyncio.Lock()
         tasks: set[asyncio.Task[None]] = set()
         ready = asyncio.Event()
         endpoint: Path
@@ -181,6 +207,33 @@ def make_app(binary: Path, workspace: Path) -> App:
             task = asyncio.create_task(guarded(coroutine))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
+
+        async def inspect_variables() -> None:
+            while True:
+                for language, source in (("r", R_SOURCE), ("python", PYTHON_SOURCE)):
+                    try:
+                        async with immediate:
+                            result = await request(
+                                endpoint,
+                                op="evaluate",
+                                language=language,
+                                execution="immediate",
+                                code=source,
+                                record=False,
+                            )
+                    except ControlError as error:
+                        if error.code == "busy":
+                            continue
+                        raise
+                    text = "".join(
+                        block["text"]
+                        for block in result["content"]
+                        if block["type"] == "text"
+                    )
+                    if error := result.get("execution_error"):
+                        text = f"{error['ename']}: {error['evalue']}"
+                    await change(variable_views[language], text)
+                await asyncio.sleep(1)
 
         async def connect() -> None:
             nonlocal endpoint, thread
@@ -258,8 +311,22 @@ def make_app(binary: Path, workspace: Path) -> App:
                         acknowledgement = json.loads(await reader.readline())
                         if "error" in acknowledgement:
                             raise RuntimeError(acknowledgement["error"]["message"])
+                        for language, source in (
+                            ("r", "invisible(NULL)"),
+                            ("python", "pass"),
+                        ):
+                            await request(
+                                endpoint,
+                                op="evaluate",
+                                language=language,
+                                code=source,
+                                busy="wait",
+                                wait_ms=60000,
+                                record=False,
+                            )
                         ready.set()
                         await change(state, "Ready")
+                        start(inspect_variables())
                         while line := await reader.readline():
                             event = json.loads(line)
                             if event.get("event") == "preview":
@@ -281,7 +348,11 @@ def make_app(binary: Path, workspace: Path) -> App:
             else:
                 fields["execution"] = execution
             try:
-                result = await request(endpoint, **fields)
+                if execution == "immediate":
+                    async with immediate:
+                        result = await request(endpoint, **fields)
+                else:
+                    result = await request(endpoint, **fields)
             except Exception as error:
                 await transcript_entry(
                     entry_id,
@@ -374,6 +445,14 @@ def make_app(binary: Path, workspace: Path) -> App:
         @render.text
         def agent_state() -> str:
             return agent_status.get()
+
+        @render.text
+        def r_variables() -> str:
+            return variable_views["r"].get()
+
+        @render.text
+        def python_variables() -> str:
+            return variable_views["python"].get()
 
         @render.ui
         def chat() -> ui.TagList:

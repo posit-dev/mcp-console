@@ -163,6 +163,85 @@ def test_immediate_execution_while_ordinary_cell_is_pending(app, language):
     )
 
 
+@pytest.mark.parametrize("language", ["python", "r"])
+def test_variables_update_while_ordinary_cell_is_pending(app, language):
+    page, workspace = app
+    expect(page.get_by_text("Variables", exact=True)).to_be_visible()
+    page.locator("#language").select_option(language)
+    variables = page.locator(f"#{language}_variables")
+    if language == "python":
+        source = (
+            "import time\n"
+            "from pathlib import Path\n"
+            "inspected_value = 'variable-before'\n"
+            "inspected_deleted = 'delete-before'\n"
+            "repr_calls = 0\n"
+            "class UnsafeRepr:\n"
+            "    def __repr__(self):\n"
+            "        global repr_calls\n"
+            "        repr_calls += 1\n"
+            "        raise RuntimeError('repr-was-executed')\n"
+            "inspected_object = UnsafeRepr()\n"
+            "print('variables-waiting', flush=True)\n"
+            "while not Path('variables-update').exists():\n"
+            "    time.sleep(0.02)\n"
+            "inspected_value = 'variable-after'\n"
+            "while not Path('variables-delete').exists():\n"
+            "    time.sleep(0.02)\n"
+            "del inspected_deleted\n"
+            "while not Path('variables-release').exists():\n"
+            "    time.sleep(0.02)\n"
+            "print('variables-completed')"
+        )
+    else:
+        source = (
+            'inspected_value <- "variable-before"\n'
+            'inspected_deleted <- "delete-before"\n'
+            'cat("variables-waiting\\n")\n'
+            'while (!file.exists("variables-update")) Sys.sleep(0.02)\n'
+            'inspected_value <- "variable-after"\n'
+            'while (!file.exists("variables-delete")) Sys.sleep(0.02)\n'
+            "rm(inspected_deleted)\n"
+            'while (!file.exists("variables-release")) Sys.sleep(0.02)\n'
+            'cat("variables-completed\\n")'
+        )
+    page.locator("#source").fill(source)
+    page.locator("#evaluate").click()
+    expect(page.locator("#pending_output pre")).to_have_text(
+        "variables-waiting\n", timeout=60_000
+    )
+    expect(variables).to_contain_text("inspected_value", timeout=30_000)
+    expect(variables).to_contain_text("variable-before")
+    expect(variables).to_contain_text("inspected_deleted")
+    if language == "python":
+        expect(variables).to_contain_text("inspected_object")
+        expect(variables).to_contain_text("<UnsafeRepr>")
+
+    (workspace / "variables-update").touch()
+    expect(variables).to_contain_text("variable-after", timeout=30_000)
+    expect(page.locator("#pending_output pre")).to_have_text("variables-waiting\n")
+    expect(page.locator("#transcript .content")).to_be_empty()
+
+    (workspace / "variables-delete").touch()
+    expect(variables).not_to_contain_text("inspected_deleted", timeout=30_000)
+    expect(variables).to_contain_text("variable-after")
+    expect(page.locator("#pending_output pre")).to_have_text("variables-waiting\n")
+    expect(page.locator("#transcript .content")).to_be_empty()
+    expect(page.locator("#transcript .entry")).to_have_count(1)
+
+    (workspace / "variables-release").touch()
+    expect(page.locator("#transcript .content")).to_have_text(
+        "variables-waiting\nvariables-completed\n", timeout=30_000
+    )
+    expect(page.locator("#pending_output")).to_be_empty()
+    if language == "python":
+        page.locator("#source").fill("print('repr-count', repr_calls)")
+        page.locator("#evaluate").click()
+        expect(page.locator("#transcript .content").last).to_have_text(
+            "repr-count 0\n", timeout=30_000
+        )
+
+
 @pytest.mark.skipif(
     os.environ.get("MCP_CONSOLE_LIVE_AGENT") != "1",
     reason="Live Luna inference is explicitly enabled separately",

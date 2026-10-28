@@ -231,5 +231,5 @@ The projection choice does not isolate objects or conceal data that later code e
 
 ## Try the Shiny fixture
 
-The [Shiny integration fixture](../tests/fixtures/control_shiny/README.md) displays agent chat beside the shared Console transcript.
-It demonstrates direct code submission, streamed pending output, and Immediate execution for R and Python.
+The [Shiny integration fixture](../tests/fixtures/control_shiny/README.md) displays agent chat beside the shared Console transcript and a live Variables pane.
+It demonstrates direct code submission, streamed pending output, and Immediate execution for R and Python, including private inspection of R's global environment and Python's `__main__` symbols.

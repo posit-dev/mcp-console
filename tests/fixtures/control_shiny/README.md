@@ -1,6 +1,6 @@
 # Shiny control-channel fixture
 
-This local Shiny for Python app puts agent chat beside a transcript of the same Console worker.
+This local Shiny for Python app puts agent chat beside a transcript and Variables pane for the same Console worker.
 The agent owns Console's MCP connection.
 The app uses the private control socket to submit code and receives pending output through one subscription.
 Pending output appears in gray until a completed response becomes a transcript entry.
@@ -32,11 +32,19 @@ Immediate uses R reentrant execution or Python background-thread execution accor
 Use Immediate only for code that the integrator can safely run alongside the active evaluation.
 Ordinary cells wait for the worker to become available.
 
+The Variables pane refreshes about once a second through private Immediate requests, including while an ordinary cell is running.
+It uses `utils::ls.str()` for R's global environment and bounded previews of Python's `__main__` symbols, showing up to 100 names per language.
+Python previews display exact builtin values and small containers; other objects appear by type without calling custom `__repr__` methods.
+R uses its usual `str()` methods, which can evaluate promises or active bindings.
+R inspection requires R to service events and waits while an ordinary Python or SQL cell owns the worker; the pane retains its last view until inspection can resume.
+Inspection output stays out of the transcript and pending-output preview.
+
 ## Browser regression and live smoke
 
 The browser regression launches the actual app and Console process.
 It blocks an evaluation on a file checkpoint, verifies that pending output arrives before completion, releases the checkpoint, and checks retained state and rendered images.
 Additional cases select Immediate for R and Python while an ordinary cell remains blocked.
+Variables cases check live changes and deletion during a blocked cell, private output routing, and Python previews without custom repr execution.
 The live smoke additionally asks Luna to mutate an object created through the direct input and verifies the result through both paths.
 Only the live smoke makes a model inference request.
 
