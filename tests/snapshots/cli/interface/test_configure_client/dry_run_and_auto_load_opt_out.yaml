@@ -8,7 +8,7 @@ console:
     - --default-config
     - sandbox.profile=inherit_codex
   enabled: true
-  tool_input_schema_max_bytes: 1000000
+  tool_input_schema_max_bytes: 12000
   omit_tools_from: []
   tools:
     send:
@@ -22,7 +22,8 @@ dry_run: |
   command = "uvx"
   args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"]
   enabled = true
-  tool_input_schema_max_bytes = 1000000
+  # Limit schema size to less than roughly 1% of the stock 272k-token context.
+  tool_input_schema_max_bytes = 12000
   omit_tools_from = ["deferred"]
 
   [mcp_servers.console.tools.send]
@@ -40,7 +41,8 @@ opt_out: |
   command = "uvx"
   args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"]
   enabled = true
-  tool_input_schema_max_bytes = 1000000
+  # Limit schema size to less than roughly 1% of the stock 272k-token context.
+  tool_input_schema_max_bytes = 12000
   omit_tools_from = []
 
   [mcp_servers.console.tools.send]

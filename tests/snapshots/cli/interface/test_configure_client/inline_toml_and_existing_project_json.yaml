@@ -10,12 +10,71 @@ console:
     - --default-config
     - sandbox.profile=inherit_codex
   enabled: true
-  tool_input_schema_max_bytes: 1000000
+  tool_input_schema_max_bytes: 12000
   omit_tools_from:
     - deferred
   tools:
     send:
       approval_mode: approve
+configuration: |
+  # Keep inline tables.
+  # Limit schema size to less than roughly 1% of the stock 272k-token context.
+  mcp_servers = { other = { command = "other" }, console = { command = "uvx", env = { KEEP = "value" } , args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"], enabled = true, tool_input_schema_max_bytes = 12000, omit_tools_from = ["deferred"], tools.send.approval_mode = "approve" } }
+---
+client: codex
+console:
+  command: uvx
+  env:
+    KEEP: value
+  args:
+    - mcp-console
+    - serve
+    - --default-config
+    - sandbox.profile=inherit_codex
+  enabled: true
+  tool_input_schema_max_bytes: 12000
+  omit_tools_from:
+    - deferred
+  tools:
+    send:
+      approval_mode: approve
+configuration: |
+  [mcp_servers]
+  other = { command = "other" }
+  # Keep the server comment.
+  # Limit schema size to less than roughly 1% of the stock 272k-token context.
+  console = { command = "uvx", env = { KEEP = "value" } , args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"], enabled = true, tool_input_schema_max_bytes = 12000, omit_tools_from = ["deferred"], tools.send.approval_mode = "approve" }
+---
+client: codex
+console:
+  command: uvx
+  env:
+    KEEP: value
+  args:
+    - mcp-console
+    - serve
+    - --default-config
+    - sandbox.profile=inherit_codex
+  enabled: true
+  tool_input_schema_max_bytes: 12000
+  omit_tools_from:
+    - deferred
+  tools:
+    send:
+      approval_mode: approve
+configuration: |
+  # Keep dotted keys.
+  mcp_servers.other.command = "other"
+  mcp_servers.console.command = "uvx"
+  mcp_servers.console.env.KEEP = "value"
+  mcp_servers.console.args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"]
+  mcp_servers.console.enabled = true
+  # Limit schema size to less than roughly 1% of the stock 272k-token context.
+  mcp_servers.console.tool_input_schema_max_bytes = 12000
+  mcp_servers.console.omit_tools_from = ["deferred"]
+
+  [mcp_servers.console.tools.send]
+  approval_mode = "approve"
 ---
 client: claude
 console:
@@ -27,3 +86,23 @@ console:
     - mcp-console
     - serve
   alwaysLoad: true
+configuration: |
+  {
+    "mcpServers": {
+      "other": {
+        "command": "other"
+      },
+      "console": {
+        "command": "uvx",
+        "env": {
+          "KEEP": "value"
+        },
+        "type": "stdio",
+        "args": [
+          "mcp-console",
+          "serve"
+        ],
+        "alwaysLoad": true
+      }
+    }
+  }
