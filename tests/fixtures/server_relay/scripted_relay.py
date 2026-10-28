@@ -54,7 +54,6 @@ CONTROLLED_INTERRUPT_EVALUATION_RELEASE_NAME = (
     "mcp-console-controlled-interrupt-evaluation-release"
 )
 CONTROLLED_COMPLETION_RELEASE_NAME = "mcp-console-controlled-completion-release"
-CONTROLLED_COMPLETION_SENT_NAME = "mcp-console-controlled-completion-sent"
 RESTART_REQUIREMENTS_CHECK_NAME = "mcp-console-restart-requirements-check"
 RESTART_REQUIREMENTS_CHECKED_NAME = "mcp-console-restart-requirements-checked"
 RESTART_REQUIREMENTS_RESOLVED_NAME = "mcp-console-restart-requirements-resolved"
@@ -806,7 +805,6 @@ def run_controlled_interrupt_still_active(relay: ScriptedRelay) -> None:
 
 def run_controlled_completion_then_interrupt(relay: ScriptedRelay) -> None:
     relay.make_checkpoint(CONTROLLED_COMPLETION_RELEASE_NAME)
-    relay.make_checkpoint(CONTROLLED_COMPLETION_SENT_NAME)
     relay.ready()
     relay.expect(
         {
@@ -822,11 +820,7 @@ def run_controlled_completion_then_interrupt(relay: ScriptedRelay) -> None:
             "data": "controlled cell completed before later interrupt\n",
         }
     )
-    relay.send(COMPLETED)
-    relay.notify_checkpoint(CONTROLLED_COMPLETION_SENT_NAME)
-    relay.expect({"kind": "interrupt", "request_id": 0})
-    relay.send({"kind": "interrupt_result", "request_id": 0})
-    relay.mark_done()
+    relay.complete()
     relay.retire()
 
 
