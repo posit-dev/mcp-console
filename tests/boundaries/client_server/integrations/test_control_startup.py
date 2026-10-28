@@ -37,7 +37,7 @@ def assert_prelaunch_failure(
 ) -> str:
     recordings = root / ".agents/console/sessions"
 
-    def submitted_evaluation() -> Path | None:
+    def recorded_event(name: str) -> Path | None:
         for path in recordings.glob("*/capture/events.jsonl"):
             events = [
                 json.loads(line)
@@ -45,21 +45,38 @@ def assert_prelaunch_failure(
                 if line.endswith("\n")
             ]
             if any(
-                event["event"] == "tool_call"
-                and event["request"]["arguments"] == {language: source}
+                event["event"] == name
+                and (
+                    name != "tool_call"
+                    or event["request"]["arguments"] == {language: source}
+                )
                 for event in events
             ):
                 return path
         return None
 
+    starting = control.request(op="status")
+    assert starting["result"] == {
+        "state": "starting",
+        "idle": False,
+        "evaluation": None,
+    }, starting
+    wait_for_checkpoint(
+        lambda: recorded_event("startup_failed"),
+        "worker prelaunch failed before the timed integrator submission",
+        root=recordings,
+        recursive=True,
+        client=client,
+    )
+
     for policy in ({"busy": "wait", "wait_ms": 30000}, {}):
         pending = control.start(op="evaluate", language=language, code=source, **policy)
         if policy:
-            # The waiting evaluation owns the startup wait. Keep preparation
-            # gated until its public request is recorded instead of imposing a
-            # separate deadline on startup before submitting any evaluation.
+            # Preparation and prelaunch have finished. Keep readiness publication
+            # gated until this request is recorded, so its admission deadline
+            # measures waiting for that outcome instead of dependency preparation.
             wait_for_checkpoint(
-                submitted_evaluation,
+                lambda: recorded_event("tool_call"),
                 "integrator evaluation recorded while startup is held",
                 root=recordings,
                 recursive=True,
@@ -96,18 +113,21 @@ def test_failed_prelaunch_rejects_code_without_consuming_mcp_error(
         endpoint = root / "control.sock"
         checkpoints = {
             name: resources.enter_context(closing(FifoCheckpoint.create(root / name)))
-            for name in ("reached", "release")
+            for name in ("reached", "release", "parked")
         }
+        armed = root / "armed"
+        armed.touch()
         environment, rscript = r_test_environment()
         environment["RETICULATE_PYTHON"] = sys.executable
         environment.update(
             {
                 LOADER_VARIABLE: str(
-                    build_interposer(root, "startup_admission_checkpoint")
+                    build_interposer(root, "startup_return_interposer")
                 ),
-                "MCP_CONSOLE_TEST_ADMISSION_ORDINAL": "0",
-                "MCP_CONSOLE_TEST_ADMISSION_REACHED": str(checkpoints["reached"].path),
-                "MCP_CONSOLE_TEST_ADMISSION_RELEASE": str(checkpoints["release"].path),
+                "MCP_CONSOLE_TEST_COMPLETION_ARMED": str(armed),
+                "MCP_CONSOLE_TEST_COMPLETION_STARTED": str(checkpoints["reached"].path),
+                "MCP_CONSOLE_TEST_COMPLETION_RELEASE": str(checkpoints["release"].path),
+                "MCP_CONSOLE_TEST_COMPLETION_PARKED": str(checkpoints["parked"].path),
             }
         )
         denied = (rscript.parent.parent / "etc/Renviron").resolve()
@@ -125,9 +145,13 @@ def test_failed_prelaunch_rejects_code_without_consuming_mcp_error(
             environment,
             root,
         ) as client:
-            client.initialize_and_list_tools()
-            checkpoints["reached"].wait("startup is held before runtime preparation")
             try:
+                client.initialize_and_list_tools()
+                checkpoints["reached"].wait(
+                    "prelaunch finished before startup readiness publication",
+                    timeout=client.response_timeout,
+                    client=client,
+                )
                 with ControlClient(endpoint) as control:
                     diagnostic = assert_prelaunch_failure(
                         client,
@@ -151,7 +175,7 @@ def test_failed_prelaunch_rejects_code_without_consuming_mcp_error(
                 [
                     {
                         "scenario": "Integrator admission rejects a failed worker prelaunch and leaves its diagnostic for MCP.",
-                        "fixture": "A native checkpoint holds startup before runtime preparation until the integrator's waiting evaluation is journaled. macOS Seatbelt then denies the selected R installation's etc/Renviron file during worker startup.",
+                        "fixture": "macOS Seatbelt denies the selected R installation's etc/Renviron file during worker startup. A native checkpoint then holds readiness publication until the integrator's waiting evaluation is journaled, excluding dependency preparation from its admission deadline.",
                     },
                     *transcript,
                 ],

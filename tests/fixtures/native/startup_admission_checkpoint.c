@@ -17,14 +17,12 @@ static _Atomic(pthread_mutex_t *) main_mutex;
 static atomic_bool input_returned;
 static bool input_dispatched;
 static bool shutdown_observed;
-static bool observe_shutdown;
 static _Thread_local bool input_eof;
 
 __attribute__((constructor)) static void initialize(void) {
     main_thread = pthread_self();
     const char *ordinal = getenv("MCP_CONSOLE_TEST_ADMISSION_ORDINAL");
     if (ordinal) admission_ordinal = (unsigned)atoi(ordinal);
-    observe_shutdown = getenv("MCP_CONSOLE_TEST_ADMISSION_SHUTDOWN") != NULL;
     // Only the server is gated, never its preparation children.
     unsetenv("DYLD_INSERT_LIBRARIES");
     unsetenv("LD_PRELOAD");
@@ -59,8 +57,7 @@ static int observed_fstat(int descriptor, struct stat *status) {
 
 static ssize_t observed_read(int descriptor, void *buffer, size_t count) {
     ssize_t result = read(descriptor, buffer, count);
-    // Startup-only fixtures do not need a scheduler checkpoint at shutdown.
-    if (observe_shutdown && descriptor == STDIN_FILENO && result == 0) input_eof = true;
+    if (descriptor == STDIN_FILENO && result == 0) input_eof = true;
     return result;
 }
 
