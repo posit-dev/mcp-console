@@ -4,6 +4,7 @@ base::local(
     # Python 3.9 and older are intentionally outside the bridge contract.
     minimum_python <- base::numeric_version("3.10")
     requirements_adapter <- NULL
+    pending_python_setup <- NULL
     `%||%` <- function(x, y) if (is.null(x)) y else x
 
     manifest <- function(packages, python_version, exclude_newer) {
@@ -423,6 +424,10 @@ base::local(
     }
 
     check_python_setup <- function(completed) {
+      # NULL is shutdown cancellation, with no retained Python exception.
+      if (is.null(completed)) {
+        return(FALSE)
+      }
       if (!completed) {
         # Native setup retains the exception without printing it. Preserve
         # reticulate's R condition classes, last error, and interrupt handling.
@@ -431,7 +436,7 @@ base::local(
           convert = TRUE
         )
       }
-      invisible()
+      TRUE
     }
 
     attached_python_config <- function() {
@@ -456,19 +461,36 @@ base::local(
     }
 
     initialize_python_runtime <- function(strict = FALSE) {
+      if (.Call("mcp_console_python_setup_in_progress")) {
+        # A site hook explicitly requested conversion. Its outer setup still
+        # owns site processing, defaults, and publication of runtime completion.
+        return(invisible(TRUE))
+      }
+      pending <- pending_python_setup
+      pending_python_setup <<- NULL
       python_config <- attached_python_config()
       if (!check_python_version(python_config, strict)) {
         return(invisible(FALSE))
       }
+      if (!is.null(pending)) {
+        # Fresh selection already ran setup before conversion attachment.
+        # R can now rethrow its retained exception without replaying hooks.
+        if (!check_python_setup(pending$completed)) {
+          return(invisible(FALSE))
+        }
+      }
       if (!isTRUE(.Call("mcp_console_python_runtime_is_configured"))) {
-        check_python_setup(.Call(
+        completed <- check_python_setup(.Call(
           "mcp_console_setup_python_runtime",
           python_config$libpython,
           !is.na(managed)
         ))
+        if (!completed) {
+          return(invisible(FALSE))
+        }
       }
-      # R-first attachment precedes shared site and workspace setup. Publish
-      # metadata after those paths are active, as for Python-first attachment.
+      # Publish metadata after shared setup, including adoption of an
+      # interpreter initialized by native R startup before the adapter existed.
       live <- conversion_config(jsonlite::fromJSON(.Call(
         "mcp_console_running_python"
       )))

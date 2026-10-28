@@ -3,6 +3,10 @@ setting: r={}
 stderr: |
   r settings require the built-in worker and relay
 ---
+setting: r.enabled=false
+stderr: |
+  r settings require the built-in worker and relay
+---
 setting: r.vanilla=false
 stderr: |
   r settings require the built-in worker and relay

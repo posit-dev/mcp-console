@@ -21,12 +21,53 @@ pub(super) enum Selection {
     Incomplete,
 }
 
-pub(crate) fn configure_worker_environment() -> std::io::Result<()> {
-    super::platform::set_environment(c"RETICULATE_REMAP_OUTPUT_STREAMS", c"0", true)?;
-    // R is already embedded. Keep the interoperability marker independently
-    // of Python selection, including Python startup hooks that import rpy2.
-    let marker = std::ffi::CString::new(format!("PID={}:NAME=\"reticulate\"", std::process::id()))?;
+pub(crate) fn with_r_startup_environment(
+    initialize: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    super::platform::set_environment(c"RETICULATE_REMAP_OUTPUT_STREAMS", c"0", true)
+        .map_err(|error| error.to_string())?;
+    // Mark the embedding before native startup, including Python hooks that
+    // import rpy2. The marker does not depend on Python selection.
+    let marker = std::ffi::CString::new(format!("PID={}:NAME=\"reticulate\"", std::process::id()))
+        .map_err(|error| error.to_string())?;
     super::platform::set_environment(c"R_SESSION_INITIALIZED", &marker, true)
+        .map_err(|error| error.to_string())?;
+    // Before Console's adapter exists, stock reticulate would resolve the
+    // literal "managed" hint independently. Startup packages must use the
+    // environment already prepared for this generation instead.
+    let selected = if std::env::var_os("RETICULATE_PYTHON").is_some_and(|value| value == "managed")
+        && super::library::initialized_selection()?.is_none()
+    {
+        super::requirements::materialized()
+            .map(|candidate| candidate.selected.embedding.python)
+            .or_else(|| {
+                super::SELECTION
+                    .get()?
+                    .python
+                    .as_ref()
+                    .filter(|python| python.managed)
+                    .map(|python| python.selected.embedding.python.clone())
+            })
+    } else {
+        None
+    };
+    if let Some(selected) = &selected {
+        let executable =
+            std::ffi::CString::new(selected.as_str()).map_err(|error| error.to_string())?;
+        super::platform::set_environment(c"RETICULATE_PYTHON", &executable, true)
+            .map_err(|error| error.to_string())?;
+    }
+    let result = initialize();
+    // Restore before adapter attachment, even when native startup failed.
+    // Preserve profile edits; adoption validates their selected interpreter.
+    if let Some(selected) = selected
+        && std::env::var_os("RETICULATE_PYTHON")
+            .is_some_and(|value| value == std::ffi::OsStr::new(&selected))
+    {
+        super::platform::set_environment(c"RETICULATE_PYTHON", c"managed", true)
+            .map_err(|error| error.to_string())?;
+    }
+    result
 }
 
 #[allow(clippy::result_large_err)]
@@ -92,9 +133,15 @@ impl Adapter {
                 self.cancel_selection()?;
                 return Err(error);
             }
-            // Reticulate attaches conversion and event integration first.
-            // Its initialization hook enters the shared native setup;
-            // the explicit setup call also covers an already-live interpreter.
+            if super::startup::setup_in_progress() {
+                // A site hook needs conversion while the outer setup still
+                // owns Python's active callback and initial thread state.
+                // Attachment is usable now, but runtime setup is not complete.
+                return self.attach();
+            }
+            // Fresh R-first initialization completes native setup before
+            // conversion attachment. The explicit setup call also covers
+            // interpreters initialized by native R startup before this adapter.
             let result = self
                 .attach()
                 .and_then(|attached| if attached { self.setup() } else { Ok(false) });
@@ -137,8 +184,32 @@ impl Adapter {
     }
 
     fn setup(&self) -> Result<bool, String> {
-        self.bridge.evaluate_completed("setup")
+        Ok(self.bridge.evaluate_completed("setup")? && super::library::runtime_configured()?)
     }
+}
+
+// A captured existing interpreter owns its metadata as well as its executable.
+// Resolve it before reticulate can discover or validate a mutable profile hint.
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_captured_python() -> harp::Result<SEXP> {
+    let selected = if let Some(pending) = super::pending_executable() {
+        let executable = pending.map_err(|error| harp::anyhow!("{error}"))?;
+        crate::worker::check_python_selection_interrupt()
+            .map_err(|error| harp::anyhow!("{error}"))?;
+        Some(crate::worker::inspect_python(executable).map_err(|error| harp::anyhow!("{error}"))?)
+    } else {
+        super::SELECTION
+            .get()
+            .and_then(|selection| selection.python.as_ref())
+            .filter(|python| !python.managed)
+            .map(|python| (*python.selected).clone())
+    };
+    let Some(selected) = selected else {
+        return unsafe { Ok(libr::R_NilValue) };
+    };
+    let result = serde_json::to_string(&selected).map_err(|error| harp::anyhow!("{error}"))?;
+    Ok(harp::object::RObject::from(result).sexp)
 }
 
 // Called once for a fresh selection, before the adapter changes the worker
@@ -233,6 +304,11 @@ extern "C-unwind" fn setup_python_runtime(libpython: SEXP, managed: SEXP) -> SEX
         })??;
         let completed = super::setup_runtime(std::path::Path::new(&libpython), managed)
             .map_err(|error| harp::anyhow!("{error}"))?;
+        if !completed && crate::worker::is_shutting_down() {
+            // Retirement deliberately retains no Python exception. Distinguish
+            // cancellation from FALSE, whose exception the R adapter rethrows.
+            return unsafe { Ok(libr::R_NilValue) };
+        }
         harp::exec::r_sandbox(|| harp::object::RObject::from(completed).sexp)
     })
 }
@@ -243,6 +319,12 @@ pub extern "C-unwind" fn mcp_console_python_runtime_is_configured() -> harp::Res
     let configured =
         super::library::runtime_configured().map_err(|error| harp::anyhow!("{error}"))?;
     Ok(harp::object::RObject::from(configured).sexp)
+}
+
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_python_setup_in_progress() -> harp::Result<SEXP> {
+    Ok(harp::object::RObject::from(super::startup::setup_in_progress()).sexp)
 }
 
 #[allow(clippy::result_large_err)]

@@ -1,0 +1,20 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: profile_value + 1
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: reticulate::py$profile_value + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

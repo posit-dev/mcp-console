@@ -73,6 +73,22 @@ One connection-owned background task discovers runtimes, prepares defaults, and 
 MCP initialization, tool discovery, and pings do not wait.
 Workers supplied through internal testing hooks are launched on demand.
 
+Native R startup remains eager when R is enabled and available, independently of model-visible languages.
+Python initialization and the default SQL connection wait for their first consumer; configured startup source remains eager and runs exactly once.
+`r.enabled: false` bypasses R discovery, preparation, and native startup without changing the model-visible language setting.
+An existing Python with R disabled needs interpreter inspection but no retained dependency-preparation process.
+Disabled R package preparation discovers R's installation without probing an unused `ir` or reticulate bootstrap.
+
+Unix R-capable sessions capture an existing Python's absolute executable choice before native startup and inspect it inside the worker policy at first use.
+Windows retains its earlier inspection inside the separate resolver policy.
+For an uninitialized prepared managed Python, native R startup temporarily receives its executable path in `RETICULATE_PYTHON` instead of `managed`.
+Console restores the unchanged hint before bridge attachment and preserves profile edits.
+An interpreter initialized by native R startup must agree with the captured existing or prepared managed Python selection; Console does not silently adopt a different environment.
+When R first requests Python, native setup runs site hooks before ordinary reticulate conversion attachment and NumPy import.
+A site hook that explicitly calls R can attach conversion during setup; the outer setup retains ownership of site processing, runtime completion, and the initial Python thread state.
+Returning from that callback does not repeat site processing or reticulate initialization hooks.
+The adapter retains that setup outcome so its initialization hook can report a failure without rerunning user hooks.
+
 With the `inherit_codex` sandbox profile, startup waits for the first `send` to capture client authority before creating any preparation or execution process.
 Capture happens in transport request order before asynchronous handler dispatch; a cancelled first request cannot let a later request select the connection's permissions.
 The server translates supported permissions or selects the configured fallback, defaulting to `read_only`, then composes local permissions and selects caches.
@@ -85,6 +101,7 @@ The metadata adapter and its supported limits live in [`src/server/sandbox.rs`](
 
 Transport readiness connects command, input, output, and resolver services before built-in interpreter bootstrap.
 It does not mean either interpreter is initialized.
+The bootstrap receipt confirms eager startup has settled; it does not force unused Python or SQL initialization.
 Unchanged requirements do not wait for bootstrap.
 When R is available, changed requirements wait for built-in bootstrap before reserving environment changes, including replacement of an unused worker.
 This prevents retirement from interrupting a native R startup attempt that began after replacement was selected.
@@ -183,6 +200,24 @@ Automatic replacement can reuse a generation, so bundled follow-up work also che
 The hidden `resolve` process materializes environments under the separate [resolver policy](PACKAGE_CONFIGURATION.md).
 The preparation owner publishes a result only after its process and I/O cleanup contract completes.
 The server owns accepted declarations, not the materializer.
+
+Managed Python reports the selected interpreter and warms its optional Matplotlib font cache in the same `uv` child.
+Later preparations can skip the font-manager import when a successful receipt matches the current interpreter, preparation source, Matplotlib version and entry-point files, and font-cache files.
+When no explicit Matplotlib cache directory is available, warming still runs but does not publish a reusable receipt.
+Existing Python environments remain supplied by the user and receive no managed font preparation.
+
+DuckDB preparation can skip loading the engine and checking installed extensions when its receipt matches the current interpreter, preparation source, provider package files, requested extensions, selected cache, and installed extension files.
+It publishes a receipt only after installation and connection closure succeed.
+The lightweight Python or R validation child remains; R runs it without default packages.
+R's native DuckDB cache selection is not cached when no explicit extension directory is available.
+
+These receipts are optional performance hints in already selected caches.
+They compare current file paths, sizes, and modification/change times with stored data; they do not authenticate artifacts or select paths, executables, or filesystem grants.
+Missing or changed packages, cache files, preparation source, or requested extensions invalidate the corresponding receipt.
+Native package and extension loading remains responsible for validating the artifacts it uses.
+
+R library preparation continues through the public `ir run` interface, which starts a final R child to report the prepared library path.
+That small child runs with `--default-packages=NULL`; Console does not infer library paths from ir's private cache layout.
 
 Installation warmup captures a private launch hint and gives preparation host permissions without changing cache selection or worker enforcement.
 The controller removes that hint from resolver and worker launches so their subprocesses do not inherit it.

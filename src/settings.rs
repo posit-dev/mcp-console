@@ -180,9 +180,10 @@ struct Project {
     resolver: Resolver,
 }
 
-#[derive(Clone, Default, serde::Serialize, Deserialize)]
+#[derive(Clone, serde::Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct R {
+    pub enabled: bool,
     // Workers receive the accepted installation; only the controller selects a launcher.
     #[serde(deserialize_with = "sandbox::supplied", skip_serializing)]
     pub executable: Option<PathBuf>,
@@ -191,6 +192,18 @@ pub(crate) struct R {
     #[serde(skip_serializing)]
     pub resolution: Resolution,
     pub vanilla: bool,
+}
+
+impl Default for R {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            executable: None,
+            packages: None,
+            resolution: Resolution::default(),
+            vanilla: false,
+        }
+    }
 }
 
 fn r_settings<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<R>, D::Error> {
@@ -367,6 +380,25 @@ fn capture(
                 "{name}: r.packages must be empty under r.resolution=disabled; use fixed to prepare configured packages"
             ));
         }
+    }
+    if let Some(r) = &project.r
+        && !r.enabled
+        && (r.executable.is_some()
+            || r.packages
+                .as_ref()
+                .is_some_and(|packages| !packages.is_empty()))
+    {
+        return Err(format!(
+            "{name}: disabled R cannot select an executable or startup packages"
+        ));
+    }
+    if project.r.as_ref().is_some_and(|r| !r.enabled)
+        && project
+            .startup
+            .as_ref()
+            .is_some_and(|startup| matches!(startup.language, startup::Language::R))
+    {
+        return Err(format!("{name}: R startup source requires r.enabled=true"));
     }
     if let Some(r) = &mut project.r
         && let Some(path) = &mut r.executable

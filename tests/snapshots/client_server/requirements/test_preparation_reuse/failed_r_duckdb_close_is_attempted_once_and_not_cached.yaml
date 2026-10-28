@@ -1,0 +1,18 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  r: 1+1
+result:
+  content:
+    - type: text
+      text: |
+        skipping default DuckDB extension `icu`: DuckDB extension resolution failed with exit status: 1: Error: fixture close failed
+        Execution halted
+        skipping default DuckDB extension `json`: DuckDB extension resolution failed with exit status: 1: Error: fixture close failed
+        Execution halted
+        skipping default DuckDB extension `sqlite`: DuckDB extension resolution failed with exit status: 1: Error: fixture close failed
+        Execution halted
+        [output produced while idle]
+        [1] 2
+  isError: false

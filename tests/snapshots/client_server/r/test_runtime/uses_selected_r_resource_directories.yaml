@@ -28,39 +28,20 @@ result:
   isError: false
 ---
 send:
-  r: |
-    names <- c("R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")
-    directories <- Sys.getenv(names)
-    stopifnot(
-      identical(Sys.getenv("R_HOME"), R.home()),
-      all(dir.exists(directories)),
-      identical(
-        unname(directories),
-        vapply(
-          c("share", "include", "doc"),
-          R.home,
-          "",
-          USE.NAMES = FALSE
-        )
-      ),
-      file.exists(file.path(R.home("include"), "R.h")),
-      length(readLines(file.path(R.home("doc"), "AUTHORS"))) > 0L
-    )
-    child <- system2(
-      commandArgs()[1L],
-      c(
-        "--vanilla",
-        "--slave",
-        "-e",
-        shQuote(
-          'cat(Sys.getenv(c("R_SHARE_DIR", "R_INCLUDE_DIR", "R_DOC_DIR")), sep = "\n")'
-        )
-      ),
-      stdout = TRUE,
-      stderr = TRUE
-    )
-    stopifnot(is.null(attr(child, "status")), identical(child, unname(directories)))
-    cat("R and its children use the selected resource directories\n")
+  python: >-
+    _ = r['names <- c("R_SHARE_DIR", "R_INCLUDE_DIR",
+    "R_DOC_DIR")\ndirectories <-
+    Sys.getenv(names)\nstopifnot(\n  identical(Sys.getenv("R_HOME"),
+    R.home()),\n  all(dir.exists(directories)),\n  identical(\n    unname(directories),\n    vapply(\n      c("share",
+    "include", "doc"),\n      R.home,\n      "",\n      USE.NAMES =
+    FALSE\n    )\n  ),\n  file.exists(file.path(R.home("include"),
+    "R.h")),\n  length(readLines(file.path(R.home("doc"), "AUTHORS"))) >
+    0L\n)\nchild <-
+    system2(\n  commandArgs()[1L],\n  c(\n    "--vanilla",\n    "--slave",\n    "-e",\n    shQuote(\n      \'cat(Sys.getenv(c("R_SHARE_DIR",
+    "R_INCLUDE_DIR", "R_DOC_DIR")), sep = "\\n")\'\n    )\n  ),\n  stdout =
+    TRUE,\n  stderr = TRUE\n)\nstopifnot(is.null(attr(child, "status")),
+    identical(child, unname(directories)))\ncat("R and its children use the
+    selected resource directories\\n")\n']
 result:
   content:
     - type: text

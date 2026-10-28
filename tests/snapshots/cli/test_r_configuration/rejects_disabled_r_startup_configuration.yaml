@@ -1,0 +1,14 @@
+---
+setting: r.executable=./unused-R
+stderr: >
+  configuration with CLI overrides: disabled R cannot select an executable
+  or startup packages
+---
+setting: r.packages=["stats"]
+stderr: >
+  configuration with CLI overrides: disabled R cannot select an executable
+  or startup packages
+---
+setting: 'startup={language: r, code: "1 + 1"}'
+stderr: |
+  configuration with CLI overrides: R startup source requires r.enabled=true

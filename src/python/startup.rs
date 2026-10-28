@@ -4,6 +4,22 @@
 use super::ImportResolution;
 use std::path::Path;
 
+thread_local! {
+    static SETUP_IN_PROGRESS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub(super) fn setup_in_progress() -> bool {
+    SETUP_IN_PROGRESS.get()
+}
+
+struct SetupScope;
+
+impl Drop for SetupScope {
+    fn drop(&mut self) {
+        SETUP_IN_PROGRESS.set(false);
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SelectedPython {
@@ -13,6 +29,49 @@ pub(crate) struct SelectedPython {
 }
 
 pub(crate) fn initialize_selected(configuration: &super::NativePython) -> Result<bool, String> {
+    let selection = super::SELECTION
+        .get()
+        .ok_or("Python capability is not configured")?;
+    let adopting = super::library::initialized_selection()?.is_none();
+    let prepared = super::requirements::materialized();
+    let captured = super::pending_executable()
+        .transpose()?
+        .or_else(|| {
+            prepared
+                .as_ref()
+                .filter(|_| adopting)
+                .map(|candidate| Path::new(&candidate.selected.embedding.python))
+        })
+        .or_else(|| {
+            selection
+                .python
+                .as_ref()
+                .filter(|python| !python.managed || adopting)
+                .map(|python| Path::new(&python.selected.embedding.python))
+        });
+    if let Some(captured) = captured {
+        let requested = Path::new(&configuration.embedding.python);
+        // A profile can initialize reticulate before Console attaches its R
+        // adapter. Adopt it only when it preserves the configured environment;
+        // different virtualenvs can link to the same base executable. Managed
+        // activation can replace that environment after its first adoption.
+        if captured != requested {
+            let parent = |path: &Path| {
+                path.parent()
+                    .ok_or("Python executable has no parent directory")?
+                    .canonicalize()
+                    .map_err(|error| error.to_string())
+            };
+            if parent(captured)? != parent(requested)?
+                || captured.canonicalize().map_err(|error| error.to_string())?
+                    != requested
+                        .canonicalize()
+                        .map_err(|error| error.to_string())?
+            {
+                return Err("Python interpreter differs from the captured selection".into());
+            }
+        }
+    }
     super::library::initialize(configuration)
 }
 
@@ -59,6 +118,18 @@ pub(super) fn configure_process_environment(selected: &super::NativePython) -> R
             std::env::set_var("PYTHONPATH", path);
         }
     }
+    #[cfg(windows)]
+    for name in [
+        "PYTHONHOME",
+        "PYTHONPLATLIBDIR",
+        "PATH",
+        "VIRTUAL_ENV",
+        "PYTHONPATH",
+    ] {
+        let value = std::env::var_os(name).unwrap_or_default();
+        super::platform::synchronize_crt_environment(name, &value)
+            .map_err(|error| error.to_string())?;
+    }
     Ok(())
 }
 
@@ -70,8 +141,9 @@ pub(super) fn install_services(libpython: &Path) -> Result<(), String> {
 }
 
 /// Install the shared evaluator after the selected interpreter is live.
-/// Reticulate may call this from its initialization hook. Both compositions
-/// install their captured import policy through this setup boundary.
+/// Fresh R-first selection calls this before conversion attachment; an
+/// externally initialized interpreter enters through reticulate's hook.
+/// Both compositions install their captured import policy through this boundary.
 /// Successful steps remain in the process-lifetime library state, so a later
 /// call resumes incomplete setup without replacing the interpreter.
 pub(crate) fn setup_runtime(libpython: &Path, managed: bool) -> Result<bool, String> {
@@ -79,6 +151,12 @@ pub(crate) fn setup_runtime(libpython: &Path, managed: bool) -> Result<bool, Str
     if super::library::runtime_configured()? {
         return Ok(true);
     }
+    // Site hooks can request the R bridge. That request attaches conversion
+    // only; the outer setup owns site processing and its initial thread state.
+    if SETUP_IN_PROGRESS.replace(true) {
+        return Err("Python runtime setup reentered before completion".into());
+    }
+    let _setup = SetupScope;
     // The hook may already have installed services. Native callers arrive
     // here directly, and perform the same installation once.
     if !super::library::services_installed()? {
@@ -134,6 +212,11 @@ fn import_policy(managed: bool) -> ImportResolution {
 }
 
 pub(crate) fn finish_initialization() -> Result<(), String> {
+    if setup_in_progress() {
+        // A callback can adopt an already-running interpreter while site
+        // processing still owns its active Python thread state.
+        return Ok(());
+    }
     super::library::finish_initialization()
 }
 

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Mutex, mpsc};
 use std::thread;
 
-use super::{Discovery, Input, Mode, Operation, Output, Selections};
+use super::{Discovery, Input, Mode, Operation, Output, RPreparation, Selections};
 #[cfg(unix)]
 use crate::process_io::{Io, duplicate};
 use crate::resolver::{self, ResolverControlOutcome, ResolverStopHandle};
@@ -22,6 +22,7 @@ struct Context {
 impl Context {
     fn discover(
         mode: Mode,
+        r_preparation: RPreparation,
         installation: Option<crate::local_runtime::RInstallation>,
         on_started: &dyn Fn(ResolverStopHandle) -> Result<(), String>,
     ) -> Result<(Self, Discovery), String> {
@@ -72,7 +73,7 @@ impl Context {
             ));
         }
         let python = resolver::ManagedPythonResolverConfiguration::capture();
-        let (bootstrap, rscript) = resolver::discover(&python, on_started)?;
+        let (bootstrap, rscript) = resolver::discover(&python, r_preparation, on_started)?;
         let home = rscript
             .parent()
             .and_then(std::path::Path::parent)
@@ -351,7 +352,12 @@ pub(super) fn run() -> Result<(), String> {
     #[cfg(windows)]
     let mut input = BufReader::new(io::stdin());
     let first: Input = super::read_jsonl(&mut input)?;
-    let Input::Open { mode, installation } = first else {
+    let Input::Open {
+        mode,
+        r_preparation,
+        installation,
+    } = first
+    else {
         return Err("expected resolver open".into());
     };
     let (events, received) = mpsc::channel();
@@ -402,7 +408,7 @@ pub(super) fn run() -> Result<(), String> {
         let mut context = perform(
             0,
             &job_events,
-            |started| Context::discover(mode, installation, started),
+            |started| Context::discover(mode, r_preparation, installation, started),
             |(_, discovery)| serde_json::to_value(discovery).expect("discovery serializes"),
         )?
         .0;

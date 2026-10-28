@@ -75,7 +75,7 @@ Exact settings: [Languages and startup](RUNTIME_CONFIGURATION.md).
 <span id="select-a-native-connection"></span>
 
 Console can use any database with an R DBI or Python DB-API driver.
-By default, Console prepares an in-memory DuckDB database.
+By default, Console creates an in-memory DuckDB database when SQL or a connection helper first needs it.
 The agent can use it to query data frames and keep tables and views available between calls.
 
 With the R DuckDB package 2.0.0, an interrupt can leave a SQL query running while Console fetches its result through Arrow.

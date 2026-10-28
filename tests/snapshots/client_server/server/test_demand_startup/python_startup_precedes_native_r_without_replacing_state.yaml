@@ -1,0 +1,55 @@
+---
+scenario: Configured Python startup selects SQLite before native R starts.
+fixture: >-
+  Startup retains Python objects, interpreter paths, and redirected
+  streams for checks after R and its Python bridge initialize.
+---
+!same-as existing-python-sql MCP initialization for this execution mode
+---
+send:
+  python: |
+    assert r_initialized(), "native R startup did not complete before the first cell"
+    assert int(r["sum(c(20, 22))"]) == 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    assert r_initialized()
+    assert sys.stdout is redirected_stdout
+    assert sys.stderr is redirected_stderr
+    print("retained stdout")
+    print("retained stderr", file=sys.stderr)
+    assert redirected_stdout.getvalue() == "retained stdout\n"
+    assert redirected_stderr.getvalue() == "retained stderr\n"
+    sys.stdout, sys.stderr = original_streams
+    assert before == (
+        id(persistent),
+        id(connection),
+        sys.executable,
+        sys.prefix,
+        sys.base_prefix,
+    )
+    assert _console.sql_connection() is connection
+    assert connection.execute("SELECT answer FROM retained").fetchone() == (42,)
+    print("Python state retained after native R startup")
+result:
+  content:
+    - type: text
+      text: |
+        Python state retained after native R startup
+  isError: false
+---
+send:
+  sql: SELECT answer FROM retained
+result:
+  content:
+    - type: text
+      text: |
+        answer
+        ------
+        42
+  isError: false

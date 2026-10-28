@@ -1,0 +1,56 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import sys
+    import numpy as np
+
+    assert "duckdb" not in sys.modules
+    answer = int(np.sum([1, 1]))
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false
+---
+send:
+  sql: CREATE TABLE managed_answers (answer INTEGER)
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        [0 rows]
+  isError: false
+---
+send:
+  python: |
+    assert "duckdb" in sys.modules
+    connection = _console.sql_connection()
+    assert connection.execute("SELECT count(*) FROM managed_answers").fetchone() == (0,)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: R cells are unavailable in Python sessions without R
+  isError: true
+---
+send:
+  python: answer
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false

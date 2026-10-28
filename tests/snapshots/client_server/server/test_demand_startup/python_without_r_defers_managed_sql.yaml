@@ -1,0 +1,56 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    import sys
+
+    assert "duckdb" not in sys.modules
+    1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false
+---
+send:
+  sql: CREATE TABLE demand_ready (answer INTEGER)
+result:
+  content:
+    - type: text
+      text: |
+        Count
+        -----
+        [0 rows]
+  isError: false
+---
+send:
+  python: assert "duckdb" in sys.modules
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import sys
+
+    assert "duckdb" not in sys.modules
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

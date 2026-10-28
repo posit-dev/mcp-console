@@ -2732,7 +2732,7 @@ def test_interrupts_python_and_replaces_a_failed_worker(
         env["TMPDIR"] = str(host_temp)
         with McpClient(binary, execution.serve(), env) as client:
             client.initialize_and_list_tools()
-            client.send(python="retained = 41")
+            client.expect(python="retained = 41")
             wait_for_evaluation_output(
                 client,
                 "loop entered\n\n[running; poll with an empty send]",

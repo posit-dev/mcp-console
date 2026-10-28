@@ -1,0 +1,31 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: startup_value
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  r: reticulate::py_eval("startup_value")
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

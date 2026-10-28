@@ -4,8 +4,8 @@ input_bytes: 43
 exit: 1
 stdout: ""
 stderr: >
-  invalid resolver JSON: unknown field `version`, expected `mode` or
-  `installation` at line 1 column 38
+  invalid resolver JSON: unknown field `version`, expected one of `mode`,
+  `r_preparation`, `installation` at line 1 column 38
 ---
 case: malformed_json
 input_bytes: 10

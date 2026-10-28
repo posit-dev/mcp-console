@@ -1,0 +1,14 @@
+---
+scenario: reused
+fixture: Copied managed DuckDB records namespace loads during preparation only.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  r: 1+1
+result:
+  content:
+    - type: text
+      text: |
+        [1] 2
+  isError: false

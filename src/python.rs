@@ -49,7 +49,7 @@ pub(crate) enum SqlProvider {
 
 pub(crate) use platform::configure_worker_environment as configure_native_worker_environment;
 
-pub(crate) use reticulate::configure_worker_environment as configure_r_environment;
+pub(crate) use reticulate::with_r_startup_environment;
 
 thread_local! {
     static ADAPTER: std::cell::RefCell<Option<std::rc::Rc<reticulate::Adapter>>> = const { std::cell::RefCell::new(None) };
@@ -75,6 +75,13 @@ fn adapter() -> Option<std::rc::Rc<reticulate::Adapter>> {
     ADAPTER.with(|slot| slot.borrow().clone())
 }
 
+fn pending_executable() -> Option<Result<&'static std::path::Path, String>> {
+    Some(match SELECTION.get()?.pending_python.as_ref()? {
+        crate::local_runtime::PendingPython::Executable(path) => Ok(path),
+        crate::local_runtime::PendingPython::Unavailable(error) => Err(error.clone()),
+    })
+}
+
 pub(crate) fn attach_bridge() -> Result<bool, String> {
     adapter()
         .ok_or("R bridge is unavailable")?
@@ -94,18 +101,29 @@ pub(crate) fn ensure_initialized() -> Result<bool, String> {
     if library::runtime_configured()? {
         return Ok(true);
     }
-    if !crate::worker::r_initialized()
-        && let Some(candidate) = requirements::materialized()
-    {
+    if let Some(candidate) = requirements::materialized() {
         return startup::initialize_native(&candidate.selected, true);
     }
     let selection = SELECTION
         .get()
         .ok_or("Python capability is not configured")?;
-    if !crate::worker::r_initialized()
-        && let Some(python) = &selection.python
-    {
+    if let Some(python) = &selection.python {
         return startup::initialize_native(&python.selected, python.managed);
+    }
+    // Capture the executable before native R startup, but run mutable Python
+    // inspection only when Python is needed and under its ordinary policy.
+    if let Some(executable) = pending_executable() {
+        let selected = match executable.and_then(crate::worker::inspect_python) {
+            Ok(selected) => selected,
+            Err(error) => {
+                crate::worker::emit_output(
+                    crate::worker_protocol::ConsoleChannel::Diagnostic,
+                    format!("Error: {error}\n").as_bytes(),
+                );
+                return Ok(false);
+            }
+        };
+        return startup::initialize_native(&selected, false);
     }
     if !crate::worker::r_initialized()
         && let Some(explicit) = std::env::var_os("RETICULATE_PYTHON")
@@ -205,13 +223,6 @@ pub(crate) fn use_r_sql() -> Result<(), String> {
 
 pub(crate) fn r_sql_connection_selected() -> Result<bool, String> {
     library::r_sql_connection_selected()
-}
-
-pub(crate) fn initialize_managed_sql() -> Result<(), String> {
-    if ensure_initialized()? && library::runtime_configured()? {
-        library::initialize_managed_sql()?;
-    }
-    Ok(())
 }
 
 pub(crate) fn initialize_sql_source(source: &str) -> Result<bool, String> {
@@ -417,16 +428,43 @@ mod platform {
         let name = name.to_str().map_err(io::Error::other)?;
         if overwrite || std::env::var_os(name).is_none() {
             let value = value.to_str().map_err(io::Error::other)?;
-            let assignment = CString::new(format!("{name}={value}")).map_err(io::Error::other)?;
-            // Set the Win32 environment before loading interpreter libraries,
-            // whose CRTs retain their own environment copies. _putenv also
-            // updates Console's CRT view and copies its argument.
-            unsafe {
-                std::env::set_var(name, value);
-                if libc::putenv(assignment.as_ptr()) != 0 {
-                    return Err(io::Error::last_os_error());
-                }
-            }
+            synchronize_crt_environment(name, std::ffi::OsStr::new(value))?;
+        }
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    pub(super) fn synchronize_crt_environment(
+        name: &str,
+        value: &std::ffi::OsStr,
+    ) -> io::Result<()> {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+
+        let name_wide = std::ffi::OsStr::new(name)
+            .encode_wide()
+            .chain([0])
+            .collect::<Vec<_>>();
+        let value_wide = value.encode_wide().chain([0]).collect::<Vec<_>>();
+        // Both setters update the Win32 environment too. Console links its
+        // CRT statically; R and CPython can retain another loaded CRT's copy.
+        // Update that copy even after native R startup, when restoring hints
+        // such as RETICULATE_PYTHON before attaching the managed bridge.
+        let status = unsafe { libc::wputenv_s(name_wide.as_ptr(), value_wide.as_ptr()) };
+        if status != 0 {
+            return Err(io::Error::from_raw_os_error(status));
+        }
+        let module = unsafe { GetModuleHandleW(windows_sys::w!("ucrtbase.dll")) };
+        if module.is_null() {
+            return Ok(()); // No loaded shared CRT has an environment copy to update.
+        }
+        let address = unsafe { GetProcAddress(module, c"_wputenv_s".as_ptr().cast()) }
+            .ok_or_else(|| io::Error::other("loaded Windows CRT does not export _wputenv_s"))?;
+        let putenv: unsafe extern "C" fn(*const u16, *const u16) -> libc::c_int =
+            unsafe { std::mem::transmute(address) };
+        let status = unsafe { putenv(name_wide.as_ptr(), value_wide.as_ptr()) };
+        if status != 0 {
+            return Err(io::Error::from_raw_os_error(status));
         }
         Ok(())
     }

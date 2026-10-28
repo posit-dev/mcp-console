@@ -11,7 +11,7 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant};
 
-use super::{Discovery, Input, Mode, Operation, Output};
+use super::{Discovery, DiscoveryPolicy, Input, Mode, Operation, Output, RPreparation};
 #[cfg(unix)]
 use crate::process_io::Io;
 use crate::resolver::{ResolverControl, ResolverControlOutcome, ResolverStopHandle};
@@ -241,6 +241,7 @@ impl Preparation {
             Arc::default(),
             Input::Open {
                 mode: Mode::PythonOnly,
+                r_preparation: RPreparation::Disabled,
                 installation: None,
             },
             diagnostics,
@@ -268,7 +269,7 @@ impl Preparation {
     }
 
     pub(crate) fn open_local(
-        mode: Mode,
+        discovery: DiscoveryPolicy,
         mut settings: crate::settings::SandboxSettings,
         no_sandbox: bool,
         python: Option<&std::ffi::OsStr>,
@@ -297,7 +298,11 @@ impl Preparation {
             command.env_remove("RETICULATE_PYTHON");
         }
         command.arg("resolve");
-        let open = Input::Open { mode, installation };
+        let open = Input::Open {
+            mode: discovery.mode,
+            r_preparation: discovery.r_preparation,
+            installation,
+        };
         Self::open_with(command, Arc::default(), open, diagnostics, on_started)
     }
 

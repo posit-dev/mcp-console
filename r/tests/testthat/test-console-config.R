@@ -1,3 +1,38 @@
+test_that("R can be disabled independently of language visibility", {
+  expect_null(RConfig()@enabled)
+  config <- ConsoleConfig(
+    r = RConfig(enabled = FALSE),
+    languages = c("python", "sql")
+  )
+  expect_false(config@r@enabled)
+  expect_identical(
+    as.list(config),
+    list(r = list(enabled = FALSE), languages = list("python", "sql"))
+  )
+  expect_identical(
+    as.list(RConfig(enabled = FALSE, packages = character())),
+    list(packages = list(), enabled = FALSE)
+  )
+})
+
+test_that("disabled R rejects startup choices before launching", {
+  expect_error(
+    RConfig(enabled = FALSE, executable = current_r()),
+    "disabled R cannot select an executable or startup packages"
+  )
+  expect_error(
+    RConfig(enabled = FALSE, packages = "stats"),
+    "disabled R cannot select an executable or startup packages"
+  )
+  expect_error(
+    ConsoleConfig(
+      r = RConfig(enabled = FALSE),
+      startup = StartupConfig(language = "r", code = "1 + 1")
+    ),
+    "R startup source requires r.enabled = TRUE"
+  )
+})
+
 test_that("ConsoleConfig preserves schema shapes and separates launch choices", {
   config <- ConsoleConfig(
     discovery = ConfigDiscovery(global = FALSE),

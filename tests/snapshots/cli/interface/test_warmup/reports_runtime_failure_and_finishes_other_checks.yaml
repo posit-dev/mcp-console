@@ -6,7 +6,7 @@ stdout: |
   Checking R...
   R: OK
   Traceback (most recent call last):
-    File "<string>", line 479, in initialize_connection
+    File "<string>", line 453, in initialize_connection
     File "<console startup>", line 1, in <module>
   RuntimeError: warmup fixture startup failure
   Error: configured startup did not complete; SQL withheld; explicit restart required

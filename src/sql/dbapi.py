@@ -433,32 +433,6 @@ def _ensure_managed_connection():
     return _managed_connection
 
 
-def initialize_managed_connection() -> None:
-    try:
-        import importlib.metadata
-        import importlib.util
-
-        specification = importlib.util.find_spec("duckdb")
-        if specification is None or not specification.submodule_search_locations:
-            return
-        try:
-            distribution = importlib.metadata.distribution("duckdb")
-        except importlib.metadata.PackageNotFoundError:
-            return
-        path = _os.path.realpath(distribution.locate_file("duckdb"))
-        # A workspace package can shadow an installed optional provider. Bootstrap
-        # must not execute that candidate or enter managed missing-import resolution.
-        if list(map(_os.path.realpath, specification.submodule_search_locations)) != [
-            path
-        ]:
-            return
-        _runtime.without_automatic_resolution(_ensure_managed_connection)
-    except KeyboardInterrupt:
-        raise
-    except BaseException:
-        _traceback.print_exc()
-
-
 def _select_native_connection():
     global _connection
 

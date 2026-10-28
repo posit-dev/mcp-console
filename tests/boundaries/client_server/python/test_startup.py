@@ -19,13 +19,16 @@ from support.requirements import (
     FRAMEWORK_PYTHON,
     PYTHON_FRAMEWORK,
     R,
+    RETICULATE_EMBEDDED_DISCOVERY,
     POSIX,
     SQL,
+    command,
     requires,
 )
 from support.r import install_r_startup, r_test_environment
 from support.resolvers import bare_runtime_environment
 from support.python import isolated_python
+from support.python_startup import site_hook_calls_r
 from support.linux_sandbox import retain_system_bwrap
 from support.suites import run_this_suite
 from boundaries.client_server.python.test_without_r import (
@@ -117,6 +120,100 @@ def test_manages_sitecustomize_input_across_retries(
 @executions(DIRECT, SANDBOXED)
 def test_manages_pth_input_across_retries(binary: Path, execution: Execution) -> list:
     return startup_input(binary, execution, "console_startup")
+
+
+def site_hooks_before_numpy(
+    binary: Path, execution: Execution, *, first_language: str
+) -> list:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        python, site = isolated_python(root)
+        subprocess.run(
+            ["uv", "pip", "install", "--python", python, "numpy"],
+            check=True,
+            capture_output=True,
+        )
+        (site / "sitecustomize.py").write_text(
+            # fmt: python
+            code("""
+                import builtins
+                import sys
+
+                if "_mcp_console_services" in sys.modules:
+                    assert "numpy" not in sys.modules, "site hooks ran after NumPy import"
+                    builtins.numpy_startup_count = getattr(builtins, "numpy_startup_count", 0) + 1
+                """)
+        )
+        environment, _ = r_test_environment()
+        with McpClient(
+            binary,
+            execution.serve("--no-config", "-c", "python=" + json.dumps(str(python))),
+            environment,
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            # Both entry points must let startup configure packages before
+            # NumPy's first import, and bridge attachment must retain the hooks.
+            sources = {
+                # fmt: python
+                "python": code("""
+                    import builtins
+                    import numpy as np
+
+                    assert builtins.numpy_startup_count == 1
+                    assert np.array([40, 2]).sum() == 42
+                    print("site hooks precede NumPy")
+                    """),
+                # fmt: r
+                "r": code("""
+                    stopifnot(reticulate::py_eval(
+                      "__import__('builtins').numpy_startup_count == 1"
+                    ))
+                    stopifnot(identical(
+                      as.integer(reticulate::py_eval("__import__('numpy').array([40, 2])")),
+                      c(40L, 2L)
+                    ))
+                    cat("site hooks precede NumPy\\n")
+                    """),
+            }
+            for language in (
+                first_language,
+                "python" if first_language == "r" else "r",
+            ):
+                client.expect(
+                    "site hooks precede NumPy\n", **{language: sources[language]}
+                )
+            return client.finish()
+
+
+@requires(R, command("uv"))
+@executions(DIRECT, SANDBOXED)
+def test_r_first_site_hooks_precede_numpy(binary: Path, execution: Execution) -> list:
+    return site_hooks_before_numpy(binary, execution, first_language="r")
+
+
+@requires(R, command("uv"))
+@executions(DIRECT, SANDBOXED)
+def test_python_first_site_hooks_precede_numpy(
+    binary: Path, execution: Execution
+) -> list:
+    return site_hooks_before_numpy(binary, execution, first_language="python")
+
+
+@requires(R, command("uv"))
+@executions(DIRECT, SANDBOXED)
+def test_r_first_site_hook_calls_r_without_repeating_initialization(
+    binary: Path, execution: Execution
+) -> list:
+    return site_hook_calls_r(binary, execution, start_r_in_hook=False)
+
+
+@requires(R, command("uv"), RETICULATE_EMBEDDED_DISCOVERY)
+@executions(DIRECT, SANDBOXED)
+def test_site_hook_starts_r_with_python_in_its_profile(
+    binary: Path, execution: Execution
+) -> list:
+    return site_hook_calls_r(binary, execution, start_r_in_hook=True)
 
 
 @executions(DIRECT, SANDBOXED)
@@ -311,8 +408,8 @@ def interrupted_initialization(
         environment = selected_python(root, python)
         if r_first:
             # Select Python from an R startup package, after R has initialized.
-            # The controller has no explicit Python hint, so eager bootstrap
-            # follows the unresolved R selection path before entering Python.
+            # The controller has no explicit Python hint. The first Python
+            # cell follows the unresolved R selection path after native startup.
             r_environment, _ = r_test_environment()
             library = install_r_startup(
                 root,

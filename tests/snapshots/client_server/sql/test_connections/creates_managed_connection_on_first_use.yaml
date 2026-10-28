@@ -1,0 +1,4 @@
+---
+r_and_python_managed_connections_wait_for_first_use: true
+startup_catalog_retained: true
+ping_available_during_initialization: true

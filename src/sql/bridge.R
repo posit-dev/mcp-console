@@ -84,30 +84,6 @@ base::local(
       rendering_connection
     }
 
-    initialize_managed_connection <- function() {
-      tryCatch(
-        {
-          # Bare environments may omit the optional managed provider.
-          if (
-            !nzchar(system.file(package = "DBI")) ||
-              !nzchar(system.file(package = "duckdb"))
-          ) {
-            return(0L)
-          }
-          ensure_managed_connection()
-          1L
-        },
-        interrupt = function(condition) {
-          cat("\n")
-          -1L
-        },
-        error = function(condition) {
-          cat("Error: ", conditionMessage(condition), "\n", sep = "")
-          0L
-        }
-      )
-    }
-
     ensure_connection <- function() {
       if (is.null(selected_connection)) {
         selected_connection <<- ensure_managed_connection()

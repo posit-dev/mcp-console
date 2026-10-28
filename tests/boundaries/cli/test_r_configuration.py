@@ -13,6 +13,50 @@ from support.records import Transcript
 from boundaries.cli.test_config_materialization import resolve
 
 
+def test_r_enablement_is_materialized_independently(binary: Path) -> Transcript:
+    transcript = []
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        for overrides, enabled in (
+            ((), True),
+            (("r.enabled=false",), False),
+            (("r.enabled=false", "r.enabled=true"), True),
+            (("r.enabled=false", "r=null"), True),
+        ):
+            for full in (False, True):
+                result = resolve(
+                    binary,
+                    root,
+                    "--no-config",
+                    "--format",
+                    "json",
+                    *(("--full",) if full else ()),
+                    *(item for override in overrides for item in ("-c", override)),
+                )
+                assert result.returncode == 0 and result.stderr == "", result
+                settings = json.loads(result.stdout)
+                if full:
+                    assert settings["r"] == {
+                        "enabled": enabled,
+                        "vanilla": False,
+                        "resolution": "implicit",
+                    }, settings
+                    assert settings["languages"] == ["r", "python", "sql"], settings
+                else:
+                    assert settings == ({} if enabled else {"r": {"enabled": False}}), (
+                        settings
+                    )
+                transcript.append(
+                    {
+                        "overrides": list(overrides),
+                        "full": full,
+                        "r": settings.get("r"),
+                        "languages": settings.get("languages"),
+                    }
+                )
+    return transcript
+
+
 def test_r_selection_shorthand_preserves_layered_settings(binary: Path) -> Transcript:
     transcript = []
     with tempfile.TemporaryDirectory() as temporary:
@@ -42,6 +86,7 @@ def test_r_selection_shorthand_preserves_layered_settings(binary: Path) -> Trans
             assert result.returncode == 0 and result.stderr == "", result
             settings = json.loads(result.stdout)
             assert settings["r"] == {
+                "enabled": True,
                 "executable": str(root / "chosen R"),
                 "vanilla": vanilla,
                 "resolution": "implicit",
@@ -64,6 +109,9 @@ def test_rejects_invalid_r_settings(binary: Path) -> Transcript:
         root = Path(temporary)
         environment = {**os.environ, "MCP_CONSOLE_HOME": str(root / "console-home")}
         for setting in (
+            "r.enabled=1",
+            "r.enabled=null",
+            'r.enabled="false"',
             "r.vanilla=1",
             "r.vanilla=null",
             'r.vanilla="false"',
@@ -87,11 +135,44 @@ def test_rejects_invalid_r_settings(binary: Path) -> Transcript:
         return transcript
 
 
+def test_rejects_disabled_r_startup_configuration(binary: Path) -> Transcript:
+    transcript = []
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        for setting, diagnostic in (
+            (
+                "r.executable=./unused-R",
+                "disabled R cannot select an executable or startup packages",
+            ),
+            (
+                'r.packages=["stats"]',
+                "disabled R cannot select an executable or startup packages",
+            ),
+            (
+                'startup={language: r, code: "1 + 1"}',
+                "R startup source requires r.enabled=true",
+            ),
+        ):
+            result = resolve(
+                binary,
+                root,
+                "--no-config",
+                "-c",
+                "r.enabled=false",
+                "-c",
+                setting,
+            )
+            assert result.returncode == 1 and diagnostic in result.stderr, result
+            assert not result.stdout, result
+            transcript.append({"setting": setting, "stderr": result.stderr})
+    return transcript
+
+
 def test_rejects_explicit_r_settings_with_custom_workers(binary: Path) -> Transcript:
     transcript = []
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary)
-        for setting in ("r={}", "r.vanilla=false", "r.vanilla=true"):
+        for setting in ("r={}", "r.enabled=false", "r.vanilla=false", "r.vanilla=true"):
             result = subprocess.run(
                 [binary, "serve", "--worker", "unused-worker", "-c", setting],
                 cwd=root,

@@ -107,12 +107,28 @@ impl Mode {
     }
 }
 
+/// Whether native R discovery also needs package-preparation capabilities.
+#[derive(Clone, Copy, Default, Deserialize, Serialize)]
+pub(crate) enum RPreparation {
+    #[default]
+    Discover,
+    Disabled,
+}
+
+/// Runtime discovery and optional R preparation selected for a local owner.
+pub(crate) struct DiscoveryPolicy {
+    pub(crate) mode: Mode,
+    pub(crate) r_preparation: RPreparation,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 enum Input {
     Open {
         #[serde(default, skip_serializing_if = "Mode::is_r")]
         mode: Mode,
+        #[serde(default)]
+        r_preparation: RPreparation,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         installation: Option<crate::local_runtime::RInstallation>,
     },

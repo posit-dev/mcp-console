@@ -47,6 +47,12 @@ BINARY = Path(
     os.environ.get("MCP_CONSOLE_TEST_BINARY", ROOT / "target/debug/mcp-console.exe")
 )
 NATIVE_BINARY = native_console(BINARY)
+PYTHON_FIRST_STARTUP = "startup=" + json.dumps(
+    {
+        "language": "python",
+        "code": "import sqlite3; _console.sql_connection(sqlite3.connect(':memory:'))",
+    }
+)
 
 
 class Session:
@@ -57,7 +63,6 @@ class Session:
         relay=None,
         python=None,
         bare_r=False,
-        defer_bootstrap=False,
         sandbox=False,
         temporary_root=None,
         overrides=(),
@@ -108,22 +113,6 @@ class Session:
             for name in ("R_LIBS", "R_LIBS_SITE", "R_LIBS_USER"):
                 environment[name] = str(library)
             environment.pop("RETICULATE_UV", None)
-        self.defer_bootstrap = defer_bootstrap
-        if defer_bootstrap:
-            # Interrupt retryable Python setup before eager bootstrap enters R.
-            # The test's first cell then chooses which runtime to finish first.
-            (Path(self.directory.name) / "sitecustomize.py").write_text(
-                dedent("""
-                    import builtins
-                    import sys
-
-                    if sys.argv[0] == "" and "_mcp_console_services" in sys.modules:
-                        if not getattr(builtins, "bootstrap_deferred", False):
-                            builtins.bootstrap_deferred = True
-                            input("defer bootstrap> ")
-                    """)
-            )
-            environment["RETICULATE_PYTHONPATH"] = self.directory.name
         if relay is not None:
             command.extend(["--worker", str(BINARY), "--relay", str(relay)])
         self.process = subprocess.Popen(
@@ -203,28 +192,6 @@ class Session:
             b'{"jsonrpc":"2.0","method":"notifications/initialized"}\n'
         )
         self.process.stdin.flush()
-
-        if self.defer_bootstrap:
-            result = self.send(
-                python="raise AssertionError('interrupted bootstrap ran fixture cell')",
-                timeout_ms=0,
-            )
-            # This checkpoint follows cold host dependency preparation, which
-            # can exceed an ordinary runtime response allowance on CI.
-            deadline = time.monotonic() + 600
-            while (
-                "waiting for stdin" not in json.dumps(result)
-                and time.monotonic() < deadline
-            ):
-                result = self.send(timeout_ms=1000)
-            assert "defer bootstrap> " in json.dumps(result), result
-            assert "waiting for stdin" in json.dumps(result), result
-            result = self.send(control="interrupt", timeout_ms=10_000)
-            assert "KeyboardInterrupt" in json.dumps(result), result
-            assert "interrupted bootstrap ran fixture cell" not in json.dumps(result), (
-                result
-            )
-            assert "running;" not in json.dumps(result), result
 
     def send(self, **arguments):
         observe_completion = "timeout_ms" not in arguments
@@ -774,7 +741,12 @@ class WindowsConsole(unittest.TestCase):
         # including both runtime initialization orders and a shared send.
         for order in ("python", "python-r", "r-python"):
             with self.subTest(order=order):
-                session = Session(defer_bootstrap=True)
+                overrides = {
+                    "python": ("r.enabled=false",),
+                    "python-r": (PYTHON_FIRST_STARTUP,),
+                    "r-python": (),
+                }[order]
+                session = Session(overrides=overrides)
                 try:
                     session.initialize()
                     if order == "r-python":
@@ -832,11 +804,11 @@ class WindowsConsole(unittest.TestCase):
                     session.close()
 
     def test_interrupt_and_following_cell_keep_input_and_state_separate(self):
-        session = self.session(defer_bootstrap=True)
+        session = self.session()
         session.send(python="history = []")
-        for initialize_r in (False, True):
-            if initialize_r:
-                session.send(r="42L")
+        for attach_bridge in (False, True):
+            if attach_bridge:
+                session.send(r="stopifnot(reticulate::py_available(initialize = TRUE))")
             result = session.send(
                 python="history.append('old'); input('Old input: '); history.append('wrong')"
             )
@@ -852,14 +824,14 @@ class WindowsConsole(unittest.TestCase):
             # Queuing stdin does not confirm consumption or cell completion.
             result = session.expect("[done]", stdin="delivered to new cell\n")
             self.assertNotIn("waiting for stdin", json.dumps(result))
-            expected = ["old", "new", "delivered to new cell"] * (1 + initialize_r)
+            expected = ["old", "new", "delivered to new cell"] * (1 + attach_bridge)
             result = session.send(python="print(history)")
             self.assertEqual(
                 result["content"], [{"type": "text", "text": repr(expected) + "\n"}]
             )
 
     def test_rejects_startup_environment_mutation(self):
-        with tempfile.TemporaryDirectory(prefix="console startup ") as directory:
+        with tempfile.TemporaryDirectory(prefix="console startup 日本語 ") as directory:
             (Path(directory) / "sitecustomize.py").write_text(
                 "import sys; sys.prefix = 'changed-by-startup-hook'\n"
             )
@@ -872,6 +844,7 @@ class WindowsConsole(unittest.TestCase):
             )
             try:
                 session.initialize()
+                self.assertIn("42", json.dumps(session.send(r="42L")))
                 result = session.send(
                     python="raise AssertionError('invalid environment ran code')"
                 )
@@ -1082,7 +1055,12 @@ class WindowsConsole(unittest.TestCase):
     def test_python_sleep_interrupt(self):
         for order in ("python", "python-r", "r-python"):
             with self.subTest(order=order):
-                session = Session(defer_bootstrap=True)
+                overrides = {
+                    "python": ("r.enabled=false",),
+                    "python-r": (PYTHON_FIRST_STARTUP,),
+                    "r-python": (),
+                }[order]
+                session = Session(overrides=overrides)
                 try:
                     session.initialize()
                     if order == "r-python":
@@ -1104,7 +1082,7 @@ class WindowsConsole(unittest.TestCase):
                     session.close()
 
     def test_interrupt_then_input_after_r_attachment(self):
-        session = self.session(defer_bootstrap=True)
+        session = self.session()
         self.assertIn("42", json.dumps(session.send(python="saved = 42; saved")))
         self.assertIn(
             "running;",
@@ -1114,7 +1092,14 @@ class WindowsConsole(unittest.TestCase):
             "KeyboardInterrupt",
             json.dumps(session.send(control="interrupt", timeout_ms=2000)),
         )
-        self.assertIn("42", json.dumps(session.send(r="42L")))
+        self.assertIn(
+            "42",
+            json.dumps(
+                session.send(
+                    r="stopifnot(reticulate::py_available(initialize = TRUE)); 42L"
+                )
+            ),
+        )
         # A failed iteration leaves an active cell: stop at the first failure.
         for _ in range(12):
             result = session.send(r="repeat { Sys.sleep(0) }", timeout_ms=50)
@@ -1203,7 +1188,7 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn("fresh False", json.dumps(result))
 
     def test_r_initializes_before_python(self):
-        session = self.session(defer_bootstrap=True)
+        session = self.session()
         # fmt: r
         result = session.send(
             r=dedent("""
@@ -1829,22 +1814,25 @@ class WindowsConsole(unittest.TestCase):
         self.assertFalse(result.get("isError"), result)
 
     def test_python_initializes_before_r(self):
-        session = Session(defer_bootstrap=True)
+        # fmt: python
+        startup = code("""
+            import ctypes
+            import sqlite3
+
+            assert ctypes.windll.kernel32.GetModuleHandleW("R.dll") == 0
+            _console.sql_connection(sqlite3.connect(":memory:"))
+            python_value = 41
+            """)
+        session = Session(
+            overrides=(
+                "startup=" + json.dumps({"language": "python", "code": startup}),
+            )
+        )
         self.addCleanup(session.close)
         session.initialize()
-        # fmt: python
-        result = session.send(
-            python=dedent("""
-                import ctypes
-                import sys
-
-                assert ctypes.windll.kernel32.GetModuleHandleW("R.dll") == 0
-                python_value = 41
-                print("python without R")
-                """)
-        )
+        result = session.send(python="print('Python started before R:', python_value)")
         self.assertFalse(result.get("isError"), result)
-        self.assertIn("python without R", json.dumps(result))
+        self.assertIn("Python started before R: 41", json.dumps(result))
         self.assertNotIn("AssertionError", json.dumps(result))
         self.assertIn("42", json.dumps(session.send(r="r_value <- 42; r_value")))
         self.assertIn("42", json.dumps(session.send(python="print(python_value + 1)")))
@@ -1854,6 +1842,29 @@ class WindowsConsole(unittest.TestCase):
         )
         self.assertIn("41", json.dumps(session.send(r="py$python_value")))
         self.assertIn("42", json.dumps(session.send(python="r.r_value")))
+
+    def test_python_site_hook_reports_r_profile_embedding_limit(self):
+        from support.python_startup import site_hook_calls_r
+        from support.execution import DIRECT
+
+        # Reticulate's Windows embedding probe is unimplemented. Before
+        # Console's R adapter exists, a native profile therefore cannot attach
+        # reticulate to Python while that Python's site hook is starting R.
+        site_hook_calls_r(
+            BINARY,
+            DIRECT,
+            start_r_in_hook=True,
+            expected_profile_error=(
+                'Error in py_set_attr(R, "__getattr__", getter) : \n'
+                "  ModuleNotFoundError: No module named 'rpytools'\n"
+                "Run `reticulate::py_last_error()` for details.\n"
+                "Error in sitecustomize; set PYTHONVERBOSE for traceback:\n"
+                "RuntimeError: reticulate did not install Python-side R access\n"
+                "Error in py_eval_impl(code, convert) : \n"
+                "  AttributeError: module 'builtins' has no attribute 'site_answer'\n"
+                "Run `reticulate::py_last_error()` for details.\n"
+            ),
+        )
 
     def relay_session(self, scenario):
         directory = tempfile.TemporaryDirectory(prefix="console relay ")
@@ -2092,8 +2103,8 @@ class WindowsConsole(unittest.TestCase):
                     )
                 session.close()
 
-    def session(self, *, environment=None, defer_bootstrap=False):
-        session = Session(environment, defer_bootstrap=defer_bootstrap)
+    def session(self, *, environment=None):
+        session = Session(environment)
         self.addCleanup(session.close)
         session.initialize()
         return session
@@ -2339,7 +2350,7 @@ class WindowsConsole(unittest.TestCase):
                 RETICULATE_PYTHONPATH=str(root),
                 MCP_CONSOLE_LANGUAGES="python",
             )
-            session = Session(environment)
+            session = Session(environment, overrides=(PYTHON_FIRST_STARTUP,))
             try:
                 session.initialize()
                 raw = "startup head\n" + "s" * 32768 + "\nstartup tail\n"

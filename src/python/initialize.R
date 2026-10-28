@@ -110,8 +110,6 @@ base::local(
         return(selected)
       }
       if (run_before_initialized) {
-        # R-first calls arrive through reticulate::ensure_python_initialized(),
-        # which has already invoked this callback.
         callback <- getOption("reticulate.python.beforeInitialized")
         if (is.function(callback)) {
           was_initializing <- initializing
@@ -120,6 +118,27 @@ base::local(
           callback()
           selection_callback <<- callback
         }
+        if (!is.null(required_module)) {
+          # Preserve reticulate's callback -> registration -> discovery order
+          # and the priority of previously registered delayed imports.
+          reticulate:::register_delay_load_import(required_module)
+          required_module <- NULL
+        }
+      }
+
+      captured <- tryCatch(
+        .Call("mcp_console_captured_python"),
+        error = function(error) {
+          class(error) <- c("console_python_inspection_error", class(error))
+          stop(error)
+        }
+      )
+      if (!is.null(captured)) {
+        config <- state$conversion_config(jsonlite::fromJSON(captured))
+        state$check_python_version(config)
+        inspected <<- captured
+        selected <<- config
+        return(config)
       }
 
       # Keep reticulate's discovery and its R-side selection hints in one place.
@@ -242,7 +261,6 @@ base::local(
       )
       # Console owns CPython's environment. Reticulate attaches conversion
       # and callbacks without activating or changing the running interpreter.
-      on.exit(finish_python_initialization(), add = TRUE)
       reticulate:::py_initialize(
         config$python,
         config$libpython,
@@ -287,6 +305,27 @@ base::local(
       config
     }
 
+    prepare_python <- function(required_module = NULL) {
+      config <- select_python(required_module, run_before_initialized = TRUE)
+      invisible(.Call(
+        "mcp_console_initialize_python",
+        inspected,
+        system.file("python", package = "reticulate")
+      ))
+      on.exit(finish_python_initialization(), add = TRUE)
+      completed <- .Call(
+        "mcp_console_setup_python_runtime",
+        config$libpython,
+        !is.na(state$managed)
+      )
+      if (is.null(completed)) {
+        # Retirement cancelled setup without retaining a Python exception.
+        stop(structure(list(), class = c("interrupt", "condition")))
+      }
+      state$pending_python_setup <- list(completed = completed)
+      invisible()
+    }
+
     initialize_python <- function(
       required_module = NULL,
       use_environment = NULL
@@ -297,6 +336,15 @@ base::local(
         inspected,
         system.file("python", package = "reticulate")
       ))
+      if (isTRUE(.Call("mcp_console_python_runtime_is_configured"))) {
+        live <- state$conversion_config(jsonlite::fromJSON(inspected))
+        config[c("pythonpath", "numpy")] <- live[c("pythonpath", "numpy")]
+      } else if (identical(state$pending_python_setup$completed, FALSE)) {
+        # Attach only to rethrow the retained error through reticulate. Failed
+        # startup must not import NumPy before the user's site hooks complete.
+        config$numpy <- NULL
+      }
+      selected <<- config
       # Reticulate publishes .globals$py_config only after this returns, so
       # unfinished attachment remains eligible for its existing retry path.
       attach_python(config)
@@ -310,47 +358,63 @@ base::local(
         "ensure_python_initialized",
         envir = namespace
       )
-      replace_binding("ensure_python_initialized", function(...) {
-        if (incomplete_attachment) {
-          stop(
-            "R/Python attachment is incomplete; restart required",
-            call. = FALSE
-          )
-        }
-        was_initializing <- initializing
-        initializing <<- TRUE
-        on.exit(initializing <<- was_initializing, add = TRUE)
-        completed <- FALSE
-        on.exit(
-          {
-            # Before py_config publication, reticulate can retry attachment to
-            # the same interpreter. Later hooks may have arbitrary partial effects.
-            if (!completed && !is.null(globals$py_config)) {
-              incomplete_attachment <<- TRUE
-            }
-          },
-          add = TRUE
-        )
-        callback <- getOption("reticulate.python.beforeInitialized")
-        if (
-          !is.null(selection_callback) &&
-            identical(callback, selection_callback) &&
-            !is.null(.Call("mcp_console_running_python"))
-        ) {
-          options(reticulate.python.beforeInitialized = NULL)
+      replace_binding(
+        "ensure_python_initialized",
+        function(required_module = NULL) {
+          if (incomplete_attachment) {
+            stop(
+              "R/Python attachment is incomplete; restart required",
+              call. = FALSE
+            )
+          }
+          was_initializing <- initializing
+          initializing <<- TRUE
+          on.exit(initializing <<- was_initializing, add = TRUE)
+          completed <- FALSE
           on.exit(
             {
-              if (is.null(getOption("reticulate.python.beforeInitialized"))) {
-                options(reticulate.python.beforeInitialized = callback)
+              # Before py_config publication, reticulate can retry attachment to
+              # the same interpreter. Later hooks may have arbitrary partial effects.
+              if (!completed && !is.null(globals$py_config)) {
+                incomplete_attachment <<- TRUE
               }
             },
             add = TRUE
           )
+          if (
+            is.null(globals$py_config) &&
+              !.Call("mcp_console_python_setup_in_progress")
+          ) {
+            # Run native hooks before ordinary attachment. A hook can explicitly
+            # attach the bridge through a nested ensure; the original ensure below
+            # then sees its published config and does not repeat attachment/hooks.
+            prepare_python(required_module)
+            required_module <- NULL
+          }
+          callback <- getOption("reticulate.python.beforeInitialized")
+          if (
+            !is.null(selection_callback) &&
+              identical(callback, selection_callback) &&
+              !is.null(.Call("mcp_console_running_python"))
+          ) {
+            options(reticulate.python.beforeInitialized = NULL)
+            on.exit(
+              {
+                if (is.null(getOption("reticulate.python.beforeInitialized"))) {
+                  options(reticulate.python.beforeInitialized = callback)
+                }
+              },
+              add = TRUE
+            )
+          }
+          result <- original_ensure_initialized(required_module)
+          if (!is.null(state$pending_python_setup)) {
+            state$initialize_python_runtime(strict = TRUE)
+          }
+          completed <- TRUE
+          invisible(result)
         }
-        result <- original_ensure_initialized(...)
-        completed <- TRUE
-        invisible(result)
-      })
+      )
       original_py <- activeBindingFunction("py", namespace)
       lazy_main <- NULL
       was_locked <- bindingIsLocked("py", namespace)

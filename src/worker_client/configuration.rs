@@ -136,6 +136,53 @@ impl ClientConfiguration {
         } else {
             &sandbox_settings
         };
+        // Existing Python with R disabled needs inspection, but no discovery or
+        // dependency preparation owner. Keep platform inspection policy intact.
+        if !r_settings.enabled
+            && let Some(explicit) = configured_python
+                .as_ref()
+                .filter(|python| !python.is_empty() && *python != "managed")
+        {
+            let selected = crate::resolver::preparation::Preparation::inspect(
+                crate::resolver::preparation::Operation::InspectPython {
+                    executable: crate::python::explicit_executable(explicit)?,
+                },
+                inspection_settings.clone(),
+                no_sandbox,
+                diagnostics,
+                on_started,
+            )?;
+            let mut configuration = Self::with_arguments(
+                program,
+                vec!["worker".into(), "--bootstrap-runtimes".into()],
+                None,
+                no_sandbox,
+                sandbox_settings,
+                Environment {
+                    startup,
+                    local_runtime: Some(crate::local_runtime::Selection {
+                        r_settings,
+                        python: Some(crate::local_runtime::Python {
+                            selected: Box::new(selected),
+                            explicit: Some(explicit.clone()),
+                            managed: false,
+                            duckdb_extension_directory: None,
+                        }),
+                        ..Default::default()
+                    }),
+                    custom_worker: false,
+                    duckdb_extensions: Default::default(),
+                    duckdb_r_targets: Vec::new(),
+                    python: Some(PythonEnvironment::bare(configured_python)),
+                    r: None,
+                    r_resolver: RResolver::Disabled,
+                },
+            );
+            configuration.resolver_settings = resolver_settings;
+            configuration.duckdb_extension_directory = duckdb_extension_directory;
+            configuration.languages = Some(languages);
+            return Ok(configuration);
+        }
         let installation = r_settings
             .executable
             .as_ref()
@@ -158,7 +205,18 @@ impl ClientConfiguration {
         let resolver_preparation;
         #[cfg(any(unix, windows))]
         let (preparation, discovery) = crate::resolver::preparation::Preparation::open_local(
-            crate::resolver::preparation::Mode::Auto,
+            crate::resolver::preparation::DiscoveryPolicy {
+                mode: if r_settings.enabled {
+                    crate::resolver::preparation::Mode::Auto
+                } else {
+                    crate::resolver::preparation::Mode::PythonOnly
+                },
+                r_preparation: if r_settings.enabled && r_settings.resolution.prepares_startup() {
+                    crate::resolver::preparation::RPreparation::Discover
+                } else {
+                    crate::resolver::preparation::RPreparation::Disabled
+                },
+            },
             resolver_settings.clone(),
             no_sandbox,
             configured_python.as_deref(),
@@ -216,7 +274,7 @@ impl ClientConfiguration {
             }
         };
         let python_only = r_home.is_none();
-        // Disabled R keeps native startup and SQL routing, while managed Python
+        // Disabled R preparation keeps native startup and SQL routing, while managed Python
         // uses the existing standalone uv path without R bootstrap.
         #[cfg(any(unix, windows))]
         let (r, duckdb_extensions, python, r_resolver) = if python_only
@@ -310,6 +368,7 @@ impl ClientConfiguration {
                 r_settings,
                 automatic_python_resolution: false,
                 python: None,
+                pending_python: None,
             });
             resolver_preparation = Some(preparation.clone());
             if discovery.managed && prepare_r {
@@ -346,7 +405,10 @@ impl ClientConfiguration {
         }
         if let Some(runtime) = &mut local_runtime
             && runtime.python.is_none()
-            && inspect_explicit
+            && (inspect_explicit
+                || configured_python
+                    .as_ref()
+                    .is_some_and(|python| !python.is_empty() && python != "managed"))
         {
             let explicit = configured_python
                 .filter(|value| !value.is_empty() && value != "managed")
@@ -358,27 +420,43 @@ impl ClientConfiguration {
                         .flatten()
                 });
             if let Some(explicit) = explicit {
-                let preparation = resolver_preparation.as_ref().expect("local preparation");
-                let selected = crate::python::explicit_executable(&explicit)
-                    .and_then(|executable| {
-                        crate::resolver::preparation::Preparation::inspect(
-                            crate::resolver::preparation::Operation::InspectPython { executable },
-                            inspection_settings.clone(),
-                            no_sandbox,
-                            diagnostics.clone(),
-                            on_started,
-                        )
-                    })
-                    .map_err(|error| match preparation.close() {
-                        Ok(()) => error,
-                        Err(cleanup) => format!("{error}; {cleanup}"),
-                    })?;
-                runtime.python = Some(crate::local_runtime::Python {
-                    selected: Box::new(selected),
-                    explicit: Some(explicit),
-                    managed: false,
-                    duckdb_extension_directory: None,
-                });
+                if runtime.r_home.is_some() && !cfg!(windows) {
+                    // Freeze the launch-relative choice before R startup can
+                    // change cwd, PATH, or RETICULATE_PYTHON. Inspection remains
+                    // inside the worker's policy at first Python use. Windows
+                    // retains its separate resolver-policy inspection boundary.
+                    runtime.pending_python =
+                        Some(match crate::python::explicit_executable(&explicit) {
+                            Ok(executable) => {
+                                crate::local_runtime::PendingPython::Executable(executable)
+                            }
+                            Err(error) => crate::local_runtime::PendingPython::Unavailable(error),
+                        });
+                } else {
+                    let preparation = resolver_preparation.as_ref().expect("local preparation");
+                    let selected = crate::python::explicit_executable(&explicit)
+                        .and_then(|executable| {
+                            crate::resolver::preparation::Preparation::inspect(
+                                crate::resolver::preparation::Operation::InspectPython {
+                                    executable,
+                                },
+                                inspection_settings.clone(),
+                                no_sandbox,
+                                diagnostics.clone(),
+                                on_started,
+                            )
+                        })
+                        .map_err(|error| match preparation.close() {
+                            Ok(()) => error,
+                            Err(cleanup) => format!("{error}; {cleanup}"),
+                        })?;
+                    runtime.python = Some(crate::local_runtime::Python {
+                        selected: Box::new(selected),
+                        explicit: Some(explicit),
+                        managed: false,
+                        duckdb_extension_directory: None,
+                    });
+                }
             }
         }
         let mut configuration = Self::with_arguments(

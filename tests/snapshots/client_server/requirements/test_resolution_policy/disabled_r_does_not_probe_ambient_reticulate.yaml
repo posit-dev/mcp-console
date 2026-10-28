@@ -1,0 +1,46 @@
+---
+scenario: >-
+  Disabled R preparation does not load ambient reticulate to discover uv.
+fixture: >-
+  No ir or uv on PATH; existing Python and an R reticulate package that
+  fails on load.
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        [1] 2
+  isError: false
+---
+send:
+  python: print('Python available')
+result:
+  content:
+    - type: text
+      text: |
+        Python available
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: 2 + 2
+result:
+  content:
+    - type: text
+      text: |
+        [1] 4
+  isError: false

@@ -87,7 +87,8 @@ pub(crate) fn configuration(
         .cloned()
         .unwrap_or_else(|| json!({}));
     let r = captured.r.unwrap_or_default();
-    value["r"] = json!({ "vanilla": r.vanilla, "resolution": r.resolution.name() });
+    value["r"] =
+        json!({ "enabled": r.enabled, "vanilla": r.vanilla, "resolution": r.resolution.name() });
     if let Some(path) = r.executable {
         value["r"]["executable"] = serde_json::to_value(path)
             .map_err(|error| format!("cannot export r.executable: {error}"))?;

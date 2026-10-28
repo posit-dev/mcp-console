@@ -30,6 +30,7 @@ EXPECTED_SOURCES = {
     "src/r_graphics/bridge.R",
     "src/resolver/programs/duckdb_extensions.R",
     "src/resolver/programs/duckdb_extensions.py",
+    "src/resolver/programs/python_environment.py",
     "src/resolver/programs/r_library.R",
     "src/resolver/programs/uv_binary.R",
     "src/resolver/programs/windows_read_access.R",

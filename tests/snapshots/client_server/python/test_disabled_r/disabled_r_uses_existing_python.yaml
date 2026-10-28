@@ -1,0 +1,61 @@
+---
+!same-as existing-python-sql MCP initialization for this execution mode
+---
+send:
+  python: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false
+---
+send:
+  python: |
+    import sqlite3
+
+    _console.sql_connection(sqlite3.connect(":memory:"))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE answers AS SELECT 1 + 1 AS answer
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    print(_console.sql_connection().execute("SELECT answer FROM
+    answers").fetchone()[0])
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  python: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        2
+  isError: false

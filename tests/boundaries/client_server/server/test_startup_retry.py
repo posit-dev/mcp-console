@@ -102,6 +102,20 @@ def test_retry_retains_preparation_startup_and_idle_output(
         )
         startup_text = "recorded Python startup\n"
         idle_text = "idle head\n" + "s" * 32768 + "\nidle tail\n"
+        # This case owns startup recording, so explicitly request Python work
+        # before cells. Ordinary Python startup remains deferred until first use.
+        configuration = root / ".agents/console/config.yaml"
+        configuration.parent.mkdir(parents=True)
+        configuration.write_text(
+            json.dumps(
+                {
+                    "startup": {
+                        "language": "python",
+                        "code": "import sqlite3; _console.sql_connection(sqlite3.connect(':memory:'))",
+                    },
+                }
+            )
+        )
         with (
             closing(FifoCheckpoint.create(root / "startup-release")) as startup,
             closing(FifoCheckpoint.create(root / "idle-release")) as idle,
@@ -241,66 +255,69 @@ def test_retry_retains_preparation_startup_and_idle_output(
 def test_code_free_retry_starts_prepared_replacement(
     binary: Path, execution: Execution
 ) -> Transcript:
+    from boundaries.client_server.recording.test_boundaries import await_event
+
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory).resolve()
         hooks = root / "hooks"
         hooks.mkdir()
-        with closing(FifoCheckpoint.create(root / "prepared-startup")) as started:
-            (hooks / "sitecustomize.py").write_text(
-                # fmt: python
-                code(f"""
-                    import importlib.util
-                    from pathlib import Path
+        marker = root / "python-started"
+        (hooks / "sitecustomize.py").write_text(
+            # fmt: python
+            code(f"""
+                import importlib.util
+                import sys
+                from pathlib import Path
 
+                if "_mcp_console_services" in sys.modules:
                     # Only the replacement declaration omits default NumPy.
-                    if importlib.util.find_spec("numpy") is None:
-                        import six
+                    assert importlib.util.find_spec("numpy") is None
+                    import six
 
-                        print("prepared Python startup ran", flush=True)
-                        with Path({str(started.path)!r}).open("wb", buffering=0) as ready:
-                            assert ready.write(b"1") == 1
-                    """),
+                    Path({str(marker)!r}).write_text("Python initialized")
+                    print("prepared Python startup ran", flush=True)
+                """),
+        )
+        environment = without_r(root)
+        environment.update(managed_python_environment(root))
+        environment.update(
+            {
+                "UV_TOOL_DIR": str(root),
+                "RETICULATE_PYTHONPATH": str(hooks),
+            }
+        )
+        with McpClient(
+            binary,
+            execution.serve(
+                "-c",
+                "cache=host",
+                *(("--writable-root", str(root)) if execution == SANDBOXED else ()),
+            ),
+            environment,
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            failure = client.send(python="raise AssertionError('must not run')")
+            assert failure.get("isError"), failure
+            assert "require `uv` on PATH" in str(failure), failure
+            expose_uv(root)
+            assert client.send() == failure
+            client.expect(
+                "[runtime discovery retried]\n[idle]",
+                control="restart",
+                requirements={"action": "set", "python": ["six"]},
             )
-            environment = without_r(root)
-            environment.update(managed_python_environment(root))
-            environment.update(
-                {
-                    "UV_TOOL_DIR": str(root),
-                    "RETICULATE_PYTHONPATH": str(hooks),
-                }
+            # The public journal proves the code-free retry launched its
+            # replacement worker; its Python interpreter is still unused.
+            ready = await_event(client, root, "worker_ready")
+            assert ready["session_id"] == 1, ready
+            assert not marker.exists(), "code-free retry initialized Python"
+            client.expect(
+                "prepared Python startup ran\nprepared cell ran\n",
+                python="import six; print('prepared cell ran')",
             )
-            with McpClient(
-                binary,
-                execution.serve(
-                    "-c",
-                    "cache=host",
-                    *(("--writable-root", str(root)) if execution == SANDBOXED else ()),
-                ),
-                environment,
-                root,
-            ) as client:
-                client.initialize_and_list_tools()
-                failure = client.send(python="raise AssertionError('must not run')")
-                assert failure.get("isError"), failure
-                assert "require `uv` on PATH" in str(failure), failure
-                expose_uv(root)
-                assert client.send() == failure
-                client.expect(
-                    "[runtime discovery retried]\n[idle]",
-                    control="restart",
-                    requirements={"action": "set", "python": ["six"]},
-                )
-                started.wait("prepared replacement runs startup without another cell")
-                wait_for_idle_output(
-                    client,
-                    "prepared Python startup ran\n\n[idle]",
-                    "prepared replacement startup output",
-                )
-                client.expect(
-                    "prepared cell ran\n",
-                    python="import six; print('prepared cell ran')",
-                )
-                return client.finish()
+            assert marker.read_text() == "Python initialized"
+            return client.finish()
 
 
 @requires(NATIVE_FIXTURES, PROCESS_EVENTS)

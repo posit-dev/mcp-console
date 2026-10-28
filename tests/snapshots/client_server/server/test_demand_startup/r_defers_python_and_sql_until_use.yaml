@@ -1,0 +1,90 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  r: 1 + 1
+result:
+  content:
+    - type: text
+      text: |
+        [1] 2
+  isError: false
+---
+send:
+  r: stopifnot(!"duckdb" %in% loadedNamespaces())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    import sys
+
+    assert "duckdb" not in sys.modules
+    assert "PYTHONHOME" not in os.environ
+    assert "PYTHONPLATLIBDIR" not in os.environ
+    expected_virtualenv = sys.prefix if sys.prefix != sys.base_prefix else None
+    assert os.environ.get("VIRTUAL_ENV") == expected_virtualenv
+    answer = 41
+    print("Python initialized on demand")
+result:
+  content:
+    - type: text
+      text: |
+        Python initialized on demand
+  isError: false
+---
+send:
+  r: reticulate::py$answer + 1L
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  r: stopifnot(!"duckdb" %in% loadedNamespaces())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE demand_ready (answer INTEGER)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: stopifnot("duckdb" %in% loadedNamespaces())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: stopifnot(!"duckdb" %in% loadedNamespaces())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

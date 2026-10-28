@@ -29,6 +29,7 @@ from support.records import Transcript
 from support.requirements import POSIX, R, command, requires
 from support.r import r_test_environment
 from support.resolvers import (
+    bare_runtime_environment,
     checkpoint_uv_environment,
     ir_run_records,
     recording_ir_environment,
@@ -476,6 +477,58 @@ def test_fixed_rejects_py_require_preparation(
             )
             assert inspect(client) == startup
             assert uv_tool_run_requirements(uv_record) == baseline
+            return client.finish()
+
+
+@requires(R)
+@executions(DIRECT)
+def test_disabled_r_does_not_probe_ambient_reticulate(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        selected = venv(root)
+        env, rscript = r_test_environment()
+        package = root / "reticulate"
+        (package / "R").mkdir(parents=True)
+        library = root / "library"
+        library.mkdir()
+        (package / "DESCRIPTION").write_text(
+            "Package: reticulate\nVersion: 0.0.1\nTitle: Preparation probe fixture\n"
+            "Description: Rejects unused preparation discovery.\nLicense: MIT\n"
+            "Author: Test\nMaintainer: Test <test@example.org>\n"
+        )
+        (package / "NAMESPACE").write_text("")
+        (package / "R/probe.R").write_text(
+            '.onLoad <- function(...) stop("unused reticulate preparation probe")\n'
+        )
+        subprocess.run(
+            [
+                rscript.with_name("R.exe" if os.name == "nt" else "R"),
+                "CMD",
+                "INSTALL",
+                "--no-test-load",
+                f"--library={library}",
+                package,
+            ],
+            env=env,
+            check=True,
+            capture_output=True,
+        )
+        env = bare_runtime_environment(env, library)
+        configure(root, {"existing": str(selected)}, r={"resolution": "disabled"})
+        with McpClient(binary, execution.serve(), env, root) as client:
+            client.transcript.append(
+                {
+                    "scenario": "Disabled R preparation does not load ambient reticulate to discover uv.",
+                    "fixture": "No ir or uv on PATH; existing Python and an R reticulate package that fails on load.",
+                }
+            )
+            client.initialize_and_list_tools()
+            client.expect("[1] 2\n", r="1 + 1")
+            client.expect("Python available\n", python="print('Python available')")
+            client.send(control="restart")
+            client.expect("[1] 4\n", r="2 + 2")
             return client.finish()
 
 

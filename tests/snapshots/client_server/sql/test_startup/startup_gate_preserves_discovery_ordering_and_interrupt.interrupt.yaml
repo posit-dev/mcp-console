@@ -37,7 +37,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 479, in initialize_connection
+          File "<string>", line 453, in initialize_connection
           File "<console startup>", line 6, in <module>
           File "<string>", line 50, in _console_input
         KeyboardInterrupt

@@ -34,21 +34,12 @@ result:
         [idle]
   isError: false
 ---
-send: {}
-result:
-  content:
-    - type: text
-      text: |-
-        prepared Python startup ran
-
-        [idle]
-  isError: false
----
 send:
   python: import six; print('prepared cell ran')
 result:
   content:
     - type: text
       text: |
+        prepared Python startup ran
         prepared cell ran
   isError: false

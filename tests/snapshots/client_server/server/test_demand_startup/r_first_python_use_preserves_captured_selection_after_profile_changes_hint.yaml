@@ -1,0 +1,25 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  r: |
+    stopifnot(identical(
+      as.integer(reticulate::py_eval("__import__('numpy').array([40, 2])")),
+      c(40L, 2L)
+    ))
+    reticulate::py_eval("__import__('captured_fixture').answer")
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: import captured_fixture; captured_fixture.answer
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

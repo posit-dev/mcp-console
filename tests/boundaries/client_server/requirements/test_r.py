@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import json
 import os
 import select
 import shutil
@@ -538,7 +539,17 @@ def test_preparation_preserves_input_before_native_r_startup(
             PYTHONPATH=str(site),
             RETICULATE_PYTHONPATH=str(site),
         )
-        with McpClient(binary, execution.serve(), environment, root) as client:
+        # Explicit startup keeps Python's input hook ahead of native R startup.
+        startup = {
+            "language": "python",
+            "code": "import sqlite3; _console.sql_connection(sqlite3.connect(':memory:'))",
+        }
+        with McpClient(
+            binary,
+            execution.serve("-c", "startup=" + json.dumps(startup)),
+            environment,
+            root,
+        ) as client:
             client.initialize_and_list_tools()
             wait_for_idle_output(
                 client,

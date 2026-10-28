@@ -4,7 +4,13 @@
 \alias{RConfig}
 \title{Select R and configure its package preparation}
 \usage{
-RConfig(executable = NULL, packages = NULL, resolution = NULL, vanilla = NULL)
+RConfig(
+  executable = NULL,
+  packages = NULL,
+  resolution = NULL,
+  vanilla = NULL,
+  enabled = NULL
+)
 }
 \arguments{
 \item{executable}{\code{NULL} or a path to an R executable or ordinary launcher,
@@ -21,6 +27,9 @@ later deliberate requirement changes; fixed keeps the startup declaration; disab
 preinstalled R packages and requires an empty or omitted package list.}
 
 \item{vanilla}{\code{NULL}, \code{TRUE}, or \code{FALSE}; controls native R startup files.}
+
+\item{enabled}{\code{NULL}, \code{TRUE}, or \code{FALSE}; \code{FALSE} disables R discovery and
+initialization, including when R is installed on the host.}
 }
 \value{
 An S7 configuration object. The constructor is also its S7 class.

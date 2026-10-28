@@ -2,17 +2,6 @@ const R_ENVIRONMENT_BRIDGE_SOURCE: &str = include_str!("r_environment/bridge.R")
 
 use libr::SEXP;
 
-thread_local! {
-    static RESOLUTION_SUSPENDED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-pub(crate) fn without_automatic_resolution<T>(operation: impl FnOnce() -> T) -> T {
-    let previous = RESOLUTION_SUSPENDED.with(|suspended| suspended.replace(true));
-    let result = operation();
-    RESOLUTION_SUSPENDED.with(|suspended| suspended.set(previous));
-    result
-}
-
 pub(crate) struct Bridge(crate::r_bridge::Bridge);
 
 pub(crate) enum ResolutionFailureKind {
@@ -69,11 +58,7 @@ impl Bridge {
 #[harp::register]
 pub extern "C-unwind" fn mcp_console_resolve_r(packages: SEXP) -> harp::Result<SEXP> {
     let packages = Vec::<String>::try_from(harp::object::RObject::view(packages))?;
-    let outcome = if RESOLUTION_SUSPENDED.with(std::cell::Cell::get) {
-        ResolutionOutcome::Unavailable
-    } else {
-        crate::worker::resolve_r(packages).map_err(|error| harp::anyhow!("{error}"))?
-    };
+    let outcome = crate::worker::resolve_r(packages).map_err(|error| harp::anyhow!("{error}"))?;
     let response = match outcome {
         ResolutionOutcome::Unavailable => vec!["unavailable".to_string()],
         ResolutionOutcome::Resolved { library } => vec!["resolved".to_string(), library],
