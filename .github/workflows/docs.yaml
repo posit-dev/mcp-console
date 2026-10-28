@@ -10,10 +10,8 @@ on:
       - pyproject.toml
       - great-docs.yml
       - tests/website.py
-      - tests/website_redirects.py
       - scripts/preview-site
       - scripts/render-site
-      - scripts/redirect-site
       - tests/snapshots/cli/interface/test_help/**
       - tests/snapshots/cli/interface/test_config_init/dry_run_previews_the_created_contents.yaml
       - .github/workflows/docs.yaml
@@ -28,10 +26,8 @@ on:
       - pyproject.toml
       - great-docs.yml
       - tests/website.py
-      - tests/website_redirects.py
       - scripts/preview-site
       - scripts/render-site
-      - scripts/redirect-site
       - tests/snapshots/cli/interface/test_help/**
       - tests/snapshots/cli/interface/test_config_init/dry_run_previews_the_created_contents.yaml
       - .github/workflows/docs.yaml
@@ -73,12 +69,8 @@ jobs:
             any::pkgdown
       - name: Check website pages and links
         run: python tests/website.py
-      - name: Check migration redirects
-        run: python tests/website_redirects.py
       - name: Render website
         run: scripts/render-site
-      - name: Redirect documentation to Posit
-        run: python scripts/redirect-site docs/_site
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:

@@ -106,14 +106,6 @@ The [concurrency comparison](benchmarks/transcript-concurrency.md) is dated evid
 
 ## Documentation website
 
-Development and documentation now continue at [posit-dev/mcp-console](https://github.com/posit-dev/mcp-console) and [its website](https://posit-dev.github.io/mcp-console/).
-This repository's documentation workflow still renders and checks the historical site, then runs `python scripts/redirect-site docs/_site` before uploading the Pages artifact.
-The command replaces HTML pages with redirects, preserving paths, query strings, and fragments in browsers with JavaScript enabled.
-Each page also includes a direct link for browsers without JavaScript; downloadable assets remain in place.
-The custom 404 page forwards the requested path so links to newer documentation can continue to work after this repository is frozen.
-Local renders and previews keep the historical documentation unless the redirect command is run explicitly.
-Run `python tests/website_redirects.py` with the documentation dependencies and Node.js to check the generated redirect pages.
-
 Quarto renders the Markdown guides, benchmark pages, and Python API reference.
 R pkgdown adds its package site after the main render.
 Historical design sketches, task templates, and root/test documentation are not all published as website guides.
