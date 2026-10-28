@@ -19,9 +19,9 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 956, in _mcp_console_configure_module_defaults
-          File "<string>", line 920, in apply
-          File "<string>", line 589, in _mcp_console_install_matplotlib_show
+          File "<string>", line 958, in _mcp_console_configure_module_defaults
+          File "<string>", line 922, in apply
+          File "<string>", line 591, in _mcp_console_install_matplotlib_show
           File "<setup checkpoint>", line 13, in __setattr__
           File "<string>", line 55, in _console_input
         KeyboardInterrupt

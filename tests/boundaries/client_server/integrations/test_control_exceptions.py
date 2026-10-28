@@ -1,4 +1,4 @@
-"""Language diagnostics survive exceptions raised by an exception's formatter."""
+"""Language diagnostics survive user-defined formatters and shadowed builtins."""
 
 import sys
 import tempfile
@@ -12,7 +12,7 @@ from boundaries.client_server.integrations.test_control import (
 )
 from boundaries.client_server.python.test_without_r import selected_environment
 from support.client import McpClient
-from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.records import TranscriptWithCompanions
 from support.requirements import POSIX, SQL, requires
@@ -99,6 +99,64 @@ def test_python_thread_preserves_errors_with_broken_messages(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
     return python_formatter_case(binary, execution, "immediate")
+
+
+@requires(POSIX)
+@executions(RUNTIME)
+def test_preserves_errors_with_shadowed_builtins(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    with tempfile.TemporaryDirectory(dir="/tmp", prefix="console-errors-") as directory:
+        root = Path(directory)
+        (root / "python3").symlink_to(sys.executable)
+        endpoint = root / "control.sock"
+        with McpClient(
+            binary,
+            execution.serve("--control-socket", str(endpoint)),
+            selected_environment(root),
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(python="sentinel = object(); original = sentinel")
+            with ControlClient(endpoint) as control:
+                for builtin in ("list", "str"):
+                    client.expect(python=f"{builtin} = None")
+                    for mode in ("serial", "immediate"):
+                        options = (
+                            {"busy": "wait", "wait_ms": 30000}
+                            if mode == "serial"
+                            else {}
+                        )
+                        failed = control.request(
+                            op="evaluate",
+                            language="python",
+                            execution=mode,
+                            code="raise ValueError('original failure')",
+                            **options,
+                        )
+                        assert "result" in failed, failed
+                        assert failed["result"]["isError"] is False, failed
+                        error = failed["result"]["execution_error"]
+                        assert error == {
+                            "ename": "ValueError",
+                            "evalue": "original failure",
+                            "traceback": error["traceback"],
+                        }, failed
+                        text = result_text(failed)
+                        assert text.startswith(
+                            "Traceback (most recent call last):\n"
+                        ), failed
+                        assert text.endswith("ValueError: original failure\n"), failed
+                        assert "".join(error["traceback"]) == text, failed
+                        client.expect("\n[idle]")
+                        client.expect(
+                            "True True\n",
+                            python=f"print({builtin} is None, sentinel is original)",
+                        )
+                    client.expect(python=f"del {builtin}")
+                return TranscriptWithCompanions(
+                    client.finish(), {"control.yaml": control.transcript}
+                )
 
 
 @requires(POSIX, SQL)

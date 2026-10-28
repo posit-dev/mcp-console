@@ -137,7 +137,7 @@ result:
       text: |
         Traceback (most recent call last):
           File "<string>", line 367, in dispatch
-          File "<string>", line 758, in _mcp_console_without_automatic_resolution
+          File "<string>", line 760, in _mcp_console_without_automatic_resolution
           File "<string>", line 361, in _dispatch
           File "<string>", line 145, in use_r
           File "<mcp-console:python:e4>", line 10, in restore_hook

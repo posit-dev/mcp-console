@@ -462,6 +462,8 @@ def _mcp_console_print_exception(
     _services_globals=_services.__dict__,
     _getattr=_builtins.getattr,
     _id=_builtins.id,
+    _list=_builtins.list,
+    _str=_builtins.str,
     _zip=_builtins.zip,
     _record_error=_services.report_execution_error,
 ):
@@ -499,8 +501,8 @@ def _mcp_console_print_exception(
             remove_private_frames(child, child_summary)
 
     remove_private_frames(error, rendered)
-    traceback = list(rendered.format())
-    _record_error(error, str(rendered), traceback)
+    traceback = _list(rendered.format())
+    _record_error(error, _str(rendered), traceback)
     _sys.stderr.write("".join(traceback))
 
 

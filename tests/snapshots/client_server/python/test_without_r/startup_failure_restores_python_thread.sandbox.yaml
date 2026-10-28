@@ -8,7 +8,7 @@ result:
     - type: text
       text: |-
         Traceback (most recent call last):
-          File "<string>", line 814, in _mcp_console_configure_environment
+          File "<string>", line 816, in _mcp_console_configure_environment
         RuntimeError: embedded Python prefix differs from the selected environment: 'changed-by-startup-hook' != '<selected environment>'
         Python environment setup failed; restart required
         Python exit thread attached

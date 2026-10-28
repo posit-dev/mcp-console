@@ -23,8 +23,8 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 956, in _mcp_console_configure_module_defaults
-          File "<string>", line 914, in apply
+          File "<string>", line 958, in _mcp_console_configure_module_defaults
+          File "<string>", line 916, in apply
           File "<SQL setup checkpoint>", line 16, in configuration_checkpoint
           File "<string>", line 55, in _console_input
         KeyboardInterrupt
