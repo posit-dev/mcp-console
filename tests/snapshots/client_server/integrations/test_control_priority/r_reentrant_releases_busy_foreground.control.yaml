@@ -3,7 +3,7 @@ request:
   id: "1"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: stop("priority failure")
 response:
   id: "1"
@@ -24,7 +24,7 @@ request:
   id: "2"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: release <- TRUE; cat("priority output\n")
 response:
   id: "2"
@@ -41,7 +41,7 @@ request:
   id: "3"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: priority_value <- 42L; priority_value
 response:
   id: "3"

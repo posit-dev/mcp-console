@@ -3,7 +3,7 @@ request:
   id: "1"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: >-
     stopifnot(getOption("warn") == 0); warning("priority deferred", call. =
     FALSE); cat("priority complete\n")
@@ -24,7 +24,7 @@ request:
   id: "2"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: options(warn = -1); warning("priority suppressed", call. = FALSE)
 response:
   id: "2"
@@ -38,7 +38,7 @@ request:
   id: "3"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: >-
     options(warn = 1); warning("priority immediate", call. = FALSE);
     cat("after immediate\n")
@@ -58,7 +58,7 @@ request:
   id: "4"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: options(warn = 2); warning("priority converted", call. = FALSE)
 response:
   id: "4"
@@ -79,7 +79,7 @@ request:
   id: "5"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: options(warn = 0); release <- TRUE
 response:
   id: "5"

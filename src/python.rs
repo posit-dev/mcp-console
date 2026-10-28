@@ -15,7 +15,7 @@ const RUNTIME_SOURCE: &str = include_str!("python/runtime.py");
 
 pub(crate) fn evaluate_priority(source: &str) -> Result<(), String> {
     if !library::runtime_configured()? {
-        return Err("initialize Python with a serial evaluation before using python_thread".into());
+        return Err("initialize Python with a serial evaluation before immediate execution".into());
     }
     library::evaluate_priority(source)
 }

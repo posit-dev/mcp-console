@@ -3,7 +3,7 @@ request:
   id: "1"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: raise ValueError('priority failure')
 response:
   id: "1"
@@ -31,7 +31,7 @@ request:
   id: "2"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: >-
     assert threading.current_thread() is not threading.main_thread();
     print('priority output'); release.set()
@@ -50,7 +50,7 @@ request:
   id: "3"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: priority_value = 42; print(priority_value)
 response:
   id: "3"

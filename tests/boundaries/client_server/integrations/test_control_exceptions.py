@@ -98,7 +98,7 @@ def test_serial_preserves_errors_with_broken_messages(
 def test_python_thread_preserves_errors_with_broken_messages(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
-    return python_formatter_case(binary, execution, "python_thread")
+    return python_formatter_case(binary, execution, "immediate")
 
 
 @requires(POSIX, SQL)

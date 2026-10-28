@@ -99,8 +99,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                             "Execution",
                             {
                                 "serialized": "Ordinary cell",
-                                "r_reentrant": "R reentrant (integrator opt-in)",
-                                "python_thread": "Python background thread (integrator opt-in)",
+                                "immediate": "Immediate",
                             },
                         ),
                         col_widths=(4, 8),

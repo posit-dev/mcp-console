@@ -35,7 +35,7 @@ pub(crate) fn initialized() -> bool {
 
 pub(super) fn evaluate_priority(source: &str) -> Result<(), String> {
     let runtime =
-        runtime().ok_or("initialize R with a serial evaluation before using r_reentrant")?;
+        runtime().ok_or("initialize R with a serial evaluation before immediate execution")?;
     runtime.evaluate_priority(source)
 }
 

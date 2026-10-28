@@ -2,20 +2,20 @@
 request:
   id: "1"
   op: evaluate
-  language: python
-  execution: r_reentrant
-  code: pass
+  language: sql
+  execution: immediate
+  code: SELECT 1
 response:
   id: "1"
   error:
     code: execution_failed
-    message: execution mode does not match the requested language
+    message: immediate execution supports only R and Python
 ---
 request:
   id: "2"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: |
     print("private priority pending", flush=True)
     with open('<workspace>/entered', "wb", buffering=0) as gate:
@@ -31,7 +31,7 @@ request:
   id: "3"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: print('new priority')
 response:
   id: "3"

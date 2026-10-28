@@ -3,7 +3,7 @@ request:
   id: "1"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: wakeup_count <- wakeup_count + 1L; cat('ok\n')
 response:
   id: "1"
@@ -24,7 +24,7 @@ request:
   id: "4097"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: wakeup_release <- TRUE; cat('released\n')
 response:
   id: "4097"
@@ -41,7 +41,7 @@ request:
   id: "4098"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: cat('idle wakeup\n')
 response:
   id: "4098"
@@ -58,7 +58,7 @@ request:
   id: "4099"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: wakeup_count <- wakeup_count + 1L; cat('ok\n')
 response:
   id: "4099"
@@ -75,7 +75,7 @@ request:
   id: "4100"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: wakeup_release <- TRUE; cat('released\n')
 response:
   id: "4100"
@@ -92,7 +92,7 @@ request:
   id: "4101"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: cat('idle wakeup\n')
 response:
   id: "4101"

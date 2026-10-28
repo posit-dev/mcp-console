@@ -3,7 +3,7 @@ request:
   id: "1"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: print('must not run')
 response:
   id: "1"

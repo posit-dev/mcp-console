@@ -466,16 +466,16 @@ async fn handle(
                             )
                             .await
                     }
-                    execution => {
+                    crate::worker_client::IntegratorExecution::Immediate => {
                         if wait.is_some() {
                             return Err((
                                 "invalid_request",
-                                "concurrent execution requires busy=reject and no wait_ms".into(),
+                                "immediate execution requires busy=reject and no wait_ms".into(),
                             ));
                         }
                         runtime
                             .worker
-                            .integrator_priority_evaluate(cell, execution, disconnect.clone())
+                            .integrator_priority_evaluate(cell, disconnect.clone())
                             .await
                     }
                 }

@@ -3,7 +3,7 @@ request:
   id: "1"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: raise BrokenMessage()
 response:
   id: "1"
@@ -31,7 +31,7 @@ request:
   id: "2"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: raise BrokenMessage()
 response:
   id: "2"

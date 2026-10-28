@@ -30,7 +30,7 @@ request:
   id: "2"
   op: evaluate
   language: python
-  execution: python_thread
+  execution: immediate
   code: raise ValueError('界' * 50000)
 response:
   id: "2"

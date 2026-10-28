@@ -122,8 +122,11 @@ def test_streams_pending_output_and_retains_state(app):
 
 
 @pytest.mark.parametrize("language", ["python", "r"])
-def test_priority_execution_while_ordinary_cell_is_pending(app, language):
+def test_immediate_execution_while_ordinary_cell_is_pending(app, language):
     page, workspace = app
+    expect(page.locator("#execution option")).to_have_text(
+        ["Ordinary cell", "Immediate"]
+    )
     page.locator("#language").select_option(language)
     if language == "python":
         source = (
@@ -133,7 +136,6 @@ def test_priority_execution_while_ordinary_cell_is_pending(app, language):
             "print('ordinary-completed', shared_answer)"
         )
         priority = "shared_answer += 1; print('priority-result', shared_answer)"
-        execution = "python_thread"
     else:
         source = (
             'shared_answer <- 41; cat("waiting-marker\\n"); '
@@ -141,13 +143,12 @@ def test_priority_execution_while_ordinary_cell_is_pending(app, language):
             'cat("ordinary-completed", shared_answer, "\\n")'
         )
         priority = 'shared_answer <- shared_answer + 1; cat("priority-result", shared_answer, "\\n")'
-        execution = "r_reentrant"
     page.locator("#source").fill(source)
     page.locator("#evaluate").click()
     expect(page.locator("#pending_output")).to_contain_text(
         "waiting-marker", timeout=60_000
     )
-    page.locator("#execution").select_option(execution)
+    page.locator("#execution").select_option("immediate")
     page.locator("#source").fill(priority)
     page.locator("#evaluate").click()
     expect(page.locator("#transcript .content").last).to_contain_text(

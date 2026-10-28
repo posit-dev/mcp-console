@@ -4,7 +4,7 @@ This local Shiny for Python app puts agent chat beside a transcript of the same 
 The agent owns Console's MCP connection.
 The app uses the private control socket to submit code and receives pending output through one subscription.
 Pending output appears in gray until a completed response becomes a transcript entry.
-This preview follows the ordinary cell; priority requests return their own output on completion.
+This preview follows the ordinary cell; Immediate requests return their own output on completion.
 The transcript renders text and images.
 
 The fixture requires macOS or Linux, a built Console binary, and existing authentication for the `openai-codex` Python package.
@@ -27,15 +27,16 @@ Use `--port PORT` to choose another local port.
 Submit Python or R directly on the right, or ask the agent to run code on the left.
 Both paths retain objects in the same worker.
 Submitted code appears immediately in the transcript, followed by its completed output.
-The execution selector opts individual direct requests into R reentrant execution or Python background-thread execution.
-Select the matching language, and use these modes only for code that the integrator can safely run alongside the active evaluation.
+The execution selector offers Ordinary cell and Immediate.
+Immediate uses R reentrant execution or Python background-thread execution according to the selected language.
+Use Immediate only for code that the integrator can safely run alongside the active evaluation.
 Ordinary cells wait for the worker to become available.
 
 ## Browser regression and live smoke
 
 The browser regression launches the actual app and Console process.
 It blocks an evaluation on a file checkpoint, verifies that pending output arrives before completion, releases the checkpoint, and checks retained state and rendered images.
-Additional cases submit R reentrant and Python background-thread requests while an ordinary cell remains blocked.
+Additional cases select Immediate for R and Python while an ordinary cell remains blocked.
 The live smoke additionally asks Luna to mutate an object created through the direct input and verifies the result through both paths.
 Only the live smoke makes a model inference request.
 

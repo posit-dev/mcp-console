@@ -15,8 +15,7 @@ static NEXT_REQUEST: AtomicU64 = AtomicU64::new(1);
 pub(crate) enum IntegratorExecution {
     #[default]
     Serial,
-    RReentrant,
-    PythonThread,
+    Immediate,
 }
 
 pub(super) struct Request {
@@ -31,17 +30,14 @@ impl Client {
     pub(crate) async fn integrator_priority_evaluate(
         &self,
         cell: Cell,
-        execution: IntegratorExecution,
         cancelled: tokio::sync::watch::Receiver<bool>,
     ) -> Result<Response, IntegratorError> {
-        let execution = match (execution, cell.language) {
-            (IntegratorExecution::RReentrant, Language::R) => PriorityExecution::RReentrant,
-            (IntegratorExecution::PythonThread, Language::Python) => {
-                PriorityExecution::PythonThread
-            }
-            _ => {
+        let execution = match cell.language {
+            Language::R => PriorityExecution::RReentrant,
+            Language::Python => PriorityExecution::PythonThread,
+            Language::Sql => {
                 return Err(IntegratorError::Failed(
-                    "execution mode does not match the requested language".into(),
+                    "immediate execution supports only R and Python".into(),
                 ));
             }
         };

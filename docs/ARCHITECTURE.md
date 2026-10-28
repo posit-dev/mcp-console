@@ -64,7 +64,7 @@ Delivery cancellation also invalidates the view when a claimed response returns 
 Input and interruption pin the observed evaluation identity so a delayed control cannot affect its successor.
 The socket does not select a new sandbox authority.
 
-Explicit priority requests use a separate connection-owned result slot and bounded output tape.
+Control requests with `execution: "immediate"` use a separate connection-owned result slot and bounded output tape.
 The worker ingress thread dispatches Python requests to a background thread and queues R requests for the owning thread's event hook.
 R requests share one pending coordinator wakeup; only consuming that wakeup clears it, so event-hook execution cannot fill the command pipe with unread notifications.
 Neither path claims the ordinary evaluation or its output.
@@ -443,7 +443,7 @@ It owns admission, retained declarations, bounded responses, and recording.
 
 **Worker:** The process holding interpreter and database state.
 The built-in worker coordinates ordinary R, Python, and SQL cells on one execution thread.
-Opt-in internal priority execution can reenter R on that thread or execute Python on a background thread.
+Opt-in `execution: "immediate"` can reenter R on that thread or execute Python on a background thread, according to the request's language.
 
 **Generation:** The admission and callback identity retained by lifecycle operations.
 Old input, callbacks, evaluations, and candidate commits must not reach its replacement.

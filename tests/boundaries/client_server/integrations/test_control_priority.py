@@ -57,7 +57,7 @@ def test_python_thread_releases_busy_foreground(
                 failed = control.request(
                     op="evaluate",
                     language="python",
-                    execution="python_thread",
+                    execution="immediate",
                     code="raise ValueError('priority failure')",
                 )
                 assert failed["result"]["execution_error"]["ename"] == "ValueError", (
@@ -67,7 +67,7 @@ def test_python_thread_releases_busy_foreground(
                 result = control.request(
                     op="evaluate",
                     language="python",
-                    execution="python_thread",
+                    execution="immediate",
                     code="assert threading.current_thread() is not threading.main_thread(); print('priority output'); release.set()",
                 )
                 assert result_text(result) == "priority output\n", result
@@ -79,7 +79,7 @@ def test_python_thread_releases_busy_foreground(
                 idle = control.request(
                     op="evaluate",
                     language="python",
-                    execution="python_thread",
+                    execution="immediate",
                     code="priority_value = 42; print(priority_value)",
                 )
                 assert result_text(idle) == "42\n", idle
@@ -132,7 +132,7 @@ def test_r_reentrant_releases_busy_foreground(
                 failed = control.request(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code='stop("priority failure")',
                 )
                 assert failed["result"]["execution_error"]["ename"] == "RError", failed
@@ -143,7 +143,7 @@ def test_r_reentrant_releases_busy_foreground(
                 result = control.request(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code='release <- TRUE; cat("priority output\\n")',
                 )
                 assert result_text(result) == "priority output\n", result
@@ -155,7 +155,7 @@ def test_r_reentrant_releases_busy_foreground(
                 idle = control.request(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code="priority_value <- 42L; priority_value",
                 )
                 assert result_text(idle) == "[1] 42\n", idle
@@ -192,13 +192,13 @@ def test_restart_retires_priority_thread_without_recovering_its_output(
                 ControlClient(endpoint) as control,
                 ControlClient(endpoint) as observer,
             ):
-                mismatched = control.request(
+                unsupported = control.request(
                     op="evaluate",
-                    language="python",
-                    execution="r_reentrant",
-                    code="pass",
+                    language="sql",
+                    execution="immediate",
+                    code="SELECT 1",
                 )
-                assert mismatched["error"]["code"] == "execution_failed", mismatched
+                assert unsupported["error"]["code"] == "execution_failed", unsupported
                 # fmt: python
                 source = code(f"""
                     print("private priority pending", flush=True)
@@ -209,14 +209,14 @@ def test_restart_retires_priority_thread_without_recovering_its_output(
                 pending = control.start(
                     op="evaluate",
                     language="python",
-                    execution="python_thread",
+                    execution="immediate",
                     code=source,
                 )
                 entered.wait(client=client)
                 busy = observer.request(
                     op="evaluate",
                     language="python",
-                    execution="python_thread",
+                    execution="immediate",
                     code="print('must not run')",
                 )
                 assert busy["error"]["code"] == "busy", busy
@@ -230,7 +230,7 @@ def test_restart_retires_priority_thread_without_recovering_its_output(
                 replacement = control.request(
                     op="evaluate",
                     language="python",
-                    execution="python_thread",
+                    execution="immediate",
                     code="print('new priority')",
                 )
                 assert result_text(replacement) == "new priority\n", replacement
@@ -268,7 +268,7 @@ def test_python_thread_system_exit_is_an_execution_error(
                 failed = control.request(
                     op="evaluate",
                     language="python",
-                    execution="python_thread",
+                    execution="immediate",
                     code="raise SystemExit('priority exit')",
                 )
                 assert "result" in failed, failed
@@ -279,7 +279,7 @@ def test_python_thread_system_exit_is_an_execution_error(
                 survived = control.request(
                     op="evaluate",
                     language="python",
-                    execution="python_thread",
+                    execution="immediate",
                     code="print(shared)",
                 )
                 assert result_text(survived) == "42\n", survived

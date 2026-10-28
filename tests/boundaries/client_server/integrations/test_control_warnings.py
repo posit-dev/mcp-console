@@ -62,7 +62,7 @@ def test_reentrant_warnings_preserve_foreground_warning_ownership(
                 deferred = control.request(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code='stopifnot(getOption("warn") == 0); warning("priority deferred", call. = FALSE); cat("priority complete\\n")',
                 )
                 text = result_text(deferred)
@@ -74,14 +74,14 @@ def test_reentrant_warnings_preserve_foreground_warning_ownership(
                 suppressed = control.request(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code='options(warn = -1); warning("priority suppressed", call. = FALSE)',
                 )
                 assert result_text(suppressed) == "", suppressed
                 immediate = control.request(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code='options(warn = 1); warning("priority immediate", call. = FALSE); cat("after immediate\\n")',
                 )
                 assert (
@@ -91,7 +91,7 @@ def test_reentrant_warnings_preserve_foreground_warning_ownership(
                 converted = control.request(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code='options(warn = 2); warning("priority converted", call. = FALSE)',
                 )
                 assert converted["result"]["execution_error"]["ename"] == "RError", (
@@ -102,7 +102,7 @@ def test_reentrant_warnings_preserve_foreground_warning_ownership(
                 resumed = control.request(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code="options(warn = 0); release <- TRUE",
                 )
                 assert result_text(resumed) == "", resumed

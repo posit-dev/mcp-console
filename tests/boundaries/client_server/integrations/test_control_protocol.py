@@ -41,7 +41,7 @@ def test_bounds_structured_language_errors(
             client.initialize_and_list_tools()
             client.expect(python="pass")
             with ControlClient(endpoint) as control:
-                for mode in ("serial", "python_thread"):
+                for mode in ("serial", "immediate"):
                     options = (
                         {"busy": "wait", "wait_ms": 30000} if mode == "serial" else {}
                     )

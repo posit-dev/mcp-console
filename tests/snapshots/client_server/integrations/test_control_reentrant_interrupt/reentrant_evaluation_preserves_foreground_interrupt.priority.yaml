@@ -3,7 +3,7 @@ request:
   id: "1"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: |
     (function() {
       on.exit({
@@ -32,7 +32,7 @@ request:
   id: "2"
   op: evaluate
   language: r
-  execution: r_reentrant
+  execution: immediate
   code: |
     (function() {
       on.exit({

@@ -69,7 +69,7 @@ def test_many_reentrant_requests_preserve_ingress_and_rearm_idle_wakeup(
                             response = control.request(
                                 op="evaluate",
                                 language="r",
-                                execution="r_reentrant",
+                                execution="immediate",
                                 code="wakeup_count <- wakeup_count + 1L; cat('ok\\n')",
                             )
                             assert response == {
@@ -84,7 +84,7 @@ def test_many_reentrant_requests_preserve_ingress_and_rearm_idle_wakeup(
                         released = control.request(
                             op="evaluate",
                             language="r",
-                            execution="r_reentrant",
+                            execution="immediate",
                             code="wakeup_release <- TRUE; cat('released\\n')",
                         )
                         assert result_text(released) == "released\n", released
@@ -96,7 +96,7 @@ def test_many_reentrant_requests_preserve_ingress_and_rearm_idle_wakeup(
                         idle = control.request(
                             op="evaluate",
                             language="r",
-                            execution="r_reentrant",
+                            execution="immediate",
                             code="cat('idle wakeup\\n')",
                         )
                         assert result_text(idle) == "idle wakeup\n", idle

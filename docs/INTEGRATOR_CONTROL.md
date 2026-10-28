@@ -126,11 +126,13 @@ Disconnecting after admission leaves the evaluation running and recorded.
 Its response does not become output for the agent to collect.
 Code can still change objects that later agent calls observe.
 
-### Opt in to concurrent execution
+### Opt in to immediate execution
 
 `execution` defaults to `serial`, with the admission policies above.
-For short, latency-sensitive requests, an integrator can explicitly select `r_reentrant` for R or `python_thread` for Python.
-These modes require `busy: "reject"` (the default) and no `wait_ms`.
+For short, latency-sensitive requests, an integrator can explicitly select `immediate`.
+Console chooses reentrant R execution or a Python background thread from the request's `language`.
+SQL with `execution: "immediate"` returns `execution_failed` with the message `immediate execution supports only R and Python`.
+Immediate requests require `busy: "reject"` (the default) and no `wait_ms`.
 They run in the existing worker and share its objects and permissions.
 The integrator is responsible for coordinating access to those objects and choosing code that is safe to run concurrently.
 
@@ -146,6 +148,18 @@ Background Python code must not call into R.
 Only one concurrent control request may be outstanding per worker.
 Prepare dependencies and initialize the requested interpreter through an ordinary cell first.
 Concurrent requests cannot prepare packages or request managed stdin.
+
+After initializing Python, an integrator can send:
+
+```json
+{
+  "id": "ui",
+  "op": "evaluate",
+  "language": "python",
+  "execution": "immediate",
+  "code": "print(2 + 2)"
+}
+```
 
 Managed output belongs to the concurrent request's response.
 Native stdout/stderr and child-process output retain the ordinary foreground attribution because process streams do not identify a writing thread.
@@ -217,4 +231,4 @@ The projection choice does not isolate objects or conceal data that later code e
 ## Try the Shiny fixture
 
 The [Shiny integration fixture](../tests/fixtures/control_shiny/README.md) displays agent chat beside the shared Console transcript.
-It demonstrates direct code submission, streamed pending output, reentrant R execution, and Python background-thread execution.
+It demonstrates direct code submission, streamed pending output, and Immediate execution for R and Python.

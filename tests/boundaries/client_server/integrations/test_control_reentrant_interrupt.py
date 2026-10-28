@@ -88,7 +88,7 @@ def test_reentrant_evaluation_preserves_foreground_interrupt(
                 pending = priority.start(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code=priority_source,
                 )
                 priority_ready.wait(client=client)
@@ -112,7 +112,7 @@ def test_reentrant_evaluation_preserves_foreground_interrupt(
                 pending = priority.start(
                     op="evaluate",
                     language="r",
-                    execution="r_reentrant",
+                    execution="immediate",
                     code=priority_source,
                 )
                 priority_ready.wait(client=client)
