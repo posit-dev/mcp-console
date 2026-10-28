@@ -108,7 +108,7 @@ pub(super) extern "C" fn run_r() {
     let request = R_REQUESTS.lock().expect("priority R queue").pop_front();
     if let Some((request_id, source)) = request {
         run(request_id, false, || {
-            super::embedded_r::evaluate_priority(&source)
+            super::r_integration::evaluate_priority(&source)
         });
     }
 }

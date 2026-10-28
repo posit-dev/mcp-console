@@ -33,6 +33,12 @@ pub(crate) fn initialized() -> bool {
     runtime().is_some()
 }
 
+pub(super) fn evaluate_priority(source: &str) -> Result<(), String> {
+    let runtime =
+        runtime().ok_or("initialize R with a serial evaluation before using r_reentrant")?;
+    runtime.evaluate_priority(source)
+}
+
 pub(super) fn shutdown() -> Result<(), String> {
     if let Some(runtime) = runtime() {
         runtime.shutdown().map_err(|error| error.to_string())?;

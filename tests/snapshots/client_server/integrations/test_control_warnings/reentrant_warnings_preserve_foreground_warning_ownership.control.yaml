@@ -1,0 +1,90 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: r_reentrant
+  code: >-
+    stopifnot(getOption("warn") == 0); warning("priority deferred", call. =
+    FALSE); cat("priority complete\n")
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Warning message:
+          priority deferred
+          priority complete
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  execution: r_reentrant
+  code: options(warn = -1); warning("priority suppressed", call. = FALSE)
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content: []
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  execution: r_reentrant
+  code: >-
+    options(warn = 1); warning("priority immediate", call. = FALSE);
+    cat("after immediate\n")
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Warning: priority immediate
+          after immediate
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "4"
+  op: evaluate
+  language: r
+  execution: r_reentrant
+  code: options(warn = 2); warning("priority converted", call. = FALSE)
+response:
+  id: "4"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: (converted from warning) priority converted
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: (converted from warning) priority converted
+      traceback: []
+---
+request:
+  id: "5"
+  op: evaluate
+  language: r
+  execution: r_reentrant
+  code: options(warn = 0); release <- TRUE
+response:
+  id: "5"
+  result:
+    resultType: complete
+    content: []
+    isError: false
+    execution_error: ~
