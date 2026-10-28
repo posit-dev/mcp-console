@@ -210,3 +210,7 @@ Its projection choice follows the observed post-cell interval until the next cel
 Background work that keeps writing after a later cell begins can be attributed to that later interval.
 The projection choice does not isolate objects or conceal data that later code explicitly prints.
 
+## Try the Shiny fixture
+
+The [Shiny integration fixture](../tests/fixtures/control_shiny/README.md) displays agent chat beside the shared Console transcript.
+It demonstrates direct code submission, streamed pending output, reentrant R execution, and Python background-thread execution.
