@@ -1,0 +1,69 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: release <- FALSE; priority_unwound <- FALSE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    tryCatch(
+      {
+        gate <- fifo("<workspace>/foreground", "wb", blocking = TRUE)
+        writeBin(charToRaw("1"), gate)
+        close(gate)
+        while (!release) {
+          Sys.sleep(0.01)
+        }
+        Sys.sleep(0)
+        cat("foreground completed without interruption\n")
+      },
+      interrupt = function(condition) cat("foreground interrupted\n")
+    )
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        foreground interrupted
+  isError: false
+---
+send:
+  r: stopifnot(priority_unwound); cat("next cell\n")
+result:
+  content:
+    - type: text
+      text: |
+        next cell
+  isError: false
+---
+send:
+  r: priority_unwound <- FALSE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: stopifnot(priority_unwound); cat("after idle interrupt\n")
+result:
+  content:
+    - type: text
+      text: |
+        after idle interrupt
+  isError: false

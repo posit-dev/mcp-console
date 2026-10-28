@@ -1,4 +1,4 @@
-function(source) {
+function(source, interruptible) {
   # The ordinary REPL owns R's global deferred-warning queue. Keep this
   # evaluation's warn=0 conditions local, including when source raises an error.
   # Warning conditions expose no immediate.=TRUE flag, so warn=0 warnings are
@@ -8,6 +8,7 @@ function(source) {
   messages <- character()
   phase <- "SyntaxError"
   source_call <- quote(eval(expression, globalenv()))
+  with_interrupts <- if (interruptible) allowInterrupts else force
 
   condition_call <- function(condition) {
     call <- conditionCall(condition)
@@ -30,7 +31,7 @@ function(source) {
   }
 
   failure <- tryCatch(
-    withCallingHandlers(
+    with_interrupts(withCallingHandlers(
       {
         expressions <- parse(text = source)
         phase <- "RError"
@@ -61,10 +62,16 @@ function(source) {
           invokeRestart(restart)
         }
       }
-    ),
-    error = identity
+    )),
+    error = identity,
+    # An explicit handler in submitted code can consume the condition first.
+    interrupt = identity
   )
   if (!is.null(failure)) {
+    if (inherits(failure, "interrupt")) {
+      flush_warnings()
+      return(c("Interrupt", "R evaluation interrupted"))
+    }
     call <- condition_call(failure)
     if (phase == "SyntaxError") {
       call <- NULL

@@ -1,0 +1,58 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: r_reentrant
+  code: |
+    (function() {
+      on.exit({
+        priority_unwound <<- TRUE
+        release <<- TRUE
+      })
+      gate <- fifo("<workspace>/priority", "wb", blocking = TRUE)
+      writeBin(charToRaw("1"), gate)
+      close(gate)
+      repeat {
+        Sys.sleep(0.01)
+      }
+    })()
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content: []
+    isError: false
+    execution_error:
+      ename: Interrupt
+      evalue: R evaluation interrupted
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  execution: r_reentrant
+  code: |
+    (function() {
+      on.exit({
+        priority_unwound <<- TRUE
+        release <<- TRUE
+      })
+      gate <- fifo("<workspace>/priority", "wb", blocking = TRUE)
+      writeBin(charToRaw("1"), gate)
+      close(gate)
+      repeat {
+        Sys.sleep(0.01)
+      }
+    })()
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content: []
+    isError: false
+    execution_error:
+      ename: Interrupt
+      evalue: R evaluation interrupted
+      traceback: []

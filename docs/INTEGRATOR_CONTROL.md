@@ -139,6 +139,8 @@ They cannot preempt native code that does not service R events.
 R evaluates parsed expressions in the global environment and prints visible values; it leaves `.Last.value`, history, and ordinary REPL task callbacks alone.
 Deferred warnings are returned after each private expression, preserving the foreground warning queue and `last.warning`.
 Private errors are caught locally and do not run the ordinary `options(error)` handler.
+An uncaught interrupt during a reentrant request ends that request and remains pending for the foreground evaluation after private cleanup.
+Integrator code that catches an interrupt condition is responsible for its handling.
 Python requests run on a background thread and require the GIL; native code holding the GIL can delay them.
 Background Python code must not call into R.
 Only one concurrent control request may be outstanding per worker.
