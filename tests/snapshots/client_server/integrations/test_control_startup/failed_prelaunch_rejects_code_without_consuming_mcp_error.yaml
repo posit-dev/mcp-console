@@ -3,9 +3,9 @@ scenario: >-
   Integrator admission rejects a failed worker prelaunch and leaves its
   diagnostic for MCP.
 fixture: >-
-  Native macOS Seatbelt denies the selected R installation's etc/Renviron
-  file during worker startup. An invalid control request activates
-  recording before a journal checkpoint observes prelaunch failure.
+  A native checkpoint holds startup before runtime preparation until the
+  integrator's waiting evaluation is journaled. macOS Seatbelt then denies
+  the selected R installation's etc/Renviron file during worker startup.
 ---
 !same-as python-only MCP initialization for this execution mode
 ---
