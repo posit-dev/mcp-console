@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::error::Error;
 use std::ffi::{CStr, CString, c_char, c_int, c_uchar, c_void};
 use std::io;
@@ -35,6 +36,16 @@ static R_CHECK_USER_INTERRUPT: OnceLock<CheckUserInterrupt> = OnceLock::new();
 static CELL_SOURCE: Mutex<Option<CellSource>> = Mutex::new(None);
 // R's DLL REPL reads submitted source before Busy(1), then interactive input.
 static REPL_EVALUATING: AtomicBool = AtomicBool::new(false);
+#[derive(Clone, Copy)]
+enum ReplCondition {
+    None,
+    Error,
+    Interrupt,
+}
+
+thread_local! {
+    static REPL_CONDITION: Cell<ReplCondition> = const { Cell::new(ReplCondition::None) };
+}
 type ReplInit = unsafe extern "C-unwind" fn();
 type ReplDoOne = unsafe extern "C-unwind" fn() -> c_int;
 type TopLevelExec = unsafe extern "C-unwind" fn(
@@ -55,6 +66,7 @@ type ExecWithCleanup = unsafe extern "C-unwind" fn(
     *mut c_void,
 ) -> *mut c_void;
 type ObjectFn = unsafe extern "C-unwind" fn(*mut c_void);
+type Eval = unsafe extern "C-unwind" fn(libr::SEXP, libr::SEXP) -> libr::SEXP;
 
 #[repr(C)]
 struct ReplApi {
@@ -67,6 +79,10 @@ struct ReplApi {
     stack_top: *mut c_int,
     stack: *mut *mut *mut c_void,
     nil: libr::SEXP,
+    eval: Eval,
+    condition_handlers: libr::SEXP,
+    base_env: libr::SEXP,
+    interrupts_suspended: *mut libr::Rboolean,
 }
 
 struct CellSource {
@@ -226,9 +242,15 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     clear_cell_source();
     match status {
         0 => {
+            let (name, message) = match REPL_CONDITION.with(Cell::get) {
+                ReplCondition::Error => ("RError", harp::exec::r_peek_error_buffer()),
+                ReplCondition::Interrupt => ("Interrupt", "R evaluation interrupted".into()),
+                // Native jumps and explicit global handler replacement may bypass
+                // the observers. Never attribute R's retained error buffer to them.
+                ReplCondition::None => ("RAbort", "R evaluation aborted".into()),
+            };
             super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(
-                "RError",
-                harp::exec::r_peek_error_buffer(),
+                name, message,
             ));
             Ok(())
         }
@@ -333,6 +355,9 @@ fn initialize_r_repl() -> Result<(), Box<dyn Error>> {
     let do_one = unsafe { *library.get::<ReplDoOne>(b"R_ReplDLLdo1\0")? };
     let top_level_exec = unsafe { *library.get::<TopLevelExec>(b"R_ToplevelExec\0")? };
     let events = native::Events::load(&library, top_level_exec)?;
+    let condition_handlers = harp::parse_eval_base(include_str!("embedded_r/conditions.R"))?;
+    // The native REPL configuration and this expression live until worker exit.
+    harp::top_level_exec(|| unsafe { libr::R_PreserveObject(condition_handlers.sexp) })?;
     unsafe {
         mcp_r_repl_configure(&ReplApi {
             init,
@@ -344,6 +369,10 @@ fn initialize_r_repl() -> Result<(), Box<dyn Error>> {
             stack_top: *library.get::<*mut c_int>(b"R_PPStackTop\0")?,
             stack: *library.get::<*mut *mut *mut c_void>(b"R_PPStack\0")?,
             nil: libr::R_NilValue,
+            eval: *library.get::<Eval>(b"Rf_eval\0")?,
+            condition_handlers: condition_handlers.sexp,
+            base_env: libr::R_BaseEnv,
+            interrupts_suspended: libr::R_interrupts_suspended,
         });
     }
     events.install()?;
@@ -359,16 +388,33 @@ fn run_ready_handlers(graphics: &crate::r_graphics::Bridge) -> Result<(), String
 }
 
 fn run_repl_cell() -> c_int {
+    REPL_CONDITION.with(|condition| condition.set(ReplCondition::None));
     // SAFETY: The configured API consists of process-lifetime libR symbols.
     // This main thread owns R; the C shim keeps a live top-level context so
     // errors and interrupts cannot bypass a Rust frame.
     unsafe { mcp_r_repl_run_cell(before_repl_iteration) }
 }
 
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_repl_interrupt() -> harp::Result<libr::SEXP> {
+    REPL_CONDITION.with(|condition| condition.set(ReplCondition::Interrupt));
+    unsafe { Ok(libr::R_NilValue) }
+}
+
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_repl_error() -> harp::Result<libr::SEXP> {
+    // A resumed interrupt can be followed by a real error in the same cell.
+    REPL_CONDITION.with(|condition| condition.set(ReplCondition::Error));
+    unsafe { Ok(libr::R_NilValue) }
+}
+
 extern "C" fn before_repl_iteration() {
     // R may reuse buffered source without calling Busy(0), so reset before
     // every outer DLL step. Busy(1) latches evaluation in r_busy().
     REPL_EVALUATING.store(false, Ordering::SeqCst);
+    REPL_CONDITION.with(|condition| condition.set(ReplCondition::None));
 }
 
 extern "C-unwind" fn r_busy(which: c_int) {

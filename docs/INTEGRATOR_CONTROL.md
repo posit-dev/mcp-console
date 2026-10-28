@@ -95,6 +95,8 @@ Sending an evaluation again can execute it again.
 Evaluation and preview results have `resultType: "complete"`, `content`, and `isError` fields.
 Ordinary language diagnostics appear in `content`; `isError` marks server or worker operation failures.
 Evaluation results also carry `execution_error`, either `null` or a structured language failure with `ename`, `evalue`, and `traceback`.
+Ordinary R evaluation reports uncaught interrupts as `Interrupt` and runtime errors as `RError`.
+Replacing global calling handlers during an evaluation can remove the temporary condition observers; an unclassified native unwind then reports `RAbort` with `R evaluation aborted`, without reusing an earlier error message.
 This metadata has a separate 8 KiB allowance, including retained string slots, and includes `truncated: true` when shortened.
 Ordinary diagnostics retain their existing output and raw-recording limits.
 Admission failures use the response's `error` field.

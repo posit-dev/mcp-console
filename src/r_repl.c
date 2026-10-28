@@ -18,6 +18,7 @@ typedef void *(*exec_with_cleanup_fn)(
     void *(*)(void *), void *, void (*)(void *), void *
 );
 typedef void (*object_fn)(void *);
+typedef void *(*eval_fn)(void *, void *);
 typedef InputHandler *(*add_input_handler_fn)(
     InputHandler *, int, void (*)(void *), int
 );
@@ -99,6 +100,10 @@ struct repl_api {
     int *stack_top;
     void ***stack;
     void *nil;
+    eval_fn eval;
+    void *condition_handlers;
+    void *base_env;
+    int *interrupts_suspended;
 };
 
 static struct repl_api repl;
@@ -136,6 +141,12 @@ static void *run_cell(void *data) {
 
 static void run_protected_cell(void *data) {
     struct repl_cell *cell = data;
+    /* No R function frame may enclose submitted top-level source. Install
+     * non-exiting observers directly, deferring interrupts during setup. */
+    int suspended = *repl.interrupts_suspended;
+    *repl.interrupts_suspended = 1;
+    (void) repl.eval(repl.condition_handlers, repl.base_env);
+    *repl.interrupts_suspended = suspended;
     /*
      * R_ReplDLLdo1 resets the protection stack to zero. Preserve the outer
      * context's roots separately, and restore its stack before normal return
