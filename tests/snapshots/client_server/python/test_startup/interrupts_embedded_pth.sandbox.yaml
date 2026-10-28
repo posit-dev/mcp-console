@@ -20,7 +20,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 109, in initialize_site
+          File "<string>", line 140, in initialize_site
           File "<frozen site>", line <line>, in main
           File "<frozen site>", line <line>, in venv
           File "<frozen site>", line <line>, in addsitepackages
@@ -29,7 +29,7 @@ result:
           File "<string>", line 1, in <module>
           File "<site-packages>/console_startup.py", line 15, in <module>
             input("startup interrupt> ")
-          File "<string>", line 50, in _console_input
+          File "<string>", line 55, in _console_input
         KeyboardInterrupt
   isError: false
 ---

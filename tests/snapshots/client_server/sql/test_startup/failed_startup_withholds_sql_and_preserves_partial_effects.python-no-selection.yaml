@@ -13,7 +13,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 481, in initialize_connection
+          File "<string>", line 487, in initialize_connection
         RuntimeError: startup must select a native connection with _console.sql_connection(connection)
         Error: configured startup did not complete; SQL withheld; explicit restart required
         Error: SQL unavailable: configured startup did not complete; explicit restart required
@@ -41,7 +41,7 @@ language: python
 failure: startup must select
 first_sql: |
   Traceback (most recent call last):
-    File "<string>", line 481, in initialize_connection
+    File "<string>", line 487, in initialize_connection
   RuntimeError: startup must select a native connection with _console.sql_connection(connection)
   Error: configured startup did not complete; SQL withheld; explicit restart required
   Error: SQL unavailable: configured startup did not complete; explicit restart required
