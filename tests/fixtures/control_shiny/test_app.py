@@ -64,6 +64,27 @@ def app(tmp_path):
             assert process.returncode in (0, -15), log.read_text()
 
 
+@pytest.mark.parametrize("viewport", [(1280, 720), (1440, 900)])
+def test_fits_viewport_and_scrolls_transcript(app, viewport):
+    page, _ = app
+    page.set_viewport_size({"width": viewport[0], "height": viewport[1]})
+    for selector in ("#prompt", "#ask", "#source", "#evaluate"):
+        expect(page.locator(selector)).to_be_in_viewport(ratio=1)
+    assert page.evaluate("document.documentElement.scrollHeight <= window.innerHeight")
+
+    page.locator("#source").fill("for i in range(100): print(f'line {i}')")
+    page.locator("#evaluate").click()
+    expect(page.locator("#transcript .content")).to_contain_text(
+        "line 99", timeout=30_000
+    )
+    history = page.locator(".history").filter(has=page.locator("#transcript"))
+    assert history.evaluate("element => element.scrollHeight > element.clientHeight")
+    history.evaluate("element => element.scrollTop = element.scrollHeight")
+    assert history.evaluate("element => element.scrollTop > 0")
+    expect(page.locator("#evaluate")).to_be_in_viewport(ratio=1)
+    assert page.evaluate("document.documentElement.scrollHeight <= window.innerHeight")
+
+
 def test_streams_pending_output_and_retains_state(app):
     page, workspace = app
     page.locator("#source").fill(

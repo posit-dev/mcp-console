@@ -59,46 +59,62 @@ def blocks(content: list[dict[str, Any]]) -> list[Any]:
 
 
 def make_app(binary: Path, workspace: Path) -> App:
-    app_ui = ui.page_fluid(
+    app_ui = ui.page_fillable(
         ui.tags.style(
             ".entry {border-bottom: 1px solid #ddd; padding: .8rem 0;}"
             ".entry pre {white-space: pre-wrap; overflow-wrap: anywhere;}"
             ".ghost {opacity: .55; border-left: 3px solid #aaa; padding-left: 1rem;}"
             ".assistant {background: #f4f7fa; padding: .7rem;}"
-            ".history {height: 55vh; overflow-y: auto;}"
         ),
         ui.h2("Console integration fixture"),
         ui.output_text("connection_state"),
         ui.layout_columns(
             ui.card(
-                ui.card_header(f"Agent chat · {MODEL}"),
-                ui.output_text("agent_state"),
-                ui.div(ui.output_ui("chat"), class_="history"),
-                ui.input_text_area("prompt", "Ask the agent", rows=4, width="100%"),
-                ui.input_action_button("ask", "Send prompt"),
+                ui.card_header(f"Agent chat · {MODEL}", ui.output_text("agent_state")),
+                ui.card_body(
+                    ui.output_ui("chat"),
+                    fillable=False,
+                    min_height=0,
+                    class_="history",
+                ),
+                ui.card_footer(
+                    ui.input_text_area("prompt", "Ask the agent", rows=4, width="100%"),
+                    ui.input_action_button("ask", "Send prompt"),
+                ),
             ),
             ui.card(
                 ui.card_header("Console transcript"),
-                ui.div(
+                ui.card_body(
                     ui.output_ui("transcript"),
                     ui.div(ui.output_ui("pending_output"), class_="ghost"),
+                    fillable=False,
+                    min_height=0,
                     class_="history",
                 ),
-                ui.input_select("language", "Language", ["python", "r"]),
-                ui.input_select(
-                    "execution",
-                    "Execution",
-                    {
-                        "serialized": "Ordinary cell",
-                        "r_reentrant": "R reentrant (integrator opt-in)",
-                        "python_thread": "Python background thread (integrator opt-in)",
-                    },
+                ui.card_footer(
+                    ui.layout_columns(
+                        ui.input_select("language", "Language", ["python", "r"]),
+                        ui.input_select(
+                            "execution",
+                            "Execution",
+                            {
+                                "serialized": "Ordinary cell",
+                                "r_reentrant": "R reentrant (integrator opt-in)",
+                                "python_thread": "Python background thread (integrator opt-in)",
+                            },
+                        ),
+                        col_widths=(4, 8),
+                        fill=False,
+                    ),
+                    ui.input_text_area("source", "Code", rows=5, width="100%"),
+                    ui.input_action_button("evaluate", "Evaluate"),
                 ),
-                ui.input_text_area("source", "Code", rows=5, width="100%"),
-                ui.input_action_button("evaluate", "Evaluate"),
             ),
             col_widths=(6, 6),
+            row_heights="minmax(0, 1fr)",
         ),
+        padding="0.75rem",
+        gap="0.5rem",
         title="Console integration fixture",
     )
 
