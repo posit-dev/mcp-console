@@ -1,4 +1,14 @@
+use libr::SEXP;
+
 const SQL_BRIDGE_SOURCE: &str = include_str!("bridge.R");
+
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_sql_publish_result(text: SEXP) -> harp::Result<SEXP> {
+    let text = String::try_from(harp::object::RObject::view(text))?;
+    crate::worker::publish_result(&text);
+    unsafe { Ok(libr::R_NilValue) }
+}
 
 pub(super) struct Backend(crate::r_bridge::Bridge);
 
@@ -26,7 +36,16 @@ impl Backend {
     }
 
     pub(super) fn evaluate(&self, source: &str) -> Result<(), String> {
-        self.0.evaluate(source)
+        match self.0.evaluate_completed_string(source)? {
+            Some(message) if message.is_empty() => {}
+            Some(message) => crate::worker::record_execution_error(
+                crate::worker_protocol::ExecutionError::new("SQLError", message),
+            ),
+            None => crate::worker::record_execution_error(
+                crate::worker_protocol::ExecutionError::new("KeyboardInterrupt", ""),
+            ),
+        }
+        Ok(())
     }
 
     pub(super) fn close_result(&self) -> Result<(), String> {

@@ -39,10 +39,9 @@ pub(crate) use environment::validate_r_requirements;
 pub(crate) use environment::{Declaration, Requirements, RequirementsAction};
 use environment::{Environment, PythonEnvironment, RuntimeRResolutionFailure};
 use evaluation::Evaluation;
-#[cfg(unix)]
-pub(crate) use integrator::IntegratorError;
+pub(crate) use integrator::{IntegratorError, IntegratorWait};
 use lifecycle::{LifecycleControl, OldGenerationCommitDisposition, WorkerGeneration};
-pub(crate) use output::{Content, Response, ResponseDelivery};
+pub(crate) use output::{Content, KernelEvent, KernelState, Response, ResponseDelivery};
 use output::{OutputTape, SendFailure};
 
 pub(crate) const DEFAULT_R_REQUIREMENTS: &[&str] = &[

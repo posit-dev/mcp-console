@@ -19,6 +19,7 @@ SNAPSHOTS = (
 PUBLIC_HELP_COMMANDS = (
     "mcp-console --help",
     "mcp-console serve --help",
+    "mcp-console kernel --help",
     "mcp-console warmup --help",
     "mcp-console sandbox --help",
     "mcp-console config --help",

@@ -27,8 +27,8 @@ pub(crate) use core::mark_shutting_down;
 pub(crate) use core::{
     bootstrapping, emit_output, is_shutting_down, publish_plot, publish_python_activation,
     publish_python_activation_failure, publish_r_activation, publish_r_activation_failure,
-    record_bootstrap_interrupt, record_worker_failure, resolve_python, resolve_python_version,
-    resolve_r,
+    publish_result, record_bootstrap_interrupt, record_execution_error, record_worker_failure,
+    resolve_python, resolve_python_version, resolve_r,
 };
 #[cfg(unix)]
 pub(crate) use input::python_interrupt_wakeup;

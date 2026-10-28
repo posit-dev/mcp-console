@@ -41,6 +41,7 @@ def test_help(binary: Path) -> Transcript:
         record(binary, "config", "resolve", "--help"),
         record(binary, "configure-client", "--help"),
         record(binary, "serve", "--help"),
+        record(binary, "kernel", "--help"),
         record(binary, "warmup", "--help"),
         record(binary, "worker", "--help"),
         record(binary, "sandbox"),
@@ -57,6 +58,7 @@ def test_help(binary: Path) -> Transcript:
                 output.index(f"\n  {command} ")
                 for command in (
                     "serve",
+                    "kernel",
                     "sandbox",
                     "config",
                     "configure-client",

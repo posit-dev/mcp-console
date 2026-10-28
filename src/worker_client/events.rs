@@ -540,10 +540,23 @@ fn handle_semantic_event(
             Route::Cell(evaluation) => evaluation.start_cell_capture(),
             _ => Err("worker started a cell without an admitted source".into()),
         }),
+        RelayEvent::ExecutionError { error } => operation.with_route(|route| match route {
+            Route::Cell(evaluation) => evaluation.execution_error(error),
+            _ => Err("worker reported an execution error without an admitted source".into()),
+        }),
         RelayEvent::ConsoleOutput { data } => operation.with_route(|route| match route {
             Route::Cell(evaluation) => evaluation.output(Output, data),
             Route::Bootstrap | Route::Preparation | Route::Idle => {
                 output.push_console_text(Output, data);
+                Ok(())
+            }
+        }),
+        RelayEvent::ExecutionResult { text } => operation.with_route(|route| match route {
+            Route::Cell(evaluation) => {
+                evaluation.output(crate::worker_protocol::ConsoleChannel::Result, text)
+            }
+            Route::Bootstrap | Route::Preparation | Route::Idle => {
+                output.push_console_text(crate::worker_protocol::ConsoleChannel::Result, text);
                 Ok(())
             }
         }),
@@ -575,9 +588,15 @@ fn handle_semantic_event(
         RelayEvent::InputRequested { prompt } => {
             let rendered = serde_json::to_string(&prompt)
                 .map_err(|error| format!("failed to render worker input prompt: {error}"))?;
-            operation.input_requested(prompt, rendered, output)
+            operation.input_requested(prompt.clone(), rendered, output)?;
+            output.publish_kernel_event(super::KernelEvent::InputRequested { prompt });
+            Ok(())
         }
-        RelayEvent::InputReceived | RelayEvent::InputCancelled => operation.input_received(),
+        RelayEvent::InputReceived | RelayEvent::InputCancelled => {
+            operation.input_received()?;
+            output.publish_kernel_event(super::KernelEvent::InputEnded);
+            Ok(())
+        }
         RelayEvent::ResolveR { packages } => {
             use crate::worker_client::environment::RuntimeRResolutionFailure;
             use crate::worker_protocol::RResolutionFailureKind;

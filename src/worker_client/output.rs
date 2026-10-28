@@ -46,6 +46,31 @@ pub(crate) struct Response {
     delivery: Option<ResponseDeliveryTarget>,
     phase_terminal: Option<TerminalState>,
     phase: Option<super::status::Source>,
+    kernel_state: Option<KernelState>,
+    failure_message: Option<Box<str>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum KernelState {
+    Completed,
+    Running,
+    InputRequested,
+    Idle,
+    Starting,
+    ReplacementReady,
+    Failed,
+    Restarted,
+}
+
+/// Ordered publications before the MCP response projection or its budgets.
+/// The kernel process retains this subscription across frontend reconnects.
+pub(crate) enum KernelEvent {
+    Stream { name: &'static str, text: String },
+    Display { data: String, mime_type: String },
+    Result { text: String },
+    InputRequested { prompt: String },
+    InputEnded,
+    ExecutionError(crate::worker_protocol::ExecutionError),
 }
 
 pub(super) enum ResponseAcknowledgment {
@@ -144,6 +169,18 @@ impl SendFailure {
 }
 
 impl Response {
+    pub(crate) fn kernel_state(&self) -> Option<KernelState> {
+        self.kernel_state
+    }
+
+    pub(crate) fn failure_message(&self) -> Option<&str> {
+        self.failure_message.as_deref()
+    }
+
+    pub(super) fn restarted(&mut self) {
+        self.kernel_state = Some(KernelState::Restarted);
+    }
+
     /// Copy presentation state without claiming or acknowledging its delivery.
     pub(super) fn snapshot(&self) -> Self {
         Self {
@@ -152,6 +189,8 @@ impl Response {
             delivery: None,
             phase_terminal: None,
             phase: None,
+            kernel_state: self.kernel_state,
+            failure_message: self.failure_message.clone(),
         }
     }
 
@@ -210,6 +249,8 @@ impl Response {
                 delivery: None,
                 phase_terminal: self.phase_terminal,
                 phase: self.phase.take(),
+                kernel_state: self.kernel_state,
+                failure_message: self.failure_message.take(),
             }),
         });
         (content, is_error, delivery, recorded_parts)
@@ -263,7 +304,7 @@ impl Response {
         self.preview.is_empty()
     }
 
-    fn is_error(&self) -> bool {
+    pub(crate) fn is_error(&self) -> bool {
         self.is_error
     }
 
@@ -347,6 +388,12 @@ impl ResponseBuilder {
             .preview
             .extend(*std::mem::take(&mut other.preview));
         self.response.is_error |= other.is_error;
+        if other.kernel_state.is_some() {
+            self.response.kernel_state = other.kernel_state;
+        }
+        if other.failure_message.is_some() {
+            self.response.failure_message = other.failure_message.take();
+        }
     }
 
     pub(super) fn append_logical_region(&mut self, mut other: Response) {
@@ -386,6 +433,8 @@ impl ResponseBuilder {
     }
 
     pub(super) fn server_failure(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.response.failure_message = Some(message.clone().into_boxed_str());
         self.notice(message);
         self.mark_error();
     }
@@ -401,11 +450,21 @@ impl ResponseBuilder {
     }
 
     pub(super) fn tool_error(&mut self, message: impl Into<String>) {
-        self.control_text(message.into());
+        let message = message.into();
+        self.response.failure_message = Some(message.clone().into_boxed_str());
+        self.control_text(message);
         self.mark_error();
     }
 
     pub(super) fn terminal(&mut self, state: TerminalState) {
+        self.response.kernel_state = Some(match state {
+            TerminalState::Completed => KernelState::Completed,
+            TerminalState::Running => KernelState::Running,
+            TerminalState::StdinNeeded => KernelState::InputRequested,
+            TerminalState::Idle => KernelState::Idle,
+            TerminalState::WorkerStarting => KernelState::Starting,
+            TerminalState::ReplacementReady => KernelState::ReplacementReady,
+        });
         self.response.phase_terminal = match state {
             TerminalState::Running | TerminalState::WorkerStarting => Some(state),
             _ => None,
@@ -489,6 +548,8 @@ impl Drop for Response {
             delivery: None,
             phase_terminal: self.phase_terminal,
             phase: self.phase.take(),
+            kernel_state: self.kernel_state,
+            failure_message: self.failure_message.take(),
         };
         target.unclaimed(response);
     }
@@ -533,7 +594,11 @@ pub(super) fn project_replacement_ready(output: Response) -> Response {
 pub(super) fn render_response(response: SendResponse) -> Response {
     let (output, terminal) = match response {
         SendResponse::Completed(output) => (output, Some(TerminalState::Completed)),
-        SendResponse::Failed(output) | SendResponse::Restarted(output) => (output, None),
+        SendResponse::Failed(mut output) => {
+            output.kernel_state = Some(KernelState::Failed);
+            (output, None)
+        }
+        SendResponse::Restarted(output) => (output, None),
         SendResponse::InputRequested(output) => (output, Some(TerminalState::StdinNeeded)),
         SendResponse::Running(output) => (output, Some(TerminalState::Running)),
         SendResponse::Idle(output) => (output, Some(TerminalState::Idle)),

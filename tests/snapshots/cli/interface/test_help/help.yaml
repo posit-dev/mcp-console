@@ -9,6 +9,8 @@ stderr: |
 
   Commands:
     serve             Run the MCP server over standard input and output
+    kernel            Run a single-language Jupyter kernel through the Python
+                      transport adapter
     sandbox           Run a command with the default or an explicit sandbox policy
     config            Create or inspect configuration without starting
                       interpreters or preparing packages
@@ -54,6 +56,8 @@ stdout: |
 
   Commands:
     serve             Run the MCP server over standard input and output
+    kernel            Run a single-language Jupyter kernel through the Python
+                      transport adapter
     sandbox           Run a command with the default or an explicit sandbox policy
     config            Create or inspect configuration without starting
                       interpreters or preparing packages
@@ -294,6 +298,60 @@ stdout: |
 
         --writable-root <PATH>
             Allow writes to an additional path (temporary launch option)
+
+    -h, --help
+            Print help (see a summary with '-h')
+---
+command: mcp-console kernel --help
+stdout: |
+  Run a single-language Jupyter kernel through the Python transport adapter
+
+  Usage: mcp-console kernel [OPTIONS] --language <LANG> --connection-file <PATH>
+
+  Options:
+        --no-project-config
+            Skip launch-directory project configuration; still load global
+            configuration and apply -c overrides.
+            Automatic project configuration is trusted launcher input: it can
+            select executables, child environments, and sandbox permissions.
+            Trusting sandboxed code is not equivalent to trusting it to define the
+            sandbox.
+            Global settings supply defaults, not a mandatory security ceiling;
+            projects may override them. Integrations opening unfamiliar projects
+            should use this flag until they authorize project configuration.
+
+        --no-global-config
+            Skip global configuration; still load project configuration and apply
+            -c overrides
+
+        --no-config
+            Skip global and project configuration; still apply --default-config
+            and -c settings
+
+        --config-file <PATH>
+            Use only this YAML or JSON configuration file, then apply -c overrides
+
+        --default-config <KEY=VALUE>
+            Supply defaults below configuration files; repeat for ordered dotted
+            KEY=VALUE assignments
+
+    -c, --config <KEY=VALUE>
+            Override layered global and project configuration; repeat for ordered
+            dotted KEY=VALUE assignments
+
+        --language <LANG>
+            Source language for every execution in this kernel
+            
+            [possible values: r, python, sql]
+
+        --connection-file <PATH>
+            Jupyter connection file supplied by the kernel manager
+
+        --jupyter-python <PATH>
+            Python executable with the optional Jupyter dependencies installed
+
+        --no-sandbox
+            Run evaluated code and dependency resolution with host permissions
 
     -h, --help
             Print help (see a summary with '-h')

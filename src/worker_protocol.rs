@@ -153,6 +153,26 @@ pub(crate) struct PythonVersionResolveRequest {
 pub(crate) enum ConsoleChannel {
     Output,
     Diagnostic,
+    Result,
+}
+
+/// A language failure, distinct from diagnostic output and worker failure.
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ExecutionError {
+    pub(crate) ename: String,
+    pub(crate) evalue: String,
+    pub(crate) traceback: Vec<String>,
+}
+
+impl ExecutionError {
+    pub(crate) fn new(name: &str, message: impl Into<String>) -> Self {
+        Self {
+            ename: name.into(),
+            evalue: message.into(),
+            traceback: Vec::new(),
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -223,6 +243,12 @@ pub(crate) enum WorkerMessage {
     },
     #[serde(deserialize_with = "deserialize_payload_free")]
     Completed,
+    ExecutionError {
+        error: ExecutionError,
+    },
+    ExecutionResult {
+        text: String,
+    },
 }
 
 #[cfg(test)]

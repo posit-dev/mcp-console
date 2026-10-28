@@ -73,10 +73,6 @@ impl Bridge {
         })
     }
 
-    pub(crate) fn evaluate(&self, source: &str) -> Result<(), String> {
-        self.evaluate_completed(source).map(|_| ())
-    }
-
     pub(crate) fn evaluate_completed(&self, source: &str) -> Result<bool, String> {
         self.evaluate_completed_with(source, |_| Ok(()))
             .map(|value| value.is_some())

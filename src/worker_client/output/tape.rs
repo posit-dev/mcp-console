@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 
 #[derive(Default)]
 pub(super) struct OutputTapeState {
+    kernel: Option<tokio::sync::mpsc::UnboundedSender<KernelEvent>>,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     stream: Option<Stream>,
@@ -34,12 +35,28 @@ pub(super) struct OutputTapeState {
 enum Stream {
     Output,
     Diagnostic,
+    Result,
     Stdout,
     Stderr,
     NativeDiagnostic(u64),
 }
 
 impl OutputTape {
+    pub(in crate::worker_client) fn kernel_events(
+        &self,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<KernelEvent> {
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        assert!(
+            self.lock().kernel.replace(sender).is_none(),
+            "one kernel observer per controller"
+        );
+        receiver
+    }
+
+    pub(in crate::worker_client) fn publish_kernel_event(&self, event: KernelEvent) {
+        self.lock().publish_kernel_event(event);
+    }
+
     pub(in crate::worker_client) fn new() -> Self {
         Self(Arc::new(Mutex::new(OutputTapeState::default())))
     }
@@ -181,6 +198,7 @@ impl OutputTape {
             match channel {
                 crate::worker_protocol::ConsoleChannel::Output => Stream::Output,
                 crate::worker_protocol::ConsoleChannel::Diagnostic => Stream::Diagnostic,
+                crate::worker_protocol::ConsoleChannel::Result => Stream::Result,
             },
             &text,
         );
@@ -203,6 +221,12 @@ impl OutputTape {
         // Raw capture has its own interval budget. Preview admission may drop
         // the payload while keeping its file receipt and omission accounting.
         let artifact = make_artifact(&data, &mime_type)?;
+        if state.kernel.is_some() {
+            state.publish_kernel_event(KernelEvent::Display {
+                data: data.clone(),
+                mime_type: mime_type.clone(),
+            });
+        }
         state.current.image(data, mime_type, artifact);
         Ok(())
     }
@@ -425,6 +449,12 @@ impl DirectOutput {
 }
 
 impl OutputTapeState {
+    fn publish_kernel_event(&self, event: KernelEvent) {
+        if let Some(kernel) = &self.kernel {
+            let _ = kernel.send(event);
+        }
+    }
+
     fn finish_idle_interval(&mut self) {
         self.idle_recording_attempted = false;
         if let Some(output) = self.session_output.take() {
@@ -475,6 +505,19 @@ impl OutputTapeState {
     fn text(&mut self, stream: Stream, text: &str) {
         if text.is_empty() {
             return;
+        }
+        if self.kernel.is_some() && stream == Stream::Result {
+            self.publish_kernel_event(KernelEvent::Result {
+                text: text.to_owned(),
+            });
+        } else if self.kernel.is_some() {
+            self.publish_kernel_event(KernelEvent::Stream {
+                name: match stream {
+                    Stream::Output | Stream::Stdout | Stream::Result => "stdout",
+                    Stream::Diagnostic | Stream::Stderr | Stream::NativeDiagnostic(_) => "stderr",
+                },
+                text: text.to_owned(),
+            });
         }
         if self.stream != Some(stream) {
             self.flush_terminal();

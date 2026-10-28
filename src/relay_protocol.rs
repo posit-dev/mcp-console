@@ -131,6 +131,12 @@ pub(crate) enum RelayEvent {
     },
     #[serde(deserialize_with = "deserialize_payload_free")]
     Completed,
+    ExecutionError {
+        error: crate::worker_protocol::ExecutionError,
+    },
+    ExecutionResult {
+        text: String,
+    },
     Stdout {
         data: String,
     },
@@ -207,6 +213,8 @@ impl From<WorkerMessage> for RelayEvent {
                 Self::PythonPreparationRejected { message }
             }
             WorkerMessage::Completed => Self::Completed,
+            WorkerMessage::ExecutionError { error } => Self::ExecutionError { error },
+            WorkerMessage::ExecutionResult { text } => Self::ExecutionResult { text },
         }
     }
 }

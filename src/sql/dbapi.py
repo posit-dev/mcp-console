@@ -292,7 +292,7 @@ def _fallback_show(cursor):
             visible_columns,
         )
         if len(output.encode("utf-8")) + 1 <= _RESPONSE_BYTES:
-            print(output)
+            _services.display_text_result(output + "\n")
             return fetched
         if visible_rows > 0:
             visible_rows -= 1
@@ -337,8 +337,10 @@ def _evaluate(source):
             if not rows:
                 _release_result(_last_result)
     except Exception as error:
+        _services.report_execution_error(error)
         print(f"Error: {error}")
-    except BaseException:
+    except BaseException as error:
+        _services.report_execution_error(error)
         _traceback.print_exc()
     finally:
         if not retained:
@@ -467,6 +469,7 @@ def _select_native_connection():
     try:
         _connection = _ensure_managed_connection()
     except Exception as error:
+        _services.report_execution_error(error)
         print(f"Error: {error}")
         return False
     return True

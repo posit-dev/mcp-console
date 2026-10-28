@@ -40,8 +40,8 @@ The source enums are the complete schema; these are the principal message famili
 | To worker   | Evaluation/control   | `evaluate`, `shutdown`                                                                                                                            |
 | To worker   | Explicit preparation | `prepare_r`, `prepare_python`                                                                                                                     |
 | To worker   | Resolver replies     | `r_resolved`, `r_resolution_failed`, `python_resolved`, `python_resolution_failed`, `python_version_resolved`, `python_version_resolution_failed` |
-| From worker | Readiness/lifecycle  | `ready`, `runtime_initialized`, `r_initialization`, `cell_started`, `completed`                                                                   |
-| From worker | Output/input         | `console_output`, `console_diagnostic`, `image`, `input_requested`, `input_received`, `input_cancelled`                                           |
+| From worker | Readiness/lifecycle  | `ready`, `runtime_initialized`, `r_initialization`, `cell_started`, `execution_error`, `completed`                                                |
+| From worker | Output/input         | `console_output`, `console_diagnostic`, `execution_result`, `image`, `input_requested`, `input_received`, `input_cancelled`                       |
 | From worker | Preparation results  | `r_prepared`, `r_preparation_failed`, `python_prepared`, `python_preparation_failed`, `python_preparation_rejected`                               |
 | From worker | Resolver requests    | `resolve_r`, `resolve_python`, `resolve_python_version`                                                                                           |
 | From worker | Activation receipts  | `r_activated`, `r_activation_failed`, `python_activated`, `python_activation_failed`                                                              |
@@ -64,8 +64,13 @@ For example:
 { "kind": "completed" }
 ```
 
-Ordinary language errors are text followed by completion when the worker remains usable.
-There is no structured language-error result, poll, output acknowledgment, general request ID, or session name.
+Ordinary language errors retain their displayed text and send one `execution_error` before completion when the worker remains usable.
+Its `error` object contains `ename`, `evalue`, and `traceback` from the language error boundary; diagnostic text alone never indicates failure.
+R's native REPL supplies its error buffer after an error jump, without a structured traceback.
+`execution_result` carries plain text from Python's default value display or a SQL preview.
+MCP renders it as ordinary text; the Jupyter adapter publishes `execute_result`.
+User display hooks, redirected streams, and R's native auto-print retain their ordinary output behavior.
+There is no poll, output acknowledgment, general request ID, or session name.
 Interrupt delivery belongs to the outer relay; MCP response assembly belongs to the server.
 
 Python environment replies contain inspected runtime identity and manifests, not rediscovery hints.
@@ -94,12 +99,13 @@ Test worker fixtures need not send built-in bootstrap events.
 Completion without entry or duplicate entry fails the protocol.
 The controller uses this receipt to start its numbered output interval; admission alone does not create a cell log.
 `completed` closes the interval, while output observed afterward belongs to the post-cell interval.
+An `execution_error` belongs to that entered cell and may occur at most once before `completed`.
 
 Each admitted ordinary operation has one matching terminal result:
 
 | Operation        | Success                                          | Ordinary failure                                              |
 | ---------------- | ------------------------------------------------ | ------------------------------------------------------------- |
-| `evaluate`       | `completed`                                      | Error text then `completed`, if usable.                       |
+| `evaluate`       | `completed`                                      | Error text, `execution_error`, then `completed`, if usable.   |
 | `prepare_r`      | `r_prepared` with the normalized requested path. | `r_preparation_failed`.                                       |
 | `prepare_python` | `python_prepared`                                | `python_preparation_rejected` or `python_preparation_failed`. |
 | `shutdown`       | Process exit.                                    | No sideband acknowledgment.                                   |

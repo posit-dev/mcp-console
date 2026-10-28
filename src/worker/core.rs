@@ -18,6 +18,7 @@ static PENDING_SERVER_MESSAGES: Mutex<VecDeque<ServerMessage>> = Mutex::new(VecD
 static WORKER_FAILURE: Mutex<Option<String>> = Mutex::new(None);
 static WORKER_SHUTDOWN: AtomicBool = AtomicBool::new(false);
 static CELL_LANGUAGE: Mutex<Option<Language>> = Mutex::new(None);
+static EXECUTION_ERROR: Mutex<Option<crate::worker_protocol::ExecutionError>> = Mutex::new(None);
 static BOOTSTRAPPING: AtomicBool = AtomicBool::new(false);
 static BOOTSTRAP_INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
@@ -40,7 +41,25 @@ pub(super) fn bootstrap_interrupted() -> bool {
 }
 
 pub(super) fn begin_cell(language: Language) {
+    *EXECUTION_ERROR.lock().expect("execution error lock") = None;
     *CELL_LANGUAGE.lock().expect("cell language lock poisoned") = Some(language);
+}
+
+pub(crate) fn record_execution_error(error: crate::worker_protocol::ExecutionError) {
+    if cell_language().is_some() {
+        EXECUTION_ERROR
+            .lock()
+            .expect("execution error lock")
+            .get_or_insert(error);
+    }
+}
+
+pub(super) fn take_execution_error() -> Option<crate::worker_protocol::ExecutionError> {
+    EXECUTION_ERROR.lock().expect("execution error lock").take()
+}
+
+pub(crate) fn publish_result(text: &str) {
+    emit_output(ConsoleChannel::Result, text.as_bytes());
 }
 
 pub(super) fn finish_cell() {
@@ -357,6 +376,7 @@ fn send_output(channel: ConsoleChannel, bytes: &[u8]) -> Result<(), String> {
     let message = match channel {
         ConsoleChannel::Output => WorkerMessage::ConsoleOutput { data },
         ConsoleChannel::Diagnostic => WorkerMessage::ConsoleDiagnostic { data },
+        ConsoleChannel::Result => WorkerMessage::ExecutionResult { text: data },
     };
     writer
         .send(&message)

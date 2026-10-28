@@ -19,6 +19,7 @@ from checkout_workflow import r_executable
 
 SOURCE_ROOT = ROOT / "src"
 EXPECTED_SOURCES = {
+    "src/jupyter.py",
     "src/python/bridge.R",
     "src/python/initialize.R",
     "src/python/environment.py",

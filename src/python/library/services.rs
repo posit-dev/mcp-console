@@ -90,6 +90,8 @@ pub(super) fn install(api: &PythonApi, installed: bool) -> Result<(), String> {
         let methods = Box::leak(Box::new([
             method(c"write", write, 8), // METH_O
             method(c"diagnostic", diagnostic, 8),
+            method(c"execution_error", execution_error, 8),
+            method(c"execution_result", execution_result, 8),
             method(c"readline", readline, 8),
             method(c"publish_plot", publish_plot, 8),
             method(c"resolve_import_request", resolve_import_request, 8),
@@ -209,6 +211,19 @@ unsafe extern "C" fn write(_: *mut PyObject, text: *mut PyObject) -> *mut PyObje
 
 unsafe extern "C" fn diagnostic(_: *mut PyObject, text: *mut PyObject) -> *mut PyObject {
     output(ConsoleChannel::Diagnostic, text)
+}
+
+unsafe extern "C" fn execution_result(_: *mut PyObject, text: *mut PyObject) -> *mut PyObject {
+    output(ConsoleChannel::Result, text)
+}
+
+unsafe extern "C" fn execution_error(_: *mut PyObject, error: *mut PyObject) -> *mut PyObject {
+    callback(|services| {
+        let error = serde_json::from_str(&services.text(error)?)
+            .map_err(|error| format!("invalid Python execution error: {error}"))?;
+        services.without_gil(|| worker::record_execution_error(error));
+        Ok(services.none())
+    })
 }
 
 fn output(channel: ConsoleChannel, text: *mut PyObject) -> *mut PyObject {
