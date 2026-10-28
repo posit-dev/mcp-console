@@ -15,6 +15,7 @@ response:
         text: |
           integrator output
     isError: false
+    execution_error: ~
 ---
 request:
   id: "2"

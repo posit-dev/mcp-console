@@ -75,6 +75,17 @@ pub(super) enum SelectedInterruptTarget {
     NoTarget,
 }
 
+/// Owns the selected evaluation and connection across interrupt acknowledgment.
+#[cfg(unix)]
+pub(crate) struct IntegratorInterrupt(SelectedInterruptTarget);
+
+#[cfg(unix)]
+impl IntegratorInterrupt {
+    pub(crate) fn interrupt(self) -> Result<(), String> {
+        self.0.interrupt()
+    }
+}
+
 impl SelectedInterruptTarget {
     fn interrupt(&self) -> Result<(), String> {
         match self {
@@ -545,6 +556,31 @@ impl Client {
         self.select_interrupt_target(false)?.interrupt()
     }
 
+    #[cfg(unix)]
+    pub(crate) fn select_integrator_interrupt(
+        &self,
+        evaluation_id: u64,
+    ) -> Result<IntegratorInterrupt, super::IntegratorError> {
+        let active = self.evaluation()?;
+        let mut lifecycle = self
+            .0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        let evaluation = &active
+            .as_ref()
+            .filter(|active| active.evaluation.id() == evaluation_id)
+            .ok_or(super::IntegratorError::StaleEvaluation)?
+            .evaluation;
+        lifecycle.ensure_generation(&evaluation.admission.generation)?;
+        if evaluation.admission.outcome()?.is_some() {
+            return Err(super::IntegratorError::StaleEvaluation);
+        }
+        Self::select_interrupt_locked(false, &active, &mut lifecycle)
+            .map(IntegratorInterrupt)
+            .map_err(Into::into)
+    }
+
     pub(super) fn interrupt_blocking(&self) -> Result<SelectedInterruptTarget, String> {
         let target = self.select_interrupt_target(true)?;
         target.interrupt()?;
@@ -561,6 +597,14 @@ impl Client {
             .lifecycle
             .lock()
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        Self::select_interrupt_locked(controlled, &active, &mut lifecycle)
+    }
+
+    fn select_interrupt_locked(
+        controlled: bool,
+        active: &Option<super::ActiveEvaluation>,
+        lifecycle: &mut LifecycleControl,
+    ) -> Result<SelectedInterruptTarget, String> {
         let evaluation = active
             .as_ref()
             .filter(|active| {

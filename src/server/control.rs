@@ -28,6 +28,18 @@ enum Request {
     Preview {
         id: String,
     },
+    Subscribe {
+        id: String,
+    },
+    Stdin {
+        id: String,
+        evaluation_id: u64,
+        input: String,
+    },
+    Interrupt {
+        id: String,
+        evaluation_id: u64,
+    },
     Requirements {
         id: String,
     },
@@ -38,6 +50,8 @@ enum Request {
         id: String,
         language: crate::cell::Language,
         code: String,
+        #[serde(default)]
+        execution: crate::worker_client::IntegratorExecution,
         #[serde(default)]
         busy: Busy,
         wait_ms: Option<u32>,
@@ -63,6 +77,9 @@ impl Request {
         match self {
             Self::Status { id }
             | Self::Preview { id }
+            | Self::Subscribe { id }
+            | Self::Stdin { id, .. }
+            | Self::Interrupt { id, .. }
             | Self::Requirements { id }
             | Self::Manifest { id }
             | Self::Evaluate { id, .. } => id,
@@ -224,6 +241,13 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
         };
         let transcript = server.startup.runtime().transcript.clone();
         let parsed = serde_json::from_slice::<Request>(&frame);
+        let subscription = match &parsed {
+            Ok(Request::Subscribe { id }) => Some((
+                id.clone(),
+                server.startup.runtime().worker.integrator_subscribe(),
+            )),
+            _ => None,
+        };
         let (response, call_id) = match parsed {
             Ok(request) => handle(&server, request, &mut closing, &mut disconnect).await,
             Err(error) => (
@@ -234,7 +258,7 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
         // The canonical result owns image artifacts. Keep transport evidence
         // correlated without duplicating potentially large base64 payloads.
         transcript.protocol("server_to_integrator", match call_id {
-            Some(call_id) => json!({"id": response["id"], "tool_result_call_id": call_id, "error": response.get("error")}),
+            Some(call_id) => json!({"id": response["id"], "tool_result_call_id": call_id, "error": response.get("error"), "execution_error": response["result"].get("execution_error")}),
             None => response.clone(),
         });
         let mut bytes = serde_json::to_vec(&response).expect("control response serialization");
@@ -253,9 +277,67 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
         if !delivered {
             break;
         }
+        if let Some((id, changes)) = subscription {
+            stream_previews(
+                &server,
+                &id,
+                changes,
+                &mut write,
+                &mut closing,
+                &mut disconnect,
+                &mut received,
+            )
+            .await;
+            break;
+        }
     }
     drop(received);
     let _ = reader.await;
+}
+
+async fn stream_previews(
+    server: &ConsoleServer,
+    id: &str,
+    mut changes: watch::Receiver<()>,
+    write: &mut tokio::net::unix::OwnedWriteHalf,
+    closing: &mut watch::Receiver<bool>,
+    disconnect: &mut watch::Receiver<bool>,
+    received: &mut mpsc::Receiver<Vec<u8>>,
+) {
+    let mut previous = None;
+    loop {
+        changes.borrow_and_update();
+        let Ok(content) = server.startup.runtime().worker.integrator_preview() else {
+            break;
+        };
+        let result = CallToolResult::success(content_blocks(content));
+        let event = json!({"id": id, "event": "preview", "result": result});
+        if previous.as_ref() != Some(&event) {
+            let mut bytes = serde_json::to_vec(&event).expect("preview serialization");
+            bytes.push(b'\n');
+            if *closing.borrow() || *disconnect.borrow() {
+                break;
+            }
+            let delivered = tokio::select! {
+                biased;
+                _ = closing.changed() => false,
+                _ = disconnect.changed() => false,
+                _ = received.recv() => false,
+                result = write.write_all(&bytes) => result.is_ok(),
+            };
+            if !delivered {
+                break;
+            }
+            previous = Some(event);
+        }
+        tokio::select! {
+            biased;
+            _ = closing.changed() => break,
+            _ = disconnect.changed() => break,
+            _ = received.recv() => break,
+            result = changes.changed() => if result.is_err() { break; },
+        }
+    }
 }
 
 fn failure(id: Value, code: &str, message: impl Into<String>) -> Value {
@@ -270,6 +352,8 @@ async fn handle(
 ) -> (Value, Option<u64>) {
     let runtime = server.startup.runtime();
     let id = Value::String(request.id().to_string());
+    let evaluation = matches!(&request, Request::Evaluate { .. });
+    let mut execution_error = Value::Null;
     let arguments = match &request {
         Request::Evaluate { language, code, .. } => serde_json::Map::from_iter([(
             crate::cell::Languages::field(*language).into(),
@@ -292,6 +376,31 @@ async fn handle(
             Request::Status { .. } => Ok(CallToolResult::structured(
                 runtime.worker.integrator_status(),
             )),
+            Request::Subscribe { .. } => {
+                Ok(CallToolResult::structured(json!({"subscribed": true})))
+            }
+            Request::Stdin {
+                evaluation_id,
+                input,
+                ..
+            } => {
+                runtime
+                    .worker
+                    .integrator_stdin(evaluation_id, input)
+                    .map_err(control_error)?;
+                Ok(CallToolResult::structured(json!({"accepted": true})))
+            }
+            Request::Interrupt { evaluation_id, .. } => {
+                let target = runtime
+                    .worker
+                    .select_integrator_interrupt(evaluation_id)
+                    .map_err(control_error)?;
+                tokio::task::spawn_blocking(move || target.interrupt())
+                    .await
+                    .expect("integrator interrupt task")
+                    .map_err(|message| ("execution_failed", message))?;
+                Ok(CallToolResult::structured(json!({"accepted": true})))
+            }
             Request::Preview { .. } => {
                 let content = runtime.worker.integrator_preview().map_err(|_| {
                     (
@@ -319,6 +428,7 @@ async fn handle(
             Request::Evaluate {
                 language,
                 code,
+                execution,
                 busy,
                 wait_ms,
                 ..
@@ -339,34 +449,39 @@ async fn handle(
                 if server.inheritance.enabled() && !server.inheritance.captured() {
                     return Err(("not_ready", "waiting for MCP client permissions".into()));
                 }
-                let response = runtime
-                    .worker
-                    .integrator_evaluate(
-                        crate::cell::Cell {
-                            language,
-                            source: code,
-                        },
-                        wait,
-                        runtime.transcript.clone(),
-                        operation_call.id(),
-                        disconnect.clone(),
-                    )
-                    .await
-                    .map_err(|error| match error {
-                        IntegratorError::Busy => {
-                            ("busy", "runner is busy; code was not run".into())
+                let cell = crate::cell::Cell {
+                    language,
+                    source: code,
+                };
+                let response = match execution {
+                    crate::worker_client::IntegratorExecution::Serial => {
+                        runtime
+                            .worker
+                            .integrator_evaluate(
+                                cell,
+                                wait,
+                                runtime.transcript.clone(),
+                                operation_call.id(),
+                                disconnect.clone(),
+                            )
+                            .await
+                    }
+                    execution => {
+                        if wait.is_some() {
+                            return Err((
+                                "invalid_request",
+                                "concurrent execution requires busy=reject and no wait_ms".into(),
+                            ));
                         }
-                        IntegratorError::Timeout => (
-                            "timeout",
-                            "runner did not become idle before the deadline; code was not run"
-                                .into(),
-                        ),
-                        IntegratorError::Failed(message) => ("execution_failed", message),
-                        IntegratorError::Cancelled => (
-                            "connection_closed",
-                            "control connection closed; code was not run".into(),
-                        ),
-                    })?;
+                        runtime
+                            .worker
+                            .integrator_priority_evaluate(cell, execution, disconnect.clone())
+                            .await
+                    }
+                }
+                .map_err(control_error)?;
+                execution_error = serde_json::to_value(response.execution_error())
+                    .expect("execution error serialization");
                 Ok(evaluation_result(
                     response,
                     &operation_call,
@@ -376,15 +491,22 @@ async fn handle(
         }
     };
     let result = if *closing.borrow() || *disconnect.borrow() {
+        drop(operation);
         Err(("connection_closed", "control connection closed".to_string()))
     } else {
         operation.await
     };
     let response = match &result {
         Ok(result) => {
-            let result = result.structured_content.clone().unwrap_or_else(|| {
+            let mut result = result.structured_content.clone().unwrap_or_else(|| {
                 serde_json::to_value(result).expect("tool result serialization")
             });
+            if evaluation {
+                result
+                    .as_object_mut()
+                    .expect("evaluation result object")
+                    .insert("execution_error".into(), execution_error);
+            }
             json!({"id": id, "result": result})
         }
         Err((code, message)) => failure(id, code, message),
@@ -397,6 +519,24 @@ async fn handle(
         .await
         .expect("integrator result recording task");
     (response, call_id)
+}
+
+fn control_error(error: IntegratorError) -> (&'static str, String) {
+    match error {
+        IntegratorError::Busy => ("busy", "runner is busy; code was not run".into()),
+        IntegratorError::Timeout => (
+            "timeout",
+            "runner did not become idle before the deadline; code was not run".into(),
+        ),
+        IntegratorError::Failed(message) => ("execution_failed", message),
+        IntegratorError::Cancelled => (
+            "connection_closed",
+            "control connection closed; code was not run".into(),
+        ),
+        IntegratorError::StaleEvaluation => {
+            ("stale_evaluation", "evaluation is no longer active".into())
+        }
+    }
 }
 
 fn content_blocks(content: Vec<Content>) -> Vec<ContentBlock> {

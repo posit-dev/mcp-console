@@ -696,8 +696,26 @@ pub(super) fn configure_module_defaults() -> Result<bool, String> {
 }
 
 pub(super) fn evaluate(source: &str, filename: &str) -> Result<(), String> {
+    evaluate_function(source, filename, c"_mcp_console", c"eval_cell")
+}
+
+pub(super) fn evaluate_priority(source: &str) -> Result<(), String> {
+    evaluate_function(
+        source,
+        "<integrator>",
+        c"_mcp_console_services",
+        c"eval_priority",
+    )
+}
+
+fn evaluate_function(
+    source: &str,
+    filename: &str,
+    module: &CStr,
+    function: &CStr,
+) -> Result<(), String> {
     api()?.with_gil(|api| unsafe {
-        let function = api.function(c"_mcp_console", c"eval_cell")?;
+        let function = api.function(module, function)?;
         let source =
             (api.unicode_from_string_and_size)(source.as_ptr().cast(), source.len() as isize);
         let filename =
@@ -725,6 +743,10 @@ pub(super) fn evaluate(source: &str, filename: &str) -> Result<(), String> {
             if (api.err_exception_matches)(api.system_exit as *mut PyObject) != 0 {
                 (api.err_print)();
             } else {
+                crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                    "PythonError",
+                    "Python evaluation failed",
+                ));
                 api.display_pending_exception();
             }
         } else {
@@ -1206,6 +1228,10 @@ impl PythonApi {
                 // Database errors are normally caught by the Python adapter.
                 // Escaping exceptions such as KeyboardInterrupt remain ordinary
                 // console output and must not fall through to an R provider.
+                crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                    "SQLError",
+                    "SQL evaluation failed",
+                ));
                 self.display_pending_exception();
                 return Ok(super::SqlProvider::Handled);
             }

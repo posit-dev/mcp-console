@@ -40,9 +40,19 @@ impl Parser {
         let message = match result {
             Ok(message) => message,
             // R already reported an unexpected error or interrupt.
-            Err(_) => return Ok(false),
+            Err(_) => {
+                crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                    "RError",
+                    harp::exec::r_peek_error_buffer(),
+                ));
+                return Ok(false);
+            }
         };
         if let Some(message) = message {
+            crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "SyntaxError",
+                message.clone(),
+            ));
             emit_output(
                 ConsoleChannel::Diagnostic,
                 format!("Error: {message}\n").as_bytes(),

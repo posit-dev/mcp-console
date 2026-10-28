@@ -1,0 +1,51 @@
+---
+scenario: >-
+  A subscription restores ghost output after an MCP response is cancelled,
+  without another status or preview request.
+fixture: >-
+  A worker FIFO holds output pending; a native result-journal checkpoint
+  then holds its assembled MCP response while the client cancels delivery.
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    print("recovered ghost", flush=True)
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+  timeout_ms: 60000
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        recovered ghost
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

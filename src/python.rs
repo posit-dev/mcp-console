@@ -13,6 +13,13 @@ pub(crate) use startup::{finish_initialization, initialize_selected, setup_runti
 
 const RUNTIME_SOURCE: &str = include_str!("python/runtime.py");
 
+pub(crate) fn evaluate_priority(source: &str) -> Result<(), String> {
+    if !library::runtime_configured()? {
+        return Err("initialize Python with a serial evaluation before using python_thread".into());
+    }
+    library::evaluate_priority(source)
+}
+
 /// Import policy installed before shared runtime setup is complete.
 pub(crate) enum ImportResolution {
     Implicit,
@@ -166,6 +173,10 @@ impl Runtime {
         let filename = format!("<mcp-console:python:e{}>", self.next_evaluation_id);
         self.next_evaluation_id += 1;
         if !ensure_initialized()? {
+            crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "PythonInitializationError",
+                "Python initialization did not complete",
+            ));
             return Ok(());
         }
         evaluate_embedded(source, &filename)

@@ -1,0 +1,45 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: python_thread
+  code: raise SystemExit('priority exit')
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<integrator>", line 1, in <module>
+          SystemExit: priority exit
+    isError: false
+    execution_error:
+      ename: SystemExit
+      evalue: priority exit
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<integrator>", line 1, in <module>
+        - |
+          SystemExit: priority exit
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: python_thread
+  code: print(shared)
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          42
+    isError: false
+    execution_error: ~

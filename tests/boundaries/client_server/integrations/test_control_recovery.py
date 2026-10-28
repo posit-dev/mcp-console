@@ -129,6 +129,7 @@ def test_restart_orders_cancelled_mcp_error_before_worker_notices(
                     assert stopped == {
                         "id": pending["request"]["id"],
                         "result": {
+                            "execution_error": None,
                             "resultType": "complete",
                             "content": [
                                 {

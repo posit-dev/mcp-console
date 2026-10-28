@@ -189,9 +189,6 @@ Your MCP client normally launches this command.
 It communicates over standard input and output and waits for the client; it is not an interactive terminal.
 See [MCP client setup](CLIENTS.md).
 
-`serve --control-socket PATH` also exposes the optional [integrator control channel](INTEGRATOR_CONTROL.md) on Unix.
-The socket requires an existing private parent directory owned by the current user.
-
 For project-write setup, follow [Give a session the access it needs](SANDBOX.md#give-a-session-the-access-it-needs).
 The launch flags below also apply to `warmup`:
 

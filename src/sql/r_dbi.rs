@@ -26,7 +26,16 @@ impl Backend {
     }
 
     pub(super) fn evaluate(&self, source: &str) -> Result<(), String> {
-        self.0.evaluate(source)
+        match self.0.evaluate_completed_string(source)? {
+            Some(message) if message.is_empty() => {}
+            Some(message) => crate::worker::record_execution_error(
+                crate::worker_protocol::ExecutionError::new("SQLError", message),
+            ),
+            None => crate::worker::record_execution_error(
+                crate::worker_protocol::ExecutionError::new("KeyboardInterrupt", ""),
+            ),
+        }
+        Ok(())
     }
 
     pub(super) fn close_result(&self) -> Result<(), String> {

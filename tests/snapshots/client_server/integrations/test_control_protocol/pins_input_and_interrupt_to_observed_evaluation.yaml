@@ -1,0 +1,57 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: "answer = input('answer: '); print('received:', answer)"
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "answer: "]
+        [waiting for stdin]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        received: 42
+  isError: false
+---
+send:
+  python: "input('second answer: ')"
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "second answer: "]
+        [waiting for stdin]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e3>", line 1, in <module>
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  python: print('survived')
+result:
+  content:
+    - type: text
+      text: |
+        survived
+  isError: false

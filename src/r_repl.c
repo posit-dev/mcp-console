@@ -43,6 +43,19 @@ struct event_wait {
 static read_console_fn read_console;
 static check_interrupt_fn check_interrupt;
 static volatile int *interrupts_pending;
+static process_events_fn previous_priority_events;
+static process_events_fn priority_events;
+
+void mcp_r_priority_configure(process_events_fn previous, process_events_fn priority) {
+    previous_priority_events = previous;
+    priority_events = priority;
+}
+
+void mcp_r_priority_events(void) {
+    /* A pre-existing handler may jump: retain only C frames around it. */
+    if (previous_priority_events != NULL) previous_priority_events();
+    priority_events();
+}
 
 void mcp_r_record_interrupt(void) {
     *interrupts_pending = 1;

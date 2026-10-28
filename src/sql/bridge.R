@@ -765,12 +765,13 @@ base::local(
             render_preview(preview)
           }
           complete <- TRUE
+          ""
         },
         error = function(error) {
           cat("Error: ", conditionMessage(error), "\n", sep = "")
+          conditionMessage(error)
         }
       )
-      invisible(NULL)
     }
 
     interrupted <- FALSE

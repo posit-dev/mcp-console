@@ -37,11 +37,12 @@ The source enums are the complete schema; these are the principal message famili
 
 | Direction   | Purpose              | Messages                                                                                                                                          |
 | ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| To worker   | Evaluation/control   | `evaluate`, `shutdown`                                                                                                                            |
+| To worker   | Evaluation/control   | `evaluate`, `evaluate_priority`, `shutdown`                                                                                                       |
 | To worker   | Explicit preparation | `prepare_r`, `prepare_python`                                                                                                                     |
 | To worker   | Resolver replies     | `r_resolved`, `r_resolution_failed`, `python_resolved`, `python_resolution_failed`, `python_version_resolved`, `python_version_resolution_failed` |
 | From worker | Readiness/lifecycle  | `ready`, `runtime_initialized`, `r_initialization`, `cell_started`, `completed`                                                                   |
-| From worker | Output/input         | `console_output`, `console_diagnostic`, `image`, `input_requested`, `input_received`, `input_cancelled`                                           |
+| From worker | Output/input         | `console_output`, `console_diagnostic`, `execution_error`, `image`, `input_requested`, `input_received`, `input_cancelled`                        |
+| From worker | Concurrent execution | `priority`, carrying the matching `request_id` and output, image, execution-error, or completion event.                                           |
 | From worker | Preparation results  | `r_prepared`, `r_preparation_failed`, `python_prepared`, `python_preparation_failed`, `python_preparation_rejected`                               |
 | From worker | Resolver requests    | `resolve_r`, `resolve_python`, `resolve_python_version`                                                                                           |
 | From worker | Activation receipts  | `r_activated`, `r_activation_failed`, `python_activated`, `python_activation_failed`                                                              |
@@ -64,9 +65,27 @@ For example:
 { "kind": "completed" }
 ```
 
-Ordinary language errors are text followed by completion when the worker remains usable.
-There is no structured language-error result, poll, output acknowledgment, general request ID, or session name.
+Ordinary language errors retain their console text and emit one `execution_error` before `completed` when the worker remains usable.
+Its `error` object contains `ename`, `evalue`, and a `traceback` array of text fragments.
+Diagnostics alone do not imply a language failure.
+The controller exposes this metadata to integrators while preserving the existing MCP text and `isError` behavior.
+Ordinary cells have no poll, output acknowledgment, general request ID, or session name.
 Interrupt delivery belongs to the outer relay; MCP response assembly belongs to the server.
+
+### Concurrent integrator requests
+
+`evaluate_priority` carries `request_id`, `execution` (`r_reentrant` or `python_thread`), and `source`.
+The controller permits one outstanding priority request per worker connection.
+Ingress dispatches it independently of ordinary cell admission, retaining native readiness for the coordinator through a local command pipe.
+The process-local `priority_ready` wakeup is produced by ingress when R work is queued; it is not a controller command.
+R services the request on its owning thread at an event boundary or while idle.
+Python executes on a background thread after initialization.
+
+Managed output and language failures carry the priority request identity and precede its completion.
+They do not produce ordinary `cell_started` or `completed` events or enter the foreground output interval.
+Native streams remain untagged.
+Completion releases the controller's separate priority result owner; retirement fails an outstanding request only for the matching worker connection.
+These requests cannot prepare dependencies or request managed stdin.
 
 Python environment replies contain inspected runtime identity and manifests, not rediscovery hints.
 Runtime callbacks cannot supply arbitrary resolver programs or environment maps.
@@ -97,12 +116,12 @@ The controller uses this receipt to start its numbered output interval; admissio
 
 Each admitted ordinary operation has one matching terminal result:
 
-| Operation        | Success                                          | Ordinary failure                                              |
-| ---------------- | ------------------------------------------------ | ------------------------------------------------------------- |
-| `evaluate`       | `completed`                                      | Error text then `completed`, if usable.                       |
-| `prepare_r`      | `r_prepared` with the normalized requested path. | `r_preparation_failed`.                                       |
-| `prepare_python` | `python_prepared`                                | `python_preparation_rejected` or `python_preparation_failed`. |
-| `shutdown`       | Process exit.                                    | No sideband acknowledgment.                                   |
+| Operation        | Success                                          | Ordinary failure                                               |
+| ---------------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| `evaluate`       | `completed`                                      | Error text and `execution_error`, then `completed`, if usable. |
+| `prepare_r`      | `r_prepared` with the normalized requested path. | `r_preparation_failed`.                                        |
+| `prepare_python` | `python_prepared`                                | `python_preparation_rejected` or `python_preparation_failed`.  |
+| `shutdown`       | Process exit.                                    | No sideband acknowledgment.                                    |
 
 Wrong, duplicate, unsolicited, or mismatched results fail the protocol.
 Semantic output belonging to an operation precedes its result; later events are idle activity.

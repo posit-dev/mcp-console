@@ -1268,6 +1268,23 @@ impl LocalShutdownObservation {
 }
 
 impl WorkerShutdownHandle {
+    pub(super) fn owns_commands(&self, commands: &RelayCommandSender) -> bool {
+        Arc::ptr_eq(&self.commands.state, &commands.state)
+    }
+
+    pub(super) fn priority_evaluate(
+        &self,
+        request_id: u64,
+        execution: crate::worker_protocol::PriorityExecution,
+        source: String,
+    ) -> Result<(), String> {
+        self.commands.send(RelayCommand::EvaluatePriority {
+            request_id,
+            execution,
+            source,
+        })
+    }
+
     pub(super) fn is_same_connection(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.commands.state, &other.commands.state)
     }

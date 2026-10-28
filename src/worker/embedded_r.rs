@@ -73,6 +73,61 @@ struct CellSource {
     offset: usize,
 }
 
+/// Execute at an R event boundary without entering the stateful DLL REPL.
+/// The top-level context contains errors and interrupts before the interrupted
+/// R evaluation resumes. Source, protection, and cleanup stay outside it.
+pub(super) fn evaluate_priority(source: &str) -> Result<(), String> {
+    if !super::r_integration::initialized() {
+        return Err("initialize R with a serial evaluation before using r_reentrant".into());
+    }
+    let length =
+        c_int::try_from(source.len()).map_err(|_| "R source exceeds maximum string size")?;
+    let complete = harp::top_level_exec(|| unsafe {
+        let text = libr::Rf_protect(libr::Rf_ScalarString(libr::Rf_mkCharLenCE(
+            source.as_ptr().cast(),
+            length,
+            libr::cetype_t_CE_UTF8,
+        )));
+        let mut status = libr::ParseStatus_PARSE_NULL;
+        let expressions =
+            libr::Rf_protect(libr::R_ParseVector(text, -1, &mut status, libr::R_NilValue));
+        if status != libr::ParseStatus_PARSE_OK && status != libr::ParseStatus_PARSE_NULL {
+            libr::Rf_unprotect(2);
+            return false;
+        }
+        for index in 0..libr::Rf_xlength(expressions) {
+            let value = libr::Rf_protect(libr::Rf_eval(
+                libr::VECTOR_ELT(expressions, index),
+                libr::R_GlobalEnv,
+            ));
+            if libr::get(libr::R_Visible) != 0 {
+                libr::Rf_PrintValue(value);
+            }
+            libr::Rf_unprotect(1);
+        }
+        libr::Rf_unprotect(2);
+        true
+    });
+    match complete {
+        Ok(true) => {}
+        Ok(false) => {
+            core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "SyntaxError",
+                "Incomplete or invalid R source",
+            ));
+            emit_output(
+                ConsoleChannel::Diagnostic,
+                b"Error: incomplete or invalid R source\n",
+            );
+        }
+        Err(_) => core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+            "RError",
+            harp::exec::r_peek_error_buffer(),
+        )),
+    }
+    Ok(())
+}
+
 pub(super) struct Runtime {
     parser: parse::Parser,
     graphics: crate::r_graphics::Bridge,
@@ -216,8 +271,19 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     let status = run_repl_cell();
     clear_cell_source();
     match status {
-        0 | 1 => Ok(()),
+        0 => {
+            super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "RError",
+                harp::exec::r_peek_error_buffer(),
+            ));
+            Ok(())
+        }
+        1 => Ok(()),
         2 => {
+            super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "SyntaxError",
+                "Incomplete code",
+            ));
             emit_output(ConsoleChannel::Diagnostic, b"Error: Incomplete code\n");
             Ok(())
         }
@@ -450,6 +516,11 @@ extern "C-unwind" fn r_read_console(
     buflen: c_int,
     _add_history: c_int,
 ) -> c_int {
+    if super::priority::active() {
+        // The priority evaluator retains R_ToplevelExec; no Rust-owned value
+        // exists here for the error jump to skip.
+        unsafe { libr::Rf_error(c"stdin is unavailable during priority execution".as_ptr()) };
+    }
     if let Err(error) = super::interrupt::reinstall() {
         record_worker_failure(error.to_string());
         return 0;

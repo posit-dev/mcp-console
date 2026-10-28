@@ -53,13 +53,24 @@ Each producer preserves order, but their observation order does not reconstruct 
 
 ### Integrator control
 
-The optional Unix listener in [`server/control.rs`](../src/server/control.rs) shares the existing server and worker owners.
+The hidden, internal Unix listener in [`server/control.rs`](../src/server/control.rs) shares the existing server and worker owners and has no compatibility guarantee.
 MCP input closure owns shutdown; control connections cannot keep the runtime alive.
-Integrator evaluations acquire the same admission and preparation boundaries as MCP evaluations, retaining the generation they observed while waiting.
+Ordinary integrator evaluations acquire the same admission and preparation boundaries as MCP evaluations, retaining the generation they observed while waiting.
 Their terminal collector owns response delivery independently of the socket lifetime and prevents MCP polling or recovery from claiming their output.
 Previously pending MCP output stays with MCP.
 Inspection copies bounded presentation state without draining output, sealing terminal frames, accounting omissions, or acknowledging delivery.
-The socket does not select a new sandbox authority or add interpreter execution threads.
+Subscriptions observe changes to that bounded pending view through a coalescing watch; they never queue unbounded output or block producers.
+Delivery cancellation also invalidates the view when a claimed response returns to its evaluation.
+Input and interruption pin the observed evaluation identity so a delayed control cannot affect its successor.
+The socket does not select a new sandbox authority.
+
+Explicit priority requests use a separate connection-owned result slot and bounded output tape.
+The worker ingress thread dispatches Python requests to a background thread and queues R requests for the owning thread's event hook.
+Neither path claims the ordinary evaluation or its output.
+Restart and worker failure settle the priority slot through the same connection's retirement events.
+Managed output follows the current thread's request identity; native streams retain foreground attribution.
+Priority execution holds preparation admission until completion and cannot initiate dependency preparation or managed input.
+Its request and result are journaled without creating a nested numbered cell interval.
 
 ## Startup and runtime ownership
 
@@ -430,7 +441,8 @@ See [Output and delivery](#output-and-delivery) for ownership and [Open work](TO
 It owns admission, retained declarations, bounded responses, and recording.
 
 **Worker:** The process holding interpreter and database state.
-The built-in worker coordinates R, Python, and SQL on one execution thread.
+The built-in worker coordinates ordinary R, Python, and SQL cells on one execution thread.
+Opt-in internal priority execution can reenter R on that thread or execute Python on a background thread.
 
 **Generation:** The admission and callback identity retained by lifecycle operations.
 Old input, callbacks, evaluations, and candidate commits must not reach its replacement.

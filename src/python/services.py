@@ -13,10 +13,13 @@ from typing import Any, Callable, TextIO
 _pid = os.getpid()
 _thread = threading.get_ident()
 _input = builtins.input
+_priority = threading.local()
 
 
 def _managed() -> bool:
-    return os.getpid() == _pid and threading.get_ident() == _thread
+    return os.getpid() == _pid and (
+        threading.get_ident() == _thread or getattr(_priority, "active", False)
+    )
 
 
 class _Output:
@@ -45,14 +48,40 @@ class _Output:
 
 
 def _console_input(prompt: object = "") -> str:
+    if getattr(_priority, "active", False):
+        raise RuntimeError("stdin is unavailable during priority execution")
     if not _managed():
         return _input(prompt)
     return readline(str(prompt))
 
 
+def eval_priority(source: str, filename: str) -> None:
+    import _mcp_console
+
+    _priority.active = True
+    try:
+        _mcp_console.eval_cell(source, filename, finalize=False, propagate_exit=False)
+    finally:
+        _priority.active = False
+
+
 def resolve_import(module: str, distribution: str) -> str:
     return resolve_import_request(
         json.dumps({"module": module, "distribution": distribution})
+    )
+
+
+def report_execution_error(
+    error: BaseException, traceback: list[str] | None = None
+) -> None:
+    execution_error(
+        json.dumps(
+            {
+                "ename": type(error).__name__,
+                "evalue": str(error),
+                "traceback": [] if traceback is None else traceback,
+            }
+        )
     )
 
 

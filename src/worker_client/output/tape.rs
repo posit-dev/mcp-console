@@ -41,25 +41,43 @@ enum Stream {
 
 impl OutputTape {
     pub(in crate::worker_client) fn new() -> Self {
-        Self(Arc::new(Mutex::new(OutputTapeState::default())))
+        Self(
+            Arc::new(Mutex::new(OutputTapeState::default())),
+            tokio::sync::watch::channel(()).0,
+        )
+    }
+
+    pub(in crate::worker_client) fn subscribe(&self) -> tokio::sync::watch::Receiver<()> {
+        self.1.subscribe()
+    }
+
+    pub(in crate::worker_client) fn notify_observers(&self) {
+        self.1.send_replace(());
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, OutputTapeState> {
         self.0.lock().unwrap_or_else(|error| error.into_inner())
     }
 
+    fn change(&self) -> Changed<'_> {
+        Changed {
+            state: self.lock(),
+            changed: &self.1,
+        }
+    }
+
     pub(in crate::worker_client) fn record_session_output(
         &self,
         transcript: crate::transcript::Transcript,
     ) {
-        let mut state = self.lock();
+        let mut state = self.change();
         if state.session_recording.is_none() {
             state.session_recording = Some(transcript);
         }
     }
 
     pub(in crate::worker_client) fn finish_session_output(&self) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.seal(true);
         if let Some(output) = state.cell_output.take() {
             let record = output.record();
@@ -88,7 +106,7 @@ impl OutputTape {
         pid: u32,
         requirements: &serde_json::Value,
     ) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.seal(true);
         state.finish_idle_interval();
         state.owner = state.session_recording.as_ref().and_then(|transcript| {
@@ -98,7 +116,7 @@ impl OutputTape {
     }
 
     pub(in crate::worker_client) fn worker_ended(&self, outcome: &str) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.seal(true);
         if let Some(output) = state.cell_output.take() {
             let record = output.record();
@@ -134,13 +152,13 @@ impl OutputTape {
             // Native readers and worker stderr are different producers. Each
             // reader keeps its identity across writes, including split controls.
             let stream = {
-                let mut state = output.lock();
+                let mut state = output.change();
                 state.next_diagnostic += 1;
                 Stream::NativeDiagnostic(state.next_diagnostic)
             };
             let mut pending = Vec::new();
             Box::new(move |bytes| {
-                let mut state = output.lock();
+                let mut state = output.change();
                 if bytes.is_empty() {
                     state.text(stream, &String::from_utf8_lossy(&pending));
                     pending.clear();
@@ -173,7 +191,7 @@ impl OutputTape {
         if text.is_empty() {
             return;
         }
-        let mut state = self.lock();
+        let mut state = self.change();
         state.worker_revision += 1;
         let notice = state.spool(text.as_bytes());
         state.flush_decoders();
@@ -196,7 +214,7 @@ impl OutputTape {
     where
         F: FnOnce(&str, &str) -> Result<Option<crate::transcript::Artifact>, String>,
     {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.worker_revision += 1;
         state.flush_decoders();
         state.flush_terminal();
@@ -208,14 +226,14 @@ impl OutputTape {
     }
 
     pub(in crate::worker_client) fn push_notice_line(&self, message: impl Into<String>) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
         state.current.notice_line(message);
     }
 
     pub(in crate::worker_client) fn push_bounded_notice_line(&self, message: impl Into<String>) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
         // Informational resolver messages share the ordinary text allowance.
@@ -232,18 +250,18 @@ impl OutputTape {
     }
 
     pub(in crate::worker_client) fn push_failure(&self, failure: SendFailure) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
         state.current.send_failure(failure);
     }
 
     pub(in crate::worker_client) fn cut(&self) -> OutputCut {
-        self.lock().seal(false)
+        self.change().seal(false)
     }
 
     pub(in crate::worker_client) fn take(&self) -> Response {
-        let mut state = self.lock();
+        let mut state = self.change();
         let cut = state.seal(false);
         state.drain(cut)
     }
@@ -272,7 +290,7 @@ impl OutputTape {
     /// Return output held aside by an integrator evaluation to the front of
     /// the MCP stream, preserving any response recovered in the meantime.
     pub(in crate::worker_client) fn restore_prelude(&self, mut prelude: Response) {
-        let mut state = self.lock();
+        let mut state = self.change();
         if let Some(recovered) = state.recovered.take() {
             prelude.extend(recovered);
         }
@@ -284,7 +302,7 @@ impl OutputTape {
     }
 
     pub(in crate::worker_client) fn take_admission_prelude(&self) -> (Response, u64) {
-        let mut state = self.lock();
+        let mut state = self.change();
         let cut = state.seal(true);
         (state.drain(cut), cut.worker_revision)
     }
@@ -301,7 +319,7 @@ impl OutputTape {
         capture: bool,
         boundary: impl FnOnce(),
     ) -> Response {
-        let mut state = self.lock();
+        let mut state = self.change();
         let cut = state.seal(true);
         let response = if capture {
             state.drain(cut)
@@ -318,7 +336,7 @@ impl OutputTape {
         call_id: Option<u64>,
         omit_from_projections: bool,
     ) -> Result<(), String> {
-        let mut state = self.lock();
+        let mut state = self.change();
         if state.cell_active {
             return Err("worker sent a duplicate cell start".into());
         }
@@ -340,7 +358,7 @@ impl OutputTape {
         &self,
         completion_confirmed: bool,
     ) -> OutputCut {
-        let mut state = self.lock();
+        let mut state = self.change();
         let cut = state.seal(true);
         let notice = state.cell_output.take().and_then(|output| output.finish());
         state.cell_active = false;
@@ -356,19 +374,19 @@ impl OutputTape {
     }
 
     pub(in crate::worker_client) fn drain_through(&self, cut: OutputCut) -> Response {
-        self.lock().drain(cut)
+        self.change().drain(cut)
     }
 
     /// Recovered MCP replies retain their transport owner even when they arrive
     /// after an integrator cell has taken its admission-time idle prelude.
     pub(in crate::worker_client) fn drain_cell_through(&self, cut: OutputCut) -> Response {
         let mut response = Response::default();
-        self.lock().drain_intervals_into(cut, &mut response);
+        self.change().drain_intervals_into(cut, &mut response);
         response
     }
 
     pub(in crate::worker_client) fn recover(&self, response: Response) {
-        let mut state = self.lock();
+        let mut state = self.change();
         // Cancelled MCP controls can settle while an integrator still owns the
         // active cell. Preserve their order in one bounded response projection.
         match state.recovered.as_mut() {
@@ -378,12 +396,38 @@ impl OutputTape {
     }
 }
 
+/// Wake observers for every mutation, including response consumption and recovery.
+/// The watch stores no output: slow readers coalesce changes without a queue.
+struct Changed<'a> {
+    state: std::sync::MutexGuard<'a, OutputTapeState>,
+    changed: &'a tokio::sync::watch::Sender<()>,
+}
+
+impl std::ops::Deref for Changed<'_> {
+    type Target = OutputTapeState;
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for Changed<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.state
+    }
+}
+
+impl Drop for Changed<'_> {
+    fn drop(&mut self) {
+        self.changed.send_replace(());
+    }
+}
+
 impl DirectOutput {
     pub(in crate::worker_client) fn push(&self, bytes: &[u8]) {
         if bytes.is_empty() {
             return;
         }
-        let mut state = self.output.lock();
+        let mut state = self.output.change();
         state.worker_revision += 1;
         let notice = state.spool(bytes);
         let stream = match self.stream {
@@ -412,7 +456,7 @@ impl DirectOutput {
     }
 
     pub(in crate::worker_client) fn close(&self) {
-        let mut state = self.output.lock();
+        let mut state = self.output.change();
         let stream = match self.stream {
             DirectOutputStream::Stdout => Stream::Stdout,
             DirectOutputStream::Stderr => Stream::Stderr,

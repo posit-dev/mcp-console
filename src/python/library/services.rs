@@ -90,6 +90,7 @@ pub(super) fn install(api: &PythonApi, installed: bool) -> Result<(), String> {
         let methods = Box::leak(Box::new([
             method(c"write", write, 8), // METH_O
             method(c"diagnostic", diagnostic, 8),
+            method(c"execution_error", execution_error, 8),
             method(c"readline", readline, 8),
             method(c"publish_plot", publish_plot, 8),
             method(c"resolve_import_request", resolve_import_request, 8),
@@ -177,11 +178,25 @@ impl Services {
 }
 
 fn callback(operation: impl FnOnce(&Services) -> Result<*mut PyObject, String>) -> *mut PyObject {
+    dispatch_callback(CallbackThread::Main, operation)
+}
+
+enum CallbackThread {
+    Main,
+    OutputOwner,
+}
+
+fn dispatch_callback(
+    thread: CallbackThread,
+    operation: impl FnOnce(&Services) -> Result<*mut PyObject, String>,
+) -> *mut PyObject {
     let services = SERVICES
         .get()
         .expect("Python services initialized before callbacks");
     let result = catch_unwind(AssertUnwindSafe(|| {
-        if std::process::id() != services.pid || std::thread::current().id() != services.thread {
+        let managed = std::thread::current().id() == services.thread
+            || matches!(thread, CallbackThread::OutputOwner) && worker::priority_background();
+        if std::process::id() != services.pid || !managed {
             return Err("console service requires the main worker thread".to_string());
         }
         operation(services)
@@ -211,8 +226,17 @@ unsafe extern "C" fn diagnostic(_: *mut PyObject, text: *mut PyObject) -> *mut P
     output(ConsoleChannel::Diagnostic, text)
 }
 
+unsafe extern "C" fn execution_error(_: *mut PyObject, error: *mut PyObject) -> *mut PyObject {
+    dispatch_callback(CallbackThread::OutputOwner, |services| {
+        let error = serde_json::from_str(&services.text(error)?)
+            .map_err(|error| format!("invalid Python execution error: {error}"))?;
+        services.without_gil(|| worker::record_execution_error(error));
+        Ok(services.none())
+    })
+}
+
 fn output(channel: ConsoleChannel, text: *mut PyObject) -> *mut PyObject {
-    callback(|services| {
+    dispatch_callback(CallbackThread::OutputOwner, |services| {
         let text = services.text(text)?;
         if !text.is_empty() {
             services.without_gil(|| worker::emit_output(channel, text.as_bytes()));
@@ -222,7 +246,7 @@ fn output(channel: ConsoleChannel, text: *mut PyObject) -> *mut PyObject {
 }
 
 unsafe extern "C" fn publish_plot(_: *mut PyObject, image: *mut PyObject) -> *mut PyObject {
-    callback(|services| {
+    dispatch_callback(CallbackThread::OutputOwner, |services| {
         let image = services.text(image)?;
         services.without_gil(|| worker::publish_plot(Ok(image)));
         Ok(services.none())
@@ -231,6 +255,9 @@ unsafe extern "C" fn publish_plot(_: *mut PyObject, image: *mut PyObject) -> *mu
 
 unsafe extern "C" fn attach_r(_: *mut PyObject, _: *mut PyObject) -> *mut PyObject {
     callback(|services| {
+        if worker::priority_background() {
+            return Err("R access is unavailable from a Python priority thread".into());
+        }
         services.without_gil(crate::worker::ensure_bridge)?;
         Ok(services.none())
     })
@@ -264,6 +291,9 @@ unsafe extern "C" fn resolve_import_request(
 
 unsafe extern "C" fn readline(_: *mut PyObject, prompt: *mut PyObject) -> *mut PyObject {
     callback(|services| {
+        if worker::priority_active() {
+            return Err("stdin is unavailable during priority execution".into());
+        }
         let prompt = services.text(prompt)?;
         let line = services.without_gil(|| worker::read_python_input(&prompt))?;
         match line {

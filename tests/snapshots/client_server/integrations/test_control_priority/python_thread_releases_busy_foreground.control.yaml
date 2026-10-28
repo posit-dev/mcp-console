@@ -1,0 +1,64 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: python_thread
+  code: raise ValueError('priority failure')
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<integrator>", line 1, in <module>
+          ValueError: priority failure
+    isError: false
+    execution_error:
+      ename: ValueError
+      evalue: priority failure
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<integrator>", line 1, in <module>
+        - |
+          ValueError: priority failure
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: python_thread
+  code: >-
+    assert threading.current_thread() is not threading.main_thread();
+    print('priority output'); release.set()
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          priority output
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: evaluate
+  language: python
+  execution: python_thread
+  code: priority_value = 42; print(priority_value)
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          42
+    isError: false
+    execution_error: ~

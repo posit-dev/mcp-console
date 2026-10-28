@@ -1,0 +1,49 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: "value = input('private answer: '); print(value)"
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          [input requested: "private answer: "]
+          private reply
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  code: "value = input('cancel answer: '); print(value)"
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          [input requested: "cancel answer: "]
+          Traceback (most recent call last):
+            File "<mcp-console:python:e3>", line 1, in <module>
+          KeyboardInterrupt
+    isError: false
+    execution_error:
+      ename: KeyboardInterrupt
+      evalue: ""
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<mcp-console:python:e3>", line 1, in <module>
+        - |
+          KeyboardInterrupt

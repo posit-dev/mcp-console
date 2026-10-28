@@ -1,4 +1,8 @@
-# Integrator control channel
+# Internal integrator control channel
+
+This is an internal, experimental interface with no stability or compatibility promises.
+The `--control-socket` argument is hidden from CLI help.
+Integrators must use the protocol matching their Console build.
 
 An application can inspect and evaluate code in Console's existing session through a local socket while its agent uses MCP.
 Use this channel for application setup, UI state, and output previews that do not need to become model tool calls.
@@ -76,20 +80,27 @@ Malformed requests use `id: null`.
 Request IDs correlate responses; they do not deduplicate submissions.
 Sending an evaluation again can execute it again.
 
-| Operation      | Additional fields                                            | Result                                                                                              |
-| -------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `status`       | None                                                         | Current state, `idle`, and the active evaluation's origin, language, and whether execution started. |
-| `preview`      | None                                                         | Bounded `content` blocks containing currently pending text and images, without consuming them.      |
-| `requirements` | None                                                         | The accepted `requirements`, `prepared`, and Console's separate `runtime_requirements`.             |
-| `manifest`     | None                                                         | The accepted requirements declaration alone.                                                        |
-| `evaluate`     | `language`, `code`, optional `busy`, `wait_ms`, and `record` | Evaluation `content` blocks and `isError`, using Console's usual output limits.                     |
+| Operation      | Additional fields                                                         | Result                                                                                              |
+| -------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `status`       | None                                                                      | Current state, `idle`, and the active evaluation's origin, language, and whether execution started. |
+| `preview`      | None                                                                      | Bounded `content` blocks containing currently pending text and images, without consuming them.      |
+| `requirements` | None                                                                      | The accepted `requirements`, `prepared`, and Console's separate `runtime_requirements`.             |
+| `manifest`     | None                                                                      | The accepted requirements declaration alone.                                                        |
+| `evaluate`     | `language`, `code`, optional `execution`, `busy`, `wait_ms`, and `record` | Evaluation `content` blocks and `isError`, using Console's usual output limits.                     |
+| `subscribe`    | None                                                                      | Acknowledgment followed by pushed pending-output snapshots on a dedicated connection.               |
+| `stdin`        | `evaluation_id`, `input`                                                  | Deliver managed input to the identified active evaluation.                                          |
+| `interrupt`    | `evaluation_id`                                                           | Request interruption of the identified active evaluation.                                           |
 
 `language` is `r`, `python`, or `sql`; `code` is a string.
 Evaluation and preview results have `resultType: "complete"`, `content`, and `isError` fields.
 Ordinary language diagnostics appear in `content`; `isError` marks server or worker operation failures.
+Evaluation results also carry `execution_error`, either `null` or a structured language failure with `ename`, `evalue`, and `traceback`.
+This metadata has a separate 8 KiB allowance, including retained string slots, and includes `truncated: true` when shortened.
+Ordinary diagnostics retain their existing output and raw-recording limits.
 Admission failures use the response's `error` field.
-This interface has no package-mutation, stdin, interrupt, or restart operation.
-Submit complete code that does not request interactive input.
+This interface has no package-mutation or restart operation.
+Use the `id` in `status.evaluation` as `evaluation_id` for input and interruption; stale IDs are rejected so a delayed request cannot affect a later cell.
+Startup input is not supported through this channel.
 MCP interruption and restart still affect the shared session.
 
 ## Choose how to handle a busy worker
@@ -115,8 +126,27 @@ Disconnecting after admission leaves the evaluation running and recorded.
 Its response does not become output for the agent to collect.
 Code can still change objects that later agent calls observe.
 
-Reentrant R top-level execution and Python execution on a background thread are not supported by this channel.
-The only accepted busy policies are `reject` and `wait`.
+### Opt in to concurrent execution
+
+`execution` defaults to `serial`, with the admission policies above.
+For short, latency-sensitive requests, an integrator can explicitly select `r_reentrant` for R or `python_thread` for Python.
+These modes require `busy: "reject"` (the default) and no `wait_ms`.
+They run in the existing worker and share its objects and permissions.
+The integrator is responsible for coordinating access to those objects and choosing code that is safe to run concurrently.
+
+R requests run on R's owning thread when it services events, including during `Sys.sleep()`.
+They cannot preempt native code that does not service R events.
+R evaluates parsed expressions in the global environment and prints visible values; it leaves `.Last.value`, history, and ordinary REPL task callbacks alone.
+Python requests run on a background thread and require the GIL; native code holding the GIL can delay them.
+Background Python code must not call into R.
+Only one concurrent control request may be outstanding per worker.
+Prepare dependencies and initialize the requested interpreter through an ordinary cell first.
+Concurrent requests cannot prepare packages or request managed stdin.
+
+Managed output belongs to the concurrent request's response.
+Native stdout/stderr and child-process output retain the ordinary foreground attribution because process streams do not identify a writing thread.
+Graphics state is shared; concurrent requests do not automatically finalize plots or close the foreground cell's devices.
+The pending-output subscription observes the ordinary output interval; concurrent request output is returned in that request's response.
 
 ## Inspect state and pending output
 
@@ -130,6 +160,31 @@ Repeated previews do not consume output, acknowledge delivery, or alter recordin
 Output already taken by a response writer may no longer be available in the preview.
 If an operation's state cannot be observed immediately, it returns `busy`; retry the inspection.
 
+### Subscribe to pending output
+
+Send `{"id":"ghost","op":"subscribe"}` on a dedicated control connection.
+Console replies with `{"id":"ghost","result":{"subscribed":true}}`, then sends an initial snapshot and updates as pending output changes:
+
+```json
+{
+  "id": "ghost",
+  "event": "preview",
+  "result": {
+    "resultType": "complete",
+    "content": [{ "type": "text", "text": "working…" }],
+    "isError": false
+  }
+}
+```
+
+Replace the displayed ghost output with each snapshot; do not append snapshots.
+The stream includes partial terminal lines and images, uses the usual preview limits, and never consumes or acknowledges an MCP result.
+An empty snapshot clears output that has been collected.
+Changes may be coalesced for a slow reader, so this is a view of pending output rather than an event log.
+Output collected by MCP before a subscriber observes it need not appear in the stream.
+Each subscriber retains only its latest pending change and cannot block worker output.
+Close the connection to unsubscribe; use other connections for requests.
+
 `requirements` and `manifest` read the last accepted declaration without preparing packages or running code.
 They return `not_ready` before runtime configuration is available.
 The declaration contains `r`, `python`, `duckdb`, `python_version`, and `exclude_newer` fields.
@@ -137,7 +192,9 @@ It is not a lockfile or an inventory of every installed package.
 
 ## Select recording projections
 
-Every control request and result enters Console's journal capture; `evaluate` also records source, execution boundaries, output, and retained images.
+Every control request and result enters Console's journal capture; ordinary `evaluate` requests also record source, execution boundaries, output, and retained images.
+Concurrent evaluations record their request and result without entering the ordinary cell's source and raw-output interval.
+Subscription snapshots are transient views of already captured output and are not individually journaled.
 The usual [recording retention and failure rules](RECORDING_REFERENCE.md) apply.
 
 `record` defaults to `true`.
@@ -152,3 +209,4 @@ Keep instrumentation synchronous or give its background work separately owned ou
 Its projection choice follows the observed post-cell interval until the next cell begins.
 Background work that keeps writing after a later cell begins can be attributed to that later interval.
 The projection choice does not isolate objects or conceal data that later code explicitly prints.
+

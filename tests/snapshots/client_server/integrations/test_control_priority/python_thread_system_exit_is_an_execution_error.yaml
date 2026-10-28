@@ -1,0 +1,19 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: shared = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: print(shared)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
