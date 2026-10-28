@@ -1,0 +1,55 @@
+---
+scenario: >-
+  Immediate R work queued before a foreground fork runs exactly once in
+  the parent worker.
+fixture: >-
+  A native R call gates the fork without processing events. An observer
+  confirms the worker ingress wrote PriorityReady after queueing the
+  request. The child checks R events before the parent resumes.
+---
+!same-as custom MCP initialization for this execution mode
+---
+send:
+  r: |
+    dyn.load("<workspace>/fork-checkpoint")
+    worker_pid <- Sys.getpid()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    status <- .C("mcp_test_priority_fork", status = integer(1))$status
+    stopifnot(identical(status, 0L))
+    cat("foreground complete\n")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        foreground complete
+  isError: false
+---
+immediate_side_effects: |
+  parent
+---
+send:
+  r: cat("parent remains usable\n")
+result:
+  content:
+    - type: text
+      text: |
+        parent remains usable
+  isError: false

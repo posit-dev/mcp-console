@@ -122,6 +122,12 @@ pub(super) fn consume_r_wakeup() {
 }
 
 pub(super) extern "C" fn run_r() {
+    // A fork child keeps R's event hooks, but inherits work owned by its parent
+    // and may inherit the queue mutex locked by an ingress thread. Check process
+    // ownership before touching that queue or any other worker state.
+    if !crate::sideband::available_in_process() {
+        return;
+    }
     // R event dispatch can itself reenter this hook. Never nest priority work.
     if active() || super::core::bootstrapping() {
         return;
