@@ -10,6 +10,7 @@ console:
     - --default-config
     - sandbox.profile=inherit_codex
   enabled: true
+  tool_input_schema_max_bytes: 1000000
   omit_tools_from:
     - deferred
   tools:

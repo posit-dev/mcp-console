@@ -9,6 +9,7 @@ console:
     - sandbox.profile=inherit_codex
   enabled: true
   startup_timeout_sec: 30
+  tool_input_schema_max_bytes: 1000000
   omit_tools_from:
     - deferred
   env:
@@ -25,6 +26,7 @@ stdout: |
   command = "uvx"
   args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"]
   enabled = true
+  tool_input_schema_max_bytes = 1000000
   omit_tools_from = ["deferred"]
 
   [mcp_servers.console.tools.send]

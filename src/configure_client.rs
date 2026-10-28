@@ -419,6 +419,9 @@ fn edit_codex(
         ),
     );
     desired.insert("enabled", value(true));
+    // Codex's 5 KB default strips Console's argument descriptions. Leave room
+    // for the full schema, including customized descriptions.
+    desired.insert("tool_input_schema_max_bytes", value(1_000_000));
     // This per-server policy keeps tools directly exposed without disabling
     // tool search for other servers. Strict Code Mode Only overrides it.
     desired.insert(

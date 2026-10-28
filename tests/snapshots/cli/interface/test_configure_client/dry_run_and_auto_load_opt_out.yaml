@@ -8,6 +8,7 @@ console:
     - --default-config
     - sandbox.profile=inherit_codex
   enabled: true
+  tool_input_schema_max_bytes: 1000000
   omit_tools_from: []
   tools:
     send:
@@ -21,6 +22,7 @@ dry_run: |
   command = "uvx"
   args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"]
   enabled = true
+  tool_input_schema_max_bytes = 1000000
   omit_tools_from = ["deferred"]
 
   [mcp_servers.console.tools.send]
@@ -38,6 +40,7 @@ opt_out: |
   command = "uvx"
   args = ["mcp-console", "serve", "--default-config", "sandbox.profile=inherit_codex"]
   enabled = true
+  tool_input_schema_max_bytes = 1000000
   omit_tools_from = []
 
   [mcp_servers.console.tools.send]

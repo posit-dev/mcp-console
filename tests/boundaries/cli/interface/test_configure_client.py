@@ -142,6 +142,8 @@ def test_multiple_clients_pins_names_and_serve_arguments(binary: Path) -> Transc
                 assert list(mapping) == [name], config
                 assert mapping[name]["command"] == "uvx"
                 assert mapping[name]["args"] == expected[client], mapping[name]
+                if client == "codex":
+                    assert mapping[name]["tool_input_schema_max_bytes"] == 1_000_000
             records.append({"version_suffix": pin, "clients": 2, "args": expected})
     return records
 
@@ -484,6 +486,7 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
             'args = ["old"] # argument annotation\n'
             "enabled = false # enable annotation\n"
             "omit_tools_from = [] # discovery annotation\n"
+            "tool_input_schema_max_bytes = 5000 # schema annotation\n"
         )
         path.write_text(source, encoding="utf-8")
         result = configure(binary, root, root, "codex")
@@ -495,6 +498,7 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
             "# argument annotation",
             "# enable annotation",
             "# discovery annotation",
+            "# schema annotation",
         ):
             assert updated.count(comment) == 1, updated
         assert server(read_config(path, "codex"), "codex")["args"] == [
@@ -503,6 +507,10 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
             "--default-config",
             "sandbox.profile=inherit_codex",
         ]
+        assert (
+            server(read_config(path, "codex"), "codex")["tool_input_schema_max_bytes"]
+            == 1_000_000
+        )
         result = configure(binary, root, root, "codex")
         assert result.returncode == 0 and path.read_text(encoding="utf-8") == updated, (
             result
