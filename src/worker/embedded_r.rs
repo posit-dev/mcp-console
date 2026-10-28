@@ -166,6 +166,7 @@ unsafe extern "C" {
 }
 
 unsafe extern "C-unwind" {
+    fn mcp_r_observe_conditions();
     fn mcp_r_console_configure(
         read_console: ReadConsole,
         check_interrupt: CheckUserInterrupt,
@@ -242,16 +243,7 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     clear_cell_source();
     match status {
         0 => {
-            let (name, message) = match REPL_CONDITION.with(Cell::get) {
-                ReplCondition::Error => ("RError", harp::exec::r_peek_error_buffer()),
-                ReplCondition::Interrupt => ("Interrupt", "R evaluation interrupted".into()),
-                // Native jumps and explicit global handler replacement may bypass
-                // the observers. Never attribute R's retained error buffer to them.
-                ReplCondition::None => ("RAbort", "R evaluation aborted".into()),
-            };
-            super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(
-                name, message,
-            ));
+            record_unwind_error();
             Ok(())
         }
         1 => Ok(()),
@@ -388,11 +380,26 @@ fn run_ready_handlers(graphics: &crate::r_graphics::Bridge) -> Result<(), String
 }
 
 fn run_repl_cell() -> c_int {
-    REPL_CONDITION.with(|condition| condition.set(ReplCondition::None));
+    reset_condition_observation();
     // SAFETY: The configured API consists of process-lifetime libR symbols.
     // This main thread owns R; the C shim keeps a live top-level context so
     // errors and interrupts cannot bypass a Rust frame.
     unsafe { mcp_r_repl_run_cell(before_repl_iteration) }
+}
+
+fn reset_condition_observation() {
+    REPL_CONDITION.with(|condition| condition.set(ReplCondition::None));
+}
+
+fn record_unwind_error() {
+    let (name, message) = match REPL_CONDITION.with(Cell::get) {
+        ReplCondition::Error => ("RError", harp::exec::r_peek_error_buffer()),
+        ReplCondition::Interrupt => ("Interrupt", "R evaluation interrupted".into()),
+        // Native jumps and explicit global handler replacement may bypass
+        // the observers. Never attribute R's retained error buffer to them.
+        ReplCondition::None => ("RAbort", "R evaluation aborted".into()),
+    };
+    super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(name, message));
 }
 
 #[allow(clippy::result_large_err)]
@@ -414,7 +421,7 @@ extern "C" fn before_repl_iteration() {
     // R may reuse buffered source without calling Busy(0), so reset before
     // every outer DLL step. Busy(1) latches evaluation in r_busy().
     REPL_EVALUATING.store(false, Ordering::SeqCst);
-    REPL_CONDITION.with(|condition| condition.set(ReplCondition::None));
+    reset_condition_observation();
 }
 
 extern "C-unwind" fn r_busy(which: c_int) {
