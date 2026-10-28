@@ -100,6 +100,26 @@ impl Writers {
         Ok(())
     }
     pub(super) fn append(&mut self, event: &Envelope<'_>) -> Result<(), String> {
+        // Capture remains complete. Only these derived documents honor the
+        // integrator's choice, including output observed after its result.
+        match &event.event {
+            Event::ToolCall {
+                omit_from_projections: true,
+                ..
+            }
+            | Event::ToolResult {
+                omit_from_projections: true,
+                ..
+            } => return Ok(()),
+            Event::ImageRetained { owner, .. }
+            | Event::CellOutput { owner, .. }
+            | Event::SessionOutput { owner, .. }
+                if owner.omit_from_projections =>
+            {
+                return Ok(());
+            }
+            _ => {}
+        }
         let mut fragment = String::new();
         render_event(&mut fragment, event)?;
         if let Some(id) = self.documents.observe(&event.event)? {
@@ -529,8 +549,11 @@ Worker process {pid}.
             )
         }
         Event::ToolCall {
-            call_id, request, ..
-        } => render_tool_call(document, *call_id, request),
+            call_id,
+            request,
+            origin,
+            ..
+        } => render_tool_call(document, *call_id, request, *origin),
         Event::ImageRetained {
             artifact_id,
             call_id,
@@ -600,8 +623,11 @@ Worker process {pid}.
             Ok(())
         }
         Event::ToolResult {
-            call_id, outcome, ..
-        } => render_tool_result(document, *call_id, outcome),
+            call_id,
+            parts,
+            outcome,
+            ..
+        } => render_tool_result(document, *call_id, parts, outcome),
     }
 }
 
@@ -609,6 +635,7 @@ fn render_tool_call(
     document: &mut String,
     call_id: u64,
     request: &CallToolRequestParams,
+    origin: Option<&str>,
 ) -> Result<(), String> {
     let Some(send) = parse_send(request) else {
         writeln!(
@@ -629,9 +656,14 @@ fn render_tool_call(
     };
 
     let label = send.label();
+    let origin = if origin == Some("integrator") {
+        "Integrator call: "
+    } else {
+        ""
+    };
     writeln!(
         document,
-        "## Call {call_id}: {label}
+        "## Call {call_id}: {origin}{label}
 "
     )
     .expect("writing to a String cannot fail");
@@ -775,6 +807,7 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
 fn render_tool_result(
     document: &mut String,
     call_id: u64,
+    parts: &[super::ResultPart],
     outcome: &Outcome<'_>,
 ) -> Result<(), String> {
     writeln!(
@@ -784,7 +817,7 @@ fn render_tool_result(
     )
     .expect("writing to a String cannot fail");
     match outcome {
-        Outcome::Result { result } => render_result(document, call_id, result),
+        Outcome::Result { result } => render_result(document, call_id, parts, result),
         Outcome::Error { error } => {
             document.push_str(
                 "### Tool error
@@ -799,6 +832,7 @@ fn render_tool_result(
 fn render_result(
     document: &mut String,
     call_id: u64,
+    parts: &[super::ResultPart],
     result: &RecordedResult<'_>,
 ) -> Result<(), String> {
     if result.is_error == Some(true) {
@@ -815,9 +849,28 @@ fn render_result(
 ",
         );
     }
-    for block in &result.content {
+    for (index, block) in result.content.iter().enumerate() {
+        let omitted = || {
+            parts.iter().filter(|part| {
+                part.block == index && part.owner.is_some_and(|owner| owner.omit_from_projections)
+            })
+        };
         match block {
-            RecordedContent::Text(text) => push_fence(document, "text", &text.text),
+            RecordedContent::Text(text) => {
+                let mut visible = String::new();
+                let mut start = 0;
+                let mut removed = false;
+                for part in omitted() {
+                    visible.push_str(&text.text[start..part.start]);
+                    start = part.end;
+                    removed = true;
+                }
+                visible.push_str(&text.text[start..]);
+                if !visible.is_empty() || !removed {
+                    push_fence(document, "text", &visible);
+                }
+            }
+            RecordedContent::Image { .. } if omitted().next().is_some() => {}
             RecordedContent::Image {
                 artifact_id: Some(artifact_id),
                 path: Some(path),

@@ -113,6 +113,10 @@ pub(super) enum Event<'a> {
         call_id: u64,
         request_id: &'a RequestId,
         request: &'a CallToolRequestParams,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        origin: Option<&'static str>,
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        omit_from_projections: bool,
     },
     ImageRetained {
         owner: super::Owner,
@@ -144,6 +148,8 @@ pub(super) enum Event<'a> {
         parts: &'a [super::ResultPart],
         #[serde(flatten)]
         outcome: Outcome<'a>,
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        omit_from_projections: bool,
     },
 }
 

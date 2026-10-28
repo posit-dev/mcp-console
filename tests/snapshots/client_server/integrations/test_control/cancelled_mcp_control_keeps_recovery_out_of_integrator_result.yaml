@@ -1,0 +1,72 @@
+---
+scenario: >-
+  Cancelled MCP control keeps its error separate from an integrator cell.
+fixture: >-
+  The Python cell ignores SIGINT and waits at a FIFO. A native checkpoint
+  holds the MCP result before journaling so cancellation follows result
+  assembly.
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: sentinel = 0
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: interrupt
+  python: sentinel = 99
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  control: interrupt
+  python: sentinel = 99
+id: <cancelled request 2>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 2>
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        interrupted evaluation is still active; cell was not run
+        interrupted evaluation is still active; cell was not run
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(sentinel)
+result:
+  content:
+    - type: text
+      text: |
+        0
+  isError: false

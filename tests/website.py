@@ -640,6 +640,7 @@ class WebsiteTests(unittest.TestCase):
             "builtin_runtime/index.html",
             "build_on_console/index.html",
             "send_operations/index.html",
+            "integrator_control/index.html",
             "recording/index.html",
         ):
             self.assertIn(target, links)
@@ -658,6 +659,7 @@ class WebsiteTests(unittest.TestCase):
                     "recording",
                     "build_on_console",
                     "send_operations",
+                    "integrator_control",
                     "sandbox_command",
                 },
             )

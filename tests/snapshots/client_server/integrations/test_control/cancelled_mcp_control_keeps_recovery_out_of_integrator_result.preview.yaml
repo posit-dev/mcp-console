@@ -1,0 +1,13 @@
+---
+request:
+  id: "1"
+  op: preview
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          integrator pending
+    isError: false

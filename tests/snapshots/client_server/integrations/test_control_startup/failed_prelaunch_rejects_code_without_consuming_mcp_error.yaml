@@ -1,0 +1,31 @@
+---
+scenario: >-
+  Integrator admission rejects a failed worker prelaunch and leaves its
+  diagnostic for MCP.
+fixture: >-
+  macOS Seatbelt denies the selected R installation's etc/Renviron file
+  during worker startup. A native checkpoint then holds readiness
+  publication until the integrator's waiting evaluation is journaled,
+  excluding dependency preparation from its admission deadline.
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        Can't read R resource directories: exit status: 1: <R_HOME>/bin/Rcmd: line 39: <R_HOME>/etc/Renviron: Operation not permitted
+
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 1]
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

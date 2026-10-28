@@ -1,0 +1,62 @@
+---
+scenario: >-
+  Restart returns a cancelled MCP error before its worker notices while
+  the integrator receives only its own stopped cell.
+fixture: >-
+  A Python cell ignores SIGINT and waits at a FIFO. A native
+  result-journal checkpoint holds an MCP interrupt response until
+  cancellation returns its delivery to MCP recovery.
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: sentinel = 0
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  control: interrupt
+  python: sentinel = 99
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        interrupted evaluation is still active; cell was not run
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print('replacement ready')
+result:
+  content:
+    - type: text
+      text: |
+        replacement ready
+  isError: false

@@ -51,6 +51,16 @@ The [server-relay](RELAY_PROTOCOL.md) and [relay-worker](WORKER_PROTOCOL.md) tra
 Interactive stdin and direct stdout/stderr are separate streams.
 Each producer preserves order, but their observation order does not reconstruct a global chronology.
 
+### Integrator control
+
+The optional Unix listener in [`server/control.rs`](../src/server/control.rs) shares the existing server and worker owners.
+MCP input closure owns shutdown; control connections cannot keep the runtime alive.
+Integrator evaluations acquire the same admission and preparation boundaries as MCP evaluations, retaining the generation they observed while waiting.
+Their terminal collector owns response delivery independently of the socket lifetime and prevents MCP polling or recovery from claiming their output.
+Previously pending MCP output stays with MCP.
+Inspection copies bounded presentation state without draining output, sealing terminal frames, accounting omissions, or acknowledging delivery.
+The socket does not select a new sandbox authority or add interpreter execution threads.
+
 ## Startup and runtime ownership
 
 The server captures configuration once and constructs tool presentation from it.
@@ -391,6 +401,9 @@ Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and
 Session documents follow actual worker lifetimes, including automatic replacements, and are created only when source is associated.
 Their metadata follows accepted live requirements and acquisition snapshots, including retained R declarations; replacement preparation does not rewrite a retiring session.
 The Markdown projection retains calls and assembled results, including previews and omission notices, while the journal retains routine protocol, delivery, and low-level lifecycle evidence.
+Integrator calls may omit their human-readable projections while preserving journal and raw capture.
+That choice moves from the recorded call into its evaluation owner, then into observed cell/post interval owners, so admission settlement cannot erase it before a late cell-entry receipt.
+Result fragments retain the same choice when later responses include their output; projection writers filter those fragments without changing the journal or delivery data.
 Completed interval files and images become read-only after their writers retire.
 The temporary-publication registry keeps weak references to active file handles and releases completed entries; publication copies completed files while relocating live producers.
 Process-wide files finalize only after retirement, delivery settlement, queued initial capture, and blocking result writers settle.

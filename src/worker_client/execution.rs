@@ -43,6 +43,32 @@ impl Client {
         control_prelude: &mut Option<Response>,
         initial_requirements: Option<Requirements>,
     ) -> Result<(Arc<Evaluation>, evaluation::WaitClaim), String> {
+        self.start_evaluation_owned(
+            cell,
+            stdin,
+            generation,
+            transcript,
+            call_id,
+            control,
+            control_prelude,
+            initial_requirements,
+            evaluation::Origin::Mcp,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn start_evaluation_owned(
+        &self,
+        cell: crate::cell::Cell,
+        stdin: Option<String>,
+        generation: WorkerGeneration,
+        transcript: crate::transcript::Transcript,
+        call_id: Option<u64>,
+        control: Option<&ControlledSendAdmission>,
+        control_prelude: &mut Option<Response>,
+        initial_requirements: Option<Requirements>,
+        origin: evaluation::Origin,
+    ) -> Result<(Arc<Evaluation>, evaluation::WaitClaim), String> {
         self.ensure_evaluation_admission(&generation, control)?;
 
         let mut active = self.evaluation()?;
@@ -58,16 +84,19 @@ impl Client {
             None => None,
         };
         let (idle_prelude, worker_revision) = self.0.output.take_admission_prelude();
-        let evaluation = Arc::new(Evaluation::new(
-            generation.clone(),
-            transcript,
-            call_id,
-            self.0.output.clone(),
-            control_prelude.take().unwrap_or_default(),
-            idle_prelude,
-            control.is_some(),
-            worker_revision,
-        ));
+        let evaluation = Arc::new(
+            Evaluation::new(
+                generation.clone(),
+                transcript,
+                call_id,
+                self.0.output.clone(),
+                control_prelude.take().unwrap_or_default(),
+                idle_prelude,
+                control.is_some(),
+                worker_revision,
+            )
+            .owned_by(origin, self.0.admission_changed.clone()),
+        );
         // Controlled restart retires its worker before admitting this evaluation.
         // Early ordinary cells also need association while awaiting startup.
         evaluation.associate_waiting_session();
@@ -140,6 +169,7 @@ impl Client {
             .unwrap_or(false);
         if reap {
             *active = None;
+            self.0.admission_changed.notify_waiters();
         }
         Ok(active)
     }

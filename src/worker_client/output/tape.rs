@@ -248,6 +248,37 @@ impl OutputTape {
         state.drain(cut)
     }
 
+    pub(in crate::worker_client) fn preview(&self) -> Vec<Content> {
+        self.snapshot().preview()
+    }
+
+    pub(in crate::worker_client) fn snapshot(&self) -> Response {
+        let state = self.lock();
+        let mut response = state
+            .recovered
+            .as_ref()
+            .map(Response::snapshot)
+            .unwrap_or_default();
+        state.snapshot_intervals_into(&mut response);
+        response
+    }
+
+    pub(in crate::worker_client) fn snapshot_cell(&self) -> Response {
+        let mut response = Response::default();
+        self.lock().snapshot_intervals_into(&mut response);
+        response
+    }
+
+    /// Return output held aside by an integrator evaluation to the front of
+    /// the MCP stream, preserving any response recovered in the meantime.
+    pub(in crate::worker_client) fn restore_prelude(&self, mut prelude: Response) {
+        let mut state = self.lock();
+        if let Some(recovered) = state.recovered.take() {
+            prelude.extend(recovered);
+        }
+        state.recovered = Some(prelude);
+    }
+
     pub(in crate::worker_client) fn take_prelude(&self) -> Response {
         self.take_prelude_before(|| {})
     }
@@ -285,6 +316,7 @@ impl OutputTape {
         &self,
         transcript: &crate::transcript::Transcript,
         call_id: Option<u64>,
+        omit_from_projections: bool,
     ) -> Result<(), String> {
         let mut state = self.lock();
         if state.cell_active {
@@ -296,7 +328,7 @@ impl OutputTape {
         state.seal(true);
         state.finish_idle_interval();
         state.cell_active = true;
-        match transcript.create_cell_output(call_id) {
+        match transcript.create_cell_output(call_id, omit_from_projections) {
             Ok(output) => state.cell_output = output,
             Err(error) => state.recording_notice(Some(format!("cell output file was not created: {error}; text omitted from inline responses will be permanently discarded"))),
         }
@@ -327,13 +359,22 @@ impl OutputTape {
         self.lock().drain(cut)
     }
 
+    /// Recovered MCP replies retain their transport owner even when they arrive
+    /// after an integrator cell has taken its admission-time idle prelude.
+    pub(in crate::worker_client) fn drain_cell_through(&self, cut: OutputCut) -> Response {
+        let mut response = Response::default();
+        self.lock().drain_intervals_into(cut, &mut response);
+        response
+    }
+
     pub(in crate::worker_client) fn recover(&self, response: Response) {
         let mut state = self.lock();
-        assert!(
-            state.recovered.is_none(),
-            "only one response can be recovered at a time"
-        );
-        state.recovered = Some(response);
+        // Cancelled MCP controls can settle while an integrator still owns the
+        // active cell. Preserve their order in one bounded response projection.
+        match state.recovered.as_mut() {
+            Some(recovered) => recovered.extend_logical_region(response),
+            None => state.recovered = Some(response),
+        }
     }
 }
 
@@ -518,6 +559,11 @@ impl OutputTapeState {
 
     fn drain(&mut self, cut: OutputCut) -> Response {
         let mut output = self.recovered.take().unwrap_or_default();
+        self.drain_intervals_into(cut, &mut output);
+        output
+    }
+
+    fn drain_intervals_into(&mut self, cut: OutputCut, output: &mut Response) {
         while self
             .sealed
             .front()
@@ -525,7 +571,38 @@ impl OutputTapeState {
         {
             output.extend(self.sealed.pop_front().expect("checked sealed interval").1);
         }
-        output
+    }
+
+    fn snapshot_intervals_into(&self, response: &mut Response) {
+        for (_, sealed) in &self.sealed {
+            response.extend(sealed.snapshot());
+        }
+        let mut current = self.current.response.snapshot();
+        // Finishing a copy reveals a pending progress frame without changing
+        // how later carriage returns or split terminal controls are interpreted.
+        self.terminal.clone().finish(&mut current.preview);
+        let output = if self.cell_active {
+            &self.cell_output
+        } else {
+            &self.session_output
+        };
+        let source = match output {
+            Some(output) => Source {
+                owner: self.owner,
+                file: Some(output.record().inspection_copy()),
+                journal: None,
+                raw_bytes: self.raw_bytes,
+                retained_bytes: output.retained_bytes(),
+                discarded_bytes: output.discarded_bytes(),
+            },
+            None => Source {
+                owner: self.owner,
+                raw_bytes: self.raw_bytes,
+                ..self.process_output.clone()
+            },
+        };
+        current.preview.source(source);
+        response.extend(current);
     }
 }
 

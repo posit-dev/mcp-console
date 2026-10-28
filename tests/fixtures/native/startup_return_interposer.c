@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #ifdef __linux__
@@ -16,6 +17,7 @@
 #include <stdarg.h>
 #include <sys/syscall.h>
 static int (*native_socketpair)(int, int, int, int[2]);
+static int (*native_fstat)(int, struct stat *);
 static int (*native_close)(int);
 static long (*native_syscall)(long, ...);
 #endif
@@ -24,6 +26,7 @@ static pid_t server_pid;
 static atomic_int completion_descriptor = -1;
 static pthread_t startup_thread;
 static atomic_bool completion_claimed = false;
+static _Thread_local bool startup_input_inspected;
 static _Thread_local bool released = false;
 
 __attribute__((constructor)) static void initialize(void) {
@@ -40,9 +43,11 @@ __attribute__((constructor)) static void initialize(void) {
     }
 #ifdef __linux__
     native_socketpair = dlsym(RTLD_NEXT, "socketpair");
+    native_fstat = dlsym(RTLD_NEXT, "fstat");
     native_close = dlsym(RTLD_NEXT, "close");
     native_syscall = dlsym(RTLD_NEXT, "syscall");
-    if (native_socketpair == NULL || native_close == NULL || native_syscall == NULL)
+    if (native_socketpair == NULL || native_fstat == NULL ||
+        native_close == NULL || native_syscall == NULL)
         _exit(120);
 #endif
 }
@@ -65,21 +70,33 @@ static void await_release(void) {
     close(descriptor);
 }
 
+static int observe_fstat(int descriptor, struct stat *status) {
+#ifdef __APPLE__
+    int result = fstat(descriptor, status);
+#else
+    int result = native_fstat(descriptor, status);
+#endif
+    if (result == 0 && getpid() == server_pid && descriptor == STDIN_FILENO)
+        startup_input_inspected = true;
+    return result;
+}
+
 static int observe_socketpair(int domain, int type, int protocol, int descriptors[2]) {
 #ifdef __APPLE__
     int result = socketpair(domain, type, protocol, descriptors);
 #else
     int result = native_socketpair(domain, type, protocol, descriptors);
 #endif
-    // Local-host startup creates the server's first socket pair for its input
-    // watcher. Python probes and compute owners create pairs only later, or in
-    // child processes. Its creator closes the first endpoint after initialize
-    // returns, before joining the watcher and returning the blocking task.
-    if (result == 0 && getpid() == server_pid &&
+    // Startup inspects MCP stdin, then creates its input watcher's socket pair
+    // on the same thread. Earlier pairs can belong to other process owners.
+    // The creator closes this endpoint after initialize returns, before joining
+    // the watcher and returning the blocking task.
+    if (result == 0 && getpid() == server_pid && startup_input_inspected &&
         atomic_load(&completion_descriptor) == -1) {
         if (domain != AF_UNIX || (type & SOCK_STREAM) == 0) _exit(124);
         startup_thread = pthread_self();
         atomic_store(&completion_descriptor, descriptors[0]);
+        startup_input_inspected = false;
     }
     return result;
 }
@@ -128,11 +145,16 @@ static int observe_cond_timedwait_relative(pthread_cond_t *condition, pthread_mu
     };
 
 DYLD_INTERPOSE(observe_socketpair, socketpair)
+DYLD_INTERPOSE(observe_fstat, fstat)
 DYLD_INTERPOSE(observe_close, close)
 DYLD_INTERPOSE(observe_cond_timedwait_relative, pthread_cond_timedwait_relative_np)
 #else
 int socketpair(int domain, int type, int protocol, int descriptors[2]) {
     return observe_socketpair(domain, type, protocol, descriptors);
+}
+
+int fstat(int descriptor, struct stat *status) {
+    return observe_fstat(descriptor, status);
 }
 
 int close(int descriptor) {

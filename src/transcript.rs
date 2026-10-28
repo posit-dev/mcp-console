@@ -42,6 +42,8 @@ pub(crate) struct Owner {
     pub session_id: u64,
     pub cell_id: Option<u64>,
     pub interval: Interval,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) omit_from_projections: bool,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -124,6 +126,15 @@ pub(crate) struct Call {
     parts: Arc<Mutex<Vec<ResultPart>>>,
     /// Actual worker addressed by a call that submitted source.
     addressed_session: Option<u64>,
+    omit_from_projections: bool,
+}
+
+enum CallSource {
+    Mcp,
+    #[cfg(unix)]
+    Integrator {
+        include_in_projections: bool,
+    },
 }
 #[derive(Clone)]
 pub(crate) struct Artifact {
@@ -229,6 +240,51 @@ impl Transcript {
         request_meta: &RequestMetaObject,
         request: &CallToolRequestParams,
     ) -> Call {
+        self.begin_call(
+            call_id,
+            at,
+            request_id,
+            request_meta,
+            request,
+            CallSource::Mcp,
+        )
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn begin_integrator(
+        &self,
+        request_id: &RequestId,
+        arguments: &serde_json::Map<String, Value>,
+        include_in_projections: bool,
+    ) -> Call {
+        self.begin_call(
+            self.reserve_call_id(),
+            Utc::now(),
+            request_id,
+            &RequestMetaObject::default(),
+            &CallToolRequestParams::new("send").with_arguments(arguments.clone()),
+            CallSource::Integrator {
+                include_in_projections,
+            },
+        )
+    }
+
+    fn begin_call(
+        &self,
+        call_id: u64,
+        at: DateTime<Utc>,
+        request_id: &RequestId,
+        request_meta: &RequestMetaObject,
+        request: &CallToolRequestParams,
+        source: CallSource,
+    ) -> Call {
+        let (origin, omit_from_projections) = match source {
+            CallSource::Mcp => (None, false),
+            #[cfg(unix)]
+            CallSource::Integrator {
+                include_in_projections,
+            } => (Some("integrator"), !include_in_projections),
+        };
         self.activate();
         self.update(|state| {
             let active = state.capture()?;
@@ -241,6 +297,8 @@ impl Transcript {
                     call_id,
                     request_id,
                     request: &request,
+                    origin,
+                    omit_from_projections,
                 },
                 at,
             )?;
@@ -257,11 +315,19 @@ impl Transcript {
             } else {
                 None
             };
+            if omit_from_projections {
+                self.1
+                    .lock()
+                    .expect("protocol capture lock")
+                    .omitted_calls
+                    .insert(call_id);
+            }
             Ok(Call {
                 id: Some(call_id),
                 result_images: Arc::new(Mutex::new(None)),
                 parts: Arc::new(Mutex::new(Vec::new())),
                 addressed_session,
+                omit_from_projections,
             })
         })
         .unwrap_or_else(Call::unrecorded)
@@ -293,7 +359,22 @@ impl Transcript {
                     Utc::now(),
                 )?;
             }
-            active.finish(call_id, images, &parts, response, Utc::now())
+            active.finish(
+                call_id,
+                images,
+                &parts,
+                response,
+                call.omit_from_projections,
+                Utc::now(),
+            )?;
+            if !active.call_sessions.contains_key(&call_id) {
+                self.1
+                    .lock()
+                    .expect("protocol capture lock")
+                    .omitted_calls
+                    .remove(&call_id);
+            }
+            Ok(())
         });
     }
     pub(crate) fn finalize(&self) {
@@ -639,6 +720,7 @@ impl ActiveTranscript {
         result_images: ResultImages,
         parts: &[ResultPart],
         response: &Result<CallToolResponse, ErrorData>,
+        omit_from_projections: bool,
         at: DateTime<Utc>,
     ) -> Result<(), String> {
         let outcome = match response {
@@ -655,6 +737,7 @@ impl ActiveTranscript {
                 call_id,
                 parts,
                 outcome,
+                omit_from_projections,
             },
             at,
         )
@@ -732,6 +815,7 @@ impl Call {
             result_images: Arc::new(Mutex::new(None)),
             parts: Arc::new(Mutex::new(Vec::new())),
             addressed_session: None,
+            omit_from_projections: false,
         }
     }
 

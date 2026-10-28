@@ -88,6 +88,8 @@ website:
           text: From Python
         - href: SEND_OPERATIONS.md
           text: Drive send directly
+        - href: INTEGRATOR_CONTROL.md
+          text: Integrator control
       - section: Builder reference
         contents:
         # Published routes link out without assigning these sources to two sidebars.

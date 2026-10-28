@@ -144,6 +144,29 @@ impl SendFailure {
 }
 
 impl Response {
+    /// Copy presentation state without claiming or acknowledging its delivery.
+    pub(super) fn snapshot(&self) -> Self {
+        Self {
+            preview: Box::new(self.preview.inspection_copy()),
+            is_error: self.is_error,
+            delivery: None,
+            phase_terminal: None,
+            phase: None,
+        }
+    }
+
+    pub(super) fn preview(&self) -> Vec<Content> {
+        self.preview.inspection_copy().render_preview()
+    }
+
+    /// The integrator collector owns its result even if its socket disconnects.
+    /// Acknowledge that ownership so MCP cannot recover the private response.
+    pub(super) fn settle_delivery(&mut self) {
+        if let Some(target) = self.delivery.take() {
+            target.delivered();
+        }
+    }
+
     pub(crate) fn tool_error(message: String) -> Self {
         let mut response = Self::default();
         response.push_tool_error(message);

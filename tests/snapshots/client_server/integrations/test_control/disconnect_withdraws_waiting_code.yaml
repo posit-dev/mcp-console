@@ -1,0 +1,34 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: sentinel = 0
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+    print("agent finished")
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        agent finished
+  isError: false
+---
+send:
+  python: print(sentinel)
+result:
+  content:
+    - type: text
+      text: |
+        0
+  isError: false

@@ -286,6 +286,9 @@ stdout: |
             Override layered global and project configuration; repeat for ordered
             dotted KEY=VALUE assignments
 
+        --control-socket <PATH>
+            Listen for integrator JSONL requests on a private Unix socket
+
         --no-sandbox
             Run evaluated code and dependency resolution with host permissions
 

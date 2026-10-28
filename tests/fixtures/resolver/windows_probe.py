@@ -19,7 +19,6 @@ def probe():
     for path in (
         protected / "escape",
         protected / ".agents/control",
-        Path(os.environ["PREPARATION_CACHE_CONTROL"]),
         Path(os.environ["PREPARATION_ALIAS"]) / "escape",
     ):
         try:

@@ -10,13 +10,13 @@ Otherwise they use `~/.agents/console/sessions/<run-id>/`; `MCP_CONSOLE_HOME` re
 Console does not create a project `.agents` directory just to select project storage.
 There is no aggregate quota or automatic cleanup, so remove old recordings deliberately.
 
-The first received MCP `tools/call` targeting `send` activates a recording for the Console process.
+The first received MCP `tools/call` targeting `send`, or a request on the optional [integrator control channel](INTEGRATOR_CONTROL.md), activates a recording for the Console process.
 Polls, input, controls, rejected submissions, and requests cancelled before execution all activate recording.
 Initialization, tool discovery, pings, startup output, and startup failure alone do not create a persistent recording.
 
 Console retains preceding protocol traffic and startup text/images temporarily.
-The first send publishes that prelude in its observed order with its original timestamps.
-If the process exits without send, Console discards the temporary capture.
+The activating request publishes that prelude in its observed order with its original timestamps.
+If the process exits without either kind of request, Console discards the temporary capture.
 The recording retains the process start time separately from publication time.
 Restarts and automatic worker replacement create numbered sessions within that same recording.
 Each cell gets a log file when execution starts, even if it produces no text output.
@@ -58,6 +58,10 @@ The original working directory is descriptive metadata rather than an execution 
 QMDs omit results, images, input, polls, and control wrappers.
 Existing recordings are not migrated or rewritten.
 
+An integrator evaluation can set `record: false` to omit its source, result, and associated output from the Markdown and QMD projections.
+Inspection requests on that channel also stay out of those documents.
+Their journal events and raw capture remain retained under the same limits and failure behavior.
+
 ### Output intervals
 
 Each actual worker session numbers executed cells from `001`.
@@ -87,8 +91,8 @@ Omission notices for that output reference the capture journal.
 
 ### Capture events and completion
 
-`capture/events.jsonl` records one JSON object per event, including MCP requests, responses, and notifications, canonical tool calls/results, worker lifetimes, dependency selections, and references to output logs and images.
-Protocol events reference the canonical send call/result records instead of duplicating their payloads.
+`capture/events.jsonl` records one JSON object per event, including MCP and integrator requests and responses, MCP notifications, canonical calls/results, worker lifetimes, dependency selections, and references to output logs and images.
+MCP protocol events reference the canonical send call/result records instead of duplicating their payloads.
 Events preserve observation timestamps and sequence numbers and identify the session, cell, and interval explicitly.
 Text events give byte ranges in the interval log so text/image ordering can be reconstructed.
 Each retained image has an `image_retained` event with its owner, artifact ID, and file path relative to the recording directory.
