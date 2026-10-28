@@ -765,11 +765,12 @@ base::local(
             render_preview(preview)
           }
           complete <- TRUE
-          ""
+          NULL
         },
         error = function(error) {
-          cat("Error: ", conditionMessage(error), "\n", sep = "")
-          conditionMessage(error)
+          message <- conditionMessage(error)
+          cat("Error: ", message, "\n", sep = "")
+          message
         }
       )
     }
