@@ -1296,13 +1296,20 @@ impl WorkerShutdownHandle {
         self.stdin.send(data)
     }
 
-    pub(super) fn interrupt(&self, evaluation: Option<&super::Evaluation>) -> Result<(), String> {
-        let acknowledgment = self
+    pub(super) fn interrupt(
+        &self,
+        evaluation: Option<&super::Evaluation>,
+    ) -> Result<super::lifecycle::InterruptOutcome, String> {
+        let Some(acknowledgment) = self
             .operation
-            .interrupt_cell(evaluation, || self.interrupts.enqueue(&self.commands))?;
+            .interrupt_cell(evaluation, || self.interrupts.enqueue(&self.commands))?
+        else {
+            return Ok(super::lifecycle::InterruptOutcome::TargetCompleted);
+        };
         acknowledgment
             .recv()
-            .map_err(|_| "worker interrupt response was not received".to_string())?
+            .map_err(|_| "worker interrupt response was not received".to_string())??;
+        Ok(super::lifecycle::InterruptOutcome::Accepted)
     }
 
     pub(super) fn is_bootstrapping(&self) -> Result<bool, String> {

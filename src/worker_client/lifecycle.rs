@@ -79,18 +79,28 @@ pub(super) enum SelectedInterruptTarget {
 #[cfg(unix)]
 pub(crate) struct IntegratorInterrupt(SelectedInterruptTarget);
 
+pub(super) enum InterruptOutcome {
+    Accepted,
+    TargetCompleted,
+}
+
 #[cfg(unix)]
 impl IntegratorInterrupt {
-    pub(crate) fn interrupt(self) -> Result<(), String> {
-        self.0.interrupt()
+    pub(crate) fn interrupt(self) -> Result<(), super::IntegratorError> {
+        match self.0.interrupt()? {
+            InterruptOutcome::Accepted => Ok(()),
+            InterruptOutcome::TargetCompleted => Err(super::IntegratorError::StaleEvaluation),
+        }
     }
 }
 
 impl SelectedInterruptTarget {
-    fn interrupt(&self) -> Result<(), String> {
+    fn interrupt(&self) -> Result<InterruptOutcome, String> {
         match self {
-            Self::Resolver { resolver, .. } => resolver.interrupt().map(|_| ()),
-            Self::Startup { .. } => Ok(()),
+            Self::Resolver { resolver, .. } => {
+                resolver.interrupt().map(|_| InterruptOutcome::Accepted)
+            }
+            Self::Startup { .. } => Ok(InterruptOutcome::Accepted),
             Self::Worker {
                 worker, evaluation, ..
             } => worker.interrupt(evaluation.as_deref()),
@@ -553,7 +563,7 @@ impl Client {
     }
 
     pub(super) fn interrupt_standalone_blocking(&self) -> Result<(), String> {
-        self.select_interrupt_target(false)?.interrupt()
+        self.select_interrupt_target(false)?.interrupt().map(|_| ())
     }
 
     #[cfg(unix)]
@@ -619,7 +629,7 @@ impl Client {
         if startup.is_some()
             && let Some(evaluation) = &evaluation
         {
-            evaluation.admission.interrupt(|| Ok(()))?;
+            let _ = evaluation.admission.interrupt(|| Ok(()))?;
         }
         if let Some(resolver) = lifecycle.processes.resolver.clone() {
             return Ok(SelectedInterruptTarget::Resolver {

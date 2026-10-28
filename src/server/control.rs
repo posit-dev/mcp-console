@@ -398,7 +398,7 @@ async fn handle(
                 tokio::task::spawn_blocking(move || target.interrupt())
                     .await
                     .expect("integrator interrupt task")
-                    .map_err(|message| ("execution_failed", message))?;
+                    .map_err(control_error)?;
                 Ok(CallToolResult::structured(json!({"accepted": true})))
             }
             Request::Preview { .. } => {

@@ -143,7 +143,7 @@ impl WorkerOperationState {
         // The caller holds the active-cell publication guard. Include cells
         // whose evaluator has not attached yet, but never a later admission.
         if interrupted && let Some(evaluation) = admitted {
-            evaluation.admission.interrupt(|| Ok(()))?;
+            let _ = evaluation.admission.interrupt(|| Ok(()))?;
         }
         state.bootstrap = if interrupted {
             Bootstrap::Interrupted
@@ -159,13 +159,14 @@ impl WorkerOperationState {
         &self,
         evaluation: Option<&Evaluation>,
         enqueue: impl FnOnce() -> Result<T, String>,
-    ) -> Result<T, String> {
+    ) -> Result<Option<T>, String> {
         // Lock order: active publication -> lifecycle -> operation -> admission
         // -> response/output. Never wait for a receipt while holding these.
-        let _state = self.lock()?;
+        let state = self.lock()?;
+        state.ensure_running()?;
         match evaluation {
             Some(evaluation) => evaluation.admission.interrupt(enqueue),
-            None => enqueue(),
+            None => enqueue().map(Some),
         }
     }
 
