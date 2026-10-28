@@ -1,0 +1,49 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: immediate_r_ran <- TRUE; cat("R immediate\n")
+response:
+  id: "1"
+  error:
+    code: busy
+    message: runner is busy; code was not run
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: |
+    with open('<workspace>/release', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    print("Python immediate released foreground")
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Python immediate released foreground
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: immediate_r_ran <- TRUE; cat("R immediate\n")
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          R immediate
+    isError: false
+    execution_error: ~

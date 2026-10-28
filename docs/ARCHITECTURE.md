@@ -65,6 +65,8 @@ Input and interruption pin the observed evaluation identity so a delayed control
 The socket does not select a new sandbox authority.
 
 Control requests with `execution: "immediate"` use a separate connection-owned result slot and bounded output tape.
+An immediate R request returns busy while an ordinary non-R cell is admitted.
+Admission holds the evaluation publication lock through command enqueue so accepted R work cannot be stranded behind a Python or SQL cell that blocks R event handling.
 The worker ingress thread dispatches Python requests to a background thread and queues R requests for the owning thread's event hook.
 R requests share one pending coordinator wakeup; only consuming that wakeup clears it, so event-hook execution cannot fill the command pipe with unread notifications.
 Neither path claims the ordinary evaluation or its output.

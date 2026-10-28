@@ -137,6 +137,7 @@ They run in the existing worker and share its objects and permissions.
 The integrator is responsible for coordinating access to those objects and choosing code that is safe to run concurrently.
 
 R requests run on R's owning thread when it services events, including during `Sys.sleep()`.
+They return `busy` while an ordinary Python or SQL cell is admitted, since those cells can block R event handling.
 They cannot preempt native code that does not service R events.
 R evaluates parsed expressions in the global environment and prints visible values; it leaves `.Last.value`, history, and ordinary REPL task callbacks alone.
 Deferred warnings are returned after each private expression, preserving the foreground warning queue and `last.warning`.

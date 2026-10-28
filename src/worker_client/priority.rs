@@ -63,6 +63,18 @@ impl Client {
             .try_read()
             .map_err(|_| IntegratorError::Busy)?;
         let result = {
+            // Non-R foreground work can block R event handling. Reject before
+            // reserving the sole priority slot, and retain publication through
+            // enqueue so an idle R request precedes any later ordinary cell.
+            let active = self.evaluation()?;
+            if matches!(execution, PriorityExecution::RReentrant)
+                && active.as_ref().is_some_and(|active| match active.language {
+                    Language::R => false,
+                    Language::Python | Language::Sql => true,
+                })
+            {
+                return Err(IntegratorError::Busy);
+            }
             let lifecycle = self
                 .0
                 .lifecycle
