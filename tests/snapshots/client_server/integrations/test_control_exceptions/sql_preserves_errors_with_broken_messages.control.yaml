@@ -1,0 +1,90 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: sql
+  code: SELECT 1
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: <exception str() failed>
+    isError: false
+    execution_error:
+      ename: BrokenMessage
+      evalue: <exception str() failed>
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: sql
+  code: SELECT 1
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: <exception str() failed>
+    isError: false
+    execution_error:
+      ename: BrokenMessage
+      evalue: <exception str() failed>
+      traceback: []
+---
+request:
+  id: "3"
+  op: evaluate
+  language: sql
+  code: SELECT 1
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<string>", line 318, in _evaluate
+            File "<mcp-console:python:e1>", line 26, in execute
+          BrokenBaseMessage: <exception str() failed>
+    isError: false
+    execution_error:
+      ename: BrokenBaseMessage
+      evalue: <exception str() failed>
+      traceback: []
+---
+request:
+  id: "4"
+  op: evaluate
+  language: sql
+  code: SELECT 1
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "4"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<string>", line 318, in _evaluate
+            File "<mcp-console:python:e1>", line 26, in execute
+          BrokenBaseMessage: <exception str() failed>
+    isError: false
+    execution_error:
+      ename: BrokenBaseMessage
+      evalue: <exception str() failed>
+      traceback: []

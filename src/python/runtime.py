@@ -500,7 +500,7 @@ def _mcp_console_print_exception(
 
     remove_private_frames(error, rendered)
     traceback = list(rendered.format())
-    _record_error(error, traceback)
+    _record_error(error, str(rendered), traceback)
     _sys.stderr.write("".join(traceback))
 
 

@@ -72,13 +72,15 @@ def resolve_import(module: str, distribution: str) -> str:
 
 
 def report_execution_error(
-    error: BaseException, traceback: list[str] | None = None
+    error: BaseException, message: str, traceback: list[str] | None = None
 ) -> None:
+    # Reuse TracebackException's captured message. Calling str(error) again can
+    # execute user code and replace the exception while reporting it.
     execution_error(
         json.dumps(
             {
                 "ename": type(error).__name__,
-                "evalue": str(error),
+                "evalue": message,
                 "traceback": [] if traceback is None else traceback,
             }
         )

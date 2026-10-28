@@ -337,11 +337,13 @@ def _evaluate(source):
             if not rows:
                 _release_result(_last_result)
     except Exception as error:
-        _services.report_execution_error(error)
-        print(f"Error: {error}")
+        rendered = _traceback.TracebackException.from_exception(error)
+        _services.report_execution_error(error, str(rendered))
+        print(f"Error: {rendered}")
     except BaseException as error:
-        _services.report_execution_error(error)
-        _traceback.print_exc()
+        rendered = _traceback.TracebackException.from_exception(error)
+        _services.report_execution_error(error, str(rendered))
+        rendered.print()
     finally:
         if not retained:
             _close_candidates(connection, (result, executor))
@@ -469,8 +471,9 @@ def _select_native_connection():
     try:
         _connection = _ensure_managed_connection()
     except Exception as error:
-        _services.report_execution_error(error)
-        print(f"Error: {error}")
+        rendered = _traceback.TracebackException.from_exception(error)
+        _services.report_execution_error(error, str(rendered))
+        print(f"Error: {rendered}")
         return False
     return True
 
