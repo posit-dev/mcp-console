@@ -1,6 +1,18 @@
 """Self-contained inspection programs, evaluated through the control socket."""
 
-R_SOURCE = """
+import json
+from pathlib import Path
+
+
+def inspection_source(language: str, output: Path) -> str:
+    """Write the bounded payload separately from user-defined method diagnostics."""
+    if language == "r":
+        return _R_SOURCE.replace("OUTPUT_PATH", json.dumps(str(output)))
+    assert language == "python"
+    return f"exec({_PYTHON_SOURCE!r}, {{'OUTPUT_PATH': {str(output)!r}}})"
+
+
+_R_SOURCE = """
 local({
   variables <- utils::ls.str(envir = globalenv(), all.names = FALSE)
   shown <- variables[seq_len(min(length(variables), 100L))]
@@ -38,18 +50,17 @@ local({
       omitted_tables <- omitted_tables + 1L
     }
   }
-  cat(encoded)
+  writeLines(enc2utf8(encoded), OUTPUT_PATH, useBytes = TRUE)
 })
 """
 
 # A private exec namespace keeps imports and helper bindings out of __main__.
 # Exact builtin types avoid user repr/iteration methods, including in containers.
-PYTHON_SOURCE = (
-    "exec("
-    + repr("""
+_PYTHON_SOURCE = """
 import __main__
 import json
 from itertools import islice
+from pathlib import Path
 import pandas as pd
 
 def preview(value: object, depth: int = 0) -> str:
@@ -101,7 +112,5 @@ while True:
     else:
         tables.pop()
         omitted_tables += 1
-print(encoded)
-""")
-    + ", {})"
-)
+Path(OUTPUT_PATH).write_text(encoded, encoding="utf-8")
+"""

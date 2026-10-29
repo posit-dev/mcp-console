@@ -120,6 +120,8 @@ It uses `utils::ls.str()` for R's global environment and bounded previews of Pyt
 Python previews display exact builtin values and small containers; other objects appear by type without calling custom `__repr__` methods.
 R uses its usual `str()` methods, which can evaluate promises or active bindings.
 R inspection requires R to service events and waits while an ordinary Python or SQL cell owns the worker; the pane retains its last view until inspection can resume.
+Bounded inspection data crosses the process boundary through a private temporary JSON file, separately from diagnostics emitted by R methods.
+Execution errors appear in the affected pane; later inspections can refresh it after the object is repaired or removed.
 Inspection output stays out of the transcript and pending-output preview.
 
 ## Manage environments

@@ -222,8 +222,10 @@ def test_table_filters_types_block_limits_and_close(console):
 
 
 @pytest.mark.parametrize("language", ["r", "python"])
-def test_variable_inspection_is_bounded_json_with_table_choices(console, language):
-    from inspection import PYTHON_SOURCE, R_SOURCE
+def test_variable_inspection_is_bounded_json_with_table_choices(
+    console, language, tmp_path
+):
+    from inspection import inspection_source
 
     client, control, _ = console
     if language == "r":
@@ -234,19 +236,27 @@ def test_variable_inspection_is_bounded_json_with_table_choices(console, languag
         client.expect(
             python='import pandas as pd\nframe = pd.DataFrame({"value": [1]})\nexec("for i in range(150): globals()[f\'variable_{i}\'] = chr(34) * 80")'
         )
+    names = (
+        "dput(ls(all.names=TRUE))" if language == "r" else "print(sorted(globals()))"
+    )
+    before = client.expect(None, **{language: names})["content"]
+    output = tmp_path / "variables.json"
     response = control.request(
         op="evaluate",
         language=language,
-        code=R_SOURCE if language == "r" else PYTHON_SOURCE,
+        code=inspection_source(language, output),
         execution="immediate",
         record=False,
     )
-    text = result_text(response)
+    assert "error" not in response, response
+    assert not response["result"]["isError"], response
+    text = output.read_text(encoding="utf-8")
     assert len(text.encode()) <= 7001
     payload = json.loads(text)
     assert payload["tables"] == ["frame"]
     assert payload["omitted_lines"] > 0
     assert "omitted" in payload["text"]
+    assert client.expect(None, **{language: names})["content"] == before
 
 
 def test_table_large_blocks_supported_scalars_and_replacement(console):

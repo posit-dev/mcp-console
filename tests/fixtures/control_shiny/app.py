@@ -21,7 +21,7 @@ from typing import Any
 
 from environments import EnvironmentActions, environments_server, environments_ui
 from exports import export_server, export_ui
-from inspection import PYTHON_SOURCE, R_SOURCE
+from inspection import inspection_source
 from openai_codex import ApprovalMode, AsyncCodex, AsyncThread, Sandbox
 from openai_codex.async_client import AsyncCodexClient
 from output_views import output_controls, response_controls
@@ -744,20 +744,45 @@ def make_app(binary: Path, workspace: Path) -> App:
                 if not active:
                     await asyncio.sleep(1)
                     continue
-                for language, source in (("r", R_SOURCE), ("python", PYTHON_SOURCE)):
+                for language in ("r", "python"):
                     observed_worker = ctx.worker_id
                     try:
-                        async with ctx.immediate:
-                            if not ctx.ready.is_set():
-                                break
-                            result = await scoped_request(
-                                ctx,
-                                op="evaluate",
-                                language=language,
-                                execution="immediate",
-                                code=source,
-                                record=False,
-                            )
+                        # Like table pages, structured inspection results use a
+                        # private file. User str() diagnostics can fill Console's
+                        # display budget without corrupting this payload.
+                        with tempfile.TemporaryDirectory(
+                            prefix="console-inspection-", dir="/tmp"
+                        ) as directory:
+                            output = Path(directory) / "variables.json"
+                            async with ctx.immediate:
+                                if not ctx.ready.is_set():
+                                    break
+                                result = await scoped_request(
+                                    ctx,
+                                    op="evaluate",
+                                    language=language,
+                                    execution="immediate",
+                                    code=inspection_source(language, output),
+                                    record=False,
+                                )
+                            if observed_worker != ctx.worker_id:
+                                continue
+                            if error := result.get("execution_error"):
+                                await change(
+                                    ctx.variable_views[language],
+                                    f"{error['ename']}: {error['evalue']}",
+                                )
+                                await change(ctx.table_names[language], [])
+                            elif result.get("isError"):
+                                await change(
+                                    ctx.variable_views[language],
+                                    "Inspection unavailable: request failed",
+                                )
+                                await change(ctx.table_names[language], [])
+                            else:
+                                view = json.loads(output.read_text(encoding="utf-8"))
+                                await change(ctx.variable_views[language], view["text"])
+                                await change(ctx.table_names[language], view["tables"])
                     except ControlError as error:
                         # Retirement may fail an already admitted inspection.
                         # Keep the periodic observer alive across that boundary;
@@ -770,22 +795,6 @@ def make_app(binary: Path, workspace: Path) -> App:
                             )
                             await change(ctx.table_names[language], [])
                         continue
-                    if observed_worker != ctx.worker_id:
-                        continue
-                    text = "".join(
-                        block["text"]
-                        for block in result["content"]
-                        if block["type"] == "text"
-                    )
-                    if error := result.get("execution_error"):
-                        await change(
-                            ctx.variable_views[language],
-                            f"{error['ename']}: {error['evalue']}",
-                        )
-                    else:
-                        view = json.loads(text)
-                        await change(ctx.variable_views[language], view["text"])
-                        await change(ctx.table_names[language], view["tables"])
                 await asyncio.sleep(1)
 
         async def connect() -> None:
