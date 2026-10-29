@@ -73,6 +73,7 @@ class ConsoleSession:
         default_factory=lambda: reactive.value("Starting…")
     )
     ready: asyncio.Event = field(default_factory=asyncio.Event)
+    generation: asyncio.Event = field(default_factory=asyncio.Event)
     immediate: asyncio.Lock = field(default_factory=asyncio.Lock)
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
     variable_views: dict[str, reactive.Value[str]] = field(
@@ -301,6 +302,29 @@ def make_app(binary: Path, workspace: Path) -> App:
         def live(ctx: ConsoleSession) -> bool:
             return contexts.get(ctx.name) is ctx and not ctx.closing
 
+        def invalidate_pending(ctx: ConsoleSession) -> None:
+            ctx.generation.set()
+            ctx.generation = asyncio.Event()
+
+        def require_generation(ctx: ConsoleSession, generation: asyncio.Event) -> None:
+            if generation.is_set() or not live(ctx):
+                raise asyncio.CancelledError
+
+        async def wait_ready(ctx: ConsoleSession, generation: asyncio.Event) -> None:
+            # User actions belong to the generation observed at submission.
+            # The reusable readiness event also serves long-lived inspectors.
+            waiting = [
+                asyncio.create_task(ctx.ready.wait()),
+                asyncio.create_task(generation.wait()),
+            ]
+            try:
+                await asyncio.wait(waiting, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                for task in waiting:
+                    task.cancel()
+                await asyncio.gather(*waiting, return_exceptions=True)
+            require_generation(ctx, generation)
+
         def resolve(value: dict[str, Any]) -> ConsoleSession:
             ctx = contexts.get(value["session"])
             if ctx is None or not live(ctx) or ctx.incarnation != value["incarnation"]:
@@ -491,6 +515,7 @@ def make_app(binary: Path, workspace: Path) -> App:
             for item in snapshot["evaluations"]:
                 retained.observe({**item, **ctx.metadata()})
             if changed:
+                invalidate_pending(ctx)
                 ctx.ready.clear()
                 if ctx.preparing is not None:
                     ctx.preparing.cancel()
@@ -663,10 +688,12 @@ def make_app(binary: Path, workspace: Path) -> App:
         async def retire(ctx: ConsoleSession) -> None:
             if contexts.get(ctx.name) is not ctx:
                 return
+            ctx.closing = True
+            invalidate_pending(ctx)
+            ctx.ready.clear()
             with reactive.isolate():
                 if current() is ctx:
                     await activate(contexts["default"])
-            ctx.closing = True
             active = list(ctx.tasks)
             for task in active:
                 task.cancel()
@@ -887,9 +914,19 @@ def make_app(binary: Path, workspace: Path) -> App:
                         connected = False
 
         async def evaluate(
-            ctx: ConsoleSession, language: str, source: str, execution: str
+            ctx: ConsoleSession,
+            generation: asyncio.Event,
+            language: str,
+            source: str,
+            execution: str,
         ) -> None:
-            await ctx.ready.wait()
+            try:
+                await wait_ready(ctx, generation)
+            except asyncio.CancelledError:
+                await control_notice(
+                    ctx, "cancelled", "Queued submission cancelled before execution."
+                )
+                raise
             if language == "sql" and execution == "immediate":
                 raise ValueError("SQL supports Ordinary execution only")
             request_id = uuid.uuid4().hex
@@ -917,9 +954,18 @@ def make_app(binary: Path, workspace: Path) -> App:
             try:
                 if execution == "immediate":
                     async with ctx.immediate:
+                        require_generation(ctx, generation)
                         result = await scoped_request(ctx, **fields)
                 else:
+                    require_generation(ctx, generation)
                     result = await scoped_request(ctx, **fields)
+            except asyncio.CancelledError:
+                await message(
+                    ctx,
+                    "submission",
+                    submitted_source(ctx, {**submission, "state": "cancelled"}),
+                )
+                raise
             except Exception as error:
                 await message(
                     ctx,
@@ -983,6 +1029,10 @@ def make_app(binary: Path, workspace: Path) -> App:
             if ctx.restart_active:
                 return
             ctx.restart_active = True
+            was_ready = ctx.ready.is_set()
+            observed_worker = ctx.worker_id
+            invalidate_pending(ctx)
+            ctx.ready.clear()
             try:
                 await control_notice(
                     ctx, "restart", "Human requested a session restart."
@@ -1000,6 +1050,8 @@ def make_app(binary: Path, workspace: Path) -> App:
                     "Session restarted; previous in-memory state was cleared.",
                 )
             except ControlError as error:
+                if was_ready and observed_worker == ctx.worker_id and live(ctx):
+                    ctx.ready.set()
                 await control_notice(ctx, "restart", f"Restart request failed: {error}")
                 await change(ctx.state, f"Restart failed: {error}")
             finally:
@@ -1010,19 +1062,22 @@ def make_app(binary: Path, workspace: Path) -> App:
                 ui.update_navset("inspector_tab", selected="Table", session=session)
             await ctx.table.open(language, name)
 
-        async def agent_reply(ctx: ConsoleSession, prompt: str) -> AsyncIterator[str]:
+        async def agent_reply(
+            ctx: ConsoleSession, generation: asyncio.Event, prompt: str
+        ) -> AsyncIterator[str]:
             nonlocal agent_active
             if agent_active:
                 raise RuntimeError("Wait for the active agent response")
             agent_active = True
             try:
-                await ctx.ready.wait()
+                await wait_ready(ctx, generation)
                 assert thread is not None
                 await change(agent_status, "Running")
                 streamed_items: set[str] = set()
                 previous_item: str | None = None
                 owners: dict[str, ConsoleSession] = {}
                 origins: dict[str, ConsoleSession] = {}
+                require_generation(ctx, generation)
                 turn = await thread.turn(
                     f"Selected Console session: {json.dumps(ctx.name)}.\n\n{prompt}",
                     model=MODEL,
@@ -1196,6 +1251,9 @@ def make_app(binary: Path, workspace: Path) -> App:
                         await change(
                             agent_status, event.payload.turn.status.value.title()
                         )
+            except asyncio.CancelledError:
+                await change(agent_status, "Cancelled")
+                raise
             except Exception as error:
                 LOGGER.exception("Agent response failed")
                 await change(state, f"Error: {error}")
@@ -1223,6 +1281,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                 # Fence and cancel UI producers before retirement; otherwise a
                 # queued setup cell could reopen the worker just after close.
                 ctx.closing = True
+                invalidate_pending(ctx)
                 ctx.ready.clear()
                 active = list(ctx.tasks)
                 for task in active:
@@ -1290,7 +1349,14 @@ def make_app(binary: Path, workspace: Path) -> App:
         def submit_code() -> None:
             ctx = requested()
             start(
-                evaluate(ctx, input.language(), input.source(), input.execution()), ctx
+                evaluate(
+                    ctx,
+                    ctx.generation,
+                    input.language(),
+                    input.source(),
+                    input.execution(),
+                ),
+                ctx,
             )
 
         @reactive.effect
@@ -1327,7 +1393,10 @@ def make_app(binary: Path, workspace: Path) -> App:
         async def submit_prompt(prompt: str) -> None:
             # Shiny runs this iterator in its own ExtendedTask, so Console's
             # direct controls and subscriptions remain responsive during a turn.
-            await agent_chat.append_message_stream(agent_reply(requested(), prompt))
+            ctx = requested()
+            await agent_chat.append_message_stream(
+                agent_reply(ctx, ctx.generation, prompt)
+            )
 
         @render.text
         def connection_state() -> str:

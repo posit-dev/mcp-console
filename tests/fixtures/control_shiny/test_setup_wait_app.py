@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect
+from shiny.playwright.controller import Chat
 from test_app import submit
 from test_sessions_app import create_session
 
@@ -180,3 +181,64 @@ def test_close_cancels_setup_wait_before_reopening_named_session(waiting_session
     expect(page.locator("#transcript .entry:visible .content").last).to_have_text(
         "False\n", timeout=30_000
     )
+
+
+@pytest.mark.parametrize("execution", ["Ordinary", "Immediate"])
+def test_restart_does_not_replay_submission_waiting_for_setup(
+    waiting_session, execution
+):
+    page, workspace, control, pending, journal, _ = waiting_session
+    source = (
+        "from pathlib import Path\nqueued_before_restart = 99\n"
+        'Path("queued-before-restart-ran").touch()'
+    )
+    page.get_by_label(execution, exact=True).check()
+    submit(page, "python", source)
+    page.locator("#restart").click()
+    assert control.receive(pending)["result"]["isError"] is True
+    expect(page.locator("#connection_state")).to_have_text("Ready", timeout=30_000)
+    # A fresh submission is an execution barrier after replacement setup. The
+    # earlier click must never become a call against this replacement worker.
+    submit(page, "python", 'print("queued_before_restart" in globals())')
+    expect(page.locator("#transcript .entry:visible .content").last).to_have_text(
+        "False\n", timeout=30_000
+    )
+    assert not (workspace / "queued-before-restart-ran").exists()
+    assert not any(
+        event["event"] == "tool_call"
+        and event["request"]["arguments"].get("python") == source
+        for event in journal_events(journal)
+    )
+
+
+def test_close_cancels_chat_readiness_and_allows_another_prompt(waiting_session):
+    page, workspace, control, pending, _, _ = waiting_session
+    chat = Chat(page, "agent_chat")
+    request = {key: value for key, value in pending["request"].items() if key != "id"}
+    for attempt in range(2):
+        if attempt:
+            (workspace / "setup-wait-started").unlink()
+            pending = control.start(**request)
+            wait_for_path(
+                workspace / "setup-wait-started", "reopened evaluation started"
+            )
+            expect(
+                page.locator('#console_session option[value="already_running"]')
+            ).to_have_count(1, timeout=30_000)
+            page.locator("#console_session").select_option("already_running")
+            expect(page.locator("#connection_state")).to_have_text(
+                "Preparing managed environments…"
+            )
+        # Setup remains blocked, so neither prompt starts model inference.
+        chat.loc_input.fill(f"Prompt waiting for session setup {attempt}")
+        chat.send_user_input(method="click")
+        expect(chat.loc_input_button).to_have_accessible_name("Loading")
+        page.locator("#close_console_session").click()
+        expect(
+            page.locator('#console_session option[value="already_running"]')
+        ).to_have_count(0, timeout=30_000)
+        assert control.receive(pending)["result"]["isError"] is True
+        expect(chat.loc_input_button).to_have_accessible_name(
+            "Send message", timeout=10_000
+        )
+        expect(page.locator("#connection_state")).to_have_text("Ready")

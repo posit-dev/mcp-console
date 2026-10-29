@@ -52,6 +52,8 @@ Console selects and prepares its usual managed environments; its embedded Python
 The app declares its viewer dependencies through Console's ordinary requirements mechanism before making immediate requests.
 Session setup keeps waiting while existing execution holds the worker, renewing expired admission waits.
 Closing a session or replacing its worker cancels pending setup.
+Queued submissions and prompts also belong to the worker generation selected when they were sent.
+Restarting or closing that session cancels their readiness waits; cancelled prompts release the native chat input.
 SQL uses Console's selected SQL connection and ordinary execution semantics.
 
 Submitted code has separate language and origin labels.
