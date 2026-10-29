@@ -61,12 +61,38 @@ Submitted R, Python, and SQL code uses Shiny's native Markdown component for syn
 The native Shiny code editor starts in Python mode and follows the selected language.
 The typed-output transcript keeps a small incremental renderer to reconcile concurrent evaluations without replacing messages or resetting the viewer's scroll position.
 
+The **Export** menu at the transcript's top right copies Console's existing projections to the clipboard.
+**Copy QMD** copies source and environment metadata for the current worker; a new worker has no QMD until recorded code is submitted.
+**Copy Markdown** copies the recording's transcript across worker sessions, including recorded output and image links.
+Exports read the recording files rather than the browser's bounded output history, and private inspection calls remain omitted.
+These are text copies at read time: image and retained-output links remain relative to the recording directory, and running output can continue afterward.
+The browser reports clipboard permission or read failures instead of claiming the text was copied.
+
 The Variables pane refreshes about once a second through private immediate requests, including while an ordinary cell is running.
 It uses `utils::ls.str()` for R's global environment and bounded previews of Python's `__main__` symbols, showing up to 100 names per language.
 Python previews display exact builtin values and small containers; other objects appear by type without calling custom `__repr__` methods.
 R uses its usual `str()` methods, which can evaluate promises or active bindings.
 R inspection requires R to service events and waits while an ordinary Python or SQL cell owns the worker; the pane retains its last view until inspection can resume.
 Inspection output stays out of the transcript and pending-output preview.
+
+## Manage environments
+
+The **Environments** tab uses Shiny's native filterable, sortable DataTable for the complete requirements list.
+It shows accepted declarations and Console runtime dependencies, not an installed-package inventory or resolved versions.
+The preparation indicator is Console's aggregate environment flag.
+The app also requests Python `pandas` and `duckdb` for its table viewer during session setup.
+
+Select R, Python, or DuckDB extensions, enter one complete requirement per line, then choose **Add and prepare**.
+For example, keep a Python constraint such as `requests[socks]>=2,<3` on one line.
+Preparation uses Console's existing managed environments and policies without an agent turn or an immediate evaluation.
+Private inspection and table requests pause while the app prepares requirements.
+Busy execution returns a visible status without retrying automatically; the draft is preserved for retry or correction.
+Human preparation requests and outcomes appear as transcript notices, with diagnostics in the Environments tab.
+
+The accepted list refreshes after operations and worker replacement without overwriting the draft.
+Failures can retain successfully activated changes from a mixed-language request, so the refreshed declaration is the source of truth.
+This first version adds requirements only; replacement, reset, and interpreter changes that require restart remain outside this panel.
+The ordinary Restart button retains accepted requirements and does not apply an unaccepted draft.
 
 ## Inspect plots
 

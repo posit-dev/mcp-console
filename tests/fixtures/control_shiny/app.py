@@ -21,6 +21,8 @@ from openai_codex.async_client import AsyncCodexClient
 from pydantic import RootModel
 from shiny import App, Inputs, Outputs, Session, reactive, render, ui
 
+from environments import environments_server, environments_ui
+from exports import export_server, export_ui
 from inspection import PYTHON_SOURCE, R_SOURCE
 from table_pane import table_server, table_ui
 
@@ -99,7 +101,11 @@ def make_app(binary: Path, workspace: Path) -> App:
                 ),
             ),
             ui.card(
-                ui.card_header("Console transcript"),
+                ui.card_header(
+                    ui.span("Console transcript"),
+                    export_ui(),
+                    class_="d-flex justify-content-between align-items-center",
+                ),
                 ui.card_body(
                     ui.div(id="transcript"),
                     ui.div(id="output-omissions"),
@@ -187,6 +193,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                     ui.div(id="plots"),
                 ),
                 ui.nav_panel("Table", table_ui("table")),
+                ui.nav_panel("Environments", environments_ui("environments")),
                 id="inspector_tab",
             ),
             col_widths=(3, 5, 4),
@@ -281,6 +288,8 @@ def make_app(binary: Path, workspace: Path) -> App:
                     return
             ready.set()
             await change(state, "Ready")
+            if connected:
+                await environments.refresh()
 
         def submitted_source(metadata: dict[str, Any]) -> dict[str, Any]:
             # Native MarkdownStream performs syntax highlighting. The fence is
@@ -344,6 +353,51 @@ def make_app(binary: Path, workspace: Path) -> App:
             task.add_done_callback(tasks.discard)
 
         table = table_server("table", private_evaluate, immediate, ready, start)
+
+        async def environment_request(**fields: Any) -> dict[str, Any]:
+            if not connected:
+                raise RuntimeError("Console is not connected yet.")
+            return await request(endpoint, **fields)
+
+        async def prepare_requirements(requirements: dict[str, Any]) -> dict[str, Any]:
+            if not connected or not ready.is_set():
+                raise RuntimeError("Wait for Console's managed session to be ready.")
+            observed_worker = worker_id
+            ready.clear()
+            await control_notice(
+                "requirements",
+                f"Human requested requirement preparation: {json.dumps(requirements)}",
+            )
+            try:
+                async with immediate:
+                    if not connected or observed_worker != worker_id:
+                        raise RuntimeError(
+                            "Session changed before requirement preparation; review the draft and retry."
+                        )
+                    result = await request(
+                        endpoint, op="prepare", requirements=requirements
+                    )
+                await publish_snapshot(await request(endpoint, op="output"))
+                await control_notice(
+                    "requirements", f"Requirement preparation: {result['status']}."
+                )
+                return result
+            except (RuntimeError, OSError) as error:
+                await control_notice(
+                    "requirements", f"Requirement preparation failed: {error}"
+                )
+                raise
+            finally:
+                if connected and observed_worker == worker_id:
+                    ready.set()
+
+        environments = environments_server(
+            "environments",
+            request=environment_request,
+            prepare=prepare_requirements,
+            start=start,
+        )
+        export_server(input, session, lambda: environment_request(op="recording"))
 
         async def inspect_variables() -> None:
             while True:
@@ -474,6 +528,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                         # subscription snapshots from startup.
                         await publish_snapshot(await request(endpoint, op="output"))
                         connected = True
+                        await environments.refresh()
                         start(inspect_variables())
                         while line := await reader.readline():
                             event = json.loads(line)
@@ -532,6 +587,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                 )
                 raise
             await publish_snapshot(result["output"])
+            start(environments.refresh())
 
         async def control_notice(kind: str, text: str) -> None:
             await session.send_custom_message("notice", {"kind": kind, "text": text})
@@ -714,6 +770,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                 raise
             finally:
                 agent_active = False
+                start(environments.refresh())
 
         @reactive.effect
         def editor_language() -> None:
@@ -754,6 +811,11 @@ def make_app(binary: Path, workspace: Path) -> App:
         def select_table() -> None:
             value = input.open_table()
             start(open_table(value["language"], value["name"]))
+
+        @reactive.effect
+        def inspect_environments() -> None:
+            if input.inspector_tab() == "Environments" and connected:
+                start(environments.refresh())
 
         @agent_chat.on_user_submit
         async def submit_prompt(prompt: str) -> None:

@@ -4,6 +4,7 @@
   const plots = new Map();
   const agentRequests = new Map();
   const idleOwners = new Map();
+  const exports = new Map();
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -176,10 +177,46 @@
     document.querySelectorAll('.history').forEach(followBottom);
     document.querySelector('#plot-close').onclick = () => document.querySelector('#plot-dialog').close();
     document.addEventListener('click', event => {
+      const copy = event.target.closest('[data-export-format]');
+      if (copy) {
+        const status = document.querySelector('#export_status');
+        const label = copy.dataset.exportFormat === 'qmd' ? 'QMD' : 'Markdown';
+        if (!navigator.clipboard?.write || !window.ClipboardItem) {
+          status.textContent = 'Copy failed: this browser does not support clipboard writing.';
+          return;
+        }
+        const id = crypto.randomUUID();
+        const pending = {};
+        const text = new Promise((resolve, reject) => Object.assign(pending, {resolve, reject}));
+        exports.set(id, pending);
+        document.querySelectorAll('[data-export-format]').forEach(button => { button.disabled = true; });
+        status.textContent = `Copying ${label}…`;
+        // Start clipboard access inside the click gesture. The promised Blob
+        // lets Console's projection arrive asynchronously without a stale cache.
+        navigator.clipboard.write([new ClipboardItem({
+          'text/plain': text.then(value => new Blob([value], {type: 'text/plain'})),
+        })]).then(() => {
+          status.textContent = `Copied ${label}.`;
+        }).catch(error => {
+          status.textContent = `Copy failed: ${pending.error || error.message}`;
+        }).finally(() => {
+          exports.delete(id);
+          document.querySelectorAll('[data-export-format]').forEach(button => { button.disabled = false; });
+        });
+        Shiny.setInputValue('export_request', {id, format: copy.dataset.exportFormat}, {priority: 'event'});
+      }
       const button = event.target.closest('[data-table-language]');
       if (button) Shiny.setInputValue('open_table', {language: button.dataset.tableLanguage, name: button.dataset.tableName, nonce: Date.now()}, {priority: 'event'});
     });
     Shiny.addCustomMessageHandler('submission', entry);
+    Shiny.addCustomMessageHandler('export-projection', message => {
+      const pending = exports.get(message.id);
+      if (!pending) return;
+      if (message.error) {
+        pending.error = message.error;
+        pending.reject(new Error(message.error));
+      } else pending.resolve(message.text);
+    });
     Shiny.addCustomMessageHandler('output-snapshot', snapshot);
     Shiny.addCustomMessageHandler('agent-outcome', message => {
       for (const id of message.ids) {
