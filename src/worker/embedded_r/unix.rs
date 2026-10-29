@@ -30,6 +30,10 @@ pub(super) struct Events {
 }
 
 unsafe extern "C" {
+    fn mcp_r_priority_configure(
+        previous: Option<unsafe extern "C-unwind" fn()>,
+        priority: extern "C" fn(),
+    );
     fn mcp_r_run_ready_handlers(
         top_level_exec: TopLevelExec,
         check_activity: CheckActivity,
@@ -45,6 +49,10 @@ unsafe extern "C" {
         sideband_fd: c_int,
         wait_usec: c_int,
     ) -> c_int;
+}
+
+unsafe extern "C-unwind" {
+    fn mcp_r_priority_events();
 }
 
 pub(super) fn initialize_r(
@@ -113,6 +121,13 @@ impl Events {
         R_EVENTS
             .set(self)
             .map_err(|_| io::Error::other("R event handlers were already initialized"))?;
+        unsafe {
+            mcp_r_priority_configure(
+                libr::get(libr::R_PolledEvents),
+                super::super::priority::run_r,
+            );
+            libr::set(libr::R_PolledEvents, Some(mcp_r_priority_events));
+        }
         Ok(())
     }
 }

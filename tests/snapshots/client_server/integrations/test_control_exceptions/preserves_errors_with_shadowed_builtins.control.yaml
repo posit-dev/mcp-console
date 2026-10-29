@@ -1,0 +1,116 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: serial
+  code: raise ValueError('original failure')
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<mcp-console:python:e3>", line 1, in <module>
+          ValueError: original failure
+    isError: false
+    execution_error:
+      ename: ValueError
+      evalue: original failure
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<mcp-console:python:e3>", line 1, in <module>
+        - |
+          ValueError: original failure
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: raise ValueError('original failure')
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<integrator>", line 1, in <module>
+          ValueError: original failure
+    isError: false
+    execution_error:
+      ename: ValueError
+      evalue: original failure
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<integrator>", line 1, in <module>
+        - |
+          ValueError: original failure
+---
+request:
+  id: "3"
+  op: evaluate
+  language: python
+  execution: serial
+  code: raise ValueError('original failure')
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<mcp-console:python:e8>", line 1, in <module>
+          ValueError: original failure
+    isError: false
+    execution_error:
+      ename: ValueError
+      evalue: original failure
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<mcp-console:python:e8>", line 1, in <module>
+        - |
+          ValueError: original failure
+---
+request:
+  id: "4"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: raise ValueError('original failure')
+response:
+  id: "4"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<integrator>", line 1, in <module>
+          ValueError: original failure
+    isError: false
+    execution_error:
+      ename: ValueError
+      evalue: original failure
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<integrator>", line 1, in <module>
+        - |
+          ValueError: original failure

@@ -1,0 +1,24 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    if (sys.nframe() != 0L) {
+      stop("not top level")
+    }
+    initial_handlers <- globalCallingHandlers()
+    options(interrupt = function() cat("interrupt option\n"))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

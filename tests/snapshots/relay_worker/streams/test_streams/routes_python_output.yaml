@@ -82,6 +82,19 @@ worker:
     ValueError: boom
 ---
 worker:
+  kind: execution_error
+  error:
+    ename: ValueError
+    evalue: boom
+    traceback:
+      - |
+        Traceback (most recent call last):
+      - |2
+          File "<mcp-console:python:e1>", line 19, in <module>
+      - |
+        ValueError: boom
+---
+worker:
   kind: completed
 ---
 relay:

@@ -419,6 +419,8 @@ fn edit_codex(
         ),
     );
     desired.insert("enabled", value(true));
+    // Codex's 5 KB default strips Console's argument descriptions.
+    desired.insert("tool_input_schema_max_bytes", value(12_000));
     // This per-server policy keeps tools directly exposed without disabling
     // tool search for other servers. Strict Code Mode Only overrides it.
     desired.insert(
@@ -441,7 +443,35 @@ fn edit_codex(
     parent.set_implicit(true);
     snippet["mcp_servers"] = Item::Table(parent);
     snippet["mcp_servers"][&options.name] = Item::Table(desired);
+    for config in [&mut document, &mut snippet] {
+        comment_toml_setting(
+            config.as_table_mut(),
+            &["mcp_servers", &options.name, "tool_input_schema_max_bytes"],
+            "# Limit schema size to less than roughly 1% of the stock 272k-token context.",
+        );
+    }
     Ok((document.to_string(), snippet.to_string()))
+}
+
+fn comment_toml_setting(table: &mut Table, path: &[&str], comment: &str) {
+    let (key, rest) = path.split_first().expect("setting path is nonempty");
+    if !rest.is_empty()
+        && let Some(child) = table[key].as_table_mut()
+    {
+        comment_toml_setting(child, rest, comment);
+        return;
+    }
+    // Comments cannot go inside single-line inline tables. Annotate their
+    // containing key instead, preserving the user's table layout and comments.
+    let mut key = table.key_mut(key).expect("setting was configured");
+    let decor = key.leaf_decor_mut();
+    let prefix = decor
+        .prefix()
+        .and_then(|prefix| prefix.as_str())
+        .unwrap_or_default();
+    if !prefix.lines().any(|line| line == comment) {
+        decor.set_prefix(format!("{prefix}{comment}\n"));
+    }
 }
 
 // Merge managed leaves without replacing other tool settings or TOML decoration.

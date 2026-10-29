@@ -1,0 +1,10 @@
+---
+request:
+  id: "1"
+  op: interrupt
+  evaluation_id: 2
+response:
+  id: "1"
+  error:
+    code: stale_evaluation
+    message: evaluation is no longer active

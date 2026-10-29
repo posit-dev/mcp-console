@@ -37,4 +37,6 @@ For a particular configuration key, use the [settings index](REFERENCE.md#config
 
 The [glossary](GLOSSARY.md) defines terms used in these pages.
 
+Internal integration development is covered by the unstable [integrator control channel](INTEGRATOR_CONTROL.md).
+
 <span id="reference"></span> <span id="configure-a-project"></span> <span id="public-reference"></span> <span id="develop-console"></span>

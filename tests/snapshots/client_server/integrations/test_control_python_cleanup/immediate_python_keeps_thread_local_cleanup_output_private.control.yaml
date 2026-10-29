@@ -1,0 +1,32 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: immediate
+  record: false
+  code: |
+    import sys
+    import threading
+
+    cleanup_local = threading.local()
+
+    class CleanupOutput:
+        def __del__(self):
+            print("private thread cleanup", flush=True)
+            print("private cleanup diagnostic", file=sys.stderr, flush=True)
+
+    cleanup_local.value = CleanupOutput()
+    print("private body")
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          private body
+          private thread cleanup
+          private cleanup diagnostic
+    isError: false
+    execution_error: ~

@@ -1,3 +1,5 @@
+use crate::r_bridge::EvaluationOutcome;
+
 const SQL_BRIDGE_SOURCE: &str = include_str!("bridge.R");
 
 pub(super) struct Backend(crate::r_bridge::Bridge);
@@ -26,7 +28,16 @@ impl Backend {
     }
 
     pub(super) fn evaluate(&self, source: &str) -> Result<(), String> {
-        self.0.evaluate(source)
+        match self.0.evaluate_outcome(source)? {
+            EvaluationOutcome::Complete => {}
+            EvaluationOutcome::Error(message) => crate::worker::record_execution_error(
+                crate::worker_protocol::ExecutionError::new("SQLError", message),
+            ),
+            EvaluationOutcome::Interrupted => crate::worker::record_execution_error(
+                crate::worker_protocol::ExecutionError::new("KeyboardInterrupt", ""),
+            ),
+        }
+        Ok(())
     }
 
     pub(super) fn close_result(&self) -> Result<(), String> {

@@ -13,6 +13,8 @@ mod input;
 #[cfg(any(unix, windows))]
 mod interrupt;
 #[cfg(any(unix, windows))]
+mod priority;
+#[cfg(any(unix, windows))]
 mod r_integration;
 
 // Keep the rest of the crate dependent on the worker facade. The core owns
@@ -27,8 +29,8 @@ pub(crate) use core::mark_shutting_down;
 pub(crate) use core::{
     bootstrapping, emit_output, is_shutting_down, publish_plot, publish_python_activation,
     publish_python_activation_failure, publish_r_activation, publish_r_activation_failure,
-    record_bootstrap_interrupt, record_worker_failure, resolve_python, resolve_python_version,
-    resolve_r,
+    record_bootstrap_interrupt, record_execution_error, record_worker_failure, resolve_python,
+    resolve_python_version, resolve_r,
 };
 #[cfg(unix)]
 pub(crate) use input::python_interrupt_wakeup;
@@ -42,6 +44,8 @@ pub(crate) use interrupt::{
     finish_python_commit, inspect_python, install_python_interrupt,
     pending as python_interrupt_pending,
 };
+#[cfg(any(unix, windows))]
+pub(crate) use priority::{active as priority_active, background as priority_background};
 
 #[cfg(not(any(unix, windows)))]
 pub(crate) fn run(_bootstrap_runtimes: bool) -> Result<(), Box<dyn std::error::Error>> {

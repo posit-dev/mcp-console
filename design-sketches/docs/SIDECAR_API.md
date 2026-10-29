@@ -823,8 +823,8 @@ The sidecar design is ready for initial implementation when tests demonstrate:
 
 ## 19. Design influences
 
-The local-service shape borrows several proven patterns from [kata](https://github.com/kenn-io/kata): one service API shared by machine and human clients, protected runtime discovery, snapshot-plus-event-stream clients, resumable cursors, bounded subscriber queues, and explicit resynchronization.
-MCP Console deliberately does **not** copy kata's detached daemon, auto-start, persistent shared database, remote mode, or federation.
+The local-service shape uses one service API shared by machine and human clients, protected runtime discovery, snapshot-plus-event-stream clients, resumable cursors, bounded subscriber queues, and explicit resynchronization.
+MCP Console deliberately does **not** use a detached daemon, auto-start, a persistent shared database, remote mode, or federation.
 
 The data-view behavior is informed by [Positron's Data Explorer](https://positron.posit.co/data-explorer.html) and Ark's Data Explorer backend: retained live-object references, viewport-oriented row and column retrieval, ephemeral sorting and filtering, bounded column summaries, and code-first rather than document-owning semantics.
 MCP Console also adds explicit immutable snapshot mode so exploration can continue while the live runtime is busy.

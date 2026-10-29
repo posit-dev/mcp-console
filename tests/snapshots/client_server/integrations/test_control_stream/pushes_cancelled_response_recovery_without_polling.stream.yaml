@@ -1,0 +1,34 @@
+---
+id: "1"
+event: preview
+result:
+  resultType: complete
+  content: []
+  isError: false
+---
+id: "1"
+event: preview
+result:
+  resultType: complete
+  content:
+    - type: text
+      text: |
+        recovered ghost
+  isError: false
+---
+id: "1"
+event: preview
+result:
+  resultType: complete
+  content: []
+  isError: false
+---
+id: "1"
+event: preview
+result:
+  resultType: complete
+  content:
+    - type: text
+      text: |
+        recovered ghost
+  isError: false

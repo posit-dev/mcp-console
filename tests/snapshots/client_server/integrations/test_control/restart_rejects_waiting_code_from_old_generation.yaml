@@ -1,0 +1,48 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        [stopped by session restart request before evaluation finished]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  control: restart
+  python: print('replacement ready')
+result:
+  content:
+    - type: text
+      text: |-
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        replacement ready
+        [done]
+  isError: false
+---
+send:
+  python: print('must_not_run' in globals())
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false

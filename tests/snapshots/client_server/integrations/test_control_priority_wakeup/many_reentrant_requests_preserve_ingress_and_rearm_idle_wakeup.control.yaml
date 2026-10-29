@@ -1,0 +1,106 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: wakeup_count <- wakeup_count + 1L; cat('ok\n')
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          ok
+    isError: false
+    execution_error: ~
+transcript_normalization:
+  target: identical completed priority evaluations
+  repeated_exchange_count: 4096
+  request_ids: 1 through 4096, distinct in each exchange
+---
+request:
+  id: "4097"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: wakeup_release <- TRUE; cat('released\n')
+response:
+  id: "4097"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          released
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "4098"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: cat('idle wakeup\n')
+response:
+  id: "4098"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          idle wakeup
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "4099"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: wakeup_count <- wakeup_count + 1L; cat('ok\n')
+response:
+  id: "4099"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          ok
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "4100"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: wakeup_release <- TRUE; cat('released\n')
+response:
+  id: "4100"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          released
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "4101"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: cat('idle wakeup\n')
+response:
+  id: "4101"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          idle wakeup
+    isError: false
+    execution_error: ~

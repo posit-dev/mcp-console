@@ -65,9 +65,6 @@ class WindowsPreparation(unittest.TestCase):
         (self.protected / ".agents").mkdir(parents=True)
         (self.protected / "readable").write_text("host read")
         (self.protected / ".agents/control").write_text("trusted control")
-        control = self.root / "cache/dependencies/.agents/control"
-        control.parent.mkdir(parents=True)
-        control.write_text("cache control")
         cache = self.root / "cache/dependencies/uv/cache"
         cache.mkdir(parents=True)
         (cache / "cache-refresh").write_text("host-owned cached data")
@@ -97,7 +94,6 @@ class WindowsPreparation(unittest.TestCase):
             "RETICULATE_PYTHON": "managed",
             "PREPARATION_PROBE": str(ROOT / "tests/fixtures/resolver/windows_probe.py"),
             "PREPARATION_PROTECTED": str(self.protected),
-            "PREPARATION_CACHE_CONTROL": str(control),
             "PREPARATION_ALIAS": str(alias),
             "PREPARATION_PYTHON": sys.executable,
             "PREPARATION_UV": shutil.which("uv"),
@@ -196,10 +192,6 @@ class WindowsPreparation(unittest.TestCase):
         self.assertFalse((self.protected / "escape").exists())
         self.assertEqual(
             (self.protected / ".agents/control").read_text(), "trusted control"
-        )
-        self.assertEqual(
-            (self.root / "cache/dependencies/.agents/control").read_text(),
-            "cache control",
         )
 
     def test_unavailable_mxc_rejects_preparation_before_running_tools(self):

@@ -7,7 +7,7 @@ use super::utf8_prefix_length;
 // through its final character; control-string payloads are never buffered.
 const CONTROL_BYTES: usize = 128;
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 enum Control {
     #[default]
     Text,
@@ -39,7 +39,7 @@ impl Control {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct Stream {
     head: String,
     tail: String,

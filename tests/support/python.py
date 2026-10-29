@@ -46,9 +46,9 @@ def isolated_python(directory: Path) -> tuple[Path, Path]:
     return python, Path(site)
 
 
-def runtime_source_line(statement: str) -> int:
+def runtime_source_line(statement: str, *, filename: str = "runtime.py") -> int:
     """Keep public setup tracebacks exact when embedded source moves."""
-    source = (Path(__file__).resolve().parents[2] / "src/python/runtime.py").read_text()
+    source = (Path(__file__).resolve().parents[2] / "src/python" / filename).read_text()
     matches = [
         line
         for line, text in enumerate(source.splitlines(), 1)
