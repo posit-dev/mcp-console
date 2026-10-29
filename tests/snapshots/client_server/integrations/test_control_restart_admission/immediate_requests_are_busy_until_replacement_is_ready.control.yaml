@@ -1,0 +1,36 @@
+---
+request:
+  id: "1"
+  op: status
+response:
+  id: "1"
+  result:
+    state: restarting
+    idle: false
+    evaluation: ~
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: stop('must not be dispatched')
+  record: false
+response:
+  id: "2"
+  error:
+    code: busy
+    message: runner is busy; code was not run
+---
+request:
+  id: "3"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: raise AssertionError('must not be dispatched')
+  record: false
+response:
+  id: "3"
+  error:
+    code: busy
+    message: runner is busy; code was not run

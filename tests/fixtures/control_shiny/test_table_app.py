@@ -161,6 +161,10 @@ def test_agent_session_replacement_clears_table(app):
     expect(page.locator("#transcript .entry.complete .content").last).to_contain_text(
         "42", timeout=30_000
     )
+    submit(page, "python", "after_restart = 43")
+    expect(page.locator("#python_variables")).to_contain_text(
+        "after_restart = 43", timeout=30_000
+    )
 
 
 def test_failed_open_keeps_previous_table_identity(app):

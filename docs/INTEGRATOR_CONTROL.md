@@ -160,6 +160,8 @@ Integrator code that catches an interrupt condition is responsible for its handl
 Python requests run on a background thread and require the GIL; native code holding the GIL can delay them.
 Background Python code must not call into R.
 Only one immediate request may be outstanding per worker.
+Immediate requests also return `busy` while the worker is restarting, before code is admitted.
+An immediate request already admitted to a worker still returns `execution_failed` if restart retires that worker before it completes; it is never replayed on the replacement.
 Prepare dependencies and initialize the requested interpreter through an ordinary cell first.
 Concurrent requests cannot prepare packages or request managed stdin.
 

@@ -283,6 +283,12 @@ def make_app(binary: Path, workspace: Path) -> App:
                 ready.clear()
 
                 async def replace() -> None:
+                    for language in variable_views:
+                        await change(
+                            variable_views[language],
+                            "Session replaced. Waiting for variables…",
+                        )
+                        await change(table_names[language], [])
                     await table.reset()
                     await prepare()
 
@@ -330,9 +336,17 @@ def make_app(binary: Path, workspace: Path) -> App:
                                 record=False,
                             )
                     except ControlError as error:
-                        if error.code == "busy":
-                            continue
-                        raise
+                        # Retirement may fail an already admitted inspection.
+                        # Keep the periodic observer alive across that boundary;
+                        # a request failure is visible in its pane, not a fatal
+                        # error for the subscription or future inspections.
+                        if error.code != "busy" and observed_worker == worker_id:
+                            await change(
+                                variable_views[language],
+                                f"Inspection unavailable: {error}",
+                            )
+                            await change(table_names[language], [])
+                        continue
                     if observed_worker != worker_id:
                         continue
                     text = "".join(

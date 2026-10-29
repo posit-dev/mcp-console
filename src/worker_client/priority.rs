@@ -4,6 +4,7 @@
 use std::sync::atomic::Ordering;
 
 use super::integrator::IntegratorError;
+use super::lifecycle::LifecycleState;
 use super::{Client, OutputTape, Response};
 use crate::cell::{Cell, Language};
 use crate::worker_protocol::{ExecutionError, PriorityEvent, PriorityExecution};
@@ -84,7 +85,15 @@ impl Client {
                 .lifecycle
                 .lock()
                 .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
-            lifecycle.ensure_generation(&lifecycle.generation)?;
+            // No command has been admitted yet. Replacement temporarily removes
+            // the execution target; already admitted requests still fail through
+            // their connection's retirement path instead of being retried.
+            match lifecycle.state {
+                LifecycleState::Restarting { .. } => return Err(IntegratorError::Busy),
+                LifecycleState::Ready | LifecycleState::ShuttingDown { .. } => {
+                    lifecycle.ensure_generation(&lifecycle.generation)?;
+                }
+            }
             if lifecycle.worker_bootstrapping()? || self.0.startup_failed.load(Ordering::Acquire) {
                 return Err(IntegratorError::Busy);
             }
