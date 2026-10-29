@@ -40,6 +40,11 @@ A second check held one client's Python cell at a filesystem checkpoint while th
 The desktop and 390-pixel mobile layouts were inspected visually.
 Browser assertions check loaded plot pixels, mobile card ordering, an unobstructed usable composer, and absence of JavaScript page errors.
 
+The YAML display and follow-up buttons were also checked interactively in the in-app browser with live Terra calls.
+Assertions first reproduced the JSON display and missing suggestion button, then passed after the change: native cards showed multiline YAML, and clicking a generated suggestion submitted the next question and completed another tool turn with retained Python state.
+The Markdown export contained YAML code blocks, and the HTTP app test passed.
+The live browser script includes these display and suggestion assertions for subsequent runs.
+
 With the app running on port 8008:
 
 ```sh

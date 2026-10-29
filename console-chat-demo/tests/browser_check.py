@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 
 from playwright.async_api import async_playwright, expect
@@ -58,8 +59,11 @@ async def main() -> None:
             await expect(second.locator("#connection_status")).to_have_text("Ready")
             await submit(
                 first,
-                "Use Python to set browser_marker = 'alpha' and calculate the total "
-                "revenue in data.csv. Then use base R graphics to plot monthly revenue. "
+                "First execute this complete Python cell:\n"
+                "import pandas as pd\n"
+                "browser_marker = 'alpha'\n"
+                "print(pd.read_csv('data.csv')['revenue'].sum())\n\n"
+                "Then use base R graphics to plot monthly revenue. "
                 "You must execute both Python and R. End your answer with ALPHA_DONE.",
             )
             await submit(
@@ -79,6 +83,23 @@ async def main() -> None:
             assert await first.locator(".plot-gallery img").evaluate_all(
                 "images => images.every(x => x.complete && x.naturalWidth > 0)"
             )
+            await first.get_by_role(
+                "button", name=re.compile(r"^Used send")
+            ).first.click()
+            await first.get_by_role("button", name="send", exact=True).first.click()
+            await first.get_by_text("Tool call", exact=True).first.click()
+            call = first.locator(".shiny-tool-result__request code").first
+            await expect(call).to_contain_text("name: send\narguments:")
+            await expect(call).to_contain_text("python: |")
+            suggestion = first.get_by_role("log").locator(".suggestion").last
+            await expect(suggestion).to_be_visible()
+            question = await suggestion.inner_text()
+            await suggestion.click()
+            await expect(first.locator("#connection_status")).to_have_text("Working")
+            await completed(first)
+            await expect(
+                first.get_by_role("log").get_by_text(question, exact=True).last
+            ).to_be_visible()
             await submit(
                 first,
                 "Use Python to print browser_marker from the previous turn. "
@@ -93,6 +114,7 @@ async def main() -> None:
             await (await download.value).save_as(artifacts / "analysis.md")
             exported = (artifacts / "analysis.md").read_text()
             assert "ALPHA_DONE" in exported and "Code submitted" in exported
+            assert "```yaml\n" in exported and "```json\n" not in exported
             await first.screenshot(path=str(artifacts / "analysis.png"), full_page=True)
             await second.screenshot(
                 path=str(artifacts / "second-client.png"), full_page=True

@@ -17,6 +17,8 @@ from chatlas import ContentToolRequest, ContentToolResult
 from chatlas.types import ContentImageInline
 from runtime import Pool
 from shiny import App, Inputs, Outputs, Session, reactive, render, ui
+from shinychat import message_content
+from yaml12 import format_yaml
 
 HERE = Path(__file__).resolve().parent
 MODEL = "gpt-6.1-terra"
@@ -215,11 +217,17 @@ def create_app(pool: Pool) -> App:
                     async for chunk in stream:
                         if isinstance(chunk, ContentToolRequest):
                             transcript.append(
-                                "### Code submitted\n\n```json\n"
-                                + json.dumps(chunk.arguments, indent=2)
+                                "### Code submitted\n\n```yaml\n"
+                                + format_yaml(chunk.arguments, width=None)
                                 + "\n```\n"
                             )
-                        if isinstance(chunk, ContentToolResult):
+                            # Keep Shiny's native cards; change only their display text.
+                            display = message_content(chunk)
+                            display.blocks[0]["arguments"] = format_yaml(
+                                chunk.arguments, width=None
+                            )
+                            yield display
+                        elif isinstance(chunk, ContentToolResult):
                             parts = (
                                 chunk.value
                                 if isinstance(chunk.value, list)
@@ -238,7 +246,17 @@ def create_app(pool: Pool) -> App:
                             )
                             # Only the display copy changes. Chatlas retains the original
                             # image-bearing result and sends it to the model.
-                            yield chunk.model_copy(update={"value": text})
+                            display = message_content(
+                                chunk.model_copy(update={"value": text})
+                            )
+                            display.blocks[0]["request_call"] = format_yaml(
+                                {
+                                    "name": chunk.request.name,
+                                    "arguments": chunk.request.arguments,
+                                },
+                                width=None,
+                            )
+                            yield display
                             for plot in plots:
                                 url = (
                                     f"data:{plot.image_content_type};base64,{plot.data}"
