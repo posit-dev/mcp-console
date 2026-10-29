@@ -174,9 +174,9 @@ writeLines("option", "note-option-ran")
         return TranscriptWithCompanions(
             normalize_recording(transcript, workspace),
             {
-                "qmd.yaml": normalize_recording(
-                    [{"qmd": document.read_text(encoding="utf-8"), "rendered": True}],
+                "qmd": normalize_recording(
+                    [{"qmd": document.read_text(encoding="utf-8")}],
                     workspace,
-                )
+                )[0]["qmd"]
             },
         )

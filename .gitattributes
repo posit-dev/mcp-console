@@ -1,5 +1,7 @@
 tests/snapshots/**/*.md whitespace=-blank-at-eof
 tests/snapshots/**/*.qmd whitespace=-blank-at-eof
+# This raw document includes intentional whitespace in submitted note examples.
+tests/snapshots/client_server/recording/test_note_rendering/*.qmd whitespace=-blank-at-eol,-blank-at-eof
 # Literal transcript scalars preserve trailing spaces emitted by runtimes.
 tests/snapshots/**/*.yaml whitespace=-blank-at-eol
 *.R text eol=lf

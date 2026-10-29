@@ -1,0 +1,111 @@
+---
+# Source recorded by MCP Console; review before executing.
+title: MCP Console session
+# From a working copy, run `ir render session-001.qmd` in a prepared environment.
+# IR rendering requires R on the render host, including for Python-only documents.
+ir:
+  isolated: true
+  packages: []
+  python-packages:
+    - numpy
+    - pandas
+    - matplotlib
+    - plotnine
+mcp-console:
+  original-working-directory: <workspace>
+  r-available: true
+  dynamic-resolution: true
+  duckdb-extensions:
+    - icu
+    - json
+    - sqlite
+  python-version: []
+---
+
+## Journal
+
+Keep **formatted prose** and `ordinary code`.
+
+---
+
+Observed group
+---
+
+<span class="journal-label">Observed cohort</span>.
+
+````{verbatim}
+
+---
+Observed total: 42
+---
+
+## Examples
+
+---
+Observed cohort: controls
+...
+
+> ---
+> Observed replicate: 3
+> ---
+
+~~~yaml
+---
+execute:
+  eval: false
+---
+~~~
+
+```{r}
+writeLines("fence", "note-fence-ran")
+```
+
+Legacy inline `r {writeLines("inline", "note-inline-ran"); "literal"}`.
+Quarto inline `{r} {writeLines("inline", "note-quarto-inline-ran"); "literal"}`.
+Nested backticks ``r cat("`nested`")``.
+
+> ```{r}
+> writeLines("quote", "note-quote-ran")
+> ```
+
+- A nested example:
+
+  ```{r, example}
+  writeLines("list", "note-list-ran")
+  ```
+
+~~~{r}
+writeLines("tilde", "note-tilde-ran")
+~~~
+
+```text
+An inline example: `r {writeLines("literal", "note-literal-ran"); "literal"}`.
+{{< include included.qmd >}}
+```
+
+{{< include included.qmd >}}
+````
+
+````{verbatim}
+
+#| include: false
+Keep this literal chunk option visible.
+
+```{r}
+writeLines("option", "note-option-ran")
+```
+````
+
+```{verbatim}
+
+--- 
+execute:
+  eval: false
+---	
+```
+
+```{r}
+#| error: true
+writeLines("source", "source-ran")
+```
+
