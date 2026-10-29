@@ -56,7 +56,8 @@ result:
     - type: text
       text: >-
         failed to deserialize parameters: unknown field `typo`, expected one of
-        `r`, `python`, `sql`, `control`, `requirements`, `stdin`, `timeout_ms`
+        `r`, `python`, `sql`, `note`, `control`, `requirements`, `stdin`,
+        `timeout_ms`
   isError: true
 ---
 send:

@@ -13,7 +13,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    version: 0.0.6
+    version: <Console version>
   instructions: >-
     Persistent R and Python REPL for calculations, data exploration and
     analysis, database queries, debugging, simulations, and plots. Reuse
@@ -105,6 +105,15 @@ result:
               closes them. At cell end, even after errors, remaining open figures
               return as PNGs and close; `show()` is optional. Closing an unshown
               figure suppresses capture. R plots through `r` follow the R plot rules.
+            type:
+              - string
+              - "null"
+          note:
+            description: |-
+              Plain text or Markdown journal annotation, recorded as prose before any same-call code.
+              Use it to record observations, questions, or the purpose of a step. May accompany other
+              arguments or stand alone. A note-only call returns without waiting for or collecting
+              worker output. Notes are not evaluated.
             type:
               - string
               - "null"

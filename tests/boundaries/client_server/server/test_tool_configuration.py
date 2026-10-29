@@ -58,7 +58,14 @@ def test_replaces_complete_tool_prose(binary: Path) -> TranscriptWithCompanions:
 
         parameters = {
             field: {"description": f"Replacement for {field}."}
-            for field in ("r", "python", "control", "requirements", "timeout_ms")
+            for field in (
+                "r",
+                "python",
+                "note",
+                "control",
+                "requirements",
+                "timeout_ms",
+            )
         }
         parameters["stdin"] = {"description": ""}
         parameters["requirements"]["parameters"] = {
