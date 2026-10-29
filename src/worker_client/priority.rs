@@ -1,14 +1,12 @@
 //! Priority results have their own bounded tape and connection identity. They
 //! never reserve, drain, or acknowledge an ordinary MCP evaluation.
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 
 use super::integrator::IntegratorError;
 use super::{Client, OutputTape, Response};
 use crate::cell::{Cell, Language};
 use crate::worker_protocol::{ExecutionError, PriorityEvent, PriorityExecution};
-
-static NEXT_REQUEST: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone, Copy, Default, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -24,7 +22,8 @@ pub(super) struct Request {
     output: OutputTape,
     images: Option<crate::transcript::CallImages>,
     error: Option<ExecutionError>,
-    completed: tokio::sync::oneshot::Sender<Result<Response, IntegratorError>>,
+    completed:
+        tokio::sync::oneshot::Sender<Result<(Response, u64, serde_json::Value), IntegratorError>>,
 }
 
 impl Client {
@@ -34,7 +33,8 @@ impl Client {
         transcript: crate::transcript::Transcript,
         call: &crate::transcript::Call,
         cancelled: tokio::sync::watch::Receiver<bool>,
-    ) -> Result<Response, IntegratorError> {
+        request_id: String,
+    ) -> Result<(Response, u64, serde_json::Value), IntegratorError> {
         let execution = match cell.language {
             Language::R => PriorityExecution::RReentrant,
             Language::Python => PriorityExecution::PythonThread,
@@ -101,12 +101,23 @@ impl Client {
             if *cancelled.borrow() {
                 return Err(IntegratorError::Cancelled);
             }
-            let id = NEXT_REQUEST.fetch_add(1, Ordering::Relaxed);
+            let id = super::evaluation::next_id();
             let (completed, result) = tokio::sync::oneshot::channel();
+            let output = OutputTape::new();
+            output.enable_history();
+            output.set_worker_id(self.0.output.worker_id());
+            output.begin_evaluation(
+                serde_json::json!({
+                    "id": id, "origin": "integrator", "language": cell.language,
+                    "source": cell.source, "execution": "immediate", "request_id": request_id,
+                    "call_id": call.id(),
+                }),
+                false,
+            );
             *pending = Some(Request {
                 id,
                 connection: connection.clone(),
-                output: OutputTape::new(),
+                output,
                 images: transcript.call_images(call),
                 error: None,
                 completed,
@@ -161,18 +172,20 @@ impl Client {
                     })?
             }
             PriorityEvent::ExecutionError { error } => {
-                request
-                    .error
-                    .get_or_insert_with(|| super::output::bounded_execution_error(error));
+                let error = super::output::bounded_execution_error(error);
+                request.output.execution_error(&error);
+                request.error.get_or_insert(error);
             }
             PriorityEvent::Completed { error } => {
                 let request = pending.take().expect("priority request");
                 let result = match error {
                     Some(error) => Err(IntegratorError::Failed(error)),
                     None => {
+                        request.output.finish_evaluation();
+                        let typed = request.output.typed_output(None);
                         let mut response = request.output.take();
                         response.set_execution_error(request.error);
-                        Ok(response)
+                        Ok((response, request.id, typed))
                     }
                 };
                 let _ = request.completed.send(result);

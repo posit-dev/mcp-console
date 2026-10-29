@@ -80,16 +80,17 @@ Malformed requests use `id: null`.
 Request IDs correlate responses; they do not deduplicate submissions.
 Sending an evaluation again can execute it again.
 
-| Operation      | Additional fields                                                         | Result                                                                                              |
-| -------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `status`       | None                                                                      | Current state, `idle`, and the active evaluation's origin, language, and whether execution started. |
-| `preview`      | None                                                                      | Bounded `content` blocks containing currently pending text and images, without consuming them.      |
-| `requirements` | None                                                                      | The accepted `requirements`, `prepared`, and Console's separate `runtime_requirements`.             |
-| `manifest`     | None                                                                      | The accepted requirements declaration alone.                                                        |
-| `evaluate`     | `language`, `code`, optional `execution`, `busy`, `wait_ms`, and `record` | Evaluation `content` blocks and `isError`, using Console's usual output limits.                     |
-| `subscribe`    | None                                                                      | Acknowledgment followed by pushed pending-output snapshots on a dedicated connection.               |
-| `stdin`        | `evaluation_id`, `input`                                                  | Deliver managed input to the identified active evaluation.                                          |
-| `interrupt`    | `evaluation_id`                                                           | Request interruption of the identified active evaluation.                                           |
+| Operation      | Additional fields                                                                           | Result                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `status`       | None                                                                                        | Current state, `idle`, and the active evaluation's origin, language, and whether execution started. |
+| `output`       | None                                                                                        | Retained typed output snapshot for ordinary evaluations, independent of MCP collection.             |
+| `preview`      | None                                                                                        | Bounded `content` blocks containing currently pending text and images, without consuming them.      |
+| `requirements` | None                                                                                        | The accepted `requirements`, `prepared`, and Console's separate `runtime_requirements`.             |
+| `manifest`     | None                                                                                        | The accepted requirements declaration alone.                                                        |
+| `evaluate`     | `language`, `code`, optional `execution`, `busy`, `wait_ms`, `record`, and `include_output` | Evaluation `content` blocks and `isError`, using Console's usual output limits.                     |
+| `subscribe`    | Optional `format`: `preview` (default) or `events`                                          | Acknowledgment followed by pushed snapshots on a dedicated connection.                              |
+| `stdin`        | `evaluation_id`, `input`                                                                    | Deliver managed input to the identified active evaluation.                                          |
+| `interrupt`    | `evaluation_id`                                                                             | Request interruption of the identified active evaluation.                                           |
 
 `language` is `r`, `python`, or `sql`; `code` is a string.
 Evaluation and preview results have `resultType: "complete"`, `content`, and `isError` fields.
@@ -218,6 +219,102 @@ Changes may be coalesced for a slow reader, so this is a view of pending output 
 Output collected by MCP before a subscriber observes it need not appear in the stream.
 Each subscriber retains only its latest pending change and cannot block worker output.
 Close the connection to unsubscribe; use other connections for requests.
+
+### Inspect typed output
+
+Use `{"id":"output","op":"output"}` to read a bounded history of ordinary evaluation output.
+Unlike `preview`, this history survives MCP polling and completed-result collection.
+It is captured before terminal formatting and MCP response assembly; clients do not need to parse formatted MCP text to identify streams.
+The existing MCP and `preview` projections, delivery acknowledgments, and recording limits are unchanged.
+History is retained only when the control listener is enabled.
+
+A result has this shape:
+
+```json
+{
+  "worker_id": 1,
+  "first_sequence": 0,
+  "next_sequence": 4,
+  "omitted_events": 0,
+  "omitted_bytes": 0,
+  "evaluations": [
+    {
+      "id": 1,
+      "origin": "mcp",
+      "language": "python",
+      "source": "print('hello', end='')",
+      "source_truncated": false,
+      "execution": "serial",
+      "request_id": null,
+      "call_id": 1,
+      "state": "complete",
+      "started": true,
+      "execution_error": null
+    }
+  ],
+  "events": [
+    { "sequence": 0, "evaluation_id": 1, "type": "evaluation_admitted" },
+    { "sequence": 1, "evaluation_id": 1, "type": "evaluation_started" },
+    {
+      "sequence": 2,
+      "evaluation_id": 1,
+      "type": "output",
+      "text": "hello",
+      "omitted_bytes": 0
+    },
+    { "sequence": 3, "evaluation_id": 1, "type": "evaluation_completed" }
+  ]
+}
+```
+
+Evaluation IDs are the existing IDs used by `status`, `stdin`, and `interrupt`.
+Each admitted ordinary submission has its own ID; `call_id` is its recording call association when recording is available.
+The existing MCP validation still allows only one code language per call.
+Integrator metadata also carries the control `request_id`, so a frontend can replace its provisional submission with the admitted evaluation.
+`state: "complete"` means the evaluation settled, including language failures or cancellation before worker entry; inspect `execution_error` for a bounded error summary, and its event for the retained traceback.
+It does not acknowledge MCP delivery.
+`started` distinguishes ordinary admission from confirmed worker entry; admitted code may still be waiting for startup or the interpreter.
+Immediate metadata uses `started: true` because its private snapshot is returned after execution.
+Worker replacement increments `worker_id` and clears the retained history; evaluation IDs and event sequences continue increasing within the server process.
+
+Each event has `sequence`, nullable `evaluation_id`, and one of these types:
+
+- `stdout` and `stderr` contain `text` from the raw process streams.
+- `output` and `diagnostic` contain managed worker console text on the corresponding channel.
+- `notice` contains server-generated information, such as a managed input request or operation failure.
+- `image` contains the existing captured `data` and `mimeType`, preserving its position among observed publications.
+- `execution_error` contains the structured `error`, including its bounded traceback and truncation marker.
+- `evaluation_admitted`, `evaluation_started`, and `evaluation_completed` mark the retained evaluation interval.
+- `omission` identifies an image too large for this history, with its encoded `bytes` count and `kind: "image"`.
+
+Text events preserve partial lines, carriage returns, and terminal controls rather than applying the MCP terminal projection.
+Raw streams use incremental UTF-8 decoding, replacing invalid bytes; this is a typed text view, not a byte-for-byte recording.
+Sequence order is observation order at Console's output owner.
+Independent worker and process streams do not provide a global chronology, and write boundaries may split or combine text.
+Output observed between ordinary admission and completion carries that evaluation ID, including preparation output before worker entry.
+Idle output has `evaluation_id: null`; native output from immediate threads retains the ordinary foreground attribution because process streams do not identify their writing thread.
+
+Subscribe with `{"id":"output","op":"subscribe","format":"events"}` for the same snapshot under `{"id":"output","event":"output","result":...}`.
+Both this subscription and `op: "output"` return replacement snapshots, not incremental event batches.
+Use evaluation IDs and event sequences to reconcile displayed output; replacing a pending view after completion must not append the same output again.
+Slow readers can miss intermediate snapshots, but completed output remains available within the retention bounds.
+The subscription coalesces notifications and never blocks output producers.
+
+The history retains at most 512 events, 64 KiB of text/error event payloads, 8 MiB of encoded images, and 32 evaluation descriptors.
+Each descriptor retains at most 8 KiB of source, 512 bytes of request ID, and the separately bounded execution-error summary.
+`source_truncated` and `request_id_truncated` mark shortened metadata.
+Text events report their own `omitted_bytes`; snapshot `omitted_events` and `omitted_bytes` count history eviction and oversized payload omissions.
+Evicting an evaluation descriptor also evicts its associated events, so every non-null event identity has retained metadata.
+`first_sequence` and `next_sequence` delimit the retained interval; omission counters reset on worker replacement.
+These limits are separate from MCP presentation and recording allowances.
+A reader should make omissions visible and must not interpret a retained tail as complete output.
+
+Set `include_output: true` on `evaluate` to add `evaluation_id` and `output` to its response.
+For ordinary evaluations, `output` filters the current retained history to that evaluation; sequence bounds and omission counters still describe the whole shared history.
+Immediate evaluations use their own bounded tape and return its snapshot only to their caller.
+Their managed output never enters the shared history or subscription, regardless of `record`.
+Ordinary `record: false` evaluations also omit their observed interval and source from this history, independently of whether recording is enabled.
+As with other output attribution, background process output first observed after the completion boundary can enter the idle stream.
 
 `requirements` and `manifest` read the last accepted declaration without preparing packages or running code.
 They return `not_ready` before runtime configuration is available.

@@ -14,7 +14,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::{JoinHandle, JoinSet};
 
 use super::ConsoleServer;
-use crate::worker_client::{Content, IntegratorError, Response};
+use crate::worker_client::{Content, IntegratorError, IntegratorObservation, Response};
 
 const MAX_FRAME: usize = 1024 * 1024;
 const MAX_CONNECTIONS: usize = 64;
@@ -28,8 +28,13 @@ enum Request {
     Preview {
         id: String,
     },
+    Output {
+        id: String,
+    },
     Subscribe {
         id: String,
+        #[serde(default)]
+        format: SubscriptionFormat,
     },
     Stdin {
         id: String,
@@ -57,7 +62,17 @@ enum Request {
         wait_ms: Option<u32>,
         #[serde(default = "record_by_default")]
         record: bool,
+        #[serde(default)]
+        include_output: bool,
     },
+}
+
+#[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SubscriptionFormat {
+    #[default]
+    Preview,
+    Events,
 }
 
 #[derive(Default, Deserialize)]
@@ -77,7 +92,8 @@ impl Request {
         match self {
             Self::Status { id }
             | Self::Preview { id }
-            | Self::Subscribe { id }
+            | Self::Output { id }
+            | Self::Subscribe { id, .. }
             | Self::Stdin { id, .. }
             | Self::Interrupt { id, .. }
             | Self::Requirements { id }
@@ -126,6 +142,7 @@ impl Listener {
     }
 
     pub fn start(self, server: ConsoleServer) -> Server {
+        server.startup.runtime().worker.enable_integrator_output();
         let (closed, mut closing) = watch::channel(false);
         let failed = closed.clone();
         let task = tokio::spawn(async move {
@@ -242,10 +259,11 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
         let transcript = server.startup.runtime().transcript.clone();
         let parsed = serde_json::from_slice::<Request>(&frame);
         let subscription = match &parsed {
-            Ok(Request::Subscribe { id }) => Some((
-                id.clone(),
-                server.startup.runtime().worker.integrator_subscribe(),
-            )),
+            Ok(Request::Subscribe { id, format }) => Some(Subscription {
+                id: id.clone(),
+                format: *format,
+                changes: server.startup.runtime().worker.integrator_subscribe(),
+            }),
             _ => None,
         };
         let (response, call_id) = match parsed {
@@ -277,11 +295,10 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
         if !delivered {
             break;
         }
-        if let Some((id, changes)) = subscription {
-            stream_previews(
+        if let Some(subscription) = subscription {
+            stream_snapshots(
                 &server,
-                &id,
-                changes,
+                subscription,
                 &mut write,
                 &mut closing,
                 &mut disconnect,
@@ -295,23 +312,41 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
     let _ = reader.await;
 }
 
-async fn stream_previews(
+struct Subscription {
+    id: String,
+    format: SubscriptionFormat,
+    changes: watch::Receiver<()>,
+}
+
+async fn stream_snapshots(
     server: &ConsoleServer,
-    id: &str,
-    mut changes: watch::Receiver<()>,
+    subscription: Subscription,
     write: &mut tokio::net::unix::OwnedWriteHalf,
     closing: &mut watch::Receiver<bool>,
     disconnect: &mut watch::Receiver<bool>,
     received: &mut mpsc::Receiver<Vec<u8>>,
 ) {
+    let Subscription {
+        id,
+        format,
+        mut changes,
+    } = subscription;
     let mut previous = None;
     loop {
         changes.borrow_and_update();
-        let Ok(content) = server.startup.runtime().worker.integrator_preview() else {
-            break;
+        let event = match format {
+            SubscriptionFormat::Preview => {
+                let Ok(content) = server.startup.runtime().worker.integrator_preview() else {
+                    break;
+                };
+                let result = CallToolResult::success(content_blocks(content));
+                json!({"id": id, "event": "preview", "result": result})
+            }
+            SubscriptionFormat::Events => json!({
+                "id": id, "event": "output",
+                "result": server.startup.runtime().worker.integrator_output(),
+            }),
         };
-        let result = CallToolResult::success(content_blocks(content));
-        let event = json!({"id": id, "event": "preview", "result": result});
         if previous.as_ref() != Some(&event) {
             let mut bytes = serde_json::to_vec(&event).expect("preview serialization");
             bytes.push(b'\n');
@@ -354,6 +389,7 @@ async fn handle(
     let id = Value::String(request.id().to_string());
     let evaluation = matches!(&request, Request::Evaluate { .. });
     let mut execution_error = Value::Null;
+    let mut typed_output = None;
     let arguments = match &request {
         Request::Evaluate { language, code, .. } => serde_json::Map::from_iter([(
             crate::cell::Languages::field(*language).into(),
@@ -375,6 +411,9 @@ async fn handle(
         match request {
             Request::Status { .. } => Ok(CallToolResult::structured(
                 runtime.worker.integrator_status(),
+            )),
+            Request::Output { .. } => Ok(CallToolResult::structured(
+                runtime.worker.integrator_output(),
             )),
             Request::Subscribe { .. } => {
                 Ok(CallToolResult::structured(json!({"subscribed": true})))
@@ -431,6 +470,9 @@ async fn handle(
                 execution,
                 busy,
                 wait_ms,
+                include_output,
+                record,
+                id: request_id,
                 ..
             } => {
                 let wait = match (busy, wait_ms) {
@@ -453,7 +495,7 @@ async fn handle(
                     language,
                     source: code,
                 };
-                let response = match execution {
+                let (response, evaluation_id, output) = match execution {
                     crate::worker_client::IntegratorExecution::Serial => {
                         runtime
                             .worker
@@ -463,6 +505,10 @@ async fn handle(
                                 runtime.transcript.clone(),
                                 operation_call.id(),
                                 disconnect.clone(),
+                                IntegratorObservation {
+                                    request_id,
+                                    hidden: !record,
+                                },
                             )
                             .await
                     }
@@ -480,11 +526,15 @@ async fn handle(
                                 runtime.transcript.clone(),
                                 &operation_call,
                                 disconnect.clone(),
+                                request_id,
                             )
                             .await
                     }
                 }
                 .map_err(control_error)?;
+                if include_output {
+                    typed_output = Some((evaluation_id, output));
+                }
                 execution_error = serde_json::to_value(response.execution_error())
                     .expect("execution error serialization");
                 Ok(evaluation_result(
@@ -511,6 +561,10 @@ async fn handle(
                     .as_object_mut()
                     .expect("evaluation result object")
                     .insert("execution_error".into(), execution_error);
+            }
+            if let Some((evaluation_id, output)) = typed_output {
+                result["evaluation_id"] = json!(evaluation_id);
+                result["output"] = output;
             }
             json!({"id": id, "result": result})
         }

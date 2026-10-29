@@ -61,6 +61,10 @@ Previously pending MCP output stays with MCP.
 Inspection copies bounded presentation state without draining output, sealing terminal frames, accounting omissions, or acknowledging delivery.
 Subscriptions observe changes to that bounded pending view through a coalescing watch; they never queue unbounded output or block producers.
 Delivery cancellation also invalidates the view when a claimed response returns to its evaluation.
+When the control listener is enabled, the output owner also retains a bounded history of typed observations before terminal rendering and MCP response assembly.
+Evaluation metadata and event sequences let integrators reconcile pending and completed output independently of MCP delivery.
+This history is a replaceable snapshot, not a lossless event log; its limits and attribution rules are specified in [Integrator control](INTEGRATOR_CONTROL.md).
+Immediate requests retain their own private history, and inspection output does not enter the shared history.
 Input and interruption pin the observed evaluation identity so a delayed control cannot affect its successor.
 The socket does not select a new sandbox authority.
 

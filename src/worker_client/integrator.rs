@@ -7,6 +7,12 @@ use super::execution::EvaluationStartError;
 use super::lifecycle::LifecycleState;
 use super::{Client, Content, Response};
 
+#[derive(Clone)]
+pub(crate) struct IntegratorObservation {
+    pub(crate) request_id: String,
+    pub(crate) hidden: bool,
+}
+
 #[derive(Debug)]
 pub(crate) enum IntegratorError {
     Busy,
@@ -56,7 +62,8 @@ impl Client {
         transcript: crate::transcript::Transcript,
         call_id: Option<u64>,
         mut cancelled: tokio::sync::watch::Receiver<bool>,
-    ) -> Result<Response, IntegratorError> {
+        observation: IntegratorObservation,
+    ) -> Result<(Response, u64, serde_json::Value), IntegratorError> {
         if *cancelled.borrow() {
             return Err(IntegratorError::Cancelled);
         }
@@ -166,6 +173,7 @@ impl Client {
                     &mut None,
                     None,
                     Origin::Integrator,
+                    Some(observation.clone()),
                 );
                 match result {
                     Ok(started) => break started,
@@ -191,6 +199,7 @@ impl Client {
 
         // Admission is synchronous above. Install the retained owner before the
         // next await, so cancellation cannot leave a sideband cell pollable by MCP.
+        let evaluation_id = evaluation.id();
         let client = self.clone();
         let collector = tokio::spawn(async move {
             let result = evaluation.wait_terminal(claim).await;
@@ -216,6 +225,13 @@ impl Client {
             .map_err(|error| {
                 IntegratorError::Failed(format!("integrator evaluation task failed: {error}"))
             })?
+            .map(|response| {
+                (
+                    response,
+                    evaluation_id,
+                    self.0.output.typed_output(Some(evaluation_id)),
+                )
+            })
             .map_err(IntegratorError::Failed)
     }
 
@@ -288,6 +304,14 @@ impl Client {
             Some(active) => active.evaluation.preview().ok_or(IntegratorError::Busy),
             None => Ok(self.0.output.preview()),
         }
+    }
+
+    pub(crate) fn enable_integrator_output(&self) {
+        self.0.output.enable_history();
+    }
+
+    pub(crate) fn integrator_output(&self) -> serde_json::Value {
+        self.0.output.typed_output(None)
     }
 
     pub(crate) fn integrator_subscribe(&self) -> tokio::sync::watch::Receiver<()> {

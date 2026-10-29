@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 
 #[derive(Default)]
 pub(super) struct OutputTapeState {
+    history: super::events::History,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     stream: Option<Stream>,
@@ -45,6 +46,51 @@ impl OutputTape {
             Arc::new(Mutex::new(OutputTapeState::default())),
             tokio::sync::watch::channel(()).0,
         )
+    }
+
+    pub(in crate::worker_client) fn history_enabled(&self) -> bool {
+        self.lock().history.enabled()
+    }
+
+    pub(in crate::worker_client) fn enable_history(&self) {
+        self.change().history.enable();
+    }
+
+    pub(in crate::worker_client) fn worker_id(&self) -> u64 {
+        self.lock().history.worker_id()
+    }
+
+    pub(in crate::worker_client) fn set_worker_id(&self, id: u64) {
+        self.change().history.set_worker_id(id);
+    }
+
+    pub(in crate::worker_client) fn begin_evaluation(
+        &self,
+        metadata: serde_json::Value,
+        hidden: bool,
+    ) {
+        self.change().history.begin(metadata, hidden);
+    }
+
+    pub(in crate::worker_client) fn finish_evaluation(&self) -> OutputCut {
+        let mut state = self.change();
+        let cut = state.finish_cell_output(false);
+        state.history.finish();
+        cut
+    }
+
+    pub(in crate::worker_client) fn typed_output(
+        &self,
+        evaluation_id: Option<u64>,
+    ) -> serde_json::Value {
+        self.lock().history.snapshot(evaluation_id)
+    }
+
+    pub(in crate::worker_client) fn execution_error(
+        &self,
+        error: &crate::worker_protocol::ExecutionError,
+    ) {
+        self.change().history.execution_error(error);
     }
 
     pub(in crate::worker_client) fn subscribe(&self) -> tokio::sync::watch::Receiver<()> {
@@ -109,6 +155,7 @@ impl OutputTape {
         let mut state = self.change();
         state.seal(true);
         state.finish_idle_interval();
+        state.history.worker_started();
         state.owner = state.session_recording.as_ref().and_then(|transcript| {
             transcript.worker_started(pid, requirements);
             transcript.owner()
@@ -221,6 +268,7 @@ impl OutputTape {
         // Raw capture has its own interval budget. Preview admission may drop
         // the payload while keeping its file receipt and omission accounting.
         let artifact = make_artifact(&data, &mime_type)?;
+        state.history.image(&data, &mime_type);
         state.current.image(data, mime_type, artifact);
         Ok(())
     }
@@ -229,6 +277,8 @@ impl OutputTape {
         let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
+        let message = message.into();
+        state.history.text("notice", &message);
         state.current.notice_line(message);
     }
 
@@ -236,6 +286,8 @@ impl OutputTape {
         let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
+        let message = message.into();
+        state.history.text("notice", &message);
         // Informational resolver messages share the ordinary text allowance.
         let prefix = if state.current.needs_line_break() && !state.current.response.is_empty() {
             "\n"
@@ -253,6 +305,7 @@ impl OutputTape {
         let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
+        state.history.text("notice", &failure.message);
         state.current.send_failure(failure);
     }
 
@@ -346,6 +399,7 @@ impl OutputTape {
         state.seal(true);
         state.finish_idle_interval();
         state.cell_active = true;
+        state.history.entered();
         match transcript.create_cell_output(call_id, omit_from_projections) {
             Ok(output) => state.cell_output = output,
             Err(error) => state.recording_notice(Some(format!("cell output file was not created: {error}; text omitted from inline responses will be permanently discarded"))),
@@ -358,19 +412,7 @@ impl OutputTape {
         &self,
         completion_confirmed: bool,
     ) -> OutputCut {
-        let mut state = self.change();
-        let cut = state.seal(true);
-        let notice = state.cell_output.take().and_then(|output| output.finish());
-        state.cell_active = false;
-        state.owner = state.session_recording.as_ref().and_then(|transcript| {
-            transcript.end_cell(completion_confirmed);
-            transcript.owner()
-        });
-        if notice.is_some() {
-            state.recording_notice(notice);
-            return state.seal(false);
-        }
-        cut
+        self.change().finish_cell_output(completion_confirmed)
     }
 
     pub(in crate::worker_client) fn drain_through(&self, cut: OutputCut) -> Response {
@@ -469,6 +511,21 @@ impl DirectOutput {
 }
 
 impl OutputTapeState {
+    fn finish_cell_output(&mut self, completion_confirmed: bool) -> OutputCut {
+        let cut = self.seal(true);
+        let notice = self.cell_output.take().and_then(|output| output.finish());
+        self.cell_active = false;
+        self.owner = self.session_recording.as_ref().and_then(|transcript| {
+            transcript.end_cell(completion_confirmed);
+            transcript.owner()
+        });
+        if notice.is_some() {
+            self.recording_notice(notice);
+            return self.seal(false);
+        }
+        cut
+    }
+
     fn finish_idle_interval(&mut self) {
         self.idle_recording_attempted = false;
         if let Some(output) = self.session_output.take() {
@@ -520,6 +577,16 @@ impl OutputTapeState {
         if text.is_empty() {
             return;
         }
+        self.history.text(
+            match stream {
+                Stream::Output => "output",
+                Stream::Diagnostic => "diagnostic",
+                Stream::Stdout => "stdout",
+                Stream::Stderr => "stderr",
+                Stream::NativeDiagnostic(_) => "diagnostic",
+            },
+            text,
+        );
         if self.stream != Some(stream) {
             self.flush_terminal();
             self.stream = Some(stream);
@@ -558,6 +625,7 @@ impl OutputTapeState {
         if let Some(notice) = notice {
             // A recording failure does not retire a direct output stream.
             self.flush_terminal();
+            self.history.text("notice", &notice);
             self.current.notice_line(notice);
         }
     }

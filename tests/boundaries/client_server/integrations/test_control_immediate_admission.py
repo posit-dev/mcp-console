@@ -193,6 +193,21 @@ def test_idle_immediate_r_preserves_ordinary_admission_and_interrupts(
                             "started": False,
                         },
                     }, status
+                    with ControlClient(endpoint) as observer:
+                        snapshot = observer.request(op="output")["result"]
+                    observed = next(
+                        item
+                        for item in snapshot["evaluations"]
+                        if item["id"] == evaluation_id
+                    )
+                    assert (
+                        observed["started"] is False and observed["state"] == "running"
+                    ), observed
+                    assert not any(
+                        item["type"] == "evaluation_started"
+                        and item["evaluation_id"] == evaluation_id
+                        for item in snapshot["events"]
+                    ), snapshot
                     interrupted = control.request(
                         op="interrupt", evaluation_id=evaluation_id
                     )
@@ -206,6 +221,16 @@ def test_idle_immediate_r_preserves_ordinary_admission_and_interrupts(
                         "interrupted ordinary source executed"
                     )
                     assert tool_text(completed) == "[done]", completed
+                    with ControlClient(endpoint) as observer:
+                        snapshot = observer.request(op="output")["result"]
+                    observed = next(
+                        item
+                        for item in snapshot["evaluations"]
+                        if item["id"] == evaluation_id
+                    )
+                    assert (
+                        observed["started"] is False and observed["state"] == "complete"
+                    ), observed
 
                     # A different language is accepted while immediate R owns
                     # the interpreter, then runs after private completion.

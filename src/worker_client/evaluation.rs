@@ -10,6 +10,10 @@ const INPUT_REQUEST_GRACE: Duration = Duration::from_millis(10);
 const CELL_COMPLETION_GRACE: Duration = Duration::from_millis(1);
 static NEXT_EVALUATION_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
+pub(super) fn next_id() -> u64 {
+    NEXT_EVALUATION_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
 pub(super) struct Evaluation {
     id: u64,
     pub(super) admission: super::admission::CellAdmission,
@@ -147,7 +151,7 @@ impl Evaluation {
     ) -> Self {
         let delivery_changed = Arc::new(tokio::sync::Notify::new());
         Self {
-            id: NEXT_EVALUATION_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            id: next_id(),
             origin: Origin::Mcp,
             omit_from_projections: transcript.take_projection_omission(call_id),
             admission: super::admission::CellAdmission::new(
@@ -198,6 +202,32 @@ impl Evaluation {
 
     pub(super) fn is_integrator(&self) -> bool {
         self.origin == Origin::Integrator
+    }
+
+    pub(super) fn observe_source(
+        &self,
+        cell: &crate::cell::Cell,
+        observation: Option<super::integrator::IntegratorObservation>,
+    ) {
+        if !self.output.history_enabled() {
+            return;
+        }
+        let hidden = observation
+            .as_ref()
+            .is_some_and(|observation| observation.hidden);
+        let request_id = observation.map(|observation| observation.request_id);
+        self.output.begin_evaluation(
+            serde_json::json!({
+                "id": self.id,
+                "origin": if self.is_integrator() { "integrator" } else { "mcp" },
+                "language": cell.language,
+                "source": cell.source,
+                "execution": "serial",
+                "request_id": request_id,
+                "call_id": self.call_id,
+            }),
+            hidden,
+        );
     }
 
     pub(super) fn id(&self) -> u64 {
@@ -497,7 +527,9 @@ impl Evaluation {
                 "worker reported an execution error outside its cell or more than once".into(),
             );
         }
-        state.execution_error = Some(super::output::bounded_execution_error(error));
+        let error = super::output::bounded_execution_error(error);
+        self.output.execution_error(&error);
+        state.execution_error = Some(error);
         Ok(())
     }
 
@@ -728,7 +760,7 @@ impl Evaluation {
     }
 
     fn finish_cell_output(&self) -> OutputCut {
-        self.output.finish_cell_output(false)
+        self.output.finish_evaluation()
     }
 
     pub(super) fn claim(self: &Arc<Self>) -> Result<WaitClaim, String> {
