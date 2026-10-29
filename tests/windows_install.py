@@ -3,6 +3,7 @@
 import argparse
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tomllib
@@ -37,9 +38,13 @@ if __name__ == "__main__":
         binary = options.installed_binary.resolve()
         native, _ = inspect_installation(binary)
         version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
-        assert subprocess.check_output([binary, "--version"], text=True).strip() == (
-            f"mcp-console {version}"
-        )
+        actual_version = subprocess.check_output(
+            [binary, "--version"], text=True
+        ).strip()
+        version_pattern = re.escape(f"mcp-console {version}")
+        if version.endswith("+dev"):
+            version_pattern += r"(?:\.g[0-9a-f]{12})?"
+        assert re.fullmatch(version_pattern, actual_version), actual_version
         run(binary, "--help")
         assert not (binary.parent / "mcp-console-sandbox.exe").exists()
         from support.windows_mxc import mxc_requirement

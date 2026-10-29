@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -299,6 +300,12 @@ def _initializes_and_lists_tools(
         ) as client:
             client.initialize_and_list_tools()
             listed_tools = client.transcript[-1]["result"]["tools"]
+            version = subprocess.check_output([binary, "--version"], text=True).strip()
+            assert (
+                version
+                == "mcp-console "
+                + client.transcript[0]["result"]["serverInfo"]["version"]
+            )
             assert [tool["name"] for tool in listed_tools] == ["send"], listed_tools
             send = listed_tools[0]
             instructions = client.transcript[0]["result"].get("instructions")

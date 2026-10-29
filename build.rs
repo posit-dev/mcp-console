@@ -1,7 +1,9 @@
 use sha2::{Digest as _, Sha256};
 use std::path::PathBuf;
+use std::process::Command;
 
 fn main() {
+    set_console_version();
     if std::env::var_os("CARGO_CFG_WINDOWS").is_some() {
         println!("cargo:rerun-if-changed=src/windows/console.manifest");
         println!("cargo:rerun-if-changed=src/windows/console.rc");
@@ -31,6 +33,44 @@ fn main() {
             .file("src/r_repl.c")
             .compile("mcp_console_r_repl");
     }
+}
+
+fn set_console_version() {
+    let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let mut version = std::env::var("CARGO_PKG_VERSION").unwrap();
+    if version.ends_with("+dev") && root.join(".git").exists() {
+        let git = |arguments: &[&str]| {
+            let output = Command::new("git")
+                .current_dir(&root)
+                .args(arguments)
+                .output()
+                .expect("Git is required to identify a development checkout");
+            assert!(
+                output.status.success(),
+                "git {arguments:?} failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            String::from_utf8(output.stdout).unwrap().trim().to_owned()
+        };
+        let revision = git(&["rev-parse", "--verify", "HEAD"]);
+        let reference = git(&["rev-parse", "--symbolic-full-name", "HEAD"]);
+        // Resolve paths through Git so linked worktrees and packed refs
+        // refresh on commits and checkouts without touching source files.
+        for name in ["HEAD", "packed-refs", &reference] {
+            let path = root.join(git(&["rev-parse", "--git-path", name]));
+            // Packing deletes the watched loose ref, which already causes
+            // a rerun. Do not watch all of .git before packed-refs exists.
+            if name == "packed-refs" && !path.exists() {
+                continue;
+            }
+            // Watching a missing loose ref would rerun every build. Watch
+            // its existing parent until Git creates it (also after packing).
+            let watched = path.ancestors().find(|path| path.exists()).unwrap();
+            println!("cargo:rerun-if-changed={}", watched.display());
+        }
+        version.push_str(&format!(".g{}", &revision[..12]));
+    }
+    println!("cargo:rustc-env=MCP_CONSOLE_VERSION={version}");
 }
 
 fn bind_private_runner() {

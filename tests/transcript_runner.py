@@ -208,6 +208,61 @@ def check_recording(*arguments: object, **keywords: object) -> object:
 """.lstrip()
 
 
+# fmt: python
+WORKER_DELIVERED_INTERRUPT = """
+import signal
+import sys
+import threading
+from queue import SimpleQueue
+from types import FrameType
+from typing import Any, TextIO
+
+
+if "--record-case" not in sys.argv and "--supervise-case" not in sys.argv:
+
+    class FailureReceipt:
+        def __init__(self, stream: TextIO) -> None:
+            self.stream = stream
+            self.reported = False
+
+        def write(self, text: str) -> int:
+            result = self.stream.write(text)
+            if " differs from its snapshot" in text:
+                self.reported = True
+            return result
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self.stream, name)
+
+    receipt = FailureReceipt(sys.stderr)
+    sys.stderr = receipt
+    interrupt = threading.Event()
+
+    def deliver_interrupt() -> None:
+        interrupt.wait()
+        signal.pthread_kill(threading.get_ident(), signal.SIGINT)
+
+    # Development and CI use GIL-enabled CPython. Once the gate opens, the
+    # worker can acquire the GIL only when get() releases it, delivering the
+    # signal on another thread while main is parked.
+    sys.setswitchinterval(60)
+    threading.Thread(target=deliver_interrupt, daemon=True).start()
+
+    def interrupt_when_parked(_frame: FrameType, event: str, function: Any) -> None:
+        if (
+            event == "c_call"
+            and isinstance(getattr(function, "__self__", None), SimpleQueue)
+            and function.__name__ == "get"
+            and receipt.reported
+            and function.__self__.empty()
+        ):
+            sys.setprofile(None)
+            interrupt.set()
+
+    sys.setprofile(interrupt_when_parked)
+""".lstrip()
+
+
 class TranscriptRunnerFixture(unittest.TestCase):
     """Shared setup only; concrete classes own each test exactly once."""
 
@@ -1559,7 +1614,15 @@ runner: released
         self.assertIn("KeyboardInterrupt", result.stderr)
         self.assertNotIn(f"{selector}: cancelled", result.stdout + result.stderr)
 
-    def test_user_cancellation_preserves_the_original_failure(self) -> None:
+    def assert_cancellation_preserves_the_original_failure(
+        self, *, signal_from_worker: bool
+    ) -> None:
+        if signal_from_worker:
+            runner = self.boundaries / "_run.py"
+            runner.write_text(
+                WORKER_DELIVERED_INTERRUPT + "\n" + runner.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
         selector = "client_server/server/test_tools::fails_before_cleanup"
         failure = "client_server/server/test_tools::failure_beside_hang"
         with self.hanging_runner(
@@ -1571,7 +1634,8 @@ runner: released
             self.assertEqual(os.write(release_failure, b"1"), 1)
             receipt = self.read_snapshot_failure(process, failure)
             self.assertIn(f"{failure}: failed", receipt)
-            process.send_signal(signal.SIGINT)
+            if not signal_from_worker:
+                process.send_signal(signal.SIGINT)
             stdout, stderr = process.communicate(timeout=10)
             stderr = receipt + stderr
             self.assertNotEqual(process.returncode, 0, stdout)
@@ -1581,6 +1645,14 @@ runner: released
             self.assertIn("AssertionError: original failure before cleanup", stderr)
             self.assertIn("KeyboardInterrupt", stderr)
             self.assertIn("multiple transcript cases failed", stderr)
+
+    def test_user_cancellation_preserves_the_original_failure(self) -> None:
+        self.assert_cancellation_preserves_the_original_failure(
+            signal_from_worker=False
+        )
+
+    def test_worker_delivered_cancellation_preserves_the_original_failure(self) -> None:
+        self.assert_cancellation_preserves_the_original_failure(signal_from_worker=True)
 
     def assert_signal_retires_case(self, number: signal.Signals) -> None:
         selector = "client_server/server/test_tools::hangs"

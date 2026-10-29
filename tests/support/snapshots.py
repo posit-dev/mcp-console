@@ -1,5 +1,6 @@
 import difflib
 import json
+import re
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -137,7 +138,7 @@ def check_snapshot(
             f"{snapshot.relative_to(root)} is missing; run scripts/test --update {case}"
         )
 
-    expected = read_yaml(snapshot, multi=True)
+    expected = normalize_console_versions(read_yaml(snapshot, multi=True))
     if not identical(actual, expected):
         expected_text = format_transcript(expected)
         difference = "".join(
@@ -177,6 +178,58 @@ def check_text_snapshot(
         raise SystemExit(f"{difference}{case} differs from its snapshot")
 
 
+def normalize_console_version(version: str) -> str:
+    """Keep build identity out of snapshots after the owning case asserts it."""
+    assert version == "<Console version>" or re.fullmatch(
+        r"\d+\.\d+\.\d+(?:\+dev(?:\.g[0-9a-f]{12})?)?", version
+    ), version
+    return "<Console version>"
+
+
+def normalize_console_versions(transcript: Transcript) -> Transcript:
+    """Accept older snapshots without rewriting them for each version bump."""
+    rendered = []
+    for entry in transcript:
+        if (
+            isinstance(entry, dict)
+            and isinstance(result := entry.get("result"), dict)
+            and isinstance(info := result.get("serverInfo"), dict)
+            and info.get("name") == "mcp-console"
+        ):
+            entry = {
+                **entry,
+                "result": {
+                    **result,
+                    "serverInfo": {
+                        **info,
+                        "version": normalize_console_version(info["version"]),
+                    },
+                },
+            }
+        if (
+            isinstance(entry, dict)
+            and isinstance(result := entry.get("result"), dict)
+            and isinstance(meta := result.get("_meta"), dict)
+            and isinstance(info := meta.get("io.modelcontextprotocol/serverInfo"), dict)
+            and info.get("name") == "mcp-console"
+        ):
+            entry = {
+                **entry,
+                "result": {
+                    **result,
+                    "_meta": {
+                        **meta,
+                        "io.modelcontextprotocol/serverInfo": {
+                            **info,
+                            "version": normalize_console_version(info["version"]),
+                        },
+                    },
+                },
+            }
+        rendered.append(entry)
+    return rendered
+
+
 def normalize_request_ids(transcript: Transcript) -> Transcript:
     # CLI transcripts also record raw input strings under the same key.
     cancelled_ids = {
@@ -190,7 +243,7 @@ def normalize_request_ids(transcript: Transcript) -> Transcript:
         if "id" in entry and entry["id"] in cancelled_ids:
             labels[entry["id"]] = f"<cancelled request {len(labels) + 1}>"
     rendered = []
-    for entry in transcript:
+    for entry in normalize_console_versions(transcript):
         entry = entry.copy()
         if isinstance(result := entry.get("result"), dict) and "content" in result:
             entry["result"] = {

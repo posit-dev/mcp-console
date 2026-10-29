@@ -855,13 +855,22 @@ def smoke_wheel(args: argparse.Namespace) -> None:
             f"wheel does not match {args.target}: {wheel.name}",
         )
 
+    actual_version = command_output(
+        ["uv", "tool", "run", "--from", str(wheel), "mcp-console", "--version"]
+    )
+    # Wheel metadata keeps +dev stable; a development executable can also
+    # identify its source commit without changing the installable version.
+    version_pattern = re.escape(f"mcp-console {version}")
+    if version.endswith("+dev"):
+        version_pattern += r"(?:\.g[0-9a-f]{12})?"
+    require(
+        re.fullmatch(version_pattern, actual_version) is not None,
+        "installed and wheel metadata versions differ",
+    )
     expected_version = (
         command_output([str(cargo_bin), "--version"])
         if cargo_bin is not None
-        else f"mcp-console {version}"
-    )
-    actual_version = command_output(
-        ["uv", "tool", "run", "--from", str(wheel), "mcp-console", "--version"]
+        else actual_version
     )
     reference = "Cargo" if cargo_bin is not None else "wheel metadata"
     require(
@@ -962,7 +971,7 @@ def smoke_wheel(args: argparse.Namespace) -> None:
         env["MCP_CONSOLE_HOME"] = str(uv_bin / "console")
         smoke_mcp(
             installed,
-            version,
+            actual_version.removeprefix("mcp-console "),
             env,
             uv_bin,
             args.startup_timeout_seconds,
