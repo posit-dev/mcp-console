@@ -273,11 +273,7 @@ def create_app(pool: Pool) -> App:
                                 chunk.model_copy(update={"value": text})
                             )
                             display.blocks[0]["request_call"] = format_yaml(
-                                {
-                                    "name": chunk.request.name,
-                                    "arguments": chunk.request.arguments,
-                                },
-                                width=None,
+                                chunk.request.arguments, width=None
                             )
                             yield display
                             for plot in plots:

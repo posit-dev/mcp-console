@@ -90,8 +90,7 @@ async def main() -> None:
             await first.get_by_role("button", name="send", exact=True).first.click()
             await first.get_by_text("Tool call", exact=True).first.click()
             call = first.locator(".shiny-tool-result__request code").first
-            await expect(call).to_contain_text("name: send\narguments:")
-            await expect(call).to_contain_text("python: |")
+            assert (await call.inner_text()).startswith("python: |")
             suggestion = first.get_by_role("log").locator(".suggestion").last
             await expect(suggestion).to_be_visible()
             question = await suggestion.inner_text()
