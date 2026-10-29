@@ -1,2 +1,2 @@
 # Exact generated test data: retain note Markdown and intentional whitespace.
-renders_note_examples_without_evaluating_them.qmd
+*.qmd

@@ -53,6 +53,7 @@ Results describe response assembly; local transport delivery is recorded separat
 Each `sessions/session-NNN.qmd` contains notes and source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
 Ordinary notes retain their Markdown and HTML.
 A note containing recognized metadata delimiters, executable code syntax, or Quarto shortcodes is wrapped as a whole in a `{verbatim}` chunk so it remains an example rather than changing document settings or executing code.
+Documents with notes select the Quarto engine from recorded source cells, so examples in notes do not change it: `knitr` for R, `jupyter` for Python or SQL without R, and `markdown` without source.
 This fallback covers common notebook annotations; it does not sanitize arbitrary Markdown or HTML, and Quarto may still preprocess shortcodes or inline syntax inside verbatim examples.
 The journal and Markdown transcript retain the original note text.
 Source admitted before worker acquisition stays pending until its worker is known, even if an initial response has already returned.

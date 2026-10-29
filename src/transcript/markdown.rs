@@ -380,6 +380,23 @@ impl QuartoWriter {
 title: MCP Console session
 ",
         );
+        if self.entries.values().any(|entry| entry.note.is_some()) {
+            // Quarto scans nested fences even inside verbatim notes when
+            // guessing the engine. Only recorded source should select it.
+            let engine = if self
+                .entries
+                .values()
+                .flat_map(|entry| &entry.sources)
+                .any(|source| source.language == "r")
+            {
+                "knitr"
+            } else if self.entries.values().any(|entry| !entry.sources.is_empty()) {
+                "jupyter"
+            } else {
+                "markdown"
+            };
+            writeln!(document, "engine: {engine}").unwrap();
+        }
         writeln!(
             document,
             "# From a working copy, run `ir render {filename}` in a prepared environment.

@@ -1,5 +1,6 @@
 """Journal examples remain prose when the generated QMD is rendered."""
 
+import json
 import shutil
 import subprocess
 import sys
@@ -13,10 +14,11 @@ from boundaries.client_server.sandbox.test_quarto import RenderedText
 from support.assertions import wait_for_worker_ready
 from support.client import McpClient
 from support.execution import DIRECT
-from support.normalization import normalize_recording
+from support.normalization import code, normalize_recording
 from support.r import r_test_environment
 from support.records import TranscriptWithCompanions
 from support.requirements import R, command, requires
+from support.resolvers import ir_cache_directory
 
 
 @requires(R, command("quarto"))
@@ -179,4 +181,105 @@ writeLines("option", "note-option-ran")
                     workspace,
                 )[0]["qmd"]
             },
+        )
+
+
+@requires(R, command("ir"), command("quarto"))
+def test_python_export_ignores_note_examples_when_selecting_engine(
+    binary: Path,
+) -> TranscriptWithCompanions:
+    environment, _ = r_test_environment()
+    note = """## Alternative R example
+
+```{r}
+writeLines("example", "note-ran")
+```
+"""
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory)
+        with McpClient(
+            binary,
+            DIRECT.serve(
+                "-c",
+                "languages=[python]",
+                "-c",
+                "r.packages=[]",
+                "-c",
+                "python.packages=[]",
+            ),
+            environment,
+            current_directory=workspace,
+        ) as client:
+            client.initialize_and_list_tools()
+            wait_for_worker_ready(client, "worker acquired before Python journal")
+            client.expect(note=note)
+            (recording,) = (workspace / ".agents/console/sessions").iterdir()
+            note_only = (recording / "sessions/session-001.qmd").read_text(
+                encoding="utf-8"
+            )
+            client.expect(
+                "executed-python=42\n",
+                # fmt: python
+                python=code("""
+                    from pathlib import Path
+
+                    written = Path("source-ran").write_text("42", encoding="utf-8")
+                    print("executed-python=42")
+                    """),
+            )
+            transcript = client.finish()
+
+        (recording,) = (workspace / ".agents/console/sessions").iterdir()
+        report = workspace / "report"
+        report.mkdir()
+        document = report / "session.qmd"
+        shutil.copyfile(recording / "sessions/session-001.qmd", document)
+        document_text = document.read_text(encoding="utf-8")
+        assert "  packages: []\n" in document_text, document_text
+        (report / "note-only.qmd").write_text(note_only, encoding="utf-8")
+        engines = {}
+        for name in ("note-only.qmd", document.name):
+            inspection = subprocess.run(
+                ["quarto", "inspect", name],
+                cwd=report,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=120,
+            )
+            engines[name] = json.loads(inspection.stdout)["engines"]
+        assert engines == {"note-only.qmd": ["markdown"], "session.qmd": ["jupyter"]}, (
+            engines
+        )
+
+        render_environment = environment.copy()
+        for name in tuple(render_environment):
+            if name.startswith("UV_") or name in ("RETICULATE_PYTHON", "RETICULATE_UV"):
+                del render_environment[name]
+        render_environment["IR_CACHE_DIR"] = ir_cache_directory(environment)
+        render_environment["XDG_CONFIG_HOME"] = str(workspace / ".config")
+        rendering = subprocess.run(
+            ["ir", "render", document.name, "--to", "html", "--quiet"],
+            cwd=report,
+            env=render_environment,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert rendering.returncode == 0, {
+            "stdout": rendering.stdout,
+            "stderr": rendering.stderr,
+        }
+        assert (report / "source-ran").read_text(encoding="utf-8") == "42"
+        assert not (report / "note-ran").exists()
+        visible = RenderedText()
+        visible.feed(document.with_suffix(".html").read_text(encoding="utf-8"))
+        visible_text = "".join(visible.parts)
+        assert "executed-python=42" in visible_text, visible_text
+        assert note.strip() in visible_text, visible_text
+        transcript.append({"rendering": {"engines": engines, "source_executed": True}})
+        return TranscriptWithCompanions(
+            normalize_recording(transcript, workspace),
+            {"qmd": normalize_recording([{"qmd": document_text}], workspace)[0]["qmd"]},
         )

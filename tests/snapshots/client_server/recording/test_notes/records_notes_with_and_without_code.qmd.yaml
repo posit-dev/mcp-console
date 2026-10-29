@@ -3,6 +3,7 @@ qmd: |+
   ---
   # Source recorded by MCP Console; review before executing.
   title: MCP Console session
+  engine: jupyter
   # From a working copy, run `ir render session-001.qmd` in a prepared environment.
   # IR rendering requires R on the render host, including for Python-only documents.
   ir:
