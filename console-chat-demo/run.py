@@ -18,9 +18,12 @@ def main() -> None:
     parser.add_argument("--sessions", type=int, default=8)
     parser.add_argument("--binary", type=Path, default=shutil.which("mcp-console"))
     parser.add_argument(
-        "--renviron", type=Path, help="Read only OPENAI_API_KEY from this file"
+        "--renviron", type=Path, help="Read only ANTHROPIC_API_KEY from this file"
     )
     parser.add_argument("--private-path", type=Path, action="append", default=[])
+    parser.add_argument(
+        "--r", type=Path, help="R executable; default: discover on PATH"
+    )
     parser.add_argument(
         "--warmup", action="store_true", help="Check R, Python and SQL, then exit"
     )
@@ -32,17 +35,17 @@ def main() -> None:
     if args.renviron:
         for line in args.renviron.expanduser().read_text().splitlines():
             name, separator, value = line.partition("=")
-            if separator and name.strip() == "OPENAI_API_KEY":
+            if separator and name.strip() == "ANTHROPIC_API_KEY":
                 parts = shlex.split(value, comments=True)
                 if len(parts) != 1:
-                    parser.error("OPENAI_API_KEY must contain one value")
-                os.environ["OPENAI_API_KEY"] = parts[0]
+                    parser.error("ANTHROPIC_API_KEY must contain one value")
+                os.environ["ANTHROPIC_API_KEY"] = parts[0]
                 break
         args.private_path.append(args.renviron.expanduser())
-    if not os.environ.get("OPENAI_API_KEY") and not args.warmup:
-        parser.error("Set OPENAI_API_KEY or provide --renviron ~/.Renviron")
+    if not os.environ.get("ANTHROPIC_API_KEY") and not args.warmup:
+        parser.error("Set ANTHROPIC_API_KEY or provide --renviron ~/.Renviron")
     if args.warmup:
-        os.environ.setdefault("OPENAI_API_KEY", "unused-for-warmup")
+        os.environ.setdefault("ANTHROPIC_API_KEY", "unused-for-warmup")
     # Shiny's own temporary files must be covered by every worker's deny rule.
     temporary = ROOT / ".runtime" / "server" / "private" / "controller-tmp"
     temporary.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -56,6 +59,7 @@ def main() -> None:
             "CONSOLE_CHAT_PRIVATE_PATHS": json.dumps(
                 [str(p.resolve()) for p in args.private_path]
             ),
+            **({"CONSOLE_CHAT_R": str(args.r.absolute())} if args.r else {}),
         }
     )
     if args.warmup:
@@ -67,6 +71,7 @@ def main() -> None:
                 Path(args.binary),
                 args.sessions,
                 tuple(args.private_path),
+                args.r,
             )
             try:
                 session = await pool.open()

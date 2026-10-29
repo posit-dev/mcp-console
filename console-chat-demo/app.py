@@ -15,13 +15,12 @@ from pathlib import Path
 import pandas as pd
 from chatlas import ContentToolRequest, ContentToolResult
 from chatlas.types import ContentImageInline
-from runtime import Pool
+from runtime import MODEL, Pool
 from shiny import App, Inputs, Outputs, Session, reactive, render, ui
 from shinychat import message_content
 from yaml12 import format_yaml
 
 HERE = Path(__file__).resolve().parent
-MODEL = "gpt-6.1-terra"
 LOG = logging.getLogger(__name__)
 
 
@@ -462,5 +461,8 @@ app = create_app(
             Path(x)
             for x in json.loads(os.environ.get("CONSOLE_CHAT_PRIVATE_PATHS", "[]"))
         ],
+        r=Path(os.environ["CONSOLE_CHAT_R"])
+        if os.environ.get("CONSOLE_CHAT_R")
+        else None,
     )
 )

@@ -1,8 +1,9 @@
 shiny==1.9.0
 shinychat==0.7.2
-chatlas[mcp]==0.23.0
+chatlas[anthropic,mcp]==0.23.0
 mcp==2.3.0
 pandas[output-formatting]==3.1.0
 matplotlib==3.11.2
 duckdb==2.0.0
 py-yaml12==0.2.0
+uv==0.13.1

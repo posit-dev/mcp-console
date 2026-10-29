@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 def test_app_serves_chat_and_only_public_assets(tmp_path, monkeypatch):
     directory = Path(__file__).resolve().parents[1]
     monkeypatch.syspath_prepend(str(directory))
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("CONSOLE_CHAT_RUNTIME", str(tmp_path / "server"))
     monkeypatch.setenv("CONSOLE_CHAT_BINARY", sys.executable)
     spec = importlib.util.spec_from_file_location(

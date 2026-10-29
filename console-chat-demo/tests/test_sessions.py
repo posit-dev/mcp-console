@@ -26,7 +26,8 @@ def text(result) -> str:
 
 @pytest_asyncio.fixture
 async def pool(tmp_path, monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key-must-not-reach-console")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-must-not-reach-console")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://gateway.invalid/anthropic")
     private = tmp_path / "private.txt"
     private.write_text("private-server-data")
     binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
@@ -218,7 +219,8 @@ async def test_credentials_and_host_files_are_protected(pool, tmp_path):
 import errno
 import os
 from pathlib import Path
-assert not os.environ.get('OPENAI_API_KEY')
+assert not os.environ.get('ANTHROPIC_API_KEY')
+assert not os.environ.get('ANTHROPIC_BASE_URL')
 try:
     Path({str(private)!r}).read_text()
 except OSError as error:
@@ -239,7 +241,7 @@ print('secrets-and-host-protected')
     assert not outside.exists()
     assert "r-key-absent" in text(
         await session.send(
-            r="stopifnot(Sys.getenv('OPENAI_API_KEY') == ''); cat('r-key-absent\\n')"
+            r="stopifnot(Sys.getenv('ANTHROPIC_API_KEY') == ''); cat('r-key-absent\\n')"
         )
     )
     connected = asyncio.Event()
@@ -271,7 +273,7 @@ else:
 
 @pytest.mark.asyncio
 async def test_cancelled_startup_retires_before_releasing_slot(tmp_path, monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "unused-by-this-test")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "unused-by-this-test")
     binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
     assert binary
     ready = tmp_path / "wrapper-ready"
@@ -336,6 +338,29 @@ os.execv({binary!r}, [{binary!r}, *sys.argv[1:]])
 
 
 @pytest.mark.asyncio
+async def test_explicit_r_executable_outside_path(tmp_path, monkeypatch):
+    # Posit Connect installs R under /opt/R/<version> without adding it to PATH.
+    r = shutil.which("R")
+    assert r
+    binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
+    assert binary
+    monkeypatch.setenv(
+        "PATH",
+        os.pathsep.join(
+            entry
+            for entry in os.environ["PATH"].split(os.pathsep)
+            if not (Path(entry) / "R").exists()
+        ),
+    )
+    pool = Pool(tmp_path / "pool", Path(binary), capacity=1, r=Path(r))
+    try:
+        session = await pool.open()
+        assert "r-selected" in text(await session.send(r="cat('r-selected\\n')"))
+    finally:
+        await pool.close()
+
+
+@pytest.mark.asyncio
 async def test_missing_private_path_is_rejected(tmp_path):
     binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
     assert binary
@@ -355,7 +380,7 @@ async def test_missing_private_path_is_rejected(tmp_path):
 
 @pytest.mark.asyncio
 async def test_capacity_reduction_keeps_previous_slot_private(tmp_path, monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "unused-by-this-test")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "unused-by-this-test")
     binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
     assert binary
     root = tmp_path / "pool"

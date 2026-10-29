@@ -12,9 +12,9 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
-from chatlas import ChatOpenAI, ContentToolRequest, ContentToolResult
+from chatlas import ChatAnthropic, ContentToolRequest, ContentToolResult
 
-MODEL = "gpt-6.1-terra"
+MODEL = "claude-sonnet-5-5"
 DATA = Path(__file__).parent / "data" / "sample.csv"
 PROMPT = """You are a data analyst working with the user in Console Chat.
 Use the send tool for calculations, data inspection, modeling and plots. It gives
@@ -51,11 +51,14 @@ class Pool:
         binary: Path,
         capacity: int = 8,
         private_paths: tuple[Path, ...] = (),
+        r: Path | None = None,
     ) -> None:
         assert capacity > 0
         private_paths = tuple(path.resolve(strict=True) for path in private_paths)
         self.root = root.resolve()
         self.binary = binary.absolute()
+        # None uses Console's R discovery from PATH.
+        self.r = None if r is None else r.absolute()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._lock = (self.root / "server.lock").open("a")
         fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -113,9 +116,13 @@ class Session:
         self.pool = pool
         self.slot = slot
         self.workspace = slot / "workspace"
-        self.chat = ChatOpenAI(
+        # ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL come from the server
+        # environment, such as a Posit Connect Anthropic integration.
+        self.chat = ChatAnthropic(
             model=MODEL,
             system_prompt=PROMPT,
+            max_tokens=6000,
+            reasoning="low",
             kwargs={"timeout": 120, "max_retries": 0},
         )
         self._closing: asyncio.Task[None] | None = None
@@ -161,7 +168,8 @@ class Session:
                 "packages": ["numpy", "pandas", "matplotlib", "duckdb"],
                 "resolution": "explicit",
             },
-            "r": {"vanilla": True, "packages": [], "resolution": "explicit"},
+            "r": {"vanilla": True, "packages": [], "resolution": "explicit"}
+            | ({} if self.pool.r is None else {"executable": str(self.pool.r)}),
             "cache": {"directory": str(cache)},
             "sandbox": {
                 "profile": "read_only",
@@ -205,7 +213,6 @@ class Session:
                 prompt,
                 content="all",
                 echo="none",
-                kwargs={"reasoning": {"effort": "low"}, "max_output_tokens": 6000},
             )
             async for chunk in stream:
                 if isinstance(chunk, ContentToolRequest):

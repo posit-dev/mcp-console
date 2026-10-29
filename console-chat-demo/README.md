@@ -31,10 +31,12 @@ uv pip install --python .venv/bin/python -r requirements.txt
 ```
 
 Open <http://127.0.0.1:8000>.
-The launcher reads only `OPENAI_API_KEY` from the specified file; it does not execute the file or copy the key to disk.
-Alternatively, set `OPENAI_API_KEY` in the server environment and omit `--renviron`.
-The model is [`gpt-6.1-terra`](https://developers.openai.com/api/docs/models/gpt-6.1-terra), using the Responses API with low reasoning effort.
+The launcher reads only `ANTHROPIC_API_KEY` from the specified file; it does not execute the file or copy the key to disk.
+Alternatively, set `ANTHROPIC_API_KEY` in the server environment and omit `--renviron`.
+The model is `claude-sonnet-5-5` through chatlas's `ChatAnthropic()` with low reasoning effort.
+`ANTHROPIC_BASE_URL` routes requests through a gateway, such as the one [Posit Connect](#deploy-on-posit-connect) supplies.
 There is no model substitution.
+Use `--r /path/to/R` when R is not on `PATH`.
 
 Each client gets a copy of `data/sample.csv` as `data.csv` in its own workspace.
 Objects and files persist for that browser session.
@@ -98,10 +100,43 @@ Copy the app's source files to `/srv/console-chat-demo`, excluding `.runtime` an
 Check runtime preparation with `run.py --warmup` as that account.
 
 [deploy/console-chat.service](deploy/console-chat.service) is a systemd template for one server process with a bounded session pool and service-level resource limits.
-It reads the API key from `/srv/console-chat-secrets/openai.env` and explicitly denies that directory to evaluated code and dependency preparation.
+It reads the API key from `/srv/console-chat-secrets/anthropic.env` and explicitly denies that directory to evaluated code and dependency preparation.
 Set that file to mode `0600`, restrict access to the service account, and configure the HTTPS/authentication proxy separately.
 The service template is intended for a host/VM; containers must permit the native Linux sandbox's required namespaces and syscalls.
 If native sandbox setup fails, fix the host configuration; the app does not retry without enforcement.
+
+## Deploy on Posit Connect
+
+On a Connect server with native execution, the app runs as Shiny content.
+Console's bubblewrap sandbox needs Connect to permit unprivileged user namespaces; the app does not run without enforcement.
+Build the Linux wheel for this revision with a manual run of the Release workflow, which does not publish.
+Stage the app with that wheel and deploy it:
+
+```sh
+gh run download RUN_ID --name pypi-x86_64-unknown-linux-gnu --dir wheels
+uvx --from rsconnect-python rsconnect deploy shiny -n SERVER \
+  --entrypoint app:app --override-python-version 3.13 \
+  --exclude '.runtime/**' --exclude '.venv/**' --exclude 'tests/**' .
+```
+
+Add the wheel's relative path, such as `wheels/mcp_console-VERSION-py3-none-manylinux_2_34_x86_64.whl`, to the staged copy of `requirements.txt`.
+The installed `mcp-console` and `uv` executables are on the content's `PATH`.
+
+Then configure the content:
+
+- Attach an Anthropic integration that uses environment variables.
+  When Connect's LLM gateway serves it, Connect injects `ANTHROPIC_BASE_URL` and an ephemeral `ANTHROPIC_API_KEY`; the provider key never enters the content.
+- Set `CONSOLE_CHAT_R` to an installed R executable, such as `/opt/R/4.6.1/bin/R`.
+  Connect does not put R on Python content's `PATH`.
+- Set `CONSOLE_CHAT_RUNTIME` to a directory under `/tmp`, which Connect keeps local and private to each process, instead of the shared, networked app directory.
+  Each process then owns its own runtime root and session pool.
+- Set **Max connections per process** to the pool capacity, `CONSOLE_CHAT_CAPACITY` (default 8), so Connect starts another process before a pool is full.
+  Bound **Max processes** by the host's CPU, memory, and disk.
+- Set `CONSOLE_CHAT_PRIVATE_PATHS` to a JSON list of Connect paths that evaluated code must not read: `["/opt/rstudio-connect/mnt/job", "/opt/rstudio-connect/mnt/app-data"]`.
+  The job directory holds the content's Connect session token.
+
+Connect authenticates viewers, so leave access restricted to the intended users.
+Each viewer's sessions still share the server's model budget and host resources.
 
 ## Validate
 

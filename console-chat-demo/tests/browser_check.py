@@ -1,4 +1,4 @@
-"""Drive the running app in Chromium, optionally with real Terra tool calls."""
+"""Drive the running app in Chromium, optionally with real model tool calls."""
 
 import argparse
 import asyncio
@@ -221,7 +221,7 @@ async def main() -> None:
             json.dumps(
                 {
                     "live": args.live or args.lifecycle,
-                    "model": "gpt-6.1-terra",
+                    "model": "claude-sonnet-5-5",
                     "browser_errors": errors,
                 }
             )
@@ -229,7 +229,7 @@ async def main() -> None:
         await browser.close()
         print(
             "Browser checks passed"
-            + (" with live Terra tool calls" if args.live or args.lifecycle else "")
+            + (" with live model tool calls" if args.live or args.lifecycle else "")
         )
 
 
