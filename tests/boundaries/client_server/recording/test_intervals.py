@@ -111,7 +111,7 @@ def test_preview_omission_preserves_raw_images(
             assert owners == [{"session_id": 1, "cell_id": 1, "interval": "cell"}], (
                 owners
             )
-            client.send()
+            client.send(session="default")
             assert (recording / omitted["path"]).read_bytes() == b"\0" * (
                 6 * 1024 * 1024 + 3
             )
@@ -207,7 +207,7 @@ def test_cell_intervals_and_empty_cells(
             post = wait_for_marker(workspace, "zod-recording-post-release", client)
             release_fixture_checkpoint(post, client=client)
             wait_for_marker(workspace, "zod-recording-post-observed", client)
-            client.send()
+            client.send(session="default")
             (active_recording,) = (workspace / ".agents/console/sessions").iterdir()
             active_capture = active_recording / "capture/sessions/001"
             capture = events(active_recording)

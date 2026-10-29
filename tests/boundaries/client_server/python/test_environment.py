@@ -43,7 +43,7 @@ def bootstrap_diagnostic(client: McpClient, ending: str) -> str:
     deadline = time.monotonic() + client.response_timeout
     output = ""
     while True:
-        result = client.send(timeout_ms=0)
+        result = client.send(session="default", timeout_ms=0)
         current = last_result_text(client)
         assert not result["isError"] and current.endswith("\n[idle]"), result
         output += current.removesuffix("\n[idle]")
@@ -466,7 +466,7 @@ def test_compacts_native_duckdb_progress_bar(
                 session = next((root / ".agents/console/sessions").iterdir())
                 raw = session / "capture/sessions/001/cell-002.txt"
                 events.watch_file(raw)
-                response = client.start_send(timeout_ms=220_000)
+                response = client.start_send(session="default", timeout_ms=220_000)
                 release.release()
                 # Native stdout and completion use independent transports. The
                 # public recording proves the server received every redraw before

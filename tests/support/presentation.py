@@ -43,8 +43,11 @@ def assert_tool_guidance(tool: dict, languages: set[str], *, custom: bool) -> No
         )
         assert (instruction in r_description) == (not custom and "r" in languages)
     for instruction in (
+        "Run one cell at a time per session; collect its result before more code",
+        "Sessions can run concurrently",
         "An error can leave earlier changes in place",
-        "do not resubmit the cell",
+        "Poll without code; do not resubmit",
+        "Empty calls poll all sessions; supply `session` to select one",
         "use only trusted dependencies",
     ):
         assert instruction in description, description

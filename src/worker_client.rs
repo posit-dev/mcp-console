@@ -18,6 +18,7 @@ mod output;
 #[cfg_attr(not(unix), allow(dead_code))]
 mod priority;
 mod send;
+mod sessions;
 mod status;
 
 #[cfg(any(unix, windows))]
@@ -48,6 +49,7 @@ pub(crate) use output::{Content, Response, ResponseDelivery};
 use output::{OutputTape, SendFailure};
 #[cfg(unix)]
 pub(crate) use priority::IntegratorExecution;
+pub(crate) use sessions::{SessionActivation, SessionPool, SessionSlot};
 
 pub(crate) const DEFAULT_R_REQUIREMENTS: &[&str] = &[
     "tidyverse",
@@ -122,11 +124,18 @@ impl SendRequest {
     }
 }
 
-/// A cloneable handle to the single implicit session, including its startup.
+/// A cloneable handle to one session, including its startup.
 #[derive(Clone)]
 pub(crate) struct Client(Arc<ClientInner>);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SessionKind {
+    Default,
+    Named,
+}
+
 struct ClientInner {
+    session_kind: SessionKind,
     configuration: OnceLock<ClientConfiguration>,
     startup: Mutex<tokio::sync::watch::Sender<Option<Result<(), String>>>>,
     /// Identity of connection startup, including the interval before admission.
@@ -310,11 +319,20 @@ struct ActiveEvaluation {
 }
 
 impl Client {
-    pub(crate) fn pending() -> Self {
+    pub(crate) fn pending(slot: SessionSlot) -> Self {
+        Self::pending_session(SessionKind::Default, slot)
+    }
+
+    pub(crate) fn pending_named(slot: SessionSlot) -> Self {
+        Self::pending_session(SessionKind::Named, slot)
+    }
+
+    fn pending_session(session_kind: SessionKind, slot: SessionSlot) -> Self {
         let (startup, _) = tokio::sync::watch::channel(None);
-        let lifecycle = LifecycleControl::new();
+        let lifecycle = LifecycleControl::new(slot);
         let startup_generation = lifecycle.generation.clone();
         Self(Arc::new(ClientInner {
+            session_kind,
             configuration: OnceLock::new(),
             startup: Mutex::new(startup),
             startup_generation,

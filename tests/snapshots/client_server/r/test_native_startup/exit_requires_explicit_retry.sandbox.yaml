@@ -19,8 +19,11 @@ result:
   content:
     - type: text
       text: |-
+        [session: "default"; status: stopped]
 
         [idle]
+  structuredContent:
+    sessions: []
   isError: false
 ---
 send:

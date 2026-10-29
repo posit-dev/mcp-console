@@ -1,0 +1,146 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  session: default
+  python: |
+    import json
+    import os
+    import subprocess
+    import sys
+
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import os, signal; "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "print(os.getpid(), flush=True); signal.pause()",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    child_pid = int(child.stdout.readline())
+    print(
+        json.dumps(
+            {
+                "worker": os.getpid(),
+                "relay": os.getppid(),
+                "child": child_pid,
+                "pid_namespace": (
+                    os.stat("/proc/self/ns/pid").st_ino if sys.platform == "linux" else None
+                ),
+            },
+            sort_keys=True,
+        )
+    )
+result:
+  content:
+    - type: text
+      text: >
+        {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
+        pid>"}
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  process_ids_and_namespace: >-
+    omitted after live identity and namespace assertions
+---
+send:
+  session: alpha
+  python: |
+    import json
+    import os
+    import subprocess
+    import sys
+
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import os, signal; "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "print(os.getpid(), flush=True); signal.pause()",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    child_pid = int(child.stdout.readline())
+    print(
+        json.dumps(
+            {
+                "worker": os.getpid(),
+                "relay": os.getppid(),
+                "child": child_pid,
+                "pid_namespace": (
+                    os.stat("/proc/self/ns/pid").st_ino if sys.platform == "linux" else None
+                ),
+            },
+            sort_keys=True,
+        )
+    )
+result:
+  content:
+    - type: text
+      text: >
+        {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
+        pid>"}
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  process_ids_and_namespace: >-
+    omitted after live identity and namespace assertions
+---
+send:
+  session: beta
+  python: |
+    import json
+    import os
+    import subprocess
+    import sys
+
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            "import os, signal; "
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+            "print(os.getpid(), flush=True); signal.pause()",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    child_pid = int(child.stdout.readline())
+    print(
+        json.dumps(
+            {
+                "worker": os.getpid(),
+                "relay": os.getppid(),
+                "child": child_pid,
+                "pid_namespace": (
+                    os.stat("/proc/self/ns/pid").st_ino if sys.platform == "linux" else None
+                ),
+            },
+            sort_keys=True,
+        )
+    )
+result:
+  content:
+    - type: text
+      text: >
+        {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
+        pid>"}
+  isError: false
+transcript_normalization:
+  target: result.content[0].text
+  process_ids_and_namespace: >-
+    omitted after live identity and namespace assertions

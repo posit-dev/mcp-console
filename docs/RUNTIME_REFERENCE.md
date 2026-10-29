@@ -4,12 +4,13 @@ This page documents how R, Python, and SQL code behaves inside Console, includin
 The behavior applies whether you connect through an MCP client, R, or Python.
 Start with [Sessions and languages](BUILTIN_RUNTIME.md) for a guided introduction.
 
-One connection owns one persistent session.
+One connection owns a default session and any additional [named sessions](API.md#named-sessions).
 Globals, imports, options, database state, and unread input survive between cells.
+Each session keeps its own state; different sessions can execute concurrently.
 Cells are not transactions: an error can leave earlier changes in place.
 Restart or worker loss discards all live language state.
 
-Submit one complete R, Python, or SQL cell, inspect its result, and then submit the next.
+Within each session, submit one complete R, Python, or SQL cell, inspect its result, and then submit the next.
 [Drive send directly](SEND_OPERATIONS.md) covers polling, interactive input, interruption, and restart; [`send` API](API.md) lists the arguments.
 
 ## Runtime selection
@@ -299,7 +300,7 @@ Preparation, transport, and protocol failures are MCP tool errors.
 
 ## Current limitations
 
-There are no named sessions or parallel cells.
+Parallel cells require separate sessions.
 Recordings are not checkpoints and Console provides no file-read/search tool.
 No aggregate retention quota or automatic cleanup is implemented.
 

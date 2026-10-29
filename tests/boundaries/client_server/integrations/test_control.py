@@ -559,7 +559,7 @@ def test_mcp_poll_cannot_claim_integrator_output(
                 )
                 try:
                     entered.wait(client=client)
-                    response = client.send()
+                    response = client.send(session="default")
                     assert response.get("isError"), response
                     assert "integrator pending" not in json.dumps(response), response
                     release.release()
@@ -684,7 +684,7 @@ def test_cancelled_mcp_control_keeps_recovery_out_of_integrator_result(
                         == "integrator pending\nintegrator finished\n"
                     ), result
                     assert result_text(preview) == "integrator pending\n", preview
-                    recovered = client.send()
+                    recovered = client.send(session="default")
                     assert recovered == {
                         "content": [
                             {

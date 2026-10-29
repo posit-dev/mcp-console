@@ -37,7 +37,8 @@ input:
   method: ping
 result: {}
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

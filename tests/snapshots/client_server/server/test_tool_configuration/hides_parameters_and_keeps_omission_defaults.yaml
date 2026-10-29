@@ -48,13 +48,12 @@ result:
         fit a statistical model, or make a plot.
 
 
-        Run one cell at a time. Wait for its `send` to return before another
-        call with code. You can interrupt a pending call with
-        `send(control="interrupt")`. An error can leave earlier changes in
-        place. If work is still running, poll with an empty `send`; do not
-        resubmit the cell. Each call waits for output for up to 60 seconds; it
-        returns early when work finishes or needs input. Expiry returns
-        available output while work continues. Default:
+        Run one cell at a time per session; collect its result before more code.
+        Sessions can run concurrently. Use `control="interrupt"` to interrupt.
+        An error can leave earlier changes in place. Poll without code; do not
+        resubmit. Empty calls poll all sessions; supply `session` to select one.
+        Calls wait up to 60 seconds; a targeted poll returns early on completion
+        or input. Expiry leaves work running. Default:
         `requirements.action="add"`.
 
 
@@ -212,6 +211,26 @@ result:
 send:
   python: retained = 0
   control: restart
+  session: analysis
+result:
+  content:
+    - type: text
+      text: "`session` is hidden by `tool.parameters`"
+  isError: true
+---
+send:
+  python: retained = 0
+  control: restart
+  session: ~
+result:
+  content:
+    - type: text
+      text: "`session` is hidden by `tool.parameters`"
+  isError: true
+---
+send:
+  python: retained = 0
+  control: restart
   timeout_ms: 0
 result:
   content:
@@ -306,13 +325,12 @@ result:
         fit a statistical model, or make a plot.
 
 
-        Run one cell at a time. Wait for its `send` to return before another
-        call with code. You can interrupt a pending call with
-        `send(control="interrupt")`. An error can leave earlier changes in
-        place. If work is still running, poll with an empty `send`; do not
-        resubmit the cell. Each call waits for output for up to 60 seconds; it
-        returns early when work finishes or needs input. Expiry returns
-        available output while work continues. Default:
+        Run one cell at a time per session; collect its result before more code.
+        Sessions can run concurrently. Use `control="interrupt"` to interrupt.
+        An error can leave earlier changes in place. Poll without code; do not
+        resubmit. Empty calls poll all sessions; supply `session` to select one.
+        Calls wait up to 60 seconds; a targeted poll returns early on completion
+        or input. Expiry leaves work running. Default:
         `requirements.action="add"`.
 
 
@@ -461,6 +479,11 @@ result:
   content:
     - type: text
       text: |-
+        [session: "default"; status: idle]
 
         [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
   isError: false

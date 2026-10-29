@@ -996,7 +996,7 @@ def test_interrupts_selected_python_dbapi_connection(
             )
             release.release()
             release = None
-            client.send()
+            client.send(session="default")
             assert "KeyboardInterrupt" in last_tool_text(client)
 
             client.send(sql="ANSWER")
@@ -1157,7 +1157,7 @@ def test_interrupts_python_dbapi_provider_probe(
             )
             release.release()
             release = None
-            client.send(timeout_ms=30_000)
+            client.send(session="default", timeout_ms=30_000)
             assert "KeyboardInterrupt" in last_tool_text(client)
 
             client.send(sql="ANSWER")

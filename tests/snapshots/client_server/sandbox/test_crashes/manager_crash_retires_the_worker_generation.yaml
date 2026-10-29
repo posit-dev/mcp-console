@@ -33,7 +33,8 @@ transcript_normalization:
 ---
 manager_signal: SIGKILL
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

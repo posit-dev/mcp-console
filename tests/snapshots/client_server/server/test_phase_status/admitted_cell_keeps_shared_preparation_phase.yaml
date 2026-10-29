@@ -2,6 +2,7 @@
 !same-as MCP initialization for this execution mode
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -25,6 +26,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -36,6 +38,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 600000
 result:
   content:
@@ -44,7 +47,8 @@ result:
         cell completed
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

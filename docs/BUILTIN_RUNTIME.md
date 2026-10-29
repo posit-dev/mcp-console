@@ -20,8 +20,14 @@ The agent can request an interrupt or restart an unresponsive session.
 
 <span id="current-limitations"></span>
 
-Each connection has one session and runs one code cell at a time.
-Restarting clears live objects and in-memory database state; reconnecting starts a new session.
+Each connection starts with a session named `default`.
+The agent can supply another `session` name with code to start an independent session, so separate analyses can run concurrently.
+Each session runs one code cell at a time and keeps its own objects, database state, input, and package requirements.
+An empty call collects output from all active sessions and lists their statuses; supplying a name polls only that session.
+
+Restarting clears the selected session's live objects and in-memory database state.
+A named session restarted without code or nonempty input stays stopped until a later code or nonempty-input call; the default session restarts immediately.
+Closing the connection stops all its sessions.
 Recordings preserve a record of the work, not a saved session that can be resumed.
 
 ## Combine languages in one session {#r-and-python-interoperability}

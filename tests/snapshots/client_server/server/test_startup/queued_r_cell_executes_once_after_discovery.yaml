@@ -23,6 +23,7 @@ input:
 result: {}
 ---
 send:
+  session: default
   timeout_ms: 10000
 result:
   content:

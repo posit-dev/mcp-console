@@ -29,6 +29,21 @@ pub(super) fn send_response_from_wait(wait: EvaluationWait) -> SendResponse {
 }
 
 impl Client {
+    /// Aggregate polls collect undelivered output without repeating a dormant
+    /// named session's cached discovery error. Targeted calls retain that error.
+    pub(crate) async fn poll_active(&self, request: SendRequest) -> Result<Response, String> {
+        if self.0.session_kind == super::SessionKind::Named
+            && self.startup_finished()
+            && !self.is_configured()
+            && self.current_evaluation()?.is_none()
+        {
+            let mut response = output::render_response(SendResponse::Stopped(self.0.output.take()));
+            response.recover_to(self.0.output.clone());
+            return Ok(response);
+        }
+        self.send(request, false).await
+    }
+
     /// Interprets preparation, control, evaluation, stdin, and polling for the session.
     pub(crate) async fn send(
         &self,
@@ -234,8 +249,13 @@ impl Client {
         transcript: crate::transcript::Transcript,
         call_id: Option<u64>,
     ) -> Response {
+        let activation = match self.activate_session() {
+            Ok(activation) => activation,
+            Err(error) => return output::direct_failure(error),
+        };
         let client = self.clone();
         let admission = tokio::task::spawn_blocking(move || {
+            let _activation = activation;
             client.prepare_and_start_evaluation(cell, stdin, requirements, transcript, call_id)
         })
         .await;
@@ -502,10 +522,14 @@ impl Client {
             self.0.output.push_failure(failure);
             return Ok(SendResponse::Failed(self.0.output.take()));
         }
+        let stopped = matches!(*worker, WorkerState::Initial | WorkerState::Stopped)
+            && self.0.session_kind == super::SessionKind::Named;
         drop(worker);
         let output = self.0.output.drain_through(snapshot.cut);
         Ok(if snapshot.input_requested {
             SendResponse::InputRequested(output)
+        } else if stopped {
+            SendResponse::Stopped(output)
         } else {
             SendResponse::Idle(output)
         })

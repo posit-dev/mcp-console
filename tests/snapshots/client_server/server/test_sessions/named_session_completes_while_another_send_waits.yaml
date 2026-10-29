@@ -1,0 +1,46 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: pass
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: pass
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: alpha
+  timeout_ms: 300000
+  python: |
+    with open("alpha-ready", "wb", buffering=0) as ready:
+        _ = ready.write(b"1")
+    with open("alpha-release", "rb", buffering=0) as release:
+        assert release.read(1) == b"1"
+    print("alpha returned")
+result:
+  content:
+    - type: text
+      text: |
+        alpha returned
+  isError: false
+---
+send:
+  python: print('beta returned')
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        beta returned
+  isError: false

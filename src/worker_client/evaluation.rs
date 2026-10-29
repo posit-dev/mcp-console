@@ -306,6 +306,18 @@ impl Evaluation {
         Some(!state.retired && matches!(state.phase, EvaluationPhase::ReplacementStarting))
     }
 
+    pub(super) fn session_status(&self) -> &'static str {
+        let Ok(state) = self.state.try_lock() else {
+            return "running";
+        };
+        match state.phase {
+            EvaluationPhase::Evaluating if state.input_request.is_some() => "waiting_for_stdin",
+            EvaluationPhase::Evaluating => "running",
+            EvaluationPhase::ReplacementStarting => "starting",
+            EvaluationPhase::CellCompletionGrace(_) | EvaluationPhase::Complete(_) => "idle",
+        }
+    }
+
     /// Reserves an open response until restart finishes retiring the worker.
     pub(super) fn reserve_for_restart(self: &Arc<Self>) -> Result<EvaluationReservation, String> {
         let mut state = self

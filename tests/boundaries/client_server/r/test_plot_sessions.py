@@ -112,7 +112,7 @@ def test_workers_keep_plot_files_separate(
                 (first, expected[0], releases[0]),
             ):
                 release.release()
-                client.send()
+                client.send(session="default")
                 assert_result_content(client, [image])
             return first.finish() + second.finish()
 

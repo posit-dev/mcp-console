@@ -1,0 +1,90 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  r: echo alpha output
+  session: alpha
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: echo beta output
+  session: beta
+id: <cancelled request 2>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 2>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+id: <cancelled request 3>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 3>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        zod: alpha output
+  isError: false
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        zod: beta output
+  isError: false
+---
+send:
+  session: beta
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

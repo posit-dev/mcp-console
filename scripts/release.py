@@ -323,7 +323,10 @@ def smoke_mcp(
                 "method": "tools/call",
                 "params": {
                     "name": "send",
-                    "arguments": {"timeout_ms": int(startup_timeout * 1_000)},
+                    "arguments": {
+                        "session": "default",
+                        "timeout_ms": int(startup_timeout * 1_000),
+                    },
                 },
             }
         )

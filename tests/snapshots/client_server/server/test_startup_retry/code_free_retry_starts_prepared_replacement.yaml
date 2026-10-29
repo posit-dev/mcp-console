@@ -11,7 +11,8 @@ result:
         .agents/console/config.yaml to use an existing environment
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -34,7 +35,8 @@ result:
         [idle]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

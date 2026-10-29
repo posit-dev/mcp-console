@@ -105,7 +105,7 @@ def interrupt_held_evaluator(
                     "the controller committed RuntimeInitialized while dispatch is pending"
                 )
                 checkpoints["evaluator-release"].release()
-                settled = client.send()
+                settled = client.send(session="default")
                 assert tool_text(settled) == "[done]", settled
                 (recording,) = (root / ".agents/console/sessions").iterdir()
                 events = [

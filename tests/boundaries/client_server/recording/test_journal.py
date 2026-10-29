@@ -973,7 +973,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             "cell_output",
         ], completed_events
         assert completed_semantic[-1]["call_id"] == 2, completed_semantic[-1]
-        client.send(timeout_ms=3_000)
+        client.send(session="default", timeout_ms=3_000)
         poll_result = client.transcript[-1]["result"]
         assert poll_result == {
             "content": [{"type": "image", "data": PNG_1X1, "mimeType": "image/png"}],
@@ -1269,7 +1269,7 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
                 )
                 client.send(r="stop('failed discovery ran the cell')", timeout_ms=0)
                 discovery.release()
-                response = client.send()
+                response = client.send(session="default")
                 assert response["isError"], response
                 assert "fixture R discovery failed" in last_result_text(client)
                 _, stderr = client.finish_with_standard_error(expected_exit_status=1)
@@ -1447,7 +1447,7 @@ def test_preserves_early_requirements_in_published_quarto(binary: Path) -> Trans
                     "[running; poll with an empty send]"
                 ), admitted
                 discovery.release()
-                result = client.send()
+                result = client.send(session="default")
                 assert not result["isError"], result
                 assert last_tool_text(client).endswith("[1] 42\n")
                 transcript = client.finish()

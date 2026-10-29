@@ -1,0 +1,54 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  session: default
+  python: print(42)
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/missing-python; local resolver setup or retirement deadline
+        exceeded; cannot terminate local resolver: Operation not permitted (os
+        error 1); retirement unconfirmed
+  isError: true
+---
+send:
+  session: alpha
+  python: print(42)
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/missing-python; local resolver setup or retirement deadline
+        exceeded; cannot terminate local resolver: Operation not permitted (os
+        error 1); retirement unconfirmed
+  isError: true
+---
+send:
+  session: beta
+  python: raise AssertionError('ran')
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: beta
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: unknown session "beta"; submit a code cell to create it
+  isError: true
+---
+stderr: >
+  selected Python executable is not an absolute file:
+  <workspace>/missing-python; local resolver setup or retirement deadline
+  exceeded; cannot terminate local resolver: Operation not permitted (os
+  error 1); retirement unconfirmed

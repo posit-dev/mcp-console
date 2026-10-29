@@ -55,6 +55,7 @@ reference:
     contents:
     - config-workflow
     - ConsoleConfig
+    - SessionsConfig
   - title: Runtime selection and dependency preparation
     contents:
     - RConfig

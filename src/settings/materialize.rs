@@ -64,6 +64,7 @@ pub(crate) fn configuration(
         true,
     );
     value["tool"] = serde_json::to_value(tool).expect("tool configuration");
+    value["sessions"] = json!({"max": captured.sessions.max});
     value
         .as_object_mut()
         .expect("configuration mapping")

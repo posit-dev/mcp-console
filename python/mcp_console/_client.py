@@ -63,8 +63,8 @@ class AsyncMCPConsole:
     Enter and close the connection in the same async task. The application owns
     its model clients, agents, and tool loops. The context starts the server and
     discovers its tools; leaving the context closes its connection and process.
-    Variables persist across `send()` calls on this connection. A new connection
-    starts a new session.
+    Variables persist across `send()` calls to the same named session. A new
+    connection starts with a fresh default session.
     By default the client prefers Console in the current Python environment,
     then PATH, and launches `serve`. Use `command` and `args` to select another
     executable or launch configuration.
@@ -172,6 +172,7 @@ class AsyncMCPConsole:
         r: str | None = None,
         python: str | None = None,
         sql: str | None = None,
+        session: str | None = None,
         control: Literal["interrupt", "restart"] | None = None,
         requirements: Requirements | None = None,
         stdin: str | None = None,
@@ -181,7 +182,10 @@ class AsyncMCPConsole:
 
         Send at most one of r, python, or sql per call.
         If output ends in ``[running; poll with an empty send]``, call again
-        without code or stdin until completion before submitting another cell.
+        with the same `session` and without code or stdin until completion
+        before submitting another cell to that session. Different sessions
+        can run concurrently. An empty call without `session` polls all active
+        sessions and lists their statuses.
         `console(...)` is an alias for `send(...)`.
         If tool configuration hides `timeout_ms`, poll without that argument.
 
@@ -189,6 +193,10 @@ class AsyncMCPConsole:
             r: One complete R cell.
             python: One complete Python cell.
             sql: One complete SQL cell on the selected connection.
+            session: Session name. Code and input use "default" when omitted.
+                A new name starts an independent session on its first code
+                call. Omission or None on an empty poll collects
+                all active sessions; pass "default" to poll only that session.
             control: Interrupt the active operation or restart the runtime.
             requirements: Declaration keyed by r, python, or duckdb, with optional
                 python_version and exclude_newer constraints. action defaults to
@@ -222,7 +230,7 @@ class AsyncMCPConsole:
                     )
                     print(output, end="")
                     while output.endswith("[running; poll with an empty send]"):
-                        output = await console.send()
+                        output = await console.send(session="default")
                         print(output, end="")
 
 
@@ -233,6 +241,7 @@ class AsyncMCPConsole:
             "r": r,
             "python": python,
             "sql": sql,
+            "session": session,
             "control": control,
             "requirements": requirements,
             "stdin": stdin,

@@ -34,7 +34,8 @@ struct Documents {
     calls: BTreeMap<u64, PendingSource>,
     sessions: BTreeMap<u64, QuartoWriter>,
     metadata: Metadata,
-    current: Option<u64>,
+    session_metadata: BTreeMap<String, Metadata>,
+    current: BTreeMap<String, u64>,
 }
 struct PendingSource {
     admitted: bool,
@@ -150,35 +151,42 @@ impl Documents {
     fn observe(&mut self, event: &Event<'_>) -> Result<Option<u64>, String> {
         match event {
             Event::EnvironmentDiscovered {
+                session,
                 dynamic_resolution,
                 r_available,
                 startup_requirements,
                 ..
             } => {
-                self.metadata.metadata_known = true;
-                self.metadata.dynamic_resolution = *dynamic_resolution;
-                self.metadata.r_available = *r_available;
-                self.metadata.requirements(
+                let metadata = self.metadata_for(session);
+                metadata.metadata_known = true;
+                metadata.dynamic_resolution = *dynamic_resolution;
+                metadata.r_available = *r_available;
+                metadata.requirements(
                     &serde_json::to_value(startup_requirements).map_err(|e| e.to_string())?,
                 );
-                return Ok(self.update_current_metadata());
+                return Ok(self.update_current_metadata(session));
             }
             Event::WorkerStarted {
+                session,
                 session_id,
                 requirements,
                 ..
             } => {
-                self.metadata.requirements(requirements);
-                self.current = Some(*session_id);
+                let metadata = self.metadata_for(session);
+                metadata.requirements(requirements);
+                let metadata = metadata.clone();
+                self.current.insert((*session).to_owned(), *session_id);
                 self.sessions.insert(
                     *session_id,
                     QuartoWriter {
-                        metadata: self.metadata.clone(),
+                        metadata,
                         sources: Vec::new(),
                     },
                 );
             }
-            Event::WorkerEnded { .. } => self.current = None,
+            Event::WorkerEnded { session_id, .. } => {
+                self.current.retain(|_, current| current != session_id);
+            }
             Event::ToolCall {
                 call_id, request, ..
             } => {
@@ -237,9 +245,12 @@ impl Documents {
                     self.calls.remove(call_id);
                 }
             }
-            Event::RequirementsAccepted { requirements } => {
-                self.metadata.requirements(requirements);
-                return Ok(self.update_current_metadata());
+            Event::RequirementsAccepted {
+                session,
+                requirements,
+            } => {
+                self.metadata_for(session).requirements(requirements);
+                return Ok(self.update_current_metadata(session));
             }
             // Selection and Python preparation can describe a replacement
             // before the old worker retires. Only live commits and actual
@@ -265,12 +276,18 @@ impl Documents {
         Ok(None)
     }
 
-    fn update_current_metadata(&mut self) -> Option<u64> {
-        let id = self.current?;
+    fn metadata_for(&mut self, session: &str) -> &mut Metadata {
+        self.session_metadata
+            .entry(session.to_owned())
+            .or_insert_with(|| self.metadata.clone())
+    }
+
+    fn update_current_metadata(&mut self, session: &str) -> Option<u64> {
+        let id = *self.current.get(session)?;
         self.sessions
             .get_mut(&id)
             .expect("current worker document")
-            .metadata = self.metadata.clone();
+            .metadata = self.session_metadata[session].clone();
         Some(id)
     }
 }
@@ -715,7 +732,11 @@ impl Send<'_> {
         if self.options.contains_key("requirements") {
             return "Requirements";
         }
-        if self.options.is_empty() || self.options.keys().all(|key| key == "timeout_ms") {
+        if self
+            .options
+            .keys()
+            .all(|key| matches!(key.as_str(), "session" | "timeout_ms"))
+        {
             "Poll"
         } else {
             "Send"
@@ -779,7 +800,13 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     if arguments.keys().any(|key| {
         !matches!(
             key.as_str(),
-            "r" | "python" | "sql" | "stdin" | "control" | "requirements" | "timeout_ms"
+            "r" | "python"
+                | "sql"
+                | "stdin"
+                | "control"
+                | "requirements"
+                | "session"
+                | "timeout_ms"
         )
     }) {
         return None;

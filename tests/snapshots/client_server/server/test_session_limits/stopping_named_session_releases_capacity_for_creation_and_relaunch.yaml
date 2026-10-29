@@ -1,0 +1,239 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: retained = 'default'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: retained = 100
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: beta
+  python: raise AssertionError('rejected source executed')
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: beta
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: unknown session "beta"; submit a code cell to create it
+  isError: true
+---
+send:
+  session: alpha
+  control: restart
+  python: retained = 100; print(retained)
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        100
+        [done]
+  isError: false
+---
+send:
+  python: retained += 1; print(retained)
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        101
+  isError: false
+---
+send:
+  session: alpha
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  python: retained = 200
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: alpha
+  python: raise AssertionError('rejected source executed')
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: alpha
+  stdin: |
+    rejected input
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: alpha
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: alpha
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": false,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: false
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  session: alpha
+  control: restart
+  python: raise AssertionError('rejected source executed')
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+
+        [stopped]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "beta"; status: idle]
+
+        [idle]
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: beta
+        status: idle
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: beta
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  python: print('retained' in globals()); print(input('fresh> '))
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+        [starting new worker]
+        False
+        [input requested: "fresh> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  session: alpha
+  stdin: |
+    fresh input
+result:
+  content:
+    - type: text
+      text: |
+        fresh input
+  isError: false
+---
+send:
+  python: print(retained)
+result:
+  content:
+    - type: text
+      text: |
+        default
+  isError: false

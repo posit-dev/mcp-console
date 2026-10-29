@@ -231,7 +231,7 @@ cell before image
         normalize_preview_paths(client.client)
         compact_previews(client.client, "x")
 
-        client.send()
+        client.send(session="default")
         assert _tool_text(client.client.transcript[-1]["result"]) == "\n[idle]"
         transcript = client.client.finish()
         finished = True

@@ -111,7 +111,8 @@ result:
         1                  42
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

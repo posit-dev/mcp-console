@@ -28,7 +28,7 @@ impl SendArguments {
             }
         }
         let mut fields = languages.fields();
-        fields.extend(["control", "requirements", "stdin", "timeout_ms"]);
+        fields.extend(["session", "control", "requirements", "stdin", "timeout_ms"]);
         if let Some(unknown) = arguments
             .keys()
             .find(|field| !fields.contains(&field.as_str()))
@@ -55,6 +55,14 @@ pub(super) struct SendArguments {
     pub(super) python: Option<String>,
     #[schemars(description = super::presentation::sql_description())]
     pub(super) sql: Option<String>,
+    /// Select a session by name (default: "default"). A new name starts an independent session
+    /// with its first code cell. Each session retains its own variables, database
+    /// state, and requirements; different sessions can execute concurrently. Supply the name
+    /// again to poll, interrupt, or restart it. An empty call without session polls all active
+    /// sessions and lists their statuses. Restart without code or nonempty stdin stops a named
+    /// session until its next code or nonempty-input call; the default session restarts immediately.
+    #[serde(default = "default_session")]
+    pub(super) session: String,
     #[serde(default = "default_timeout_ms")]
     #[schemars(description = super::presentation::timeout_description())]
     pub(super) timeout_ms: u64,
@@ -142,4 +150,8 @@ fn supplied_nullable<'de, D: serde::Deserializer<'de>>(
 
 fn default_timeout_ms() -> u64 {
     DEFAULT_TIMEOUT_MS
+}
+
+fn default_session() -> String {
+    "default".into()
 }

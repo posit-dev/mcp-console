@@ -44,7 +44,7 @@ pub(crate) struct Response {
     preview: Box<Preview>,
     is_error: bool,
     delivery: Option<Box<ResponseDeliveryTarget>>,
-    phase_terminal: Option<TerminalState>,
+    terminal: Option<TerminalState>,
     phase: Option<super::status::Source>,
     execution_error: Option<Box<crate::worker_protocol::ExecutionError>>,
 }
@@ -94,12 +94,14 @@ pub(super) enum TerminalState {
     Running,
     StdinNeeded,
     Idle,
+    Stopped,
     WorkerStarting,
     ReplacementReady,
 }
 
 pub(super) enum SendResponse {
     Idle(Response),
+    Stopped(Response),
     Failed(Response),
     Running(Response),
     InputRequested(Response),
@@ -149,6 +151,80 @@ impl SendFailure {
 }
 
 impl Response {
+    /// Combine session previews under the ordinary complete-result bounds while
+    /// keeping each session's original response available for delivery recovery.
+    pub(crate) fn append_session(
+        &mut self,
+        name: &str,
+        status: &str,
+        mut response: Self,
+    ) -> Option<ResponseDelivery> {
+        let phase = response
+            .phase
+            .as_ref()
+            .filter(|_| {
+                matches!(
+                    response.terminal,
+                    Some(TerminalState::Running | TerminalState::WorkerStarting)
+                )
+            })
+            .and_then(|source| source.phase());
+        let delivery = response.delivery.take().map(|target| ResponseDelivery {
+            target: Some(target),
+            unclaimed: Some(Response {
+                preview: response.preview.clone(),
+                is_error: response.is_error,
+                terminal: response.terminal,
+                phase: response.phase.take(),
+                delivery: None,
+                execution_error: response.execution_error.clone(),
+            }),
+        });
+        let empty_stopped = !response.is_error
+            && matches!(response.terminal, Some(TerminalState::Stopped))
+            && matches!(response.preview.render_recorded().0.as_slice(),
+                [Content::Text(text)] if text == "\n[stopped]");
+        if !empty_stopped {
+            self.push_notice_line(format!(
+                "session: {}; status: {status}",
+                serde_json::json!(name)
+            ));
+            if let Some(phase) = phase {
+                response.preview.bound();
+                response.preview.phase_before_terminal(
+                    phase,
+                    matches!(response.terminal, Some(TerminalState::Running)),
+                );
+            }
+            self.extend(response);
+        }
+        delivery
+    }
+
+    /// The same observation used by the text response, without parsing notices.
+    pub(crate) fn session_status(&self) -> Option<&'static str> {
+        let terminal = self.terminal?;
+        if matches!(
+            terminal,
+            TerminalState::Running | TerminalState::WorkerStarting
+        ) && self
+            .phase
+            .as_ref()
+            .is_some_and(|source| source.phase().is_some())
+        {
+            return Some("starting");
+        }
+        Some(match terminal {
+            TerminalState::Completed | TerminalState::Idle | TerminalState::ReplacementReady => {
+                "idle"
+            }
+            TerminalState::Running => "running",
+            TerminalState::StdinNeeded => "waiting_for_stdin",
+            TerminalState::WorkerStarting => "starting",
+            TerminalState::Stopped => "stopped",
+        })
+    }
+
     #[cfg(unix)]
     pub(crate) fn execution_error(&self) -> Option<&crate::worker_protocol::ExecutionError> {
         self.execution_error.as_deref()
@@ -167,7 +243,7 @@ impl Response {
             preview: Box::new(self.preview.inspection_copy()),
             is_error: self.is_error,
             delivery: None,
-            phase_terminal: None,
+            terminal: None,
             phase: None,
             execution_error: self.execution_error.clone(),
         }
@@ -205,7 +281,12 @@ impl Response {
         let (content, recorded_parts) = match self
             .phase
             .as_ref()
-            .filter(|_| self.phase_terminal.is_some())
+            .filter(|_| {
+                matches!(
+                    self.terminal,
+                    Some(TerminalState::Running | TerminalState::WorkerStarting)
+                )
+            })
             .and_then(|source| source.phase())
         {
             Some(phase) => {
@@ -213,7 +294,7 @@ impl Response {
                 let mut preview = self.preview.clone();
                 preview.phase_before_terminal(
                     phase,
-                    matches!(self.phase_terminal, Some(TerminalState::Running)),
+                    matches!(self.terminal, Some(TerminalState::Running)),
                 );
                 preview.render_recorded()
             }
@@ -226,7 +307,7 @@ impl Response {
                 preview: std::mem::take(&mut self.preview),
                 is_error,
                 delivery: None,
-                phase_terminal: self.phase_terminal,
+                terminal: self.terminal,
                 phase: self.phase.take(),
                 execution_error: self.execution_error.take(),
             }),
@@ -433,10 +514,7 @@ impl ResponseBuilder {
     }
 
     pub(super) fn terminal(&mut self, state: TerminalState) {
-        self.response.phase_terminal = match state {
-            TerminalState::Running | TerminalState::WorkerStarting => Some(state),
-            _ => None,
-        };
+        self.response.terminal = Some(state);
         match state {
             TerminalState::Completed => {
                 if self.response.is_empty() {
@@ -455,6 +533,7 @@ impl ResponseBuilder {
                     self.state_banner(WORKER_IDLE_NOTICE);
                 }
             }
+            TerminalState::Stopped => self.state_banner("stopped"),
             TerminalState::WorkerStarting => self.notice(WORKER_STARTING_STATE),
             TerminalState::ReplacementReady => self.notice(WORKER_IDLE_NOTICE),
         }
@@ -514,7 +593,7 @@ impl Drop for Response {
             preview: std::mem::take(&mut self.preview),
             is_error: self.is_error,
             delivery: None,
-            phase_terminal: self.phase_terminal,
+            terminal: self.terminal,
             phase: self.phase.take(),
             execution_error: self.execution_error.take(),
         };
@@ -567,6 +646,7 @@ pub(super) fn render_response(response: SendResponse) -> Response {
         SendResponse::InputRequested(output) => (output, Some(TerminalState::StdinNeeded)),
         SendResponse::Running(output) => (output, Some(TerminalState::Running)),
         SendResponse::Idle(output) => (output, Some(TerminalState::Idle)),
+        SendResponse::Stopped(output) => (output, Some(TerminalState::Stopped)),
         SendResponse::ReplacementStarting(output) => (output, Some(TerminalState::WorkerStarting)),
         SendResponse::ReplacementReady(output) => (output, Some(TerminalState::ReplacementReady)),
     };

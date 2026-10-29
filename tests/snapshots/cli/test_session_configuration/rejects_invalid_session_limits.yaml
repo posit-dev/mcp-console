@@ -1,0 +1,52 @@
+---
+assignment: sessions.max=0
+error: >
+  configuration with CLI overrides: sessions: max: invalid value: integer
+  `0`, expected a nonzero usize; see docs/CONFIGURATION.md for the public
+  format
+---
+assignment: sessions.max=-1
+error: >
+  configuration with CLI overrides: sessions: max: invalid value: integer
+  `-1`, expected a nonzero usize; see docs/CONFIGURATION.md for the public
+  format
+---
+assignment: sessions.max=1.5
+error: >
+  configuration with CLI overrides: sessions: max: invalid type: floating
+  point `1.5`, expected a nonzero usize; see docs/CONFIGURATION.md for the
+  public format
+---
+assignment: sessions.max=true
+error: >
+  configuration with CLI overrides: sessions: max: invalid type: boolean
+  `true`, expected a nonzero usize; see docs/CONFIGURATION.md for the
+  public format
+---
+assignment: sessions.max="2"
+error: >
+  configuration with CLI overrides: sessions: max: invalid type: string
+  "2", expected a nonzero usize; see docs/CONFIGURATION.md for the public
+  format
+---
+assignment: sessions.max=[]
+error: >
+  configuration with CLI overrides: sessions: max: invalid type: sequence,
+  expected a nonzero usize; see docs/CONFIGURATION.md for the public
+  format
+---
+assignment: sessions=null
+error: >
+  configuration with CLI overrides: sessions: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+assignment: sessions=[]
+error: >
+  configuration with CLI overrides: sessions: expected a mapping; see
+  docs/CONFIGURATION.md for the public format
+---
+assignment: sessions.unknown=1
+error: >
+  configuration with CLI overrides: sessions: unknown: unknown field
+  `unknown`, expected `max`; see docs/CONFIGURATION.md for the public
+  format

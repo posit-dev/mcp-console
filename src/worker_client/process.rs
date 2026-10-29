@@ -1396,6 +1396,16 @@ impl WorkerShutdownHandle {
         self.retire().io
     }
 
+    pub(super) fn retirement_confirmed(&self) -> bool {
+        self.retirement
+            .state
+            .lock()
+            .expect("generation retirement lock")
+            .result
+            .as_ref()
+            .is_some_and(|result| result.io.is_ok() && result.process_result().is_ok())
+    }
+
     fn retire(&self) -> RetirementResult {
         let mut state = self
             .retirement

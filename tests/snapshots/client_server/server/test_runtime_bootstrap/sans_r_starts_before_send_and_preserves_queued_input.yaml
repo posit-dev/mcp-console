@@ -3,7 +3,8 @@ input:
   method: ping
 result: {}
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -26,6 +27,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 20
 result:
   content:
@@ -45,7 +47,8 @@ result:
       text: "[worker is already evaluating a cell; poll without a code field]"
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

@@ -157,7 +157,8 @@ result:
         <worker callback complete>
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

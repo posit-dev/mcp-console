@@ -1,0 +1,16 @@
+---
+client: AsyncMCPConsole
+arguments:
+  - python: named output
+    session: analysis
+  - session: default
+  - {}
+  - {}
+---
+client: MCPConsole
+arguments:
+  - python: named output
+    session: analysis
+  - session: default
+  - {}
+  - {}

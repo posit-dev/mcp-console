@@ -255,7 +255,7 @@ def test_polls_replacement_startup_after_send_timeout(
             assert not (temporary_path / "resolved-r-library").exists()
 
             startup_release.touch()
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == "[idle]"
             transcript = client.finish()
             passed = True
@@ -397,7 +397,7 @@ def test_controlled_restart_runs_cell_once_in_fresh_worker(
         assert (state, count) == ("fresh", "1"), records
         assert not process_exists(old_pid), old_pid
 
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         assert evaluations.read_text(encoding="utf-8").splitlines() == records
         return client.finish()
