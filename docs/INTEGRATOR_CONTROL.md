@@ -107,7 +107,7 @@ MCP interruption and restart still affect the shared session.
 
 ## Choose how to handle a busy worker
 
-Evaluations use Console's ordinary serialized cell execution.
+By default, `execution: "serial"` executes an ordinary REPL cell.
 Choose one of these policies:
 
 - `"busy": "reject"` is the default.
@@ -130,8 +130,7 @@ Code can still change objects that later agent calls observe.
 
 ### Opt in to immediate execution
 
-`execution` defaults to `serial`, with the admission policies above.
-For short, latency-sensitive requests, an integrator can explicitly select `immediate`.
+For short, latency-sensitive requests, an integrator can select `execution: "immediate"` to evaluate code privately in the existing session.
 Console chooses reentrant R execution or a Python background thread from the request's `language`.
 SQL with `execution: "immediate"` returns `execution_failed` with the message `immediate execution supports only R and Python`.
 Immediate requests require `busy: "reject"` (the default) and no `wait_ms`.
@@ -139,14 +138,16 @@ They run in the existing worker and share its objects and permissions.
 The integrator is responsible for coordinating access to those objects and choosing code that is safe to run concurrently.
 
 R requests run on R's owning thread when it services events, including during `Sys.sleep()`.
+An already executing ordinary R cell pauses at that event checkpoint while the immediate request evaluates under `R_ToplevelExec`, which contains native unwinds.
+The immediate request then returns control to the ordinary cell.
+This is cooperative execution: requests cannot preempt native code that does not service R events.
 They return `busy` while an ordinary Python or SQL cell is admitted, since those cells can block R event handling.
-They also return `busy` while an ordinary R cell is awaiting entry into the worker.
+They also return `busy` while an ordinary R cell has been admitted but is still awaiting entry into the worker.
+This gives the admitted ordinary cell precedence over further immediate requests until it starts executing.
 Ordinary client submissions remain accepted while immediate R runs; they wait for the interpreter before their source is dispatched and can still be cancelled during that wait.
-Once an ordinary cell is admitted, further immediate R requests return `busy` until it enters the worker.
 Keep immediate requests short: R cannot run the ordinary cell until the private request returns.
 Integrators must tolerate `busy` responses; immediate execution does not take precedence over ordinary cell admission.
 `status.evaluation` and `status.idle` describe ordinary cell ownership, not immediate work.
-They cannot preempt native code that does not service R events.
 R evaluates parsed expressions in the global environment and prints visible values; it leaves `.Last.value`, history, and ordinary REPL task callbacks alone.
 Deferred warnings are returned after each private expression, preserving the foreground warning queue and `last.warning`.
 Private errors are caught locally and do not run the ordinary `options(error)` handler.

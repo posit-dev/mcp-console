@@ -107,12 +107,18 @@ def make_app(binary: Path, workspace: Path) -> App:
                             "execution",
                             "Execution",
                             {
-                                "serialized": "Ordinary cell",
-                                "immediate": "Immediate",
+                                "serialized": "Execute ordinary cell",
+                                "immediate": "Evaluate immediately",
                             },
                         ),
                         col_widths=(4, 8),
                         fill=False,
+                    ),
+                    ui.tags.p(
+                        "Immediate evaluation shares session state. "
+                        "R runs when the active cell services events; Python runs on a background thread.",
+                        id="execution-help",
+                        class_="small text-muted",
                     ),
                     ui.input_text_area("source", "Code", rows=5, width="100%"),
                     ui.input_action_button("evaluate", "Evaluate"),

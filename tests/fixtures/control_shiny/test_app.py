@@ -125,7 +125,11 @@ def test_streams_pending_output_and_retains_state(app):
 def test_immediate_execution_while_ordinary_cell_is_pending(app, language):
     page, workspace = app
     expect(page.locator("#execution option")).to_have_text(
-        ["Ordinary cell", "Immediate"]
+        ["Execute ordinary cell", "Evaluate immediately"]
+    )
+    expect(page.locator("#execution-help")).to_have_text(
+        "Immediate evaluation shares session state. "
+        "R runs when the active cell services events; Python runs on a background thread."
     )
     page.locator("#language").select_option(language)
     if language == "python":

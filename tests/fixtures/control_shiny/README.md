@@ -27,12 +27,13 @@ Use `--port PORT` to choose another local port.
 Submit Python or R directly on the right, or ask the agent to run code on the left.
 Both paths retain objects in the same worker.
 Submitted code appears immediately in the transcript, followed by its completed output.
-The execution selector offers Ordinary cell and Immediate.
-Immediate uses R reentrant execution or Python background-thread execution according to the selected language.
-Use Immediate only for code that the integrator can safely run alongside the active evaluation.
-Ordinary cells wait for the worker to become available.
+The execution selector offers Execute ordinary cell and Evaluate immediately.
+Choose Execute ordinary cell to submit a console cell that waits for the worker to become available.
+Choose Evaluate immediately for private evaluation in the same session, using reentrant R execution or a Python background thread.
+An already executing R cell pauses when it services events, lets the immediate evaluation run, then resumes.
+Use Evaluate immediately only for code that the integrator can safely run alongside the active evaluation; both modes share session state.
 
-The Variables pane refreshes about once a second through private Immediate requests, including while an ordinary cell is running.
+The Variables pane refreshes about once a second through private immediate requests, including while an ordinary cell is running.
 It uses `utils::ls.str()` for R's global environment and bounded previews of Python's `__main__` symbols, showing up to 100 names per language.
 Python previews display exact builtin values and small containers; other objects appear by type without calling custom `__repr__` methods.
 R uses its usual `str()` methods, which can evaluate promises or active bindings.
@@ -43,7 +44,7 @@ Inspection output stays out of the transcript and pending-output preview.
 
 The browser regression launches the actual app and Console process.
 It blocks an evaluation on a file checkpoint, verifies that pending output arrives before completion, releases the checkpoint, and checks retained state and rendered images.
-Additional cases select Immediate for R and Python while an ordinary cell remains blocked.
+Additional cases select Evaluate immediately for R and Python while an ordinary cell remains blocked.
 Variables cases check live changes and deletion during a blocked cell, private output routing, and Python previews without custom repr execution.
 The live smoke additionally asks Luna to mutate an object created through the direct input and verifies the result through both paths.
 Only the live smoke makes a model inference request.
