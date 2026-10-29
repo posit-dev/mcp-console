@@ -80,18 +80,20 @@ Malformed requests use `id: null`.
 Request IDs correlate responses; they do not deduplicate submissions.
 Sending an evaluation again can execute it again.
 
-| Operation      | Additional fields                                                                           | Result                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `status`       | None                                                                                        | Current state, `idle`, and the active evaluation's origin, language, and whether execution started. |
-| `output`       | None                                                                                        | Retained typed output snapshot for ordinary evaluations, independent of MCP collection.             |
-| `preview`      | None                                                                                        | Bounded `content` blocks containing currently pending text and images, without consuming them.      |
-| `requirements` | None                                                                                        | The accepted `requirements`, `prepared`, and Console's separate `runtime_requirements`.             |
-| `manifest`     | None                                                                                        | The accepted requirements declaration alone.                                                        |
-| `evaluate`     | `language`, `code`, optional `execution`, `busy`, `wait_ms`, `record`, and `include_output` | Evaluation `content` blocks and `isError`, using Console's usual output limits.                     |
-| `subscribe`    | Optional `format`: `preview` (default) or `events`                                          | Acknowledgment followed by pushed snapshots on a dedicated connection.                              |
-| `stdin`        | `evaluation_id`, `input`                                                                    | Deliver managed input to the identified active evaluation.                                          |
-| `interrupt`    | `evaluation_id`                                                                             | Request interruption of the identified active evaluation.                                           |
-| `restart`      | None                                                                                        | Wait for session replacement; return `accepted` and the replacement `worker_id`.                    |
+| Operation      | Additional fields                                                                           | Result                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `status`       | None                                                                                        | Current state, `idle`, and the active evaluation's origin, language, and whether execution started.  |
+| `output`       | None                                                                                        | Retained typed output snapshot for ordinary evaluations, independent of MCP collection.              |
+| `preview`      | None                                                                                        | Bounded `content` blocks containing currently pending text and images, without consuming them.       |
+| `requirements` | None                                                                                        | The accepted `requirements`, `prepared`, and Console's separate `runtime_requirements`.              |
+| `manifest`     | None                                                                                        | The accepted requirements declaration alone.                                                         |
+| `prepare`      | `requirements`, using the MCP requirements schema with `action: "add"` (the default)        | Prepare additions and return a structured outcome with the current accepted requirements.            |
+| `recording`    | None                                                                                        | Absolute paths to the existing Markdown and current-worker QMD projections, with recording identity. |
+| `evaluate`     | `language`, `code`, optional `execution`, `busy`, `wait_ms`, `record`, and `include_output` | Evaluation `content` blocks and `isError`, using Console's usual output limits.                      |
+| `subscribe`    | Optional `format`: `preview` (default) or `events`                                          | Acknowledgment followed by pushed snapshots on a dedicated connection.                               |
+| `stdin`        | `evaluation_id`, `input`                                                                    | Deliver managed input to the identified active evaluation.                                           |
+| `interrupt`    | `evaluation_id`                                                                             | Request interruption of the identified active evaluation.                                            |
+| `restart`      | None                                                                                        | Wait for session replacement; return `accepted` and the replacement `worker_id`.                     |
 
 `language` is `r`, `python`, or `sql`; `code` is a string.
 Evaluation and preview results have `resultType: "complete"`, `content`, and `isError` fields.
@@ -104,7 +106,7 @@ Replacing global calling handlers during an evaluation can remove the temporary 
 This metadata has a separate 8 KiB allowance, including retained string slots, and includes `truncated: true` when shortened.
 Ordinary diagnostics retain their existing output and raw-recording limits.
 Admission failures use the response's `error` field.
-This interface has no package-mutation operation.
+Requirement mutation supports additive preparation only; replacement and reset remain MCP operations.
 Use the `id` in `status.evaluation` as `evaluation_id` for input and interruption; stale IDs are rejected so a delayed request cannot affect a later cell.
 Startup input is not supported through this channel.
 MCP interruption and restart still affect the shared session.
@@ -118,6 +120,23 @@ An active control evaluation settles with its original requester, including its 
 Restart clears runtime objects and private viewer registrations; applications should rebuild their private setup for the new `worker_id`.
 Runtime configuration and inherited MCP permissions must be ready, or the request returns `not_ready`.
 Once started, restart continues if its control connection disconnects.
+
+`prepare` uses Console's normal requirements validation, resolution policies, and preparation admission.
+It does not execute a cell, use immediate execution, or restart automatically.
+The worker must be ready and idle, with no outstanding immediate request or uncollected evaluation; otherwise it returns `status: "busy"` without queuing the change.
+Once admitted, preparation continues if its control connection disconnects.
+The result has `status: "prepared"`, `"restart_required"`, `"busy"`, or `"failed"`, the current `worker_id`, and the same `requirements`, `prepared`, and `runtime_requirements` fields as inspection.
+These fields describe the actual accepted state after the operation, including partial activation if a mixed-language change fails.
+They are declarations and aggregate preparation state, not an installed-package inventory or per-package versions.
+Failures include a diagnostic `message`, limited to an 8 KiB UTF-8 prefix with `message_truncated: true` when shortened.
+The diagnostic comes from preparation before MCP response assembly.
+Existing MCP output and shared preparation/lifecycle diagnostics remain available to MCP exactly once; the control receipt does not collect them.
+Unknown request fields and unsupported actions are `invalid_request` errors; unavailable configuration or inherited permissions are `not_ready` errors.
+
+`recording` returns `directory`, `markdown`, `qmd`, and `worker_id` for existing projections.
+Paths are absolute; `qmd` is null until the current worker has visible recorded source, and `worker_id` can be null before a worker starts.
+The lookup does not materialize projections, run code, or consume output.
+If a Markdown projection is not available, the request fails with `projection_unavailable`.
 
 ## Choose how to handle a busy worker
 

@@ -2,6 +2,7 @@
 
 use std::time::{Duration, Instant};
 
+use super::environment::{PreparationIntent, PrepareResult};
 use super::evaluation::Origin;
 use super::execution::EvaluationStartError;
 use super::lifecycle::LifecycleState;
@@ -22,6 +23,15 @@ pub(crate) enum IntegratorError {
     Failed(String),
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+enum PreparationStatus {
+    Prepared,
+    RestartRequired,
+    Busy,
+    Failed,
+}
+
 impl From<String> for IntegratorError {
     fn from(message: String) -> Self {
         Self::Failed(message)
@@ -29,6 +39,82 @@ impl From<String> for IntegratorError {
 }
 
 impl Client {
+    pub(crate) async fn integrator_prepare(
+        &self,
+        requirements: super::Requirements,
+    ) -> serde_json::Value {
+        let client = self.clone();
+        let outcome =
+            tokio::task::spawn_blocking(move || client.integrator_prepare_blocking(requirements))
+                .await
+                .unwrap_or_else(|error| {
+                    Err(format!("integrator preparation task failed: {error}"))
+                });
+        let mut snapshot = self.inspect_requirements();
+        snapshot["worker_id"] = serde_json::json!(self.0.output.worker_id());
+        match outcome {
+            Ok(status) => snapshot["status"] = serde_json::json!(status),
+            Err(mut message) => {
+                snapshot["status"] = serde_json::json!(PreparationStatus::Failed);
+                // Resolver diagnostics may be large. Keep this separate from
+                // MCP text assembly and make the operation's limit explicit.
+                if message.len() > 8 * 1024 {
+                    let mut end = 8 * 1024;
+                    while !message.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    message.truncate(end);
+                    snapshot["message_truncated"] = serde_json::json!(true);
+                }
+                snapshot["message"] = serde_json::json!(message);
+            }
+        }
+        snapshot
+    }
+
+    fn integrator_prepare_blocking(
+        &self,
+        requirements: super::Requirements,
+    ) -> Result<PreparationStatus, String> {
+        requirements.validate()?;
+        self.validate_requirements(&requirements)?;
+        let Some(startup) = self.startup_result().borrow().clone() else {
+            return Ok(PreparationStatus::Busy);
+        };
+        startup?;
+        let Ok(_operation) = self.0.admission.try_read() else {
+            return Ok(PreparationStatus::Busy);
+        };
+        let Ok(generation) = self.admit() else {
+            return Ok(PreparationStatus::Busy);
+        };
+        let Ok(preparation) = self.0.preparation.try_write() else {
+            return Ok(PreparationStatus::Busy);
+        };
+        // Match standalone preparation's idle requirement, including completed
+        // evaluations whose owner has not yet collected their output.
+        if self.evaluation()?.is_some() {
+            return Ok(PreparationStatus::Busy);
+        }
+        match self.prepare_admitted(
+            requirements,
+            &generation,
+            &preparation,
+            PreparationIntent::Standalone,
+        )? {
+            PrepareResult::Prepared => Ok(PreparationStatus::Prepared),
+            PrepareResult::RestartRequired => Ok(PreparationStatus::RestartRequired),
+            PrepareResult::Failed { response, message }
+            | PrepareResult::WorkerStopped { response, message } => {
+                // These existing failure paths may include older MCP output.
+                // Restore it before releasing preparation admission; only the
+                // operation diagnostic is copied into this caller's receipt.
+                self.0.output.recover(response);
+                Err(message)
+            }
+        }
+    }
+
     pub(crate) async fn integrator_restart(&self) -> Result<serde_json::Value, IntegratorError> {
         let client = self.clone();
         // A disconnected caller must not abandon retirement or leave ordinary

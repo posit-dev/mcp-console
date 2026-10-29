@@ -48,10 +48,17 @@ enum Request {
     Restart {
         id: String,
     },
+    Prepare {
+        id: String,
+        requirements: super::arguments::Requirements,
+    },
     Requirements {
         id: String,
     },
     Manifest {
+        id: String,
+    },
+    Recording {
         id: String,
     },
     Evaluate {
@@ -100,8 +107,10 @@ impl Request {
             | Self::Stdin { id, .. }
             | Self::Interrupt { id, .. }
             | Self::Restart { id }
+            | Self::Prepare { id, .. }
             | Self::Requirements { id }
             | Self::Manifest { id }
+            | Self::Recording { id }
             | Self::Evaluate { id, .. } => id,
         }
     }
@@ -459,6 +468,31 @@ async fn handle(
                     .map(CallToolResult::structured)
                     .map_err(control_error)
             }
+            Request::Prepare { requirements, .. } => {
+                if requirements.action != crate::worker_client::RequirementsAction::Add {
+                    return Err((
+                        "invalid_request",
+                        "prepare supports only requirements.action=add".into(),
+                    ));
+                }
+                if !runtime.worker.is_configured() {
+                    return Err(("not_ready", "runtime configuration is not ready".into()));
+                }
+                if server.inheritance.enabled() && !server.inheritance.captured() {
+                    return Err(("not_ready", "waiting for MCP client permissions".into()));
+                }
+                Ok(CallToolResult::structured(
+                    runtime
+                        .worker
+                        .integrator_prepare(requirements.into_worker(operation_call.id()))
+                        .await,
+                ))
+            }
+            Request::Recording { .. } => runtime
+                .transcript
+                .integrator_recording()
+                .map(CallToolResult::structured)
+                .map_err(|error| ("projection_unavailable", error)),
             Request::Preview { .. } => {
                 let content = runtime.worker.integrator_preview().map_err(|_| {
                     (

@@ -18,8 +18,8 @@ response:
     code: invalid_request
     message: >-
       unknown variant `unknown`, expected one of `status`, `preview`,
-      `output`, `subscribe`, `stdin`, `interrupt`, `restart`, `requirements`,
-      `manifest`, `evaluate` at line 1 column 27
+      `output`, `subscribe`, `stdin`, `interrupt`, `restart`, `prepare`,
+      `requirements`, `manifest`, `recording`, `evaluate` at line 1 column 27
 ---
 request:
   id: "3"

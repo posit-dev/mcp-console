@@ -59,6 +59,20 @@ struct QuartoSource {
     contents: String,
 }
 impl Writers {
+    #[cfg(unix)]
+    pub(super) fn integrator_recording(&self) -> Value {
+        let worker_id = self.documents.current;
+        let qmd = worker_id
+            .filter(|id| self.documents.sessions[id].has_source())
+            .map(|id| self.directory.join(format!("sessions/session-{id:03}.qmd")));
+        json!({
+            "directory": self.directory,
+            "markdown": self.directory.join("transcript.md"),
+            "qmd": qmd,
+            "worker_id": worker_id,
+        })
+    }
+
     pub(super) fn new(
         directory: &Path,
         working_directory: &Path,

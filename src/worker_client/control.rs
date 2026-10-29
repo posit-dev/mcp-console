@@ -378,7 +378,10 @@ impl Client {
                         .push_tool_error("requirements require session restart; cell was not run");
                     return Ok(self.return_controlled_response(control_prelude));
                 }
-                Ok(PrepareResult::Failed(response) | PrepareResult::WorkerStopped(response)) => {
+                Ok(
+                    PrepareResult::Failed { response, .. }
+                    | PrepareResult::WorkerStopped { response, .. },
+                ) => {
                     control_prelude.extend_logical_region(response);
                     return Ok(self.return_controlled_response(control_prelude));
                 }
@@ -433,7 +436,8 @@ impl Client {
                     PrepareResult::RestartRequired => {
                         return Err("requirements require session restart; cell was not run".into());
                     }
-                    PrepareResult::Failed(response) | PrepareResult::WorkerStopped(response) => {
+                    PrepareResult::Failed { response, .. }
+                    | PrepareResult::WorkerStopped { response, .. } => {
                         return Ok(self.return_controlled_response(response));
                     }
                 }

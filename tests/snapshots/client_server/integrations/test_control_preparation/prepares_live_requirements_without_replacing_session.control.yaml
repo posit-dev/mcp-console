@@ -1,0 +1,182 @@
+---
+request:
+  id: "1"
+  op: output
+response:
+  id: "1"
+  result:
+    worker_id: 1
+    first_sequence: 1
+    next_sequence: 7
+    omitted_events: 0
+    omitted_bytes: 0
+    evaluations:
+      - id: 1
+        origin: mcp
+        language: r
+        source: kept_r <- new.env(); kept_r$value <- 42L
+        execution: serial
+        request_id: ~
+        call_id: 1
+        source_truncated: false
+        state: complete
+        started: true
+        execution_error: ~
+      - id: 2
+        origin: mcp
+        language: python
+        source: "kept_python = {'value': 42}"
+        execution: serial
+        request_id: ~
+        call_id: 2
+        source_truncated: false
+        state: complete
+        started: true
+        execution_error: ~
+    events:
+      - type: evaluation_admitted
+        sequence: 1
+        evaluation_id: 1
+      - type: evaluation_started
+        sequence: 2
+        evaluation_id: 1
+      - type: evaluation_completed
+        sequence: 3
+        evaluation_id: 1
+      - type: evaluation_admitted
+        sequence: 4
+        evaluation_id: 2
+      - type: evaluation_started
+        sequence: 5
+        evaluation_id: 2
+      - type: evaluation_completed
+        sequence: 6
+        evaluation_id: 2
+---
+request:
+  id: "2"
+  op: prepare
+  requirements:
+    r:
+      - praise
+    python:
+      - more-itertools
+    duckdb:
+      - json
+response:
+  id: "2"
+  result:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - praise
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - more-itertools
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+    worker_id: 1
+    status: prepared
+---
+request:
+  id: "3"
+  op: requirements
+response:
+  id: "3"
+  result:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - praise
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+        - more-itertools
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+---
+request:
+  id: "4"
+  op: prepare
+  requirements:
+    action: get
+response:
+  id: "4"
+  error:
+    code: invalid_request
+    message: prepare supports only requirements.action=add
+---
+request:
+  id: "5"
+  op: prepare
+  requirements:
+    action: set
+response:
+  id: "5"
+  error:
+    code: invalid_request
+    message: prepare supports only requirements.action=add
+---
+request:
+  id: "6"
+  op: prepare
+  requirements:
+    action: reset
+response:
+  id: "6"
+  error:
+    code: invalid_request
+    message: prepare supports only requirements.action=add
