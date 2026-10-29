@@ -91,6 +91,7 @@ pub(super) fn install(api: &PythonApi, installed: bool) -> Result<(), String> {
             method(c"write", write, 8), // METH_O
             method(c"diagnostic", diagnostic, 8),
             method(c"execution_error", execution_error, 8),
+            method(c"priority_active", priority_active, 4), // METH_NOARGS
             method(c"readline", readline, 8),
             method(c"publish_plot", publish_plot, 8),
             method(c"resolve_import_request", resolve_import_request, 8),
@@ -216,6 +217,16 @@ fn dispatch_callback(
             std::ptr::null_mut()
         }
     }
+}
+
+unsafe extern "C" fn priority_active(_: *mut PyObject, _: *mut PyObject) -> *mut PyObject {
+    let services = SERVICES
+        .get()
+        .expect("Python services initialized before callbacks");
+    // Native ownership spans PyGILState_Release and its thread-local destructors.
+    // A Python thread-local flag can disappear before those callbacks run.
+    let active = std::process::id() == services.pid && worker::priority_active();
+    unsafe { (services.api.long_from_long)(active.into()) }
 }
 
 unsafe extern "C" fn write(_: *mut PyObject, text: *mut PyObject) -> *mut PyObject {

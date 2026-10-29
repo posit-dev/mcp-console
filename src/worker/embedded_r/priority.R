@@ -1,4 +1,9 @@
 function(source, interruptible) {
+  # R updates its shared legacy error buffer even for caught errors. Restore
+  # the foreground's message before its error handler or REPL resumes.
+  previous_error <- geterrmessage()
+  on.exit(.Internal(seterrmessage(previous_error)))
+
   # The ordinary REPL owns R's global deferred-warning queue. Keep this
   # evaluation's warn=0 conditions local, including when source raises an error.
   # Warning conditions expose no immediate.=TRUE flag, so warn=0 warnings are

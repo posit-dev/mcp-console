@@ -150,6 +150,7 @@ They cannot preempt native code that does not service R events.
 R evaluates parsed expressions in the global environment and prints visible values; it leaves `.Last.value`, history, and ordinary REPL task callbacks alone.
 Deferred warnings are returned after each private expression, preserving the foreground warning queue and `last.warning`.
 Private errors are caught locally and do not run the ordinary `options(error)` handler.
+Each immediate R evaluation restores the foreground error buffer returned by `geterrmessage()`.
 An uncaught interrupt during a reentrant request ends that request and remains pending for the foreground evaluation after private cleanup.
 Integrator code that catches an interrupt condition is responsible for its handling.
 Python requests run on a background thread and require the GIL; native code holding the GIL can delay them.
@@ -171,6 +172,7 @@ After initializing Python, an integrator can send:
 ```
 
 Managed output belongs to the concurrent request's response.
+This includes cleanup performed when an immediate Python thread releases its interpreter state.
 Native stdout/stderr and child-process output retain the ordinary foreground attribution because process streams do not identify a writing thread.
 Graphics state is shared; concurrent requests do not automatically finalize plots or close the foreground cell's devices.
 The pending-output subscription observes the ordinary output interval; concurrent request output is returned in that request's response.

@@ -54,8 +54,10 @@ impl Evaluator {
         let failure = match result {
             Ok(failure) => failure,
             Err(_) => Some(crate::worker_protocol::ExecutionError::new(
-                "RError",
-                harp::exec::r_peek_error_buffer(),
+                // Native aborts bypass the helper's condition result; its exit
+                // cleanup has already restored the foreground error buffer.
+                "RAbort",
+                "R priority evaluation aborted",
             )),
         };
         let interrupted = failure

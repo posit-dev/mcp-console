@@ -1,4 +1,4 @@
-"""Main-thread console hooks; other contexts retain their original streams."""
+"""Managed console hooks; other contexts retain their original streams."""
 
 from __future__ import annotations
 
@@ -13,12 +13,11 @@ from typing import Any, Callable, TextIO
 _pid = os.getpid()
 _thread = threading.get_ident()
 _input = builtins.input
-_priority = threading.local()
 
 
 def _managed() -> bool:
     return os.getpid() == _pid and (
-        threading.get_ident() == _thread or getattr(_priority, "active", False)
+        threading.get_ident() == _thread or bool(priority_active())
     )
 
 
@@ -48,7 +47,7 @@ class _Output:
 
 
 def _console_input(prompt: object = "") -> str:
-    if getattr(_priority, "active", False):
+    if priority_active():
         raise RuntimeError("stdin is unavailable during priority execution")
     if not _managed():
         return _input(prompt)
@@ -58,11 +57,7 @@ def _console_input(prompt: object = "") -> str:
 def eval_priority(source: str, filename: str) -> None:
     import _mcp_console
 
-    _priority.active = True
-    try:
-        _mcp_console.eval_cell(source, filename, finalize=False, propagate_exit=False)
-    finally:
-        _priority.active = False
+    _mcp_console.eval_cell(source, filename, finalize=False, propagate_exit=False)
 
 
 def resolve_import(module: str, distribution: str) -> str:
