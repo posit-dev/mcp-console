@@ -158,8 +158,9 @@ def test_native_chat_suggestions_prefill_without_submitting(app):
 
 def test_language_selection_updates_syntax_and_restricts_immediate_sql(app):
     page, _ = app
+    language_group = page.locator("#language")
     InputCodeEditor(page, "source").expect_language("python")
-    expect(page.get_by_label("Python", exact=True)).to_be_checked()
+    expect(language_group.get_by_label("Python", exact=True)).to_be_checked()
     for language in ("r", "python", "sql"):
         page.locator(f'#language input[value="{language}"]').check()
         InputCodeEditor(page, "source").expect_language(language)
@@ -168,9 +169,9 @@ def test_language_selection_updates_syntax_and_restricts_immediate_sql(app):
     expect(page.locator("#submit")).to_be_disabled()
     for language in ("r", "python", "sql"):
         expect(page.locator(f'#language input[value="{language}"]')).to_be_enabled()
-    page.get_by_label("Python", exact=True).check()
+    language_group.get_by_label("Python", exact=True).check()
     expect(page.locator("#submit")).to_be_enabled()
-    page.get_by_label("SQL", exact=True).check()
+    language_group.get_by_label("SQL", exact=True).check()
     expect(page.locator("#submit")).to_be_disabled()
     page.get_by_label("Ordinary", exact=True).check()
     expect(page.locator("#submit")).to_be_enabled()
@@ -192,7 +193,7 @@ def test_language_selection_updates_syntax_and_restricts_immediate_sql(app):
     )
     page.get_by_label("Immediate", exact=True).check()
     expect(page.locator("#submit")).to_be_enabled()
-    page.get_by_label("SQL", exact=True).check()
+    language_group.get_by_label("SQL", exact=True).check()
     expect(page.locator("#submit")).to_be_disabled()
     expect(page.locator("#execution-help")).to_contain_text("SQL supports Ordinary")
 

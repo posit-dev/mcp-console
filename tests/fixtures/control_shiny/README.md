@@ -192,6 +192,8 @@ The browser regression launches the actual app and Console process.
 It blocks an evaluation on a file checkpoint, verifies that pending output arrives before completion, releases the checkpoint, and checks retained state and rendered images.
 Additional cases select Immediate for R and Python while an ordinary cell remains blocked.
 Human controls cases interrupt a running cell without clearing its objects and restart a running session with an open table.
+Session cases exercise independent R/Python/SQL state, output arriving in inactive views, table reopening, per-session requirements and QMD, closing a busy worker, and creating a fresh worker under the same name.
+Live agent cases create named sessions and verify that subsequent prompts use the selected session.
 Formatting cases exercise Air/Ruff display copies, exact original-source restoration, native code Copy, original-source export, unsupported or invalid input, and scrolling across pending/completed updates.
 Variables cases check live changes and deletion during a blocked cell, private output routing, and Python previews without custom repr execution.
 Table checks use the actual control channel and managed runtimes to exercise snapshot freshness, row limits, filters, sorting, and namespace isolation.

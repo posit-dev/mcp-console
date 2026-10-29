@@ -68,6 +68,7 @@ class ConsoleSession:
     name: str
     incarnation: str = field(default_factory=lambda: uuid.uuid4().hex)
     worker_id: int | None = None
+    retired_worker: int = 0
     state: reactive.Value[str] = field(
         default_factory=lambda: reactive.value("Starting…")
     )
@@ -368,7 +369,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                 ),
                 ("python", "pass"),
             ):
-                await scoped_request(
+                result = await scoped_request(
                     ctx,
                     op="evaluate",
                     language=language,
@@ -377,6 +378,15 @@ def make_app(binary: Path, workspace: Path) -> App:
                     wait_ms=60000,
                     record=False,
                 )
+                if result.get("isError") or result.get("execution_error"):
+                    diagnostic = "".join(
+                        block["text"]
+                        for block in result["content"]
+                        if block["type"] == "text"
+                    )
+                    raise RuntimeError(
+                        f"Managed environment setup failed: {diagnostic}"
+                    )
                 if not live(ctx) or (
                     observed_worker > 0 and observed_worker != ctx.worker_id
                 ):
@@ -457,6 +467,10 @@ def make_app(binary: Path, workspace: Path) -> App:
             if not live(ctx):
                 return
             observed_worker = snapshot["worker_id"]
+            # Reopening a stopped name can subscribe before setup launches its
+            # next worker. Its old retained history belongs to the closed view.
+            if ctx.retired_worker and observed_worker <= ctx.retired_worker:
+                return
             if ctx.worker_id is not None and observed_worker < ctx.worker_id:
                 return
             changed = bool(ctx.worker_id) and observed_worker != ctx.worker_id
@@ -702,7 +716,11 @@ def make_app(binary: Path, workspace: Path) -> App:
                     ctx = contexts.get(name)
                     if item["state"] == "stopped" and name != "default":
                         # Creation is lazy: setup will launch the new worker.
-                        if ctx is not None and ctx.ready.is_set():
+                        if (
+                            ctx is not None
+                            and item["worker_id"] > ctx.retired_worker
+                            and not ctx.restart_active
+                        ):
                             await retire(ctx)
                         continue
                     if ctx is None:
@@ -1166,12 +1184,14 @@ def make_app(binary: Path, workspace: Path) -> App:
 
         async def create_session(name: str) -> None:
             async with registry_lock:
-                await request(endpoint, op="create", session=name)
+                created = await request(endpoint, op="create", session=name)
                 if name not in contexts:
                     async with reactive.lock():
                         make_context(name)
                         await reactive.flush()
                 ctx = contexts[name]
+                if created["state"] == "stopped":
+                    ctx.retired_worker = created["worker_id"]
                 attach(ctx)
                 await activate(ctx)
 

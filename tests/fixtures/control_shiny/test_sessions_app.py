@@ -1,12 +1,18 @@
 """The native session selector routes human and agent work to isolated workers."""
 
 import os
+import sys
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect
 from shiny.playwright.controller import Chat, OutputDataFrame
 from test_app import submit
 from test_export_app import copy_projection
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from support.checkpoints import wait_for_path
 
 pytest_plugins = ["test_app"]
 
@@ -232,6 +238,7 @@ def test_pending_output_and_requirements_survive_switch_close_and_recreate(app):
         accepted.set_filter({"col": 1, "value": "cli"})
         accepted.expect_nrow(0)
         create_session(page, "scratch")
+        expect(page.locator("#transcript .entry:visible")).to_have_count(0)
         entry = complete(page, "python", 'print("scratch_value" in globals())')
         expect(entry.locator(".content")).to_have_text("False\n")
         qmd = copy_projection(page, "QMD")
@@ -250,7 +257,7 @@ def test_pending_output_and_requirements_survive_switch_close_and_recreate(app):
     reason="Live agent inference is explicitly enabled separately",
 )
 def test_agent_created_session_is_discovered_and_selected_context_is_used(app):
-    page, _ = app
+    page, workspace = app
     chat = Chat(page, "agent_chat")
     chat.loc_input.fill(
         "Make exactly one console_fixture send call with session='from_agent' and "
@@ -290,3 +297,63 @@ def test_agent_created_session_is_discovered_and_selected_context_is_used(app):
             ".content"
         )
     ).to_have_text("False\n")
+    # Trace a public R function used by ordinary fixture setup so the next
+    # worker stops at a deterministic checkpoint before it can become ready.
+    trace_source = (
+        'trace("py_require", where = asNamespace("reticulate"), '
+        'tracer = quote({file.create("agent-setup-entered"); '
+        'while (!file.exists("agent-setup-release")) Sys.sleep(0.02)}), print = FALSE)'
+    )
+    chat.loc_input.fill(
+        "Make exactly two Console send calls in this order. First, stop the "
+        "named session from_agent with session='from_agent', control='restart', "
+        "and no code. Then create session='preparing_stop' with exactly this R "
+        f"code:\n{trace_source}\nDo not poll or run other code. Reply done."
+    )
+    chat.send_user_input(method="click")
+    try:
+        wait_for_path(
+            workspace / "agent-setup-entered",
+            "named worker entered managed environment setup",
+            timeout=120,
+        )
+        expect(page.locator("#agent_state")).to_have_text("Completed", timeout=120_000)
+        expect(
+            page.locator('#console_session option[value="from_agent"]')
+        ).to_have_count(0, timeout=30_000)
+        expect(
+            page.locator('#console_session option[value="preparing_stop"]')
+        ).to_have_count(1, timeout=30_000)
+        page.locator("#console_session").select_option("preparing_stop")
+        expect(page.locator("#connection_state")).to_have_text(
+            "Preparing managed environments…", timeout=30_000
+        )
+        select_session(page, "default")
+        chat.loc_input.fill(
+            "Make exactly two Console send calls in this order. First, stop "
+            "session='preparing_stop' with control='restart' and no code. Then "
+            "poll session='phantom_session' with no code or control. The unknown "
+            "session error is expected; do not create or recover that session. "
+            "Reply done."
+        )
+        chat.send_user_input(method="click")
+        expect(
+            page.locator(
+                "#transcript .response-entry:visible .response-content"
+            ).filter(has_text='unknown session "phantom_session"')
+        ).to_have_count(1, timeout=120_000)
+        expect(page.locator("#agent_state")).to_have_text("Completed", timeout=120_000)
+        expect(
+            page.locator('#console_session option[value="preparing_stop"]')
+        ).to_have_count(0, timeout=30_000)
+        expect(
+            page.locator('#console_session option[value="phantom_session"]')
+        ).to_have_count(0)
+        expect(
+            complete(page, "python", 'print("after-session-stop")').locator(".content")
+        ).to_have_text("after-session-stop\n")
+        expect(
+            page.locator('#console_session option[value="preparing_stop"]')
+        ).to_have_count(0)
+    finally:
+        (workspace / "agent-setup-release").touch()

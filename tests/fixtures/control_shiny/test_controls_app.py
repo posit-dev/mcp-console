@@ -79,3 +79,35 @@ def test_human_restart_replaces_running_session_and_table(app):
     )
     expect(page.locator("#agent_state")).to_have_text("Idle")
     expect(page.locator("#transcript .entry.running")).to_have_count(0)
+
+
+def test_setup_language_error_stays_unready_until_repaired_restart(app):
+    page, workspace = app
+    profile = workspace / ".Rprofile"
+    # The public package-load hook installs an R error in the ordinary setup
+    # cell; no fixture callback or control response is mocked.
+    profile.write_text(
+        'setHook(packageEvent("reticulate", "onLoad"), function(...) {\n'
+        '  trace("py_require", where = asNamespace("reticulate"),\n'
+        '        tracer = quote(stop("fixture setup rejected")), print = FALSE)\n'
+        "})\n"
+    )
+    page.get_by_role("button", name="Restart", exact=True).click()
+    expect(page.locator("#transcript .notice.restart").last).to_contain_text(
+        "Session restarted; previous in-memory state was cleared", timeout=60_000
+    )
+    page.wait_for_function(
+        "() => /^(Ready|Error:)/.test(document.querySelector('#connection_state')?.textContent || '')",
+        timeout=60_000,
+    )
+    state = page.locator("#connection_state").inner_text()
+    assert state.startswith("Error:"), state
+    assert "fixture setup rejected" in state, state
+    expect(page.locator("#agent_state")).to_have_text("Idle")
+    profile.unlink()
+    page.get_by_role("button", name="Restart", exact=True).click()
+    expect(page.locator("#connection_state")).to_have_text("Ready", timeout=60_000)
+    submit(page, "python", "import pandas, duckdb; print('setup recovered')")
+    expect(page.locator("#transcript .content").last).to_have_text(
+        "setup recovered\n", timeout=30_000
+    )
