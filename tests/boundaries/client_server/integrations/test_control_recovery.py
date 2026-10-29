@@ -70,7 +70,15 @@ def test_restart_orders_cancelled_mcp_error_before_worker_notices(
                 print("integrator finished")
                 """)
             with ControlClient(endpoint) as control:
-                pending = control.start(op="evaluate", language="python", code=source)
+                # Receiving the MCP setup response can precede its delivery
+                # acknowledgment. Queue setup behind that retained owner.
+                pending = control.start(
+                    op="evaluate",
+                    language="python",
+                    code=source,
+                    busy="wait",
+                    wait_ms=30000,
+                )
                 try:
                     entered.wait(client=client)
                     (recording,) = (root / ".agents/console/sessions").iterdir()
