@@ -140,6 +140,11 @@ The integrator is responsible for coordinating access to those objects and choos
 
 R requests run on R's owning thread when it services events, including during `Sys.sleep()`.
 They return `busy` while an ordinary Python or SQL cell is admitted, since those cells can block R event handling.
+They also return `busy` while an ordinary R cell is awaiting entry into the worker.
+While immediate R work is outstanding, new ordinary MCP cells are rejected without running their source; serial control evaluations follow their `busy` policy.
+This admission restriction avoids queuing an interrupt target behind private R work that could consume its signal.
+Keep immediate requests short; worker-side queuing of ordinary cells behind them is outside this interface's current scope.
+`status.evaluation` and `status.idle` describe ordinary cell ownership, not immediate work.
 They cannot preempt native code that does not service R events.
 R evaluates parsed expressions in the global environment and prints visible values; it leaves `.Last.value`, history, and ordinary REPL task callbacks alone.
 Deferred warnings are returned after each private expression, preserving the foreground warning queue and `last.warning`.
@@ -148,7 +153,7 @@ An uncaught interrupt during a reentrant request ends that request and remains p
 Integrator code that catches an interrupt condition is responsible for its handling.
 Python requests run on a background thread and require the GIL; native code holding the GIL can delay them.
 Background Python code must not call into R.
-Only one concurrent control request may be outstanding per worker.
+Only one immediate request may be outstanding per worker.
 Prepare dependencies and initialize the requested interpreter through an ordinary cell first.
 Concurrent requests cannot prepare packages or request managed stdin.
 

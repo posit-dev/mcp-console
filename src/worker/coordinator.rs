@@ -199,7 +199,6 @@ impl Coordinator {
             }
             ServerMessage::Evaluate { language, source } => {
                 self.r.check_interrupts();
-                self.writer.send(&WorkerMessage::CellStarted)?;
                 let result = evaluate_cell(
                     Cell { language, source },
                     &self.r,
@@ -292,6 +291,10 @@ fn evaluate_cell(
         return Err(message);
     }
     core::begin_cell(cell.language);
+    // Publish entry only after the idle event drain and foreground ownership.
+    // The controller can now admit reentrant R work without it starting idle
+    // ahead of this cell and consuming an interrupt addressed to the cell.
+    core::send_worker_message(&WorkerMessage::CellStarted)?;
     let nul_error = match cell.language {
         Language::R if cell.source.contains('\0') => Some("Error: R source cannot contain NUL\n"),
         Language::Sql if cell.source.contains('\0') => {

@@ -1,0 +1,30 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  code: writeLines("serial control ran", "control-ran")
+  busy: reject
+response:
+  id: "1"
+  error:
+    code: busy
+    message: runner is busy; code was not run
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  code: stopifnot(priority_unwound); cat("queued serial\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          queued serial
+    isError: false
+    execution_error: ~

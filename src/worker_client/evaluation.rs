@@ -438,12 +438,16 @@ impl Evaluation {
         Ok(())
     }
 
-    pub(super) fn require_cell_entry(&self) -> Result<(), String> {
-        let state = self
+    pub(super) fn has_entered_cell(&self) -> Result<bool, String> {
+        Ok(self
             .state
             .lock()
-            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        if !state.cell_entered {
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?
+            .cell_entered)
+    }
+
+    pub(super) fn require_cell_entry(&self) -> Result<(), String> {
+        if !self.has_entered_cell()? {
             return Err("worker completed a cell before reporting its start".into());
         }
         Ok(())

@@ -1,0 +1,26 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: |
+    (function() {
+      on.exit(priority_unwound <<- TRUE)
+      gate <- fifo("<workspace>/entered", "wb", blocking = TRUE)
+      writeBin(charToRaw("1"), gate)
+      close(gate)
+      while (!file.exists("release")) {
+        Sys.sleep(0.01)
+      }
+    })()
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content: []
+    isError: false
+    execution_error:
+      ename: Interrupt
+      evalue: R evaluation interrupted
+      traceback: []

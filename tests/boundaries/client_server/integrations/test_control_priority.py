@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.integrations.test_control import (
     ControlClient,
     result_text,
+    wait_for_cell_started,
 )
 from boundaries.client_server.python.test_without_r import selected_environment
 from support.checkpoints import FifoCheckpoint
@@ -128,6 +129,7 @@ def test_r_reentrant_releases_busy_foreground(
                 """).replace("ENTERED", str(entered.path))
             pending = client.start_send(r=source, timeout_ms=60000)
             entered.wait(client=client)
+            wait_for_cell_started(client, root, source)
             with ControlClient(endpoint) as control:
                 failed = control.request(
                     op="evaluate",

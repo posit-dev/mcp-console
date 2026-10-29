@@ -7,7 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from boundaries.client_server.integrations.test_control import ControlClient
+from boundaries.client_server.integrations.test_control import (
+    ControlClient,
+    wait_for_cell_started,
+)
 from support.assertions import tool_text
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
@@ -106,6 +109,7 @@ def test_queued_immediate_r_runs_only_in_parent_after_fork(
                         reached.wait(
                             "foreground stopped immediately before fork", client=client
                         )
+                        wait_for_cell_started(client, root, foreground)
                         # fmt: r
                         immediate = code("""
                             cat(

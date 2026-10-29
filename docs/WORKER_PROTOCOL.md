@@ -110,6 +110,7 @@ Native R startup reports its admission and successful completion through `r_init
 Test worker fixtures need not send built-in bootstrap events.
 
 `cell_started` marks entry into an evaluated cell and must appear exactly once before its `completed` receipt, including during retirement.
+The built-in worker emits it after draining idle events and establishing foreground ownership, so it also permits immediate R admission.
 Completion without entry or duplicate entry fails the protocol.
 The controller uses this receipt to start its numbered output interval; admission alone does not create a cell log.
 `completed` closes the interval, while output observed afterward belongs to the post-cell interval.

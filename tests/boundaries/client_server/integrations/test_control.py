@@ -101,6 +101,40 @@ def wait_for_queued_integrator(client: McpClient, root: Path, source: str) -> No
     )
 
 
+def wait_for_cell_started(client: McpClient, root: Path, source: str) -> None:
+    """Observe controller entry separately from a worker-to-host checkpoint."""
+    recordings = root / ".agents/console/sessions"
+
+    def started() -> Path | None:
+        for path in recordings.glob("*/capture/events.jsonl"):
+            # A live journal can end inside a record or a UTF-8 character.
+            events = [
+                json.loads(line)
+                for line in path.read_bytes().splitlines(keepends=True)
+                if line.endswith(b"\n")
+            ]
+            calls = {
+                event["call_id"]
+                for event in events
+                if event["event"] == "tool_call"
+                and source in event["request"]["arguments"].values()
+            }
+            if any(
+                event["event"] == "cell_started" and event["call_id"] in calls
+                for event in events
+            ):
+                return path
+        return None
+
+    wait_for_checkpoint(
+        started,
+        "controller observed foreground cell entry",
+        root=recordings,
+        recursive=True,
+        client=client,
+    )
+
+
 @requires(POSIX)
 @executions(DIRECT, SANDBOXED)
 def test_evaluates_shared_state_without_mcp_output(

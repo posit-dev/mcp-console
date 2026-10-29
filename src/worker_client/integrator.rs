@@ -3,6 +3,7 @@
 use std::time::{Duration, Instant};
 
 use super::evaluation::Origin;
+use super::execution::EvaluationStartError;
 use super::lifecycle::LifecycleState;
 use super::{Client, Content, Response};
 
@@ -168,8 +169,8 @@ impl Client {
                 );
                 match result {
                     Ok(started) => break started,
-                    Err(error) if self.current_evaluation()?.is_none() => return Err(error.into()),
-                    Err(_) => {}
+                    Err(EvaluationStartError::Busy(_)) => {}
+                    Err(EvaluationStartError::Failed(error)) => return Err(error.into()),
                 }
             }
             drop(preparation);

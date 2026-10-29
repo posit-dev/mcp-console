@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.integrations.test_control import (
     ControlClient,
     result_text,
+    wait_for_cell_started,
 )
 from support.assertions import tool_text
 from support.checkpoints import FifoCheckpoint
@@ -65,6 +66,7 @@ def test_many_reentrant_requests_preserve_ingress_and_rearm_idle_wakeup(
                             "foreground is held until a priority request releases it",
                             client=client,
                         )
+                        wait_for_cell_started(client, root, source)
                         for _ in range(repetitions):
                             response = control.request(
                                 op="evaluate",

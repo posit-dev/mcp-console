@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server.integrations.test_control import (
     ControlClient,
     result_text,
+    wait_for_cell_started,
 )
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
@@ -58,6 +59,7 @@ def test_reentrant_warnings_preserve_foreground_warning_ownership(
                 """).replace("ENTERED", str(entered.path))
             pending = client.start_send(r=source, timeout_ms=60000)
             entered.wait(client=client)
+            wait_for_cell_started(client, root, source)
             with ControlClient(endpoint) as control:
                 deferred = control.request(
                     op="evaluate",
