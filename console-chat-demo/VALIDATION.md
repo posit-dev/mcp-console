@@ -20,6 +20,9 @@ Together, the seven tests cover:
 - Absent API credentials in both runtimes, denied private-file reads and host writes, and blocked networking against a listening local socket.
 - Rejection of missing explicitly configured private paths before creating the runtime root.
 
+After enabling the full tool surface, focused process checks passed for the advertised parameters, SQL over the CSV, a named SQL session, requirements inspection and requests, and denial of SQL reads from another client's slot.
+The concurrent-client isolation and HTTP checks also passed with the per-client preparation caches.
+
 From the repository root:
 
 ```sh
@@ -45,6 +48,8 @@ Assertions first reproduced the JSON display and missing suggestion button, then
 The HTTP app test passed.
 The live browser script includes these display and suggestion assertions for subsequent runs.
 An additional live browser session submitted Python and R cells; its exported Markdown preserved each cell in a language-tagged code block and included the corresponding output.
+Another live Terra session used SQL to aggregate the CSV, confirmed a cross-client SQL read was denied, requested and used an additional Python package, and rendered plots from both R and Python.
+A separate browser check with a simulated tool response verified that the export retains tool options as well as the submitted code.
 
 With the app running on port 8008:
 

@@ -18,15 +18,16 @@ MODEL = "gpt-6.1-terra"
 DATA = Path(__file__).parent / "data" / "sample.csv"
 PROMPT = """You are a data analyst working with the user in Console Chat.
 Use the send tool for calculations, data inspection, modeling and plots. It gives
-you persistent R and Python in one OS-sandboxed process. Submit complete cells,
+you persistent R, Python and SQL in an OS-sandboxed session. Submit complete cells,
 one language per call. Poll with an empty send if a result says it is running.
 The working directory contains data.csv: 96 synthetic monthly sales observations
 for 2025, with month, region, product, units, revenue and cost (USD). Explain that these
 are demonstration data, not actual business results. Read the data with R
 read.csv('data.csv') or Python pandas.read_csv('data.csv'). Base R statistics,
-graphics, pandas, numpy, matplotlib and DuckDB are available. No package installs
-or external network access. Use R for statistical models when useful and Python
-for transformations; both are available, and variables persist across turns.
+graphics, pandas, numpy, matplotlib and DuckDB are available. SQL uses the default
+DuckDB connection; query data.csv with read_csv_auto('data.csv'). Session code has
+no external network access. Use R for statistical models when useful and Python
+for transformations; variables persist across turns.
 For plots use the Console-managed R graphics device or matplotlib.pyplot.show().
 Do not open browsers, GUI windows or HTML files. Report uncertainty and assumptions.
 Give concise answers grounded in results. End with one useful next question as
@@ -48,7 +49,6 @@ class Pool:
         self,
         root: Path,
         binary: Path,
-        python: Path,
         capacity: int = 8,
         private_paths: tuple[Path, ...] = (),
     ) -> None:
@@ -56,16 +56,12 @@ class Pool:
         private_paths = tuple(path.resolve(strict=True) for path in private_paths)
         self.root = root.resolve()
         self.binary = binary.absolute()
-        # Resolving the symlink would lose this virtual environment's identity.
-        self.python = python.absolute()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._lock = (self.root / "server.lock").open("a")
         fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         self.slots = [self.root / "slots" / str(i) for i in range(capacity)]
         self.private = self.root / "private"
         self.private.mkdir(exist_ok=True, mode=0o700)
-        self.cache = self.root / "cache"
-        self.cache.mkdir(exist_ok=True, mode=0o700)
         for slot in self.slots:
             slot.mkdir(parents=True, exist_ok=True, mode=0o700)
         # A smaller capacity must still protect files left in higher-numbered
@@ -136,6 +132,8 @@ class Session:
         shutil.copyfile(DATA, self.workspace / "data.csv")
         temporary = self.slot / "tmp"
         temporary.mkdir(exist_ok=True, mode=0o700)
+        cache = self.slot / "cache"
+        cache.mkdir(exist_ok=True, mode=0o700)
         state = self.pool.private / self.slot.name
         state.mkdir(exist_ok=True, mode=0o700)
         denied = [self.pool.private, *self.pool.denied]
@@ -145,22 +143,26 @@ class Session:
             "HOME": str(Path.home()),
             "TMPDIR": str(temporary),
             "MCP_CONSOLE_HOME": str(state),
-            "XDG_CACHE_HOME": str(self.pool.cache),
-            "UV_CACHE_DIR": str(self.pool.cache / "uv"),
+            "XDG_CACHE_HOME": str(cache),
+            "UV_CACHE_DIR": str(cache / "uv"),
             "PYTHONDONTWRITEBYTECODE": "1",
         }
         config = {
-            "languages": ["r", "python"],
-            "sessions": {"max": 1},
+            "languages": ["r", "python", "sql"],
+            "sessions": {"max": 4},
             "inherit_environment": False,
             "environment": {
                 "PATH": environment["PATH"],
                 "HOME": environment["HOME"],
                 "PYTHONDONTWRITEBYTECODE": "1",
             },
-            "python": {"existing": str(self.pool.python)},
-            "r": {"vanilla": True, "packages": [], "resolution": "fixed"},
-            "cache": {"directory": str(self.pool.cache)},
+            "python": {
+                "version": "3.13",
+                "packages": ["numpy", "pandas", "matplotlib", "duckdb"],
+                "resolution": "explicit",
+            },
+            "r": {"vanilla": True, "packages": [], "resolution": "explicit"},
+            "cache": {"directory": str(cache)},
             "sandbox": {
                 "profile": "read_only",
                 "network": "restricted",
@@ -170,20 +172,13 @@ class Session:
                     "deny": [str(p) for p in denied],
                 },
             },
-            "tool": {
-                "parameters": {
-                    name: {"enabled": False}
-                    for name in ("session", "requirements", "stdin")
-                }
-            },
         }
-        # Preparation uses fixed, trusted dependencies. Other client slots,
-        # controller state and configured credentials remain inaccessible.
+        # Dependency preparation is isolated per client, including its cache.
         config["resolver"] = {
             "sandbox": {
                 "filesystem": {
                     "read_only": ["/"],
-                    "read_write": [str(self.pool.cache)],
+                    "read_write": [str(cache)],
                     "deny": [str(p) for p in denied],
                 }
             }

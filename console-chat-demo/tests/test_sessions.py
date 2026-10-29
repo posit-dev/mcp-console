@@ -34,7 +34,6 @@ async def pool(tmp_path, monkeypatch):
     instance = Pool(
         root=tmp_path / "pool",
         binary=Path(binary),
-        python=Path(os.environ.get("CONSOLE_CHAT_PYTHON", sys.executable)),
         capacity=2,
         private_paths=(private,),
     )
@@ -42,6 +41,39 @@ async def pool(tmp_path, monkeypatch):
         yield instance
     finally:
         await instance.close()
+
+
+@pytest.mark.asyncio
+async def test_full_tool_surface_and_sql(pool):
+    session = await pool.open()
+    properties = session.tool.schema["function"]["parameters"]["properties"]
+    assert {
+        "r",
+        "python",
+        "sql",
+        "session",
+        "requirements",
+        "stdin",
+        "control",
+        "note",
+        "timeout_ms",
+    } <= properties.keys()
+    result = text(
+        await session.send(
+            sql="SELECT region, round(sum(revenue), 2) AS total FROM read_csv_auto('data.csv') GROUP BY region ORDER BY region"
+        )
+    )
+    assert "East" in result and "171060" in result and "South" in result
+    assert "42" in text(await session.send(session="second", sql="SELECT 42 AS answer"))
+    assert (await session.send(requirements={"action": "get"})).error is None
+    assert (await session.send(requirements={"python": ["numpy"]})).error is None
+    other = pool.slots[1] / "cache" / "private.csv"
+    other.parent.mkdir()
+    other.write_text("secret\nother-client-secret\n")
+    denied = text(await session.send(sql=f"SELECT * FROM read_csv_auto('{other}')"))
+    assert "other-client-secret" not in denied
+    # DuckDB's file glob reports inaccessible paths as having no matches.
+    assert "No files found that match the pattern" in denied
 
 
 @pytest.mark.asyncio
@@ -258,7 +290,7 @@ os.execv({binary!r}, [{binary!r}, *sys.argv[1:]])
 """
     )
     wrapper.chmod(0o700)
-    pool = Pool(tmp_path / "pool", wrapper, Path(sys.executable), capacity=1)
+    pool = Pool(tmp_path / "pool", wrapper, capacity=1)
     opening = asyncio.create_task(pool.open())
     pid = None
     try:
@@ -313,7 +345,6 @@ async def test_missing_private_path_is_rejected(tmp_path):
             pool = Pool(
                 tmp_path / "pool",
                 Path(binary),
-                Path(sys.executable),
                 capacity=1,
                 private_paths=(tmp_path / "misspelled-secret-directory",),
             )
@@ -332,7 +363,7 @@ async def test_capacity_reduction_keeps_previous_slot_private(tmp_path, monkeypa
     previous_workspace.mkdir(parents=True)
     previous_file = previous_workspace / "private.txt"
     previous_file.write_text("previous-client-data")
-    pool = Pool(root, Path(binary), Path(sys.executable), capacity=1)
+    pool = Pool(root, Path(binary), capacity=1)
     try:
         session = await pool.open()
         result = await session.send(

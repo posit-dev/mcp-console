@@ -13,7 +13,6 @@ def test_app_serves_chat_and_only_public_assets(tmp_path, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("CONSOLE_CHAT_RUNTIME", str(tmp_path / "server"))
     monkeypatch.setenv("CONSOLE_CHAT_BINARY", sys.executable)
-    monkeypatch.setenv("CONSOLE_CHAT_PYTHON", sys.executable)
     spec = importlib.util.spec_from_file_location(
         "console_demo_app_http", directory / "app.py"
     )

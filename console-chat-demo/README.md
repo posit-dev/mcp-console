@@ -1,6 +1,6 @@
 # Console Chat
 
-A Shiny for Python app that gives each browser client a chatlas conversation and a separate, sandboxed MCP Console process with persistent R and Python.
+A Shiny for Python app that gives each browser client a chatlas conversation and a separate, sandboxed MCP Console process with persistent R, Python and SQL.
 Ask questions, calculate summaries, fit models, and make plots.
 The app includes 96 rows of synthetic monthly sales data.
 Expand tool calls to inspect their arguments as YAML, with multiline R and Python code preserved.
@@ -64,10 +64,13 @@ Evaluated code can write only its own workspace and Console's private temporary 
 Direct networking is restricted.
 Console starts from an explicit configuration file, clears inherited worker environment variables, and starts R with `--vanilla`.
 The server's API key is never passed to Console.
-The tool hides package preparation, additional named sessions, and interactive stdin.
-Python uses the app's installed environment; R's dependency declaration is fixed.
-Startup preparation may download Console's required R infrastructure through its separate resolver sandbox.
-Run `--warmup` during deployment to prepare and check those dependencies before accepting traffic.
+The agent can use all Console tool parameters, including SQL, named sessions, interactive input and explicit package requests.
+Each client can run up to four Console sessions.
+Console prepares a managed Python environment and R dependencies separately for each client, with explicit requests for additional packages.
+Preparation has its own sandbox and can download packages from configured sources; package installation and builds can run code, so use trusted packages and sources.
+Each client has its own preparation cache, which is removed when the client disconnects; cold starts can require substantial time and disk space.
+On the tested macOS host, a client cache reached roughly 1 GiB.
+`--warmup` checks R, Python and SQL on the deployment host, but does not prepopulate future clients' isolated caches.
 
 **Deploy on a dedicated service account and a clean filesystem containing only the intended runtime and app files.** Console's read-only base permits host-file reads.
 This app denies sibling sessions, its private configuration and recordings, common credential paths, and every path supplied with `--private-path`.
@@ -89,10 +92,10 @@ Bind to loopback unless the deployment network supplies that boundary.
 ## Deploy
 
 Install the app and pinned Python requirements on a Linux host supported by Console's native sandbox.
-Install R and a complete Console build from this revision, including its verified companion, under `/opt/mcp-console`.
+Install R, `uv`, and a complete Console build from this revision, including its verified companion, under `/opt/mcp-console`.
 Keep runtime executables and packages outside session workspaces and unwritable by evaluated code.
 Copy the app's source files to `/srv/console-chat-demo`, excluding `.runtime` and `.venv`, create its virtual environment, and give the dedicated service account ownership of `.runtime`.
-Prepare dependencies with `run.py --warmup` as that account.
+Check runtime preparation with `run.py --warmup` as that account.
 
 [deploy/console-chat.service](deploy/console-chat.service) is a systemd template for one server process with a bounded session pool and service-level resource limits.
 It reads the API key from `/srv/console-chat-secrets/openai.env` and explicitly denies that directory to evaluated code and dependency preparation.

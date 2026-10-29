@@ -63,8 +63,9 @@ async def main() -> None:
                 "import pandas as pd\n"
                 "browser_marker = 'alpha'\n"
                 "print(pd.read_csv('data.csv')['revenue'].sum())\n\n"
-                "Then use base R graphics to plot monthly revenue. "
-                "You must execute both Python and R. End your answer with ALPHA_DONE.",
+                "Then use base R graphics to plot monthly revenue, and use the SQL "
+                "parameter to query total revenue from data.csv. "
+                "You must execute Python, R and SQL. End your answer with ALPHA_DONE.",
             )
             await submit(
                 second,
@@ -102,6 +103,13 @@ async def main() -> None:
             ).to_be_visible()
             await submit(
                 first,
+                "Use the requirements parameter to add the Python package humanize, "
+                "then run Python to print humanize.intcomma(12345).",
+            )
+            await completed(first)
+            await expect(first.get_by_role("log")).to_contain_text("12,345")
+            await submit(
+                first,
                 "Use Python to print browser_marker from the previous turn. "
                 "It must still be alpha. End with PERSISTENCE_DONE.",
             )
@@ -116,7 +124,9 @@ async def main() -> None:
             assert "ALPHA_DONE" in exported and "Code submitted" in exported
             assert "```python\nimport pandas as pd\n" in exported
             assert "```r\n" in exported
-            assert "```yaml\n" not in exported and "```json\n" not in exported
+            assert "```sql\n" in exported
+            assert "requirements:\n" in exported and "humanize" in exported
+            assert "```json\n" not in exported
             await first.screenshot(path=str(artifacts / "analysis.png"), full_page=True)
             await second.screenshot(
                 path=str(artifacts / "second-client.png"), full_page=True

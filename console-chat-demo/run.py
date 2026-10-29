@@ -6,7 +6,6 @@ import json
 import os
 import shlex
 import shutil
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -23,7 +22,7 @@ def main() -> None:
     )
     parser.add_argument("--private-path", type=Path, action="append", default=[])
     parser.add_argument(
-        "--warmup", action="store_true", help="Prepare and check R/Python, then exit"
+        "--warmup", action="store_true", help="Check R, Python and SQL, then exit"
     )
     args = parser.parse_args()
     if args.binary is None:
@@ -66,7 +65,6 @@ def main() -> None:
             pool = Pool(
                 ROOT / ".runtime" / "server",
                 Path(args.binary),
-                Path(sys.executable),
                 args.sessions,
                 tuple(args.private_path),
             )
@@ -75,11 +73,16 @@ def main() -> None:
                 for code in (
                     {"r": "cat('R ready\\n')"},
                     {"python": "import pandas, matplotlib; print('Python ready')"},
+                    {"sql": "SELECT 42 AS answer"},
                 ):
                     result = await session.send(**code)
+                    if result.error:
+                        raise RuntimeError(f"Runtime check failed: {result.error}")
                     print(result.value)
                     while "[running; poll with an empty send]" in str(result.value):
                         result = await session.send()
+                        if result.error:
+                            raise RuntimeError(f"Runtime check failed: {result.error}")
                         print(result.value)
             finally:
                 await pool.close()

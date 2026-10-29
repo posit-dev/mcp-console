@@ -9,7 +9,6 @@ import logging
 import os
 import re
 import shutil
-import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -33,7 +32,7 @@ def create_app(pool: Pool) -> App:
         (
             "Compare regions",
             (
-                "Which regions have the strongest profit margins? Use Python to calculate "
+                "Which regions have the strongest profit margins? Use SQL to calculate "
                 "revenue minus cost from data.csv, then compare margins and explain the result."
             ),
             "Find where the business earns the most.",
@@ -59,7 +58,7 @@ def create_app(pool: Pool) -> App:
         ui.div("A question is a place to start.", class_="welcome-heading"),
         ui.p(
             "Explore the sample sales data, make a chart, or try a model. "
-            "Your R and Python objects stay available as the conversation develops.",
+            "Your R, Python and SQL state stays available as the conversation develops.",
             class_="welcome-copy",
         ),
         ui.tags.ul(
@@ -92,7 +91,7 @@ def create_app(pool: Pool) -> App:
                 class_="brand",
             ),
             ui.div(
-                ui.span("R + Python", class_="runtime-badge"),
+                ui.span("R + Python + SQL", class_="runtime-badge"),
                 ui.output_text("connection_status", inline=True),
                 class_="header-status",
                 **{"aria-live": "polite"},
@@ -217,6 +216,22 @@ def create_app(pool: Pool) -> App:
                 async with contextlib.aclosing(backend.stream(prompt)) as stream:
                     async for chunk in stream:
                         if isinstance(chunk, ContentToolRequest):
+                            options = {
+                                key: value
+                                for key, value in chunk.arguments.items()
+                                if key not in ("r", "python", "sql")
+                                and value is not None
+                            }
+                            if options:
+                                yaml = format_yaml(options, width=None)
+                                longest = max(
+                                    (len(run) for run in re.findall(r"`+", yaml)),
+                                    default=0,
+                                )
+                                fence = "`" * max(3, longest + 1)
+                                transcript.append(
+                                    f"### Tool options\n\n{fence}yaml\n{yaml}\n{fence}\n"
+                                )
                             for language in ("r", "python", "sql"):
                                 code = chunk.arguments.get(language)
                                 if code:
@@ -446,7 +461,6 @@ app = create_app(
     Pool(
         root=Path(os.environ.get("CONSOLE_CHAT_RUNTIME", HERE / ".runtime" / "server")),
         binary=Path(binary),
-        python=Path(os.environ.get("CONSOLE_CHAT_PYTHON", sys.executable)),
         capacity=int(os.environ.get("CONSOLE_CHAT_CAPACITY", "8")),
         private_paths=[
             Path(x)
