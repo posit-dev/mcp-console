@@ -72,6 +72,7 @@ impl Client {
             control_prelude,
             initial_requirements,
             evaluation::Origin::Mcp,
+            None,
         )
         .map_err(EvaluationStartError::into_message)
     }
@@ -88,6 +89,7 @@ impl Client {
         control_prelude: &mut Option<Response>,
         initial_requirements: Option<Requirements>,
         origin: evaluation::Origin,
+        observation: Option<super::integrator::IntegratorObservation>,
     ) -> Result<(Arc<Evaluation>, evaluation::WaitClaim), EvaluationStartError> {
         self.ensure_evaluation_admission(&generation, control)?;
 
@@ -119,6 +121,7 @@ impl Client {
             )
             .owned_by(origin, self.0.admission_changed.clone()),
         );
+        evaluation.observe_source(&cell, observation);
         // Controlled restart retires its worker before admitting this evaluation.
         // Early ordinary cells also need association while awaiting startup.
         evaluation.associate_waiting_session();

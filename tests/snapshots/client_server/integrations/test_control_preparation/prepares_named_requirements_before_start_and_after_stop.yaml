@@ -1,0 +1,38 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: analysis
+  r: >-
+    stopifnot(requireNamespace("praise", quietly = TRUE)); cat("named
+    requirements ready\n")
+result:
+  content:
+    - type: text
+      text: |
+        named requirements ready
+  isError: false
+---
+send:
+  session: analysis
+  r: >-
+    stopifnot(requireNamespace("cli", quietly = TRUE)); cat("named
+    requirements ready\n")
+result:
+  content:
+    - type: text
+      text: |
+        [worker stopped: in-memory state lost]
+        [stopped]
+        [output produced while idle]
+        [starting new worker]
+        named requirements ready
+  isError: false

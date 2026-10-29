@@ -177,6 +177,20 @@ pub(crate) struct Artifact {
     pub(crate) public_directory: Arc<Mutex<PathBuf>>,
 }
 impl Transcript {
+    #[cfg(unix)]
+    pub(crate) fn integrator_recording(&self) -> Result<serde_json::Value, String> {
+        let state = self.0.lock().map_err(|_| "transcript lock poisoned")?;
+        if let Some(error) = &state.failure {
+            return Err(format!("recording is unavailable: {error}"));
+        }
+        let active = state.active.as_ref().ok_or("recording has not started")?;
+        let projections = active
+            .projections
+            .as_ref()
+            .ok_or("recording projections are unavailable")?;
+        Ok(projections.integrator_recording(&self.4))
+    }
+
     pub(crate) fn call_images(&self, call: &Call) -> Option<CallImages> {
         let call_id = call.id?;
         let session_id = self.owner()?.session_id;

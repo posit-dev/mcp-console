@@ -1,0 +1,156 @@
+---
+request:
+  id: "1"
+  op: create
+  session: analysis
+response:
+  id: "1"
+  result:
+    session: analysis
+    state: stopped
+    worker_id: 0
+---
+request:
+  id: "2"
+  op: prepare
+  session: analysis
+  requirements:
+    r:
+      - praise
+response:
+  id: "2"
+  result:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - praise
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+    worker_id: 0
+    status: prepared
+---
+request:
+  id: "3"
+  op: sessions
+response:
+  id: "3"
+  result:
+    sessions:
+      - name: analysis
+        state: stopped
+        worker_id: 0
+      - name: default
+        state: idle
+        worker_id: 1
+---
+request:
+  id: "4"
+  op: close
+  session: analysis
+response:
+  id: "4"
+  result:
+    accepted: true
+    worker_id: 1
+---
+request:
+  id: "5"
+  op: prepare
+  session: analysis
+  requirements:
+    r:
+      - cli
+response:
+  id: "5"
+  result:
+    requirements:
+      r:
+        - DBI
+        - cli
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - praise
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+    worker_id: 1
+    status: prepared
+---
+request:
+  id: "6"
+  op: sessions
+response:
+  id: "6"
+  result:
+    sessions:
+      - name: analysis
+        state: stopped
+        worker_id: 1
+      - name: default
+        state: idle
+        worker_id: 1
+---
+request:
+  id: "7"
+  op: close
+  session: analysis
+response:
+  id: "7"
+  result:
+    accepted: true
+    worker_id: 2

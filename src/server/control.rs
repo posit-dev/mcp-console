@@ -1,5 +1,5 @@
 //! Optional local integrator transport. MCP still owns the process lifetime.
-//! Every request targets the default session, including after worker replacement.
+//! Named requests share the MCP session registry and its lifecycle owners.
 
 use std::io;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -15,7 +15,9 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::{JoinHandle, JoinSet};
 
 use super::ConsoleServer;
-use crate::worker_client::{Content, IntegratorError, Response};
+use crate::worker_client::{
+    Content, IntegratorError, IntegratorObservation, IntegratorRestart, Response,
+};
 
 const MAX_FRAME: usize = 1024 * 1024;
 const MAX_CONNECTIONS: usize = 64;
@@ -23,32 +25,82 @@ const MAX_CONNECTIONS: usize = 64;
 #[derive(Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    Sessions {
+        id: String,
+    },
+    Create {
+        id: String,
+        session: String,
+    },
+    Close {
+        id: String,
+        session: String,
+    },
     Status {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Preview {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
+    },
+    Output {
+        id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Subscribe {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
+        #[serde(default)]
+        format: SubscriptionFormat,
     },
     Stdin {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
         evaluation_id: u64,
         input: String,
     },
     Interrupt {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
         evaluation_id: u64,
+    },
+    Restart {
+        id: String,
+        #[serde(default = "default_session")]
+        session: String,
+    },
+    Prepare {
+        id: String,
+        #[serde(default = "default_session")]
+        session: String,
+        requirements: super::arguments::Requirements,
     },
     Requirements {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Manifest {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
+    },
+    Recording {
+        id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Evaluate {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
         language: crate::cell::Language,
         code: String,
         #[serde(default)]
@@ -58,7 +110,17 @@ enum Request {
         wait_ms: Option<u32>,
         #[serde(default = "record_by_default")]
         record: bool,
+        #[serde(default)]
+        include_output: bool,
     },
+}
+
+#[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SubscriptionFormat {
+    #[default]
+    Preview,
+    Events,
 }
 
 #[derive(Default, Deserialize)]
@@ -69,6 +131,10 @@ enum Busy {
     Wait,
 }
 
+fn default_session() -> String {
+    "default".into()
+}
+
 fn record_by_default() -> bool {
     true
 }
@@ -76,14 +142,41 @@ fn record_by_default() -> bool {
 impl Request {
     fn id(&self) -> &str {
         match self {
-            Self::Status { id }
-            | Self::Preview { id }
-            | Self::Subscribe { id }
+            Self::Sessions { id }
+            | Self::Create { id, .. }
+            | Self::Close { id, .. }
+            | Self::Status { id, .. }
+            | Self::Preview { id, .. }
+            | Self::Output { id, .. }
+            | Self::Subscribe { id, .. }
             | Self::Stdin { id, .. }
             | Self::Interrupt { id, .. }
-            | Self::Requirements { id }
-            | Self::Manifest { id }
+            | Self::Restart { id, .. }
+            | Self::Prepare { id, .. }
+            | Self::Requirements { id, .. }
+            | Self::Manifest { id, .. }
+            | Self::Recording { id, .. }
             | Self::Evaluate { id, .. } => id,
+        }
+    }
+
+    fn session(&self) -> &str {
+        match self {
+            Self::Sessions { .. } => "default",
+            Self::Create { session, .. }
+            | Self::Close { session, .. }
+            | Self::Status { session, .. }
+            | Self::Preview { session, .. }
+            | Self::Output { session, .. }
+            | Self::Subscribe { session, .. }
+            | Self::Stdin { session, .. }
+            | Self::Interrupt { session, .. }
+            | Self::Restart { session, .. }
+            | Self::Prepare { session, .. }
+            | Self::Requirements { session, .. }
+            | Self::Manifest { session, .. }
+            | Self::Recording { session, .. }
+            | Self::Evaluate { session, .. } => session,
         }
     }
 }
@@ -127,6 +220,7 @@ impl Listener {
     }
 
     pub fn start(self, server: ConsoleServer) -> Server {
+        server.startup.runtime().worker.enable_integrator_output();
         let (closed, mut closing) = watch::channel(false);
         let failed = closed.clone();
         let task = tokio::spawn(async move {
@@ -240,13 +334,27 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
                 None => break,
             },
         };
-        let transcript = server.startup.runtime().transcript.clone();
         let parsed = serde_json::from_slice::<Request>(&frame);
+        let transcript = server
+            .startup
+            .runtime()
+            .transcript
+            .for_session(parsed.as_ref().map_or("default", Request::session));
         let subscription = match &parsed {
-            Ok(Request::Subscribe { id }) => Some((
-                id.clone(),
-                server.startup.runtime().worker.integrator_subscribe(),
-            )),
+            Ok(Request::Subscribe {
+                id,
+                format,
+                session,
+            }) => server.sessions.get(session).map(|startup| {
+                let worker = startup.runtime().worker.clone();
+                Subscription {
+                    id: id.clone(),
+                    session: session.clone(),
+                    format: *format,
+                    changes: worker.integrator_subscribe(),
+                    worker,
+                }
+            }),
             _ => None,
         };
         let (response, call_id) = match parsed {
@@ -278,11 +386,9 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
         if !delivered {
             break;
         }
-        if let Some((id, changes)) = subscription {
-            stream_previews(
-                &server,
-                &id,
-                changes,
+        if let Some(subscription) = subscription.filter(|_| response.get("error").is_none()) {
+            stream_snapshots(
+                subscription,
                 &mut write,
                 &mut closing,
                 &mut disconnect,
@@ -296,23 +402,47 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
     let _ = reader.await;
 }
 
-async fn stream_previews(
-    server: &ConsoleServer,
-    id: &str,
-    mut changes: watch::Receiver<()>,
+struct Subscription {
+    id: String,
+    session: String,
+    worker: crate::worker_client::Client,
+    format: SubscriptionFormat,
+    changes: watch::Receiver<()>,
+}
+
+async fn stream_snapshots(
+    subscription: Subscription,
     write: &mut tokio::net::unix::OwnedWriteHalf,
     closing: &mut watch::Receiver<bool>,
     disconnect: &mut watch::Receiver<bool>,
     received: &mut mpsc::Receiver<Vec<u8>>,
 ) {
+    let Subscription {
+        id,
+        session,
+        worker,
+        format,
+        mut changes,
+    } = subscription;
     let mut previous = None;
     loop {
         changes.borrow_and_update();
-        let Ok(content) = server.startup.runtime().worker.integrator_preview() else {
-            break;
+        let mut event = match format {
+            SubscriptionFormat::Preview => {
+                let Ok(content) = worker.integrator_preview() else {
+                    break;
+                };
+                let result = CallToolResult::success(content_blocks(content));
+                json!({"id": id, "event": "preview", "result": result})
+            }
+            SubscriptionFormat::Events => json!({
+                "id": id, "event": "output",
+                "result": worker.integrator_output(),
+            }),
         };
-        let result = CallToolResult::success(content_blocks(content));
-        let event = json!({"id": id, "event": "preview", "result": result});
+        if session != "default" {
+            event["session"] = json!(session);
+        }
         if previous.as_ref() != Some(&event) {
             let mut bytes = serde_json::to_vec(&event).expect("preview serialization");
             bytes.push(b'\n');
@@ -351,10 +481,75 @@ async fn handle(
     closing: &mut watch::Receiver<bool>,
     disconnect: &mut watch::Receiver<bool>,
 ) -> (Value, Option<u64>) {
-    let runtime = server.startup.runtime();
     let id = Value::String(request.id().to_string());
+    let session = request.session().to_owned();
+    // Reject invalid admission policy before a new name can reserve capacity.
+    let wait = match &request {
+        Request::Evaluate { busy, wait_ms, .. } => match (busy, wait_ms) {
+            (Busy::Reject, None) => None,
+            (Busy::Wait, Some(milliseconds)) => Some(Duration::from_millis((*milliseconds).into())),
+            _ => {
+                return (
+                    failure(
+                        id,
+                        "invalid_request",
+                        "wait_ms is required with busy=wait and forbidden with busy=reject",
+                    ),
+                    None,
+                );
+            }
+        },
+        _ => None,
+    };
+    let creates = matches!(
+        request,
+        Request::Create { .. }
+            | Request::Evaluate {
+                execution: crate::worker_client::IntegratorExecution::Serial,
+                ..
+            }
+    );
+    if creates && server.inheritance.enabled() && !server.inheritance.captured() {
+        return (
+            failure(id, "not_ready", "waiting for MCP client permissions"),
+            None,
+        );
+    }
+    let startup = match server.sessions.select(&session, creates) {
+        Ok(startup) => startup,
+        Err(error) => {
+            return (
+                failure(
+                    id,
+                    if creates {
+                        "execution_failed"
+                    } else {
+                        "unknown_session"
+                    },
+                    error,
+                ),
+                None,
+            );
+        }
+    };
+    if creates {
+        // Like MCP admission, install the independent startup owner before
+        // yielding to recording or observing a control-socket disconnect.
+        let started = (|| {
+            if session != "default" || matches!(request, Request::Create { .. }) {
+                startup.retry_failed()?;
+            }
+            startup.start()
+        })();
+        if let Err(error) = started {
+            return (failure(id, "execution_failed", error), None);
+        }
+    }
+    let runtime = startup.runtime();
     let evaluation = matches!(&request, Request::Evaluate { .. });
+    let output_snapshot = matches!(&request, Request::Output { .. });
     let mut execution_error = Value::Null;
+    let mut typed_output = None;
     let arguments = match &request {
         Request::Evaluate { language, code, .. } => serde_json::Map::from_iter([(
             crate::cell::Languages::field(*language).into(),
@@ -374,8 +569,26 @@ async fn handle(
     let operation_call = call.clone();
     let operation = async {
         match request {
+            Request::Sessions { .. } => Ok(CallToolResult::structured(json!({
+                "sessions": server.sessions.snapshot().into_iter().map(|(name, startup)| {
+                    let worker = startup.runtime().worker.clone();
+                    json!({"name": name, "state": worker.session_status(), "worker_id": worker.integrator_worker_id()})
+                }).collect::<Vec<_>>()
+            }))),
+            Request::Create { .. } => {
+                startup
+                    .ready()
+                    .await
+                    .map_err(|error| ("execution_failed", error))?;
+                Ok(CallToolResult::structured(
+                    json!({"session": session, "state": runtime.worker.session_status(), "worker_id": runtime.worker.integrator_worker_id()}),
+                ))
+            }
             Request::Status { .. } => Ok(CallToolResult::structured(
                 runtime.worker.integrator_status(),
+            )),
+            Request::Output { .. } => Ok(CallToolResult::structured(
+                runtime.worker.integrator_output(),
             )),
             Request::Subscribe { .. } => {
                 Ok(CallToolResult::structured(json!({"subscribed": true})))
@@ -402,6 +615,56 @@ async fn handle(
                     .map_err(control_error)?;
                 Ok(CallToolResult::structured(json!({"accepted": true})))
             }
+            Request::Restart { .. } | Request::Close { .. } => {
+                let closing_session = matches!(request, Request::Close { .. });
+                if closing_session && session == "default" {
+                    return Err((
+                        "invalid_request",
+                        "the default session cannot be closed; use restart".into(),
+                    ));
+                }
+                if !runtime.worker.is_configured() {
+                    return Err(("not_ready", "runtime configuration is not ready".into()));
+                }
+                if server.inheritance.enabled() && !server.inheritance.captured() {
+                    return Err(("not_ready", "waiting for MCP client permissions".into()));
+                }
+                runtime
+                    .worker
+                    .integrator_restart(if closing_session {
+                        IntegratorRestart::Stop
+                    } else {
+                        IntegratorRestart::Replace
+                    })
+                    .await
+                    .map(CallToolResult::structured)
+                    .map_err(control_error)
+            }
+            Request::Prepare { requirements, .. } => {
+                if requirements.action != crate::worker_client::RequirementsAction::Add {
+                    return Err((
+                        "invalid_request",
+                        "prepare supports only requirements.action=add".into(),
+                    ));
+                }
+                if !runtime.worker.is_configured() {
+                    return Err(("not_ready", "runtime configuration is not ready".into()));
+                }
+                if server.inheritance.enabled() && !server.inheritance.captured() {
+                    return Err(("not_ready", "waiting for MCP client permissions".into()));
+                }
+                Ok(CallToolResult::structured(
+                    runtime
+                        .worker
+                        .integrator_prepare(requirements.into_worker(operation_call.id()))
+                        .await,
+                ))
+            }
+            Request::Recording { .. } => runtime
+                .transcript
+                .integrator_recording()
+                .map(CallToolResult::structured)
+                .map_err(|error| ("projection_unavailable", error)),
             Request::Preview { .. } => {
                 let content = runtime.worker.integrator_preview().map_err(|_| {
                     (
@@ -430,23 +693,11 @@ async fn handle(
                 language,
                 code,
                 execution,
-                busy,
-                wait_ms,
+                include_output,
+                record,
+                id: request_id,
                 ..
             } => {
-                let wait = match (busy, wait_ms) {
-                    (Busy::Reject, None) => None,
-                    (Busy::Wait, Some(milliseconds)) => {
-                        Some(Duration::from_millis(milliseconds.into()))
-                    }
-                    _ => {
-                        return Err((
-                            "invalid_request",
-                            "wait_ms is required with busy=wait and forbidden with busy=reject"
-                                .into(),
-                        ));
-                    }
-                };
                 if server.inheritance.enabled() && !server.inheritance.captured() {
                     return Err(("not_ready", "waiting for MCP client permissions".into()));
                 }
@@ -454,7 +705,7 @@ async fn handle(
                     language,
                     source: code,
                 };
-                let response = match execution {
+                let (response, evaluation_id, output) = match execution {
                     crate::worker_client::IntegratorExecution::Serial => {
                         runtime
                             .worker
@@ -464,6 +715,10 @@ async fn handle(
                                 runtime.transcript.clone(),
                                 operation_call.id(),
                                 disconnect.clone(),
+                                IntegratorObservation {
+                                    request_id,
+                                    hidden: !record,
+                                },
                             )
                             .await
                     }
@@ -481,11 +736,15 @@ async fn handle(
                                 runtime.transcript.clone(),
                                 &operation_call,
                                 disconnect.clone(),
+                                request_id,
                             )
                             .await
                     }
                 }
                 .map_err(control_error)?;
+                if include_output {
+                    typed_output = Some((evaluation_id, output));
+                }
                 execution_error = serde_json::to_value(response.execution_error())
                     .expect("execution error serialization");
                 Ok(evaluation_result(
@@ -513,12 +772,33 @@ async fn handle(
                     .expect("evaluation result object")
                     .insert("execution_error".into(), execution_error);
             }
+            if let Some((evaluation_id, output)) = typed_output {
+                result["evaluation_id"] = json!(evaluation_id);
+                result["output"] = output;
+            }
             json!({"id": id, "result": result})
         }
         Err((code, message)) => failure(id, code, message),
     };
     let recorded: Result<CallToolResponse, rmcp::ErrorData> = result
-        .map(Into::into)
+        .map(|result| {
+            if output_snapshot {
+                // Snapshot payloads are observations of already captured source
+                // and artifacts. Record a receipt, not another inline image/text
+                // copy that bypasses their existing retention allowances.
+                let snapshot = result.structured_content.as_ref().expect("output snapshot");
+                CallToolResult::structured(json!({"output_snapshot": {
+                    "worker_id": snapshot["worker_id"],
+                    "first_sequence": snapshot["first_sequence"],
+                    "next_sequence": snapshot["next_sequence"],
+                    "omitted_events": snapshot["omitted_events"],
+                    "omitted_bytes": snapshot["omitted_bytes"],
+                }}))
+                .into()
+            } else {
+                result.into()
+            }
+        })
         .map_err(|(_, message)| rmcp::ErrorData::internal_error(message, None));
     let recording = runtime.transcript.clone();
     tokio::task::spawn_blocking(move || recording.finish(call, &recorded))

@@ -1,0 +1,54 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: visible_source = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    print("pending export output", flush=True)
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        pending export output
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+
+        [idle]
+  isError: false
+---
+send:
+  python: replacement_source = 43
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

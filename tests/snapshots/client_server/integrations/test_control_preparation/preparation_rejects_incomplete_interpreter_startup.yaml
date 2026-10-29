@@ -1,0 +1,31 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: cat("ready\n")
+result:
+  content:
+    - type: text
+      text: |
+        native startup output
+        [output produced while idle]
+        ready
+  isError: false
+---
+send:
+  r: stopifnot(requireNamespace('praise', quietly = TRUE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

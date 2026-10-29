@@ -136,6 +136,20 @@ pub(super) struct Requirements {
     pub(super) python: Option<Vec<String>>,
 }
 
+impl Requirements {
+    pub(super) fn into_worker(self, call_id: Option<u64>) -> crate::worker_client::Requirements {
+        crate::worker_client::Requirements {
+            action: self.action,
+            call_id,
+            duckdb: self.duckdb.unwrap_or_default(),
+            r: self.r.unwrap_or_default(),
+            python: self.python.unwrap_or_default(),
+            python_version: self.python_version.unwrap_or_default(),
+            exclude_newer: self.exclude_newer,
+        }
+    }
+}
+
 fn supplied_list<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<Vec<String>>, D::Error> {

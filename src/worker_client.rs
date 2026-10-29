@@ -43,7 +43,7 @@ pub(crate) use environment::{Declaration, Requirements, RequirementsAction};
 use environment::{Environment, PythonEnvironment, RuntimeRResolutionFailure};
 use evaluation::Evaluation;
 #[cfg(unix)]
-pub(crate) use integrator::IntegratorError;
+pub(crate) use integrator::{IntegratorError, IntegratorObservation, IntegratorRestart};
 use lifecycle::{LifecycleControl, OldGenerationCommitDisposition, WorkerGeneration};
 pub(crate) use output::{Content, Response, ResponseDelivery};
 use output::{OutputTape, SendFailure};

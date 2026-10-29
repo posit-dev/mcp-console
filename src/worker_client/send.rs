@@ -231,7 +231,8 @@ impl Client {
         let notice = match self.prepare(requirements).await? {
             PrepareResult::Prepared => "prepared",
             PrepareResult::RestartRequired => "restart required",
-            PrepareResult::Failed(response) | PrepareResult::WorkerStopped(response) => {
+            PrepareResult::Failed { response, .. }
+            | PrepareResult::WorkerStopped { response, .. } => {
                 return Ok(response);
             }
         };
@@ -327,7 +328,8 @@ impl Client {
                 response.push_tool_error("requirements require session restart; cell was not run");
                 self.recover_failed_evaluation(response)
             }
-            PrepareResult::Failed(response) | PrepareResult::WorkerStopped(response) => {
+            PrepareResult::Failed { response, .. }
+            | PrepareResult::WorkerStopped { response, .. } => {
                 self.recover_failed_evaluation(response)
             }
         };
@@ -567,7 +569,8 @@ impl Client {
                     .to_string()
                     .into())
             }
-            PrepareResult::Failed(mut response) | PrepareResult::WorkerStopped(mut response) => {
+            PrepareResult::Failed { mut response, .. }
+            | PrepareResult::WorkerStopped { mut response, .. } => {
                 response.recover_to(self.0.output.clone());
                 Err("requirements were not prepared; cell was not run"
                     .to_string()

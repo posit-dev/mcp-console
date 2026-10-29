@@ -1,6 +1,7 @@
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 
+mod events;
 mod terminal;
 
 mod preview;

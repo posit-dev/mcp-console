@@ -8,7 +8,7 @@ response:
     state: evaluating
     idle: false
     evaluation:
-      id: 2
+      id: 3
       origin: mcp
       language: r
       started: false
@@ -16,7 +16,7 @@ response:
 request:
   id: "2"
   op: interrupt
-  evaluation_id: 2
+  evaluation_id: 3
 response:
   id: "2"
   result:
@@ -31,7 +31,7 @@ response:
     state: evaluating
     idle: false
     evaluation:
-      id: 4
+      id: 6
       origin: mcp
       language: python
       started: false
@@ -45,7 +45,7 @@ response:
     state: evaluating
     idle: false
     evaluation:
-      id: 6
+      id: 9
       origin: mcp
       language: r
       started: false
@@ -53,7 +53,7 @@ response:
 request:
   id: "5"
   op: interrupt
-  evaluation_id: 6
+  evaluation_id: 9
 response:
   id: "5"
   result:
@@ -68,7 +68,7 @@ response:
     state: evaluating
     idle: false
     evaluation:
-      id: 8
+      id: 12
       origin: mcp
       language: r
       started: false

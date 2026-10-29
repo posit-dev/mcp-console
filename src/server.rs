@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use arguments::{Requirements, SendArguments, SendControl};
+use arguments::{SendArguments, SendControl};
 use rmcp::{
     ErrorData, RoleServer, ServerHandler, ServiceExt,
     handler::server::{
@@ -240,26 +240,7 @@ impl ConsoleServer {
         let inspect = requirements.as_ref().is_some_and(|requirements| {
             requirements.action == crate::worker_client::RequirementsAction::Get
         });
-        let requirements = requirements.map(
-            |Requirements {
-                 action,
-                 duckdb,
-                 r,
-                 python,
-                 python_version,
-                 exclude_newer,
-             }| {
-                crate::worker_client::Requirements {
-                    action,
-                    call_id: call.id(),
-                    duckdb: duckdb.unwrap_or_default(),
-                    r: r.unwrap_or_default(),
-                    python: python.unwrap_or_default(),
-                    python_version: python_version.unwrap_or_default(),
-                    exclude_newer,
-                }
-            },
-        );
+        let requirements = requirements.map(|requirements| requirements.into_worker(call.id()));
         if poll_all.0 {
             return self
                 .poll_sessions(timeout_ms, started, &call, &delivery)

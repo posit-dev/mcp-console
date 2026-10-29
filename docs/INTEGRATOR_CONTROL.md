@@ -4,11 +4,11 @@ This is an internal, experimental interface with no stability or compatibility p
 The `--control-socket` argument is hidden from CLI help.
 Integrators must use the protocol matching their Console build.
 
-An application can inspect and evaluate code in Console's `default` session through a local socket while its agent uses MCP.
+An application can inspect and evaluate code in Console's sessions through a local socket while its agent uses MCP.
 Use this channel for application setup, UI state, and output previews that do not need to become model tool calls.
-All control requests target `default`; this interface has no session selector.
-Control requests and MCP calls targeting `default` share the same worker, objects, and sandbox permissions.
-Named sessions created through MCP have separate workers and state.
+Worker operations accept a `session` name, defaulting to `default`.
+Control requests and MCP calls targeting the same name share the worker, objects, requirements, and sandbox permissions.
+Different names have separate workers and state, using the same connection-owned registry and capacity limit.
 
 ## Start the socket
 
@@ -64,6 +64,7 @@ When permissions are inherited from the MCP client, evaluation requires those pe
 
 Send one UTF-8 JSON object per newline-terminated line.
 Each request requires a string `id` and an `op` from the table below.
+All operations except `sessions` accept a string `session`; `create` and `close` require it, and other operations default to `default`.
 Unknown fields, unknown operations, and incorrect field types are rejected.
 A frame, including its newline, must fit within 1 MiB.
 An oversized frame or EOF before its terminating newline closes the connection.
@@ -82,16 +83,23 @@ Malformed requests use `id: null`.
 Request IDs correlate responses; they do not deduplicate submissions.
 Sending an evaluation again can execute it again.
 
-| Operation      | Additional fields                                                         | Result                                                                                              |
-| -------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `status`       | None                                                                      | Current state, `idle`, and the active evaluation's origin, language, and whether execution started. |
-| `preview`      | None                                                                      | Bounded `content` blocks containing currently pending text and images, without consuming them.      |
-| `requirements` | None                                                                      | The accepted `requirements`, `prepared`, and Console's separate `runtime_requirements`.             |
-| `manifest`     | None                                                                      | The accepted requirements declaration alone.                                                        |
-| `evaluate`     | `language`, `code`, optional `execution`, `busy`, `wait_ms`, and `record` | Evaluation `content` blocks and `isError`, using Console's usual output limits.                     |
-| `subscribe`    | None                                                                      | Acknowledgment followed by pushed pending-output snapshots on a dedicated connection.               |
-| `stdin`        | `evaluation_id`, `input`                                                  | Deliver managed input to the identified active evaluation.                                          |
-| `interrupt`    | `evaluation_id`                                                           | Request interruption of the identified active evaluation.                                           |
+| Operation      | Additional fields                                                                           | Result                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `sessions`     | None                                                                                        | Names, current lifecycle states, and typed-output worker identities, sorted by name.                 |
+| `create`       | `session`                                                                                   | Configure a named session lazily; return `session`, `state`, and `worker_id`.                        |
+| `close`        | `session` other than `default`                                                              | Stop the worker after confirmed retirement; retain its name, requirements, and recording.            |
+| `status`       | None                                                                                        | Current state, `idle`, and the active evaluation's origin, language, and whether execution started.  |
+| `output`       | None                                                                                        | Retained typed output snapshot for ordinary evaluations, independent of MCP collection.              |
+| `preview`      | None                                                                                        | Bounded `content` blocks containing currently pending text and images, without consuming them.       |
+| `requirements` | None                                                                                        | The accepted `requirements`, `prepared`, and Console's separate `runtime_requirements`.              |
+| `manifest`     | None                                                                                        | The accepted requirements declaration alone.                                                         |
+| `prepare`      | `requirements`, using the MCP requirements schema with `action: "add"` (the default)        | Prepare additions and return a structured outcome with the current accepted requirements.            |
+| `recording`    | None                                                                                        | Absolute paths to the existing Markdown and current-worker QMD projections, with recording identity. |
+| `evaluate`     | `language`, `code`, optional `execution`, `busy`, `wait_ms`, `record`, and `include_output` | Evaluation `content` blocks and `isError`, using Console's usual output limits.                      |
+| `subscribe`    | Optional `format`: `preview` (default) or `events`                                          | Acknowledgment followed by pushed snapshots on a dedicated connection.                               |
+| `stdin`        | `evaluation_id`, `input`                                                                    | Deliver managed input to the identified active evaluation.                                           |
+| `interrupt`    | `evaluation_id`                                                                             | Request interruption of the identified active evaluation.                                            |
+| `restart`      | None                                                                                        | Wait for session replacement; return `accepted` and the replacement `worker_id`.                     |
 
 `language` is `r`, `python`, or `sql`; `code` is a string.
 Evaluation and preview results have `resultType: "complete"`, `content`, and `isError` fields.
@@ -104,10 +112,61 @@ Replacing global calling handlers during an evaluation can remove the temporary 
 This metadata has a separate 8 KiB allowance, including retained string slots, and includes `truncated: true` when shortened.
 Ordinary diagnostics retain their existing output and raw-recording limits.
 Admission failures use the response's `error` field.
-This interface has no package-mutation or restart operation.
+Requirement mutation supports additive preparation only; replacement and reset remain MCP operations.
 Use the `id` in `status.evaluation` as `evaluation_id` for input and interruption; stale IDs are rejected so a delayed request cannot affect a later cell.
 Startup input is not supported through this channel.
-MCP interruption and restart targeting `default` still affect the shared session.
+MCP interruption and restart targeting the same name still affect the shared session.
+
+`sessions` observes the existing registry without starting workers or collecting output.
+Its result is `{"sessions":[{"name":"default","state":"idle","worker_id":1}]}`.
+States are `starting`, `running`, `waiting_for_stdin`, `idle`, or `stopped`.
+Stopped names remain listed; they can be used again.
+The typed-output `worker_id` is local to that name and is zero before its first worker starts.
+
+`create` uses the same captured configuration, startup owner, and session capacity pool as a first MCP code call.
+It waits for configuration and preparation, but leaves interpreter startup to the first ordinary cell.
+A newly configured result is `{"session":"analysis","state":"stopped","worker_id":0}`.
+Creating an existing name observes it after readiness; it does not clear objects or change requirements.
+An ordinary `evaluate` can also create a name; use `busy: "wait"` to wait through its startup.
+Immediate evaluations and inspection do not create names; an unknown name returns `unknown_session`.
+Capacity failures use `execution_failed` with the existing session-limit diagnostic.
+
+`close` uses the same retirement path as an MCP restart without a follow-up cell in a named session.
+It waits for worker retirement before releasing capacity, preserves accepted requirements and pending MCP output, and returns `accepted` and the last typed-output `worker_id`.
+Private evaluations still settle with their original callers.
+Closing `default` is rejected; use `restart` for that session.
+A later ordinary cell starts a fresh worker for a stopped name.
+
+`restart` replaces the selected session using its accepted configuration and requirements.
+It waits for confirmed retirement and replacement startup before returning `accepted: true`; it does not submit code or change requirements.
+The response contains the replacement `worker_id`, without evaluation output.
+Use `status` to inspect the session after replacement; another request can already be active by then.
+Uncollected MCP output and lifecycle notices remain available to MCP exactly once.
+An active control evaluation settles with its original requester, including its private output.
+Restart clears runtime objects and private viewer registrations; applications should rebuild their private setup for the new `worker_id`.
+Runtime configuration and inherited MCP permissions must be ready, or the request returns `not_ready`.
+Once started, restart and close continue if their control connection disconnects.
+Control `restart` starts the replacement immediately for every name; MCP restart without a follow-up cell leaves a named worker stopped.
+
+`prepare` uses Console's normal requirements validation, resolution policies, and preparation admission.
+It does not execute a cell, use immediate execution, or restart automatically.
+The worker must be ready and idle, with no outstanding immediate request or uncollected evaluation; otherwise it returns `status: "busy"` without queuing the change.
+Once admitted, preparation continues if its control connection disconnects.
+The result has `status: "prepared"`, `"restart_required"`, `"busy"`, or `"failed"`, the current `worker_id`, and the same `requirements`, `prepared`, and `runtime_requirements` fields as inspection.
+These fields describe the actual accepted state after the operation, including partial activation if a mixed-language change fails.
+They are declarations and aggregate preparation state, not an installed-package inventory or per-package versions.
+Failures include a diagnostic `message`, limited to an 8 KiB UTF-8 prefix with `message_truncated: true` when shortened.
+The diagnostic comes from preparation before MCP response assembly.
+Existing MCP output and shared preparation/lifecycle diagnostics remain available to MCP exactly once; the control receipt does not collect them.
+Unknown request fields and unsupported actions are `invalid_request` errors; unavailable configuration or inherited permissions are `not_ready` errors.
+
+`recording` returns `directory`, `markdown`, `qmd`, and `worker_id` for existing projections.
+Paths are absolute; `qmd` selects the addressed session's current worker and is null until that worker has visible recorded source.
+`worker_id` can be null before a worker starts or after it stops.
+This is the recording's global worker identity, distinct from the per-name typed-output `worker_id`.
+The recording directory and Markdown projection span all names in the MCP connection; QMD files remain worker-specific.
+The lookup does not materialize projections, run code, or consume output.
+If a Markdown projection is not available, the request fails with `projection_unavailable`.
 
 ## Choose how to handle a busy worker
 
@@ -161,6 +220,8 @@ Integrator code that catches an interrupt condition is responsible for its handl
 Python requests run on a background thread and require the GIL; native code holding the GIL can delay them.
 Background Python code must not call into R.
 Only one immediate request may be outstanding per worker.
+Immediate requests also return `busy` while the worker is restarting, before code is admitted.
+An immediate request already admitted to a worker still returns `execution_failed` if restart retires that worker before it completes; it is never replayed on the replacement.
 Prepare dependencies and initialize the requested interpreter through an ordinary cell first.
 Concurrent requests cannot prepare packages or request managed stdin.
 
@@ -221,6 +282,107 @@ Output collected by MCP before a subscriber observes it need not appear in the s
 Each subscriber retains only its latest pending change and cannot block worker output.
 Close the connection to unsubscribe; use other connections for requests.
 
+### Inspect typed output
+
+Use `{"id":"output","op":"output"}` to read a bounded history of ordinary evaluation output.
+Unlike `preview`, this history survives MCP polling and completed-result collection.
+It is captured before terminal formatting and MCP response assembly; clients do not need to parse formatted MCP text to identify streams.
+The existing MCP and `preview` projections, delivery acknowledgments, and recording limits are unchanged.
+History is retained only when the control listener is enabled.
+
+A result has this shape:
+
+```json
+{
+  "worker_id": 1,
+  "first_sequence": 0,
+  "next_sequence": 4,
+  "omitted_events": 0,
+  "omitted_bytes": 0,
+  "evaluations": [
+    {
+      "id": 1,
+      "origin": "mcp",
+      "language": "python",
+      "source": "print('hello', end='')",
+      "source_truncated": false,
+      "execution": "serial",
+      "request_id": null,
+      "call_id": 1,
+      "state": "complete",
+      "started": true,
+      "execution_error": null
+    }
+  ],
+  "events": [
+    { "sequence": 0, "evaluation_id": 1, "type": "evaluation_admitted" },
+    { "sequence": 1, "evaluation_id": 1, "type": "evaluation_started" },
+    {
+      "sequence": 2,
+      "evaluation_id": 1,
+      "type": "output",
+      "text": "hello",
+      "omitted_bytes": 0
+    },
+    { "sequence": 3, "evaluation_id": 1, "type": "evaluation_completed" }
+  ]
+}
+```
+
+Evaluation IDs are the existing IDs used by `status`, `stdin`, and `interrupt`.
+Each admitted ordinary submission has its own ID; `call_id` is its recording call association when recording is available.
+The existing MCP validation still allows only one code language per call.
+Integrator metadata also carries the control `request_id`, so a frontend can replace its provisional submission with the admitted evaluation.
+`state: "complete"` means the evaluation settled, including language failures or cancellation before worker entry; inspect `execution_error` for a bounded error summary, and its event for the retained traceback.
+It does not acknowledge MCP delivery.
+`started` distinguishes ordinary admission from confirmed worker entry; admitted code may still be waiting for startup or the interpreter.
+Immediate metadata uses `started: true` because its private snapshot is returned after execution.
+Worker replacement increments the selected name's `worker_id` and clears its retained history.
+Identify typed output by session name and `worker_id`; separate names can have the same worker number.
+Evaluation IDs increase across the server process, while event sequences increase independently within each named output owner.
+When the control listener is enabled, named workers capture typed history from creation, including names first created through MCP.
+
+Each event has `sequence`, nullable `evaluation_id`, and one of these types:
+
+- `stdout` and `stderr` contain `text` from the raw process streams.
+- `output` and `diagnostic` contain managed worker console text on the corresponding channel.
+- `notice` contains server-generated information, such as a managed input request or operation failure.
+- `image` contains the existing captured `data` and `mimeType`, preserving its position among observed publications.
+- `execution_error` contains the structured `error`, including its bounded traceback and truncation marker.
+- `evaluation_admitted`, `evaluation_started`, and `evaluation_completed` mark the retained evaluation interval.
+- `omission` identifies an image too large for this history, with its encoded `bytes` count and `kind: "image"`.
+
+Text events preserve partial lines, carriage returns, and terminal controls rather than applying the MCP terminal projection.
+Raw streams use incremental UTF-8 decoding, replacing invalid bytes; this is a typed text view, not a byte-for-byte recording.
+Sequence order is observation order at Console's output owner.
+Independent worker and process streams do not provide a global chronology, and write boundaries may split or combine text.
+Output observed between ordinary admission and completion carries that evaluation ID, including preparation output before worker entry.
+Idle output has `evaluation_id: null`; native output from immediate threads retains the ordinary foreground attribution because process streams do not identify their writing thread.
+
+Subscribe with `{"id":"output","op":"subscribe","format":"events"}` for the same snapshot under `{"id":"output","event":"output","result":...}`.
+Subscriptions stay bound to their selected logical session across worker replacements.
+A named subscription adds `"session":"analysis"` to each pushed frame; omission means `default`.
+Both this subscription and `op: "output"` return replacement snapshots, not incremental event batches.
+Use evaluation IDs and event sequences to reconcile displayed output; replacing a pending view after completion must not append the same output again.
+Slow readers can miss intermediate snapshots, but completed output remains available within the retention bounds.
+The subscription coalesces notifications and never blocks output producers.
+
+The history retains at most 512 events, 64 KiB of text/error event payloads, 8 MiB of encoded images, and 32 evaluation descriptors.
+Each descriptor retains at most 8 KiB of source, 512 bytes of request ID, and the separately bounded execution-error summary.
+`source_truncated` and `request_id_truncated` mark shortened metadata.
+Text events report their own `omitted_bytes`; snapshot `omitted_events` and `omitted_bytes` count history eviction and oversized payload omissions.
+Evicting an evaluation descriptor also evicts its associated events, so every non-null event identity has retained metadata.
+`first_sequence` and `next_sequence` delimit the retained interval; omission counters reset on worker replacement.
+These limits are separate from MCP presentation and recording allowances.
+A reader should make omissions visible and must not interpret a retained tail as complete output.
+
+Set `include_output: true` on `evaluate` to add `evaluation_id` and `output` to its response.
+For ordinary evaluations, `output` filters the current retained history to that evaluation; sequence bounds and omission counters still describe the whole shared history.
+Immediate evaluations use their own bounded tape and return its snapshot only to their caller.
+Their managed output never enters the shared history or subscription, regardless of `record`.
+Ordinary `record: false` evaluations also omit their observed interval and source from this history, independently of whether recording is enabled.
+As with other output attribution, background process output first observed after the completion boundary can enter the idle stream.
+
 `requirements` and `manifest` read the last accepted declaration without preparing packages or running code.
 They return `not_ready` before runtime configuration is available.
 The declaration contains `r`, `python`, `duckdb`, `python_version`, and `exclude_newer` fields.
@@ -231,6 +393,8 @@ It is not a lockfile or an inventory of every installed package.
 Every control request and result enters Console's journal capture; ordinary `evaluate` requests also record source, execution boundaries, output, and retained images.
 Concurrent evaluations record their request and result without entering the ordinary cell's source and raw-output interval.
 Subscription snapshots are transient views of already captured output and are not individually journaled.
+An `output` request records a receipt with worker identity, sequence bounds, and omission counts; its snapshot source, text, and image payloads are not duplicated in the journal.
+Likewise, `include_output` adds a typed view only to the evaluation response on the wire; the evaluation retains its existing canonical result and artifact recording.
 The usual [recording retention and failure rules](RECORDING_REFERENCE.md) apply.
 
 `record` defaults to `true`.
