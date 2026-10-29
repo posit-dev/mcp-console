@@ -369,15 +369,28 @@ def make_app(binary: Path, workspace: Path) -> App:
                 ),
                 ("python", "pass"),
             ):
-                result = await scoped_request(
-                    ctx,
-                    op="evaluate",
-                    language=language,
-                    code=source,
-                    busy="wait",
-                    wait_ms=60000,
-                    record=False,
-                )
+                while True:
+                    if not live(ctx) or (
+                        observed_worker > 0 and observed_worker != ctx.worker_id
+                    ):
+                        return
+                    try:
+                        result = await scoped_request(
+                            ctx,
+                            op="evaluate",
+                            language=language,
+                            code=source,
+                            busy="wait",
+                            wait_ms=60000,
+                            record=False,
+                        )
+                        break
+                    except ControlError as error:
+                        if error.code != "timeout":
+                            raise
+                        # A deadline expires without admission. Renew the server's
+                        # event-driven wait; replacement/close cancels this task
+                        # and closes its pending request connection.
                 if result.get("isError") or result.get("execution_error"):
                     diagnostic = "".join(
                         block["text"]

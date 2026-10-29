@@ -50,6 +50,8 @@ Select R, Python, or SQL in the language radio group and click **Submit**, or as
 Both paths retain objects in the selected worker.
 Console selects and prepares its usual managed environments; its embedded Python interpreter is independent of the interpreter running Shiny.
 The app declares its viewer dependencies through Console's ordinary requirements mechanism before making immediate requests.
+Session setup keeps waiting while existing execution holds the worker, renewing expired admission waits.
+Closing a session or replacing its worker cancels pending setup.
 SQL uses Console's selected SQL connection and ordinary execution semantics.
 
 Submitted code has separate language and origin labels.
