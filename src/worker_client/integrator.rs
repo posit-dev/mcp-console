@@ -29,6 +29,45 @@ impl From<String> for IntegratorError {
 }
 
 impl Client {
+    pub(crate) async fn integrator_restart(&self) -> Result<serde_json::Value, IntegratorError> {
+        let client = self.clone();
+        // A disconnected caller must not abandon retirement or leave ordinary
+        // output owned by the control channel. The blocking task retains both.
+        tokio::task::spawn_blocking(move || {
+            let control = client.begin_controlled_send()?;
+            let restart = client.restart_blocking(
+                super::Requirements::default(),
+                super::WORKER_SHUTDOWN_GRACE,
+                // The eventual MCP collection supplies its own terminal state.
+                true,
+                Some(&control),
+            )?;
+            let _operation = client.admit_controlled_operation();
+            // Retirement has already settled each private evaluation with its
+            // original collector. Keep all remaining output available to MCP,
+            // including failure details and restart notices, without delivering it.
+            client.0.output.recover(restart.response);
+            let generation = restart.generation.ok_or_else(|| {
+                "session restart did not complete; collect Console output for details".to_string()
+            })?;
+            client
+                .0
+                .startup_failed
+                .store(false, std::sync::atomic::Ordering::Release);
+            client.finish_startup(Ok(()));
+            client.ensure_controlled_generation(&control, &generation)?;
+            Ok(serde_json::json!({
+                "accepted": true,
+                "worker_id": client.0.output.worker_id(),
+            }))
+        })
+        .await
+        .map_err(|error| {
+            IntegratorError::Failed(format!("integrator restart task failed: {error}"))
+        })?
+        .map_err(IntegratorError::Failed)
+    }
+
     /// Pin the observed evaluation while queuing stdin so a late reply cannot
     /// reach another cell or a replacement worker.
     pub(crate) fn integrator_stdin(

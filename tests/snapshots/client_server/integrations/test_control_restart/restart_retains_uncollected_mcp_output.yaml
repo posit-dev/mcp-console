@@ -1,0 +1,104 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: sentinel = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import threading
+    with open('<workspace>/release-running', "rb", buffering=0) as gate:
+        gate.read(1)
+    try:
+        print("retained running MCP output", flush=True)
+        if True:
+            threading.Event().wait()
+    except KeyboardInterrupt:
+        pass
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        retained running MCP output
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+
+        [idle]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import threading
+    with open('<workspace>/release-complete', "rb", buffering=0) as gate:
+        gate.read(1)
+    try:
+        print("retained complete MCP output", flush=True)
+        if False:
+            threading.Event().wait()
+    except KeyboardInterrupt:
+        pass
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        retained complete MCP output
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+
+        [idle]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print('sentinel' in globals())
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false

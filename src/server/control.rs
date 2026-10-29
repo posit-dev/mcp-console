@@ -45,6 +45,9 @@ enum Request {
         id: String,
         evaluation_id: u64,
     },
+    Restart {
+        id: String,
+    },
     Requirements {
         id: String,
     },
@@ -96,6 +99,7 @@ impl Request {
             | Self::Subscribe { id, .. }
             | Self::Stdin { id, .. }
             | Self::Interrupt { id, .. }
+            | Self::Restart { id }
             | Self::Requirements { id }
             | Self::Manifest { id }
             | Self::Evaluate { id, .. } => id,
@@ -440,6 +444,20 @@ async fn handle(
                     .expect("integrator interrupt task")
                     .map_err(control_error)?;
                 Ok(CallToolResult::structured(json!({"accepted": true})))
+            }
+            Request::Restart { .. } => {
+                if !runtime.worker.is_configured() {
+                    return Err(("not_ready", "runtime configuration is not ready".into()));
+                }
+                if server.inheritance.enabled() && !server.inheritance.captured() {
+                    return Err(("not_ready", "waiting for MCP client permissions".into()));
+                }
+                runtime
+                    .worker
+                    .integrator_restart()
+                    .await
+                    .map(CallToolResult::structured)
+                    .map_err(control_error)
             }
             Request::Preview { .. } => {
                 let content = runtime.worker.integrator_preview().map_err(|_| {

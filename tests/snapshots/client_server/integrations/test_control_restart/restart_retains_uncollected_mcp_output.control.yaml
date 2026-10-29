@@ -1,0 +1,18 @@
+---
+request:
+  id: "1"
+  op: restart
+response:
+  id: "1"
+  result:
+    accepted: true
+    worker_id: 2
+---
+request:
+  id: "2"
+  op: restart
+response:
+  id: "2"
+  result:
+    accepted: true
+    worker_id: 3

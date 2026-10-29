@@ -1,0 +1,9 @@
+---
+request:
+  id: "1"
+  op: restart
+response:
+  id: "1"
+  result:
+    accepted: true
+    worker_id: 2

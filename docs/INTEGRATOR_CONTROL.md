@@ -91,6 +91,7 @@ Sending an evaluation again can execute it again.
 | `subscribe`    | Optional `format`: `preview` (default) or `events`                                          | Acknowledgment followed by pushed snapshots on a dedicated connection.                              |
 | `stdin`        | `evaluation_id`, `input`                                                                    | Deliver managed input to the identified active evaluation.                                          |
 | `interrupt`    | `evaluation_id`                                                                             | Request interruption of the identified active evaluation.                                           |
+| `restart`      | None                                                                                        | Wait for session replacement; return `accepted` and the replacement `worker_id`.                    |
 
 `language` is `r`, `python`, or `sql`; `code` is a string.
 Evaluation and preview results have `resultType: "complete"`, `content`, and `isError` fields.
@@ -103,10 +104,20 @@ Replacing global calling handlers during an evaluation can remove the temporary 
 This metadata has a separate 8 KiB allowance, including retained string slots, and includes `truncated: true` when shortened.
 Ordinary diagnostics retain their existing output and raw-recording limits.
 Admission failures use the response's `error` field.
-This interface has no package-mutation or restart operation.
+This interface has no package-mutation operation.
 Use the `id` in `status.evaluation` as `evaluation_id` for input and interruption; stale IDs are rejected so a delayed request cannot affect a later cell.
 Startup input is not supported through this channel.
 MCP interruption and restart still affect the shared session.
+
+`restart` replaces the shared session using its accepted configuration and requirements.
+It waits for confirmed retirement and replacement startup before returning `accepted: true`; it does not submit code or change requirements.
+The response contains the replacement `worker_id`, without evaluation output.
+Use `status` to inspect the session after replacement; another request can already be active by then.
+Uncollected MCP output and lifecycle notices remain available to MCP exactly once.
+An active control evaluation settles with its original requester, including its private output.
+Restart clears runtime objects and private viewer registrations; applications should rebuild their private setup for the new `worker_id`.
+Runtime configuration and inherited MCP permissions must be ready, or the request returns `not_ready`.
+Once started, restart continues if its control connection disconnects.
 
 ## Choose how to handle a busy worker
 
