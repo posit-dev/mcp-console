@@ -492,6 +492,14 @@ impl Transcript {
         let events = self.1.lock().expect("protocol capture lock");
         events.failure.is_none().then_some(events.owner).flatten()
     }
+    pub(super) fn note_session(&self) -> u64 {
+        let events = self.1.lock().expect("protocol capture lock");
+        // This observes the next actual acquisition without reserving or
+        // creating a worker. Failed preparation does not advance the counter.
+        events
+            .owner
+            .map_or(events.next_session_id + 1, |owner| owner.session_id)
+    }
     pub(crate) fn worker_starting(&self) {
         self.observe(|events| {
             events.starting_session = None;

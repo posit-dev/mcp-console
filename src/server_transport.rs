@@ -1088,8 +1088,8 @@ where
                 return None;
             }
             let recorder = recording.clone();
-            let call_id = recording.reserve_call_id();
-            let at = chrono::Utc::now();
+            let receipt = recording.receive_call(&call.params);
+            let call_id = receipt.id;
             let request_id = request.id.clone();
             let params = call.params.clone();
             let meta = call
@@ -1114,7 +1114,7 @@ where
                 }
                 let diagnostics = recorder.clone();
                 let recorded = match tokio::task::spawn_blocking(move || {
-                    recorder.begin(call_id, at, &request_id, &meta, &params)
+                    recorder.begin(receipt, &request_id, &meta, &params)
                 })
                 .await
                 {

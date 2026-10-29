@@ -419,6 +419,8 @@ Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and
 Session documents follow actual worker lifetimes, including automatic replacements, and are created when source or notes are associated.
 Notes accompanying source follow its worker association.
 Source-free notes belong to the current worker when received; without a worker, they remain pending until the next actual acquisition.
+Receipt snapshots that target under the protocol ownership lock before waiting for journal I/O, and `tool_call.note_session_id` carries it into the projection.
+Delayed capture can therefore append to a retired worker's document without transferring the note to its replacement.
 If no worker is acquired, pending notes remain only in the journal and Markdown transcript.
 QMD entries use original call order, with notes before same-call source, so delayed source association does not reorder the narrative.
 Their metadata follows accepted live requirements and acquisition snapshots, including retained R declarations; replacement preparation does not rewrite a retiring session.

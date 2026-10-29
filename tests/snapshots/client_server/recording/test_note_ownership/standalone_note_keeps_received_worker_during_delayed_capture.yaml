@@ -1,0 +1,53 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo original
+result:
+  content:
+    - type: text
+      text: |
+        zod: original
+  isError: false
+---
+send:
+  control: interrupt
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  note: The first worker has completed its baseline measurement.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+input:
+  method: ping
+result: {}
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker terminated by signal 9]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  r: echo replacement
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        zod: replacement
+  isError: false

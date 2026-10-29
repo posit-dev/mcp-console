@@ -32,7 +32,7 @@ struct ProjectionWriter {
 #[derive(Default)]
 struct Documents {
     calls: BTreeMap<u64, PendingSource>,
-    pending_notes: BTreeMap<u64, QuartoEntry>,
+    pending_notes: BTreeMap<u64, BTreeMap<u64, QuartoEntry>>,
     sessions: BTreeMap<u64, QuartoWriter>,
     metadata: Metadata,
     current: Option<u64>,
@@ -181,14 +181,17 @@ impl Documents {
                     *session_id,
                     QuartoWriter {
                         metadata: self.metadata.clone(),
-                        entries: std::mem::take(&mut self.pending_notes),
+                        entries: self.pending_notes.remove(session_id).unwrap_or_default(),
                     },
                 );
                 return Ok(Some(*session_id));
             }
             Event::WorkerEnded { .. } => self.current = None,
             Event::ToolCall {
-                call_id, request, ..
+                call_id,
+                note_session_id,
+                request,
+                ..
             } => {
                 // The journal owns full requests. Retain only document content,
                 // never stdin or request metadata.
@@ -219,18 +222,18 @@ impl Documents {
                         },
                     );
                 } else if entry.note.is_some() {
-                    // Source-free notes describe the current session. Before
-                    // acquisition, keep them for the next actual worker; notes
-                    // alone do not invent a worker lifetime or start execution.
-                    if let Some(session_id) = self.current {
-                        self.sessions
-                            .get_mut(&session_id)
-                            .expect("current worker document")
-                            .entries
-                            .insert(*call_id, entry);
+                    // Journal I/O can lag retirement or replacement. Use the
+                    // receipt's target, including a retained retired document.
+                    let session_id =
+                        note_session_id.ok_or("standalone note has no receipt target")?;
+                    if let Some(session) = self.sessions.get_mut(&session_id) {
+                        session.entries.insert(*call_id, entry);
                         return Ok(Some(session_id));
                     }
-                    self.pending_notes.insert(*call_id, entry);
+                    self.pending_notes
+                        .entry(session_id)
+                        .or_default()
+                        .insert(*call_id, entry);
                 }
             }
             Event::SourceAdmitted { call_id } => {
