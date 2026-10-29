@@ -18,6 +18,17 @@ impl Evaluator {
     }
 
     pub(super) fn evaluate(&self, source: &str) -> Result<(), String> {
+        // Rf_mkCharLenCE rejects NUL before the private R helper can install
+        // its handlers and restore the foreground error buffer.
+        if source.contains('\0') {
+            let message = "Error: R source cannot contain NUL\n";
+            super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "SyntaxError",
+                message,
+            ));
+            super::emit_output(super::ConsoleChannel::Diagnostic, message.as_bytes());
+            return Ok(());
+        }
         let length =
             c_int::try_from(source.len()).map_err(|_| "R source exceeds maximum string size")?;
         let foreground = super::core::cell_language().is_some();

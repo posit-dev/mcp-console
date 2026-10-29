@@ -1,0 +1,45 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: stop("foreground failure", call. = FALSE)
+result:
+  content:
+    - type: text
+      text: |
+        Error: foreground failure
+  isError: false
+---
+send:
+  r: |
+    nul_handler_runs <- 0L
+    nul_source_ran <- FALSE
+    nul_error_handler <- function() {
+      nul_handler_runs <<- nul_handler_runs + 1L
+    }
+    options(error = nul_error_handler)
+    nul_error_option <- getOption("error")
+    nul_previous_error <- geterrmessage()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: options(error = NULL); cat("usable\n")
+result:
+  content:
+    - type: text
+      text: |
+        usable
+  isError: false

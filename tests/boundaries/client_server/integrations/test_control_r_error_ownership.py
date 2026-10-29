@@ -134,5 +134,86 @@ def test_immediate_error_preserves_foreground_error_buffer(
             )
 
 
+@requires(POSIX, R)
+@executions(RUNTIME)
+def test_nul_source_preserves_r_error_handler_and_buffer(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-nul-source-"
+    ) as directory:
+        root = Path(directory)
+        endpoint = root / "control.sock"
+        with McpClient(
+            binary,
+            execution.serve("--control-socket", str(endpoint)),
+            current_directory=root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                "Error: foreground failure\n",
+                r='stop("foreground failure", call. = FALSE)',
+            )
+            client.expect(
+                # fmt: r
+                r=code("""
+                    nul_handler_runs <- 0L
+                    nul_source_ran <- FALSE
+                    nul_error_handler <- function() {
+                      nul_handler_runs <<- nul_handler_runs + 1L
+                    }
+                    options(error = nul_error_handler)
+                    nul_error_option <- getOption("error")
+                    nul_previous_error <- geterrmessage()
+                    """),
+            )
+            with ControlClient(endpoint) as control:
+                for mode in ("serial", "immediate"):
+                    rejected = control.request(
+                        op="evaluate",
+                        language="r",
+                        execution=mode,
+                        code="nul_source_ran <- TRUE\x00",
+                        **(
+                            {"busy": "wait", "wait_ms": 30000}
+                            if mode == "serial"
+                            else {}
+                        ),
+                    )
+                    inspected = control.request(
+                        op="evaluate",
+                        language="r",
+                        execution="immediate",
+                        # fmt: r
+                        code=code(r"""
+                            stopifnot(identical(getOption("error"), nul_error_option))
+                            cat(
+                              nul_handler_runs,
+                              nul_source_ran,
+                              identical(geterrmessage(), nul_previous_error),
+                              sep = "\n"
+                            )
+                            """),
+                    )
+                    assert result_text(inspected) == "0\nFALSE\nTRUE\n", inspected
+                    assert (
+                        result_text(rejected) == "Error: R source cannot contain NUL\n"
+                    ), rejected
+                    assert rejected["result"]["execution_error"] == {
+                        "ename": "SyntaxError",
+                        "evalue": "Error: R source cannot contain NUL\n",
+                        "traceback": [],
+                    }, rejected
+                client.expect("\n[idle]")
+                client.expect(
+                    "usable\n",
+                    r='options(error = NULL); cat("usable\\n")',
+                )
+                transcript = normalize_recording(client.finish(), root)
+            return TranscriptWithCompanions(
+                transcript, {"control.yaml": control.transcript}
+            )
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)
