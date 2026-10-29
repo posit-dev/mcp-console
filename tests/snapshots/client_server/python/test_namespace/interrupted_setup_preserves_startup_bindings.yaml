@@ -18,14 +18,14 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 140, in initialize_site
+          File "<string>", line 135, in initialize_site
           File "<frozen site>", line 709, in main
           File "<frozen site>", line 648, in execsitecustomize
           File "<namespace-workspace>/modules/sitecustomize.py", line 4, in <module>
             exec(checkpoint)
             ~~~~^^^^^^^^^^^^
           File "<namespace setup checkpoint>", line 7, in <module>
-          File "<string>", line 55, in _console_input
+          File "<string>", line 54, in _console_input
         KeyboardInterrupt
   isError: false
 ---

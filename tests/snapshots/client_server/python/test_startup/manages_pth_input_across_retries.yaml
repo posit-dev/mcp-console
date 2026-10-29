@@ -20,7 +20,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 140, in initialize_site
+          File "<string>", line 135, in initialize_site
           File "<frozen site>", line <line>, in main
           File "<frozen site>", line <line>, in venv
           File "<frozen site>", line <line>, in addsitepackages

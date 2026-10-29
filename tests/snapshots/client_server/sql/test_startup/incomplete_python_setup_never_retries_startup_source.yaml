@@ -26,7 +26,7 @@ result:
           File "<string>", line 958, in _mcp_console_configure_module_defaults
           File "<string>", line 916, in apply
           File "<SQL setup checkpoint>", line 16, in configuration_checkpoint
-          File "<string>", line 55, in _console_input
+          File "<string>", line 54, in _console_input
         KeyboardInterrupt
         Error: Python initialization is incomplete; SQL withheld; explicit restart required
   isError: false

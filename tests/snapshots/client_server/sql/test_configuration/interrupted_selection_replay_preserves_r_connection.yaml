@@ -46,7 +46,7 @@ result:
         Traceback (most recent call last):
           File "<string>", line 145, in use_r
           File "<SQL selection checkpoint>", line 10, in selection_checkpoint
-          File "<string>", line 55, in _console_input
+          File "<string>", line 54, in _console_input
         KeyboardInterrupt
   isError: false
 ---

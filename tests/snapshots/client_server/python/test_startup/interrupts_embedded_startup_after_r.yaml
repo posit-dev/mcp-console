@@ -20,12 +20,12 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 140, in initialize_site
+          File "<string>", line 135, in initialize_site
           File "<frozen site>", line <line>, in main
           File "<frozen site>", line <line>, in execsitecustomize
           File "<site-packages>/sitecustomize.py", line 15, in <module>
             input("startup interrupt> ")
-          File "<string>", line 55, in _console_input
+          File "<string>", line 54, in _console_input
         KeyboardInterrupt
   isError: false
 ---

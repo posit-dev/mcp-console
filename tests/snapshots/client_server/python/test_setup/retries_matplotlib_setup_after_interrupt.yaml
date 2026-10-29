@@ -23,7 +23,7 @@ result:
           File "<string>", line 922, in apply
           File "<string>", line 591, in _mcp_console_install_matplotlib_show
           File "<setup checkpoint>", line 13, in __setattr__
-          File "<string>", line 55, in _console_input
+          File "<string>", line 54, in _console_input
         KeyboardInterrupt
   isError: false
 ---
