@@ -1,4 +1,4 @@
-"""Immediate R errors preserve the foreground's legacy error buffer."""
+"""R failure metadata belongs to the condition that ended its evaluation."""
 
 import json
 import sys
@@ -17,6 +17,120 @@ from support.normalization import code, normalize_recording
 from support.records import TranscriptWithCompanions
 from support.requirements import POSIX, R, requires
 from support.suites import run_this_suite
+
+
+@requires(POSIX, R)
+@executions(RUNTIME)
+def test_error_metadata_precedes_user_error_handler(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-error-handler-"
+    ) as directory:
+        root = Path(directory)
+        endpoint = root / "control.sock"
+        with McpClient(
+            binary,
+            execution.serve("--control-socket", str(endpoint)),
+            current_directory=root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(
+                # fmt: r
+                r=code("""
+                    options(error = function() try(stop("inner"), silent = TRUE))
+                    formatter_calls <- 0L
+                    conditionMessage.owned_error <- function(condition) {
+                      formatter_calls <<- formatter_calls + 1L
+                      stopifnot(formatter_calls == 1L)
+                      "custom outer"
+                    }
+                    custom_error <- structure(
+                      list(message = "unformatted", call = NULL),
+                      class = c("owned_error", "error", "condition")
+                    )
+                    """),
+            )
+            with ControlClient(endpoint) as control:
+                for source, diagnostic in (
+                    ('stop("outer", call. = FALSE)', "Error: outer\n"),
+                    ('f <- function() stop("outer"); f()', "Error in f() : outer\n"),
+                    ("stop(custom_error)", "Error: custom outer\n"),
+                ):
+                    failed = control.request(
+                        op="evaluate",
+                        language="r",
+                        code=source,
+                        busy="wait",
+                        wait_ms=30000,
+                    )
+                    assert result_text(failed) == diagnostic, failed
+                    assert failed["result"]["execution_error"] == {
+                        "ename": "RError",
+                        "evalue": diagnostic,
+                        "traceback": [],
+                    }, failed
+                for source, diagnostic in (
+                    (
+                        # fmt: r
+                        code(r"""
+                            options(
+                              show.error.messages = FALSE,
+                              error = function() {
+                                try(stop("inner"), silent = TRUE)
+                                cat(geterrmessage(), file = stderr())
+                              }
+                            )
+                            stop("hidden outer", call. = FALSE)
+                            """),
+                        'Error in try(stop("inner"), silent = TRUE) : inner\n',
+                    ),
+                    (
+                        # fmt: r
+                        code("""
+                            options(show.error.messages = TRUE)
+                            error_path <- tempfile()
+                            error_file <- file(error_path, "wt")
+                            sink(error_file, type = "message")
+                            options(error = function() {
+                              sink(type = "message")
+                              try(stop("inner"), silent = TRUE)
+                              cat(geterrmessage(), file = stderr())
+                            })
+                            stop("redirected outer", call. = FALSE)
+                            """),
+                        'Error in try(stop("inner"), silent = TRUE) : inner\n',
+                    ),
+                ):
+                    failed = control.request(
+                        op="evaluate",
+                        language="r",
+                        code=source,
+                        busy="wait",
+                        wait_ms=30000,
+                    )
+                    assert result_text(failed) == diagnostic, failed
+                    assert failed["result"]["execution_error"] == {
+                        "ename": "RError",
+                        "evalue": "R evaluation failed (diagnostic unavailable)",
+                        "traceback": [],
+                    }, failed
+                client.expect("\n[idle]")
+                client.expect(
+                    "recovered\n",
+                    # fmt: r
+                    r=code(r"""
+                        options(error = NULL)
+                        stopifnot(formatter_calls == 1L, grepl("inner", geterrmessage()))
+                        close(error_file)
+                        stopifnot(identical(readLines(error_path), "Error: redirected outer"))
+                        cat("recovered\n")
+                        """),
+                )
+                transcript = normalize_recording(client.finish(), root)
+            return TranscriptWithCompanions(
+                transcript, {"control.yaml": control.transcript}
+            )
 
 
 @requires(POSIX, R)

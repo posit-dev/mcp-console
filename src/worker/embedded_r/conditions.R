@@ -9,7 +9,13 @@ quote(.Internal(.addGlobHands(
   c("interrupt", "error"),
   list(
     function(condition) .Call("mcp_console_repl_interrupt"),
-    function(condition) .Call("mcp_console_repl_error")
+    function(condition) {
+      .Call(
+        "mcp_console_repl_error",
+        # Do not mistake output from options(error) for a hidden diagnostic.
+        isTRUE(getOption("show.error.messages")) && sink.number("message") == 2L
+      )
+    }
   ),
   baseenv(),
   NULL,

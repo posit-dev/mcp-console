@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::error::Error;
 use std::ffi::{CStr, CString, c_char, c_int, c_uchar, c_void};
 use std::io;
@@ -7,6 +7,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
+
+use libr::SEXP;
 
 use super::core::{
     self, emit_output, observe_stdin_shutdown, record_worker_failure, send_input_cancelled,
@@ -36,15 +38,16 @@ static R_CHECK_USER_INTERRUPT: OnceLock<CheckUserInterrupt> = OnceLock::new();
 static CELL_SOURCE: Mutex<Option<CellSource>> = Mutex::new(None);
 // R's DLL REPL reads submitted source before Busy(1), then interactive input.
 static REPL_EVALUATING: AtomicBool = AtomicBool::new(false);
-#[derive(Clone, Copy)]
 enum ReplCondition {
     None,
-    Error,
+    ErrorAwaitingDiagnostic,
+    ErrorWithoutDiagnostic,
+    Error(String),
     Interrupt,
 }
 
 thread_local! {
-    static REPL_CONDITION: Cell<ReplCondition> = const { Cell::new(ReplCondition::None) };
+    static REPL_CONDITION: RefCell<ReplCondition> = const { RefCell::new(ReplCondition::None) };
 }
 type ReplInit = unsafe extern "C-unwind" fn();
 type ReplDoOne = unsafe extern "C-unwind" fn() -> c_int;
@@ -388,32 +391,47 @@ fn run_repl_cell() -> c_int {
 }
 
 fn reset_condition_observation() {
-    REPL_CONDITION.with(|condition| condition.set(ReplCondition::None));
+    REPL_CONDITION.with(|condition| condition.replace(ReplCondition::None));
 }
 
 fn record_unwind_error() {
-    let (name, message) = match REPL_CONDITION.with(Cell::get) {
-        ReplCondition::Error => ("RError", harp::exec::r_peek_error_buffer()),
-        ReplCondition::Interrupt => ("Interrupt", "R evaluation interrupted".into()),
-        // Native jumps and explicit global handler replacement may bypass
-        // the observers. Never attribute R's retained error buffer to them.
-        ReplCondition::None => ("RAbort", "R evaluation aborted".into()),
-    };
+    let (name, message) =
+        match REPL_CONDITION.with(|condition| condition.replace(ReplCondition::None)) {
+            ReplCondition::Error(message) => ("RError", message),
+            // Suppressed or redirected diagnostics need not reach our callback.
+            // Exact metadata for those errors is outside this internal interface:
+            // never read the mutable error buffer after user handlers have run.
+            ReplCondition::ErrorAwaitingDiagnostic | ReplCondition::ErrorWithoutDiagnostic => (
+                "RError",
+                "R evaluation failed (diagnostic unavailable)".into(),
+            ),
+            ReplCondition::Interrupt => ("Interrupt", "R evaluation interrupted".into()),
+            // Native jumps and explicit global handler replacement may bypass
+            // the observers. Never attribute R's retained error buffer to them.
+            ReplCondition::None => ("RAbort", "R evaluation aborted".into()),
+        };
     super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(name, message));
 }
 
 #[allow(clippy::result_large_err)]
 #[harp::register]
 pub extern "C-unwind" fn mcp_console_repl_interrupt() -> harp::Result<libr::SEXP> {
-    REPL_CONDITION.with(|condition| condition.set(ReplCondition::Interrupt));
+    REPL_CONDITION.with(|condition| condition.replace(ReplCondition::Interrupt));
     unsafe { Ok(libr::R_NilValue) }
 }
 
 #[allow(clippy::result_large_err)]
 #[harp::register]
-pub extern "C-unwind" fn mcp_console_repl_error() -> harp::Result<libr::SEXP> {
+pub extern "C-unwind" fn mcp_console_repl_error(
+    diagnostic_visible: SEXP,
+) -> harp::Result<libr::SEXP> {
     // A resumed interrupt can be followed by a real error in the same cell.
-    REPL_CONDITION.with(|condition| condition.set(ReplCondition::Error));
+    let observation = if bool::try_from(harp::object::RObject::view(diagnostic_visible))? {
+        ReplCondition::ErrorAwaitingDiagnostic
+    } else {
+        ReplCondition::ErrorWithoutDiagnostic
+    };
+    REPL_CONDITION.with(|condition| condition.replace(observation));
     unsafe { Ok(libr::R_NilValue) }
 }
 
@@ -503,6 +521,21 @@ extern "C-unwind" fn r_write_console(buf: *const c_char, buflen: c_int, otype: c
     let channel = if otype == 0 {
         ConsoleChannel::Output
     } else {
+        if !super::priority::active() {
+            REPL_CONDITION.with_borrow_mut(|condition| {
+                if matches!(condition, ReplCondition::ErrorAwaitingDiagnostic) {
+                    // R formats and writes this buffer after signaling the
+                    // condition, before invoking options(error). Capture once
+                    // without calling user conditionMessage methods again.
+                    // R_curErrorBuf returns R's non-null static buffer and
+                    // performs no R allocation or event dispatch.
+                    let message = unsafe { CStr::from_ptr(libr::R_curErrorBuf()) };
+                    if bytes == message.to_bytes() {
+                        *condition = ReplCondition::Error(message.to_string_lossy().into_owned());
+                    }
+                }
+            });
+        }
         ConsoleChannel::Diagnostic
     };
     emit_output(channel, bytes);
