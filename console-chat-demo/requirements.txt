@@ -7,3 +7,9 @@ matplotlib==3.11.2
 duckdb==2.0.0
 py-yaml12==0.2.0
 uv==0.13.1
+# Analysis packages for sessions that use this prepared environment.
+numpy==2.5.4
+plotnine==0.15.8
+pyarrow==26.0.0
+scikit-learn==1.9.1
+statsmodels==0.15.0

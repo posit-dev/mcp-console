@@ -80,6 +80,9 @@ async def main() -> None:
             await expect(
                 second.get_by_role("log").get_by_text("BETA_DONE", exact=True)
             ).to_be_visible()
+            await expect(first.locator("#session_info")).to_contain_text(
+                "prepared packages"
+            )
             await expect(first.locator(".plot-gallery img")).to_have_count(1)
             assert await first.locator(".plot-gallery img").evaluate_all(
                 "images => images.every(x => x.complete && x.naturalWidth > 0)"
@@ -102,13 +105,6 @@ async def main() -> None:
             ).to_be_visible()
             await submit(
                 first,
-                "Use the requirements parameter to add the Python package humanize, "
-                "then run Python to print humanize.intcomma(12345).",
-            )
-            await completed(first)
-            await expect(first.get_by_role("log")).to_contain_text("12,345")
-            await submit(
-                first,
                 "Use Python to print browser_marker from the previous turn. "
                 "It must still be alpha. End with PERSISTENCE_DONE.",
             )
@@ -124,7 +120,6 @@ async def main() -> None:
             assert "```python\nimport pandas as pd\n" in exported
             assert "```r\n" in exported
             assert "```sql\n" in exported
-            assert "requirements:\n" in exported and "humanize" in exported
             assert "```json\n" not in exported
             await first.screenshot(path=str(artifacts / "analysis.png"), full_page=True)
             await second.screenshot(
@@ -135,6 +130,17 @@ async def main() -> None:
                 "next question"
             )
             await expect(first.locator(".plot-gallery img")).to_have_count(0)
+            await first.get_by_label("Dynamic packages").check()
+            await submit(
+                first,
+                "Use the requirements parameter to add the Python package humanize, "
+                "then run Python to print humanize.intcomma(12345).",
+            )
+            await completed(first)
+            await expect(first.locator("#session_info")).to_contain_text(
+                "dynamic packages"
+            )
+            await expect(first.get_by_role("log")).to_contain_text("12,345")
             await second_context.close()
         if args.lifecycle:
             other_context = await browser.new_context()

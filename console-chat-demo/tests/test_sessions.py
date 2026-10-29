@@ -67,7 +67,6 @@ async def test_full_tool_surface_and_sql(pool):
     assert "East" in result and "171060" in result and "South" in result
     assert "42" in text(await session.send(session="second", sql="SELECT 42 AS answer"))
     assert (await session.send(requirements={"action": "get"})).error is None
-    assert (await session.send(requirements={"python": ["numpy"]})).error is None
     other = pool.slots[1] / "cache" / "private.csv"
     other.parent.mkdir()
     other.write_text("secret\nother-client-secret\n")
@@ -75,6 +74,41 @@ async def test_full_tool_surface_and_sql(pool):
     assert "other-client-secret" not in denied
     # DuckDB's file glob reports inaccessible paths as having no matches.
     assert "No files found that match the pattern" in denied
+
+
+@pytest.mark.asyncio
+async def test_prepared_environments_are_the_default(pool, tmp_path, monkeypatch):
+    # Posit Connect restores the bundle's R packages into R_LIBS and its
+    # Python requirements into the app's own environment.
+    library = tmp_path / "connect-r-library"
+    library.mkdir()
+    monkeypatch.setenv("R_LIBS", str(library))
+    session = await pool.open()
+    assert f"prefix {sys.prefix}" in text(
+        await session.send(python="import sys, shiny\nprint('prefix', sys.prefix)")
+    )
+    assert "library TRUE" in text(
+        await session.send(
+            r=f"cat('library', normalizePath('{library}') %in% .libPaths(), '\\n')"
+        )
+    )
+    with pytest.raises(RuntimeError, match="managed Python requirements are disabled"):
+        await session.send(requirements={"python": ["humanize"]})
+
+
+@pytest.mark.asyncio
+async def test_dynamic_resolution_prepares_managed_environments(pool):
+    session = await pool.open(dynamic=True)
+    assert (await session.send(requirements={"python": ["humanize"]})).error is None
+    assert "12,345" in text(
+        await session.send(python="import humanize\nprint(humanize.intcomma(12345))")
+    )
+    assert "app-only absent" in text(
+        await session.send(
+            python="import importlib.util\n"
+            "print('app-only', 'absent' if importlib.util.find_spec('shiny') is None else 'present')"
+        )
+    )
 
 
 @pytest.mark.asyncio

@@ -51,6 +51,8 @@ body.console-chat-app {
 .btn-quiet { border: 1px solid transparent; color: var(--muted); font-size: 12px; padding: 5px 8px; background: transparent; box-shadow: none; }
 .btn-quiet:hover { color: var(--teal); background: #eaf2ed; border-color: #d7e5dc; }
 .btn-quiet:disabled { opacity: 0.4; }
+.package-mode .form-group { margin: 0 0 0 6px; width: auto; }
+.package-mode .form-check { margin: 0; color: var(--muted); font-size: 12px; }
 .chat-card { min-height: 560px; }
 .chat-card .card-body { padding: 0 14px; gap: 0; }
 .chat-card shiny-chat { --shiny-chat-bg-assistant: transparent; --shiny-chat-bg-user: #e9f1e9; --shiny-chat-border-color: var(--line); }

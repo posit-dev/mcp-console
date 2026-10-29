@@ -115,6 +115,13 @@ def create_app(pool: Pool) -> App:
                             ui.download_button(
                                 "download_analysis", "Export", class_="btn-sm btn-quiet"
                             ),
+                            ui.div(
+                                ui.input_checkbox(
+                                    "dynamic", "Dynamic packages", value=False
+                                ),
+                                title="Let the agent install packages. Startup is slower. Applies to the next session.",
+                                class_="package-mode",
+                            ),
                             class_="chat-actions",
                         ),
                         class_="section-bar",
@@ -207,9 +214,12 @@ def create_app(pool: Pool) -> App:
             try:
                 if backend is None:
                     status.set("Starting")
-                    backend = await pool.open()
+                    with reactive.isolate():
+                        dynamic = input.dynamic()
+                    backend = await pool.open(dynamic=dynamic)
+                    packages = "dynamic packages" if dynamic else "prepared packages"
                     identity.set(
-                        f"Session {backend.workspace.parent.name[:8]} · {MODEL}",
+                        f"Session {backend.workspace.parent.name[:8]} · {MODEL} · {packages}",
                     )
                 status.set("Working")
                 async with contextlib.aclosing(backend.stream(prompt)) as stream:
