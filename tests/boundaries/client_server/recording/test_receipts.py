@@ -109,7 +109,7 @@ def test_failed_publication_invalidates_startup_output_receipts(
                         client=client,
                     )
                     (root / ".agents/console/sessions").write_text("not a directory")
-                    result = client.send()
+                    result = client.send(session="default")
                     text = "".join(
                         c["text"] for c in result["content"] if c["type"] == "text"
                     )
@@ -184,7 +184,7 @@ def test_failed_publication_does_not_advertise_omitted_startup_images(
                     client=client,
                 )
                 (root / ".agents/console/sessions").write_text("not a directory")
-                result = client.send()
+                result = client.send(session="default")
                 images = [c for c in result["content"] if c["type"] == "image"]
                 assert len(images) == 1, [c["type"] for c in result["content"]]
                 assert 4 * 1024 * 1024 < len(images[0]["data"]) <= 8 * 1024 * 1024

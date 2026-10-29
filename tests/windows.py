@@ -228,6 +228,7 @@ class Session:
 
     def send(self, **arguments):
         observe_completion = "timeout_ms" not in arguments
+        arguments.setdefault("session", "default")
         arguments.setdefault("timeout_ms", 10000)
         result = self.request("tools/call", {"name": "send", "arguments": arguments})
         # Cold resolver caches can outlive one observation. Preserve tests that
@@ -242,7 +243,14 @@ class Session:
                 ):
                     break
                 result = self.request(
-                    "tools/call", {"name": "send", "arguments": {"timeout_ms": 10000}}
+                    "tools/call",
+                    {
+                        "name": "send",
+                        "arguments": {
+                            "session": arguments["session"],
+                            "timeout_ms": 10000,
+                        },
+                    },
                 )
         return result
 
@@ -257,7 +265,10 @@ class Session:
             assert "running;" in output or "waiting for stdin" in output, result
             remaining = deadline - time.monotonic()
             assert remaining > 0, f"did not observe {expected!r}: {result}"
-            result = self.send(timeout_ms=min(1000, max(1, int(remaining * 1000))))
+            result = self.send(
+                session=arguments.get("session", "default"),
+                timeout_ms=min(1000, max(1, int(remaining * 1000))),
+            )
 
     def close(self):
         self.process.stdin.close()
@@ -2108,6 +2119,9 @@ class WindowsConsole(unittest.TestCase):
         )
         result = session.send(r="windows_value <- 40L; windows_value + 2L")
         self.assertIn("42", json.dumps(result))
+        self.assertEqual(
+            session.send()["content"], [{"type": "text", "text": "\n[idle]"}]
+        )
         result = session.send(r="windows_value + 3L")
         self.assertIn("43", json.dumps(result))
         session.send(control="restart")

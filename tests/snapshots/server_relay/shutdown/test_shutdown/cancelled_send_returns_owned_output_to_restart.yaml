@@ -59,7 +59,8 @@ input:
     requestId: <request ID>
     reason: acceptance test cancelled the waiting send
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

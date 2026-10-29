@@ -114,6 +114,7 @@ pub(crate) struct Transcript(
     Arc<Mutex<ProtocolEvents>>,
     Arc<AtomicU64>,
     Arc<CaptureStorage>,
+    Arc<str>,
 );
 struct TranscriptState {
     started_at: DateTime<Utc>,
@@ -187,7 +188,7 @@ impl Transcript {
             .projections
             .as_ref()
             .ok_or("recording projections are unavailable")?;
-        Ok(projections.integrator_recording())
+        Ok(projections.integrator_recording(&self.4))
     }
 
     pub(crate) fn call_images(&self, call: &Call) -> Option<CallImages> {
@@ -239,6 +240,17 @@ impl Transcript {
             Arc::default(),
             Arc::default(),
             storage,
+            Arc::from("default"),
+        )
+    }
+    /// Share recording identity and storage while retaining this worker's owner.
+    pub(crate) fn for_session(&self, session: &str) -> Self {
+        Self(
+            self.0.clone(),
+            self.1.clone(),
+            self.2.clone(),
+            self.3.clone(),
+            Arc::from(session),
         )
     }
     pub(crate) fn pending(working_directory: std::io::Result<PathBuf>) -> Self {
@@ -257,6 +269,7 @@ impl Transcript {
             state.metadata_known = true;
             state.capture()?.append(
                 Event::EnvironmentDiscovered {
+                    session: &self.4,
                     dynamic_resolution: configuration.dynamic_resolution,
                     python_preparation: configuration.python_preparation,
                     r_available: configuration.r_available,
@@ -604,6 +617,7 @@ impl ActiveTranscript {
         };
         transcript.append(
             Event::RecordingStarted {
+                console_version: env!("MCP_CONSOLE_VERSION"),
                 working_directory: &working_directory_text,
                 dynamic_resolution: configuration
                     .metadata_known

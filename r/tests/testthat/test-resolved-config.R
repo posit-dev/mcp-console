@@ -16,12 +16,30 @@ test_that("resolving configuration retains the complete editable defaults", {
   expect_identical(config@cache, "host")
   expect_identical(config@r@vanilla, FALSE)
   expect_identical(config@r@resolution, "implicit")
+  expect_true(S7::S7_inherits(config@sessions, SessionsConfig))
+  expect_null(config@sessions@max)
   expect_true(nzchar(config@tool@description))
   expect_true(nzchar(config@tool@instructions))
   expect_identical(config@tool@parameters$timeout_ms@enabled, TRUE)
   expect_true(
     "integer" %in% unlist(config@tool@parameters$timeout_ms@schema$type)
   )
+})
+
+test_that("session limits survive materialization and pruning", {
+  binary <- Sys.getenv("MCP_CONSOLE_TEST_BINARY")
+  skip_if(!nzchar(binary), "Set MCP_CONSOLE_TEST_BINARY to the checkout binary")
+  project <- tempfile("console-config-")
+  dir.create(project)
+  on.exit(unlink(project, recursive = TRUE), add = TRUE)
+  config <- materialize_console_config(
+    ConsoleConfig(sessions = SessionsConfig(max = 2L)),
+    path = binary,
+    project = project
+  )
+  expect_equal(config@sessions@max, 2)
+  pruned <- prune_console_config(config, path = binary, project = project)
+  expect_equal(as.list(pruned), list(sessions = list(max = 2)))
 })
 
 test_that("materialization and pruning retain relative and absolute cache directories", {

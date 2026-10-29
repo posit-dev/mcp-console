@@ -71,15 +71,15 @@ def test_silent_polls_retain_admission_age(
             # Immediate polls must retain the accepted cell's age, including a
             # later bounded observation. No exact wall-clock value is promised.
             for timeout_ms in (0, 100, 0):
-                client.send(timeout_ms=timeout_ms)
+                client.send(session="default", timeout_ms=timeout_ms)
                 age, silent = elapsed_progress(last_tool_text(client))
                 assert age >= first_age and silent
                 assert without_elapsed(last_tool_text(client)) == RUNNING
                 first_age = age
             release.release()
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == "[done]"
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == "\n[idle]"
             return client.finish()
 
@@ -202,7 +202,7 @@ def test_worker_activity_survives_preview_projection(
                     )
                     result = client.transcript[-1]["result"]
                 else:
-                    result = client.send(timeout_ms=0)
+                    result = client.send(session="default", timeout_ms=0)
                 text = "".join(
                     part["text"] for part in result["content"] if part["type"] == "text"
                 )
@@ -226,11 +226,11 @@ def test_worker_activity_survives_preview_projection(
                     assert "1 image (4 encoded bytes)" in output, output
                     assert all(part["type"] == "text" for part in result["content"])
                 # No later publications are released: the next cut is silent.
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 assert elapsed_progress(last_tool_text(client))[1]
                 assert without_elapsed(last_tool_text(client)) == RUNNING
             release.release()
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == "[done]"
             assert cell_text(client, 3) == (
                 "worker text\nworker diagnostic\n€\nworker stderr\nerase\r\x1b[2K"

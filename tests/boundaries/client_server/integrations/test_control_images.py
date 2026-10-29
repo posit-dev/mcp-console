@@ -326,7 +326,7 @@ def test_preview_does_not_publish_omission_for_completed_intervals(
                 if event["event"] == "session_output" and event["path"] == middle
             ]
             assert all(event["inline_omitted_bytes"] == 0 for event in after), after
-            result = client.send()
+            result = client.send(session="default")
             # The combined count covers three interval owners, whose distinct
             # gaps retain two additional markers before the visible suffix.
             assert_preview(

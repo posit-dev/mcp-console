@@ -9,6 +9,6 @@ stdout: |
   Warmup found 2 failed checks.
 stderr: >
   configuration with CLI overrides: unknown: unknown field `unknown`,
-  expected one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
-  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
-  docs/CONFIGURATION.md for the public format
+  expected one of `tool`, `sessions`, `startup`, `cache`, `python`, `r`,
+  `languages`, `inherit_environment`, `environment`, `sandbox`,
+  `resolver`; see docs/CONFIGURATION.md for the public format

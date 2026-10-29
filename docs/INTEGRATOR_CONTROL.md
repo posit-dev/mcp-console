@@ -4,9 +4,11 @@ This is an internal, experimental interface with no stability or compatibility p
 The `--control-socket` argument is hidden from CLI help.
 Integrators must use the protocol matching their Console build.
 
-An application can inspect and evaluate code in Console's existing session through a local socket while its agent uses MCP.
+An application can inspect and evaluate code in Console's `default` session through a local socket while its agent uses MCP.
 Use this channel for application setup, UI state, and output previews that do not need to become model tool calls.
-Both connections share the same worker, objects, and sandbox permissions.
+All control requests target `default`; this interface has no session selector.
+Control requests and MCP calls targeting `default` share the same worker, objects, and sandbox permissions.
+Named sessions created through MCP have separate workers and state.
 
 ## Start the socket
 
@@ -50,8 +52,8 @@ with tempfile.TemporaryDirectory(prefix="console-control-") as directory:
 ```
 
 Keep the MCP connection open: it owns the server's lifetime.
-Closing the control socket leaves the server and session running.
-MCP shutdown closes the control listener and its connections, retires the worker, and removes the socket path it created.
+Closing the control socket leaves the server and its sessions running.
+MCP shutdown closes the control listener and its connections, retires all session workers, and removes the socket path it created.
 
 The channel uses the configured runtime rather than the model-visible tool schema.
 It can submit a language hidden from that schema when the runtime supports it.
@@ -109,7 +111,7 @@ Admission failures use the response's `error` field.
 Requirement mutation supports additive preparation only; replacement and reset remain MCP operations.
 Use the `id` in `status.evaluation` as `evaluation_id` for input and interruption; stale IDs are rejected so a delayed request cannot affect a later cell.
 Startup input is not supported through this channel.
-MCP interruption and restart still affect the shared session.
+MCP interruption and restart targeting `default` still affect the shared session.
 
 `restart` replaces the shared session using its accepted configuration and requirements.
 It waits for confirmed retirement and replacement startup before returning `accepted: true`; it does not submit code or change requirements.

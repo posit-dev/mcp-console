@@ -6,6 +6,7 @@ fields:
   - python
   - r
   - requirements
+  - session
   - sql
   - stdin
   - timeout_ms
@@ -16,5 +17,6 @@ fields:
   - control
   - r
   - requirements
+  - session
   - stdin
   - timeout_ms

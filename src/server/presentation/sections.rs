@@ -10,14 +10,14 @@ pub(super) const SEND_WORKFLOW: &str = " cell per call.";
 pub(super) const DISPLAY: &str =
     " Results display automatically; supported plots return as images.";
 
-pub(super) const SEND_ORDERING: &str = "Run one cell at a time. Wait for its `send` to return before another call with code. You can interrupt a pending call with `send(control=\"interrupt\")`. An error can leave earlier changes in place.";
+pub(super) const SEND_ORDERING: &str = "Run one cell at a time per session; collect its result before more code. Sessions can run concurrently. Use `control=\"interrupt\"` to interrupt. An error can leave earlier changes in place.";
 
-pub(super) const POLLING: &str = "If work is still running, poll with an empty `send`; do not resubmit the cell. When waiting for completion, use `timeout_ms=300000` for a long poll; it returns early when work finishes or needs input. Avoid repeated short polls such as `timeout_ms=1000`.";
+pub(super) const POLLING: &str = "Poll without code; do not resubmit. Empty calls poll all sessions; supply `session` to select one. Use `timeout_ms=300000` for a long poll of one session; it returns early on completion or input. Avoid repeated short polls such as `timeout_ms=1000`.";
 
 pub(super) const DEFAULTS: &str =
     r#" Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`."#;
 
-pub(super) const POLLING_DEFAULT_TIMEOUT: &str = r#"If work is still running, poll with an empty `send`; do not resubmit the cell. Each call waits for output for up to 60 seconds; it returns early when work finishes or needs input. Expiry returns available output while work continues. Default: `requirements.action="add"`."#;
+pub(super) const POLLING_DEFAULT_TIMEOUT: &str = r#"Poll without code; do not resubmit. Empty calls poll all sessions; supply `session` to select one. Calls wait up to 60 seconds; a targeted poll returns early on completion or input. Expiry leaves work running. Default: `requirements.action="add"`."#;
 
 pub(super) const OUTPUT: &str = "Text results, including notices, have an 8 KiB limit, retaining the beginning and latest tail; images have separate limits. Response notices report state and omitted-output locations.";
 
@@ -106,7 +106,7 @@ pub(super) const SQL_R_FRAMES: &str = r#" With R-owned managed DuckDB, query R d
 pub(super) const SQL_R_STATEMENTS: &str =
     " Use DBI from an R cell for commands requiring the statement interface.";
 
-pub(super) const TIMEOUT: &str = r#"Wait for output for up to this many milliseconds (default 60,000). When waiting for completion, use `timeout_ms=300000` for a long poll; it returns early when work finishes or needs input. Avoid repeated short polls such as `timeout_ms=1000`. `0` returns without waiting for completion. Expiry returns available output while work continues. This is a wait budget, not cancellation or a whole-call deadline: preparation and control can exceed it; standalone preparation has no timeout."#;
+pub(super) const TIMEOUT: &str = r#"Wait for output for up to this many milliseconds (default 60,000). Use `timeout_ms=300000` with `session` for a long poll; it returns early when that session finishes or needs input. An empty call without session polls all sessions concurrently within this budget and can wait for other busy sessions. Avoid repeated short polls such as `timeout_ms=1000`. `0` returns without waiting for completion. Expiry returns available output while work continues. This is a wait budget, not cancellation or a whole-call deadline: preparation and control can exceed it; standalone preparation has no timeout."#;
 
 pub(super) const SQL_OPERATIONS: &str = r#" Managed conveniences/extensions apply only to DuckDB. Read JSON/JSONL file globs as tables, including nested fields, with `read_json('data/*.json*')`. Read SQLite with `ATTACH 'path' AS name (TYPE sqlite, READ_ONLY)`. With a sandbox, attach existing DuckDB databases outside writable paths using `ATTACH 'path' AS name (READ_ONLY)`. Use `SHOW TABLES`, `DESCRIBE`, `SUMMARIZE`, or `EXPLAIN`; CLI dot commands are not supported."#;
 

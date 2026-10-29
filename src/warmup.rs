@@ -212,7 +212,8 @@ async fn check_languages(
         }
         println!("Checking {label}...");
         let deadline = tokio::time::Instant::now() + timeout;
-        match tokio::time::timeout_at(deadline, evaluate(client, Some((field, source)))).await {
+        match tokio::time::timeout_at(deadline, evaluate(client, tool, Some((field, source)))).await
+        {
             Ok(Ok((output, is_error, _))) => {
                 let succeeded = !is_error
                     && if field == "sql" {
@@ -239,7 +240,8 @@ async fn check_languages(
                         // A successful empty send confirms discovery and startup
                         // settled. Absence alone can skip R; unknown capabilities,
                         // preparation errors, and runtime failures remain failures.
-                        match tokio::time::timeout_at(deadline, evaluate(client, None)).await {
+                        match tokio::time::timeout_at(deadline, evaluate(client, tool, None)).await
+                        {
                             Ok(Ok((_, false, Some(false)))) => {
                                 println!("R: SKIP (not installed)");
                                 continue;
@@ -282,6 +284,7 @@ async fn check_languages(
 
 async fn evaluate(
     client: &Peer<RoleClient>,
+    tool: &rmcp::model::Tool,
     cell: Option<(&str, &str)>,
 ) -> Result<(String, bool, Option<bool>), String> {
     let mut arguments = serde_json::Map::from_iter(
@@ -291,6 +294,11 @@ async fn evaluate(
     let mut output = String::new();
     let mut is_error = false;
     loop {
+        // Warmup observes the default session. Older or configured interfaces
+        // can omit session selection from their advertised parameters.
+        if tool.input_schema["properties"].get("session").is_some() {
+            arguments.insert("session".into(), "default".into());
+        }
         let mut request = CallToolRequestParams::new("send").with_arguments(arguments);
         if cell.is_none() {
             let mut metadata = rmcp::model::RequestMetaObject::new();

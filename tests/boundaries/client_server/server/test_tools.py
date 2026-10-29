@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -299,6 +300,12 @@ def _initializes_and_lists_tools(
         ) as client:
             client.initialize_and_list_tools()
             listed_tools = client.transcript[-1]["result"]["tools"]
+            version = subprocess.check_output([binary, "--version"], text=True).strip()
+            assert (
+                version
+                == "mcp-console "
+                + client.transcript[0]["result"]["serverInfo"]["version"]
+            )
             assert [tool["name"] for tool in listed_tools] == ["send"], listed_tools
             send = listed_tools[0]
             instructions = client.transcript[0]["result"].get("instructions")
@@ -316,6 +323,7 @@ def _initializes_and_lists_tools(
             if languages is not None:
                 assert set(send["inputSchema"]["properties"]) == {
                     *languages,
+                    "session",
                     "control",
                     "requirements",
                     "stdin",
@@ -347,6 +355,7 @@ def _initializes_and_lists_tools(
                     "r",
                     "python",
                     "sql",
+                    "session",
                     "timeout_ms",
                     "control",
                     "stdin",
@@ -396,6 +405,9 @@ def _initializes_and_lists_tools(
                 "ir run script.R" in properties.get("r", {}).get("description", "")
             ) == (not custom and "r" in send["inputSchema"]["properties"]), description
             assert "Run one cell at a time" in description
+            assert "per session" in description
+            assert properties["session"]["type"] == "string"
+            assert properties["session"]["default"] == "default"
             assert "An error can leave earlier changes in place" in description
             assert f"`timeout_ms={properties['timeout_ms']['default']}`" in description
             assert '`requirements.action="add"`' in description
@@ -733,6 +745,7 @@ def test_limits_send_languages_from_environment(binary: Path) -> Transcript:
             assert send_properties.keys() == {
                 "r",
                 "sql",
+                "session",
                 "control",
                 "requirements",
                 "stdin",
@@ -800,7 +813,7 @@ def _reject_send_arguments(client: McpClient) -> None:
     assert result["isError"] is True, result
     assert result["content"][0]["text"] == (
         "failed to deserialize parameters: unknown field `wait_ms`, expected one "
-        "of `r`, `python`, `sql`, `control`, `requirements`, `stdin`, `timeout_ms`"
+        "of `r`, `python`, `sql`, `session`, `control`, `requirements`, `stdin`, `timeout_ms`"
     ), result
     result = client.send(
         r="1",

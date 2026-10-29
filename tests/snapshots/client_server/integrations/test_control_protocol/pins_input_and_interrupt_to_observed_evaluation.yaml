@@ -19,7 +19,8 @@ result:
         [waiting for stdin]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -37,7 +38,8 @@ result:
         [waiting for stdin]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

@@ -1,0 +1,76 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  r: preview recovery cell 0
+  session: alpha
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  r: preview recovery cell 1
+  session: beta
+id: <cancelled request 2>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 2>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8155
+        concat:
+          - |
+            [session: "alpha"; status: idle]
+            cell 0 head
+          - repeat: x
+            count: 3956
+          - |
+
+            [output omitted: 57650 UTF-8 bytes; retained logs: .agents/console/sessions/<run ID>/capture/sessions/]
+            [session: "beta"; status: idle]
+
+            […]
+          - repeat: x
+            count: 3955
+          - |-
+
+            cell 1 tail
+            [session: "default"; status: idle]
+
+            [idle]
+  structuredContent:
+    sessions:
+      - session: alpha
+        status: idle
+      - session: beta
+        status: idle
+      - session: default
+        status: idle
+  isError: false

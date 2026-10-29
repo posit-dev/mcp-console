@@ -18,6 +18,7 @@ pub(super) struct Envelope<'a> {
 #[serde(tag = "event", rename_all = "snake_case")]
 pub(super) enum Event<'a> {
     RecordingStarted {
+        console_version: &'a str,
         working_directory: &'a str,
         dynamic_resolution: Option<bool>,
         python_preparation: Option<bool>,
@@ -35,6 +36,8 @@ pub(super) enum Event<'a> {
         delivered: bool,
     },
     WorkerStarted {
+        #[serde(skip_serializing_if = "default_session")]
+        session: &'a str,
         session_id: u64,
         pid: u32,
         requirements: &'a Value,
@@ -89,6 +92,8 @@ pub(super) enum Event<'a> {
         discarded_bytes: usize,
     },
     EnvironmentDiscovered {
+        #[serde(skip_serializing_if = "default_session")]
+        session: &'a str,
         dynamic_resolution: bool,
         python_preparation: bool,
         r_available: bool,
@@ -102,6 +107,8 @@ pub(super) enum Event<'a> {
         packages: &'a [String],
     },
     RequirementsAccepted {
+        #[serde(skip_serializing_if = "default_session")]
+        session: &'a str,
         requirements: &'a Value,
     },
     RequirementsSelected {
@@ -151,6 +158,10 @@ pub(super) enum Event<'a> {
         #[serde(skip_serializing_if = "std::ops::Not::not")]
         omit_from_projections: bool,
     },
+}
+
+fn default_session(session: &&str) -> bool {
+    *session == "default"
 }
 
 #[derive(Serialize)]

@@ -43,7 +43,8 @@ result:
         [idle]
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

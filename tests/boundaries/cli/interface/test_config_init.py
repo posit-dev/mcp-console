@@ -293,6 +293,7 @@ def test_template_examples_can_be_uncommented_and_loaded(binary: Path) -> Transc
             "matplotlib",
         ]
         assert value["r"]["packages"] == ["dplyr", "ggplot2"]
+        assert value["sessions"] == {"max": 4}
         assert value["environment"] == {"OMP_NUM_THREADS": "4"}
         assert set(value["cache"]) == {"directory"}
         assert Path(value["cache"]["directory"]) == root / "cache"

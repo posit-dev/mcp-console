@@ -875,7 +875,7 @@ def test_runs_python_thread_while_idle(
                     "python-thread-started",
                     client,
                 )
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 assert last_result_text(client) == "\n[idle]"
 
                 release.touch()

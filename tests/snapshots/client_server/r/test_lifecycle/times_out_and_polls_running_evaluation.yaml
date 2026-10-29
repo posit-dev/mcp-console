@@ -28,6 +28,7 @@ result:
 ---
 send:
   timeout_ms: 3000
+  session: default
 result:
   content:
     - type: text

@@ -83,7 +83,7 @@ zod: echo
                 "zod-cell-output-processed",
                 client,
             )
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             assert without_elapsed_result(client.transcript[-1]["result"]) == {
                 "content": [
                     {
@@ -96,7 +96,7 @@ zod: echo
             }, client.transcript[-1]
 
             (processed.parent / "zod-release-evaluation").touch()
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == (
                 "zod: output then complete after release\n"
             ), repr(last_tool_text(client))

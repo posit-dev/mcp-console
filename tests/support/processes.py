@@ -143,8 +143,10 @@ else:
         return survivors
 
 
-def host_process_id(process_id: int, owner: int) -> int:
-    """Resolve a live fixture's namespace PID only among its host owner's descendants."""
+def host_process_id(
+    process_id: int, owner: int, *, pid_namespace: int | None = None
+) -> int:
+    """Resolve a fixture PID under its host owner and optional PID namespace inode."""
     assert process_id > 0 and owner > 1
     if sys.platform != "linux":
         return process_id
@@ -159,12 +161,15 @@ def host_process_id(process_id: int, owner: int) -> int:
                 for line in status.splitlines()
                 if line.startswith("NSpid:")
             )
-            if int(namespace_ids[-1]) == process_id:
+            if int(namespace_ids[-1]) == process_id and (
+                pid_namespace is None
+                or Path(f"/proc/{pid}/ns/pid").stat().st_ino == pid_namespace
+            ):
                 matches.append(pid)
             for task in Path(f"/proc/{pid}/task").iterdir():
                 pending.extend(map(int, (task / "children").read_text().split()))
         except (FileNotFoundError, ProcessLookupError):
             # Other descendants may exit while the gated fixture remains alive.
             continue
-    assert len(matches) == 1, (process_id, owner, matches)
+    assert len(matches) == 1, (process_id, owner, pid_namespace, matches)
     return matches[0]

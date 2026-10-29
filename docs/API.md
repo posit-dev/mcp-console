@@ -6,13 +6,15 @@ The project is a development preview; public interfaces can change, with their c
 
 ## MCP: `send`
 
-One MCP connection owns one persistent session.
+One MCP connection owns a default session and any additional named sessions.
 Send at most one complete source cell per call.
-Collect its result before submitting another cell.
+Collect its result before submitting another cell to that session.
+Different sessions can execute concurrently.
 
 | Argument             | Meaning                                                                                                                     |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `r`, `python`, `sql` | Optional source string. At most one may be non-null. The configured language selection determines which fields are exposed. |
+| `session`            | String selecting a session; defaults to `"default"`. Omit it on an empty poll to collect all active sessions.               |
 | `timeout_ms`         | Nonnegative integer; maximum observation wait, normally 60,000 milliseconds. It does not cancel execution.                  |
 | `stdin`              | Optional string of exact input bytes encoded as UTF-8. No newline is added.                                                 |
 | `control`            | `interrupt` or `restart`.                                                                                                   |
@@ -21,7 +23,7 @@ Collect its result before submitting another cell.
 Unknown fields and incorrect types are errors.
 Omit unused arguments.
 A hidden language field is rejected even when its value is `null`.
-`timeout_ms` cannot be null.
+`session` and `timeout_ms` cannot be null.
 
 Examples below are **tool argument objects**, not complete JSON-RPC messages:
 
@@ -37,8 +39,9 @@ Examples below are **tool argument objects**, not complete JSON-RPC messages:
 { "timeout_ms": 300000 }
 ```
 
-The last object polls without submitting code.
-`{}` is an immediate idle poll or a wait for active work using the default observation budget; it is not a new evaluation.
+The last object polls all active sessions without submitting code and lists their statuses.
+`{}` uses the default observation budget; it is not a new evaluation.
+Pass `{"session":"default"}` to poll only the default session.
 
 ```json
 { "stdin": "yes\n" }
@@ -50,11 +53,41 @@ The last object polls without submitting code.
 
 A control-only interrupt may overlap a pending call.
 Requirements inspection can read the last committed declaration without consuming that call's output.
-These exceptions do not enable parallel evaluation.
+Cells within one session remain serial.
 
 For a client walkthrough, see [Drive send directly](SEND_OPERATIONS.md).
 [Calls and session lifetime](#calls-and-session-lifetime) below defines admission, timing, and partial effects.
 [Language behavior](RUNTIME_REFERENCE.md) defines code execution behavior and connection helpers.
+
+### Named sessions
+
+Supply a new name with code to start an independent session:
+
+```json
+{ "session": "analysis", "python": "values = [2, 4, 6]; sum(values)" }
+```
+
+Use the same name on later code, input, requirements, and control calls.
+Each session owns its language objects, database connections, unread input, and accepted requirements.
+Sessions use the same launch configuration, working directory, and filesystem permissions; files in writable locations can be shared.
+There is no separate creation call.
+An unknown name on a poll does not start a worker.
+The optional [`sessions.max` configuration](RUNTIME_CONFIGURATION.md#session-limits) limits live sessions, including `default`; the default is unlimited.
+Starting a new or stopped session at capacity returns an error without running its code.
+
+An empty call, optionally with `timeout_ms`, collects output from all active sessions and lists their names and statuses.
+Each output section starts with a session name and status, including when only the default session is active.
+The list is also available as `structuredContent.sessions`, sorted by name, with `session` and `status` fields on each entry.
+Status is `starting`, `running`, `waiting_for_stdin`, or `idle`; stopped sessions are omitted.
+A targeted poll of a stopped session returns `[stopped]`.
+Supplying `session` polls only that session and preserves the ordinary single-session result format.
+
+To release a named session's worker, send `{"session":"analysis","control":"restart"}` without code or nonempty stdin.
+It stays stopped until a later code or nonempty-input call starts it again.
+After worker cleanup, it no longer counts toward `sessions.max`.
+Worker failure also leaves a named session stopped; polling never restarts it or replays failed code.
+The default session retains automatic recovery and immediate explicit restart.
+Closing the MCP connection stops all its sessions.
 
 ## Results
 
@@ -69,6 +102,7 @@ Errors do not undo earlier side effects.
 | `[worker starting]`                  | Startup is pending. Poll; do not assume interpreters are ready.                                           |
 | `[done]`                             | The operation completed without additional display content, or a combined control-and-cell call finished. |
 | `[idle]`                             | No evaluation is active. Startup hooks or later idle callbacks can still produce output.                  |
+| `[stopped]`                          | The selected session has no worker. Send code or nonempty stdin to start it.                              |
 | `[prepared]`                         | Standalone dependency preparation succeeded.                                                              |
 
 Notices may be accompanied by output, elapsed time, preparation phases, or diagnostics.
@@ -101,13 +135,14 @@ Polling consumes the observed interval, including its omitted middle; use the na
 { "python": "answer = 6 * 7; answer" }
 ```
 
-If the response says `[running; poll with an empty send]`, send `{}` to collect more output.
+If the response says `[running; poll with an empty send]`, poll the same session without code to collect more output.
 Do not resubmit the source: the accepted cell continues and is not replayed.
-New code is rejected while a cell or its uncollected result is active.
+New code is rejected while a cell or its uncollected result is active in the selected session.
 
 `timeout_ms` defaults to 60,000 and limits observation, not execution.
 `0` observes immediately.
-A long poll such as `{"timeout_ms": 300000}` returns early on completion or managed input; it avoids repeated short polls.
+A targeted long poll such as `{"session":"default","timeout_ms":300000}` returns early on completion or managed input; it avoids repeated short polls.
+Omitting `session` polls all active sessions concurrently within one observation budget and can wait for other busy sessions.
 
 Completion returns text/images, or `[done]` when empty.
 An idle poll returns pending idle output and `[idle]`.
@@ -123,9 +158,11 @@ An empty poll or requirements inspection can return `[worker starting]`.
 Standalone requirements wait for shared startup and preparation, including initial discovery, without a `timeout_ms` deadline.
 Once transport is ready, `[idle]` does not necessarily mean every interpreter startup hook has finished.
 
-After initial setup failure, fix the reported problem and explicitly restart.
-Ordinary calls retain the failure rather than retrying setup.
+After initial runtime discovery or preparation fails, fix the reported problem.
+The default session requires an explicit restart; a named session retries on its next code call or an explicit restart.
+Polls and input alone retain the failure until discovery succeeds.
 Rejected code and input are not replayed.
+If configured session startup code or native R initialization may already have run, an explicit restart is required before another attempt.
 
 ### Standard input and managed reads
 
@@ -160,7 +197,7 @@ On Windows, R-owned DuckDB supports native query interruption; long native Pytho
 
 A control-only interrupt may overlap a pending call.
 If that call owns polling or output delivery, interrupt returns a running notice without consuming its output.
-This is a control exception, not support for concurrent cells.
+This does not permit concurrent cells within the selected session.
 
 ### Explicit restart
 
@@ -174,6 +211,8 @@ After retirement begins, replacement failure cannot restore live objects.
 Accepted requirements and recordings survive; language objects, database catalogs, and unread input do not.
 
 A bundled cell or stdin reaches only the replacement after it is ready.
+For a named session, restart without a cell or nonempty stdin retires the worker without launching a replacement.
+The next code or nonempty-input call starts it with the retained requirements.
 Native R startup and configured session startup can run again and repeat side effects.
 No failed cell is automatically replayed.
 
@@ -186,8 +225,8 @@ Prefer separate calls for control, dependency changes, and execution unless bund
 | Cell, with optional requirements/stdin         | Validate and prepare requirements, then admit the cell and deliver input.                                              |
 | Requirements only                              | Validate and prepare; return `[prepared]`. Nonempty stdin is invalid.                                                  |
 | Interrupt + cell                               | Deliver interrupt and input, allow interruption to settle, then prepare/admit the new cell only if prior work stopped. |
-| Restart, with optional requirements/stdin/cell | Validate and prepare, commit requirements, retire, start replacement, deliver input/code.                              |
-| Empty poll                                     | Collect output; do not start an initial or stopped worker.                                                             |
+| Restart, with optional requirements/stdin/cell | Validate and prepare, commit requirements, retire; start the default session or a replacement receiving input/code.    |
+| Empty poll                                     | Collect output from the selected session, or all active sessions when `session` is omitted; do not start a worker.     |
 | Stdin only                                     | Queue input for the current generation and observe; after shared startup, it can start an initial/stopped worker.      |
 | Requirements `get`                             | Read the committed declaration without consuming output.                                                               |
 
@@ -253,11 +292,12 @@ The examples are MCP argument objects:
 | `set`           | Replace the complete declaration. Omitted lists and constraints are empty; no defaults are added. |
 | `reset`         | Restore the startup declaration captured from configuration, removing later additions.            |
 
-`get` must be used alone: no code, control, stdin (even empty), or declaration fields.
+`get` may select `session`, but takes no code, control, stdin (even empty), or declaration fields.
 `reset` accepts no declaration fields.
 A bare requirements object `{}` is invalid; `{"action":"set"}` intentionally clears optional declarations.
 
-Changed `set` or `reset` needs explicit restart after a worker has accepted user code or nonempty input.
+Changed `set` or `reset` needs explicit restart while a live worker retains user code or nonempty input.
+A stopped named session can prepare a changed declaration, including `set` or `reset`, without launching a worker.
 An unused prewarmed worker can be replaced automatically after successful preparation.
 Unchanged requirements do not wait for bootstrap.
 When R is available, changed requirements wait for runtime bootstrap to finish; supply any requested startup input before changing requirements.

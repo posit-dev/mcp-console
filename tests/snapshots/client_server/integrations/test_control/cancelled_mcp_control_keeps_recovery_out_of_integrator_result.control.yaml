@@ -14,6 +14,8 @@ request:
         gate.read(1)
     signal.signal(signal.SIGINT, previous_handler)
     print("integrator finished")
+  busy: wait
+  wait_ms: 30000
 response:
   id: "1"
   result:

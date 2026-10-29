@@ -63,7 +63,7 @@ def test_routes_idle_and_timed_out_stdin(
         stdin="café\n",
         timeout_ms=50,
     )
-    client.send(timeout_ms=0)
+    client.send(session="default", timeout_ms=0)
     assert (
         without_elapsed(last_tool_text(client))
         == "\n[running; poll with an empty send]"
@@ -238,7 +238,7 @@ def test_preserves_fd0_order_between_readers(
         release.release()
         released = True
 
-        client.send()
+        client.send(session="default")
         expected = '[input requested: "callback> "]\ncallback|direct\n'
         assert last_tool_text(client) == expected
         evaluation["result"] = client.transcript[-1]["result"]

@@ -93,7 +93,7 @@ def assert_prelaunch_failure(
         "evaluation": None,
     }, status
     preview = control.request(op="preview")["result"]["content"]
-    failure = client.send()
+    failure = client.send(session="default")
     assert failure["isError"], failure
     assert failure["content"] == preview, (failure, preview)
     client.expect("\n[idle]")

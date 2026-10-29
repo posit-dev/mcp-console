@@ -93,7 +93,7 @@ def cancelled_control_recovery(
             text = result["content"][0]["text"]
             assert len(text.encode()) <= 8192
             assert text == "\n[idle]" * (count + 1)
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == "\n[idle]"
             compact_previews(
                 client,
@@ -249,7 +249,7 @@ def recovered_recorded_cells(
                     assert summary["inline_omitted_bytes"] == 0
                 elif 0 < index < count - 1:
                     assert summary["inline_omitted_bytes"] == len(emitted.encode())
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == "\n[idle]"
             normalize_preview_paths(client)
             compact_previews(
@@ -371,6 +371,109 @@ def cancel_result(
 
 
 @requires(NATIVE_FIXTURES)
+def test_cancelled_aggregate_poll_returns_each_sessions_output(
+    binary: Path,
+) -> Transcript:
+    with recovery_client(binary) as (client, profile, reached, release):
+        for session in ("alpha", "beta"):
+            pending = client.start_send(r=f"echo {session} output", session=session)
+            cancel_result(client, pending, reached, release)
+
+        # Each completed cell still owns its undelivered response. Cancelling
+        # their shared poll must return both receipts to their original owners.
+        pending = client.start_send(timeout_ms=0)
+        cancel_result(client, pending, reached, release)
+        profile.pause_results(False)
+        for session in ("alpha", "beta"):
+            result = client.send(session=session)
+            assert result == {
+                "content": [{"type": "text", "text": f"zod: {session} output\n"}],
+                "isError": False,
+            }, result
+            client.send(session=session)
+            assert last_tool_text(client) == "\n[idle]"
+        capture = recording_events(session_directory(client))
+        (aggregate_call,) = [
+            event
+            for event in capture
+            if event["event"] == "tool_call" and event["request_id"] == pending["id"]
+        ]
+        (aggregate_result,) = [
+            event
+            for event in capture
+            if event["event"] == "tool_result"
+            and event["call_id"] == aggregate_call["call_id"]
+        ]
+        content = aggregate_result["result"]["content"]
+        assert content == [
+            {
+                "type": "text",
+                "text": (
+                    '[session: "alpha"; status: idle]\nzod: alpha output\n'
+                    '[session: "beta"; status: idle]\nzod: beta output\n'
+                    '[session: "default"; status: idle]\n\n[idle]'
+                ),
+            },
+        ], content
+        workers = {
+            event.get("session", "default"): event["session_id"]
+            for event in capture
+            if event["event"] == "worker_started"
+        }
+        for session in ("alpha", "beta"):
+            (part,) = [
+                part
+                for part in aggregate_result["parts"]
+                if part["owner"] is not None
+                and part["owner"]["session_id"] == workers[session]
+            ]
+            assert part["block"] == 0, part
+            assert content[0]["text"][part["start"] : part["end"]] == (
+                f'[session: "{session}"; status: idle]\nzod: {session} output\n'
+            ), (part, content)
+        return client.finish()
+
+
+@requires(NATIVE_FIXTURES)
+def test_aggregate_poll_keeps_one_text_budget(binary: Path) -> Transcript:
+    with recovery_client(binary) as (client, profile, reached, release):
+        for number, session in enumerate(("alpha", "beta")):
+            pending = client.start_send(
+                r=f"preview recovery cell {number}", session=session
+            )
+            cancel_result(client, pending, reached, release)
+        profile.pause_results(False)
+        result = client.send(timeout_ms=0)
+        assert not result["isError"], result
+        output = "".join(part["text"] for part in result["content"])
+        assert len(output.encode()) <= TEXT_BUDGET, len(output.encode())
+        assert "cell 0 head\n" in output and "\ncell 1 tail\n" in output, output
+        capture = recording_events(session_directory(client))
+        calls = {
+            event["request"]["arguments"].get("r"): event["call_id"]
+            for event in capture
+            if event["event"] == "tool_call"
+        }
+        summaries = {
+            event["call_id"]: event
+            for event in capture
+            if event["event"] == "cell_output"
+        }
+        owners = set()
+        for number in range(2):
+            summary = summaries[calls[f"preview recovery cell {number}"]]
+            raw = f"cell {number} head\n" + "x" * 32768 + f"\ncell {number} tail\n"
+            assert (session_directory(client) / summary["path"]).read_text() == raw
+            assert summary["retained_bytes"] == len(raw.encode()), summary
+            assert summary["discarded_bytes"] == 0, summary
+            owners.add(summary["owner"]["session_id"])
+        assert len(owners) == 2, summaries
+        normalize_preview_paths(client)
+        compact_previews(client, "x")
+        return client.finish()
+
+
+@requires(NATIVE_FIXTURES)
 def test_cancelled_active_polls_replay_before_later_output(binary: Path) -> Transcript:
     with recovery_client(binary) as (client, profile, reached, release):
         root = reached.path.parent
@@ -396,7 +499,7 @@ def test_cancelled_active_polls_replay_before_later_output(binary: Path) -> Tran
                         + f"\ninterval {index} tail\n"
                     )
                     if index < 2:
-                        pending = client.start_send(timeout_ms=0)
+                        pending = client.start_send(session="default", timeout_ms=0)
                         cancel_result(client, pending, reached, release)
                 profile.pause_results(False)
                 # The interrupt grace advances cell age before recovery. Replay
@@ -421,7 +524,7 @@ def test_cancelled_active_polls_replay_before_later_output(binary: Path) -> Tran
                 assert "capture/events.jsonl" not in text
                 assert "capture/sessions/001/cell-002.txt" in text
                 assert cell_text(client, 2) == "".join(emitted)
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 later = last_tool_text(client)
                 assert elapsed_progress(later)[1] is False
                 assert later.endswith(state)
@@ -430,9 +533,9 @@ def test_cancelled_active_polls_replay_before_later_output(binary: Path) -> Tran
                 )
                 assert "capture/sessions/001/cell-002.txt" in later
                 worker_release.release()
-                client.send()
+                client.send(session="default")
                 assert last_tool_text(client) == "[done]"
-                client.send()
+                client.send(session="default")
                 assert last_tool_text(client) == "\n[idle]"
                 normalize_preview_paths(client)
                 compact_previews(
@@ -458,7 +561,7 @@ def test_image_recovery_moves_the_retained_preview(binary: Path) -> Transcript:
         # Stop at the next result journal write: image ingestion and persistence
         # have finished, and MCP serialization has not started yet.
         profile.start()
-        recovered = client.start_send()
+        recovered = client.start_send(session="default")
         reached.wait("recovered image owns delivery before journaling")
         allocated, _ = profile.stop()
         release.release()
@@ -509,7 +612,7 @@ def test_image_recovery_moves_the_retained_preview(binary: Path) -> Transcript:
         assert allocated < 9 * 1024 * 1024, allocated
         result["content"][0]["data"] = "<image byte-identical to 6 MiB of zero bytes>"
         profile.pause_results(False)
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         return client.finish()
 
@@ -539,7 +642,7 @@ def test_phase_projection_copies_retained_image_once(binary: Path) -> Transcript
         )
         profile.pause_results(True)
         profile.start()
-        pending = client.start_send(timeout_ms=0)
+        pending = client.start_send(session="default", timeout_ms=0)
         reached.wait("phase-bearing image result owns delivery before journaling")
         allocated, _ = profile.stop()
         profile.pause_results(False)
@@ -557,7 +660,7 @@ def test_phase_projection_copies_retained_image_once(binary: Path) -> Transcript
         assert allocated < 9 * 1024 * 1024, allocated
         image["data"] = "<image byte-identical to 6 MiB of zero bytes>"
         (root / "startup-release").touch()
-        client.send()
+        client.send(session="default")
         assert "phase:" not in last_tool_text(client)
         client.send(r="echo after replacement")
         assert last_tool_text(client) == "zod: after replacement\n"
@@ -608,7 +711,7 @@ def test_composed_image_omission_names_existing_artifact(binary: Path) -> Transc
             )
         assert sum(block["type"] == "image" for block in result["content"]) == 1
         assert recorded_omission_owners(client) == [None]
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         client.finish()
     return [
@@ -732,7 +835,7 @@ def test_long_recording_paths_keep_image_omissions_readable(binary: Path) -> Tra
                     assert recording / advertised.removesuffix(suffix) == omitted
                 assert str(recording) not in text
                 assert sum(block["type"] == "image" for block in result["content"]) == 1
-                client.send()
+                client.send(session="default")
                 assert last_tool_text(client) == "\n[idle]"
                 client.finish()
     return [
@@ -795,7 +898,7 @@ def recovered_image_omissions(
             {"session_id": 1, "cell_id": 2, "interval": "cell"} if count == 1 else None
         )
         assert recorded_omission_owners(client) == [expected]
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         compact_previews(client, "\n[done]")
         return client.finish()

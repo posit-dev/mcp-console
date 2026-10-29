@@ -11,7 +11,8 @@ result:
         broken
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -30,7 +31,8 @@ result:
         incomplete
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

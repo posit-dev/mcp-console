@@ -125,7 +125,7 @@ impl Client {
                 super::Requirements::default(),
                 super::WORKER_SHUTDOWN_GRACE,
                 // The eventual MCP collection supplies its own terminal state.
-                true,
+                super::lifecycle::RestartLaunch::Followup,
                 Some(&control),
             )?;
             let _operation = client.admit_controlled_operation();

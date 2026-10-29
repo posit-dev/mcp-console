@@ -1622,7 +1622,7 @@ def r_startup_with_python(
                     ), client.transcript[-1]
                 finally:
                     release.release()
-                client.send()
+                client.send(session="default")
             elif plot_after_startup:
                 # Check identity in the startup cell so plotting remains the
                 # first follow-up cell through the R graphics lifecycle.

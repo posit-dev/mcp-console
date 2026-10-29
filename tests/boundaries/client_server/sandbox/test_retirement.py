@@ -917,7 +917,7 @@ def test_shutdown_is_bounded_with_detached_stdin_descendant(
             ownership_queued = ownership["queued_bytes"]
             assert isinstance(ownership_queued, int) and ownership_queued > 0, ownership
             assert ownership_queued < len(poll_stdin) - 1, ownership
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             polling = client.transcript[-1]
             assert polling["result"] == {
                 "content": [

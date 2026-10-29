@@ -219,7 +219,7 @@ def test_collects_idle_later_callbacks_with_empty_send(
     client = McpClient(binary, execution.serve())
     client.initialize_and_list_tools()
     client.send(requirements={"r": ["later"]})
-    client.send()
+    client.send(session="default")
     assert last_tool_text(client) == "\n[idle]"
 
     # fmt: r
@@ -284,13 +284,13 @@ def test_snapshots_output_while_idle_later_callback_runs(
         "long idle callback",
         ("release",),
     )
-    client.send(timeout_ms=10)
+    client.send(session="default", timeout_ms=10)
     assert last_tool_text(client) == "\n[idle]"
     callback_release.touch()
     deadline = time.monotonic() + 3
     poll_start = len(client.transcript)
     while True:
-        client.send()
+        client.send(session="default")
         if last_tool_text(client) == "long callback\n[idle]":
             break
         assert last_tool_text(client) == "\n[idle]"
@@ -381,7 +381,7 @@ def test_returns_plots_from_idle_later_callbacks(
         dpi=96,
         pages=1,
     )
-    client.send()
+    client.send(session="default")
     assert_result_content(
         client,
         ["idle plot\n", expected_plot[0], "\n[idle]"],

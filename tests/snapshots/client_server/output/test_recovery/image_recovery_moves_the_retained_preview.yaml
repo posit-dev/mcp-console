@@ -23,7 +23,8 @@ input:
   method: ping
 result: {}
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: image
@@ -31,7 +32,8 @@ result:
       mimeType: image/png
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

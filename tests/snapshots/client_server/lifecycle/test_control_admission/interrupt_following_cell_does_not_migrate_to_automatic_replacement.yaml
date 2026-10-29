@@ -1,7 +1,8 @@
 ---
 !same-as custom MCP initialization for this execution mode
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -42,7 +43,8 @@ result:
       text: "[interrupted worker connection changed; cell was not run]"
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

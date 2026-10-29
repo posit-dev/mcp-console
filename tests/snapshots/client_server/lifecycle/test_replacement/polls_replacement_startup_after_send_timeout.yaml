@@ -45,7 +45,8 @@ result:
       text: "[requirements not prepared: worker is starting]"
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

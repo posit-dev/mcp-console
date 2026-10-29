@@ -6,6 +6,8 @@ Windows MSVC builds statically link the runtime.
 No source distribution or GitHub release archive is published by this workflow.
 
 `Cargo.toml` owns the version; keep its root package entry in `Cargo.lock` synchronized.
+Between releases, use the most recently released version plus `+dev`.
+Development executables built from Git also report the first 12 characters of `HEAD`, for example `0.0.6+dev.g0123456789ab`; package metadata keeps `0.0.6+dev`.
 The current workflows and [`scripts/release.py`](scripts/release.py) are authoritative for mechanics.
 This page owns the release procedure and required evidence.
 
@@ -134,8 +136,9 @@ Do not add a `PYPI_TOKEN` secret; only publication receives an OIDC token.
 ## Prepare and rehearse
 
 Choose an unpublished `X.Y.Z` after checking public PyPI and remote tags.
-Update Cargo's version and lockfile entry.
-Regenerate intended CLI/MCP snapshot changes, updating the [canonical handshake](tests/boundaries/README.md#canonical-handshake) first.
+Replace the development version with `X.Y.Z` in Cargo's version and lockfile entry.
+Release executables report that exact version without a Git suffix.
+Version values are normalized in acceptance snapshots, so a version bump alone does not require snapshot updates.
 Inspect the diff, run `scripts/format`, and pass `scripts/check --full`.
 
 ```sh
@@ -197,6 +200,12 @@ Provision native sandbox setup before testing it; the post-publication Windows j
 
 Repeat unqualified `uvx mcp-console --version` and `uv tool install mcp-console` with fresh directories and the same isolation/public-index options; confirm they select the new version.
 Leave older releases unchanged.
+
+## Return to development
+
+After publication checks pass, set the version in `Cargo.toml` and its root package entry in `Cargo.lock` to `X.Y.Z+dev`.
+Run `scripts/format` and `scripts/check`, then commit the two version files as `Mark post-release builds as development versions` through the usual review process.
+Keep the release tag on the verified release commit.
 
 ## Recover from a failed release
 

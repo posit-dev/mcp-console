@@ -29,6 +29,12 @@ scripts/with-checkout uv tool install --reinstall .
 ```
 
 Packaging stages its companion automatically; direct Cargo/Maturin builds need staging first.
+Development package versions end in `+dev`.
+Git builds append `.g` and the first 12 characters of `HEAD` to the version reported by `--version`, MCP initialization, and recordings.
+The build script refreshes this breadcrumb when `HEAD` changes, including in worktrees; no version-file edits are needed during ordinary development.
+It identifies the base commit and does not describe uncommitted edits.
+Source archives without Git metadata retain plain `+dev`, and release versions have no suffix.
+Python package metadata and `configure-client --pin-version current` use the package version without the Git suffix; local development installations still need their source or wheel.
 Install the formatting tools used by `scripts/format`, including ruff, yamark, air, rustfmt, and Clippy for checking.
 
 On native Windows use `.cmd` launchers, such as `scripts/check.cmd`, or `python scripts/check`.

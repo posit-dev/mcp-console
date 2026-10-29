@@ -1,0 +1,58 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  session: alpha
+  python: raise AssertionError('ran')
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 1); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: default
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: >-
+        worker R home discovery failed with exit status: 17: fixture R discovery
+        failed
+  isError: true
+---
+send:
+  session: beta
+  python: raise AssertionError('ran')
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 1); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  control: restart
+  python: print(42)
+result:
+  content:
+    - type: text
+      text: |-
+        [runtime discovery retried]
+        42
+        [done]
+  isError: false
+---
+send:
+  session: alpha
+  python: raise AssertionError('ran')
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 1); stop a named session before
+        starting another
+  isError: true

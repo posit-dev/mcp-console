@@ -1,0 +1,75 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: default_value = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: alpha
+  python: rejected_cell = True
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/selected-python
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: alpha
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: >-
+        selected Python executable is not an absolute file:
+        <workspace>/selected-python
+  isError: true
+---
+send:
+  python: default_value
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+stderr: >
+  selected Python executable is not an absolute file:
+  <workspace>/selected-python

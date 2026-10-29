@@ -1,0 +1,46 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: shared = 40
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: alpha
+  python: |
+    shared = 100
+    print("alpha pending", flush=True)
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        _ = gate.read(1)
+    print(shared)
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        alpha pending
+        100
+  isError: false
+---
+send:
+  python: print(shared)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  session: alpha
+  python: print(shared)
+result:
+  content:
+    - type: text
+      text: |
+        100
+  isError: false

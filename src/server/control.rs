@@ -1,4 +1,5 @@
 //! Optional local integrator transport. MCP still owns the process lifetime.
+//! Every request targets the default session, including after worker replacement.
 
 use std::io;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};

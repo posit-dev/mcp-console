@@ -19,6 +19,8 @@ The activating request publishes that prelude in its observed order with its ori
 If the process exits without either kind of request, Console discards the temporary capture.
 The recording retains the process start time separately from publication time.
 Restarts and automatic worker replacement create numbered sessions within that same recording.
+Named sessions share this recording; each worker lifetime receives its own number, independently of the public `session` name.
+Worker-start events retain the name so concurrent sessions and their replacements can be distinguished.
 Each cell gets a log file when execution starts, even if it produces no text output.
 
 ```text
@@ -43,6 +45,7 @@ recording/
 ```
 
 `transcript.md` records calls, source, results, polls, input, controls, and worker session boundaries, with links to source documents and retained output.
+Its Console process metadata and the journal's `recording_started` event retain the executable's version, including the Git revision for development builds when available.
 It preserves response previews and omission notices while leaving routine protocol and lifecycle details in the journal.
 Results describe response assembly; local transport delivery is recorded separately in `capture/events.jsonl`.
 
@@ -52,7 +55,7 @@ A validation-rejected restart leaves its source with the surviving addressed wor
 A failed acquisition does not create a session, and a session without source need not create a QMD.
 Source without a worker association remains in the journal and Markdown transcript.
 
-QMD metadata records accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
+QMD metadata records the owning session's accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
 Retained R requirements carry into replacement sessions; rejected additions do not change metadata, and replacement declarations do not rewrite the retiring session's document.
 The original working directory is descriptive metadata rather than an execution root.
 QMDs omit results, images, input, polls, and control wrappers.

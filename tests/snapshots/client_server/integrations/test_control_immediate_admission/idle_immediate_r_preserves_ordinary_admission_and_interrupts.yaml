@@ -49,7 +49,8 @@ result:
         [running; poll with an empty send]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -79,7 +80,8 @@ result:
         [running; poll with an empty send]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -107,7 +109,8 @@ result:
         [running; poll with an empty send]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

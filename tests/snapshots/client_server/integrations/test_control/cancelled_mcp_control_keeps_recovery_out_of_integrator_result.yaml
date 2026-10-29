@@ -44,7 +44,8 @@ input:
   method: ping
 result: {}
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -53,7 +54,8 @@ result:
         interrupted evaluation is still active; cell was not run
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

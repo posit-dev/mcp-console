@@ -65,6 +65,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -77,6 +78,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -88,6 +90,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -100,6 +103,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -111,6 +115,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -122,6 +127,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -133,6 +139,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -145,6 +152,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -156,6 +164,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -168,6 +177,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -179,6 +189,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -193,6 +204,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -204,6 +216,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -215,6 +228,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -226,6 +240,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -247,6 +262,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -258,6 +274,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -271,6 +288,31 @@ result:
   isError: false
 ---
 send:
+  session: default
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  session: default
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -283,28 +325,7 @@ result:
 ---
 send:
   timeout_ms: 0
-result:
-  content:
-    - type: text
-      text: |-
-
-        [elapsed: <elapsed>s since admission; no new output]
-        [running; poll with an empty send]
-  isError: false
----
-send:
-  timeout_ms: 0
-result:
-  content:
-    - type: text
-      text: |-
-
-        [elapsed: <elapsed>s since admission; no new output]
-        [running; poll with an empty send]
-  isError: false
----
-send:
-  timeout_ms: 0
+  session: default
 result:
   content:
     - type: text
@@ -316,6 +337,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -326,7 +348,8 @@ result:
         [running; poll with an empty send]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

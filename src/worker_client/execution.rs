@@ -240,10 +240,14 @@ impl Client {
         if stdin.is_empty() {
             return Ok(());
         }
+        let activation = self.activate_session()?;
         let client = self.clone();
-        tokio::task::spawn_blocking(move || client.write_idle_stdin_blocking(stdin, generation))
-            .await
-            .map_err(|error| SendFailure::from(format!("worker stdin task failed: {error}")))?
+        tokio::task::spawn_blocking(move || {
+            let _activation = activation;
+            client.write_idle_stdin_blocking(stdin, generation)
+        })
+        .await
+        .map_err(|error| SendFailure::from(format!("worker stdin task failed: {error}")))?
     }
 
     pub(super) fn write_idle_stdin_blocking(
@@ -370,6 +374,11 @@ impl Client {
             }
         }
 
+        // Named sessions retain the stopped outcome until their next submitted
+        // cell starts a worker. Polling must never create a replacement.
+        if self.0.session_kind == super::SessionKind::Named {
+            return Err(failure.worker_stopped());
+        }
         let replacement_startup = self.0.preparation.blocking_read();
         evaluation.start_replacement(failure.worker_stopped());
         let replacement = self.start_ordinary_worker(worker, &generation);

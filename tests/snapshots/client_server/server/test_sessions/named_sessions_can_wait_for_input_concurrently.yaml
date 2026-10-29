@@ -1,0 +1,144 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: default_value = 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: answer = input('alpha> ')
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "alpha> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  python: answer = input('beta> ')
+  session: beta
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "beta> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "alpha"; status: waiting_for_stdin]
+
+        [waiting for stdin]
+        [session: "beta"; status: waiting_for_stdin]
+
+        [waiting for stdin]
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: alpha
+        status: waiting_for_stdin
+      - session: beta
+        status: waiting_for_stdin
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: alpha
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    beta answer
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: answer
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        'beta answer'
+  isError: false
+---
+send:
+  session: alpha
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    alpha answer
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: answer
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        'alpha answer'
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "alpha"; status: idle]
+
+        [idle]
+        [session: "beta"; status: idle]
+
+        [idle]
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: alpha
+        status: idle
+      - session: beta
+        status: idle
+      - session: default
+        status: idle
+  isError: false

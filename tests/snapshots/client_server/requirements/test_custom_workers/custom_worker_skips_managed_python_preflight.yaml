@@ -51,7 +51,8 @@ result:
         zod: echo
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

@@ -37,9 +37,10 @@ error: >
 override: sql.provider=python
 error: >
   configuration from .agents/console/config.yaml with CLI overrides: sql:
-  unknown field `sql`, expected one of `tool`, `startup`, `cache`,
-  `python`, `r`, `languages`, `inherit_environment`, `environment`,
-  `sandbox`, `resolver`; see docs/CONFIGURATION.md for the public format
+  unknown field `sql`, expected one of `tool`, `sessions`, `startup`,
+  `cache`, `python`, `r`, `languages`, `inherit_environment`,
+  `environment`, `sandbox`, `resolver`; see docs/CONFIGURATION.md for the
+  public format
 ---
 custom_worker_error: |
   startup requires the built-in worker and relay

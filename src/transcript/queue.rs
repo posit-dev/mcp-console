@@ -7,7 +7,9 @@ use super::{
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::io::Write;
+use std::sync::Arc;
 
 #[derive(Default)]
 pub(super) struct ProtocolEvents {
@@ -18,14 +20,19 @@ pub(super) struct ProtocolEvents {
     pub(super) failure: Option<String>,
     draining: bool,
     next_session_id: u64,
-    owner: Option<Owner>,
-    cell_call: Option<u64>,
-    starting_session: Option<u64>,
-    images: ImageBudget,
+    workers: BTreeMap<Arc<str>, WorkerEvents>,
     next_artifact_id: u64,
     process_output_bytes: u64,
     /// Only calls still awaiting cell entry; interval owners carry the choice later.
     pub(super) omitted_calls: std::collections::BTreeSet<u64>,
+}
+
+#[derive(Default)]
+struct WorkerEvents {
+    owner: Option<Owner>,
+    cell_call: Option<u64>,
+    starting_session: Option<u64>,
+    images: ImageBudget,
 }
 
 #[derive(Serialize)]
@@ -37,6 +44,7 @@ pub(super) enum QueuedEvent {
         session_id: u64,
     },
     WorkerStarted {
+        session: String,
         session_id: u64,
         pid: u32,
         requirements: Value,
@@ -95,6 +103,7 @@ pub(super) enum QueuedEvent {
         packages: Vec<String>,
     },
     RequirementsAccepted {
+        session: String,
         requirements: Value,
     },
     RequirementsSelected {
@@ -133,10 +142,12 @@ impl QueuedEvent {
                 }
             }
             Self::WorkerStarted {
+                session,
                 session_id,
                 pid,
                 requirements,
             } => Event::WorkerStarted {
+                session,
                 session_id: *session_id,
                 pid: *pid,
                 requirements,
@@ -242,9 +253,13 @@ impl QueuedEvent {
             Self::PythonEnvironmentAccepted { packages } => {
                 Event::PythonEnvironmentAccepted { packages }
             }
-            Self::RequirementsAccepted { requirements } => {
-                Event::RequirementsAccepted { requirements }
-            }
+            Self::RequirementsAccepted {
+                session,
+                requirements,
+            } => Event::RequirementsAccepted {
+                session,
+                requirements,
+            },
             Self::RequirementsSelected {
                 call_id,
                 action,
@@ -471,7 +486,7 @@ impl Transcript {
             Some((
                 QueuedEvent::AssociateWaitingCall {
                     call_id: call_id?,
-                    session_id: events.owner?.session_id,
+                    session_id: events.workers.get(&self.4)?.owner?.session_id,
                 },
                 (),
             ))
@@ -482,7 +497,7 @@ impl Transcript {
             Some((
                 QueuedEvent::Event(Event::SourceAssociated {
                     call_id: call_id?,
-                    session_id: events.owner?.session_id,
+                    session_id: events.workers.get(&self.4)?.owner?.session_id,
                 }),
                 (),
             ))
@@ -490,11 +505,19 @@ impl Transcript {
     }
     pub(crate) fn owner(&self) -> Option<Owner> {
         let events = self.1.lock().expect("protocol capture lock");
-        events.failure.is_none().then_some(events.owner).flatten()
+        events
+            .failure
+            .is_none()
+            .then_some(events.workers.get(&self.4)?.owner)
+            .flatten()
     }
     pub(crate) fn worker_starting(&self) {
         self.observe(|events| {
-            events.starting_session = None;
+            events
+                .workers
+                .entry(self.4.clone())
+                .or_default()
+                .starting_session = None;
             Some((QueuedEvent::WorkerStarting, ()))
         });
     }
@@ -502,16 +525,18 @@ impl Transcript {
         self.observe(|events| {
             events.next_session_id += 1;
             let session_id = events.next_session_id;
-            events.owner = Some(Owner {
+            let worker = events.workers.entry(self.4.clone()).or_default();
+            worker.owner = Some(Owner {
                 session_id,
                 cell_id: None,
                 interval: Interval::Startup,
                 omit_from_projections: false,
             });
-            events.images = ImageBudget::default();
-            events.starting_session = Some(session_id);
+            worker.images = ImageBudget::default();
+            worker.starting_session = Some(session_id);
             Some((
                 QueuedEvent::WorkerStarted {
+                    session: self.4.to_string(),
                     session_id,
                     pid,
                     requirements: requirements.clone(),
@@ -524,7 +549,7 @@ impl Transcript {
         self.observe(|events| {
             Some((
                 QueuedEvent::WorkerReady {
-                    session_id: events.starting_session.take()?,
+                    session_id: events.workers.get_mut(&self.4)?.starting_session.take()?,
                 },
                 (),
             ))
@@ -534,7 +559,7 @@ impl Transcript {
         self.observe(|events| {
             Some((
                 QueuedEvent::WorkerEnded {
-                    session_id: events.owner.take()?.session_id,
+                    session_id: events.workers.get_mut(&self.4)?.owner.take()?.session_id,
                     outcome: outcome.to_owned(),
                 },
                 (),
@@ -543,8 +568,12 @@ impl Transcript {
     }
     pub(crate) fn worker_retired(&self) {
         let mut events = self.1.lock().expect("protocol capture lock");
-        events.owner = None;
-        events.cell_call = None;
+        if let Some(worker) = events.workers.get_mut(&self.4) {
+            // Startup failure can be reported after retirement and still owns
+            // the acquired worker's starting_session identity.
+            worker.owner = None;
+            worker.cell_call = None;
+        }
     }
     pub(super) fn start_cell(
         &self,
@@ -553,28 +582,30 @@ impl Transcript {
     ) -> Option<Owner> {
         let call_id = call_id?;
         self.observe(|events| {
-            let previous = events.owner?;
+            let worker = events.workers.get_mut(&self.4)?;
+            let previous = worker.owner?;
             let owner = Owner {
                 session_id: previous.session_id,
                 cell_id: Some(previous.cell_id.unwrap_or(0) + 1),
                 interval: Interval::Cell,
                 omit_from_projections,
             };
-            events.cell_call = Some(call_id);
-            events.owner = Some(owner);
-            events.images = ImageBudget::default();
+            worker.cell_call = Some(call_id);
+            worker.owner = Some(owner);
+            worker.images = ImageBudget::default();
             Some((QueuedEvent::CellStarted { call_id, owner }, owner))
         })
     }
     pub(crate) fn end_cell(&self, completion_confirmed: bool) {
         self.observe(|events| {
-            let owner = events.owner.filter(|o| o.interval == Interval::Cell)?;
-            let call_id = events.cell_call.take()?;
-            events.owner = Some(Owner {
+            let worker = events.workers.get_mut(&self.4)?;
+            let owner = worker.owner.filter(|o| o.interval == Interval::Cell)?;
+            let call_id = worker.cell_call.take()?;
+            worker.owner = Some(Owner {
                 interval: Interval::Post,
                 ..owner
             });
-            events.images = ImageBudget::default();
+            worker.images = ImageBudget::default();
             Some((
                 QueuedEvent::CellEnded {
                     call_id,
@@ -595,8 +626,9 @@ impl Transcript {
         if events.failure.is_some() {
             return None;
         }
-        let owner = events.owner?;
-        let Some(number) = events.images.reserve(bytes, mime_type) else {
+        let worker = events.workers.get_mut(&self.4)?;
+        let owner = worker.owner?;
+        let Some(number) = worker.images.reserve(bytes, mime_type) else {
             events.push(
                 QueuedEvent::ImageOmitted {
                     owner: Some(ImageOwner::Interval(owner)),
@@ -672,7 +704,10 @@ impl Transcript {
         self.observe(|events| {
             Some((
                 QueuedEvent::StartupFailed {
-                    session_id: events.starting_session.take(),
+                    session_id: events
+                        .workers
+                        .get_mut(&self.4)
+                        .and_then(|worker| worker.starting_session.take()),
                     message: message.to_owned(),
                 },
                 (),
@@ -693,6 +728,7 @@ impl Transcript {
     }
     pub(crate) fn requirements_accepted(&self, requirements: &Value) {
         self.queue_event(QueuedEvent::RequirementsAccepted {
+            session: self.4.to_string(),
             requirements: requirements.clone(),
         });
     }
