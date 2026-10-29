@@ -14,6 +14,11 @@ pub(crate) struct IntegratorObservation {
     pub(crate) hidden: bool,
 }
 
+pub(crate) enum IntegratorRestart {
+    Replace,
+    Stop,
+}
+
 #[derive(Debug)]
 pub(crate) enum IntegratorError {
     Busy,
@@ -78,6 +83,7 @@ impl Client {
     ) -> Result<PreparationStatus, String> {
         requirements.validate()?;
         self.validate_requirements(&requirements)?;
+        let _activation = self.activate_session()?;
         let Some(startup) = self.startup_result().borrow().clone() else {
             return Ok(PreparationStatus::Busy);
         };
@@ -115,7 +121,10 @@ impl Client {
         }
     }
 
-    pub(crate) async fn integrator_restart(&self) -> Result<serde_json::Value, IntegratorError> {
+    pub(crate) async fn integrator_restart(
+        &self,
+        mode: IntegratorRestart,
+    ) -> Result<serde_json::Value, IntegratorError> {
         let client = self.clone();
         // A disconnected caller must not abandon retirement or leave ordinary
         // output owned by the control channel. The blocking task retains both.
@@ -125,7 +134,10 @@ impl Client {
                 super::Requirements::default(),
                 super::WORKER_SHUTDOWN_GRACE,
                 // The eventual MCP collection supplies its own terminal state.
-                super::lifecycle::RestartLaunch::Followup,
+                match mode {
+                    IntegratorRestart::Replace => super::lifecycle::RestartLaunch::Followup,
+                    IntegratorRestart::Stop => super::lifecycle::RestartLaunch::OnNextSend,
+                },
                 Some(&control),
             )?;
             let _operation = client.admit_controlled_operation();
@@ -192,6 +204,7 @@ impl Client {
         if *cancelled.borrow() {
             return Err(IntegratorError::Cancelled);
         }
+        let _activation = self.activate_session()?;
         let (generation, mut connection) = {
             let lifecycle = self
                 .0
@@ -429,6 +442,16 @@ impl Client {
             Some(active) => active.evaluation.preview().ok_or(IntegratorError::Busy),
             None => Ok(self.0.output.preview()),
         }
+    }
+
+    pub(crate) fn inherit_integrator_output(&self, source: &Self) {
+        if source.0.output.history_enabled() {
+            self.enable_integrator_output();
+        }
+    }
+
+    pub(crate) fn integrator_worker_id(&self) -> u64 {
+        self.0.output.worker_id()
     }
 
     pub(crate) fn enable_integrator_output(&self) {

@@ -93,7 +93,8 @@ Overrides apply after the selected files and before ordinary `-c` overrides; exp
 The adapter removes the file after synchronous materialization or the server's initialization handshake, when native capture has finished reading it.
 The connection owns a registry of logical sessions; each session owns startup, preparation, accepted requirements, and worker generations.
 The default session discovers runtimes, prepares defaults, and prelaunches the built-in worker in a background task.
-New names enter the registry on their first code call and use the same captured configuration and client authority, with independent startup and execution owners.
+New names enter the registry on their first code call or an explicit integrator `create` request and use the same captured configuration and client authority, with independent startup and execution owners.
+The integrator control channel selects workers from this same registry.
 Stopping a named worker preserves its registry entry and requirements without prelaunching a replacement.
 The connection's capacity pool reserves one slot for the default session and admits named work without waiting when capacity is available.
 Startup, preparation, and replacement retain the same session's slot independently of request cancellation.

@@ -31,7 +31,8 @@ result:
         ValueError: typed failure
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

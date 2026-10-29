@@ -1,0 +1,63 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: "print(input('default: '))"
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "default: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  session: alpha
+  python: "print(input('alpha: '))"
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "alpha: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        named reply
+  isError: false
+---
+send:
+  session: alpha
+  python: "print(input('interrupt alpha: '))"
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "interrupt alpha: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e3>", line 1, in <module>
+        KeyboardInterrupt
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        default reply
+  isError: false

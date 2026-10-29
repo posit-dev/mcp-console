@@ -4,11 +4,11 @@ This is an internal, experimental interface with no stability or compatibility p
 The `--control-socket` argument is hidden from CLI help.
 Integrators must use the protocol matching their Console build.
 
-An application can inspect and evaluate code in Console's `default` session through a local socket while its agent uses MCP.
+An application can inspect and evaluate code in Console's sessions through a local socket while its agent uses MCP.
 Use this channel for application setup, UI state, and output previews that do not need to become model tool calls.
-All control requests target `default`; this interface has no session selector.
-Control requests and MCP calls targeting `default` share the same worker, objects, and sandbox permissions.
-Named sessions created through MCP have separate workers and state.
+Worker operations accept a `session` name, defaulting to `default`.
+Control requests and MCP calls targeting the same name share the worker, objects, requirements, and sandbox permissions.
+Different names have separate workers and state, using the same connection-owned registry and capacity limit.
 
 ## Start the socket
 
@@ -64,6 +64,7 @@ When permissions are inherited from the MCP client, evaluation requires those pe
 
 Send one UTF-8 JSON object per newline-terminated line.
 Each request requires a string `id` and an `op` from the table below.
+All operations except `sessions` accept a string `session`; `create` and `close` require it, and other operations default to `default`.
 Unknown fields, unknown operations, and incorrect field types are rejected.
 A frame, including its newline, must fit within 1 MiB.
 An oversized frame or EOF before its terminating newline closes the connection.
@@ -84,6 +85,9 @@ Sending an evaluation again can execute it again.
 
 | Operation      | Additional fields                                                                           | Result                                                                                               |
 | -------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `sessions`     | None                                                                                        | Names, current lifecycle states, and typed-output worker identities, sorted by name.                 |
+| `create`       | `session`                                                                                   | Configure a named session lazily; return `session`, `state`, and `worker_id`.                        |
+| `close`        | `session` other than `default`                                                              | Stop the worker after confirmed retirement; retain its name, requirements, and recording.            |
 | `status`       | None                                                                                        | Current state, `idle`, and the active evaluation's origin, language, and whether execution started.  |
 | `output`       | None                                                                                        | Retained typed output snapshot for ordinary evaluations, independent of MCP collection.              |
 | `preview`      | None                                                                                        | Bounded `content` blocks containing currently pending text and images, without consuming them.       |
@@ -111,9 +115,29 @@ Admission failures use the response's `error` field.
 Requirement mutation supports additive preparation only; replacement and reset remain MCP operations.
 Use the `id` in `status.evaluation` as `evaluation_id` for input and interruption; stale IDs are rejected so a delayed request cannot affect a later cell.
 Startup input is not supported through this channel.
-MCP interruption and restart targeting `default` still affect the shared session.
+MCP interruption and restart targeting the same name still affect the shared session.
 
-`restart` replaces the shared session using its accepted configuration and requirements.
+`sessions` observes the existing registry without starting workers or collecting output.
+Its result is `{"sessions":[{"name":"default","state":"idle","worker_id":1}]}`.
+States are `starting`, `running`, `waiting_for_stdin`, `idle`, or `stopped`.
+Stopped names remain listed; they can be used again.
+The typed-output `worker_id` is local to that name and is zero before its first worker starts.
+
+`create` uses the same captured configuration, startup owner, and session capacity pool as a first MCP code call.
+It waits for configuration and preparation, but leaves interpreter startup to the first ordinary cell.
+A newly configured result is `{"session":"analysis","state":"stopped","worker_id":0}`.
+Creating an existing name observes it after readiness; it does not clear objects or change requirements.
+An ordinary `evaluate` can also create a name; use `busy: "wait"` to wait through its startup.
+Immediate evaluations and inspection do not create names; an unknown name returns `unknown_session`.
+Capacity failures use `execution_failed` with the existing session-limit diagnostic.
+
+`close` uses the same retirement path as an MCP restart without a follow-up cell in a named session.
+It waits for worker retirement before releasing capacity, preserves accepted requirements and pending MCP output, and returns `accepted` and the last typed-output `worker_id`.
+Private evaluations still settle with their original callers.
+Closing `default` is rejected; use `restart` for that session.
+A later ordinary cell starts a fresh worker for a stopped name.
+
+`restart` replaces the selected session using its accepted configuration and requirements.
 It waits for confirmed retirement and replacement startup before returning `accepted: true`; it does not submit code or change requirements.
 The response contains the replacement `worker_id`, without evaluation output.
 Use `status` to inspect the session after replacement; another request can already be active by then.
@@ -121,7 +145,8 @@ Uncollected MCP output and lifecycle notices remain available to MCP exactly onc
 An active control evaluation settles with its original requester, including its private output.
 Restart clears runtime objects and private viewer registrations; applications should rebuild their private setup for the new `worker_id`.
 Runtime configuration and inherited MCP permissions must be ready, or the request returns `not_ready`.
-Once started, restart continues if its control connection disconnects.
+Once started, restart and close continue if their control connection disconnects.
+Control `restart` starts the replacement immediately for every name; MCP restart without a follow-up cell leaves a named worker stopped.
 
 `prepare` uses Console's normal requirements validation, resolution policies, and preparation admission.
 It does not execute a cell, use immediate execution, or restart automatically.
@@ -136,7 +161,10 @@ Existing MCP output and shared preparation/lifecycle diagnostics remain availabl
 Unknown request fields and unsupported actions are `invalid_request` errors; unavailable configuration or inherited permissions are `not_ready` errors.
 
 `recording` returns `directory`, `markdown`, `qmd`, and `worker_id` for existing projections.
-Paths are absolute; `qmd` is null until the current worker has visible recorded source, and `worker_id` can be null before a worker starts.
+Paths are absolute; `qmd` selects the addressed session's current worker and is null until that worker has visible recorded source.
+`worker_id` can be null before a worker starts or after it stops.
+This is the recording's global worker identity, distinct from the per-name typed-output `worker_id`.
+The recording directory and Markdown projection span all names in the MCP connection; QMD files remain worker-specific.
 The lookup does not materialize projections, run code, or consume output.
 If a Markdown projection is not available, the request fails with `projection_unavailable`.
 
@@ -309,7 +337,10 @@ Integrator metadata also carries the control `request_id`, so a frontend can rep
 It does not acknowledge MCP delivery.
 `started` distinguishes ordinary admission from confirmed worker entry; admitted code may still be waiting for startup or the interpreter.
 Immediate metadata uses `started: true` because its private snapshot is returned after execution.
-Worker replacement increments `worker_id` and clears the retained history; evaluation IDs and event sequences continue increasing within the server process.
+Worker replacement increments the selected name's `worker_id` and clears its retained history.
+Identify typed output by session name and `worker_id`; separate names can have the same worker number.
+Evaluation IDs increase across the server process, while event sequences increase independently within each named output owner.
+When the control listener is enabled, named workers capture typed history from creation, including names first created through MCP.
 
 Each event has `sequence`, nullable `evaluation_id`, and one of these types:
 
@@ -329,6 +360,8 @@ Output observed between ordinary admission and completion carries that evaluatio
 Idle output has `evaluation_id: null`; native output from immediate threads retains the ordinary foreground attribution because process streams do not identify their writing thread.
 
 Subscribe with `{"id":"output","op":"subscribe","format":"events"}` for the same snapshot under `{"id":"output","event":"output","result":...}`.
+Subscriptions stay bound to their selected logical session across worker replacements.
+A named subscription adds `"session":"analysis"` to each pushed frame; omission means `default`.
 Both this subscription and `op: "output"` return replacement snapshots, not incremental event batches.
 Use evaluation IDs and event sequences to reconcile displayed output; replacing a pending view after completion must not append the same output again.
 Slow readers can miss intermediate snapshots, but completed output remains available within the retention bounds.

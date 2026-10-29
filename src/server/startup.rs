@@ -55,6 +55,9 @@ impl Startup {
             transcript: self.runtime.transcript.for_session(name),
         });
         runtime.worker.record_with(runtime.transcript.clone());
+        runtime
+            .worker
+            .inherit_integrator_output(&self.runtime.worker);
         Ok(Self {
             runtime,
             cancellation: Arc::new(Mutex::new(Cancellation::default())),

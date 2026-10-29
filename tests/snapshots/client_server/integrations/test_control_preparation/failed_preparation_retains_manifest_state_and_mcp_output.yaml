@@ -40,6 +40,7 @@ result:
   content:
     - type: text
       text: |-
+        [session: "default"; status: idle]
         uncollected MCP output
         managed Python resolution failed:
         resolver input:
@@ -55,9 +56,14 @@ result:
         }
         uv output:
         synthetic uv failure
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

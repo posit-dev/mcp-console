@@ -1,5 +1,5 @@
 //! Optional local integrator transport. MCP still owns the process lifetime.
-//! Every request targets the default session, including after worker replacement.
+//! Named requests share the MCP session registry and its lifecycle owners.
 
 use std::io;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -15,7 +15,9 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::{JoinHandle, JoinSet};
 
 use super::ConsoleServer;
-use crate::worker_client::{Content, IntegratorError, IntegratorObservation, Response};
+use crate::worker_client::{
+    Content, IntegratorError, IntegratorObservation, IntegratorRestart, Response,
+};
 
 const MAX_FRAME: usize = 1024 * 1024;
 const MAX_CONNECTIONS: usize = 64;
@@ -23,47 +25,82 @@ const MAX_CONNECTIONS: usize = 64;
 #[derive(Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 enum Request {
+    Sessions {
+        id: String,
+    },
+    Create {
+        id: String,
+        session: String,
+    },
+    Close {
+        id: String,
+        session: String,
+    },
     Status {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Preview {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Output {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Subscribe {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
         #[serde(default)]
         format: SubscriptionFormat,
     },
     Stdin {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
         evaluation_id: u64,
         input: String,
     },
     Interrupt {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
         evaluation_id: u64,
     },
     Restart {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Prepare {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
         requirements: super::arguments::Requirements,
     },
     Requirements {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Manifest {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Recording {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
     },
     Evaluate {
         id: String,
+        #[serde(default = "default_session")]
+        session: String,
         language: crate::cell::Language,
         code: String,
         #[serde(default)]
@@ -94,6 +131,10 @@ enum Busy {
     Wait,
 }
 
+fn default_session() -> String {
+    "default".into()
+}
+
 fn record_by_default() -> bool {
     true
 }
@@ -101,18 +142,41 @@ fn record_by_default() -> bool {
 impl Request {
     fn id(&self) -> &str {
         match self {
-            Self::Status { id }
-            | Self::Preview { id }
-            | Self::Output { id }
+            Self::Sessions { id }
+            | Self::Create { id, .. }
+            | Self::Close { id, .. }
+            | Self::Status { id, .. }
+            | Self::Preview { id, .. }
+            | Self::Output { id, .. }
             | Self::Subscribe { id, .. }
             | Self::Stdin { id, .. }
             | Self::Interrupt { id, .. }
-            | Self::Restart { id }
+            | Self::Restart { id, .. }
             | Self::Prepare { id, .. }
-            | Self::Requirements { id }
-            | Self::Manifest { id }
-            | Self::Recording { id }
+            | Self::Requirements { id, .. }
+            | Self::Manifest { id, .. }
+            | Self::Recording { id, .. }
             | Self::Evaluate { id, .. } => id,
+        }
+    }
+
+    fn session(&self) -> &str {
+        match self {
+            Self::Sessions { .. } => "default",
+            Self::Create { session, .. }
+            | Self::Close { session, .. }
+            | Self::Status { session, .. }
+            | Self::Preview { session, .. }
+            | Self::Output { session, .. }
+            | Self::Subscribe { session, .. }
+            | Self::Stdin { session, .. }
+            | Self::Interrupt { session, .. }
+            | Self::Restart { session, .. }
+            | Self::Prepare { session, .. }
+            | Self::Requirements { session, .. }
+            | Self::Manifest { session, .. }
+            | Self::Recording { session, .. }
+            | Self::Evaluate { session, .. } => session,
         }
     }
 }
@@ -270,13 +334,26 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
                 None => break,
             },
         };
-        let transcript = server.startup.runtime().transcript.clone();
         let parsed = serde_json::from_slice::<Request>(&frame);
+        let transcript = server
+            .startup
+            .runtime()
+            .transcript
+            .for_session(parsed.as_ref().map_or("default", Request::session));
         let subscription = match &parsed {
-            Ok(Request::Subscribe { id, format }) => Some(Subscription {
-                id: id.clone(),
-                format: *format,
-                changes: server.startup.runtime().worker.integrator_subscribe(),
+            Ok(Request::Subscribe {
+                id,
+                format,
+                session,
+            }) => server.sessions.get(session).map(|startup| {
+                let worker = startup.runtime().worker.clone();
+                Subscription {
+                    id: id.clone(),
+                    session: session.clone(),
+                    format: *format,
+                    changes: worker.integrator_subscribe(),
+                    worker,
+                }
             }),
             _ => None,
         };
@@ -309,9 +386,8 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
         if !delivered {
             break;
         }
-        if let Some(subscription) = subscription {
+        if let Some(subscription) = subscription.filter(|_| response.get("error").is_none()) {
             stream_snapshots(
-                &server,
                 subscription,
                 &mut write,
                 &mut closing,
@@ -328,12 +404,13 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
 
 struct Subscription {
     id: String,
+    session: String,
+    worker: crate::worker_client::Client,
     format: SubscriptionFormat,
     changes: watch::Receiver<()>,
 }
 
 async fn stream_snapshots(
-    server: &ConsoleServer,
     subscription: Subscription,
     write: &mut tokio::net::unix::OwnedWriteHalf,
     closing: &mut watch::Receiver<bool>,
@@ -342,15 +419,17 @@ async fn stream_snapshots(
 ) {
     let Subscription {
         id,
+        session,
+        worker,
         format,
         mut changes,
     } = subscription;
     let mut previous = None;
     loop {
         changes.borrow_and_update();
-        let event = match format {
+        let mut event = match format {
             SubscriptionFormat::Preview => {
-                let Ok(content) = server.startup.runtime().worker.integrator_preview() else {
+                let Ok(content) = worker.integrator_preview() else {
                     break;
                 };
                 let result = CallToolResult::success(content_blocks(content));
@@ -358,9 +437,12 @@ async fn stream_snapshots(
             }
             SubscriptionFormat::Events => json!({
                 "id": id, "event": "output",
-                "result": server.startup.runtime().worker.integrator_output(),
+                "result": worker.integrator_output(),
             }),
         };
+        if session != "default" {
+            event["session"] = json!(session);
+        }
         if previous.as_ref() != Some(&event) {
             let mut bytes = serde_json::to_vec(&event).expect("preview serialization");
             bytes.push(b'\n');
@@ -399,8 +481,71 @@ async fn handle(
     closing: &mut watch::Receiver<bool>,
     disconnect: &mut watch::Receiver<bool>,
 ) -> (Value, Option<u64>) {
-    let runtime = server.startup.runtime();
     let id = Value::String(request.id().to_string());
+    let session = request.session().to_owned();
+    // Reject invalid admission policy before a new name can reserve capacity.
+    let wait = match &request {
+        Request::Evaluate { busy, wait_ms, .. } => match (busy, wait_ms) {
+            (Busy::Reject, None) => None,
+            (Busy::Wait, Some(milliseconds)) => Some(Duration::from_millis((*milliseconds).into())),
+            _ => {
+                return (
+                    failure(
+                        id,
+                        "invalid_request",
+                        "wait_ms is required with busy=wait and forbidden with busy=reject",
+                    ),
+                    None,
+                );
+            }
+        },
+        _ => None,
+    };
+    let creates = matches!(
+        request,
+        Request::Create { .. }
+            | Request::Evaluate {
+                execution: crate::worker_client::IntegratorExecution::Serial,
+                ..
+            }
+    );
+    if creates && server.inheritance.enabled() && !server.inheritance.captured() {
+        return (
+            failure(id, "not_ready", "waiting for MCP client permissions"),
+            None,
+        );
+    }
+    let startup = match server.sessions.select(&session, creates) {
+        Ok(startup) => startup,
+        Err(error) => {
+            return (
+                failure(
+                    id,
+                    if creates {
+                        "execution_failed"
+                    } else {
+                        "unknown_session"
+                    },
+                    error,
+                ),
+                None,
+            );
+        }
+    };
+    if creates {
+        // Like MCP admission, install the independent startup owner before
+        // yielding to recording or observing a control-socket disconnect.
+        let started = (|| {
+            if session != "default" || matches!(request, Request::Create { .. }) {
+                startup.retry_failed()?;
+            }
+            startup.start()
+        })();
+        if let Err(error) = started {
+            return (failure(id, "execution_failed", error), None);
+        }
+    }
+    let runtime = startup.runtime();
     let evaluation = matches!(&request, Request::Evaluate { .. });
     let output_snapshot = matches!(&request, Request::Output { .. });
     let mut execution_error = Value::Null;
@@ -424,6 +569,21 @@ async fn handle(
     let operation_call = call.clone();
     let operation = async {
         match request {
+            Request::Sessions { .. } => Ok(CallToolResult::structured(json!({
+                "sessions": server.sessions.snapshot().into_iter().map(|(name, startup)| {
+                    let worker = startup.runtime().worker.clone();
+                    json!({"name": name, "state": worker.session_status(), "worker_id": worker.integrator_worker_id()})
+                }).collect::<Vec<_>>()
+            }))),
+            Request::Create { .. } => {
+                startup
+                    .ready()
+                    .await
+                    .map_err(|error| ("execution_failed", error))?;
+                Ok(CallToolResult::structured(
+                    json!({"session": session, "state": runtime.worker.session_status(), "worker_id": runtime.worker.integrator_worker_id()}),
+                ))
+            }
             Request::Status { .. } => Ok(CallToolResult::structured(
                 runtime.worker.integrator_status(),
             )),
@@ -455,7 +615,14 @@ async fn handle(
                     .map_err(control_error)?;
                 Ok(CallToolResult::structured(json!({"accepted": true})))
             }
-            Request::Restart { .. } => {
+            Request::Restart { .. } | Request::Close { .. } => {
+                let closing_session = matches!(request, Request::Close { .. });
+                if closing_session && session == "default" {
+                    return Err((
+                        "invalid_request",
+                        "the default session cannot be closed; use restart".into(),
+                    ));
+                }
                 if !runtime.worker.is_configured() {
                     return Err(("not_ready", "runtime configuration is not ready".into()));
                 }
@@ -464,7 +631,11 @@ async fn handle(
                 }
                 runtime
                     .worker
-                    .integrator_restart()
+                    .integrator_restart(if closing_session {
+                        IntegratorRestart::Stop
+                    } else {
+                        IntegratorRestart::Replace
+                    })
                     .await
                     .map(CallToolResult::structured)
                     .map_err(control_error)
@@ -522,26 +693,11 @@ async fn handle(
                 language,
                 code,
                 execution,
-                busy,
-                wait_ms,
                 include_output,
                 record,
                 id: request_id,
                 ..
             } => {
-                let wait = match (busy, wait_ms) {
-                    (Busy::Reject, None) => None,
-                    (Busy::Wait, Some(milliseconds)) => {
-                        Some(Duration::from_millis(milliseconds.into()))
-                    }
-                    _ => {
-                        return Err((
-                            "invalid_request",
-                            "wait_ms is required with busy=wait and forbidden with busy=reject"
-                                .into(),
-                        ));
-                    }
-                };
                 if server.inheritance.enabled() && !server.inheritance.captured() {
                     return Err(("not_ready", "waiting for MCP client permissions".into()));
                 }
