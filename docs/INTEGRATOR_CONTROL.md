@@ -326,6 +326,8 @@ It is not a lockfile or an inventory of every installed package.
 Every control request and result enters Console's journal capture; ordinary `evaluate` requests also record source, execution boundaries, output, and retained images.
 Concurrent evaluations record their request and result without entering the ordinary cell's source and raw-output interval.
 Subscription snapshots are transient views of already captured output and are not individually journaled.
+An `output` request records a receipt with worker identity, sequence bounds, and omission counts; its snapshot source, text, and image payloads are not duplicated in the journal.
+Likewise, `include_output` adds a typed view only to the evaluation response on the wire; the evaluation retains its existing canonical result and artifact recording.
 The usual [recording retention and failure rules](RECORDING_REFERENCE.md) apply.
 
 `record` defaults to `true`.

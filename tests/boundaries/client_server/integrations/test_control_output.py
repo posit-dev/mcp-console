@@ -300,8 +300,44 @@ def test_retains_r_diagnostics_and_images(
                     image["data"] == content["data"]
                     and image["mimeType"] == content["mimeType"]
                 )
+                snapshot = control.request(op="output")
+                assert any(
+                    item.get("data") == image["data"]
+                    for item in snapshot["result"]["events"]
+                ), snapshot
                 client.expect("\n[idle]")
-                return normalize_recording(client.finish(), root)
+                transcript = normalize_recording(client.finish(), root)
+                journal = next(
+                    root.glob(".agents/console/sessions/*/capture/events.jsonl")
+                ).read_text()
+                # Inspection receipts must not duplicate captured source/image
+                # payloads or bypass the existing raw artifact retention budget.
+                assert image["data"] not in journal
+                recorded = [json.loads(line) for line in journal.splitlines()]
+                call_id = next(
+                    item["message"]["tool_result_call_id"]
+                    for item in recorded
+                    if item.get("direction") == "server_to_integrator"
+                    and item["message"]["id"] == snapshot["id"]
+                )
+                receipt = next(
+                    item["result"]["structuredContent"]
+                    for item in recorded
+                    if item["event"] == "tool_result" and item["call_id"] == call_id
+                )
+                assert receipt == {
+                    "output_snapshot": {
+                        key: snapshot["result"][key]
+                        for key in (
+                            "worker_id",
+                            "first_sequence",
+                            "next_sequence",
+                            "omitted_events",
+                            "omitted_bytes",
+                        )
+                    }
+                }, receipt
+                return transcript
 
 
 @requires(POSIX)

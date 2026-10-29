@@ -388,6 +388,7 @@ async fn handle(
     let runtime = server.startup.runtime();
     let id = Value::String(request.id().to_string());
     let evaluation = matches!(&request, Request::Evaluate { .. });
+    let output_snapshot = matches!(&request, Request::Output { .. });
     let mut execution_error = Value::Null;
     let mut typed_output = None;
     let arguments = match &request {
@@ -571,7 +572,24 @@ async fn handle(
         Err((code, message)) => failure(id, code, message),
     };
     let recorded: Result<CallToolResponse, rmcp::ErrorData> = result
-        .map(Into::into)
+        .map(|result| {
+            if output_snapshot {
+                // Snapshot payloads are observations of already captured source
+                // and artifacts. Record a receipt, not another inline image/text
+                // copy that bypasses their existing retention allowances.
+                let snapshot = result.structured_content.as_ref().expect("output snapshot");
+                CallToolResult::structured(json!({"output_snapshot": {
+                    "worker_id": snapshot["worker_id"],
+                    "first_sequence": snapshot["first_sequence"],
+                    "next_sequence": snapshot["next_sequence"],
+                    "omitted_events": snapshot["omitted_events"],
+                    "omitted_bytes": snapshot["omitted_bytes"],
+                }}))
+                .into()
+            } else {
+                result.into()
+            }
+        })
         .map_err(|(_, message)| rmcp::ErrorData::internal_error(message, None));
     let recording = runtime.transcript.clone();
     tokio::task::spawn_blocking(move || recording.finish(call, &recorded))
