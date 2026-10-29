@@ -1,0 +1,59 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.r-only.direct.yaml
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  note: |
+    ## Journal
+
+    Keep **formatted prose** and `ordinary code`.
+
+    ```{r}
+    writeLines("fence", "note-fence-ran")
+    ```
+
+    Legacy inline `r {writeLines("inline", "note-inline-ran"); "literal"}`.
+    Quarto inline `{r} {writeLines("inline", "note-quarto-inline-ran"); "literal"}`.
+    Nested backticks ``r cat("`nested`")``.
+
+    > ```{r}
+    > writeLines("quote", "note-quote-ran")
+    > ```
+
+    - A nested example:
+
+      ```{r, example}
+      writeLines("list", "note-list-ran")
+      ```
+
+    ~~~{r}
+    writeLines("tilde", "note-tilde-ran")
+    ~~~
+
+    ```text
+    An inline example: `r {writeLines("literal", "note-literal-ran"); "literal"}`.
+    {{< include included.qmd >}}
+    ```
+
+    {{< include included.qmd >}}
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: writeLines("source", "source-ran")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
