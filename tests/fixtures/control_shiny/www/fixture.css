@@ -6,6 +6,7 @@
 .entry.running .content {opacity: .6;}
 .entry pre {white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: .2rem;}
 .source code {padding: 0; background: transparent;}
+.format-status {color: #666; overflow-wrap: anywhere;}
 .stream.stderr, .stream.diagnostic {color: #9c3b00; border-left: 2px solid #cb6c30; padding-left: .5rem;}
 .execution-error {color: #a61717;}
 .captured-plot {max-width: 100%; height: auto; cursor: zoom-in;}
@@ -29,3 +30,6 @@
 .editor-row > #source {flex: 1; min-width: 0;}
 .editor-actions {display: flex; flex-direction: column; gap: .5rem; justify-content: flex-end; padding-bottom: .3rem;}
 .editor-actions .btn {white-space: nowrap;}
+.source-view-controls .shiny-input-container {width: auto; margin-bottom: 0;}
+.source-view-controls .control-label {display: inline-block; margin: 0 .75rem 0 0;}
+.source-view-controls .shiny-options-group {display: inline-block;}

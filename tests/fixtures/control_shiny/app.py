@@ -7,11 +7,13 @@
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import re
 import tempfile
 import uuid
+from collections import OrderedDict
 from collections.abc import AsyncIterator, Coroutine
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,7 @@ from shiny import App, Inputs, Outputs, Session, reactive, render, ui
 from environments import environments_server, environments_ui
 from exports import export_server, export_ui
 from inspection import PYTHON_SOURCE, R_SOURCE
+from source_format import SourceFormatter
 from table_pane import table_server, table_ui
 
 MODEL = "gpt-6-luna"
@@ -102,9 +105,21 @@ def make_app(binary: Path, workspace: Path) -> App:
             ),
             ui.card(
                 ui.card_header(
-                    ui.span("Console transcript"),
-                    export_ui(),
-                    class_="d-flex justify-content-between align-items-center",
+                    ui.div(
+                        ui.span("Console transcript"),
+                        export_ui(),
+                        class_="d-flex justify-content-between align-items-center",
+                    ),
+                    ui.div(
+                        ui.input_radio_buttons(
+                            "source_view",
+                            "Code view",
+                            {"original": "Original", "formatted": "Formatted"},
+                            selected="formatted",
+                            inline=True,
+                        ),
+                        class_="source-view-controls",
+                    ),
                 ),
                 ui.card_body(
                     ui.div(id="transcript"),
@@ -223,6 +238,9 @@ def make_app(binary: Path, workspace: Path) -> App:
         worker_id: int | None = None
         immediate = asyncio.Lock()
         tasks: set[asyncio.Task[None]] = set()
+        formatter = SourceFormatter()
+        formatting: set[str] = set()
+        formatted: OrderedDict[str, None] = OrderedDict()
         ready = asyncio.Event()
         endpoint: Path
         thread: AsyncThread | None = None
@@ -291,21 +309,63 @@ def make_app(binary: Path, workspace: Path) -> App:
             if connected:
                 await environments.refresh()
 
-        def submitted_source(metadata: dict[str, Any]) -> dict[str, Any]:
+        def source_html(identifier: str, language: str, source: str) -> str:
             # Native MarkdownStream performs syntax highlighting. The fence is
             # longer than every source backtick run, so code stays literal.
-            source = metadata["source"]
             fence = "`" * max(
                 3, 1 + max((len(run) for run in re.findall(r"`+", source)), default=0)
             )
             view = ui.output_markdown_stream(
-                "source_" + str(metadata["id"]).encode().hex(),
-                content=f"{fence}{metadata['language']}\n{source}\n{fence}",
+                "source_" + identifier.encode().hex(),
+                content=f"{fence}{language}\n{source}\n{fence}",
                 auto_scroll=False,
                 width="100%",
             )
             # ui.Chat loads the shared native MarkdownStream dependency.
-            return {**metadata, "source_html": view.render()["html"]}
+            return view.render()["html"]
+
+        async def format_source(
+            key: str, language: str, source: str, truncated: bool
+        ) -> None:
+            try:
+                result = await formatter.format(language, source, truncated=truncated)
+                message = {
+                    "format_key": key,
+                    "status": result["status"],
+                    "message": result["message"],
+                }
+                if result["status"] == "formatted":
+                    message["source_html"] = source_html(
+                        key, language, result["source"]
+                    )
+                await session.send_custom_message("formatted-source", message)
+                formatted[key] = None
+                while len(formatted) > SourceFormatter.CACHE_ENTRIES:
+                    formatted.popitem(last=False)
+            finally:
+                formatting.discard(key)
+
+        def submitted_source(metadata: dict[str, Any]) -> dict[str, Any]:
+            source = metadata["source"]
+            language = metadata["language"]
+            truncated = metadata.get("source_truncated", False)
+            key = hashlib.sha256(
+                json.dumps([language, source, truncated]).encode()
+            ).hexdigest()
+            # Snapshot updates reuse a display result rather than launching a
+            # formatter for every pending-output change. Neither view mutates
+            # the submitted source used for execution, attribution, or exports.
+            if key in formatted:
+                formatted.move_to_end(key)
+            elif key not in formatting:
+                formatting.add(key)
+                start(format_source(key, language, source, truncated))
+            return {
+                **metadata,
+                "source_html": source_html(str(metadata["id"]), language, source),
+                "format_key": key,
+                "format_status": "pending",
+            }
 
         async def publish_snapshot(snapshot: dict[str, Any]) -> None:
             nonlocal worker_id

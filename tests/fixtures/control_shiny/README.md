@@ -61,6 +61,16 @@ Submitted R, Python, and SQL code uses Shiny's native Markdown component for syn
 The native Shiny code editor starts in Python mode and follows the selected language.
 The typed-output transcript keeps a small incremental renderer to reconcile concurrent evaluations without replacing messages or resetting the viewer's scroll position.
 
+The transcript's **Code view** toggle switches all human and agent submissions between **Original** and **Formatted**; Formatted is the default.
+R uses Air and Python uses Ruff, found on the Shiny host's `PATH` as in the repository's development setup.
+Formatting runs asynchronously on display copies, with isolated formatter defaults and no project configuration or source-file writes.
+Execution, submission matching, and recorded projections always retain the original code.
+The native code Copy button copies the currently displayed view; Export copies the original recording.
+SQL formatting is not configured.
+Missing formatters, invalid code, truncated captures, and formatting limits leave the original visible with an explanation.
+Each session runs at most two formatters concurrently, allows five seconds per process and 64 KiB of source, and caches up to 128 results within 1 MiB; formatted results over 256 KiB are discarded.
+Repeated pending-output updates reuse the result, and formatter processes are cancelled when the browser session closes.
+
 The **Export** menu at the transcript's top right copies Console's existing projections to the clipboard.
 **Copy QMD** copies source and environment metadata for the current worker; a new worker has no QMD until recorded code is submitted.
 **Copy Markdown** copies the recording's transcript across worker sessions, including recorded output and image links.
@@ -146,6 +156,7 @@ The browser regression launches the actual app and Console process.
 It blocks an evaluation on a file checkpoint, verifies that pending output arrives before completion, releases the checkpoint, and checks retained state and rendered images.
 Additional cases select Immediate for R and Python while an ordinary cell remains blocked.
 Human controls cases interrupt a running cell without clearing its objects and restart a running session with an open table.
+Formatting cases exercise Air/Ruff display copies, exact original-source restoration, native code Copy, original-source export, unsupported or invalid input, and scrolling across pending/completed updates.
 Variables cases check live changes and deletion during a blocked cell, private output routing, and Python previews without custom repr execution.
 Table checks use the actual control channel and managed runtimes to exercise snapshot freshness, row limits, filters, sorting, and namespace isolation.
 The live smoke additionally asks Luna to mutate an object created through the direct input and verifies the result through both paths.

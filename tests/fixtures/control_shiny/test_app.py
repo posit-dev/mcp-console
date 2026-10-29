@@ -541,10 +541,22 @@ def test_native_chat_streams_markdown_while_direct_controls_remain_live(
 
 def test_native_submitted_code_preserves_backticks_and_html(app):
     page, _ = app
+    page.get_by_label("Original", exact=True).check()
     source = "print('```<script>literal-code</script>```')"
     submit(page, "python", source)
     expect(page.locator("#transcript .entry.complete")).to_have_count(1, timeout=30_000)
     expect(page.locator("#transcript .source code")).to_have_text(source)
+    expect(page.locator("#transcript .source .hljs-string")).to_contain_text(
+        "literal-code"
+    )
+    expect(page.locator("#transcript .source script")).to_have_count(0)
+    expect(page.locator("#transcript .content")).to_have_text(
+        "```<script>literal-code</script>```\n"
+    )
+    page.get_by_label("Formatted", exact=True).check()
+    expect(page.locator("#transcript .source code")).to_have_text(
+        'print("```<script>literal-code</script>```")'
+    )
     expect(page.locator("#transcript .source .hljs-string")).to_contain_text(
         "literal-code"
     )
