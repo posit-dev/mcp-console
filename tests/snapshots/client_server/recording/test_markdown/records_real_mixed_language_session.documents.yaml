@@ -13,6 +13,7 @@ md: |+
 
   ```json
   {
+    "console_version": "<Console version>",
     "run_id": "<run ID>",
     "started_at": "<UTC timestamp>",
     "working_directory": "<workspace>"

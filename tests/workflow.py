@@ -289,6 +289,7 @@ class WorkflowTests(unittest.TestCase):
             "rust-tests",
         ]
         tooling = [
+            "build-version-tests",
             "release-tests",
             "staging-tests",
             "runner-tests",
@@ -299,6 +300,7 @@ class WorkflowTests(unittest.TestCase):
         ]
         for script in (
             "scripts/validate_runtime_sources.py",
+            "tests/build_version.py",
             "tests/release.py",
             "tests/staging.py",
             "tests/transcript_runner.py",

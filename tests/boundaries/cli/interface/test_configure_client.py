@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -291,6 +292,8 @@ def test_all_clients_are_validated_before_changes(binary: Path) -> Transcript:
 
 def test_version_validation_and_current_pin(binary: Path) -> Transcript:
     version = subprocess.check_output([binary, "--version"], text=True).split()[1]
+    # A current pin selects the distribution, whose metadata excludes Git provenance.
+    version = re.sub(r"(?<=\+dev)\.g[0-9a-f]{12}$", "", version)
     with TemporaryDirectory() as temporary:
         root = Path(temporary).resolve()
         for suffix in ("typo", ">=0.0.5", "v", "0.0.5@latest", ""):

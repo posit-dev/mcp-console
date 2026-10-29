@@ -289,6 +289,17 @@ def test_records_real_mixed_language_session(
         assert quarto.endswith("\n")
 
         session_event = events[0]
+        console_version = (
+            subprocess.check_output([binary, "--version"], text=True)
+            .strip()
+            .removeprefix("mcp-console ")
+        )
+        assert session_event["console_version"] == console_version
+        assert f'"console_version": {json.dumps(console_version)}' in markdown
+        markdown = markdown.replace(
+            f'"console_version": {json.dumps(console_version)}',
+            '"console_version": "<Console version>"',
+        )
         recorded_workspace = session_event["working_directory"]
         assert Path(recorded_workspace).samefile(workspace)
         markdown = markdown.replace(session_event["run_id"], "<run ID>")

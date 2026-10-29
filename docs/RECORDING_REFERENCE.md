@@ -43,6 +43,7 @@ recording/
 ```
 
 `transcript.md` records calls, source, results, polls, input, controls, and worker session boundaries, with links to source documents and retained output.
+Its Console process metadata and the journal's `recording_started` event retain the executable's version, including the Git revision for development builds when available.
 It preserves response previews and omission notices while leaving routine protocol and lifecycle details in the journal.
 Results describe response assembly; local transport delivery is recorded separately in `capture/events.jsonl`.
 

@@ -1,5 +1,6 @@
 ---
 - event: recording_started
+  console_version: <Console version>
   working_directory: <workspace>
   dynamic_resolution: ~
   python_preparation: ~
