@@ -382,7 +382,15 @@
       if (prior?.serialized === serialized) continue;
       const node = output(event);
       if (!node) continue;
-      if (prior) prior.node.replaceWith(node); else owner.content.append(node);
+      node.dataset.sequence = event.sequence;
+      if (prior) prior.node.replaceWith(node);
+      else {
+        // Completion replies can overtake subscription snapshots. Backfill by
+        // sequence within this evaluation without recreating existing nodes.
+        let previous = owner.content.lastElementChild;
+        while (previous && Number(previous.dataset.sequence) > event.sequence) previous = previous.previousElementSibling;
+        if (previous) previous.after(node); else owner.content.prepend(node);
+      }
       owner.events.set(eventKey, {node, serialized});
       updateOutput(owner);
       if (event.type === 'image' && !view.plots.has(eventKey)) {
