@@ -46,6 +46,7 @@ SQL supports Ordinary execution only.
 An already executing R cell pauses when it services events, lets the immediate evaluation run, then resumes.
 Use Immediate only for code that the integrator can safely run alongside the active evaluation; both modes share session state.
 Python needs the GIL, and R cannot preempt native code that does not process events.
+Plotting from idle Immediate R currently fails because the managed plot device requires an ordinary R evaluation; use Ordinary for R plots.
 
 The compact **Interrupt** and **Restart** buttons beside the editor act directly through the control channel without an agent turn.
 Interrupt targets the current ordinary evaluation; it does not cancel a standalone immediate request.
@@ -56,6 +57,26 @@ The transcript retains previous submissions and marks any running entries as sto
 The transcript follows incoming output while the viewer is at the bottom.
 Scrolling up preserves the viewer's position, including when pending output completes or an image loads.
 Human and agent interrupt requests are shown separately from their results; accepting a request does not establish that execution has stopped.
+
+Each submission offers **Captured output** and **Responses to agent** views.
+Captured output shows the typed worker events received by the app, with stream styling, error tracebacks, and omission notices.
+Per-event truncation appears with the event; the aggregate capture notice reports server history eviction without assigning it to a particular cell.
+Long outputs start collapsed; **Expand** and **Collapse** change their display without executing code.
+The compact output area scrolls independently and follows new output only while its viewer remains at the bottom.
+Responses to agent preserves the actual MCP content blocks observed by the agent SDK, including Console's presentation limits and retained-output references.
+Polls and control calls remain separate response cards because a response can span earlier output intervals; the app does not infer a cell association from its text.
+Direct human and private immediate results say **Not sent to agent**.
+Delivery to the agent client does not establish that a model read a response.
+
+**Open retained output** opens saved output in a native Shiny dialog with bounded pages and an explicit **Refresh** action for running cells.
+Text pages read at most 16 KiB plus a UTF-8 boundary overlap; individual images over the viewer's 8 MiB display limit receive an explicit notice.
+It reads Console's existing recording through the submission's call identity; browsing does not invoke Console or add model context or transcript entries.
+Ordinary cells can have raw text beyond the live capture and MCP response limits.
+Immediate requests have a saved bounded result and retained images, not a separate full raw text log.
+Additional immediate images omitted from the response appear separately; their position relative to omitted text cannot be recovered.
+The viewer follows recorded ownership and does not assign startup or post-cell background output back to a submission.
+The viewer reports unavailable or omitted data and preserves access to earlier recorded cells after worker replacement.
+Both live capture and saved output have [retention limits](../../../docs/RECORDING_REFERENCE.md); neither view promises complete output.
 
 Submitted R, Python, and SQL code uses Shiny's native Markdown component for syntax highlighting, with origin and language labels retained in the chat-style transcript.
 The native Shiny code editor starts in Python mode and follows the selected language.

@@ -33,3 +33,20 @@
 .source-view-controls .shiny-input-container {width: auto; margin-bottom: 0;}
 .source-view-controls .control-label {display: inline-block; margin: 0 .75rem 0 0;}
 .source-view-controls .shiny-options-group {display: inline-block;}
+.output-region, .response-entry {align-self: flex-start; width: 96%; min-width: 0;}
+.output-controls .shiny-input-container {width: auto; margin-bottom: .35rem; font-size: .8rem;}
+.output-controls .control-label {margin-bottom: .15rem;}
+.output-actions {display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .4rem;}
+.output-clip {--output-preview-height: 320px; max-height: var(--output-preview-height); overflow-y: auto;}
+.output-clip.expanded {max-height: none;}
+.output-clip .content {max-width: 100%; overflow-wrap: anywhere;}
+.output-clip [hidden], .output-controls [hidden], .response-controls [hidden] {display: none !important;}
+.entry.session .output-clip {max-height: none; overflow: visible;}
+.response-controls {margin-bottom: .35rem;}
+.response-entry {padding: .5rem 0;}
+.agent-response {padding: .4rem; border-left: 2px solid #748a9f; margin-bottom: .5rem;}
+.response-label, .response-status {display: block; font-size: .8rem; margin-bottom: .2rem;}
+.response-content {white-space: pre-wrap; overflow-wrap: anywhere; font-family: monospace;}
+.response-content pre {white-space: pre-wrap; overflow-wrap: anywhere;}
+.response-empty {font-size: .85rem; color: #666;}
+.stream > .omission {display: block;}

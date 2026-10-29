@@ -6,6 +6,7 @@
   const idleOwners = new Map();
   const exports = new Map();
   const sourceFormats = new Map();
+  const responses = new Set();
   let formattedView = true;
   let nextSourceId = 0;
   const element = (tag, className, text) => {
@@ -18,28 +19,40 @@
     let following = true;
     let previousTop = 0;
     let previousHeight = container.scrollHeight;
+    let previousClientHeight = container.clientHeight;
     const atBottom = () => container.scrollHeight - container.scrollTop - container.clientHeight <= 8;
+    const returnedToBottom = () => container.scrollTop > previousTop + 2 &&
+      container.scrollTop >= previousHeight - previousClientHeight - 8;
     container.addEventListener('scroll', () => {
       // A content resize can clamp scrollTop. Only a deliberate upward movement
       // turns following off; mutations never infer intent from the new height.
-      if (container.scrollTop < previousTop - 2) following = false;
-      if (atBottom()) following = true;
+      if (container.scrollTop < previousTop - 2 && container.clientHeight === previousClientHeight) following = false;
+      if (returnedToBottom() || atBottom()) following = true;
       previousTop = container.scrollTop;
+      previousClientHeight = container.clientHeight;
     });
     const resize = () => {
       // Scroll events are dispatched on a later frame. Observe an upward user
       // move before a same-frame mutation can pull the viewer back down.
       const height = container.scrollHeight;
-      if (container.scrollTop < previousTop - 2 && height >= previousHeight) following = false;
+      // Likewise, a user can return to the previous bottom before the scroll
+      // event is dispatched and new output increases the current height.
+      if (returnedToBottom()) following = true;
+      if (container.scrollTop < previousTop - 2 && height >= previousHeight && container.clientHeight === previousClientHeight) following = false;
       previousHeight = height;
+      previousClientHeight = container.clientHeight;
       if (!following) return;
       container.scrollTop = container.scrollHeight;
       previousTop = container.scrollTop;
     };
     new MutationObserver(resize).observe(container, {childList: true, subtree: true, characterData: true});
-    new ResizeObserver(resize).observe(container.firstElementChild);
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    for (const child of container.children) observer.observe(child);
     container.addEventListener('load', resize, true);
-    container.addEventListener('wheel', event => { if (event.deltaY < 0) following = false; }, {passive: true});
+    container.addEventListener('wheel', event => {
+      if (event.deltaY < 0 && event.target.closest('.history, .output-clip') === container) following = false;
+    }, {passive: true});
   }
   function renderSource(item) {
     const format = sourceFormats.get(item.formatKey) || item.format;
@@ -85,6 +98,51 @@
     } : null;
     renderSource(item);
   }
+  function updateExpansion(clip, content, button, expanded) {
+    if (!button) return;
+    const limit = parseFloat(getComputedStyle(clip).getPropertyValue('--output-preview-height'));
+    button.hidden = content.scrollHeight <= limit;
+    button.textContent = expanded ? 'Collapse' : 'Expand';
+    button.setAttribute('aria-expanded', String(expanded));
+    clip.classList.toggle('expanded', expanded);
+  }
+  function updateOutput(item) {
+    const agentView = item.controls.querySelector('input:checked')?.value === 'agent';
+    item.content.hidden = agentView;
+    item.agentOutput.hidden = !agentView;
+    item.responseStatus.textContent = item.responseIds.size ? '' :
+      item.meta.origin === 'mcp' ? 'No response received from this tool call yet.' : 'Not sent to agent.';
+    const retained = item.controls.querySelector('.output-retained');
+    if (retained) retained.disabled = item.meta.call_id == null;
+    updateExpansion(item.clip, agentView ? item.agentOutput : item.content,
+      item.controls.querySelector('.output-expand'), item.expanded);
+  }
+  function responseBlock(block) {
+    if (block.type === 'text') return element('pre', 'response-text', block.text);
+    if (block.type === 'image') return output(block);
+    // Preserve unfamiliar MCP block shapes instead of silently dropping them.
+    return element('pre', 'response-block', JSON.stringify(block, null, 2));
+  }
+  function responseNode(message) {
+    const node = element('section', 'agent-response');
+    node.dataset.response = message.id;
+    node.append(element('strong', 'response-label', `${message.label} · response to agent`));
+    if (message.status) node.append(element('small', 'response-status', message.status));
+    const content = element('div', 'response-content');
+    for (const block of message.content) content.append(responseBlock(block));
+    if (message.structuredContent != null) {
+      content.append(element('pre', 'response-structured', JSON.stringify(message.structuredContent, null, 2)));
+    }
+    if (message.error) content.append(element('pre', 'execution-error', message.error));
+    node.append(content);
+    return node;
+  }
+  function attachResponse(item, message) {
+    if (item.responseIds.has(message.id)) return;
+    item.responseIds.add(message.id);
+    item.agentOutput.append(responseNode(message));
+    updateOutput(item);
+  }
   function entry(meta) {
     const key = String(meta.id);
     let existing = entries.get(key);
@@ -124,10 +182,35 @@
       const formatStatus = element('small', 'format-status');
       submission.append(labels, code, formatStatus);
       const content = element('div', 'content');
-      node.append(submission, content);
+      const controls = element('div', 'output-toolbar');
+      controls.innerHTML = meta.output_controls || '';
+      const clip = element('div', 'output-clip');
+      const agentOutput = element('div', 'agent-responses');
+      const responseStatus = element('p', 'response-empty');
+      agentOutput.append(responseStatus);
+      agentOutput.hidden = true;
+      clip.append(content, agentOutput);
+      const outputRegion = element('div', 'output-region');
+      outputRegion.append(controls, clip);
+      node.append(submission, outputRegion);
       document.querySelector('#transcript').append(node);
+      followBottom(clip);
       existing = {node, origin, language, state, truncation, code, formatStatus, content,
+        controls, clip, agentOutput, responseStatus, expanded: false, responseIds: new Set(),
         sourceId: `transcript-source-${++nextSourceId}`, events: new Map()};
+      const item = existing;
+      controls.addEventListener('change', () => updateOutput(item));
+      controls.querySelector('.output-expand')?.addEventListener('click', () => {
+        item.expanded = !item.expanded;
+        updateOutput(item);
+      });
+      controls.querySelector('.output-retained')?.addEventListener('click', () => {
+        Shiny.setInputValue('retained_output_request', {call_id: item.meta.call_id, nonce: crypto.randomUUID()}, {priority: 'event'});
+      });
+      const resize = new ResizeObserver(() => updateOutput(item));
+      resize.observe(content);
+      resize.observe(agentOutput);
+      clip.addEventListener('load', () => updateOutput(item), true);
     }
     if (existing.pendingOutcome && !provisionalAgent) {
       existing.content.replaceChildren();
@@ -144,15 +227,19 @@
     existing.language.textContent = meta.language === 'r' ? 'R' : meta.language.toUpperCase();
     existing.state.textContent = `${meta.execution === 'immediate' ? 'Immediate · ' : ''}${meta.state}`;
     captureSource(existing, meta);
+    updateOutput(existing);
     return existing;
   }
   function output(event) {
     if (['stdout', 'stderr', 'output', 'diagnostic', 'notice'].includes(event.type)) {
-      return element('span', `stream ${event.type}`, event.text);
+      const node = element('span', `stream ${event.type}`, event.text);
+      if (event.omitted_bytes) node.append(element('span', 'omission', `\n${event.omitted_bytes} bytes omitted from this captured event.\n`));
+      return node;
     }
     if (event.type === 'execution_error') {
       const error = event.error;
-      return element('pre', 'execution-error', `${error.ename}: ${error.evalue}`);
+      const traceback = error.traceback?.length ? '\n' + error.traceback.join('\n') : '';
+      return element('pre', 'execution-error', `${error.ename}: ${error.evalue}${traceback}${error.truncated ? '\nError details were truncated.' : ''}`);
     }
     if (event.type === 'image') {
       const image = element('img', 'captured-plot');
@@ -202,6 +289,7 @@
       if (!node) continue;
       if (prior) prior.node.replaceWith(node); else owner.content.append(node);
       owner.events.set(eventKey, {node, serialized});
+      updateOutput(owner);
       if (event.type === 'image' && !plots.has(eventKey)) {
         plots.set(eventKey, true);
         const figure = element('figure');
@@ -267,6 +355,36 @@
       } else pending.resolve(message.text);
     });
     Shiny.addCustomMessageHandler('output-snapshot', snapshot);
+    Shiny.addCustomMessageHandler('agent-response', message => {
+      if (responses.has(message.id)) return;
+      responses.add(message.id);
+      if (message.submission_ids.length) {
+        for (const id of message.submission_ids) {
+          const item = agentRequests.get(id);
+          if (item) attachResponse(item, message);
+        }
+      } else {
+        // Polls and controls can collect several output intervals. Keep their
+        // response boundary instead of assigning them to the most recent cell.
+        const node = element('article', 'response-entry');
+        const response = responseNode(message);
+        const content = response.querySelector('.response-content');
+        const controls = element('div');
+        controls.innerHTML = message.output_controls;
+        const clip = element('div', 'output-clip');
+        clip.append(content);
+        response.append(controls, clip);
+        let expanded = false;
+        const expand = controls.querySelector('.output-expand');
+        const resize = () => updateExpansion(clip, content, expand, expanded);
+        expand.addEventListener('click', () => { expanded = !expanded; resize(); });
+        new ResizeObserver(resize).observe(content);
+        node.append(response);
+        document.querySelector('#transcript').append(node);
+        followBottom(clip);
+        resize();
+      }
+    });
     Shiny.addCustomMessageHandler('agent-outcome', message => {
       for (const id of message.ids) {
         const item = agentRequests.get(id);
@@ -276,6 +394,7 @@
           item.meta.state = 'failed';
           item.content.textContent = message.text;
           item.pendingOutcome = true;
+          updateOutput(item);
         }
       }
     });

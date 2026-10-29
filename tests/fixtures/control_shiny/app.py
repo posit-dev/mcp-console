@@ -26,6 +26,8 @@ from shiny import App, Inputs, Outputs, Session, reactive, render, ui
 from environments import environments_server, environments_ui
 from exports import export_server, export_ui
 from inspection import PYTHON_SOURCE, R_SOURCE
+from output_views import output_controls, response_controls
+from retained_output import retained_output_server
 from source_format import SourceFormatter
 from table_pane import table_server, table_ui
 
@@ -363,6 +365,7 @@ def make_app(binary: Path, workspace: Path) -> App:
             return {
                 **metadata,
                 "source_html": source_html(str(metadata["id"]), language, source),
+                "output_controls": output_controls(str(metadata["id"])),
                 "format_key": key,
                 "format_status": "pending",
             }
@@ -375,6 +378,8 @@ def make_app(binary: Path, workspace: Path) -> App:
                 return
             changed = worker_id is not None and observed_worker != worker_id
             worker_id = observed_worker
+            for item in snapshot["evaluations"]:
+                retained.observe(item)
             if changed:
                 ready.clear()
 
@@ -458,6 +463,9 @@ def make_app(binary: Path, workspace: Path) -> App:
             start=start,
         )
         export_server(input, session, lambda: environment_request(op="recording"))
+        retained = retained_output_server(
+            input, session, lambda: environment_request(op="recording")
+        )
 
         async def inspect_variables() -> None:
             while True:
@@ -781,6 +789,38 @@ def make_app(binary: Path, workspace: Path) -> App:
                                         },
                                     )
                             else:
+                                await session.send_custom_message(
+                                    "agent-response",
+                                    {
+                                        "id": item.id,
+                                        "output_controls": response_controls(item.id),
+                                        "submission_ids": [
+                                            submission["id"]
+                                            for submission in submissions
+                                        ],
+                                        "content": item.result.content
+                                        if item.result
+                                        else [],
+                                        "structuredContent": (
+                                            item.result.structured_content
+                                            if item.result
+                                            else None
+                                        ),
+                                        "error": item.error.message
+                                        if item.error
+                                        else None,
+                                        "label": (
+                                            "Code submission"
+                                            if submissions
+                                            else item.arguments["control"].title()
+                                            if item.arguments.get("control")
+                                            else "Requirements"
+                                            if item.arguments.get("requirements")
+                                            else "Poll"
+                                        ),
+                                        "status": item.status.value,
+                                    },
+                                )
                                 outcome = (
                                     item.error.message
                                     if item.error
@@ -799,23 +839,13 @@ def make_app(binary: Path, workspace: Path) -> App:
                                         "text": outcome,
                                     },
                                 )
-                                if (
-                                    not submissions
-                                    or item.arguments.get("control") == "interrupt"
-                                ):
-                                    prefix = (
-                                        "Agent interrupt request returned: "
-                                        if item.arguments.get("control") == "interrupt"
-                                        else "Agent tool result: "
-                                    )
+                                if item.arguments.get("control") == "interrupt":
                                     await session.send_custom_message(
                                         "notice",
                                         {
-                                            "kind": "interrupt"
-                                            if item.arguments.get("control")
-                                            == "interrupt"
-                                            else "tool-result",
-                                            "text": prefix + outcome,
+                                            "kind": "interrupt",
+                                            "text": "Agent interrupt request returned: "
+                                            + outcome,
                                         },
                                     )
                     elif event.method == "turn/completed":
