@@ -78,6 +78,8 @@ Human and agent interrupt requests are shown separately from their results; acce
 Each submission offers **Captured output** and **Responses to agent** views.
 Captured output shows the typed worker events received by the app, with stream styling, error tracebacks, and omission notices.
 Per-event truncation appears with the event; the aggregate capture notice reports server history eviction without assigning it to a particular cell.
+The shared notice tracks the current worker's ordinary history; Immediate evaluations report omissions on their own entries.
+Older snapshots cannot reduce omission counts, and worker replacement resets the shared notice.
 Long outputs start collapsed; **Expand** and **Collapse** change their display without executing code.
 The compact output area scrolls independently and follows new output only while its viewer remains at the bottom.
 Responses to agent preserves the actual MCP content blocks observed by the agent SDK, including Console's presentation limits and retained-output references.

@@ -99,7 +99,7 @@
       document.querySelector('#output-omissions').append(omissions);
       view = {name: message.session, incarnation: message.incarnation, transcript, plotsNode, omissions,
         entries: new Map(), plots: new Map(), agentRequests: new Map(), idleOwners: new Map(), responses: new Set(),
-        scrollers: new Set(), observers: new Set(), formattedView: true, scrollPosition: null};
+        scrollers: new Set(), observers: new Set(), formattedView: true, scrollPosition: null, sharedHistory: null};
       sessionViews.set(message.incarnation, view);
     }
     return view;
@@ -194,6 +194,7 @@
   function updateOutput(item) {
     const agentView = item.controls.querySelector('input:checked')?.value === 'agent';
     item.content.hidden = agentView;
+    item.captureOmissions.hidden = agentView || !item.captureOmissions.textContent;
     item.agentOutput.hidden = !agentView;
     item.responseStatus.textContent = item.responseIds.size ? '' :
       item.meta.origin === 'mcp' ? 'No response received from this tool call yet.' : 'Not sent to agent.';
@@ -272,6 +273,7 @@
       const formatStatus = element('small', 'format-status');
       submission.append(labels, code, formatStatus);
       const content = element('div', 'content');
+      const captureOmissions = element('p', 'omission history-omissions');
       const controls = element('div', 'output-toolbar');
       controls.innerHTML = meta.output_controls || '';
       const clip = element('div', 'output-clip');
@@ -281,11 +283,11 @@
       agentOutput.hidden = true;
       clip.append(content, agentOutput);
       const outputRegion = element('div', 'output-region');
-      outputRegion.append(controls, clip);
+      outputRegion.append(controls, captureOmissions, clip);
       node.append(submission, outputRegion);
       view.transcript.append(node);
       view.scrollers.add(followBottom(clip, view !== selectedView));
-      existing = {view, node, origin, language, state, truncation, code, formatStatus, content,
+      existing = {view, node, origin, language, state, truncation, code, formatStatus, content, captureOmissions,
         controls, clip, agentOutput, responseStatus, expanded: false, responseIds: new Set(),
         sourceId: `transcript-source-${++nextSourceId}`, events: new Map()};
       const item = existing;
@@ -352,6 +354,9 @@
   function snapshot(message) {
     const view = sessionView(message);
     if (!view) return;
+    if (view.sharedHistory?.workerId !== message.worker_id) {
+      view.sharedHistory = {workerId: message.worker_id, events: 0, bytes: 0};
+    }
     if (message.reset) {
       view.plots.clear();
       view.plotsNode.replaceChildren();
@@ -400,8 +405,22 @@
         view.plotsNode.append(figure);
       }
     }
-    view.omissions.textContent = message.omitted_events || message.omitted_bytes
-      ? `${message.omitted_events} events and ${message.omitted_bytes} bytes omitted from the bounded server snapshot.` : '';
+    // Immediate results have one private tape; their counters do not describe
+    // the shared history, even when both snapshots name the same worker.
+    const immediate = message.evaluations.find(meta => meta.execution === 'immediate');
+    if (immediate) {
+      const owner = view.entries.get(String(immediate.id));
+      owner.captureOmissions.textContent = message.omitted_events || message.omitted_bytes
+        ? `${message.omitted_events} events and ${message.omitted_bytes} bytes omitted from this Immediate capture.` : '';
+      updateOutput(owner);
+    } else {
+      // Replies can overtake subscription snapshots. Counters only increase
+      // within a worker history, so an older snapshot cannot erase known loss.
+      view.sharedHistory.events = Math.max(view.sharedHistory.events, message.omitted_events);
+      view.sharedHistory.bytes = Math.max(view.sharedHistory.bytes, message.omitted_bytes);
+    }
+    view.omissions.textContent = view.sharedHistory.events || view.sharedHistory.bytes
+      ? `${view.sharedHistory.events} events and ${view.sharedHistory.bytes} bytes omitted from the bounded server snapshot.` : '';
   }
   document.addEventListener('DOMContentLoaded', () => {
     historyScroll = followBottom(document.querySelector('#transcript-history'), true);
