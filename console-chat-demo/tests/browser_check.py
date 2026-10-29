@@ -114,7 +114,9 @@ async def main() -> None:
             await (await download.value).save_as(artifacts / "analysis.md")
             exported = (artifacts / "analysis.md").read_text()
             assert "ALPHA_DONE" in exported and "Code submitted" in exported
-            assert "```yaml\n" in exported and "```json\n" not in exported
+            assert "```python\nimport pandas as pd\n" in exported
+            assert "```r\n" in exported
+            assert "```yaml\n" not in exported and "```json\n" not in exported
             await first.screenshot(path=str(artifacts / "analysis.png"), full_page=True)
             await second.screenshot(
                 path=str(artifacts / "second-client.png"), full_page=True

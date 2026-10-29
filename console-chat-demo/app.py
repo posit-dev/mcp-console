@@ -7,6 +7,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import shutil
 import sys
 from contextlib import asynccontextmanager
@@ -216,11 +217,18 @@ def create_app(pool: Pool) -> App:
                 async with contextlib.aclosing(backend.stream(prompt)) as stream:
                     async for chunk in stream:
                         if isinstance(chunk, ContentToolRequest):
-                            transcript.append(
-                                "### Code submitted\n\n```yaml\n"
-                                + format_yaml(chunk.arguments, width=None)
-                                + "\n```\n"
-                            )
+                            for language in ("r", "python", "sql"):
+                                code = chunk.arguments.get(language)
+                                if code:
+                                    longest = max(
+                                        (len(run) for run in re.findall(r"`+", code)),
+                                        default=0,
+                                    )
+                                    fence = "`" * max(3, longest + 1)
+                                    transcript.append(
+                                        f"### Code submitted\n\n{fence}{language}\n"
+                                        f"{code}\n{fence}\n"
+                                    )
                             # Keep Shiny's native cards; change only their display text.
                             display = message_content(chunk)
                             display.blocks[0]["arguments"] = format_yaml(

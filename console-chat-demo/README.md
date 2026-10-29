@@ -4,6 +4,7 @@ A Shiny for Python app that gives each browser client a chatlas conversation and
 Ask questions, calculate summaries, fit models, and make plots.
 The app includes 96 rows of synthetic monthly sales data.
 Expand tool calls to inspect their arguments as YAML, with multiline R and Python code preserved.
+The Markdown export shows submitted code in language-tagged code blocks.
 Suggested follow-up questions are clickable buttons that submit the next turn.
 
 The interface follows [querychat](https://posit-dev.github.io/querychat/py/) and its [distinction between data viewing and analytical tool results](https://posit-dev.github.io/querychat/py/tools.html): conversation beside data, with the executed code and results available for inspection.

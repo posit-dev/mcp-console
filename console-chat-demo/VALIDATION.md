@@ -42,8 +42,9 @@ Browser assertions check loaded plot pixels, mobile card ordering, an unobstruct
 
 The YAML display and follow-up buttons were also checked interactively in the in-app browser with live Terra calls.
 Assertions first reproduced the JSON display and missing suggestion button, then passed after the change: native cards showed multiline YAML, and clicking a generated suggestion submitted the next question and completed another tool turn with retained Python state.
-The Markdown export contained YAML code blocks, and the HTTP app test passed.
+The HTTP app test passed.
 The live browser script includes these display and suggestion assertions for subsequent runs.
+An additional live browser session submitted Python and R cells; its exported Markdown preserved each cell in a language-tagged code block and included the corresponding output.
 
 With the app running on port 8008:
 
