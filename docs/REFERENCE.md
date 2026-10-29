@@ -70,9 +70,9 @@ For reading and reusing a session, see [Recordings and reports](RECORDING.md).
 - [MCP send reference](API.md) documents tool arguments, results, output limits, call ordering, and requirements actions.
 - [Drive send directly](SEND_OPERATIONS.md) is a guide to polling, interactive input, interruption, and restart.
 
-### Integrator socket
+### Internal integrator socket
 
-- [Integrator control channel](INTEGRATOR_CONTROL.md) documents the optional Unix socket, JSON Lines requests, admission policies, output previews, and recording selection.
+- [Integrator control channel](INTEGRATOR_CONTROL.md) documents the experimental Unix socket, which has no compatibility guarantees.
 
 ### Packages
 

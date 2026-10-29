@@ -49,6 +49,7 @@ def test_help(binary: Path) -> Transcript:
     ]
     for entry in entries:
         output = entry.get("stdout", "") + entry.get("stderr", "")
+        assert "--control-socket" not in output, entry
         assert all(len(line) <= 80 for line in output.splitlines()), entry
         if entry["command"] == "mcp-console sandbox --help":
             assert "--config-env <NAME>" in output, entry

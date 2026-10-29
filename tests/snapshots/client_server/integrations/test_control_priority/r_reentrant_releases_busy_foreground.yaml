@@ -1,0 +1,51 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: release <- FALSE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    cat("foreground pending\n")
+    gate <- fifo(
+      "<workspace>/entered",
+      "wb",
+      blocking = TRUE
+    )
+    writeBin(charToRaw("1"), gate)
+    close(gate)
+    while (!release) {
+      Sys.sleep(0.01)
+    }
+    cat("foreground complete\n")
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        foreground pending
+        foreground complete
+  isError: false
+---
+send:
+  r: release
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false
+---
+send:
+  r: priority_value
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

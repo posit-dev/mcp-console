@@ -81,7 +81,7 @@ pub(super) enum Event<'a> {
     /// Rejected by raw image retention limits: no image file was created.
     /// Retained images have an ImageRetained event with their file path.
     ImageOmitted {
-        owner: Option<super::Owner>,
+        owner: Option<super::ImageOwner>,
         encoded_bytes: usize,
         mime_type: &'a str,
     },
@@ -120,7 +120,7 @@ pub(super) enum Event<'a> {
         omit_from_projections: bool,
     },
     ImageRetained {
-        owner: super::Owner,
+        owner: super::ImageOwner,
         artifact_id: u64,
         call_id: Option<u64>,
         path: &'a str,

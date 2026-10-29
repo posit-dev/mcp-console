@@ -271,6 +271,25 @@ impl super::Transcript {
         encoded_bytes: usize,
     ) -> Option<super::Artifact> {
         let (id, owner, stem) = self.reserve_image(bytes.len(), encoded_bytes, mime_type)?;
+        self.persist_reserved_image(
+            id,
+            super::ImageOwner::Interval(owner),
+            call_id,
+            stem,
+            bytes,
+            mime_type,
+        )
+    }
+
+    fn persist_reserved_image(
+        &self,
+        id: u64,
+        owner: super::ImageOwner,
+        call_id: Option<u64>,
+        stem: String,
+        bytes: &[u8],
+        mime_type: &str,
+    ) -> Option<super::Artifact> {
         let extension = if mime_type == "image/png" {
             "png"
         } else {
@@ -303,7 +322,10 @@ impl super::Transcript {
             id,
             path,
             mime_type: mime_type.to_owned(),
-            owner: Some(owner),
+            owner: match owner {
+                super::ImageOwner::Interval(owner) => Some(owner),
+                super::ImageOwner::Call(_) => None,
+            },
             public_directory: self.3.public_directory.clone(),
         })
     }
@@ -314,5 +336,32 @@ impl super::Transcript {
     ) -> Result<Option<super::Artifact>, String> {
         let bytes = super::decode_image_data(data)?;
         Ok(self.persist_decoded_image(None, &bytes, mime_type, data.len()))
+    }
+}
+
+impl super::CallImages {
+    pub(crate) fn persist(
+        &mut self,
+        data: &str,
+        mime_type: &str,
+    ) -> Result<Option<super::Artifact>, String> {
+        let bytes = super::decode_image_data(data)?;
+        let Some((id, stem)) = self.transcript.reserve_call_image(
+            self.owner,
+            &mut self.budget,
+            bytes.len(),
+            data.len(),
+            mime_type,
+        ) else {
+            return Ok(None);
+        };
+        Ok(self.transcript.persist_reserved_image(
+            id,
+            super::ImageOwner::Call(self.owner),
+            Some(self.owner.call_id),
+            stem,
+            &bytes,
+            mime_type,
+        ))
     }
 }

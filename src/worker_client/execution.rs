@@ -9,6 +9,25 @@ use super::{
     WorkerState, environment, output, platform,
 };
 
+pub(super) enum EvaluationStartError {
+    Busy(String),
+    Failed(String),
+}
+
+impl EvaluationStartError {
+    fn into_message(self) -> String {
+        match self {
+            Self::Busy(message) | Self::Failed(message) => message,
+        }
+    }
+}
+
+impl From<String> for EvaluationStartError {
+    fn from(message: String) -> Self {
+        Self::Failed(message)
+    }
+}
+
 impl Client {
     pub(super) fn start_evaluation(
         &self,
@@ -54,6 +73,7 @@ impl Client {
             initial_requirements,
             evaluation::Origin::Mcp,
         )
+        .map_err(EvaluationStartError::into_message)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -68,12 +88,14 @@ impl Client {
         control_prelude: &mut Option<Response>,
         initial_requirements: Option<Requirements>,
         origin: evaluation::Origin,
-    ) -> Result<(Arc<Evaluation>, evaluation::WaitClaim), String> {
+    ) -> Result<(Arc<Evaluation>, evaluation::WaitClaim), EvaluationStartError> {
         self.ensure_evaluation_admission(&generation, control)?;
 
         let mut active = self.evaluation()?;
         if let Some(active) = active.as_ref() {
-            return Err(active.evaluation.reject_new_cell_message().to_string());
+            return Err(EvaluationStartError::Busy(
+                active.evaluation.reject_new_cell_message().to_string(),
+            ));
         }
         self.ensure_evaluation_admission(&generation, control)?;
         let startup = self.reserve_worker_startup(&generation)?;

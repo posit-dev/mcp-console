@@ -1,0 +1,151 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    sentinel = object()
+    original = sentinel
+    formatter_calls = 0
+    formatter_failure = RuntimeError
+
+
+    def broken_message(self: BaseException) -> str:
+        global formatter_calls
+        formatter_calls += 1
+        raise formatter_failure("formatter failure")
+
+
+    class BrokenMessage(Exception):
+        __str__ = broken_message
+
+
+    class BrokenBaseMessage(BaseException):
+        __str__ = broken_message
+
+
+    class BrokenConnection:
+        def cursor(self):
+            return self
+
+        def execute(self, source: str):
+            raise driver_error()
+
+
+    _console.sql_connection(BrokenConnection())
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    formatter_calls = 0; formatter_failure = RuntimeError; driver_error =
+    BrokenMessage
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(formatter_calls, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        1 True
+  isError: false
+---
+send:
+  python: >-
+    formatter_calls = 0; formatter_failure = SystemExit; driver_error =
+    BrokenMessage
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(formatter_calls, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        1 True
+  isError: false
+---
+send:
+  python: >-
+    formatter_calls = 0; formatter_failure = RuntimeError; driver_error =
+    BrokenBaseMessage
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(formatter_calls, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        1 True
+  isError: false
+---
+send:
+  python: >-
+    formatter_calls = 0; formatter_failure = SystemExit; driver_error =
+    BrokenBaseMessage
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(formatter_calls, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        1 True
+  isError: false

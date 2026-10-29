@@ -24,3 +24,4 @@ response:
           integrator pending
           [stopped by session restart request before evaluation finished]
     isError: true
+    execution_error: ~

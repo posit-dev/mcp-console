@@ -1,0 +1,70 @@
+---
+request:
+  id: "1"
+  op: status
+response:
+  id: "1"
+  result:
+    state: input_requested
+    idle: false
+    evaluation:
+      id: 2
+      origin: mcp
+      language: python
+      started: true
+---
+request:
+  id: "2"
+  op: stdin
+  evaluation_id: 2
+  input: |
+    42
+response:
+  id: "2"
+  result:
+    accepted: true
+---
+request:
+  id: "3"
+  op: status
+response:
+  id: "3"
+  result:
+    state: input_requested
+    idle: false
+    evaluation:
+      id: 3
+      origin: mcp
+      language: python
+      started: true
+---
+request:
+  id: "4"
+  op: stdin
+  evaluation_id: 2
+  input: |
+    stale
+response:
+  id: "4"
+  error:
+    code: stale_evaluation
+    message: evaluation is no longer active
+---
+request:
+  id: "5"
+  op: interrupt
+  evaluation_id: 2
+response:
+  id: "5"
+  error:
+    code: stale_evaluation
+    message: evaluation is no longer active
+---
+request:
+  id: "6"
+  op: interrupt
+  evaluation_id: 3
+response:
+  id: "6"
+  result:
+    accepted: true

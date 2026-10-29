@@ -19,7 +19,7 @@ pub(super) const ACTIVE_EVALUATION_STOPPED_NOTICE: &str =
 
 /// Stores pending session output in publication order until one response drains it.
 #[derive(Clone)]
-pub(super) struct OutputTape(Arc<Mutex<OutputTapeState>>);
+pub(super) struct OutputTape(Arc<Mutex<OutputTapeState>>, tokio::sync::watch::Sender<()>);
 
 /// An opaque boundary between sealed response intervals.
 #[derive(Clone, Copy)]
@@ -43,9 +43,10 @@ enum DirectOutputStream {
 pub(crate) struct Response {
     preview: Box<Preview>,
     is_error: bool,
-    delivery: Option<ResponseDeliveryTarget>,
+    delivery: Option<Box<ResponseDeliveryTarget>>,
     phase_terminal: Option<TerminalState>,
     phase: Option<super::status::Source>,
+    execution_error: Option<Box<crate::worker_protocol::ExecutionError>>,
 }
 
 pub(super) enum ResponseAcknowledgment {
@@ -54,7 +55,11 @@ pub(super) enum ResponseAcknowledgment {
 }
 
 enum ResponseDeliveryTarget {
-    Evaluation(SyncSender<ResponseAcknowledgment>, Arc<tokio::sync::Notify>),
+    Evaluation(
+        SyncSender<ResponseAcknowledgment>,
+        Arc<tokio::sync::Notify>,
+        OutputTape,
+    ),
     Output(OutputTape),
 }
 
@@ -63,7 +68,7 @@ enum ResponseDeliveryTarget {
 /// The bounded recovery response remains owned here after MCP projection so transport
 /// cancellation or write failure can return the complete reply to restart.
 pub(crate) struct ResponseDelivery {
-    target: Option<ResponseDeliveryTarget>,
+    target: Option<Box<ResponseDeliveryTarget>>,
     unclaimed: Option<Response>,
 }
 
@@ -144,6 +149,18 @@ impl SendFailure {
 }
 
 impl Response {
+    #[cfg(unix)]
+    pub(crate) fn execution_error(&self) -> Option<&crate::worker_protocol::ExecutionError> {
+        self.execution_error.as_deref()
+    }
+
+    pub(super) fn set_execution_error(
+        &mut self,
+        error: Option<crate::worker_protocol::ExecutionError>,
+    ) {
+        self.execution_error = error.map(Box::new);
+    }
+
     /// Copy presentation state without claiming or acknowledging its delivery.
     pub(super) fn snapshot(&self) -> Self {
         Self {
@@ -152,6 +169,7 @@ impl Response {
             delivery: None,
             phase_terminal: None,
             phase: None,
+            execution_error: self.execution_error.clone(),
         }
     }
 
@@ -210,6 +228,7 @@ impl Response {
                 delivery: None,
                 phase_terminal: self.phase_terminal,
                 phase: self.phase.take(),
+                execution_error: self.execution_error.take(),
             }),
         });
         (content, is_error, delivery, recorded_parts)
@@ -243,12 +262,17 @@ impl Response {
         &mut self,
         acknowledgment: SyncSender<ResponseAcknowledgment>,
         changed: Arc<tokio::sync::Notify>,
+        output: OutputTape,
     ) {
         assert!(
             self.delivery.is_none(),
             "a response can carry only one acknowledgment"
         );
-        self.delivery = Some(ResponseDeliveryTarget::Evaluation(acknowledgment, changed));
+        self.delivery = Some(Box::new(ResponseDeliveryTarget::Evaluation(
+            acknowledgment,
+            changed,
+            output,
+        )));
     }
 
     pub(super) fn recover_to(&mut self, output: OutputTape) {
@@ -256,7 +280,7 @@ impl Response {
             self.delivery.is_none(),
             "a response can carry only one delivery target"
         );
-        self.delivery = Some(ResponseDeliveryTarget::Output(output));
+        self.delivery = Some(Box::new(ResponseDeliveryTarget::Output(output)));
     }
 
     fn is_empty(&self) -> bool {
@@ -347,6 +371,9 @@ impl ResponseBuilder {
             .preview
             .extend(*std::mem::take(&mut other.preview));
         self.response.is_error |= other.is_error;
+        if other.execution_error.is_some() {
+            self.response.execution_error = other.execution_error.take();
+        }
     }
 
     pub(super) fn append_logical_region(&mut self, mut other: Response) {
@@ -489,6 +516,7 @@ impl Drop for Response {
             delivery: None,
             phase_terminal: self.phase_terminal,
             phase: self.phase.take(),
+            execution_error: self.execution_error.take(),
         };
         target.unclaimed(response);
     }
@@ -496,17 +524,19 @@ impl Drop for Response {
 
 impl ResponseDeliveryTarget {
     fn delivered(self) {
-        if let Self::Evaluation(acknowledgment, changed) = self {
+        if let Self::Evaluation(acknowledgment, changed, output) = self {
             let _ = acknowledgment.send(ResponseAcknowledgment::Delivered);
             changed.notify_waiters();
+            output.notify_observers();
         }
     }
 
     fn unclaimed(self, response: Response) {
         match self {
-            Self::Evaluation(acknowledgment, changed) => {
+            Self::Evaluation(acknowledgment, changed, output) => {
                 let _ = acknowledgment.send(ResponseAcknowledgment::Unclaimed(response));
                 changed.notify_waiters();
+                output.notify_observers();
             }
             Self::Output(output) => output.recover(response),
         }
@@ -560,6 +590,39 @@ pub(super) fn direct_failure(message: impl Into<String>) -> Response {
 
 fn render_notice(message: impl Into<String>) -> String {
     format!("[{}]", message.into())
+}
+
+/// Typed diagnostics have a separate text allowance and must not retain an
+/// unbounded exception beside the ordinary bounded output projection.
+pub(super) fn bounded_execution_error(
+    mut error: crate::worker_protocol::ExecutionError,
+) -> crate::worker_protocol::ExecutionError {
+    fn trim(text: &mut String, remaining: &mut usize, truncated: &mut bool) {
+        let length = utf8_prefix_length(text, *remaining);
+        if length < text.len() {
+            *text = text[..length].to_owned();
+            *truncated = true;
+        }
+        *remaining -= length;
+    }
+    let mut remaining = preview::TEXT_BYTES
+        - 2 * std::mem::size_of::<String>()
+        - std::mem::size_of::<Vec<String>>();
+    trim(&mut error.ename, &mut remaining, &mut error.truncated);
+    trim(&mut error.evalue, &mut remaining, &mut error.truncated);
+    let mut retained = 0;
+    for frame in &mut error.traceback {
+        if remaining < std::mem::size_of::<String>() {
+            break;
+        }
+        remaining -= std::mem::size_of::<String>();
+        trim(frame, &mut remaining, &mut error.truncated);
+        retained += 1;
+    }
+    error.truncated |= retained < error.traceback.len();
+    error.traceback.truncate(retained);
+    error.traceback.shrink_to_fit();
+    error
 }
 
 fn utf8_prefix_length(text: &str, limit: usize) -> usize {

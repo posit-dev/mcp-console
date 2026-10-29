@@ -12,14 +12,14 @@ tail:
   - kind: fatal
     message: >-
       worker sideband read failed: unknown variant `broken`, expected one of
-      `cell_started`, `ready`, `runtime_initialized`, `r_initialization`,
-      `console_output`, `console_diagnostic`, `image`, `input_requested`,
-      `input_received`, `input_cancelled`, `r_prepared`,
+      `priority`, `cell_started`, `ready`, `runtime_initialized`,
+      `r_initialization`, `console_output`, `console_diagnostic`, `image`,
+      `input_requested`, `input_received`, `input_cancelled`, `r_prepared`,
       `r_preparation_failed`, `resolve_r`, `r_activated`,
       `r_activation_failed`, `resolve_python`, `resolve_python_version`,
       `python_activated`, `python_activation_failed`, `python_prepared`,
-      `python_preparation_failed`, `python_preparation_rejected`, `completed`
-      at line 1 column 17
+      `python_preparation_failed`, `python_preparation_rejected`, `completed`,
+      `execution_error` at line 1 column 17
   - kind: worker_sideband_closed
   - kind: worker_exited
     code: 0

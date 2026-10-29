@@ -109,8 +109,8 @@ result:
       text: |
         Traceback (most recent call last):
           File "<string>", line 128, in _activate
-          File "<string>", line 768, in _mcp_console_raise_setup_error
-          File "<string>", line 781, in _mcp_console_activate_environment
+          File "<string>", line 777, in _mcp_console_raise_setup_error
+          File "<string>", line 790, in _mcp_console_activate_environment
           File "<frozen runpy>", line 294, in run_path
           File "<frozen runpy>", line 98, in _run_module_code
           File "<frozen runpy>", line 88, in _run_code

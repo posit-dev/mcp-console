@@ -193,9 +193,12 @@ impl Coordinator {
         }
 
         match message {
+            ServerMessage::PriorityReady => super::priority::consume_r_wakeup(),
+            ServerMessage::EvaluatePriority { .. } => {
+                unreachable!("priority commands are handled by ingress")
+            }
             ServerMessage::Evaluate { language, source } => {
                 self.r.check_interrupts();
-                self.writer.send(&WorkerMessage::CellStarted)?;
                 let result = evaluate_cell(
                     Cell { language, source },
                     &self.r,
@@ -209,6 +212,9 @@ impl Coordinator {
                 }
                 if let Some(message) = take_worker_failure().or_else(|| result.err()) {
                     return Err(io::Error::other(message).into());
+                }
+                if let Some(error) = core::take_execution_error() {
+                    self.writer.send(&WorkerMessage::ExecutionError { error })?;
                 }
                 self.writer.send(&WorkerMessage::Completed)?;
             }
@@ -284,6 +290,11 @@ fn evaluate_cell(
     if let Some(message) = take_worker_failure() {
         return Err(message);
     }
+    core::begin_cell(cell.language);
+    // Publish entry only after the idle event drain and foreground ownership.
+    // The controller can now admit reentrant R work without it starting idle
+    // ahead of this cell and consuming an interrupt addressed to the cell.
+    core::send_worker_message(&WorkerMessage::CellStarted)?;
     let nul_error = match cell.language {
         Language::R if cell.source.contains('\0') => Some("Error: R source cannot contain NUL\n"),
         Language::Sql if cell.source.contains('\0') => {
@@ -292,12 +303,15 @@ fn evaluate_cell(
         _ => None,
     };
     let result = if let Some(message) = nul_error {
+        core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+            "SyntaxError",
+            message,
+        ));
         emit_output(ConsoleChannel::Diagnostic, message.as_bytes());
         Ok(())
     } else {
         // Runtime startup belongs to this cell too. A late R startup begins
         // graphics when it installs its runtime, before loading packages.
-        core::begin_cell(cell.language);
         // Python can enter R and create plots too. SQL retains its exclusion.
         let graphics = !matches!(cell.language, Language::Sql);
         if graphics {
@@ -308,12 +322,12 @@ fn evaluate_cell(
             Language::Python => python.evaluate(&cell.source),
             Language::Sql => sql.evaluate(&cell.source),
         };
-        core::finish_cell();
         if graphics {
             r.finish_graphics()?;
         }
         result
     };
+    core::finish_cell();
     finish_console_stdin_operation()?;
     if result.is_ok() && !core::is_shutting_down() {
         if let Some(message) = take_worker_failure() {

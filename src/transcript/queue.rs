@@ -1,6 +1,9 @@
 //! The existing bounded drain owns journal I/O. Observed identities never need
 //! its writer mutex, including during worker retirement and response assembly.
-use super::{ActiveTranscript, Event, Interval, Owner, ProcessOutput, Transcript, output};
+use super::{
+    ActiveTranscript, CallImageOwner, Event, ImageOwner, Interval, Owner, ProcessOutput,
+    Transcript, output,
+};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use serde_json::Value;
@@ -18,9 +21,7 @@ pub(super) struct ProtocolEvents {
     owner: Option<Owner>,
     cell_call: Option<u64>,
     starting_session: Option<u64>,
-    image_number: u64,
-    image_bytes: usize,
-    image_metadata_bytes: usize,
+    images: ImageBudget,
     next_artifact_id: u64,
     process_output_bytes: u64,
     /// Only calls still awaiting cell entry; interval owners carry the choice later.
@@ -64,12 +65,12 @@ pub(super) enum QueuedEvent {
         discarded_bytes: usize,
     },
     ImageOmitted {
-        owner: Option<Owner>,
+        owner: Option<ImageOwner>,
         encoded_bytes: usize,
         mime_type: String,
     },
     ImageRetained {
-        owner: Owner,
+        owner: ImageOwner,
         artifact_id: u64,
         call_id: Option<u64>,
         path: String,
@@ -260,10 +261,32 @@ impl QueuedEvent {
 
 const MAX_PROTOCOL_EVENTS: usize = 1024;
 const MAX_PROTOCOL_BYTES: usize = 8 * 1024 * 1024;
-// Raw image files are bounded per observed interval, independently of previews.
+// Raw image files are bounded per interval or immediate call, independently of previews.
 const MAX_INTERVAL_IMAGE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_INTERVAL_IMAGES: u64 = 4096;
 const MAX_INTERVAL_IMAGE_METADATA_BYTES: usize = 64 * 1024;
+
+#[derive(Default)]
+pub(super) struct ImageBudget {
+    number: u64,
+    bytes: usize,
+    metadata_bytes: usize,
+}
+
+impl ImageBudget {
+    fn reserve(&mut self, bytes: usize, mime_type: &str) -> Option<u64> {
+        if self.number == MAX_INTERVAL_IMAGES
+            || bytes > MAX_INTERVAL_IMAGE_BYTES - self.bytes
+            || mime_type.len() > MAX_INTERVAL_IMAGE_METADATA_BYTES - self.metadata_bytes
+        {
+            return None;
+        }
+        self.number += 1;
+        self.bytes += bytes;
+        self.metadata_bytes += mime_type.len();
+        Some(self.number)
+    }
+}
 
 impl ProtocolEvents {
     fn push(&mut self, event: QueuedEvent, at: DateTime<Utc>) -> bool {
@@ -485,9 +508,7 @@ impl Transcript {
                 interval: Interval::Startup,
                 omit_from_projections: false,
             });
-            events.image_number = 0;
-            events.image_bytes = 0;
-            events.image_metadata_bytes = 0;
+            events.images = ImageBudget::default();
             events.starting_session = Some(session_id);
             Some((
                 QueuedEvent::WorkerStarted {
@@ -541,9 +562,7 @@ impl Transcript {
             };
             events.cell_call = Some(call_id);
             events.owner = Some(owner);
-            events.image_number = 0;
-            events.image_bytes = 0;
-            events.image_metadata_bytes = 0;
+            events.images = ImageBudget::default();
             Some((QueuedEvent::CellStarted { call_id, owner }, owner))
         })
     }
@@ -555,9 +574,7 @@ impl Transcript {
                 interval: Interval::Post,
                 ..owner
             });
-            events.image_number = 0;
-            events.image_bytes = 0;
-            events.image_metadata_bytes = 0;
+            events.images = ImageBudget::default();
             Some((
                 QueuedEvent::CellEnded {
                     call_id,
@@ -579,13 +596,10 @@ impl Transcript {
             return None;
         }
         let owner = events.owner?;
-        if events.image_number == MAX_INTERVAL_IMAGES
-            || bytes > MAX_INTERVAL_IMAGE_BYTES - events.image_bytes
-            || mime_type.len() > MAX_INTERVAL_IMAGE_METADATA_BYTES - events.image_metadata_bytes
-        {
+        let Some(number) = events.images.reserve(bytes, mime_type) else {
             events.push(
                 QueuedEvent::ImageOmitted {
-                    owner: Some(owner),
+                    owner: Some(ImageOwner::Interval(owner)),
                     encoded_bytes,
                     mime_type: mime_type.to_owned(),
                 },
@@ -593,15 +607,46 @@ impl Transcript {
             );
             self.start_drain(events);
             return None;
-        }
-        events.image_bytes += bytes;
-        events.image_metadata_bytes += mime_type.len();
+        };
         events.next_artifact_id += 1;
-        events.image_number += 1;
         Some((
             events.next_artifact_id,
             owner,
-            owner.path(&format!("-{:03}", events.image_number)),
+            owner.path(&format!("-{number:03}")),
+        ))
+    }
+
+    pub(super) fn reserve_call_image(
+        &self,
+        owner: CallImageOwner,
+        budget: &mut ImageBudget,
+        bytes: usize,
+        encoded_bytes: usize,
+        mime_type: &str,
+    ) -> Option<(u64, String)> {
+        let mut events = self.1.lock().expect("protocol capture lock");
+        if events.failure.is_some() {
+            return None;
+        }
+        let Some(number) = budget.reserve(bytes, mime_type) else {
+            events.push(
+                QueuedEvent::ImageOmitted {
+                    owner: Some(ImageOwner::Call(owner)),
+                    encoded_bytes,
+                    mime_type: mime_type.to_owned(),
+                },
+                Utc::now(),
+            );
+            self.start_drain(events);
+            return None;
+        };
+        events.next_artifact_id += 1;
+        Some((
+            events.next_artifact_id,
+            format!(
+                "capture/sessions/{:03}/call-{:03}-{number:03}",
+                owner.session_id, owner.call_id,
+            ),
         ))
     }
     pub(crate) fn unowned_text(&self, bytes: &[u8]) -> Option<ProcessOutput> {

@@ -15,6 +15,8 @@ mod execution;
 mod integrator;
 mod lifecycle;
 mod output;
+#[cfg_attr(not(unix), allow(dead_code))]
+mod priority;
 mod send;
 mod status;
 
@@ -44,6 +46,8 @@ pub(crate) use integrator::IntegratorError;
 use lifecycle::{LifecycleControl, OldGenerationCommitDisposition, WorkerGeneration};
 pub(crate) use output::{Content, Response, ResponseDelivery};
 use output::{OutputTape, SendFailure};
+#[cfg(unix)]
+pub(crate) use priority::IntegratorExecution;
 
 pub(crate) const DEFAULT_R_REQUIREMENTS: &[&str] = &[
     "tidyverse",
@@ -131,6 +135,7 @@ struct ClientInner {
     startup_observation_complete: AtomicBool,
     /// The one evaluation occupying this session, independently of who is polling it.
     evaluation: Mutex<Option<ActiveEvaluation>>,
+    priority: Mutex<Option<priority::Request>>,
     /// Wakes queued integrator admissions after response delivery or lifecycle changes.
     admission_changed: Arc<tokio::sync::Notify>,
     /// Settles operations admitted before inline control reserves its optional new cell.
@@ -315,6 +320,7 @@ impl Client {
             startup_generation,
             startup_observation_complete: AtomicBool::new(false),
             evaluation: Mutex::new(None),
+            priority: Mutex::new(None),
             admission_changed: Arc::new(tokio::sync::Notify::new()),
             admission: tokio::sync::RwLock::new(()),
             preparation: tokio::sync::RwLock::new(()),

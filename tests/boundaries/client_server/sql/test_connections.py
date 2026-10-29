@@ -1388,13 +1388,17 @@ def test_optional_sql_warmup_failure_preserves_runtime(
         (False, "system-exit"),
     ):
         with startup_sql_client(binary, execution, with_r, behavior) as (client, _, _):
+            # Startup may yield during dependency preparation. Inspect warmup
+            # diagnostics only after the submitted cell completes.
             if with_r:
-                client.send(
-                    r='stopifnot(startup_sql_pid == Sys.getpid()); cat("R available after SQL warmup failure\\n")'
+                client.expect(
+                    None,
+                    r='stopifnot(startup_sql_pid == Sys.getpid()); cat("R available after SQL warmup failure\\n")',
                 )
             else:
-                client.send(
-                    python='assert startup_sql_pid == os.getpid(); print("Python available after SQL warmup failure")'
+                client.expect(
+                    None,
+                    python='assert startup_sql_pid == os.getpid(); print("Python available after SQL warmup failure")',
                 )
             result = client.transcript[-1]["result"]
             assert result.get("isError") is not True, result

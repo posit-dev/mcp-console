@@ -1,0 +1,12 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: print('must not run')
+response:
+  id: "1"
+  error:
+    code: busy
+    message: runner is busy; code was not run

@@ -111,9 +111,10 @@ impl Writers {
                 omit_from_projections: true,
                 ..
             } => return Ok(()),
-            Event::ImageRetained { owner, .. }
-            | Event::CellOutput { owner, .. }
-            | Event::SessionOutput { owner, .. }
+            Event::ImageRetained { owner, .. } if owner.omit_from_projections() => {
+                return Ok(());
+            }
+            Event::CellOutput { owner, .. } | Event::SessionOutput { owner, .. }
                 if owner.omit_from_projections =>
             {
                 return Ok(());

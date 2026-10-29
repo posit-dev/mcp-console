@@ -1,0 +1,23 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: |
+    cat(
+      if (Sys.getpid() == worker_pid) "parent\n" else "child\n",
+      file = "priority-effects",
+      append = TRUE
+    )
+    cat("immediate complete\n")
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          immediate complete
+    isError: false
+    execution_error: ~

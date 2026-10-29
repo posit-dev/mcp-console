@@ -79,8 +79,6 @@ POLL_STDIN_RECEIVED_NAME = "mcp-console-poll-stdin-received"
 
 CONTROLLED_COMPLETION_RELEASE_NAME = "mcp-console-controlled-completion-release"
 
-CONTROLLED_COMPLETION_SENT_NAME = "mcp-console-controlled-completion-sent"
-
 RESTART_REQUIREMENTS_CHECK_NAME = "mcp-console-restart-requirements-check"
 
 RESTART_REQUIREMENTS_CHECKED_NAME = "mcp-console-restart-requirements-checked"

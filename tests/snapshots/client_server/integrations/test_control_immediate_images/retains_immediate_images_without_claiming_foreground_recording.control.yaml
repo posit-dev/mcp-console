@@ -1,0 +1,36 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: immediate
+  record: true
+  code: _ = plt.plot([1, 2]); plt.show()
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: image
+        data: <PNG byte-identical to captured immediate plot>
+        mimeType: image/png
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: immediate
+  record: false
+  code: _ = plt.plot([2, 1]); plt.show()
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: image
+        data: <PNG byte-identical to captured immediate plot>
+        mimeType: image/png
+    isError: false
+    execution_error: ~

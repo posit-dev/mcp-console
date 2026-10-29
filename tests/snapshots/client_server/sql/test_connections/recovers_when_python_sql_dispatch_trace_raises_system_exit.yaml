@@ -48,7 +48,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 362, in dispatch
+          File "<string>", line 366, in dispatch
           File "<mcp-console:python:e1>", line 26, in exit_sql_dispatch
         SystemExit: selected SQL dispatch exit
   isError: false

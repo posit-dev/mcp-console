@@ -1,0 +1,63 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: hold_immediate()
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content: []
+    isError: false
+    execution_error:
+      ename: Interrupt
+      evalue: R evaluation interrupted
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: hold_immediate()
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          private released
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: hold_immediate(catch_interrupt = TRUE)
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          private released
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "4"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: hold_immediate(catch_interrupt = TRUE)
+response:
+  id: "4"
+  error:
+    code: execution_failed
+    message: worker stopped before operation completed
