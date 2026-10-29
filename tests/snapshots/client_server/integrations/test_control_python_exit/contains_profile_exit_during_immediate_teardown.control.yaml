@@ -1,0 +1,51 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: |
+    evaluation_frame = sys._getframe().f_back
+
+
+    def exit_on_return(frame, event, argument):
+        if event == "return" and frame is evaluation_frame:
+            sys.setprofile(None)
+            raise SystemExit("escaped exit")
+
+
+    sys.setprofile(exit_on_return)
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<string>", line 60, in eval_priority
+            File "<string>", line 645, in _mcp_console_eval_cell
+            File "<integrator>", line 7, in exit_on_return
+          SystemExit: escaped exit
+    isError: false
+    execution_error:
+      ename: PythonError
+      evalue: Python evaluation failed
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: print(os.getpid() == worker_pid, sentinel is original)
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          True True
+    isError: false
+    execution_error: ~
