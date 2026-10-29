@@ -16,6 +16,41 @@ send:
 
     Keep **formatted prose** and `ordinary code`.
 
+    ---
+
+    Observed group
+    ---
+
+    <span class="journal-label">Observed cohort</span>.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  note: |
+    ---
+    Observed total: 42
+    ---
+
+    ## Examples
+
+    ---
+    Observed cohort: controls
+    ...
+
+    > ---
+    > Observed replicate: 3
+    > ---
+
+    ~~~yaml
+    ---
+    execute:
+      eval: false
+    ---
+    ~~~
+
     ```{r}
     writeLines("fence", "note-fence-ran")
     ```
@@ -51,7 +86,22 @@ result:
   isError: false
 ---
 send:
+  note: |
+    #| include: false
+    Keep this literal chunk option visible.
+
+    ```{r}
+    writeLines("option", "note-option-ran")
+    ```
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
   r: writeLines("source", "source-ran")
+  note: "--- \r\nexecute:\r\n  eval: false\r\n---\t\r\n"
 result:
   content:
     - type: text

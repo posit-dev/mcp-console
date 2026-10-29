@@ -49,7 +49,10 @@ It preserves response previews and omission notices while leaving routine protoc
 Results describe response assembly; local transport delivery is recorded separately in `capture/events.jsonl`.
 
 Each `sessions/session-NNN.qmd` contains notes and source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
-Notes keep their Markdown formatting, with executable fences, inline expressions, and Quarto shortcodes escaped as literal examples; the journal and Markdown transcript retain the original note text.
+Ordinary notes retain their Markdown and HTML.
+A note containing recognized metadata delimiters, executable code syntax, or Quarto shortcodes is wrapped as a whole in a `{verbatim}` chunk so it remains an example rather than changing document settings or executing code.
+This fallback covers common notebook annotations; it does not sanitize arbitrary Markdown or HTML, and Quarto may still preprocess shortcodes or inline syntax inside verbatim examples.
+The journal and Markdown transcript retain the original note text.
 Source admitted before worker acquisition stays pending until its worker is known, even if an initial response has already returned.
 A validation-rejected restart leaves its source with the surviving addressed worker.
 A note submitted with source follows that source's worker association, including across a restart.

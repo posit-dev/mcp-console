@@ -120,7 +120,7 @@ Use `note` to record observations, questions, or the purpose of a step.
 It can accompany code, input, requirements, or a control operation without changing that operation.
 Console retains the text in the recording and presents it as prose before any same-call code in `transcript.md` and the associated session QMD.
 It does not evaluate the note.
-Session QMDs escape executable code examples, inline expressions, and Quarto shortcodes in notes so rendering keeps them as prose.
+Session QMDs pass ordinary Markdown and HTML through unchanged and use a whole-note verbatim fallback for recognized metadata and executable examples.
 
 ```json
 { "note": "Check whether the missing values are confined to one batch." }

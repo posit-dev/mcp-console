@@ -985,86 +985,35 @@ fn push_note(document: &mut String, note: &str) {
 }
 
 fn push_quarto_note(document: &mut String, note: &str) {
-    // Quarto's engine and shortcode escapes preserve Markdown examples. Knitr
-    // also scans inline R inside ordinary fences, so escape throughout the note.
-    let mut fenced = String::with_capacity(note.len());
-    for line in note.split_inclusive('\n') {
-        let Some(start) = line.find(['`', '~']) else {
-            fenced.push_str(line);
-            continue;
-        };
-        let marker = line.as_bytes()[start];
-        let width = line.as_bytes()[start..]
-            .iter()
-            .take_while(|&&byte| byte == marker)
-            .count();
-        let header = line[start + width..].trim_start_matches([' ', '\t']);
-        let trimmed = header.trim_end();
-        if width >= 3
-            && trimmed.starts_with('{')
-            && trimmed.ends_with('}')
-            && trimmed
-                .as_bytes()
-                .get(1)
-                .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
-        {
-            let start = line.len() - header.len();
-            fenced.push_str(&line[..start]);
-            fenced.push('{');
-            fenced.push_str(trimmed);
-            fenced.push('}');
-            fenced.push_str(&header[trimmed.len()..]);
-        } else {
-            fenced.push_str(line);
-        }
+    // Keep ordinary notebook Markdown and HTML unchanged. Recognizable Quarto
+    // execution or metadata syntax gets a whole-note verbatim fallback instead
+    // of trying to sanitize every Markdown construct.
+    // YAML metadata starts with a separator followed by a nonblank line;
+    // blank-separated Markdown rules and underlined headings stay unchanged.
+    let metadata = note.lines().zip(note.lines().skip(1)).any(|(line, next)| {
+        line.trim_start_matches([' ', '\t', '>']).trim_end() == "---"
+            && !next
+                .trim_start_matches([' ', '\t', '>'])
+                .trim_end()
+                .is_empty()
+    });
+    let verbatim = metadata
+        || note.contains("`{")
+        || note.contains("~{")
+        || note.contains("`r ")
+        || note.contains("`r#")
+        || note.contains("{{<")
+        || note
+            .lines()
+            .any(|line| (line.contains("```") || line.contains("~~~")) && line.contains('{'));
+    if verbatim {
+        // A leading blank keeps note text such as `#| include: false` from
+        // becoming options for the verbatim chunk. The shared fence writer
+        // chooses a delimiter longer than any fence in the note.
+        push_fence_with_prefix(document, "{verbatim}", "\n", note);
+    } else {
+        push_note(document, note);
     }
-
-    let mut spaces = Vec::new();
-    let mut remaining = fenced.as_str();
-    while let Some(start) = remaining.find('`') {
-        let width = remaining.as_bytes()[start..]
-            .iter()
-            .take_while(|&&byte| byte == b'`')
-            .count();
-        let delimiter = &remaining[start..start + width];
-        remaining = &remaining[start + width..];
-        let legacy = remaining.starts_with("r ") || remaining.starts_with("r#");
-        let engine = remaining
-            .strip_prefix('{')
-            .and_then(|text| text.split_once('}'));
-        let executable = engine.is_some_and(|(language, code)| {
-            !language.is_empty()
-                && language
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-                && code.starts_with([' ', '\t'])
-        });
-        if legacy || executable {
-            // Pandoc removes one paired space from an inline code span; both
-            // execution engines require their marker immediately after `.
-            let offset = fenced.len() - remaining.len();
-            spaces.push(offset);
-            let end = remaining.match_indices(delimiter).find(|&(index, _)| {
-                (index == 0 || remaining.as_bytes()[index - 1] != b'`')
-                    && remaining.as_bytes().get(index + width) != Some(&b'`')
-            });
-            if let Some((end, _)) = end {
-                spaces.push(offset + end);
-            }
-        }
-    }
-    spaces.sort_unstable();
-    spaces.dedup();
-    let mut escaped = String::with_capacity(fenced.len() + spaces.len());
-    let mut start = 0;
-    for end in spaces {
-        escaped.push_str(&fenced[start..end]);
-        escaped.push(' ');
-        start = end;
-    }
-    escaped.push_str(&fenced[start..]);
-    let escaped = escaped.replace("{{<", "{{{<").replace(">}}", ">}}}");
-    push_note(document, &escaped);
 }
 
 fn push_quarto_fence(document: &mut String, language: &str, source_language: &str, contents: &str) {

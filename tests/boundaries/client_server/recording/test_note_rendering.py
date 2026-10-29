@@ -24,9 +24,37 @@ def test_renders_note_examples_without_evaluating_them(
     binary: Path,
 ) -> TranscriptWithCompanions:
     environment, _ = r_test_environment()
-    note = """## Journal
+    prose = """## Journal
 
 Keep **formatted prose** and `ordinary code`.
+
+---
+
+Observed group
+---
+
+<span class="journal-label">Observed cohort</span>.
+"""
+    note = """---
+Observed total: 42
+---
+
+## Examples
+
+---
+Observed cohort: controls
+...
+
+> ---
+> Observed replicate: 3
+> ---
+
+~~~yaml
+---
+execute:
+  eval: false
+---
+~~~
 
 ```{r}
 writeLines("fence", "note-fence-ran")
@@ -57,6 +85,14 @@ An inline example: `r {writeLines("literal", "note-literal-ran"); "literal"}`.
 
 {{< include included.qmd >}}
 """
+    options_note = """#| include: false
+Keep this literal chunk option visible.
+
+```{r}
+writeLines("option", "note-option-ran")
+```
+"""
+    metadata_note = "--- \r\nexecute:\r\n  eval: false\r\n---\t\r\n"
     with tempfile.TemporaryDirectory() as directory:
         workspace = Path(directory)
         with McpClient(
@@ -67,8 +103,10 @@ An inline example: `r {writeLines("literal", "note-literal-ran"); "literal"}`.
         ) as client:
             client.initialize_and_list_tools()
             wait_for_worker_ready(client, "worker acquired before journal examples")
+            client.expect(note=prose)
             client.expect(note=note)
-            client.expect(r='writeLines("source", "source-ran")')
+            client.expect(note=options_note)
+            client.expect(r='writeLines("source", "source-ran")', note=metadata_note)
             transcript = client.finish()
 
         (recording,) = (workspace / ".agents/console/sessions").iterdir()
@@ -77,8 +115,9 @@ An inline example: `r {writeLines("literal", "note-literal-ran"); "literal"}`.
             for event in events(recording)
             if event["event"] == "tool_call" and "note" in event["request"]["arguments"]
         ]
-        assert notes == [note], notes
-        assert note in (recording / "transcript.md").read_text(encoding="utf-8")
+        assert notes == [prose, note, options_note, metadata_note], notes
+        markdown = (recording / "transcript.md").read_bytes()
+        assert all(text.encode() in markdown for text in notes), markdown
         assert not list(workspace.glob("note-*-ran"))
 
         report = workspace / "report"
@@ -101,21 +140,35 @@ An inline example: `r {writeLines("literal", "note-literal-ran"); "literal"}`.
             "stdout": rendering.stdout,
             "stderr": rendering.stderr,
         }
-        assert (report / "source-ran").read_text() == "source\n"
         assert not list(report.glob("note-*-ran")), sorted(
             path.name for path in report.glob("note-*-ran")
         )
         rendered = document.with_suffix(".html").read_text(encoding="utf-8")
         assert "<strong>formatted prose</strong>" in rendered
+        assert '<span class="journal-label">Observed cohort</span>' in rendered
         visible = RenderedText()
         visible.feed(rendered)
         visible_text = "".join(visible.parts)
+        observed = {
+            "source_executed": (report / "source-ran").exists(),
+            "annotation_visible": "Observed total: 42" in visible_text,
+        }
+        assert observed == {"source_executed": True, "annotation_visible": True}, (
+            observed
+        )
+        assert (report / "source-ran").read_text() == "source\n"
         for contents in (
+            "Observed cohort: controls",
+            "Observed replicate: 3",
+            "#| include: false",
+            "Keep this literal chunk option visible.",
+            "execute:",
+            "eval: false",
             'writeLines("fence", "note-fence-ran")',
             'r {writeLines("inline", "note-inline-ran"); "literal"}',
-            '{r} {writeLines("inline", "note-quarto-inline-ran"); "literal"}',
+            'writeLines("inline", "note-quarto-inline-ran")',
             'r cat("`nested`")',
-            "{{< include included.qmd >}}",
+            'writeLines("include", "note-include-ran")',
         ):
             assert contents in visible_text, contents
         return TranscriptWithCompanions(
