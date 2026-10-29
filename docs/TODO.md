@@ -92,6 +92,12 @@ When that path contains spaces, fixture commands can fail to launch or PATH sear
 Use the quoted shell/Python launcher pattern already exercised by `tests/release.py`, preserving stdin and interpreter arguments, and validate through the affected public commands with an interpreter installed under a path containing spaces.
 Until this is repaired, run development checks with a Python executable whose path contains no spaces.
 
+**DX-4 — Explore explicit object and result context actions in the Shiny fixture.** The [integration fixture](../tests/fixtures/control_shiny/README.md) combines conversational data exploration with shared-session execution and private inspection.
+Consider an "Ask about this object" action that prefills the composer, and links from captured plots or table views to their producing evaluation.
+Keep context handoff deliberate: opening a viewer or changing its filters must not add private queries or rows to the model's context.
+Interactive chart specifications and redraw-at-size support would need an output contract beyond captured images.
+These are interaction design proposals, not requirements for the current control channel.
+
 ## Unselected proposals, not release blockers
 
 An opt-in Git-aware write policy and a separate project-configuration trust mechanism remain future design questions.

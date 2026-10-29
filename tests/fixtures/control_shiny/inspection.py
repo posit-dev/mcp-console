@@ -5,16 +5,40 @@ local({
   variables <- utils::ls.str(envir = globalenv(), all.names = FALSE)
   shown <- variables[seq_len(min(length(variables), 100L))]
   attributes(shown) <- attributes(variables)
-  if (length(shown)) {
-    print(shown, max.level = 1L, vec.len = 4L, list.len = 6L,
-          nchar.max = 80L, give.attr = FALSE, width = 60L,
-          strict.width = "cut", deparse.lines = 2L)
-  } else {
-    cat("(empty)\\n")
+  output <- capture.output({
+    if (length(shown)) {
+      print(shown, max.level = 1L, vec.len = 4L, list.len = 6L,
+            nchar.max = 80L, give.attr = FALSE, width = 60L,
+            strict.width = "cut", deparse.lines = 2L)
+    } else {
+      cat("(empty)\\n")
+    }
+    if (length(variables) > length(shown)) {
+      cat("...", length(variables) - length(shown), "more objects\\n")
+    }
+  })
+  tables <- Filter(function(name) {
+    is.data.frame(get(name, envir = globalenv(), inherits = FALSE))
+  }, as.character(shown))
+  omitted_lines <- omitted_tables <- 0L
+  repeat {
+    suffix <- if (omitted_lines + omitted_tables) {
+      paste("...", omitted_lines, "preview lines and", omitted_tables, "table names omitted")
+    } else character()
+    encoded <- jsonlite::toJSON(list(
+      text = paste(c(output, suffix), collapse = "\\n"), tables = I(tables),
+      omitted_lines = omitted_lines, omitted_tables = omitted_tables
+    ), auto_unbox = TRUE)
+    if (nchar(encoded, type = "bytes") <= 7000L) break
+    if (length(output)) {
+      output <- head(output, -1L)
+      omitted_lines <- omitted_lines + 1L
+    } else {
+      tables <- head(tables, -1L)
+      omitted_tables <- omitted_tables + 1L
+    }
   }
-  if (length(variables) > length(shown)) {
-    cat("...", length(variables) - length(shown), "more objects\\n")
-  }
+  cat(encoded)
 })
 """
 
@@ -24,7 +48,9 @@ PYTHON_SOURCE = (
     "exec("
     + repr("""
 import __main__
+import json
 from itertools import islice
+import pandas as pd
 
 def preview(value: object, depth: int = 0) -> str:
     kind = type(value)
@@ -55,12 +81,27 @@ def preview(value: object, depth: int = 0) -> str:
 
 items = sorted((name, value) for name, value in vars(__main__).copy().items()
                if not name.startswith("__"))
-for name, value in items[:100]:
-    print(name[:80] + " = " + preview(value))
+lines = [name[:80] + " = " + preview(value) for name, value in items[:100]]
 if not items:
-    print("(empty)")
+    lines.append("(empty)")
 if len(items) > 100:
-    print(f"... {len(items) - 100} more symbols")
+    lines.append(f"... {len(items) - 100} more symbols")
+tables = [name for name, value in items[:100] if isinstance(value, pd.DataFrame)]
+omitted_lines = omitted_tables = 0
+while True:
+    suffix = ([f"... {omitted_lines} preview lines and {omitted_tables} table names omitted"]
+              if omitted_lines + omitted_tables else [])
+    encoded = json.dumps({"text": "\\n".join(lines + suffix), "tables": tables,
+                          "omitted_lines": omitted_lines, "omitted_tables": omitted_tables})
+    if len(encoded.encode()) <= 7000:
+        break
+    if lines:
+        lines.pop()
+        omitted_lines += 1
+    else:
+        tables.pop()
+        omitted_tables += 1
+print(encoded)
 """)
     + ", {})"
 )

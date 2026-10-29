@@ -1,0 +1,25 @@
+.history {overflow-y: auto; overflow-anchor: none;}
+.entry {padding: .5rem 0; display: flex; flex-direction: column; gap: .35rem;}
+.submission {align-self: flex-end; width: 94%; background: #eef4fb; border-radius: .5rem; padding: .6rem;}
+.labels {display: flex; gap: .6rem; align-items: baseline; font-size: .8rem;}
+.content {white-space: pre-wrap; font-family: monospace; align-self: flex-start; max-width: 96%; min-width: 0;}
+.entry.running .content {opacity: .6;}
+.entry pre {white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: .2rem;}
+.source code {padding: 0; background: transparent;}
+.stream.stderr, .stream.diagnostic {color: #9c3b00; border-left: 2px solid #cb6c30; padding-left: .5rem;}
+.execution-error {color: #a61717;}
+.captured-plot {max-width: 100%; height: auto; cursor: zoom-in;}
+#plots {overflow-y: auto; resize: vertical; min-height: 160px;}
+#plots figcaption {font-size: .8rem; color: #555;}
+#plot-dialog {max-width: 95vw; max-height: 95vh; padding: .8rem;}
+#plot-enlarged {display: block; max-width: 90vw; max-height: 85vh; object-fit: contain;}
+.variables pre {font-size: .8rem; white-space: pre-wrap; overflow-wrap: anywhere;}
+.table-open {display: block; font-size: .85rem; margin-bottom: .25rem;}
+.notice, .omission {font-size: .85rem; color: #666; padding: .4rem;}
+
+
+.entry.session .submission {align-self: flex-start; background: transparent; padding: 0;}
+.entry.session .source, .entry.session .language {display: none;}
+
+.agent-chat-body {padding: 0; overflow: hidden;}
+#agent_chat {min-height: 0;}
