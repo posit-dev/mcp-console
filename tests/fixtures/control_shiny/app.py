@@ -1155,6 +1155,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                                     {
                                         "ids": [item["id"] for item in submissions],
                                         "text": outcome,
+                                        "status": item.status.value,
                                     },
                                 )
                                 if item.arguments.get("control") == "interrupt":

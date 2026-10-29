@@ -79,6 +79,7 @@ Per-event truncation appears with the event; the aggregate capture notice report
 Long outputs start collapsed; **Expand** and **Collapse** change their display without executing code.
 The compact output area scrolls independently and follows new output only while its viewer remains at the bottom.
 Responses to agent preserves the actual MCP content blocks observed by the agent SDK, including Console's presentation limits and retained-output references.
+When a response arrives before its captured output, the submission stays marked as awaiting capture; a tool failure is reported separately and does not establish whether code executed.
 Polls and control calls remain separate response cards because a response can span earlier output intervals; the app does not infer a cell association from its text.
 Direct human and private immediate results say **Not sent to agent**.
 Delivery to the agent client does not establish that a model read a response.

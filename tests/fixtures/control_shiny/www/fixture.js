@@ -234,11 +234,15 @@
     let existing = view.entries.get(key);
     const provisionalAgent = key.startsWith('agent:');
     if (!existing && meta.origin === 'mcp') {
+      // The SDK response and captured output travel independently. Successful
+      // response-only entries remain candidates until their snapshot arrives.
+      // A failed tool call without associated capture stays separate: source
+      // matching cannot distinguish it from a later retry of identical code.
       const match = [...view.entries.entries()].find(([otherKey, value]) =>
         value.meta?.origin === 'mcp' && value.meta.language === meta.language &&
         (value.source === meta.source || (meta.source_truncated && value.source.startsWith(meta.source)) ||
           (value.sourceTruncated && meta.source.startsWith(value.source))) && !value.agentMatched &&
-        (provisionalAgent || value.meta.state === 'running') &&
+        (provisionalAgent || (!value.toolFailed && value.meta.state !== 'retired')) &&
         otherKey.startsWith('agent:') !== provisionalAgent);
       if (match) {
         existing = match[1];
@@ -354,9 +358,10 @@
       // A new worker snapshot confirms retirement of the previous worker.
       // Its final metadata may have been coalesced out of the subscription.
       for (const item of view.entries.values()) {
-        if (item.meta.state !== 'running') continue;
+        if (!['running', 'awaiting_capture'].includes(item.meta.state)) continue;
         item.meta = {...item.meta, state: 'retired'};
-        item.node.classList.replace('running', 'retired');
+        item.node.classList.remove('running', 'awaiting_capture');
+        item.node.classList.add('retired');
         item.state.textContent = 'Stopped · session replaced';
       }
     }
@@ -499,10 +504,11 @@
       if (!view) return;
       for (const id of message.ids) {
         const item = view.agentRequests.get(id);
-        if (item && !item.actual) {
-          item.node.className = 'entry agent failed';
-          item.state.textContent = 'Not executed';
-          item.meta.state = 'failed';
+        if (item && !item.actual && item.meta.state !== 'retired') {
+          item.toolFailed = message.status === 'failed';
+          item.meta.state = item.toolFailed ? 'failed' : 'awaiting_capture';
+          item.node.className = `entry agent ${item.meta.state}`;
+          item.state.textContent = item.toolFailed ? 'Tool call failed' : 'Response received · awaiting capture';
           item.content.textContent = message.text;
           item.pendingOutcome = true;
           updateOutput(item);

@@ -17,7 +17,12 @@ def chat_frames():
 
 
 @pytest.fixture
-def app(tmp_path, chat_frames):
+def browser_setup():
+    return lambda page: None
+
+
+@pytest.fixture
+def app(tmp_path, chat_frames, browser_setup):
     binary = Path(os.environ["MCP_CONSOLE_TEST_BINARY"]).resolve()
     with socket.socket() as address:
         address.bind(("127.0.0.1", 0))
@@ -52,6 +57,7 @@ def app(tmp_path, chat_frames):
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch()
                 page = browser.new_page()
+                browser_setup(page)
                 browser_errors = []
                 page.on("pageerror", lambda error: browser_errors.append(str(error)))
                 page.on(
