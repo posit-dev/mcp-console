@@ -1,0 +1,27 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: |
+    import signal
+
+    previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    print("integrator pending", flush=True)
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+    signal.signal(signal.SIGINT, previous_handler)
+    print("integrator finished")
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          integrator pending
+          integrator finished
+    isError: false
+    execution_error: ~

@@ -1,4 +1,6 @@
 mod arguments;
+#[cfg(unix)]
+mod control;
 #[cfg(windows)]
 mod input_windows;
 mod presentation;
@@ -684,7 +686,12 @@ pub async fn run(
     startup: Option<crate::settings::startup::Startup>,
     visibility: Option<Languages>,
     tool_settings: crate::settings::Tool,
+    control_socket: Option<PathBuf>,
 ) -> Result<(), Box<dyn Error>> {
+    #[cfg(unix)]
+    let control_listener = control_socket.map(control::Listener::bind).transpose()?;
+    #[cfg(not(unix))]
+    let _ = control_socket;
     let (input_closed, wait_for_input_close) = oneshot::channel();
     let input_closed = InputClosed {
         sender: Arc::new(Mutex::new(Some(input_closed))),
@@ -705,6 +712,8 @@ pub async fn run(
         tool_settings,
     )
     .map_err(std::io::Error::other)?;
+    #[cfg(unix)]
+    let control = control_listener.map(|listener| listener.start(server.clone()));
     let startup = server.startup.clone();
     let deliveries = server.deliveries.clone();
     let sessions = server.sessions.clone();
@@ -747,6 +756,10 @@ pub async fn run(
             .await
             .unwrap_or_else(|_| Instant::now());
         let deadline = shutdown_started + WORKER_SHUTDOWN_GRACE;
+        #[cfg(unix)]
+        if let Some(control) = &control {
+            control.close();
+        }
         let result = sessions.shutdown(deadline).await;
         deliveries
             .settle_before_close(Instant::now() + WORKER_SHUTDOWN_GRACE)
@@ -754,6 +767,10 @@ pub async fn run(
         // Cancellation releases response admission, not capture ownership.
         // Settle every received send before finalizing its journal and projections.
         recordings.close_and_settle().await;
+        #[cfg(unix)]
+        if let Some(control) = control {
+            control.finish().await;
+        }
         let runtime = startup.runtime();
         let diagnostics = runtime.transcript.clone();
         if let Err(error) = tokio::task::spawn_blocking(move || {

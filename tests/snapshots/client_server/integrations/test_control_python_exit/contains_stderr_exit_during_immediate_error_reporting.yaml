@@ -1,0 +1,35 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import os
+    import sys
+
+    worker_pid = os.getpid()
+    sentinel = object()
+    original = sentinel
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(os.getpid() == worker_pid, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        True True
+  isError: false

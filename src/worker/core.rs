@@ -18,6 +18,7 @@ static PENDING_SERVER_MESSAGES: Mutex<VecDeque<ServerMessage>> = Mutex::new(VecD
 static WORKER_FAILURE: Mutex<Option<String>> = Mutex::new(None);
 static WORKER_SHUTDOWN: AtomicBool = AtomicBool::new(false);
 static CELL_LANGUAGE: Mutex<Option<Language>> = Mutex::new(None);
+static EXECUTION_ERROR: Mutex<Option<crate::worker_protocol::ExecutionError>> = Mutex::new(None);
 static BOOTSTRAPPING: AtomicBool = AtomicBool::new(false);
 static BOOTSTRAP_INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
@@ -40,7 +41,31 @@ pub(super) fn bootstrap_interrupted() -> bool {
 }
 
 pub(super) fn begin_cell(language: Language) {
+    *EXECUTION_ERROR.lock().expect("execution error lock") = None;
     *CELL_LANGUAGE.lock().expect("cell language lock poisoned") = Some(language);
+}
+
+pub(crate) fn record_execution_error(error: crate::worker_protocol::ExecutionError) {
+    if super::priority::active() {
+        if let Some(Err(message)) =
+            super::priority::publish(crate::worker_protocol::PriorityEvent::ExecutionError {
+                error,
+            })
+        {
+            record_worker_failure(message);
+        }
+        return;
+    }
+    if cell_language().is_some() {
+        EXECUTION_ERROR
+            .lock()
+            .expect("execution error lock")
+            .get_or_insert(error);
+    }
+}
+
+pub(super) fn take_execution_error() -> Option<crate::worker_protocol::ExecutionError> {
+    EXECUTION_ERROR.lock().expect("execution error lock").take()
 }
 
 pub(super) fn finish_cell() {
@@ -55,11 +80,11 @@ pub(crate) fn initialize(
     reader: crate::sideband::Reader,
     writer: crate::sideband::Writer,
 ) -> io::Result<()> {
-    WORKER_READER
-        .set(Mutex::new(reader))
-        .map_err(|_| io::Error::other("R worker sideband was already initialized"))?;
     WORKER_WRITER
         .set(writer)
+        .map_err(|_| io::Error::other("R worker sideband was already initialized"))?;
+    WORKER_READER
+        .set(Mutex::new(super::priority::ingress(reader)?))
         .map_err(|_| io::Error::other("R worker sideband was already initialized"))
 }
 
@@ -72,9 +97,10 @@ pub(super) fn queued_command() -> Result<Option<ServerMessage>, String> {
 }
 
 pub(crate) fn receive_server_message() -> Result<ServerMessage, String> {
-    worker_reader()?
-        .receive()
-        .map_err(|error| format!("worker sideband read failed: {error}"))
+    worker_reader()?.receive().map_err(|error| {
+        super::priority::ingress_failure()
+            .unwrap_or_else(|| format!("worker sideband read failed: {error}"))
+    })
 }
 
 fn take_pending_server_message() -> Result<Option<ServerMessage>, String> {
@@ -115,6 +141,9 @@ pub(crate) fn emit_output(channel: ConsoleChannel, bytes: &[u8]) {
 }
 
 pub(crate) fn send_input_requested(prompt: &str) -> Result<(), String> {
+    if super::priority::active() {
+        return Err("stdin is unavailable during priority execution".into());
+    }
     WORKER_WRITER
         .get()
         .expect("R worker sideband writer should be initialized")
@@ -149,6 +178,9 @@ pub(crate) fn publish_plot(image: Result<String, String>) {
 pub(crate) fn resolve_python(
     request: crate::worker_protocol::PythonResolveRequest,
 ) -> Result<crate::worker_protocol::NativePythonActivation, String> {
+    if super::priority::active() {
+        return Err("prepare Python dependencies before priority execution".into());
+    }
     let (python, native) = resolve_python_candidate(request)?;
     let native = native.ok_or_else(|| {
         infrastructure_failure("native Python resolver omitted the candidate configuration".into())
@@ -190,7 +222,9 @@ fn resolve_python_candidate(
             mark_shutting_down();
             Err("worker is shutting down".to_string())
         }
-        ServerMessage::Evaluate { .. } => Err(infrastructure_failure(
+        ServerMessage::Evaluate { .. }
+        | ServerMessage::EvaluatePriority { .. }
+        | ServerMessage::PriorityReady => Err(infrastructure_failure(
             "worker received an evaluation while resolving Python".to_string(),
         )),
         ServerMessage::PreparePython { .. } => Err(infrastructure_failure(
@@ -217,6 +251,9 @@ pub(crate) fn publish_python_activation_failure(
 pub(crate) fn resolve_r(
     packages: Vec<String>,
 ) -> Result<crate::r_environment::ResolutionOutcome, String> {
+    if super::priority::active() {
+        return Ok(crate::r_environment::ResolutionOutcome::Unavailable);
+    }
     use crate::r_environment::{ResolutionFailureKind, ResolutionOutcome};
     use crate::worker_protocol::RResolutionFailureKind;
 
@@ -248,6 +285,8 @@ pub(crate) fn resolve_r(
             "worker received a Python resolver response while resolving R".to_string(),
         )),
         ServerMessage::Evaluate { .. }
+        | ServerMessage::EvaluatePriority { .. }
+        | ServerMessage::PriorityReady
         | ServerMessage::PreparePython { .. }
         | ServerMessage::PrepareR { .. } => Err(infrastructure_failure(
             "worker received an operation while resolving R".to_string(),
@@ -266,6 +305,9 @@ pub(crate) fn publish_r_activation_failure(library: String, message: String) -> 
 pub(crate) fn resolve_python_version(
     request: crate::worker_protocol::PythonVersionResolveRequest,
 ) -> Result<String, String> {
+    if super::priority::active() {
+        return Err("prepare Python dependencies before priority execution".into());
+    }
     send_worker_message(&WorkerMessage::ResolvePythonVersion { request })?;
     match receive_resolver_message().map_err(infrastructure_failure)? {
         ServerMessage::PythonVersionResolved { version } => Ok(version),
@@ -274,7 +316,9 @@ pub(crate) fn resolve_python_version(
             mark_shutting_down();
             Err("worker is shutting down".to_string())
         }
-        ServerMessage::Evaluate { .. } => Err(infrastructure_failure(
+        ServerMessage::Evaluate { .. }
+        | ServerMessage::EvaluatePriority { .. }
+        | ServerMessage::PriorityReady => Err(infrastructure_failure(
             "worker received an evaluation while resolving a Python version".to_string(),
         )),
         ServerMessage::PreparePython { .. } => Err(infrastructure_failure(
@@ -303,6 +347,8 @@ fn receive_resolver_message() -> Result<ServerMessage, String> {
         let message = receive_server_message()?;
         match message {
             ServerMessage::Evaluate { .. }
+            | ServerMessage::EvaluatePriority { .. }
+            | ServerMessage::PriorityReady
             | ServerMessage::PreparePython { .. }
             | ServerMessage::PrepareR { .. } => queue_server_message(message)?,
             _ => return Ok(message),
@@ -354,6 +400,13 @@ fn send_output(channel: ConsoleChannel, bytes: &[u8]) -> Result<(), String> {
         return Ok(());
     }
     let data = String::from_utf8_lossy(bytes).into_owned();
+    if super::priority::active() {
+        return super::priority::publish(crate::worker_protocol::PriorityEvent::Output {
+            data,
+            diagnostic: channel == ConsoleChannel::Diagnostic,
+        })
+        .expect("active priority output owner");
+    }
     let message = match channel {
         ConsoleChannel::Output => WorkerMessage::ConsoleOutput { data },
         ConsoleChannel::Diagnostic => WorkerMessage::ConsoleDiagnostic { data },
@@ -364,6 +417,13 @@ fn send_output(channel: ConsoleChannel, bytes: &[u8]) -> Result<(), String> {
 }
 
 fn send_image(data: String) -> Result<(), String> {
+    if super::priority::active() {
+        return super::priority::publish(crate::worker_protocol::PriorityEvent::Image {
+            data,
+            mime_type: "image/png".into(),
+        })
+        .expect("active priority output owner");
+    }
     WORKER_WRITER
         .get()
         .expect("R worker sideband writer should be initialized")

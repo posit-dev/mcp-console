@@ -1,0 +1,376 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  code: stop("previous R failure")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: previous R failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: previous R failure
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  code: 'readline("uncaught input: ")'
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |+
+          [input requested: "uncaught input: "]
+          interrupt option
+
+    isError: false
+    execution_error:
+      ename: Interrupt
+      evalue: R evaluation interrupted
+      traceback: []
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  code: |
+    if (sys.nframe() != 0L) {
+      stop("not top level")
+    }
+    stopifnot(identical(globalCallingHandlers(), initial_handlers))
+    cat("recovered\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          recovered
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "4"
+  op: evaluate
+  language: r
+  code: stop("previous R failure")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "4"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: previous R failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: previous R failure
+      traceback: []
+---
+request:
+  id: "5"
+  op: evaluate
+  language: r
+  code: |
+    cat("signal checkpoint\n")
+    repeat {
+      Sys.sleep(0.1)
+    }
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "5"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |+
+          signal checkpoint
+          interrupt option
+
+    isError: false
+    execution_error:
+      ename: Interrupt
+      evalue: R evaluation interrupted
+      traceback: []
+---
+request:
+  id: "6"
+  op: evaluate
+  language: r
+  code: |
+    if (sys.nframe() != 0L) {
+      stop("not top level")
+    }
+    stopifnot(identical(globalCallingHandlers(), initial_handlers))
+    cat("recovered\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "6"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          recovered
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "7"
+  op: evaluate
+  language: r
+  code: stop("previous R failure")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "7"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: previous R failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: previous R failure
+      traceback: []
+---
+request:
+  id: "8"
+  op: evaluate
+  language: r
+  code: |
+    tryCatch(
+      readline("caught input: "),
+      interrupt = function(condition) cat("caught interrupt\n")
+    )
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "8"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          [input requested: "caught input: "]
+          caught interrupt
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "9"
+  op: evaluate
+  language: r
+  code: |
+    if (sys.nframe() != 0L) {
+      stop("not top level")
+    }
+    stopifnot(identical(globalCallingHandlers(), initial_handlers))
+    cat("recovered\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "9"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          recovered
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "10"
+  op: evaluate
+  language: r
+  code: stop("previous R failure")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "10"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: previous R failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: previous R failure
+      traceback: []
+---
+request:
+  id: "11"
+  op: evaluate
+  language: r
+  code: |
+    tryCatch(
+      readline("converted input: "),
+      interrupt = function(condition) stop("current handler failure")
+    )
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "11"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          [input requested: "converted input: "]
+          Error in value[[3L]](cond) : current handler failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error in value[[3L]](cond) : current handler failure
+      traceback: []
+---
+request:
+  id: "12"
+  op: evaluate
+  language: r
+  code: |
+    if (sys.nframe() != 0L) {
+      stop("not top level")
+    }
+    stopifnot(identical(globalCallingHandlers(), initial_handlers))
+    cat("recovered\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "12"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          recovered
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "13"
+  op: evaluate
+  language: r
+  code: stop("previous R failure")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "13"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: previous R failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: previous R failure
+      traceback: []
+---
+request:
+  id: "14"
+  op: evaluate
+  language: r
+  code: |
+    {
+      globalCallingHandlers(NULL)
+      readline("unobserved input: ")
+    }
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "14"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |+
+          [input requested: "unobserved input: "]
+          interrupt option
+
+    isError: false
+    execution_error:
+      ename: RAbort
+      evalue: R evaluation aborted
+      traceback: []
+---
+request:
+  id: "15"
+  op: evaluate
+  language: r
+  code: |
+    if (sys.nframe() != 0L) {
+      stop("not top level")
+    }
+    stopifnot(identical(globalCallingHandlers(), initial_handlers))
+    cat("recovered\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "15"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          recovered
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "16"
+  op: evaluate
+  language: r
+  code: |
+    globalCallingHandlers(
+      warning = function(condition) invokeRestart("muffleWarning")
+    )
+    warning("suppressed warning")
+    globalCallingHandlers(NULL)
+    cat("global handlers usable\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "16"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          global handlers usable
+    isError: false
+    execution_error: ~

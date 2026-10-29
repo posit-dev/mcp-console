@@ -1,0 +1,44 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    import threading
+
+    def emit_after_gates():
+        for path, text in zip(['<workspace>/gate-0', '<workspace>/gate-1', '<workspace>/gate-2'], ["a" * 5000, "b" * 100, "c" * 20000]):
+            with open(path, "rb", buffering=0) as gate:
+                gate.read(1)
+            print(text, end="", flush=True)
+
+    producer = threading.Thread(target=emit_after_gates)
+    producer.start()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text:
+        text_bytes: 8072
+        concat:
+          - repeat: a
+            count: 3968
+          - |
+
+            [output omitted: 17164 UTF-8 bytes; retained logs: .agents/console/sessions/<recording ID>/capture/sessions/001/]
+
+            […]
+
+            […]
+          - repeat: c
+            count: 3968
+          - |-
+
+            [idle]
+  isError: false

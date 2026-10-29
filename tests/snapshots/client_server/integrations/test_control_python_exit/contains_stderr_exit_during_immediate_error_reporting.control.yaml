@@ -1,0 +1,66 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: |
+    original_stderr = sys.stderr
+
+
+    class ExitWriter:
+        def write(self, text: str) -> int:
+            sys.stderr = original_stderr
+            raise SystemExit("escaped exit")
+
+
+    sys.stderr = ExitWriter()
+    raise ValueError("original failure")
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<string>", line 636, in _mcp_console_eval_cell
+            File "<integrator>", line 11, in <module>
+          ValueError: original failure
+
+          During handling of the above exception, another exception occurred:
+
+          Traceback (most recent call last):
+            File "<string>", line 60, in eval_priority
+            File "<string>", line 642, in _mcp_console_eval_cell
+            File "<string>", line 506, in _mcp_console_print_exception
+            File "<integrator>", line 7, in write
+          SystemExit: escaped exit
+    isError: false
+    execution_error:
+      ename: ValueError
+      evalue: original failure
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<integrator>", line 11, in <module>
+        - |
+          ValueError: original failure
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: print(os.getpid() == worker_pid, sentinel is original)
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          True True
+    isError: false
+    execution_error: ~

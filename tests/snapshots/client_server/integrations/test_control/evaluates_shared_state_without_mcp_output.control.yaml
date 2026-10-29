@@ -1,0 +1,28 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: shared += 2; print('integrator output')
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          integrator output
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "2"
+  op: status
+response:
+  id: "2"
+  result:
+    state: idle
+    idle: true
+    evaluation: ~

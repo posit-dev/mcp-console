@@ -1,0 +1,60 @@
+---
+request:
+  id: "1"
+  op: status
+response:
+  id: "1"
+  result:
+    state: starting
+    idle: false
+    evaluation: ~
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  code: stop("failed prelaunch ran integrator code")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  error:
+    code: execution_failed
+    message: worker startup failed; code was not run
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  code: stop("failed prelaunch ran integrator code")
+response:
+  id: "3"
+  error:
+    code: execution_failed
+    message: worker startup failed; code was not run
+---
+request:
+  id: "4"
+  op: status
+response:
+  id: "4"
+  result:
+    state: failed
+    idle: false
+    evaluation: ~
+---
+request:
+  id: "5"
+  op: preview
+response:
+  id: "5"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |-
+          Can't read R resource directories: exit status: 1: <R_HOME>/bin/Rcmd: line 39: <R_HOME>/etc/Renviron: Operation not permitted
+
+          [worker sideband read failed: worker sideband closed]
+          [worker exited with status 1]
+    isError: false

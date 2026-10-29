@@ -1206,6 +1206,9 @@ def test_retries_managed_import_setup_after_interrupt(
     binary: Path, execution: Execution
 ) -> Transcript:
     thread_line = runtime_source_line("self._thread = self._threading.get_ident()")
+    input_line = runtime_source_line(
+        "return readline(str(prompt))", filename="services.py"
+    )
     # The import finder captures its configuring thread after module defaults.
     # Interrupt that public threading call once, then retry without bootstrap.
     source = code("""
@@ -1237,7 +1240,7 @@ def test_retries_managed_import_setup_after_interrupt(
             "Traceback (most recent call last):\n"
             f'  File "<string>", line {thread_line}, in configure\n'
             '  File "<setup checkpoint>", line 9, in configuring_thread\n'
-            '  File "<string>", line 50, in _console_input\n'
+            f'  File "<string>", line {input_line}, in _console_input\n'
             "KeyboardInterrupt\n",
             "managed import setup interruption",
             control="interrupt",
@@ -1272,6 +1275,9 @@ def test_retries_matplotlib_setup_after_interrupt(
     configuration_line = runtime_source_line("_defaults.apply(name)")
     apply_line = runtime_source_line("self._install_show()")
     show_line = runtime_source_line('_setattr(pyplot, "show", show)')
+    input_line = runtime_source_line(
+        "return readline(str(prompt))", filename="services.py"
+    )
     # A module attribute setter blocks first-cell setup on managed input.
     # Its public input request is the checkpoint for a real interrupt.
     source = code("""
@@ -1318,7 +1324,7 @@ def test_retries_matplotlib_setup_after_interrupt(
             f'  File "<string>", line {apply_line}, in apply\n'
             f'  File "<string>", line {show_line}, in _mcp_console_install_matplotlib_show\n'
             '  File "<setup checkpoint>", line 13, in __setattr__\n'
-            '  File "<string>", line 50, in _console_input\n'
+            f'  File "<string>", line {input_line}, in _console_input\n'
             "KeyboardInterrupt\n",
             "Matplotlib setup interruption",
             control="interrupt",

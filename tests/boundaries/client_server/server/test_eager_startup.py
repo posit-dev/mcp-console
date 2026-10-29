@@ -434,7 +434,9 @@ def ready_without_send(
                             {pid for pid, _, _ in descendants} - retirement.wait(0)
                         )
                         assert not survivors, (
-                            f"prelaunch resources survived MCP closure: {survivors}"
+                            f"prelaunch resources survived MCP closure: {survivors}; "
+                            f"captured identities: {descendants}; "
+                            f"identities still present: {live_processes(descendants)}"
                         )
                         return [*client.finish(), {"prelaunch_resources_retired": True}]
                     finally:

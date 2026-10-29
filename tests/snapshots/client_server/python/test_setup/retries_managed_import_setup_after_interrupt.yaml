@@ -20,7 +20,7 @@ result:
         Traceback (most recent call last):
           File "<string>", line 144, in configure
           File "<setup checkpoint>", line 9, in configuring_thread
-          File "<string>", line 50, in _console_input
+          File "<string>", line 54, in _console_input
         KeyboardInterrupt
   isError: false
 ---

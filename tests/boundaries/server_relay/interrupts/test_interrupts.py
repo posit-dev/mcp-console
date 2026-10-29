@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import json
 import select
 import sys
 import tempfile
@@ -11,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.server_relay._harness import (
     CAPTURE_NAME,
     CONTROLLED_COMPLETION_RELEASE_NAME,
-    CONTROLLED_COMPLETION_SENT_NAME,
     EVALUATING_NAME,
     INTERRUPT_ACK_RELEASE_NAME,
     INTERRUPT_ACKNOWLEDGED_NAME,
@@ -28,9 +28,10 @@ from boundaries.server_relay._harness import (
 from support.progress import without_elapsed, without_elapsed_result
 from support.assertions import tool_text as _tool_text
 from support.assertions import wait_for_worker_ready
-from support.checkpoints import FifoCheckpoint
+from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.previews import session_directory
 from support.records import Transcript
 from support.requirements import POSIX, PROCESS_EVENTS, requires
 from support.resolvers import fake_ir_environment as _fake_ir_environment
@@ -200,38 +201,67 @@ def test_control_only_interrupt_preserves_controlled_completion_marker(
     # MCP initialization does not await configuration. A zero-timeout control
     # requires it, and this scenario tests completion after that startup phase.
     wait_for_worker_ready(client.client, "configuration before controlled restart")
-    result = client.send(
+    controlled = client.client.start_send(
         control="restart",
         r="controlled cell completed before later interrupt",
         timeout_ms=0,
     )
-    assert _tool_text(result).endswith("[running; poll with an empty send]"), result
+    client.client.receive(controlled)
+    assert _tool_text(controlled["result"]).endswith(
+        "[running; poll with an empty send]"
+    ), controlled
 
     relay_root = client.relay_root()
     completion_release = FifoCheckpoint.attach(
         relay_root / CONTROLLED_COMPLETION_RELEASE_NAME
-    )
-    completion_sent = FifoCheckpoint.attach(
-        relay_root / CONTROLLED_COMPLETION_SENT_NAME
     )
     finished = False
     released = False
     try:
         completion_release.release()
         released = True
-        completion_sent.wait()
+        journal = session_directory(client.client) / "capture/events.jsonl"
+
+        def completion_recorded() -> Path | None:
+            events = [
+                json.loads(line)
+                for line in journal.read_text().splitlines(keepends=True)
+                if line.endswith("\n")
+            ]
+            calls = {
+                event["call_id"]
+                for event in events
+                if event["event"] == "tool_call"
+                and event["request_id"] == controlled["id"]
+            }
+            return (
+                journal
+                if any(
+                    event["event"] == "source_finished" and event["call_id"] in calls
+                    for event in events
+                )
+                else None
+            )
+
+        # Completion sent by the fixture is not yet completion observed by the
+        # controller. This public record follows the admission outcome commit.
+        wait_for_checkpoint(
+            completion_recorded,
+            "controlled cell completion recorded before interrupt",
+            root=journal.parent,
+            client=client.client,
+        )
 
         result = client.send(control="interrupt", timeout_ms=3_000)
         assert _tool_text(result) == (
             "controlled cell completed before later interrupt\n[done]"
         )
-        transcript = client.finish_active()
+        transcript = client.finish_shutdown()
         finished = True
     finally:
         if not released:
             completion_release.release()
         completion_release.close()
-        completion_sent.close()
         if not finished:
             stop_client(client.client)
             client._temporary.cleanup()
@@ -242,7 +272,10 @@ def test_control_only_interrupt_preserves_controlled_completion_marker(
         "language": "r",
         "source": "controlled cell completed before later interrupt",
     }, commands
-    assert commands[1] == {"kind": "interrupt", "request_id": 0}, commands
+    assert commands[1] == {
+        "kind": "shutdown",
+        "grace_millis": "<remaining shutdown grace>",
+    }, commands
     assert len(commands) == 2, commands
     return transcript
 

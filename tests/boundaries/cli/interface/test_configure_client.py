@@ -26,6 +26,11 @@ from support.requirements import POSIX, requires
 from support.suites import run_this_suite
 
 
+SCHEMA_LIMIT_COMMENT = (
+    "# Limit schema size to less than roughly 1% of the stock 272k-token context."
+)
+
+
 def environment(root: Path) -> dict[str, str]:
     return os.environ | {
         "CODEX_HOME": str(root / "codex-home"),
@@ -142,6 +147,10 @@ def test_multiple_clients_pins_names_and_serve_arguments(binary: Path) -> Transc
                 assert list(mapping) == [name], config
                 assert mapping[name]["command"] == "uvx"
                 assert mapping[name]["args"] == expected[client], mapping[name]
+                if client == "codex":
+                    assert mapping[name]["tool_input_schema_max_bytes"] == 12_000
+                    assert path.read_text().count(SCHEMA_LIMIT_COMMENT) == 1
+                    assert result.stdout.count(SCHEMA_LIMIT_COMMENT) == 1
             records.append({"version_suffix": pin, "clients": 2, "args": expected})
     return records
 
@@ -484,6 +493,7 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
             'args = ["old"] # argument annotation\n'
             "enabled = false # enable annotation\n"
             "omit_tools_from = [] # discovery annotation\n"
+            "tool_input_schema_max_bytes = 5000 # schema annotation\n"
         )
         path.write_text(source, encoding="utf-8")
         result = configure(binary, root, root, "codex")
@@ -495,6 +505,8 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
             "# argument annotation",
             "# enable annotation",
             "# discovery annotation",
+            "# schema annotation",
+            SCHEMA_LIMIT_COMMENT,
         ):
             assert updated.count(comment) == 1, updated
         assert server(read_config(path, "codex"), "codex")["args"] == [
@@ -503,6 +515,10 @@ def test_comments_on_updated_toml_fields_are_preserved(binary: Path) -> Transcri
             "--default-config",
             "sandbox.profile=inherit_codex",
         ]
+        assert (
+            server(read_config(path, "codex"), "codex")["tool_input_schema_max_bytes"]
+            == 12_000
+        )
         result = configure(binary, root, root, "codex")
         assert result.returncode == 0 and path.read_text(encoding="utf-8") == updated, (
             result
@@ -1705,6 +1721,18 @@ def test_inline_toml_and_existing_project_json(binary: Path) -> Transcript:
                 'console = { command = "old", env = { KEEP = "value" } } }\n',
             ),
             (
+                "codex",
+                '[mcp_servers]\nother = { command = "other" }\n'
+                '# Keep the server comment.\nconsole = { command = "old", '
+                'env = { KEEP = "value" } }\n',
+            ),
+            (
+                "codex",
+                '# Keep dotted keys.\nmcp_servers.other.command = "other"\n'
+                'mcp_servers.console.command = "old"\n'
+                'mcp_servers.console.env.KEEP = "value"\n',
+            ),
+            (
                 "claude",
                 '{"mcpServers": {"other": {"command": "other"}, '
                 '"console": {"command": "old", "env": {"KEEP": "value"}}}}',
@@ -1729,7 +1757,18 @@ def test_inline_toml_and_existing_project_json(binary: Path) -> Transcript:
             assert entry["env"] == {"KEEP": "value"}
             mapping = config["mcp_servers" if client == "codex" else "mcpServers"]
             assert mapping["other"] == {"command": "other"}
-            records.append({"client": client, "console": entry})
+            updated = path.read_text(encoding="utf-8")
+            if client == "codex":
+                assert updated.count(SCHEMA_LIMIT_COMMENT) == 1, updated
+                for line in source.splitlines():
+                    if line.startswith("#"):
+                        assert updated.count(line) == 1, updated
+            repeated = configure(binary, root, root, client, "--directory", ".")
+            assert repeated.returncode == 0 and not repeated.stderr, repeated
+            assert path.read_text(encoding="utf-8") == updated
+            records.append(
+                {"client": client, "console": entry, "configuration": updated}
+            )
     return records
 
 

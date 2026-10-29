@@ -1,0 +1,19 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: sentinel = 0
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: print(sentinel)
+result:
+  content:
+    - type: text
+      text: |
+        0
+  isError: false

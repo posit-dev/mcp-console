@@ -1,0 +1,39 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: import matplotlib.pyplot as plt
+  requirements:
+    python:
+      - matplotlib
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        _ = gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        _ = gate.read(1)
+    _ = plt.plot([3, 1])
+    plt.show()
+  timeout_ms: 60000
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to ordinary plot>
+      mimeType: image/png
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

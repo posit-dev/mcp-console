@@ -1,0 +1,86 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: wakeup_count <- 0L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    wakeup_release <- FALSE
+    gate <- fifo("<workspace>/entered-0", "wb", blocking = TRUE)
+    writeBin(charToRaw("1"), gate)
+    close(gate)
+    while (!wakeup_release) {
+      Sys.sleep(0.001)
+    }
+    cat("foreground complete\n")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        foreground complete
+  isError: false
+---
+send:
+  r: wakeup_count
+result:
+  content:
+    - type: text
+      text: |
+        [1] 4096
+  isError: false
+---
+send:
+  r: |
+    wakeup_release <- FALSE
+    gate <- fifo("<workspace>/entered-1", "wb", blocking = TRUE)
+    writeBin(charToRaw("1"), gate)
+    close(gate)
+    while (!wakeup_release) {
+      Sys.sleep(0.001)
+    }
+    cat("foreground complete\n")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        foreground complete
+  isError: false
+---
+send:
+  r: wakeup_count
+result:
+  content:
+    - type: text
+      text: |
+        [1] 4097
+  isError: false

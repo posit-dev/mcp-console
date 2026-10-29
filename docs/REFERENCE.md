@@ -70,6 +70,10 @@ For reading and reusing a session, see [Recordings and reports](RECORDING.md).
 - [MCP send reference](API.md) documents tool arguments, results, output limits, call ordering, and requirements actions.
 - [Drive send directly](SEND_OPERATIONS.md) is a guide to polling, interactive input, interruption, and restart.
 
+### Internal integrator socket
+
+- [Integrator control channel](INTEGRATOR_CONTROL.md) documents the experimental Unix socket, which has no compatibility guarantees.
+
 ### Packages
 
 - The [Python API](https://posit-dev.github.io/mcp-console/python/reference/) documents synchronous and asynchronous clients and model integrations.

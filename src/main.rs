@@ -127,6 +127,7 @@ fn main() -> ExitCode {
         cli::Command::Serve {
             worker,
             relay,
+            control_socket,
             no_sandbox,
             writable_root,
             overrides: command_overrides,
@@ -134,7 +135,14 @@ fn main() -> ExitCode {
             if let Err(error) = overrides.extend(command_overrides) {
                 return exit_with_error(error);
             }
-            match run_server(worker, relay, no_sandbox, writable_root, &overrides) {
+            match run_server(
+                worker,
+                relay,
+                control_socket,
+                no_sandbox,
+                writable_root,
+                &overrides,
+            ) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => exit_with_error(error),
             }
@@ -238,10 +246,15 @@ fn resolve_configuration(
 fn run_server(
     worker: Option<std::path::PathBuf>,
     relay: Option<std::path::PathBuf>,
+    control_socket: Option<std::path::PathBuf>,
     no_sandbox: bool,
     writable_roots: Vec<std::path::PathBuf>,
     overrides: &cli::ConfigOverrides,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(not(unix))]
+    if control_socket.is_some() {
+        return Err("--control-socket is available only on Unix".into());
+    }
     let directory = std::env::current_dir()?;
     let settings::Captured {
         profile,
@@ -289,12 +302,14 @@ fn run_server(
     } else {
         sandbox.configure(None, python.as_ref())?
     };
-    // Server stdio uses blocking adapters and child processes have native
-    // observers. Keep the warmup client's I/O and signal drivers out of this
-    // runtime even when Cargo features enable them for the executable.
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_time()
-        .build()?;
+    // Stdio uses blocking adapters and child processes have native observers.
+    // Only the optional control socket needs this runtime's I/O driver.
+    let mut builder = tokio::runtime::Builder::new_current_thread();
+    builder.enable_time();
+    if control_socket.is_some() {
+        builder.enable_io();
+    }
+    let runtime = builder.build()?;
     let result = runtime.block_on(server::run(
         worker,
         relay,
@@ -304,6 +319,7 @@ fn run_server(
         startup,
         languages,
         tool,
+        control_socket,
     ));
     // `server::run` has already finished owned runtime retirement and response settling. Tokio's
     // stdout uses a blocking task that cannot be cancelled while the client

@@ -20,9 +20,12 @@ impl Parser {
         let length = c_int::try_from(source.len())
             .map_err(|_| "R source exceeds R's maximum string size".to_string())?;
         // Direct evaluation bypasses REPL task callbacks, history, and .Last.value.
-        // R_ToplevelExec contains unexpected errors and interrupts. The helper
-        // returns NULL or a diagnostic without invoking top-level error handling.
+        // The helper returns NULL or a diagnostic without invoking top-level
+        // error handling. Its native boundary needs its own observers because
+        // R_ToplevelExec clears handlers from the surrounding evaluation.
+        super::reset_condition_observation();
         let result = harp::top_level_exec(|| unsafe {
+            super::mcp_r_observe_conditions();
             let text = libr::Rf_mkCharLenCE(source.as_ptr().cast(), length, libr::cetype_t_CE_UTF8);
             let text = libr::Rf_protect(libr::Rf_ScalarString(text));
             let call = libr::Rf_protect(libr::Rf_lang2(self.helper.sexp, text));
@@ -40,9 +43,16 @@ impl Parser {
         let message = match result {
             Ok(message) => message,
             // R already reported an unexpected error or interrupt.
-            Err(_) => return Ok(false),
+            Err(_) => {
+                super::record_unwind_error();
+                return Ok(false);
+            }
         };
         if let Some(message) = message {
+            crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "SyntaxError",
+                message.clone(),
+            ));
             emit_output(
                 ConsoleChannel::Diagnostic,
                 format!("Error: {message}\n").as_bytes(),

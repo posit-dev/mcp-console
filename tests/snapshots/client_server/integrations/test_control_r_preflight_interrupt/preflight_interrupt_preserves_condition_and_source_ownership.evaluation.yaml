@@ -1,0 +1,191 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  code: stop("earlier R failure")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: earlier R failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: earlier R failure
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  code: |
+    invisible(trace(
+      "str2expression",
+      where = baseenv(),
+      print = FALSE,
+      tracer = quote({
+        untrace("str2expression", where = baseenv())
+        readline("uncaught preflight: ")
+      })
+    ))
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Tracing function "str2expression" in package "base"
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  code: preflight_source_ran <- TRUE
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |+
+          Untracing function "str2expression" in package "base"
+          [input requested: "uncaught preflight: "]
+          preflight interrupt option
+
+    isError: false
+    execution_error:
+      ename: Interrupt
+      evalue: R evaluation interrupted
+      traceback: []
+---
+request:
+  id: "4"
+  op: evaluate
+  language: r
+  code: |
+    stopifnot(identical(preflight_source_ran, FALSE))
+    if (sys.nframe() != 0L) {
+      stop("not top level")
+    }
+    cat("recovered\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "4"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          recovered
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "5"
+  op: evaluate
+  language: r
+  code: stop("earlier R failure")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "5"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: earlier R failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: earlier R failure
+      traceback: []
+---
+request:
+  id: "6"
+  op: evaluate
+  language: r
+  code: |
+    invisible(trace(
+      "str2expression",
+      where = baseenv(),
+      print = FALSE,
+      tracer = quote({
+        untrace("str2expression", where = baseenv())
+        tryCatch(
+          readline("handled preflight: "),
+          interrupt = function(condition) cat("caught preflight interrupt\n")
+        )
+      })
+    ))
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "6"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Tracing function "str2expression" in package "base"
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "7"
+  op: evaluate
+  language: r
+  code: preflight_source_ran <- TRUE
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "7"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Untracing function "str2expression" in package "base"
+          [input requested: "handled preflight: "]
+          caught preflight interrupt
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "8"
+  op: evaluate
+  language: r
+  code: |
+    stopifnot(identical(preflight_source_ran, TRUE))
+    if (sys.nframe() != 0L) {
+      stop("not top level")
+    }
+    cat("recovered\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "8"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          recovered
+    isError: false
+    execution_error: ~

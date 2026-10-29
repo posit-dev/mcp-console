@@ -100,13 +100,15 @@ def recording_events(recording: Path) -> list[dict]:
 
 def cell_output_path(recording: Path, call_id: int) -> Path:
     """Resolve public call/cell associations, including polls and replacements."""
-    (event,) = [
-        event
-        for event in recording_events(recording)
-        if event["event"] == "cell_started" and event["call_id"] == call_id
-    ]
-    owner = event["owner"]
-    return (
-        recording
-        / f"capture/sessions/{owner['session_id']:03}/cell-{owner['cell_id']:03}.txt"
-    )
+    # Later delivery events may still be mid-append after a response arrives.
+    # Read only through this cell's association, without decoding the live tail.
+    with (recording / "capture/events.jsonl").open("rb") as journal:
+        for line in journal:
+            event = json.loads(line)
+            if event["event"] == "cell_started" and event["call_id"] == call_id:
+                owner = event["owner"]
+                return (
+                    recording
+                    / f"capture/sessions/{owner['session_id']:03}/cell-{owner['cell_id']:03}.txt"
+                )
+    raise AssertionError(f"No recorded cell for call {call_id}")

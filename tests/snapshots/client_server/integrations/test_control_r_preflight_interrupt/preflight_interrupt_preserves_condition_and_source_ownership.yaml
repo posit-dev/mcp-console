@@ -1,0 +1,22 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    preflight_source_ran <- FALSE
+    options(interrupt = function() cat("preflight interrupt option\n"))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

@@ -75,11 +75,32 @@ pub(super) enum SelectedInterruptTarget {
     NoTarget,
 }
 
+/// Owns the selected evaluation and connection across interrupt acknowledgment.
+#[cfg(unix)]
+pub(crate) struct IntegratorInterrupt(SelectedInterruptTarget);
+
+pub(super) enum InterruptOutcome {
+    Accepted,
+    TargetCompleted,
+}
+
+#[cfg(unix)]
+impl IntegratorInterrupt {
+    pub(crate) fn interrupt(self) -> Result<(), super::IntegratorError> {
+        match self.0.interrupt()? {
+            InterruptOutcome::Accepted => Ok(()),
+            InterruptOutcome::TargetCompleted => Err(super::IntegratorError::StaleEvaluation),
+        }
+    }
+}
+
 impl SelectedInterruptTarget {
-    fn interrupt(&self) -> Result<(), String> {
+    fn interrupt(&self) -> Result<InterruptOutcome, String> {
         match self {
-            Self::Resolver { resolver, .. } => resolver.interrupt().map(|_| ()),
-            Self::Startup { .. } => Ok(()),
+            Self::Resolver { resolver, .. } => {
+                resolver.interrupt().map(|_| InterruptOutcome::Accepted)
+            }
+            Self::Startup { .. } => Ok(InterruptOutcome::Accepted),
             Self::Worker {
                 worker, evaluation, ..
             } => worker.interrupt(evaluation.as_deref()),
@@ -214,6 +235,37 @@ impl LifecycleControl {
 
     pub(super) fn has_worker(&self) -> bool {
         self.processes.worker.is_some()
+    }
+
+    pub(super) fn worker_bootstrapping(&self) -> Result<bool, String> {
+        self.processes
+            .worker
+            .as_ref()
+            .map_or(Ok(false), |worker| worker.is_bootstrapping())
+    }
+
+    pub(super) fn worker_connection(&self) -> Option<platform::WorkerShutdownHandle> {
+        self.processes.worker.clone()
+    }
+
+    pub(super) fn integrator_phase(&self) -> Option<&'static str> {
+        if self
+            .processes
+            .resolver
+            .as_ref()
+            .and_then(|resolver| resolver.phase_observation().phase())
+            .is_some()
+        {
+            return Some("preparing");
+        }
+        if self.controlled_send.is_some() {
+            return Some("busy");
+        }
+        #[cfg(any(unix, windows))]
+        if let Some(worker) = &self.processes.worker {
+            return worker.phase_observation();
+        }
+        None
     }
 
     pub(super) fn startup_observation(&self) -> Option<Weak<AtomicBool>> {
@@ -407,6 +459,7 @@ impl Drop for ControlledSendAdmission {
             .is_some_and(|token| Arc::ptr_eq(token, &self.token))
         {
             lifecycle.controlled_send = None;
+            self.client.0.admission_changed.notify_waiters();
         }
     }
 }
@@ -520,7 +573,32 @@ impl Client {
     }
 
     pub(super) fn interrupt_standalone_blocking(&self) -> Result<(), String> {
-        self.select_interrupt_target(false)?.interrupt()
+        self.select_interrupt_target(false)?.interrupt().map(|_| ())
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn select_integrator_interrupt(
+        &self,
+        evaluation_id: u64,
+    ) -> Result<IntegratorInterrupt, super::IntegratorError> {
+        let active = self.evaluation()?;
+        let mut lifecycle = self
+            .0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        let evaluation = &active
+            .as_ref()
+            .filter(|active| active.evaluation.id() == evaluation_id)
+            .ok_or(super::IntegratorError::StaleEvaluation)?
+            .evaluation;
+        lifecycle.ensure_generation(&evaluation.admission.generation)?;
+        if evaluation.admission.outcome()?.is_some() {
+            return Err(super::IntegratorError::StaleEvaluation);
+        }
+        Self::select_interrupt_locked(false, &active, &mut lifecycle)
+            .map(IntegratorInterrupt)
+            .map_err(Into::into)
     }
 
     pub(super) fn interrupt_blocking(&self) -> Result<SelectedInterruptTarget, String> {
@@ -539,6 +617,14 @@ impl Client {
             .lifecycle
             .lock()
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        Self::select_interrupt_locked(controlled, &active, &mut lifecycle)
+    }
+
+    fn select_interrupt_locked(
+        controlled: bool,
+        active: &Option<super::ActiveEvaluation>,
+        lifecycle: &mut LifecycleControl,
+    ) -> Result<SelectedInterruptTarget, String> {
         let evaluation = active
             .as_ref()
             .filter(|active| {
@@ -553,7 +639,7 @@ impl Client {
         if startup.is_some()
             && let Some(evaluation) = &evaluation
         {
-            evaluation.admission.interrupt(|| Ok(()))?;
+            let _ = evaluation.admission.interrupt(|| Ok(()))?;
         }
         if let Some(resolver) = lifecycle.processes.resolver.clone() {
             return Ok(SelectedInterruptTarget::Resolver {
@@ -802,6 +888,7 @@ impl Client {
         self.publish_replacement_requirements(environment);
         let (processes, deadline, generation) =
             lifecycle.start_restart(grace, OldGenerationCommitDisposition::DiscardForReplacement);
+        self.0.admission_changed.notify_waiters();
         self.0
             .startup_stdin
             .lock()
@@ -931,6 +1018,45 @@ impl Client {
             || (self.0.output.take(), Response::default()),
             |evaluation| evaluation.take_output(&self.0.output),
         );
+
+        if evaluation
+            .as_ref()
+            .is_some_and(EvaluationReservation::is_integrator)
+        {
+            let mut evaluation = evaluation.expect("integrator reservation");
+            let mut response = post_completion_output;
+            let mut sideband = old_output;
+            if evaluation.unfinished() {
+                sideband.push_notice(evaluation.stopped_notice());
+                sideband.mark_error();
+            }
+            let delivery = if let Some(delivery) = evaluation.take_pending_delivery() {
+                // A terminal sideband response already owns the cell cut.
+                // Remaining observations belong to the ordinary idle interval.
+                response.extend_logical_region(sideband);
+                Some(delivery)
+            } else {
+                match evaluation.deliver(sideband) {
+                    Ok(RestartDelivery::Waiting(delivery)) => Some(delivery),
+                    Ok(RestartDelivery::Unclaimed(_)) => None,
+                    Err(error) => {
+                        return Err(RestartFailure::with_response(error.message, response));
+                    }
+                }
+            };
+            if let Some(delivery) = delivery {
+                // Sideband results are never recovered by an MCP control response.
+                let _ = delivery.recv();
+            }
+            // The private collector restores its held MCP prelude before
+            // acknowledging. Retain that output and any later MCP recovery or
+            // post-cell intervals ahead of the restart's own notices.
+            response.extend_logical_region(self.0.output.take());
+            if retired_worker {
+                response.push_notice(super::output::WORKER_STOPPED_NOTICE);
+            }
+            return Ok(response);
+        }
 
         let mut response = Response::default();
         let mut wait_for_send = None;
@@ -1226,6 +1352,7 @@ impl Client {
             .transpose()?;
         let (processes, deadline, generation) =
             lifecycle.start_restart(grace, OldGenerationCommitDisposition::Commit);
+        self.0.admission_changed.notify_waiters();
         self.0
             .startup_stdin
             .lock()
@@ -1521,6 +1648,7 @@ impl Client {
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
         if !matches!(lifecycle.state, LifecycleState::ShuttingDown { .. }) {
             lifecycle.state = LifecycleState::ShuttingDown { deadline };
+            self.0.admission_changed.notify_waiters();
         }
         let handles = lifecycle.processes.clone();
         let deadline = match lifecycle.state {

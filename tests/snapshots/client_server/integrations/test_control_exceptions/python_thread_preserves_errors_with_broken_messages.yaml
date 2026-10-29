@@ -1,0 +1,76 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: |
+    sentinel = object()
+    original = sentinel
+
+
+    class BrokenMessage(Exception):
+        calls = 0
+        formatter_failure = RuntimeError
+
+        def __str__(self) -> str:
+            type(self).calls += 1
+            raise self.formatter_failure("formatter failure")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    BrokenMessage.calls = 0; BrokenMessage.formatter_failure = RuntimeError
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(BrokenMessage.calls, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        1 True
+  isError: false
+---
+send:
+  python: BrokenMessage.calls = 0; BrokenMessage.formatter_failure = SystemExit
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(BrokenMessage.calls, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        1 True
+  isError: false

@@ -1,0 +1,83 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    formatter_calls <- 0L
+    fail_query <- function() stop("")
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    library(DBI)
+    sentinel <- new.env()
+    original <- sentinel
+    setClass(
+      "ControlErrorConnection",
+      contains = "DBIConnection",
+      slots = c(native = "ANY")
+    )
+    setMethod(
+      "dbIsValid",
+      "ControlErrorConnection",
+      function(dbObj, ...) DBI::dbIsValid(dbObj@native)
+    )
+    setMethod(
+      "dbSendQuery",
+      c("ControlErrorConnection", "character"),
+      function(conn, statement, ...) {
+        if (identical(statement, "SELECT fail")) {
+          fail_query()
+        }
+        DBI::dbSendQuery(conn@native, statement, ...)
+      }
+    )
+    selected <- new("ControlErrorConnection", native = .console$sql_connection())
+    .console$sql_connection(selected)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    cat(
+      paste(
+        formatter_calls,
+        identical(sentinel, original),
+        identical(.console$sql_connection(), selected)
+      ),
+      "\n",
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        0 TRUE TRUE
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

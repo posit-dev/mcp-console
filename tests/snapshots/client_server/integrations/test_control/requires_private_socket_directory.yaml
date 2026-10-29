@@ -1,0 +1,5 @@
+---
+exit_code: 1
+stderr: >
+  control socket requires a private parent directory owned by the current
+  user (mode 0700)

@@ -1,0 +1,13 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: must_not_run = True
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  error:
+    code: execution_failed
+    message: worker is restarting

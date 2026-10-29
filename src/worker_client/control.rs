@@ -606,6 +606,9 @@ impl Client {
             return Err("session restarted before the interrupted evaluation settled".to_string());
         }
         let evaluation = current.evaluation.clone();
+        if evaluation.is_integrator() {
+            return Ok(PriorEvaluation::Active(evaluation));
+        }
         // A code-free interrupt observes through a wait claim, including after
         // completion. It must not retire another send's evaluation or delivery.
         if !cell_follows {

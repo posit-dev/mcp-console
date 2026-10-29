@@ -1,0 +1,126 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  code: stop("outer", call. = FALSE)
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: outer
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: outer
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  code: f <- function() stop("outer"); f()
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error in f() : outer
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error in f() : outer
+      traceback: []
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  code: stop(custom_error)
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: custom outer
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: custom outer
+      traceback: []
+---
+request:
+  id: "4"
+  op: evaluate
+  language: r
+  code: |
+    options(
+      show.error.messages = FALSE,
+      error = function() {
+        try(stop("inner"), silent = TRUE)
+        cat(geterrmessage(), file = stderr())
+      }
+    )
+    stop("hidden outer", call. = FALSE)
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "4"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error in try(stop("inner"), silent = TRUE) : inner
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: R evaluation failed (diagnostic unavailable)
+      traceback: []
+---
+request:
+  id: "5"
+  op: evaluate
+  language: r
+  code: |
+    options(show.error.messages = TRUE)
+    error_path <- tempfile()
+    error_file <- file(error_path, "wt")
+    sink(error_file, type = "message")
+    options(error = function() {
+      sink(type = "message")
+      try(stop("inner"), silent = TRUE)
+      cat(geterrmessage(), file = stderr())
+    })
+    stop("redirected outer", call. = FALSE)
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "5"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error in try(stop("inner"), silent = TRUE) : inner
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: R evaluation failed (diagnostic unavailable)
+      traceback: []

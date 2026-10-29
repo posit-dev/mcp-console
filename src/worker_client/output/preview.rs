@@ -51,7 +51,27 @@ pub(super) struct Preview {
     omitted_control_bytes: u64,
 }
 
+#[derive(Clone, Copy)]
+enum ProjectionMode {
+    Measure,
+    Inspect,
+    Record,
+}
+
 impl Preview {
+    pub(super) fn inspection_copy(&self) -> Self {
+        let mut preview = self.clone();
+        for part in &mut preview.parts {
+            if let Part::Source(source) = part {
+                source.file = source
+                    .file
+                    .as_ref()
+                    .map(crate::transcript::OutputRecord::inspection_copy);
+            }
+        }
+        preview
+    }
+
     pub(super) fn phase_before_terminal(&mut self, phase: &str, cell_clock: bool) {
         if let Some(progress) = self.parts.iter_mut().rev().find_map(|part| match part {
             Part::Notice(control) if cell_clock && control.head.starts_with("\n[elapsed: ") => {
@@ -456,21 +476,30 @@ impl Preview {
     /// Reserve notices first, then divide ordinary text between its head and tail.
     pub(super) fn render_recorded(&mut self) -> (Vec<Content>, Vec<crate::transcript::ResultPart>) {
         self.bound();
-        let projection = self.project(true);
+        let projection = self.project(ProjectionMode::Record);
         (
             projection.content.expect("rendered projection"),
             projection.parts,
         )
     }
 
+    /// Inspect the same bounded rendering without publishing receipts or
+    /// accounting omissions as if a client had received the output.
+    pub(super) fn render_preview(&mut self) -> Vec<Content> {
+        self.bound();
+        self.project(ProjectionMode::Inspect)
+            .content
+            .expect("rendered preview")
+    }
+
     pub(super) fn bound(&mut self) {
         let mut allowance = TEXT_BYTES;
         loop {
             self.trim(allowance);
-            let mut bytes = self.project(false).text_bytes;
+            let mut bytes = self.project(ProjectionMode::Measure).text_bytes;
             if bytes > TEXT_BYTES {
                 self.trim_controls(CONTROL_BYTES, TEXT_BYTES / 8);
-                bytes = self.project(false).text_bytes;
+                bytes = self.project(ProjectionMode::Measure).text_bytes;
             }
             if bytes <= TEXT_BYTES {
                 return;
@@ -496,9 +525,10 @@ impl Preview {
         }
     }
 
-    fn project(&self, account: bool) -> Projection {
+    fn project(&self, mode: ProjectionMode) -> Projection {
+        let account = matches!(mode, ProjectionMode::Record);
         let mut projection = Projection {
-            content: account.then(Vec::new),
+            content: (!matches!(mode, ProjectionMode::Measure)).then(Vec::new),
             text_bytes: 0,
             owner: None,
             parts: Vec::new(),

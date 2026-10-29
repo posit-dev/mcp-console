@@ -1,0 +1,58 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: "print(input('selected interrupt target: '))"
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "selected interrupt target: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        old completed
+  isError: false
+---
+send:
+  python: "print(input('successor: '))"
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "successor: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        still running
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

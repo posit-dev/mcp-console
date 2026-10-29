@@ -863,7 +863,7 @@ impl Worker {
         if !dispatched {
             // Controller withholding survives receipt processing and delayed
             // evaluator attachment. No Evaluate was queued for this owner.
-            return self.operation.abort_bootstrap_cell();
+            return self.operation.abort_undispatched_cell();
         }
         match receive_operation(result)? {
             OperationResult::Completed => Ok(()),
@@ -1268,6 +1268,31 @@ impl LocalShutdownObservation {
 }
 
 impl WorkerShutdownHandle {
+    pub(super) fn owns_commands(&self, commands: &RelayCommandSender) -> bool {
+        Arc::ptr_eq(&self.commands.state, &commands.state)
+    }
+
+    pub(super) fn priority_evaluate(
+        &self,
+        request_id: u64,
+        execution: crate::worker_protocol::PriorityExecution,
+        source: String,
+    ) -> Result<(), String> {
+        let enqueue = || {
+            self.commands.send(RelayCommand::EvaluatePriority {
+                request_id,
+                execution,
+                source,
+            })
+        };
+        match execution {
+            crate::worker_protocol::PriorityExecution::RReentrant => {
+                self.operation.dispatch_r_priority(request_id, enqueue)
+            }
+            crate::worker_protocol::PriorityExecution::PythonThread => enqueue(),
+        }
+    }
+
     pub(super) fn is_same_connection(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.commands.state, &other.commands.state)
     }
@@ -1279,17 +1304,28 @@ impl WorkerShutdownHandle {
         self.stdin.send(data)
     }
 
-    pub(super) fn interrupt(&self, evaluation: Option<&super::Evaluation>) -> Result<(), String> {
-        let acknowledgment = self
+    pub(super) fn interrupt(
+        &self,
+        evaluation: Option<&super::Evaluation>,
+    ) -> Result<super::lifecycle::InterruptOutcome, String> {
+        let Some(acknowledgment) = self
             .operation
-            .interrupt_cell(evaluation, || self.interrupts.enqueue(&self.commands))?;
+            .interrupt_cell(evaluation, || self.interrupts.enqueue(&self.commands))?
+        else {
+            return Ok(super::lifecycle::InterruptOutcome::TargetCompleted);
+        };
         acknowledgment
             .recv()
-            .map_err(|_| "worker interrupt response was not received".to_string())?
+            .map_err(|_| "worker interrupt response was not received".to_string())??;
+        Ok(super::lifecycle::InterruptOutcome::Accepted)
     }
 
     pub(super) fn is_bootstrapping(&self) -> Result<bool, String> {
         self.operation.is_bootstrapping()
+    }
+
+    pub(super) fn phase_observation(&self) -> Option<&'static str> {
+        self.operation.phase_observation()
     }
 
     /// Requests relay-owned worker shutdown and enforces bounded relay retirement.

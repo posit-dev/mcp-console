@@ -52,20 +52,34 @@ impl CellAdmission {
             .outcome)
     }
 
+    pub(super) fn withheld(&self) -> Result<bool, String> {
+        Ok(matches!(
+            self.state
+                .lock()
+                .map_err(|_| "cell admission lock poisoned")?
+                .phase,
+            AdmissionPhase::Withheld
+        ))
+    }
+
     /// Queue control under the same short guard that commits Evaluate.
+    /// A completed target returns no receipt and must not enqueue a signal.
     /// The closure must enqueue only; acknowledgment and pipe I/O follow outside.
     pub(super) fn interrupt<T>(
         &self,
         enqueue: impl FnOnce() -> Result<T, String>,
-    ) -> Result<T, String> {
+    ) -> Result<Option<T>, String> {
         let mut state = self
             .state
             .lock()
             .map_err(|_| "cell admission lock poisoned")?;
+        if state.outcome.is_some() {
+            return Ok(None);
+        }
         if matches!(state.phase, AdmissionPhase::Pending) {
             state.phase = AdmissionPhase::Withheld;
         }
-        enqueue()
+        enqueue().map(Some)
     }
 
     pub(super) fn dispatch(
