@@ -102,6 +102,21 @@ impl Client {
         if self.evaluation()?.is_some() {
             return Ok(PreparationStatus::Busy);
         }
+        {
+            let lifecycle = self
+                .0
+                .lifecycle
+                .lock()
+                .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+            lifecycle.ensure_generation(&generation)?;
+            // Configuration can be ready while native interpreter startup is
+            // still running. Preparation must not queue behind that bootstrap.
+            // The preparation guard excludes a new launch after this check;
+            // absent or stopped workers remain eligible for prestart changes.
+            if lifecycle.worker_bootstrapping()? {
+                return Ok(PreparationStatus::Busy);
+            }
+        }
         match self.prepare_admitted(
             requirements,
             &generation,

@@ -1,8 +1,8 @@
 """Human requirements use normal preparation without claiming Console output."""
 
 import json
-import tempfile
 import sys
+import tempfile
 from contextlib import closing
 from pathlib import Path
 
@@ -14,9 +14,10 @@ from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import (
     code,
-    normalize_recording,
     normalize_python_resolution_error,
+    normalize_recording,
 )
+from support.r import r_test_environment
 from support.records import TranscriptWithCompanions
 from support.requirements import POSIX, R, requires
 from support.resolvers import recording_uv_environment
@@ -25,6 +26,142 @@ from support.suites import run_this_suite
 
 def text(result: dict) -> str:
     return "".join(block.get("text", "") for block in result["content"])
+
+
+@requires(POSIX, R)
+@executions(DIRECT, SANDBOXED)
+def test_preparation_rejects_incomplete_interpreter_startup(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-prepare-"
+    ) as directory:
+        root = Path(directory)
+        endpoint = root / "control.sock"
+        environment, _ = r_test_environment()
+        profile = root / ".Rprofile"
+        environment["R_PROFILE_USER"] = str(profile)
+        arguments = ["--control-socket", str(endpoint)]
+        if execution == SANDBOXED:
+            arguments += ["--writable-root", str(root)]
+        with (
+            closing(FifoCheckpoint.create(root / "entered")) as entered,
+            closing(FifoCheckpoint.create(root / "release")) as release,
+        ):
+            # fmt: r
+            source = code(f"""
+                local({{
+                  cat("native startup output\\n")
+                  gate <- fifo({json.dumps(str(entered.path))}, "wb", blocking = TRUE)
+                  writeBin(charToRaw("1"), gate)
+                  close(gate)
+                  gate <- fifo({json.dumps(str(release.path))}, "rb", blocking = TRUE)
+                  stopifnot(identical(readBin(gate, "raw", n = 1L), charToRaw("1")))
+                  close(gate)
+                }})
+                """)
+            profile.write_text(source)
+            with McpClient(
+                binary,
+                execution.serve(*arguments),
+                environment,
+                root,
+                use_r_startup_files=True,
+            ) as client:
+                client.initialize_and_list_tools()
+                try:
+                    entered.wait(timeout=client.response_timeout, client=client)
+                    with ControlClient(endpoint) as control:
+                        # Create observes configuration readiness without waiting
+                        # for the interpreter, excluding the earlier startup gate.
+                        configured = control.request(op="create", session="default")[
+                            "result"
+                        ]
+                        assert configured["session"] == "default", configured
+                        assert configured["worker_id"] == 1, configured
+                        status = control.request(op="status")["result"]
+                        assert status == {
+                            "state": "starting",
+                            "idle": False,
+                            "evaluation": None,
+                        }, status
+                        baseline = control.request(op="requirements")["result"]
+                        busy = control.request(
+                            op="prepare", requirements={"r": ["praise"]}
+                        )["result"]
+                        assert busy["status"] == "busy", busy
+                        assert {key: busy[key] for key in baseline} == baseline, busy
+                        release.release()
+                        client.expect(
+                            "native startup output\n[output produced while idle]\nready\n",
+                            r='cat("ready\\n")',
+                        )
+                        prepared = control.request(
+                            op="prepare", requirements={"r": ["praise"]}
+                        )["result"]
+                        assert prepared["status"] == "prepared", prepared
+                        assert prepared["worker_id"] == configured["worker_id"], (
+                            prepared
+                        )
+                        assert "praise" in prepared["requirements"]["r"], prepared
+                        client.expect(
+                            r="stopifnot(requireNamespace('praise', quietly = TRUE))"
+                        )
+                        client.expect("\n[idle]")
+                        transcript = client.finish()
+                    return TranscriptWithCompanions(
+                        transcript, {"control.yaml": control.transcript}
+                    )
+                finally:
+                    release.release()
+
+
+@requires(POSIX, R)
+@executions(DIRECT, SANDBOXED)
+def test_prepares_named_requirements_before_start_and_after_stop(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-prepare-"
+    ) as directory:
+        root = Path(directory)
+        endpoint = root / "control.sock"
+        with McpClient(
+            binary,
+            execution.serve("--control-socket", str(endpoint)),
+            current_directory=root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect(r="invisible(NULL)")
+            with ControlClient(endpoint) as control:
+                created = control.request(op="create", session="analysis")["result"]
+                assert created["state"] == "stopped" and created["worker_id"] == 0, (
+                    created
+                )
+                for package, worker in (("praise", 0), ("cli", 1)):
+                    prepared = control.request(
+                        op="prepare", session="analysis", requirements={"r": [package]}
+                    )["result"]
+                    assert prepared["status"] == "prepared", prepared
+                    assert prepared["worker_id"] == worker, prepared
+                    assert package in prepared["requirements"]["r"], prepared
+                    listed = control.request(op="sessions")["result"]["sessions"]
+                    selected = next(
+                        item for item in listed if item["name"] == "analysis"
+                    )
+                    assert selected["state"] == "stopped", selected
+                    assert selected["worker_id"] == worker, selected
+                    result = client.send(
+                        session="analysis",
+                        r=f'stopifnot(requireNamespace("{package}", quietly = TRUE)); cat("named requirements ready\\n")',
+                    )
+                    assert "named requirements ready\n" in text(result), result
+                    stopped = control.request(op="close", session="analysis")["result"]
+                    assert stopped["accepted"], stopped
+                transcript = client.finish()
+            return TranscriptWithCompanions(
+                transcript, {"control.yaml": control.transcript}
+            )
 
 
 @requires(POSIX, R)
