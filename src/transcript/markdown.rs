@@ -72,7 +72,7 @@ impl Writers {
     pub(super) fn integrator_recording(&self, session: &str) -> Value {
         let worker_id = self.documents.current.get(session).copied();
         let qmd = worker_id
-            .filter(|id| self.documents.sessions[id].has_source())
+            .filter(|id| self.documents.sessions[id].has_contents())
             .map(|id| self.directory.join(format!("sessions/session-{id:03}.qmd")));
         json!({
             "directory": self.directory,
