@@ -176,6 +176,8 @@ Managed output belongs to the concurrent request's response.
 This includes cleanup performed when an immediate Python thread releases its interpreter state.
 Native stdout/stderr and child-process output retain the ordinary foreground attribution because process streams do not identify a writing thread.
 Graphics state is shared; concurrent requests do not automatically finalize plots or close the foreground cell's devices.
+Images explicitly emitted by an immediate request are retained under its call and worker session, with their own recording budget and no ordinary cell interval.
+As with serial evaluations, `record: false` omits them from the transcript projection while retaining their raw files and journal events.
 The pending-output subscription observes the ordinary output interval; concurrent request output is returned in that request's response.
 
 ## Inspect state and pending output

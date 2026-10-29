@@ -475,7 +475,12 @@ async fn handle(
                         }
                         runtime
                             .worker
-                            .integrator_priority_evaluate(cell, disconnect.clone())
+                            .integrator_priority_evaluate(
+                                cell,
+                                runtime.transcript.clone(),
+                                &operation_call,
+                                disconnect.clone(),
+                            )
                             .await
                     }
                 }

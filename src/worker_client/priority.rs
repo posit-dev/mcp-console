@@ -22,6 +22,7 @@ pub(super) struct Request {
     id: u64,
     connection: super::platform::WorkerShutdownHandle,
     output: OutputTape,
+    images: Option<crate::transcript::CallImages>,
     error: Option<ExecutionError>,
     completed: tokio::sync::oneshot::Sender<Result<Response, IntegratorError>>,
 }
@@ -30,6 +31,8 @@ impl Client {
     pub(crate) async fn integrator_priority_evaluate(
         &self,
         cell: Cell,
+        transcript: crate::transcript::Transcript,
+        call: &crate::transcript::Call,
         cancelled: tokio::sync::watch::Receiver<bool>,
     ) -> Result<Response, IntegratorError> {
         let execution = match cell.language {
@@ -104,6 +107,7 @@ impl Client {
                 id,
                 connection: connection.clone(),
                 output: OutputTape::new(),
+                images: transcript.call_images(call),
                 error: None,
                 completed,
             });
@@ -149,7 +153,12 @@ impl Client {
             PriorityEvent::Image { data, mime_type } => {
                 request
                     .output
-                    .push_image_with_artifact(data, mime_type, |_, _| Ok(None))?
+                    .push_image_with_artifact(data, mime_type, |data, mime_type| {
+                        request
+                            .images
+                            .as_mut()
+                            .map_or(Ok(None), |images| images.persist(data, mime_type))
+                    })?
             }
             PriorityEvent::ExecutionError { error } => {
                 request
