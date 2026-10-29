@@ -29,7 +29,7 @@ uv run --script tests/fixtures/control_shiny/app.py --binary target/release/mcp-
 
 Open `http://127.0.0.1:8000`.
 Use `--workspace PATH` to retain files in a particular directory, or omit it to use a temporary workspace.
-Use `--port PORT` to choose another local port.
+Use `--port PORT` to choose another local port, for example `--port 8001` if port 8000 is already in use.
 
 Submit R, Python, or SQL with the corresponding button, or ask the agent to run code.
 Both paths retain objects in the same worker.

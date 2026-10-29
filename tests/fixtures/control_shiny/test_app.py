@@ -48,6 +48,7 @@ def app(tmp_path, chat_frames):
                 assert process.poll() is None, log.read_text()
                 assert time.monotonic() < deadline, log.read_text()
                 time.sleep(0.05)
+            assert "ShinyDeprecationWarning" not in log.read_text(), log.read_text()
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch()
                 page = browser.new_page()

@@ -145,10 +145,10 @@ def make_app(binary: Path, workspace: Path) -> App:
                     "Variables",
                     ui.div(
                         ui.h6("R global environment"),
-                        ui.output_text_verbatim("r_variables"),
+                        ui.output_code("r_variables", placeholder=False),
                         ui.output_ui("r_tables"),
                         ui.h6("Python __main__"),
-                        ui.output_text_verbatim("python_variables"),
+                        ui.output_code("python_variables", placeholder=False),
                         ui.output_ui("python_tables"),
                         class_="variables",
                     ),
@@ -669,11 +669,11 @@ def make_app(binary: Path, workspace: Path) -> App:
         def agent_state() -> str:
             return agent_status.get()
 
-        @render.text
+        @render.code
         def r_variables() -> str:
             return variable_views["r"].get()
 
-        @render.text
+        @render.code
         def python_variables() -> str:
             return variable_views["python"].get()
 
