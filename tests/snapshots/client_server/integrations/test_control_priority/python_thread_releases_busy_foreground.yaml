@@ -1,0 +1,44 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: import threading; release = threading.Event()
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    print("foreground pending", flush=True)
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    assert release.wait(30), "priority request did not release the foreground"
+    print("foreground complete")
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        foreground pending
+        foreground complete
+  isError: false
+---
+send:
+  python: print(release.is_set())
+result:
+  content:
+    - type: text
+      text: |
+        True
+  isError: false
+---
+send:
+  python: print(priority_value)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

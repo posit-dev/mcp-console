@@ -519,6 +519,9 @@ def test_retries_python_runtime_initialization_after_interrupt(
 ) -> Transcript:
     configuration_line = runtime_source_line("_defaults.apply(name)")
     numpy_line = runtime_source_line('if module.get_printoptions()["linewidth"] == 75:')
+    input_line = runtime_source_line(
+        "return readline(str(prompt))", filename="services.py"
+    )
     with tempfile.TemporaryDirectory() as temporary_directory:
         environment = os.environ.copy()
         environment["TMPDIR"] = temporary_directory
@@ -565,7 +568,7 @@ def test_retries_python_runtime_initialization_after_interrupt(
                 f'  File "<string>", line {configuration_line}, in _mcp_console_configure_module_defaults\n'
                 f'  File "<string>", line {numpy_line}, in apply\n'
                 '  File "<runtime setup checkpoint>", line 9, in configuration_checkpoint\n'
-                '  File "<string>", line 50, in _console_input\n'
+                f'  File "<string>", line {input_line}, in _console_input\n'
                 "KeyboardInterrupt\n"
             ), repr(output)
 

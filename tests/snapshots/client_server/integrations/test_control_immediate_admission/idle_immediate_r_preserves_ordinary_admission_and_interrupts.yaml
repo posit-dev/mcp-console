@@ -1,0 +1,159 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    priority_unwound <- FALSE
+    hold_immediate <- function(catch_interrupt = FALSE) {
+      on.exit(priority_unwound <<- TRUE)
+      wait_for_release <- function() {
+        gate <- fifo("entered", "wb", blocking = TRUE)
+        writeBin(charToRaw("1"), gate)
+        close(gate)
+        while (!file.exists("release")) {
+          Sys.sleep(0.01)
+        }
+      }
+      if (catch_interrupt) {
+        tryCatch(
+          wait_for_release(),
+          interrupt = function(condition) {
+            gate <- fifo("caught", "wb", blocking = TRUE)
+            writeBin(charToRaw("1"), gate)
+            close(gate)
+            while (!file.exists("release")) {
+              Sys.sleep(0.01)
+            }
+          }
+        )
+      } else {
+        wait_for_release()
+      }
+      cat("private released\n")
+    }
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: writeLines("ordinary ran", "interrupted-source")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: stopifnot(priority_unwound); priority_unwound <- FALSE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    with open("ordinary-python-ran", "w") as marker:
+        marker.write("ordinary Python ran")
+    print("ordinary Python complete")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |
+        ordinary Python complete
+  isError: false
+---
+send:
+  r: stopifnot(priority_unwound); priority_unwound <- FALSE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: writeLines("ordinary ran", "caught-interrupt-source")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: stopifnot(priority_unwound)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: writeLines("ordinary ran", "restarted-source")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker terminated by signal 9]
+        [active evaluation stopped by session restart request]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!exists("hold_immediate", inherits = FALSE))
+    cat("worker usable\n")
+result:
+  content:
+    - type: text
+      text: |
+        worker usable
+  isError: false

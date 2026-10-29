@@ -18,6 +18,7 @@ typedef void *(*exec_with_cleanup_fn)(
     void *(*)(void *), void *, void (*)(void *), void *
 );
 typedef void (*object_fn)(void *);
+typedef void *(*eval_fn)(void *, void *);
 typedef InputHandler *(*add_input_handler_fn)(
     InputHandler *, int, void (*)(void *), int
 );
@@ -43,6 +44,19 @@ struct event_wait {
 static read_console_fn read_console;
 static check_interrupt_fn check_interrupt;
 static volatile int *interrupts_pending;
+static process_events_fn previous_priority_events;
+static process_events_fn priority_events;
+
+void mcp_r_priority_configure(process_events_fn previous, process_events_fn priority) {
+    previous_priority_events = previous;
+    priority_events = priority;
+}
+
+void mcp_r_priority_events(void) {
+    /* A pre-existing handler may jump: retain only C frames around it. */
+    if (previous_priority_events != NULL) previous_priority_events();
+    priority_events();
+}
 
 void mcp_r_record_interrupt(void) {
     *interrupts_pending = 1;
@@ -86,6 +100,10 @@ struct repl_api {
     int *stack_top;
     void ***stack;
     void *nil;
+    eval_fn eval;
+    void *condition_handlers;
+    void *base_env;
+    int *interrupts_suspended;
 };
 
 static struct repl_api repl;
@@ -121,8 +139,18 @@ static void *run_cell(void *data) {
     }
 }
 
+void mcp_r_observe_conditions(void) {
+    /* No R function frame may enclose submitted top-level source. Install
+     * non-exiting observers directly, deferring interrupts during setup. */
+    int suspended = *repl.interrupts_suspended;
+    *repl.interrupts_suspended = 1;
+    (void) repl.eval(repl.condition_handlers, repl.base_env);
+    *repl.interrupts_suspended = suspended;
+}
+
 static void run_protected_cell(void *data) {
     struct repl_cell *cell = data;
+    mcp_r_observe_conditions();
     /*
      * R_ReplDLLdo1 resets the protection stack to zero. Preserve the outer
      * context's roots separately, and restore its stack before normal return

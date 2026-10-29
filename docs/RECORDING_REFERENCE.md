@@ -61,6 +61,8 @@ Existing recordings are not migrated or rewritten.
 An integrator evaluation can set `record: false` to omit its source, result, and associated output from the Markdown and QMD projections.
 Inspection requests on that channel also stay out of those documents.
 Their journal events and raw capture remain retained under the same limits and failure behavior.
+Immediate integrator images use `capture/sessions/NNN/call-CCC-III.png`, where `CCC` is the call ID and `III` is the image number within that request.
+Their image-event owner identifies the session and call, without a cell or interval; each request has its own image retention budget using the limits below.
 
 ### Output intervals
 
@@ -82,7 +84,7 @@ Every executed cell has a text file, including silent cells.
 Startup and post-cell text files are created only when text arrives.
 One file retains each interval's raw text, up to 1 GiB, even when text and images alternate.
 Each retained image has its own numbered file in that interval; PNGs use `.png`, and other emitted image formats use `.bin`.
-Raw images have a separate budget per startup, cell, or post-cell interval: 64 MiB of decoded image data, 4,096 files, and 64 KiB of MIME metadata.
+Raw images have a separate budget per startup, cell, or post-cell interval, and per immediate integrator request: 64 MiB of decoded image data, 4,096 files, and 64 KiB of MIME metadata.
 An image is saved whole only if it fits the remaining raw budget.
 The response preview has its own limits: images omitted from a preview can still be saved, and images that exceed the raw budget can still appear in a response.
 Console retains emitted text and images, not arbitrary files written by submitted code.

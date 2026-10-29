@@ -68,6 +68,37 @@ impl Owner {
         )
     }
 }
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(untagged)]
+enum ImageOwner {
+    Interval(Owner),
+    Call(CallImageOwner),
+}
+
+#[derive(Clone, Copy, Serialize)]
+struct CallImageOwner {
+    session_id: u64,
+    call_id: u64,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    omit_from_projections: bool,
+}
+
+impl ImageOwner {
+    fn omit_from_projections(self) -> bool {
+        match self {
+            Self::Interval(owner) => owner.omit_from_projections,
+            Self::Call(owner) => owner.omit_from_projections,
+        }
+    }
+}
+
+/// Immediate images belong to their call without changing foreground capture.
+pub(crate) struct CallImages {
+    transcript: Transcript,
+    owner: CallImageOwner,
+    budget: queue::ImageBudget,
+}
 /// Byte ranges in the actual assembled text blocks, or one image block.
 #[derive(Clone, Serialize)]
 pub(crate) struct ResultPart {
@@ -145,6 +176,20 @@ pub(crate) struct Artifact {
     pub(crate) public_directory: Arc<Mutex<PathBuf>>,
 }
 impl Transcript {
+    pub(crate) fn call_images(&self, call: &Call) -> Option<CallImages> {
+        let call_id = call.id?;
+        let session_id = self.owner()?.session_id;
+        Some(CallImages {
+            transcript: self.clone(),
+            owner: CallImageOwner {
+                session_id,
+                call_id,
+                omit_from_projections: call.omit_from_projections,
+            },
+            budget: queue::ImageBudget::default(),
+        })
+    }
+
     #[cfg(test)]
     pub(crate) fn new(dynamic_resolution: bool) -> Self {
         Self::configured(

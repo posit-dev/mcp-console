@@ -8,8 +8,10 @@ use super::output::{
 
 const INPUT_REQUEST_GRACE: Duration = Duration::from_millis(10);
 const CELL_COMPLETION_GRACE: Duration = Duration::from_millis(1);
+static NEXT_EVALUATION_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 pub(super) struct Evaluation {
+    id: u64,
     pub(super) admission: super::admission::CellAdmission,
     origin: Origin,
     omit_from_projections: bool,
@@ -43,6 +45,7 @@ struct EvaluationState {
     input_request: Option<InputRequest>,
     /// Worker entry remains observed after restart closes response capture.
     cell_entered: bool,
+    execution_error: Option<crate::worker_protocol::ExecutionError>,
     /// Whether one `send` currently owns the right to drain this evaluation's response.
     waiting: bool,
     /// Restart or controlled handoff permanently retires this evaluation.
@@ -144,6 +147,7 @@ impl Evaluation {
     ) -> Self {
         let delivery_changed = Arc::new(tokio::sync::Notify::new());
         Self {
+            id: NEXT_EVALUATION_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             origin: Origin::Mcp,
             omit_from_projections: transcript.take_projection_omission(call_id),
             admission: super::admission::CellAdmission::new(
@@ -164,6 +168,7 @@ impl Evaluation {
                 controlled_completion,
                 input_request: None,
                 cell_entered: false,
+                execution_error: None,
                 waiting: false,
                 retired: false,
                 restart_handoff: None,
@@ -195,6 +200,10 @@ impl Evaluation {
         self.origin == Origin::Integrator
     }
 
+    pub(super) fn id(&self) -> u64 {
+        self.id
+    }
+
     pub(super) fn restore_idle_prelude(&self) {
         let idle = self
             .state
@@ -222,7 +231,11 @@ impl Evaluation {
     }
 
     pub(super) fn preview(&self) -> Option<Vec<super::Content>> {
-        let state = self.state.try_lock().ok()?;
+        let mut state = self.state.lock().ok()?;
+        // Delivery cancellation can restore output without another worker event.
+        // Accept that receipt before copying; preview still neither drains nor
+        // acknowledges the response awaiting the MCP client.
+        state.settle_delivery().ok()?;
         let mut response = state
             .control_prelude
             .as_ref()
@@ -425,12 +438,16 @@ impl Evaluation {
         Ok(())
     }
 
-    pub(super) fn require_cell_entry(&self) -> Result<(), String> {
-        let state = self
+    pub(super) fn has_entered_cell(&self) -> Result<bool, String> {
+        Ok(self
             .state
             .lock()
-            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        if !state.cell_entered {
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?
+            .cell_entered)
+    }
+
+    pub(super) fn require_cell_entry(&self) -> Result<(), String> {
+        if !self.has_entered_cell()? {
             return Err("worker completed a cell before reporting its start".into());
         }
         Ok(())
@@ -446,23 +463,41 @@ impl Evaluation {
 
     /// Queues text and briefly defers any outstanding input report for its receipt.
     pub(super) fn submit_stdin(&self, stdin: String) -> Result<(), String> {
+        self.state
+            .lock()
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?
+            .submit_stdin(stdin)
+    }
+
+    /// Input is accepted only while this admitted evaluation owns a prompt.
+    pub(super) fn submit_integrator_stdin(&self, stdin: String) -> Result<(), String> {
         let mut state = self
             .state
             .lock()
             .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
-        if stdin.is_empty() {
-            return Ok(());
+        if state.retired
+            || !matches!(state.phase, EvaluationPhase::Evaluating)
+            || state.input_request.is_none()
+        {
+            return Err("evaluation is not waiting for input".into());
         }
+        state.submit_stdin(stdin)
+    }
 
-        if let Some(request) = state.input_request.as_mut() {
-            request.report_at = Instant::now() + INPUT_REQUEST_GRACE;
+    pub(super) fn execution_error(
+        &self,
+        error: crate::worker_protocol::ExecutionError,
+    ) -> Result<(), String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| "worker evaluation state lock poisoned".to_string())?;
+        if !state.cell_entered || state.execution_error.is_some() {
+            return Err(
+                "worker reported an execution error outside its cell or more than once".into(),
+            );
         }
-        #[cfg(any(unix, windows))]
-        if let Some(writer) = &state.stdin {
-            writer.send(stdin)?;
-            return Ok(());
-        }
-        state.pending_stdin.push_str(&stdin);
+        state.execution_error = Some(super::output::bounded_execution_error(error));
         Ok(())
     }
 
@@ -847,7 +882,7 @@ impl Evaluation {
             });
         }
         if let Some(mut response) = state.reclaimed.take() {
-            state.track_delivery(&mut response);
+            state.track_delivery(&mut response, &self.output);
             return Ok(EvaluationStatus::Report(EvaluationWait::Reclaimed(
                 response,
             )));
@@ -865,7 +900,7 @@ impl Evaluation {
                 if matches!(completion, CompletionKind::Cell) && state.controlled_completion {
                     output = project_controlled_completed(output);
                 }
-                state.track_delivery(&mut output);
+                state.track_delivery(&mut output, &self.output);
                 return Ok(EvaluationStatus::Report(EvaluationWait::Completed(output)));
             }
             EvaluationPhase::Complete(CompletionKind::ReplacementReady) => {
@@ -875,7 +910,7 @@ impl Evaluation {
                     .take()
                     .expect("a completed replacement must retain its output cut");
                 let mut output = take_owned_response(&mut state, &self.output, cut);
-                state.track_delivery(&mut output);
+                state.track_delivery(&mut output, &self.output);
                 return Ok(EvaluationStatus::Report(EvaluationWait::ReplacementReady(
                     output,
                 )));
@@ -888,7 +923,7 @@ impl Evaluation {
             EvaluationPhase::ReplacementStarting if at_deadline => {
                 let cut = self.output.cut();
                 let mut output = take_owned_response(&mut state, &self.output, cut);
-                state.track_delivery(&mut output);
+                state.track_delivery(&mut output, &self.output);
                 return Ok(EvaluationStatus::Report(
                     EvaluationWait::ReplacementStarting(output),
                 ));
@@ -902,7 +937,7 @@ impl Evaluation {
                 let no_new_output = cut.worker_revision == state.observed_worker_revision;
                 state.observed_worker_revision = cut.worker_revision;
                 output.evaluation_progress(self.admitted_at.elapsed(), no_new_output);
-                state.track_delivery(&mut output);
+                state.track_delivery(&mut output, &self.output);
                 return Ok(EvaluationStatus::Report(EvaluationWait::Running(output)));
             }
             return Ok(EvaluationStatus::Waiting);
@@ -914,7 +949,7 @@ impl Evaluation {
         let cut = self.output.cut();
         let mut output = take_owned_response(&mut state, &self.output, cut);
         state.observed_worker_revision = cut.worker_revision;
-        state.track_delivery(&mut output);
+        state.track_delivery(&mut output, &self.output);
         Ok(EvaluationStatus::Report(EvaluationWait::InputRequested(
             output,
         )))
@@ -922,13 +957,33 @@ impl Evaluation {
 }
 
 impl EvaluationState {
-    fn track_delivery(&mut self, response: &mut Response) {
+    fn submit_stdin(&mut self, stdin: String) -> Result<(), String> {
+        if stdin.is_empty() {
+            return Ok(());
+        }
+        if let Some(request) = self.input_request.as_mut() {
+            request.report_at = Instant::now() + INPUT_REQUEST_GRACE;
+        }
+        #[cfg(any(unix, windows))]
+        if let Some(writer) = &self.stdin {
+            writer.send(stdin)?;
+            return Ok(());
+        }
+        self.pending_stdin.push_str(&stdin);
+        Ok(())
+    }
+
+    fn track_delivery(&mut self, response: &mut Response, output: &OutputTape) {
         assert!(
             self.delivery.is_none(),
             "an evaluation can have only one response awaiting delivery"
         );
         let (acknowledgment, delivered) = mpsc::sync_channel(1);
-        response.acknowledge_with(acknowledgment, Arc::clone(&self.delivery_changed));
+        response.acknowledge_with(
+            acknowledgment,
+            Arc::clone(&self.delivery_changed),
+            output.clone(),
+        );
         self.delivery = Some(delivered);
     }
 
@@ -1047,7 +1102,11 @@ impl EvaluationReservation {
         // Publish the single settlement without waiting for restart's receiver
         // to be scheduled. Restart still receives it before composing its reply.
         let (acknowledged, wait_for_acknowledgment) = mpsc::sync_channel(1);
-        response.acknowledge_with(acknowledged, Arc::clone(&self.evaluation.delivery_changed));
+        response.acknowledge_with(
+            acknowledged,
+            Arc::clone(&self.evaluation.delivery_changed),
+            self.evaluation.output.clone(),
+        );
         state.restart_handoff = Some(response);
         self.evaluation.changed.notify_one();
         Ok(RestartDelivery::Waiting(wait_for_acknowledgment))
@@ -1064,6 +1123,7 @@ fn take_owned_response(
     } else {
         output.drain_through(cut)
     };
+    cell.set_execution_error(state.execution_error.clone());
     if !state.retain_idle_prelude
         && let Some(mut idle) = state.idle_prelude.take()
     {

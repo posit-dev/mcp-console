@@ -20,22 +20,23 @@ These guides introduce Console through a session with your agent:
 
 <span id="find-a-task"></span>
 
-| I want to…                                                   | Start here                                          |
-| ------------------------------------------------------------ | --------------------------------------------------- |
-| Install Console or connect an MCP client                     | [Install and connect](CLIENTS.md)                   |
-| Use Console from R                                           | [Use Console from R](R.md)                          |
-| Use Console from Python                                      | [Use Console from Python](PYTHON.md)                |
-| Explore data across R, Python, and SQL                       | [Sessions and languages](BUILTIN_RUNTIME.md)        |
-| Use packages or an existing Python environment               | [Packages and environments](REQUIREMENTS.md)        |
-| Give the agent access to files or a service                  | [Sandbox and trust](SANDBOX.md)                     |
-| Find recorded output or turn an analysis into a report       | [Recordings and reports](RECORDING.md)              |
-| Prepare a data assistant with its own tools and environment  | [Build a data assistant](BUILD_ON_CONSOLE.md)       |
-| Implement a client that submits code and manages the session | [Drive send directly](SEND_OPERATIONS.md)           |
-| Inspect or update the agent's session from a front end       | [Integrator control channel](INTEGRATOR_CONTROL.md) |
-| Run a program with filesystem and network limits             | [Run commands in a sandbox](SANDBOX_COMMAND.md)     |
+| I want to…                                                   | Start here                                      |
+| ------------------------------------------------------------ | ----------------------------------------------- |
+| Install Console or connect an MCP client                     | [Install and connect](CLIENTS.md)               |
+| Use Console from R                                           | [Use Console from R](R.md)                      |
+| Use Console from Python                                      | [Use Console from Python](PYTHON.md)            |
+| Explore data across R, Python, and SQL                       | [Sessions and languages](BUILTIN_RUNTIME.md)    |
+| Use packages or an existing Python environment               | [Packages and environments](REQUIREMENTS.md)    |
+| Give the agent access to files or a service                  | [Sandbox and trust](SANDBOX.md)                 |
+| Find recorded output or turn an analysis into a report       | [Recordings and reports](RECORDING.md)          |
+| Prepare a data assistant with its own tools and environment  | [Build a data assistant](BUILD_ON_CONSOLE.md)   |
+| Implement a client that submits code and manages the session | [Drive send directly](SEND_OPERATIONS.md)       |
+| Run a program with filesystem and network limits             | [Run commands in a sandbox](SANDBOX_COMMAND.md) |
 
 For a particular configuration key, use the [settings index](REFERENCE.md#configuration).
 
 The [glossary](GLOSSARY.md) defines terms used in these pages.
+
+Internal integration development is covered by the unstable [integrator control channel](INTEGRATOR_CONTROL.md).
 
 <span id="reference"></span> <span id="configure-a-project"></span> <span id="public-reference"></span> <span id="develop-console"></span>

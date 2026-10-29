@@ -75,11 +75,32 @@ pub(super) enum SelectedInterruptTarget {
     NoTarget,
 }
 
+/// Owns the selected evaluation and connection across interrupt acknowledgment.
+#[cfg(unix)]
+pub(crate) struct IntegratorInterrupt(SelectedInterruptTarget);
+
+pub(super) enum InterruptOutcome {
+    Accepted,
+    TargetCompleted,
+}
+
+#[cfg(unix)]
+impl IntegratorInterrupt {
+    pub(crate) fn interrupt(self) -> Result<(), super::IntegratorError> {
+        match self.0.interrupt()? {
+            InterruptOutcome::Accepted => Ok(()),
+            InterruptOutcome::TargetCompleted => Err(super::IntegratorError::StaleEvaluation),
+        }
+    }
+}
+
 impl SelectedInterruptTarget {
-    fn interrupt(&self) -> Result<(), String> {
+    fn interrupt(&self) -> Result<InterruptOutcome, String> {
         match self {
-            Self::Resolver { resolver, .. } => resolver.interrupt().map(|_| ()),
-            Self::Startup { .. } => Ok(()),
+            Self::Resolver { resolver, .. } => {
+                resolver.interrupt().map(|_| InterruptOutcome::Accepted)
+            }
+            Self::Startup { .. } => Ok(InterruptOutcome::Accepted),
             Self::Worker {
                 worker, evaluation, ..
             } => worker.interrupt(evaluation.as_deref()),
@@ -542,7 +563,32 @@ impl Client {
     }
 
     pub(super) fn interrupt_standalone_blocking(&self) -> Result<(), String> {
-        self.select_interrupt_target(false)?.interrupt()
+        self.select_interrupt_target(false)?.interrupt().map(|_| ())
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn select_integrator_interrupt(
+        &self,
+        evaluation_id: u64,
+    ) -> Result<IntegratorInterrupt, super::IntegratorError> {
+        let active = self.evaluation()?;
+        let mut lifecycle = self
+            .0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        let evaluation = &active
+            .as_ref()
+            .filter(|active| active.evaluation.id() == evaluation_id)
+            .ok_or(super::IntegratorError::StaleEvaluation)?
+            .evaluation;
+        lifecycle.ensure_generation(&evaluation.admission.generation)?;
+        if evaluation.admission.outcome()?.is_some() {
+            return Err(super::IntegratorError::StaleEvaluation);
+        }
+        Self::select_interrupt_locked(false, &active, &mut lifecycle)
+            .map(IntegratorInterrupt)
+            .map_err(Into::into)
     }
 
     pub(super) fn interrupt_blocking(&self) -> Result<SelectedInterruptTarget, String> {
@@ -561,6 +607,14 @@ impl Client {
             .lifecycle
             .lock()
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        Self::select_interrupt_locked(controlled, &active, &mut lifecycle)
+    }
+
+    fn select_interrupt_locked(
+        controlled: bool,
+        active: &Option<super::ActiveEvaluation>,
+        lifecycle: &mut LifecycleControl,
+    ) -> Result<SelectedInterruptTarget, String> {
         let evaluation = active
             .as_ref()
             .filter(|active| {
@@ -575,7 +629,7 @@ impl Client {
         if startup.is_some()
             && let Some(evaluation) = &evaluation
         {
-            evaluation.admission.interrupt(|| Ok(()))?;
+            let _ = evaluation.admission.interrupt(|| Ok(()))?;
         }
         if let Some(resolver) = lifecycle.processes.resolver.clone() {
             return Ok(SelectedInterruptTarget::Resolver {

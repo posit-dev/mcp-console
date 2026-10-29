@@ -30,6 +30,13 @@ pub(crate) enum RResolutionFailureKind {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum ServerMessage {
+    EvaluatePriority {
+        request_id: u64,
+        execution: PriorityExecution,
+        source: String,
+    },
+    #[serde(deserialize_with = "deserialize_payload_free")]
+    PriorityReady,
     Evaluate {
         language: Language,
         source: String,
@@ -63,6 +70,22 @@ pub(crate) enum ServerMessage {
     },
     #[serde(deserialize_with = "deserialize_payload_free")]
     Shutdown,
+}
+
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum PriorityExecution {
+    RReentrant,
+    PythonThread,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub(crate) enum PriorityEvent {
+    Output { data: String, diagnostic: bool },
+    Image { data: String, mime_type: String },
+    ExecutionError { error: ExecutionError },
+    Completed { error: Option<String> },
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -155,9 +178,35 @@ pub(crate) enum ConsoleChannel {
     Diagnostic,
 }
 
+/// A language failure, distinct from diagnostic output and worker failure.
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ExecutionError {
+    pub(crate) ename: String,
+    pub(crate) evalue: String,
+    pub(crate) traceback: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) truncated: bool,
+}
+
+impl ExecutionError {
+    pub(crate) fn new(name: &str, message: impl Into<String>) -> Self {
+        Self {
+            ename: name.into(),
+            evalue: message.into(),
+            traceback: Vec::new(),
+            truncated: false,
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum WorkerMessage {
+    Priority {
+        request_id: u64,
+        event: PriorityEvent,
+    },
     #[serde(deserialize_with = "deserialize_payload_free")]
     CellStarted,
     #[serde(deserialize_with = "deserialize_payload_free")]
@@ -223,6 +272,9 @@ pub(crate) enum WorkerMessage {
     },
     #[serde(deserialize_with = "deserialize_payload_free")]
     Completed,
+    ExecutionError {
+        error: ExecutionError,
+    },
 }
 
 #[cfg(test)]

@@ -8,6 +8,7 @@ response:
     state: evaluating
     idle: false
     evaluation:
+      id: 2
       origin: mcp
       language: python
       started: true
@@ -78,3 +79,4 @@ response:
         text: |
           queued integrator
     isError: false
+    execution_error: ~

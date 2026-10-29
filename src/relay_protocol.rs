@@ -18,6 +18,11 @@ pub(crate) struct EncodedBytes(String);
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum RelayCommand {
+    EvaluatePriority {
+        request_id: u64,
+        execution: crate::worker_protocol::PriorityExecution,
+        source: String,
+    },
     Evaluate {
         language: Language,
         source: String,
@@ -63,6 +68,10 @@ pub(crate) enum RelayCommand {
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(crate) enum RelayEvent {
+    Priority {
+        request_id: u64,
+        event: crate::worker_protocol::PriorityEvent,
+    },
     #[serde(deserialize_with = "deserialize_payload_free")]
     CellStarted,
     WorkerStarted {
@@ -131,6 +140,9 @@ pub(crate) enum RelayEvent {
     },
     #[serde(deserialize_with = "deserialize_payload_free")]
     Completed,
+    ExecutionError {
+        error: crate::worker_protocol::ExecutionError,
+    },
     Stdout {
         data: String,
     },
@@ -170,6 +182,7 @@ pub(crate) enum RelayEvent {
 impl From<WorkerMessage> for RelayEvent {
     fn from(message: WorkerMessage) -> Self {
         match message {
+            WorkerMessage::Priority { request_id, event } => Self::Priority { request_id, event },
             WorkerMessage::CellStarted => Self::CellStarted,
             WorkerMessage::Ready => Self::Ready,
             WorkerMessage::RuntimeInitialized { interrupted } => {
@@ -207,6 +220,7 @@ impl From<WorkerMessage> for RelayEvent {
                 Self::PythonPreparationRejected { message }
             }
             WorkerMessage::Completed => Self::Completed,
+            WorkerMessage::ExecutionError { error } => Self::ExecutionError { error },
         }
     }
 }

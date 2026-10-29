@@ -66,3 +66,4 @@ response:
         data: <PNG byte-identical to captured integrator plot>
         mimeType: image/png
     isError: false
+    execution_error: ~

@@ -1,0 +1,50 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: python_thread
+  code: sentinel = 1
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: unknown variant `python_thread`, expected `serial` or `immediate`
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: r_reentrant
+  code: sentinel = 1
+response:
+  id: ~
+  error:
+    code: invalid_request
+    message: unknown variant `r_reentrant`, expected `serial` or `immediate`
+---
+request:
+  id: "3"
+  op: evaluate
+  language: sql
+  execution: immediate
+  code: SELECT 1
+response:
+  id: "3"
+  error:
+    code: execution_failed
+    message: immediate execution supports only R and Python
+---
+request:
+  id: "4"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: sentinel = 1
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "4"
+  error:
+    code: invalid_request
+    message: immediate execution requires busy=reject and no wait_ms

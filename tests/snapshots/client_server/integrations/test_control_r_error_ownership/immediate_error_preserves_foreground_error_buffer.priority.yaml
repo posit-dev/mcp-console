@@ -1,0 +1,42 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: |
+    (function() {
+      on.exit(release_foreground_error <<- TRUE)
+      stop("private failure", call. = FALSE)
+    })()
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: private failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: private failure
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: invokeRestart("abort")
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content: []
+    isError: false
+    execution_error:
+      ename: RAbort
+      evalue: R priority evaluation aborted
+      traceback: []

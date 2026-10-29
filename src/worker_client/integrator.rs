@@ -3,6 +3,7 @@
 use std::time::{Duration, Instant};
 
 use super::evaluation::Origin;
+use super::execution::EvaluationStartError;
 use super::lifecycle::LifecycleState;
 use super::{Client, Content, Response};
 
@@ -11,6 +12,7 @@ pub(crate) enum IntegratorError {
     Busy,
     Timeout,
     Cancelled,
+    StaleEvaluation,
     Failed(String),
 }
 
@@ -21,6 +23,32 @@ impl From<String> for IntegratorError {
 }
 
 impl Client {
+    /// Pin the observed evaluation while queuing stdin so a late reply cannot
+    /// reach another cell or a replacement worker.
+    pub(crate) fn integrator_stdin(
+        &self,
+        evaluation_id: u64,
+        input: String,
+    ) -> Result<(), IntegratorError> {
+        let active = self.evaluation()?;
+        let lifecycle = self
+            .0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        let evaluation = &active
+            .as_ref()
+            .filter(|active| active.evaluation.id() == evaluation_id)
+            .ok_or(IntegratorError::StaleEvaluation)?
+            .evaluation;
+        lifecycle.ensure_generation(&evaluation.admission.generation)?;
+        if evaluation.admission.outcome()?.is_some() {
+            return Err(IntegratorError::StaleEvaluation);
+        }
+        evaluation.submit_integrator_stdin(input)?;
+        Ok(())
+    }
+
     pub(crate) async fn integrator_evaluate(
         &self,
         cell: crate::cell::Cell,
@@ -141,8 +169,8 @@ impl Client {
                 );
                 match result {
                     Ok(started) => break started,
-                    Err(error) if self.current_evaluation()?.is_none() => return Err(error.into()),
-                    Err(_) => {}
+                    Err(EvaluationStartError::Busy(_)) => {}
+                    Err(EvaluationStartError::Failed(error)) => return Err(error.into()),
                 }
             }
             drop(preparation);
@@ -216,6 +244,7 @@ impl Client {
                     (
                         state,
                         serde_json::json!({
+                            "id": active.evaluation.id(),
                             "origin": if active.evaluation.is_integrator() { "integrator" } else { "mcp" },
                             "language": active.language,
                             "started": started,
@@ -253,12 +282,16 @@ impl Client {
         let active = self
             .0
             .evaluation
-            .try_lock()
+            .lock()
             .map_err(|_| IntegratorError::Busy)?;
         match active.as_ref() {
             Some(active) => active.evaluation.preview().ok_or(IntegratorError::Busy),
             None => Ok(self.0.output.preview()),
         }
+    }
+
+    pub(crate) fn integrator_subscribe(&self) -> tokio::sync::watch::Receiver<()> {
+        self.0.output.subscribe()
     }
 }
 

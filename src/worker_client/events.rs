@@ -365,12 +365,14 @@ fn dispatch_worker_events(
                     ),
                 };
                 if let Err(error) = result {
+                    callbacks.client.fail_priority(&commands, &error);
                     candidates.clear();
                     fail_dispatch(&operation, &mut startup, &interrupts, error);
                     semantic_failure = true;
                 }
             }
             WorkerEvent::TransportFailure(error) => {
+                callbacks.client.fail_priority(&commands, &error);
                 commands.abort(error.clone());
                 if !retiring {
                     candidates.clear();
@@ -379,6 +381,7 @@ fn dispatch_worker_events(
                 }
             }
             WorkerEvent::RetireOperation { error, reached } => {
+                callbacks.client.fail_priority(&commands, &error);
                 deferred.clear();
                 if let Some(startup) = startup.take() {
                     let _ = startup.send(Err(error.clone()));
@@ -432,6 +435,10 @@ fn dispatch_worker_events(
             "worker event queue closed".to_string(),
         );
     }
+    callbacks.client.fail_priority(
+        &commands,
+        "worker stopped before priority execution completed",
+    );
     interrupts.fail("worker stopped before interrupt completed".to_string());
     retirement_failure.map_or(Ok(process_outcome), Err)
 }
@@ -536,9 +543,26 @@ fn handle_semantic_event(
     use crate::worker_protocol::ConsoleChannel::{Diagnostic, Output};
 
     match event {
+        RelayEvent::Priority { request_id, event } => {
+            let completed = matches!(
+                event,
+                crate::worker_protocol::PriorityEvent::Completed { .. }
+            );
+            callbacks
+                .client
+                .priority_event(commands, request_id, event)?;
+            if completed {
+                operation.finish_r_priority(request_id)?;
+            }
+            Ok(())
+        }
         RelayEvent::CellStarted => operation.with_route(|route| match route {
             Route::Cell(evaluation) => evaluation.start_cell_capture(),
             _ => Err("worker started a cell without an admitted source".into()),
+        }),
+        RelayEvent::ExecutionError { error } => operation.with_route(|route| match route {
+            Route::Cell(evaluation) => evaluation.execution_error(error),
+            _ => Err("worker reported an execution error without an admitted source".into()),
         }),
         RelayEvent::ConsoleOutput { data } => operation.with_route(|route| match route {
             Route::Cell(evaluation) => evaluation.output(Output, data),

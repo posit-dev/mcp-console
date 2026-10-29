@@ -1,0 +1,33 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    print("pending ghost", end="", flush=True)
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+    print(" complete", flush=True)
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        pending ghost complete
+  isError: false
+---
+send: {}
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

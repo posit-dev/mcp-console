@@ -173,7 +173,7 @@ pub enum Command {
         overrides: ConfigOverrides,
 
         /// Listen for integrator JSONL requests on a private Unix socket
-        #[arg(long, value_name = "PATH")]
+        #[arg(long, value_name = "PATH", hide = true)]
         control_socket: Option<PathBuf>,
 
         /// Run evaluated code and dependency resolution with host permissions

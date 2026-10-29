@@ -1,0 +1,51 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: immediate_r_ran <- FALSE
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+    print("foreground complete")
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        foreground complete
+  isError: false
+---
+send:
+  r: immediate_r_ran
+result:
+  content:
+    - type: text
+      text: |
+        [1] FALSE
+  isError: false
+---
+send:
+  r: immediate_r_ran
+result:
+  content:
+    - type: text
+      text: |
+        [1] TRUE
+  isError: false

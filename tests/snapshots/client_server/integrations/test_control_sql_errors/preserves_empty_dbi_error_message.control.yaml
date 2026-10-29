@@ -1,0 +1,42 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: sql
+  code: SELECT fail
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: 
+    isError: false
+    execution_error:
+      ename: SQLError
+      evalue: ""
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: sql
+  code: SELECT 42 AS answer
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          # A tibble: 1 × 1
+             answer
+            <int32>
+          1      42
+    isError: false
+    execution_error: ~
