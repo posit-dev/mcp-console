@@ -22,6 +22,7 @@ import pickle
 import runpy
 import shlex
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -30,6 +31,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty, SimpleQueue
+from threading import Thread
 from traceback import TracebackException
 
 directory = Path(__file__).resolve().parent
@@ -574,18 +576,27 @@ def run_cases(
     next_index = 0
     stopped = False
     interrupted = False
-    # SimpleQueue.put is reentrant: SIGINT can wake the loop without
-    # interrupting submission or completion bookkeeping.
+    # A signal delivered to another thread cannot run its Python handler while
+    # main is parked in events.get(). The C-level wakeup wakes a separate reader,
+    # which forwards cancellation without interrupting main's bookkeeping.
+    signal_reader, signal_writer = socket.socketpair()
+    signal_writer.setblocking(False)
+    previous_wakeup_fd = signal.set_wakeup_fd(signal_writer.fileno())
     previous_signals = {
-        number: signal.signal(
-            number, lambda received, _frame: events.put((-received, None, None))
-        )
+        number: signal.signal(number, lambda _received, _frame: None)
         for number in (
             signal.SIGINT,
             signal.SIGTERM,
             *([signal.SIGBREAK] if os.name == "nt" else [signal.SIGHUP]),
         )
     }
+
+    def forward_signals() -> None:
+        while received := signal_reader.recv(1):
+            events.put((-received[0], None, None))
+
+    signal_thread = Thread(target=forward_signals, daemon=True)
+    signal_thread.start()
 
     def interruption(index: int) -> BaseException:
         number = signal.Signals(-index)
@@ -689,9 +700,13 @@ def run_cases(
         executor.shutdown(cancel_futures=True)
         for number, handler in previous_signals.items():
             signal.signal(number, handler)
+        signal.set_wakeup_fd(previous_wakeup_fd)
+        signal_writer.close()
+        signal_thread.join()
+        signal_reader.close()
 
     # A signal can arrive while reporting the final completion. All controllers
-    # have joined, so any remaining event was queued by our signal handler.
+    # and the signal reader have joined, so only cancellation events remain.
     while True:
         try:
             index, _, _ = events.get_nowait()
