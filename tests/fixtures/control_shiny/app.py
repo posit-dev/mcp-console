@@ -31,7 +31,7 @@ from retained_output import retained_output_server
 from source_format import SourceFormatter
 from table_pane import table_server, table_ui
 
-MODEL = "gpt-6-luna"
+MODEL = "gpt-6.1-terra"
 LOGGER = logging.getLogger(__name__)
 # Console previews retain up to 8 MiB of encoded images in addition to text.
 RESPONSE_LIMIT = 32 * 1024 * 1024

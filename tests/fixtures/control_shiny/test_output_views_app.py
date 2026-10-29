@@ -140,7 +140,7 @@ def test_pending_output_preserves_selected_view_and_scroll_position(app):
 
 @pytest.mark.skipif(
     os.environ.get("MCP_CONSOLE_LIVE_AGENT") != "1",
-    reason="Live Luna inference is explicitly enabled separately",
+    reason="Live agent inference is explicitly enabled separately",
 )
 def test_agent_response_preserves_actual_preview_and_poll_boundaries(app):
     page, workspace = app

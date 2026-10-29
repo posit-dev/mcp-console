@@ -15,7 +15,7 @@ Viewer filters and row results do not automatically become model context.
 Console owns execution and runtime state; Shiny owns the chat and inspection UI.
 
 The fixture requires macOS or Linux, a built Console binary, and existing authentication for the `openai-codex` Python package.
-It always selects `gpt-6-luna` with low reasoning effort; there is no automatic model substitution.
+It always selects `gpt-6.1-terra` with low reasoning effort; there is no automatic model substitution.
 Each browser session creates one agent thread and one Console process, and closes both when the session ends.
 Thread-local configuration disables inherited MCP servers and approves the fixture's `send` tool.
 The SDK's effective configuration supplies the server names; the user's configuration files are not modified.
@@ -180,7 +180,7 @@ Human controls cases interrupt a running cell without clearing its objects and r
 Formatting cases exercise Air/Ruff display copies, exact original-source restoration, native code Copy, original-source export, unsupported or invalid input, and scrolling across pending/completed updates.
 Variables cases check live changes and deletion during a blocked cell, private output routing, and Python previews without custom repr execution.
 Table checks use the actual control channel and managed runtimes to exercise snapshot freshness, row limits, filters, sorting, and namespace isolation.
-The live smoke additionally asks Luna to mutate an object created through the direct input and verifies the result through both paths.
+The live smoke additionally asks the agent to mutate an object created through the direct input and verifies the result through both paths.
 The live agent checks make model inference requests; the other checks do not.
 
 ```sh

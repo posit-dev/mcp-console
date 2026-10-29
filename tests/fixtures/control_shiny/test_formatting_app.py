@@ -174,7 +174,7 @@ def test_pending_updates_keep_view_and_scroll_position(app):
 
 @pytest.mark.skipif(
     os.environ.get("MCP_CONSOLE_LIVE_AGENT") != "1",
-    reason="Live Luna inference is explicitly enabled separately",
+    reason="Live agent inference is explicitly enabled separately",
 )
 def test_agent_source_uses_the_same_format_toggle(app):
     page, _ = app

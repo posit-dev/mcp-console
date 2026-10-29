@@ -355,7 +355,7 @@ def test_variables_update_while_ordinary_cell_is_pending(app, language):
 
 @pytest.mark.skipif(
     os.environ.get("MCP_CONSOLE_LIVE_AGENT") != "1",
-    reason="Live Luna inference is explicitly enabled separately",
+    reason="Live agent inference is explicitly enabled separately",
 )
 def test_agent_uses_the_same_worker(app):
     page, _ = app
@@ -443,7 +443,7 @@ def test_typed_diagnostics_and_private_inspection(app):
 
 @pytest.mark.skipif(
     os.environ.get("MCP_CONSOLE_LIVE_AGENT") != "1",
-    reason="Live Luna inference is explicitly enabled separately",
+    reason="Live agent inference is explicitly enabled separately",
 )
 def test_agent_interrupt_and_mixed_language_labels(app):
     page, _ = app
@@ -497,7 +497,7 @@ def test_agent_interrupt_and_mixed_language_labels(app):
 
 @pytest.mark.skipif(
     os.environ.get("MCP_CONSOLE_LIVE_AGENT") != "1",
-    reason="Live Luna inference is explicitly enabled separately",
+    reason="Live agent inference is explicitly enabled separately",
 )
 def test_native_chat_streams_markdown_while_direct_controls_remain_live(
     app, chat_frames

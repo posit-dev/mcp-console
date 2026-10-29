@@ -128,7 +128,7 @@ def test_table_waits_for_busy_worker_without_transcript_queries(app):
 
 @pytest.mark.skipif(
     os.environ.get("MCP_CONSOLE_LIVE_AGENT") != "1",
-    reason="Live Luna inference is explicitly enabled separately",
+    reason="Live agent inference is explicitly enabled separately",
 )
 def test_agent_session_replacement_clears_table(app):
     page, _ = app
