@@ -52,6 +52,16 @@ impl CellAdmission {
             .outcome)
     }
 
+    pub(super) fn withheld(&self) -> Result<bool, String> {
+        Ok(matches!(
+            self.state
+                .lock()
+                .map_err(|_| "cell admission lock poisoned")?
+                .phase,
+            AdmissionPhase::Withheld
+        ))
+    }
+
     /// Queue control under the same short guard that commits Evaluate.
     /// A completed target returns no receipt and must not enqueue a signal.
     /// The closure must enqueue only; acknowledgment and pipe I/O follow outside.

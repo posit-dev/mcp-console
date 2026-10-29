@@ -67,9 +67,10 @@ The socket does not select a new sandbox authority.
 Control requests with `execution: "immediate"` use a separate connection-owned result slot and bounded output tape.
 An immediate R request returns busy while an ordinary non-R cell is admitted.
 It also returns busy until an admitted ordinary R cell has entered the worker.
-Immediate admission holds the evaluation publication lock through command enqueue; ordinary admission checks the pending R request under that same lock.
-New ordinary cells cannot be admitted until immediate R completes, so a targeted interrupt cannot be consumed by private R work ahead of its target.
-Serial integrator waiters wake when the priority slot clears; ordinary MCP submissions fail without running their source.
+Immediate admission holds the evaluation publication lock through command enqueue; once an ordinary cell is admitted, further immediate R requests cannot overtake its entry.
+Ordinary admission is unchanged while immediate R runs.
+The connection's operation owner holds ordinary dispatch until immediate R completes, keeping the accepted cell cancellable before its source is sent.
+An interrupt withholds that cell and wakes dispatch even if private R catches its own interrupt; failure and retirement release the wait through the existing operation boundary.
 The worker ingress thread dispatches Python requests to a background thread and queues R requests for the owning thread's event hook.
 R requests share one pending coordinator wakeup; only consuming that wakeup clears it, so event-hook execution cannot fill the command pipe with unread notifications.
 Neither path claims the ordinary evaluation or its output.

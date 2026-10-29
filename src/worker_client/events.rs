@@ -544,7 +544,17 @@ fn handle_semantic_event(
 
     match event {
         RelayEvent::Priority { request_id, event } => {
-            callbacks.client.priority_event(commands, request_id, event)
+            let completed = matches!(
+                event,
+                crate::worker_protocol::PriorityEvent::Completed { .. }
+            );
+            callbacks
+                .client
+                .priority_event(commands, request_id, event)?;
+            if completed {
+                operation.finish_r_priority(request_id)?;
+            }
+            Ok(())
         }
         RelayEvent::CellStarted => operation.with_route(|route| match route {
             Route::Cell(evaluation) => evaluation.start_cell_capture(),

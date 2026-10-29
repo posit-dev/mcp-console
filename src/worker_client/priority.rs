@@ -20,7 +20,6 @@ pub(crate) enum IntegratorExecution {
 
 pub(super) struct Request {
     id: u64,
-    execution: PriorityExecution,
     connection: super::platform::WorkerShutdownHandle,
     output: OutputTape,
     error: Option<ExecutionError>,
@@ -64,9 +63,9 @@ impl Client {
             .try_read()
             .map_err(|_| IntegratorError::Busy)?;
         let result = {
-            // Require an entered R foreground or an idle worker. A cell awaiting
-            // dispatch must not become an interrupt target behind private R work.
-            // Retain publication through enqueue to serialize ordinary admission.
+            // Ordinary cells take precedence once admitted. Do not let another
+            // immediate R request overtake a cell awaiting worker entry.
+            // Retain publication through enqueue to serialize that decision.
             let active = self.evaluation()?;
             if matches!(execution, PriorityExecution::RReentrant)
                 && let Some(active) = active.as_ref()
@@ -103,7 +102,6 @@ impl Client {
             let (completed, result) = tokio::sync::oneshot::channel();
             *pending = Some(Request {
                 id,
-                execution,
                 connection: connection.clone(),
                 output: OutputTape::new(),
                 error: None,
@@ -111,7 +109,6 @@ impl Client {
             });
             if let Err(error) = connection.priority_evaluate(id, execution, cell.source) {
                 *pending = None;
-                self.0.admission_changed.notify_waiters();
                 return Err(IntegratorError::Failed(error));
             }
             result
@@ -122,16 +119,6 @@ impl Client {
         result
             .await
             .map_err(|_| IntegratorError::Failed("priority result owner stopped".into()))?
-    }
-
-    /// Ordinary admission retains the evaluation publication guard while checking.
-    pub(super) fn r_priority_pending(&self) -> bool {
-        self.0
-            .priority
-            .lock()
-            .expect("priority evaluation lock")
-            .as_ref()
-            .is_some_and(|request| matches!(request.execution, PriorityExecution::RReentrant))
     }
 
     pub(super) fn priority_event(
@@ -171,7 +158,6 @@ impl Client {
             }
             PriorityEvent::Completed { error } => {
                 let request = pending.take().expect("priority request");
-                self.0.admission_changed.notify_waiters();
                 let result = match error {
                     Some(error) => Err(IntegratorError::Failed(error)),
                     None => {
@@ -197,7 +183,6 @@ impl Client {
             .is_some_and(|request| request.connection.owns_commands(commands))
         {
             let request = pending.take().expect("priority request");
-            self.0.admission_changed.notify_waiters();
             let _ = request
                 .completed
                 .send(Err(IntegratorError::Failed(message.into())));

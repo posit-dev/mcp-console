@@ -97,14 +97,6 @@ impl Client {
                 active.evaluation.reject_new_cell_message().to_string(),
             ));
         }
-        // Priority admission retains this same publication guard through enqueue.
-        // Keep a successor from becoming an interrupt target while private R
-        // code still owns the worker thread, including after a foreground ends.
-        if self.r_priority_pending() {
-            return Err(EvaluationStartError::Busy(
-                "immediate R execution is in progress; cell was not run".into(),
-            ));
-        }
         self.ensure_evaluation_admission(&generation, control)?;
         let startup = self.reserve_worker_startup(&generation)?;
         // Serialize retry cancellation with publishing its accepted cell.

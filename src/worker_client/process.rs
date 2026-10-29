@@ -863,7 +863,7 @@ impl Worker {
         if !dispatched {
             // Controller withholding survives receipt processing and delayed
             // evaluator attachment. No Evaluate was queued for this owner.
-            return self.operation.abort_bootstrap_cell();
+            return self.operation.abort_undispatched_cell();
         }
         match receive_operation(result)? {
             OperationResult::Completed => Ok(()),
@@ -1278,11 +1278,19 @@ impl WorkerShutdownHandle {
         execution: crate::worker_protocol::PriorityExecution,
         source: String,
     ) -> Result<(), String> {
-        self.commands.send(RelayCommand::EvaluatePriority {
-            request_id,
-            execution,
-            source,
-        })
+        let enqueue = || {
+            self.commands.send(RelayCommand::EvaluatePriority {
+                request_id,
+                execution,
+                source,
+            })
+        };
+        match execution {
+            crate::worker_protocol::PriorityExecution::RReentrant => {
+                self.operation.dispatch_r_priority(request_id, enqueue)
+            }
+            crate::worker_protocol::PriorityExecution::PythonThread => enqueue(),
+        }
     }
 
     pub(super) fn is_same_connection(&self, other: &Self) -> bool {
