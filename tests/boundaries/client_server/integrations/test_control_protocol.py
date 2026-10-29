@@ -187,7 +187,9 @@ def test_pins_input_and_interrupt_to_observed_evaluation(
                 accepted = control.request(op="interrupt", evaluation_id=next_id)
                 assert accepted["result"] == {"accepted": True}, accepted
                 result = wait_for_evaluation_output(
-                    client, None, "interrupted managed input"
+                    client,
+                    lambda text: "KeyboardInterrupt" in text,
+                    "interrupted managed input",
                 )
                 assert "KeyboardInterrupt" in result, result
                 client.expect("survived\n", python="print('survived')")

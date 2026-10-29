@@ -13,9 +13,7 @@ send:
   r: |
     tryCatch(
       {
-        gate <- fifo("<workspace>/foreground", "wb", blocking = TRUE)
-        writeBin(charToRaw("1"), gate)
-        close(gate)
+        cat("foreground ready\n")
         while (!release) {
           Sys.sleep(0.01)
         }
@@ -29,6 +27,7 @@ result:
   content:
     - type: text
       text: |
+        foreground ready
         foreground interrupted
   isError: false
 ---

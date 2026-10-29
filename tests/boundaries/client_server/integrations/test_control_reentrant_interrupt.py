@@ -1,5 +1,6 @@
 """Reentrant R evaluation cannot consume the foreground's interrupt."""
 
+import json
 import sys
 import tempfile
 from contextlib import closing
@@ -31,7 +32,6 @@ def test_reentrant_evaluation_preserves_foreground_interrupt(
         root = Path(directory)
         endpoint = root / "control.sock"
         with (
-            closing(FifoCheckpoint.create(root / "foreground")) as foreground_ready,
             closing(FifoCheckpoint.create(root / "priority")) as priority_ready,
             McpClient(
                 binary,
@@ -46,14 +46,14 @@ def test_reentrant_evaluation_preserves_foreground_interrupt(
             with (
                 ControlClient(endpoint) as priority,
                 ControlClient(endpoint) as control,
+                ControlClient(endpoint) as observer,
             ):
+                observer.request(op="subscribe")
                 # fmt: r
                 foreground_source = code("""
                     tryCatch(
                       {
-                        gate <- fifo("FOREGROUND", "wb", blocking = TRUE)
-                        writeBin(charToRaw("1"), gate)
-                        close(gate)
+                        cat("foreground ready\\n")
                         while (!release) {
                           Sys.sleep(0.01)
                         }
@@ -62,11 +62,18 @@ def test_reentrant_evaluation_preserves_foreground_interrupt(
                       },
                       interrupt = function(condition) cat("foreground interrupted\\n")
                     )
-                    """).replace("FOREGROUND", str(foreground_ready.path))
+                    """)
                 foreground = client.start_send(r=foreground_source, timeout_ms=60000)
-                foreground_ready.wait(client=client)
+                # The controller processes CellStarted before managed output;
+                # an external FIFO alone cannot prove controller readiness.
+                while True:
+                    event = json.loads(observer.reader.readline(timeout=30))
+                    assert event["event"] == "preview", event
+                    if "foreground ready\n" in result_text(event):
+                        break
                 status = control.request(op="status")["result"]
                 assert status["state"] == "evaluating", status
+                assert status["evaluation"]["started"] is True, status
                 evaluation_id = status["evaluation"]["id"]
                 # Cleanup releases the foreground even on the buggy path,
                 # making a consumed interrupt fail without a timeout.
@@ -98,7 +105,9 @@ def test_reentrant_evaluation_preserves_foreground_interrupt(
                 assert interrupted["result"] == {"accepted": True}, interrupted
                 private = priority.receive(pending)
                 client.receive(foreground)
-                assert result_text(foreground) == "foreground interrupted\n", foreground
+                assert result_text(foreground) == (
+                    "foreground ready\nforeground interrupted\n"
+                ), foreground
                 assert private["result"]["execution_error"]["ename"] == "Interrupt", (
                     private
                 )
