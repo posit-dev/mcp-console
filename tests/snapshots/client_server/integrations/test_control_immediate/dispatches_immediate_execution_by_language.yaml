@@ -10,14 +10,6 @@ result:
   isError: false
 ---
 send:
-  python: import threading; shared_python = 40
-result:
-  content:
-    - type: text
-      text: "[done]"
-  isError: false
----
-send:
   r: shared_r
 result:
   content:

@@ -1,0 +1,45 @@
+---
+scenario: Notes retain request order while a source cell awaits its worker.
+fixture: >-
+  A gated R discovery probe holds worker acquisition until both the cell
+  and a later standalone note have returned.
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  note: Record the question before the worker starts.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: 42L
+  note: Compute the initial answer.
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  note: The cell is queued; retain this observation after its source.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

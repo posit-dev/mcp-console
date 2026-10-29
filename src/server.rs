@@ -186,6 +186,7 @@ impl ConsoleServer {
             r,
             python,
             sql,
+            note,
             session,
             control,
             requirements,
@@ -193,6 +194,18 @@ impl ConsoleServer {
             timeout_ms,
         }): Parameters<SendArguments>,
     ) -> Result<CallToolResult, String> {
+        // The request recorder already owns the note. Standalone annotations
+        // neither claim a worker operation nor consume its pending output.
+        if note.is_some()
+            && r.is_none()
+            && python.is_none()
+            && sql.is_none()
+            && control.is_none()
+            && requirements.is_none()
+            && stdin.is_none()
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text("[done]")]));
+        }
         let cell = match (r, python, sql) {
             (Some(source), None, None) => Some(crate::cell::Cell {
                 language: crate::cell::Language::R,
@@ -533,10 +546,11 @@ impl ServerHandler for ConsoleServer {
             .and_then(serde_json::Value::as_str)
             .unwrap_or("default");
         let transcript = self.startup.runtime().transcript.for_session(session);
-        let poll_all = request
-            .arguments
-            .as_ref()
-            .is_none_or(|arguments| arguments.keys().all(|key| key == "timeout_ms"));
+        let poll_all = request.arguments.as_ref().is_none_or(|arguments| {
+            arguments
+                .iter()
+                .all(|(key, value)| key == "timeout_ms" || (key == "note" && value.is_null()))
+        });
         let selected = self.sessions.get(session);
         context.extensions.insert(PollAll(poll_all));
         let admitted = tokio::select! {

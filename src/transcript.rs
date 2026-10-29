@@ -161,6 +161,25 @@ pub(crate) struct Call {
     omit_from_projections: bool,
 }
 
+/// Request identity and note ownership observed before any journal I/O.
+pub(crate) struct CallReceipt {
+    pub(crate) id: u64,
+    at: DateTime<Utc>,
+    note_target: Option<NoteTarget>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(super) enum NoteTarget {
+    Worker {
+        session_id: u64,
+    },
+    NextWorker {
+        session: String,
+        after_session_id: u64,
+    },
+}
+
 enum CallSource {
     Mcp,
     #[cfg(unix)]
@@ -297,29 +316,36 @@ impl Transcript {
         }));
     }
 
-    /// Reserve protocol identity without waiting for the journal writer.
-    pub(crate) fn reserve_call_id(&self) -> u64 {
-        self.2
+    /// Capture receipt without waiting for the journal writer. Source-bearing
+    /// notes follow source association; standalone notes keep this worker target.
+    pub(crate) fn receive_call(&self, request: &CallToolRequestParams) -> CallReceipt {
+        let id = self
+            .2
             .fetch_add(1, Ordering::Relaxed)
             .checked_add(1)
-            .expect("recording call ID space exhausted")
+            .expect("recording call ID space exhausted");
+        let at = Utc::now();
+        let note_target = request.arguments.as_ref().and_then(|arguments| {
+            (arguments.get("note").is_some_and(Value::is_string)
+                && !["r", "python", "sql"]
+                    .iter()
+                    .any(|language| arguments.get(*language).is_some_and(Value::is_string)))
+            .then(|| self.note_target())
+        });
+        CallReceipt {
+            id,
+            at,
+            note_target,
+        }
     }
     pub(crate) fn begin(
         &self,
-        call_id: u64,
-        at: DateTime<Utc>,
+        receipt: CallReceipt,
         request_id: &RequestId,
         request_meta: &RequestMetaObject,
         request: &CallToolRequestParams,
     ) -> Call {
-        self.begin_call(
-            call_id,
-            at,
-            request_id,
-            request_meta,
-            request,
-            CallSource::Mcp,
-        )
+        self.begin_call(receipt, request_id, request_meta, request, CallSource::Mcp)
     }
 
     #[cfg(unix)]
@@ -329,12 +355,12 @@ impl Transcript {
         arguments: &serde_json::Map<String, Value>,
         include_in_projections: bool,
     ) -> Call {
+        let request = CallToolRequestParams::new("send").with_arguments(arguments.clone());
         self.begin_call(
-            self.reserve_call_id(),
-            Utc::now(),
+            self.receive_call(&request),
             request_id,
             &RequestMetaObject::default(),
-            &CallToolRequestParams::new("send").with_arguments(arguments.clone()),
+            &request,
             CallSource::Integrator {
                 include_in_projections,
             },
@@ -343,13 +369,17 @@ impl Transcript {
 
     fn begin_call(
         &self,
-        call_id: u64,
-        at: DateTime<Utc>,
+        receipt: CallReceipt,
         request_id: &RequestId,
         request_meta: &RequestMetaObject,
         request: &CallToolRequestParams,
         source: CallSource,
     ) -> Call {
+        let CallReceipt {
+            id: call_id,
+            at,
+            note_target,
+        } = receipt;
         let (origin, omit_from_projections) = match source {
             CallSource::Mcp => (None, false),
             #[cfg(unix)]
@@ -367,6 +397,7 @@ impl Transcript {
             active.append(
                 Event::ToolCall {
                     call_id,
+                    note_target,
                     request_id,
                     request: &request,
                     origin,

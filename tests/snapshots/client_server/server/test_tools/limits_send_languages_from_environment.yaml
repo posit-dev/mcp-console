@@ -13,7 +13,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    version: 0.0.6
+    version: <Console version>
   instructions: >-
     Persistent custom-worker R and SQL REPL. Reuse objects across calls to
     inspect results, test hypotheses, and compare approaches.
@@ -74,6 +74,15 @@ result:
             description: >-
               Evaluate one complete SQL cell; the custom worker supplies the
               connection, dialect, and display.
+            type:
+              - string
+              - "null"
+          note:
+            description: |-
+              Plain text or Markdown journal annotation, recorded as prose before any same-call code.
+              Use it to record observations, questions, or the purpose of a step. May accompany other
+              arguments or stand alone. A note-only call returns without waiting for or collecting
+              worker output. Notes are not evaluated.
             type:
               - string
               - "null"

@@ -16,7 +16,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    version: 0.0.6
+    version: <Console version>
   instructions: >-
     Persistent R, Python, and SQL REPL for calculations, data exploration
     and analysis, database queries, debugging, simulations, and plots. Reuse
@@ -165,6 +165,15 @@ result:
               a sandbox, attach existing DuckDB databases outside writable paths using
               `ATTACH 'path' AS name (READ_ONLY)`. Use `SHOW TABLES`, `DESCRIBE`,
               `SUMMARIZE`, or `EXPLAIN`; CLI dot commands are not supported.
+            type:
+              - string
+              - "null"
+          note:
+            description: |-
+              Plain text or Markdown journal annotation, recorded as prose before any same-call code.
+              Use it to record observations, questions, or the purpose of a step. May accompany other
+              arguments or stand alone. A note-only call returns without waiting for or collecting
+              worker output. Notes are not evaluated.
             type:
               - string
               - "null"

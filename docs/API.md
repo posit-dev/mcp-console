@@ -14,6 +14,7 @@ Different sessions can execute concurrently.
 | Argument             | Meaning                                                                                                                     |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `r`, `python`, `sql` | Optional source string. At most one may be non-null. The configured language selection determines which fields are exposed. |
+| `note`               | Optional plain text or Markdown string annotating the recording; see [Journal notes](#journal-notes).                       |
 | `session`            | String selecting a session; defaults to `"default"`. Omit it on an empty poll to collect all active sessions.               |
 | `timeout_ms`         | Nonnegative integer; maximum observation wait, normally 60,000 milliseconds. It does not cancel execution.                  |
 | `stdin`              | Optional string of exact input bytes encoded as UTF-8. No newline is added.                                                 |
@@ -67,7 +68,7 @@ Supply a new name with code to start an independent session:
 { "session": "analysis", "python": "values = [2, 4, 6]; sum(values)" }
 ```
 
-Use the same name on later code, input, requirements, and control calls.
+Use the same name on later code, notes, input, requirements, and control calls.
 Each session owns its language objects, database connections, unread input, and accepted requirements.
 Sessions use the same launch configuration, working directory, and filesystem permissions; files in writable locations can be shared.
 There is no separate creation call.
@@ -147,6 +148,24 @@ Omitting `session` polls all active sessions concurrently within one observation
 Completion returns text/images, or `[done]` when empty.
 An idle poll returns pending idle output and `[idle]`.
 Elapsed/phase notices describe observations, not a queue position or completion guarantee.
+
+### Journal notes
+
+Use `note` to record observations, questions, or the purpose of a step.
+It can accompany code, input, requirements, or a control operation without changing that operation.
+Console retains the text in the recording and presents it as prose before any same-call code in `transcript.md` and the associated session QMD.
+It does not evaluate the note.
+Session QMDs pass ordinary Markdown and HTML through unchanged and use a whole-note verbatim fallback for recognized metadata and executable examples.
+
+```json
+{ "note": "Check whether the missing values are confined to one batch." }
+```
+
+A note-only call returns `[done]` without waiting for the runtime or collecting output from a running cell.
+Use `session` to associate a standalone note with a named session; omission selects `default`.
+Adding `timeout_ms` does not turn it into a poll; use an empty `send` to collect output.
+Omitting `note` or supplying `null` adds no annotation.
+The [recording reference](RECORDING_REFERENCE.md) explains session association, retention, and failure behavior.
 
 ### Server readiness
 

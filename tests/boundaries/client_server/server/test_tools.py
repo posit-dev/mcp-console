@@ -323,6 +323,7 @@ def _initializes_and_lists_tools(
             if languages is not None:
                 assert set(send["inputSchema"]["properties"]) == {
                     *languages,
+                    "note",
                     "session",
                     "control",
                     "requirements",
@@ -355,6 +356,7 @@ def _initializes_and_lists_tools(
                     "r",
                     "python",
                     "sql",
+                    "note",
                     "session",
                     "timeout_ms",
                     "control",
@@ -745,6 +747,7 @@ def test_limits_send_languages_from_environment(binary: Path) -> Transcript:
             assert send_properties.keys() == {
                 "r",
                 "sql",
+                "note",
                 "session",
                 "control",
                 "requirements",
@@ -813,7 +816,17 @@ def _reject_send_arguments(client: McpClient) -> None:
     assert result["isError"] is True, result
     assert result["content"][0]["text"] == (
         "failed to deserialize parameters: unknown field `wait_ms`, expected one "
-        "of `r`, `python`, `sql`, `session`, `control`, `requirements`, `stdin`, `timeout_ms`"
+        "of `r`, `python`, `sql`, `note`, `session`, `control`, `requirements`, `stdin`, `timeout_ms`"
+    ), result
+    result = client.send(
+        python="sentinel = -1",
+        note=42,
+        control="restart",
+        stdin="must not queue\n",
+    )
+    assert result["isError"] is True, result
+    assert result["content"][0]["text"] == (
+        "failed to deserialize parameters: invalid type: integer `42`, expected a string"
     ), result
     result = client.send(
         r="1",

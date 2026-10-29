@@ -427,8 +427,8 @@ They cannot be inferred from `cell_started` and `cell_ended`, which describe act
 `source_associated` identifies the owning worker without claiming that the source ran.
 Actual acquisition and dispatch associate source with its worker; validation rejection can associate otherwise unclaimed source only with the still-surviving addressed worker.
 Calls without source do not acquire source associations.
-Unsettled associations retain call identity and settlement flags, and the source projection retains source rather than complete requests or stdin.
-Both release settled call entries.
+Unsettled associations retain call identity and settlement flags, and the session projection retains source and notes rather than complete requests or stdin.
+Both release settled source call entries.
 Completion closes the cell interval, and the final startup or post-cell interval includes shutdown output.
 Confirmed completion follows protocol validation; cell entry observed during retirement still starts its capture interval.
 Worker termination closes the final interval and clears its owner before later process diagnostics arrive.
@@ -439,8 +439,15 @@ Combined text/image omission notices retain their common observed interval owner
 Image omission ownership is aggregated before per-interval receipts retire, with bounded state independent of the number of omitted images.
 Response assembly uses those receipts without waiting for the journal to rediscover ownership.
 
-Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and source-only `sessions/session-NNN.qmd` remain projections of the journal.
-Session documents follow actual worker lifetimes, including automatic replacements, and are created only when source is associated.
+Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and session documents at `sessions/session-NNN.qmd` remain projections of the journal.
+Session documents follow actual worker lifetimes, including automatic replacements, and are created when source or notes are associated.
+Notes accompanying source follow its worker association.
+Source-free notes belong to the selected logical session's current worker when received; without a worker, they remain pending until that named session's next actual acquisition.
+Receipt snapshots that target under the protocol ownership lock before waiting for journal I/O, and `tool_call.note_target` carries it into the projection.
+Pending targets record the logical name and the last global acquisition ID observed at receipt, so another session's acquisition cannot claim the note.
+Delayed capture can therefore append to a retired worker's document without transferring the note to its replacement.
+If no worker is acquired, pending notes remain only in the journal and Markdown transcript.
+QMD entries use original call order, with notes before same-call source, so delayed source association does not reorder the narrative.
 Their metadata follows accepted live requirements and acquisition snapshots, including retained R declarations; replacement preparation does not rewrite a retiring session.
 The Markdown projection retains calls and assembled results, including previews and omission notices, while the journal retains routine protocol, delivery, and low-level lifecycle evidence.
 Integrator calls may omit their human-readable projections while preserving journal and raw capture.

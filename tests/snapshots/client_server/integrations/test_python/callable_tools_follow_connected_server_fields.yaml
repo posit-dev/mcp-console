@@ -3,6 +3,7 @@ bare: |
   [1] 2
 fields:
   - control
+  - note
   - python
   - r
   - requirements
@@ -15,6 +16,7 @@ custom: |
   zod: configured
 fields:
   - control
+  - note
   - r
   - requirements
   - session

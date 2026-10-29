@@ -1,0 +1,110 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.r-only.direct.yaml
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  note: |
+    ## Journal
+
+    Keep **formatted prose** and `ordinary code`.
+
+    ---
+
+    Observed group
+    ---
+
+    <span class="journal-label">Observed cohort</span>.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  note: |
+    ---
+    Observed total: 42
+    ---
+
+    ## Examples
+
+    ---
+    Observed cohort: controls
+    ...
+
+    > ---
+    > Observed replicate: 3
+    > ---
+
+    ~~~yaml
+    ---
+    execute:
+      eval: false
+    ---
+    ~~~
+
+    ```{r}
+    writeLines("fence", "note-fence-ran")
+    ```
+
+    Legacy inline `r {writeLines("inline", "note-inline-ran"); "literal"}`.
+    Quarto inline `{r} {writeLines("inline", "note-quarto-inline-ran"); "literal"}`.
+    Nested backticks ``r cat("`nested`")``.
+
+    > ```{r}
+    > writeLines("quote", "note-quote-ran")
+    > ```
+
+    - A nested example:
+
+      ```{r, example}
+      writeLines("list", "note-list-ran")
+      ```
+
+    ~~~{r}
+    writeLines("tilde", "note-tilde-ran")
+    ~~~
+
+    ```text
+    An inline example: `r {writeLines("literal", "note-literal-ran"); "literal"}`.
+    {{< include included.qmd >}}
+    ```
+
+    {{< include included.qmd >}}
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  note: |
+    #| include: false
+    Keep this literal chunk option visible.
+
+    ```{r}
+    writeLines("option", "note-option-ran")
+    ```
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: writeLines("source", "source-ran")
+  note: "--- \r\nexecute:\r\n  eval: false\r\n---\t\r\n"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

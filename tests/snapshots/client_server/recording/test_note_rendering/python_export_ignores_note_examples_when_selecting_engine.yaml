@@ -1,0 +1,46 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.configured-python.direct.yaml
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  note: |
+    ## Alternative R example
+
+    ```{r}
+    writeLines("example", "note-ran")
+    ```
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    from pathlib import Path
+
+    written = Path("source-ran").write_text("42", encoding="utf-8")
+    print("executed-python=42")
+result:
+  content:
+    - type: text
+      text: |
+        executed-python=42
+  isError: false
+---
+rendering:
+  engines:
+    note-only.qmd:
+      - markdown
+    session.qmd:
+      - jupyter
+  source_executed: true

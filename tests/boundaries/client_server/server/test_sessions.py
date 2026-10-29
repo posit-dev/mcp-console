@@ -123,6 +123,10 @@ def test_named_sessions_can_wait_for_input_concurrently(
                     {"session": "default", "status": "idle"},
                 ]
             }, active
+            null_note = client.send(note=None, timeout_ms=0)
+            assert null_note.get("structuredContent") == active["structuredContent"], (
+                null_note
+            )
             output = "".join(part["text"] for part in active["content"])
             for session, status in (
                 ("alpha", "waiting_for_stdin"),

@@ -511,6 +511,20 @@ impl Transcript {
             .then_some(events.workers.get(&self.4)?.owner)
             .flatten()
     }
+    pub(super) fn note_target(&self) -> super::NoteTarget {
+        let events = self.1.lock().expect("protocol capture lock");
+        match events.workers.get(&self.4).and_then(|worker| worker.owner) {
+            Some(owner) => super::NoteTarget::Worker {
+                session_id: owner.session_id,
+            },
+            // Other logical sessions can acquire workers first. Record a
+            // boundary, without reserving a global ID or creating a worker.
+            None => super::NoteTarget::NextWorker {
+                session: self.4.to_string(),
+                after_session_id: events.next_session_id,
+            },
+        }
+    }
     pub(crate) fn worker_starting(&self) {
         self.observe(|events| {
             events

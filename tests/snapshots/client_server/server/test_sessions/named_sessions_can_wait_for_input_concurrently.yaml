@@ -57,6 +57,32 @@ result:
   isError: false
 ---
 send:
+  note: ~
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "alpha"; status: waiting_for_stdin]
+
+        [waiting for stdin]
+        [session: "beta"; status: waiting_for_stdin]
+
+        [waiting for stdin]
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: alpha
+        status: waiting_for_stdin
+      - session: beta
+        status: waiting_for_stdin
+      - session: default
+        status: idle
+  isError: false
+---
+send:
   session: alpha
   timeout_ms: 0
 result:

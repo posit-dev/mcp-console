@@ -61,6 +61,7 @@ def test_replaces_complete_tool_prose(binary: Path) -> TranscriptWithCompanions:
             for field in (
                 "r",
                 "python",
+                "note",
                 "session",
                 "control",
                 "requirements",

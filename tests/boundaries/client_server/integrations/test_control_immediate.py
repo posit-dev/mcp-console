@@ -35,14 +35,25 @@ def test_dispatches_immediate_execution_by_language(
         ) as client:
             client.initialize_and_list_tools()
             client.expect(r="shared_r <- 40L")
-            client.expect(python="import threading; shared_python = 40")
             with ControlClient(endpoint) as control:
+                # Receiving an MCP response can precede its acknowledgment.
+                # Serial setup waits for delivery before immediate requests.
+                result = control.request(
+                    op="evaluate",
+                    language="python",
+                    code="import threading; shared_python = 40",
+                    busy="wait",
+                    wait_ms=30000,
+                )
+                assert "result" in result, result
+                assert result_text(result) == "[done]", result
                 result = control.request(
                     op="evaluate",
                     language="r",
                     execution="immediate",
                     code="shared_r <- shared_r + 2L; shared_r",
                 )
+                assert "result" in result, result
                 assert result_text(result) == "[1] 42\n", result
                 assert result["result"]["execution_error"] is None, result
                 result = control.request(
@@ -51,6 +62,7 @@ def test_dispatches_immediate_execution_by_language(
                     execution="immediate",
                     code="assert threading.current_thread() is not threading.main_thread(); shared_python += 2; print(shared_python)",
                 )
+                assert "result" in result, result
                 assert result_text(result) == "42\n", result
                 assert result["result"]["execution_error"] is None, result
                 client.expect("[1] 42\n", r="shared_r")

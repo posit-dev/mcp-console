@@ -118,6 +118,8 @@ pub(super) enum Event<'a> {
     },
     ToolCall {
         call_id: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        note_target: Option<super::NoteTarget>,
         request_id: &'a RequestId,
         request: &'a CallToolRequestParams,
         #[serde(skip_serializing_if = "Option::is_none")]

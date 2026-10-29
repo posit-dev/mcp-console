@@ -13,7 +13,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    version: 0.0.6
+    version: <Console version>
   instructions: Evaluation server.
 ---
 input:
@@ -40,6 +40,11 @@ result:
               - "null"
           python:
             description: Replacement for python.
+            type:
+              - string
+              - "null"
+          note:
+            description: Replacement for note.
             type:
               - string
               - "null"
@@ -130,6 +135,11 @@ result:
               - "null"
           python:
             description: Replacement for python.
+            type:
+              - string
+              - "null"
+          note:
+            description: Replacement for note.
             type:
               - string
               - "null"
