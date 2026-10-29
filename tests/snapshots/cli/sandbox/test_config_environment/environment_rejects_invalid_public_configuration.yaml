@@ -20,9 +20,9 @@ stderr: >
 case: native policy
 stderr: >
   configuration environment 'TEST_CONFIG': filesystem: unknown field
-  `filesystem`, expected one of `tool`, `startup`, `cache`, `python`, `r`,
-  `languages`, `inherit_environment`, `environment`, `sandbox`,
-  `resolver`; see docs/CONFIGURATION.md for the public format
+  `filesystem`, expected one of `tool`, `sessions`, `startup`, `cache`,
+  `python`, `r`, `languages`, `inherit_environment`, `environment`,
+  `sandbox`, `resolver`; see docs/CONFIGURATION.md for the public format
 ---
 case: invalid sandbox
 stderr: >
