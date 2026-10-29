@@ -109,11 +109,21 @@ def make_app(binary: Path, workspace: Path) -> App:
                     id="transcript-history",
                 ),
                 ui.card_footer(
-                    ui.input_radio_buttons(
-                        "execution",
-                        "Execution",
-                        {"serial": "Ordinary", "immediate": "Immediate"},
-                        inline=True,
+                    ui.div(
+                        ui.input_radio_buttons(
+                            "language",
+                            "Language",
+                            {"r": "R", "python": "Python", "sql": "SQL"},
+                            selected="python",
+                            inline=True,
+                        ),
+                        ui.input_radio_buttons(
+                            "execution",
+                            "Execution",
+                            {"serial": "Ordinary", "immediate": "Immediate"},
+                            inline=True,
+                        ),
+                        class_="editor-options",
                     ),
                     ui.tags.p(
                         "Immediate shares session state. R requires event processing; Python requires the GIL. "
@@ -121,22 +131,37 @@ def make_app(binary: Path, workspace: Path) -> App:
                         id="execution-help",
                         class_="small text-muted",
                     ),
-                    ui.input_code_editor(
-                        "source",
-                        "Code · Python syntax",
-                        language="python",
-                        height="130px",
-                        line_numbers=False,
-                        word_wrap=True,
-                        fill=False,
-                    ),
                     ui.div(
-                        ui.input_action_button("evaluate_r", "R"),
-                        ui.input_action_button("evaluate_python", "Python"),
-                        ui.input_action_button("evaluate_sql", "SQL"),
-                        class_="btn-group",
-                        role="group",
-                        **{"aria-label": "Submit code"},
+                        ui.input_code_editor(
+                            "source",
+                            "Code · Python syntax",
+                            language="python",
+                            height="130px",
+                            line_numbers=False,
+                            word_wrap=True,
+                            fill=False,
+                        ),
+                        ui.div(
+                            ui.input_action_button(
+                                "submit", "Submit", class_="btn-primary btn-sm"
+                            ),
+                            ui.input_action_button(
+                                "interrupt",
+                                "Interrupt",
+                                class_="btn-sm",
+                                title="Request interruption of the ordinary evaluation",
+                            ),
+                            ui.input_action_button(
+                                "restart",
+                                "Restart",
+                                class_="btn-sm",
+                                title="Restart Console and clear session state",
+                            ),
+                            class_="editor-actions",
+                            role="group",
+                            **{"aria-label": "Console controls"},
+                        ),
+                        class_="editor-row",
                     ),
                 ),
             ),
@@ -195,6 +220,8 @@ def make_app(binary: Path, workspace: Path) -> App:
         endpoint: Path
         thread: AsyncThread | None = None
         agent_active = False
+        restart_active = False
+        connected = False
 
         async def change(value: reactive.Value[Any], item: Any) -> None:
             async with reactive.lock():
@@ -366,7 +393,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                 await asyncio.sleep(1)
 
         async def connect() -> None:
-            nonlocal endpoint, thread
+            nonlocal endpoint, thread, connected
             with tempfile.TemporaryDirectory(
                 prefix="console-shiny-", dir="/tmp"
             ) as directory:
@@ -446,6 +473,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                         # Establish the current worker before processing queued
                         # subscription snapshots from startup.
                         await publish_snapshot(await request(endpoint, op="output"))
+                        connected = True
                         start(inspect_variables())
                         while line := await reader.readline():
                             event = json.loads(line)
@@ -453,6 +481,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                                 await publish_snapshot(event["result"])
                         raise RuntimeError("Console subscription closed")
                     finally:
+                        connected = False
                         writer.close()
                         await writer.wait_closed()
 
@@ -503,6 +532,70 @@ def make_app(binary: Path, workspace: Path) -> App:
                 )
                 raise
             await publish_snapshot(result["output"])
+
+        async def control_notice(kind: str, text: str) -> None:
+            await session.send_custom_message("notice", {"kind": kind, "text": text})
+
+        async def interrupt_session() -> None:
+            if not connected:
+                await control_notice("interrupt", "Console is not connected.")
+                return
+            status = await request(endpoint, op="status")
+            evaluation = status["evaluation"]
+            if evaluation is None:
+                await control_notice(
+                    "interrupt",
+                    "No ordinary evaluation is running."
+                    if status["idle"]
+                    else f"Console is {status['state']}; no interrupt target is available yet.",
+                )
+                return
+            await control_notice(
+                "interrupt",
+                f"Human requested interruption of evaluation {evaluation['id']}; execution may still be running.",
+            )
+            try:
+                await request(endpoint, op="interrupt", evaluation_id=evaluation["id"])
+            except ControlError as error:
+                await control_notice("interrupt", f"Interrupt request failed: {error}")
+            else:
+                await control_notice(
+                    "interrupt",
+                    "Interrupt request accepted; execution may still be running.",
+                )
+
+        async def restart_session() -> None:
+            nonlocal restart_active
+            if not connected:
+                await control_notice("restart", "Console is not connected.")
+                return
+            if restart_active:
+                return
+            restart_active = True
+            async with reactive.lock():
+                ui.update_action_button("restart", disabled=True, session=session)
+                await reactive.flush()
+            try:
+                await control_notice("restart", "Human requested a session restart.")
+                await change(state, "Restarting…")
+                await request(endpoint, op="restart")
+                # Observe the new identity even if its subscription update is
+                # still queued. Replacement resets viewers and prepares runtimes.
+                await publish_snapshot(await request(endpoint, op="output"))
+                # Replacement is confirmed. Preparation reports its progress and
+                # failures separately; it must not prevent another restart.
+                await control_notice(
+                    "restart",
+                    "Session restarted; previous in-memory state was cleared.",
+                )
+            except ControlError as error:
+                await control_notice("restart", f"Restart request failed: {error}")
+                await change(state, f"Restart failed: {error}")
+            finally:
+                restart_active = False
+                async with reactive.lock():
+                    ui.update_action_button("restart", disabled=False, session=session)
+                    await reactive.flush()
 
         async def open_table(language: str, name: str) -> None:
             async with reactive.lock():
@@ -623,31 +716,38 @@ def make_app(binary: Path, workspace: Path) -> App:
                 agent_active = False
 
         @reactive.effect
-        @reactive.event(input.evaluate_r)
-        def submit_r() -> None:
-            ui.update_code_editor(
-                "source", language="r", label="Code · R syntax", session=session
-            )
-            start(evaluate("r", input.source(), input.execution()))
-
-        @reactive.effect
-        @reactive.event(input.evaluate_python)
-        def submit_python() -> None:
+        def editor_language() -> None:
+            language = input.language()
+            label = {"r": "R", "python": "Python", "sql": "SQL"}[language]
             ui.update_code_editor(
                 "source",
-                language="python",
-                label="Code · Python syntax",
+                language=language,
+                label=f"Code · {label} syntax",
                 session=session,
             )
-            start(evaluate("python", input.source(), input.execution()))
 
         @reactive.effect
-        @reactive.event(input.evaluate_sql)
-        def submit_sql() -> None:
-            ui.update_code_editor(
-                "source", language="sql", label="Code · SQL syntax", session=session
+        def submission_availability() -> None:
+            ui.update_action_button(
+                "submit",
+                disabled=input.language() == "sql" and input.execution() == "immediate",
+                session=session,
             )
-            start(evaluate("sql", input.source(), input.execution()))
+
+        @reactive.effect
+        @reactive.event(input.submit)
+        def submit_code() -> None:
+            start(evaluate(input.language(), input.source(), input.execution()))
+
+        @reactive.effect
+        @reactive.event(input.interrupt)
+        def interrupt_console() -> None:
+            start(interrupt_session())
+
+        @reactive.effect
+        @reactive.event(input.restart)
+        def restart_console() -> None:
+            start(restart_session())
 
         @reactive.effect
         @reactive.event(input.open_table)

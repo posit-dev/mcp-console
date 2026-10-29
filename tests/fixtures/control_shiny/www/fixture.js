@@ -134,6 +134,14 @@
     if (message.reset) {
       plots.clear();
       document.querySelector('#plots').replaceChildren();
+      // A new worker snapshot confirms retirement of the previous worker.
+      // Its final metadata may have been coalesced out of the subscription.
+      for (const item of entries.values()) {
+        if (item.meta.state !== 'running') continue;
+        item.meta = {...item.meta, state: 'retired'};
+        item.node.classList.replace('running', 'retired');
+        item.state.textContent = 'Stopped · session replaced';
+      }
     }
     for (const meta of message.evaluations) entry(meta);
     let idleOwner = null;
@@ -167,9 +175,6 @@
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.history').forEach(followBottom);
     document.querySelector('#plot-close').onclick = () => document.querySelector('#plot-dialog').close();
-    document.querySelector('#execution').addEventListener('change', () => {
-      document.querySelector('#evaluate_sql').disabled = document.querySelector('#execution input:checked').value === 'immediate';
-    });
     document.addEventListener('click', event => {
       const button = event.target.closest('[data-table-language]');
       if (button) Shiny.setInputValue('open_table', {language: button.dataset.tableLanguage, name: button.dataset.tableName, nonce: Date.now()}, {priority: 'event'});

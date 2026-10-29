@@ -31,7 +31,7 @@ Open `http://127.0.0.1:8000`.
 Use `--workspace PATH` to retain files in a particular directory, or omit it to use a temporary workspace.
 Use `--port PORT` to choose another local port, for example `--port 8001` if port 8000 is already in use.
 
-Submit R, Python, or SQL with the corresponding button, or ask the agent to run code.
+Select R, Python, or SQL in the language radio group and click **Submit**, or ask the agent to run code.
 Both paths retain objects in the same worker.
 Console selects and prepares its usual managed environments; its embedded Python interpreter is independent of the interpreter running Shiny.
 The app declares its viewer dependencies through Console's ordinary requirements mechanism before making immediate requests.
@@ -47,12 +47,18 @@ An already executing R cell pauses when it services events, lets the immediate e
 Use Immediate only for code that the integrator can safely run alongside the active evaluation; both modes share session state.
 Python needs the GIL, and R cannot preempt native code that does not process events.
 
+The compact **Interrupt** and **Restart** buttons beside the editor act directly through the control channel without an agent turn.
+Interrupt targets the current ordinary evaluation; it does not cancel a standalone immediate request.
+Restart replaces the worker, clears its in-memory objects and viewer snapshots, and prepares the new managed session.
+Connection status reports preparation progress; a preparation failure does not disable Restart.
+The transcript retains previous submissions and marks any running entries as stopped once worker replacement is observed.
+
 The transcript follows incoming output while the viewer is at the bottom.
 Scrolling up preserves the viewer's position, including when pending output completes or an image loads.
-An agent interrupt request is shown separately from its eventual result; the request does not establish that execution has stopped.
+Human and agent interrupt requests are shown separately from their results; accepting a request does not establish that execution has stopped.
 
 Submitted R, Python, and SQL code uses Shiny's native Markdown component for syntax highlighting, with origin and language labels retained in the chat-style transcript.
-The native Shiny code editor starts in Python mode and follows the last language button used to submit code.
+The native Shiny code editor starts in Python mode and follows the selected language.
 The typed-output transcript keeps a small incremental renderer to reconcile concurrent evaluations without replacing messages or resetting the viewer's scroll position.
 
 The Variables pane refreshes about once a second through private immediate requests, including while an ordinary cell is running.
@@ -113,6 +119,7 @@ Decimal columns and integer columns containing values outside JavaScript's exact
 The browser regression launches the actual app and Console process.
 It blocks an evaluation on a file checkpoint, verifies that pending output arrives before completion, releases the checkpoint, and checks retained state and rendered images.
 Additional cases select Immediate for R and Python while an ordinary cell remains blocked.
+Human controls cases interrupt a running cell without clearing its objects and restart a running session with an open table.
 Variables cases check live changes and deletion during a blocked cell, private output routing, and Python previews without custom repr execution.
 Table checks use the actual control channel and managed runtimes to exercise snapshot freshness, row limits, filters, sorting, and namespace isolation.
 The live smoke additionally asks Luna to mutate an object created through the direct input and verifies the result through both paths.

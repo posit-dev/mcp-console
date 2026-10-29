@@ -23,3 +23,9 @@
 
 .agent-chat-body {padding: 0; overflow: hidden;}
 #agent_chat {min-height: 0;}
+.editor-options {display: flex; flex-wrap: wrap; gap: .5rem 1.5rem;}
+.editor-options .shiny-input-container {width: auto; margin-bottom: .4rem;}
+.editor-row {display: flex; gap: .6rem; align-items: stretch;}
+.editor-row > #source {flex: 1; min-width: 0;}
+.editor-actions {display: flex; flex-direction: column; gap: .5rem; justify-content: flex-end; padding-bottom: .3rem;}
+.editor-actions .btn {white-space: nowrap;}

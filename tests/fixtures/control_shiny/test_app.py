@@ -94,11 +94,20 @@ def test_fits_viewport_and_scrolls_transcript(app, viewport):
     expect(chat.loc_input_button).to_be_in_viewport(ratio=1)
     for selector in (
         "#source",
-        "#evaluate_r",
-        "#evaluate_python",
-        "#evaluate_sql",
+        "#language",
+        "#submit",
+        "#interrupt",
+        "#restart",
     ):
         expect(page.locator(selector)).to_be_in_viewport(ratio=1)
+    editor = page.locator("#source").bounding_box()
+    for name in ("interrupt", "restart"):
+        button = page.locator(f"#{name}")
+        assert button.bounding_box()["x"] >= editor["x"] + editor["width"]
+        expect(button).to_have_accessible_name(name.title())
+    expect(page.locator("#restart")).to_have_attribute(
+        "title", "Restart Console and clear session state"
+    )
     assert page.evaluate("document.documentElement.scrollHeight <= window.innerHeight")
     submit(page, "python", "for i in range(100): print(f'line {i}')")
     expect(page.locator("#transcript .content")).to_contain_text(
@@ -109,12 +118,17 @@ def test_fits_viewport_and_scrolls_transcript(app, viewport):
     page.wait_for_function(
         "() => { const h = document.querySelector('#transcript-history'); return h.scrollHeight - h.scrollTop - h.clientHeight < 8; }"
     )
-    expect(page.locator("#evaluate_python")).to_be_in_viewport(ratio=1)
+    expect(page.locator("#submit")).to_be_in_viewport(ratio=1)
 
 
 def submit(page, language, source):
     InputCodeEditor(page, "source").loc_textarea.fill(source)
-    page.locator(f"#evaluate_{language}").click()
+    submit_editor(page, language)
+
+
+def submit_editor(page, language):
+    page.locator(f'#language input[value="{language}"]').check()
+    page.locator("#submit").click()
 
 
 def test_native_chat_suggestions_prefill_without_submitting(app):
@@ -140,11 +154,24 @@ def test_native_chat_suggestions_prefill_without_submitting(app):
     expect(page.locator("#agent_state")).to_have_text("Idle")
 
 
-def test_language_buttons_and_sql_restriction(app):
+def test_language_selection_updates_syntax_and_restricts_immediate_sql(app):
     page, _ = app
     InputCodeEditor(page, "source").expect_language("python")
+    expect(page.get_by_label("Python", exact=True)).to_be_checked()
     for language in ("r", "python", "sql"):
-        expect(page.locator(f"#evaluate_{language}")).to_be_visible()
+        page.locator(f'#language input[value="{language}"]').check()
+        InputCodeEditor(page, "source").expect_language(language)
+    expect(page.locator("#transcript .entry")).to_have_count(0)
+    page.get_by_label("Immediate", exact=True).check()
+    expect(page.locator("#submit")).to_be_disabled()
+    for language in ("r", "python", "sql"):
+        expect(page.locator(f'#language input[value="{language}"]')).to_be_enabled()
+    page.get_by_label("Python", exact=True).check()
+    expect(page.locator("#submit")).to_be_enabled()
+    page.get_by_label("SQL", exact=True).check()
+    expect(page.locator("#submit")).to_be_disabled()
+    page.get_by_label("Ordinary", exact=True).check()
+    expect(page.locator("#submit")).to_be_enabled()
     submit(page, "sql", "select 41 + 1 as answer")
     expect(page.locator("#transcript .content").last).to_contain_text(
         "42", timeout=60_000
@@ -162,7 +189,9 @@ def test_language_buttons_and_sql_restriction(app):
         not in page.locator("#transcript .content").last.inner_text()
     )
     page.get_by_label("Immediate", exact=True).check()
-    expect(page.locator("#evaluate_sql")).to_be_disabled()
+    expect(page.locator("#submit")).to_be_enabled()
+    page.get_by_label("SQL", exact=True).check()
+    expect(page.locator("#submit")).to_be_disabled()
     expect(page.locator("#execution-help")).to_contain_text("SQL supports Ordinary")
 
 
@@ -177,7 +206,7 @@ def test_streams_pending_output_and_retains_state(app):
         "    time.sleep(0.02)\n"
         "print('completed-marker')"
     )
-    page.locator("#evaluate_python").click()
+    submit_editor(page, "python")
     expect(page.locator("#transcript .entry.running .content")).to_contain_text(
         "pending-marker", timeout=60_000
     )
@@ -189,7 +218,7 @@ def test_streams_pending_output_and_retains_state(app):
     )
     expect(page.locator("#transcript .entry.running")).to_have_count(0)
     InputCodeEditor(page, "source").loc_textarea.fill("print(shared_answer + 1)")
-    page.locator("#evaluate_python").click()
+    submit_editor(page, "python")
     expect(page.locator("#transcript .content").last).to_contain_text(
         "42", timeout=30_000
     )
@@ -221,13 +250,13 @@ def test_immediate_execution_while_ordinary_cell_is_pending(app, language):
         )
         priority = 'shared_answer <- shared_answer + 1; cat("priority-result", shared_answer, "\\n")'
     InputCodeEditor(page, "source").loc_textarea.fill(source)
-    page.locator(f"#evaluate_{language}").click()
+    submit_editor(page, language)
     expect(page.locator("#transcript .entry.running .content")).to_contain_text(
         "waiting-marker", timeout=60_000
     )
     page.get_by_label("Immediate", exact=True).check()
     InputCodeEditor(page, "source").loc_textarea.fill(priority)
-    page.locator(f"#evaluate_{language}").click()
+    submit_editor(page, language)
     expect(page.locator("#transcript .content").last).to_contain_text(
         "priority-result 42", timeout=30_000
     )
@@ -282,7 +311,7 @@ def test_variables_update_while_ordinary_cell_is_pending(app, language):
             'cat("variables-completed\\n")'
         )
     InputCodeEditor(page, "source").loc_textarea.fill(source)
-    page.locator(f"#evaluate_{language}").click()
+    submit_editor(page, language)
     expect(page.locator("#transcript .entry.running .content")).to_have_text(
         "variables-waiting\n", timeout=60_000
     )
@@ -318,7 +347,7 @@ def test_variables_update_while_ordinary_cell_is_pending(app, language):
         InputCodeEditor(page, "source").loc_textarea.fill(
             "print('repr-count', repr_calls)"
         )
-        page.locator(f"#evaluate_{language}").click()
+        submit_editor(page, language)
         expect(page.locator("#transcript .content").last).to_have_text(
             "repr-count 0\n", timeout=30_000
         )
@@ -331,7 +360,7 @@ def test_variables_update_while_ordinary_cell_is_pending(app, language):
 def test_agent_uses_the_same_worker(app):
     page, _ = app
     InputCodeEditor(page, "source").loc_textarea.fill("shared_answer = 40")
-    page.locator("#evaluate_python").click()
+    submit_editor(page, "python")
     expect(page.locator("#transcript .entry.complete")).to_have_count(1, timeout=60_000)
     Chat(page, "agent_chat").loc_input.fill(
         "Use the console_fixture send tool to execute exactly this Python code: "
@@ -344,7 +373,7 @@ def test_agent_uses_the_same_worker(app):
     InputCodeEditor(page, "source").loc_textarea.fill(
         "print('shared-state:', shared_answer)"
     )
-    page.locator("#evaluate_python").click()
+    submit_editor(page, "python")
     expect(page.locator("#transcript")).to_contain_text(
         "shared-state: 42", timeout=30_000
     )
