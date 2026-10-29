@@ -43,7 +43,7 @@ def export_ui() -> ui.Tag:
 def export_server(
     input: Inputs,
     session: Session,
-    recording: Callable[[], Awaitable[dict[str, Any]]],
+    recording: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
 ) -> None:
     @reactive.effect
     @reactive.event(input.export_request)
@@ -53,7 +53,7 @@ def export_server(
         try:
             kind = request["format"]
             assert kind in {"qmd", "markdown"}
-            paths = await recording()
+            paths = await recording(request)
             path = paths[kind]
             if path is None:
                 raise RuntimeError(

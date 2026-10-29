@@ -50,3 +50,8 @@
 .response-content pre {white-space: pre-wrap; overflow-wrap: anywhere;}
 .response-empty {font-size: .85rem; color: #666;}
 .stream > .omission {display: block;}
+.console-session-controls {display: flex; align-items: center; flex-wrap: wrap; gap: .4rem;}
+.console-session-controls .shiny-input-container {display: flex; align-items: center; gap: .5rem; width: auto; margin-bottom: 0;}
+.console-session-controls .control-label {white-space: nowrap; margin-bottom: 0;}
+.console-session-controls select {width: 12rem;}
+.session-transcript[hidden], .session-plots[hidden], .session-omissions[hidden], .session-inspector[hidden] {display: none !important;}

@@ -186,17 +186,20 @@ class RecordedCall:
 
 class RetainedOutput:
     def __init__(self) -> None:
-        self.calls: dict[int, str] = {}
+        self.calls: dict[int, dict[str, str]] = {}
 
     def observe(self, metadata: dict[str, Any]) -> None:
         if metadata.get("call_id") is not None:
-            self.calls[metadata["call_id"]] = metadata["execution"]
+            self.calls[metadata["call_id"]] = {
+                field: metadata[field]
+                for field in ("session", "incarnation", "execution")
+            }
 
 
 def retained_output_server(
     input: Inputs,
     session: Session,
-    recording: Callable[[], Awaitable[dict[str, Any]]],
+    recording: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
 ) -> RetainedOutput:
     viewer = RetainedOutput()
     selected: RecordedCall | None = None
@@ -262,14 +265,21 @@ def retained_output_server(
             session=session,
         )
         try:
-            call_id = input.retained_output_request()["call_id"]
+            request = input.retained_output_request()
+            call_id = request["call_id"]
             if call_id not in viewer.calls:
                 raise ValueError("This call is not part of the visible transcript.")
-            paths = await recording()
+            metadata = viewer.calls[call_id]
+            if any(
+                request.get(field) != metadata[field]
+                for field in ("session", "incarnation")
+            ):
+                raise ValueError("This call belongs to a different Console session.")
+            paths = await recording(request)
             selected = RecordedCall(
                 Path(paths["directory"]).resolve(),
                 call_id,
-                viewer.calls[call_id] == "immediate",
+                metadata["execution"] == "immediate",
             )
             await asyncio.to_thread(selected.refresh)
             await display()

@@ -99,6 +99,7 @@ def table_ui() -> ui.TagList:
 @dataclass
 class TableActions:
     open: Callable[[str, str], Awaitable[bool]]
+    close: Callable[[], Awaitable[None]]
     reset: Callable[[], Awaitable[None]]
     dispose: Callable[[], None]
 
@@ -495,4 +496,4 @@ def table_server(
     def page_data() -> pd.DataFrame:
         return displayed.get()
 
-    return TableActions(open_table, reset, viewer.reset)
+    return TableActions(open_table, close_table, reset, viewer.reset)

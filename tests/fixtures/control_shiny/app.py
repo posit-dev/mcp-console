@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["shiny>=1.8.0", "openai-codex>=0.163.0", "pandas[output-formatting]"]
 # ///
-"""Local integration fixture: one agent, one Console worker, two input paths."""
+"""Local integration fixture: one agent, named Console sessions, two input paths."""
 
 import argparse
 import asyncio
@@ -15,21 +15,23 @@ import tempfile
 import uuid
 from collections import OrderedDict
 from collections.abc import AsyncIterator, Coroutine
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from openai_codex import ApprovalMode, AsyncCodex, AsyncThread, Sandbox
-from openai_codex.async_client import AsyncCodexClient
-from pydantic import RootModel
-from shiny import App, Inputs, Outputs, Session, reactive, render, ui
-
-from environments import environments_server, environments_ui
+from environments import EnvironmentActions, environments_server, environments_ui
 from exports import export_server, export_ui
 from inspection import PYTHON_SOURCE, R_SOURCE
+from openai_codex import ApprovalMode, AsyncCodex, AsyncThread, Sandbox
+from openai_codex.async_client import AsyncCodexClient
 from output_views import output_controls, response_controls
+from pydantic import RootModel
 from retained_output import retained_output_server
+from session_controls import new_session_modal, session_controls_ui
+from shiny import App, Inputs, Outputs, Session, reactive, render, req, ui
+from shiny.session import session_context
 from source_format import SourceFormatter
-from table_pane import table_server, table_ui
+from table_pane import TableActions, table_server, table_ui
 
 MODEL = "gpt-6.1-terra"
 LOGGER = logging.getLogger(__name__)
@@ -59,6 +61,44 @@ async def request(endpoint: Path, **fields: Any) -> dict[str, Any]:
         await writer.wait_closed()
 
 
+@dataclass
+class ConsoleSession:
+    """UI ownership follows a named Console worker, never the selected dropdown."""
+
+    name: str
+    incarnation: str = field(default_factory=lambda: uuid.uuid4().hex)
+    worker_id: int | None = None
+    state: reactive.Value[str] = field(
+        default_factory=lambda: reactive.value("Starting…")
+    )
+    ready: asyncio.Event = field(default_factory=asyncio.Event)
+    immediate: asyncio.Lock = field(default_factory=asyncio.Lock)
+    tasks: set[asyncio.Task[Any]] = field(default_factory=set)
+    variable_views: dict[str, reactive.Value[str]] = field(
+        default_factory=lambda: {
+            language: reactive.value("Waiting for variables…")
+            for language in ("r", "python")
+        }
+    )
+    table_names: dict[str, reactive.Value[list[str]]] = field(
+        default_factory=lambda: {
+            language: reactive.value([]) for language in ("r", "python")
+        }
+    )
+    table: TableActions = field(init=False)
+    environments: EnvironmentActions = field(init=False)
+    preparing: asyncio.Task[Any] | None = None
+    subscribed: bool = False
+    closing: bool = False
+    restart_active: bool = False
+
+    def metadata(self) -> dict[str, str]:
+        return {"session": self.name, "incarnation": self.incarnation}
+
+    def module_id(self, kind: str) -> str:
+        return kind if self.name == "default" else f"{kind}_{self.incarnation}"
+
+
 def make_app(binary: Path, workspace: Path) -> App:
     app_ui = ui.page_fillable(
         ui.tags.head(
@@ -66,6 +106,7 @@ def make_app(binary: Path, workspace: Path) -> App:
             ui.tags.script(src="fixture.js"),
         ),
         ui.h2("Console integration fixture"),
+        session_controls_ui(),
         ui.output_text("connection_state"),
         ui.layout_columns(
             ui.card(
@@ -82,7 +123,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                         allow_attachments=False,
                         greeting=ui.TagList(
                             ui.p(
-                                "You and the agent share one R, Python, and SQL session."
+                                "You and the agent share the selected R, Python, and SQL session."
                             ),
                             ui.p(
                                 "Choose a suggestion to edit before sending, or write your own request."
@@ -209,8 +250,8 @@ def make_app(binary: Path, workspace: Path) -> App:
                     ),
                     ui.div(id="plots"),
                 ),
-                ui.nav_panel("Table", table_ui("table")),
-                ui.nav_panel("Environments", environments_ui("environments")),
+                ui.nav_panel("Table", ui.div(id="session-tables")),
+                ui.nav_panel("Environments", ui.div(id="session-environments")),
                 id="inspector_tab",
             ),
             col_widths=(3, 5, 4),
@@ -228,27 +269,55 @@ def make_app(binary: Path, workspace: Path) -> App:
 
     def server(input: Inputs, output: Outputs, session: Session) -> None:
         state = reactive.value("Starting…")
-        # The SDK owns conversation state; Shiny owns composition, Markdown,
-        # rendering, scrolling, and the streamed assistant message.
+        # The SDK owns the conversation; each Console session owns its runtime
+        # and inspector state. Shiny owns composition and chat rendering.
         agent_chat = ui.Chat("agent_chat", history=False)
         agent_status = reactive.value("Idle")
-        variable_views = {
-            "r": reactive.value("Waiting for variables…"),
-            "python": reactive.value("Waiting for variables…"),
-        }
-        table_names = {"r": reactive.value([]), "python": reactive.value([])}
-        worker_id: int | None = None
-        immediate = asyncio.Lock()
-        tasks: set[asyncio.Task[None]] = set()
+        contexts: dict[str, ConsoleSession] = {}
+        selected = reactive.value("default")
+        tasks: set[asyncio.Task[Any]] = set()
         formatter = SourceFormatter()
         formatting: set[str] = set()
         formatted: OrderedDict[str, None] = OrderedDict()
-        ready = asyncio.Event()
         endpoint: Path
         thread: AsyncThread | None = None
         agent_active = False
-        restart_active = False
         connected = False
+        registry_lock = asyncio.Lock()
+        selection_lock = asyncio.Lock()
+
+        def current() -> ConsoleSession:
+            return contexts[selected.get()]
+
+        def requested() -> ConsoleSession:
+            # A dropdown change can arrive in the same flush as a button click,
+            # before the asynchronous view activation has finished.
+            ctx = contexts.get(input.console_session())
+            req(ctx is not None and live(ctx))
+            assert ctx is not None
+            return ctx
+
+        def live(ctx: ConsoleSession) -> bool:
+            return contexts.get(ctx.name) is ctx and not ctx.closing
+
+        def resolve(value: dict[str, Any]) -> ConsoleSession:
+            ctx = contexts.get(value["session"])
+            if ctx is None or not live(ctx) or ctx.incarnation != value["incarnation"]:
+                raise RuntimeError(
+                    "This Console session has closed. Select an active session."
+                )
+            return ctx
+
+        async def scoped_request(ctx: ConsoleSession, **fields: Any) -> dict[str, Any]:
+            if not connected or not live(ctx):
+                raise RuntimeError("Console session is not connected.")
+            return await request(endpoint, session=ctx.name, **fields)
+
+        async def message(
+            ctx: ConsoleSession, kind: str, value: dict[str, Any]
+        ) -> None:
+            if live(ctx):
+                await session.send_custom_message(kind, {**value, **ctx.metadata()})
 
         async def change(value: reactive.Value[Any], item: Any) -> None:
             async with reactive.lock():
@@ -256,9 +325,11 @@ def make_app(binary: Path, workspace: Path) -> App:
                     value.set(item)
                 await reactive.flush()
 
-        async def private_evaluate(language: str, source: str) -> dict[str, Any]:
-            return await request(
-                endpoint,
+        async def private_evaluate(
+            ctx: ConsoleSession, language: str, source: str
+        ) -> dict[str, Any]:
+            return await scoped_request(
+                ctx,
                 op="evaluate",
                 language=language,
                 execution="immediate",
@@ -266,15 +337,15 @@ def make_app(binary: Path, workspace: Path) -> App:
                 record=False,
             )
 
-        async def prepare() -> None:
-            ready.clear()
-            observed_worker = worker_id
-            await change(state, "Preparing managed environments…")
+        async def prepare(ctx: ConsoleSession) -> None:
+            ctx.ready.clear()
+            observed_worker = ctx.worker_id or 0
+            await change(ctx.state, "Preparing managed environments…")
             # A replacement's output identity is published before restart has
             # released admission. Observe that transition before submitting setup.
-            while observed_worker == worker_id:
+            while live(ctx):
                 try:
-                    status = await request(endpoint, op="status")
+                    status = await scoped_request(ctx, op="status")
                     if status["state"] not in {
                         "starting",
                         "preparing",
@@ -286,7 +357,9 @@ def make_app(binary: Path, workspace: Path) -> App:
                     if error.code != "busy":
                         raise
                 await asyncio.sleep(1)
-            if observed_worker != worker_id:
+            if not live(ctx) or (
+                observed_worker > 0 and observed_worker != ctx.worker_id
+            ):
                 return
             for language, source in (
                 (
@@ -295,8 +368,8 @@ def make_app(binary: Path, workspace: Path) -> App:
                 ),
                 ("python", "pass"),
             ):
-                await request(
-                    endpoint,
+                await scoped_request(
+                    ctx,
                     op="evaluate",
                     language=language,
                     code=source,
@@ -304,12 +377,14 @@ def make_app(binary: Path, workspace: Path) -> App:
                     wait_ms=60000,
                     record=False,
                 )
-                if observed_worker != worker_id:
+                if not live(ctx) or (
+                    observed_worker > 0 and observed_worker != ctx.worker_id
+                ):
                     return
-            ready.set()
-            await change(state, "Ready")
+            ctx.ready.set()
+            await change(ctx.state, "Ready")
             if connected:
-                await environments.refresh()
+                await ctx.environments.refresh()
 
         def source_html(identifier: str, language: str, source: str) -> str:
             # Native MarkdownStream performs syntax highlighting. The fence is
@@ -347,7 +422,9 @@ def make_app(binary: Path, workspace: Path) -> App:
             finally:
                 formatting.discard(key)
 
-        def submitted_source(metadata: dict[str, Any]) -> dict[str, Any]:
+        def submitted_source(
+            ctx: ConsoleSession, metadata: dict[str, Any]
+        ) -> dict[str, Any]:
             source = metadata["source"]
             language = metadata["language"]
             truncated = metadata.get("source_truncated", False)
@@ -364,120 +441,299 @@ def make_app(binary: Path, workspace: Path) -> App:
                 start(format_source(key, language, source, truncated))
             return {
                 **metadata,
-                "source_html": source_html(str(metadata["id"]), language, source),
-                "output_controls": output_controls(str(metadata["id"])),
+                "source_html": source_html(
+                    ctx.incarnation + str(metadata["id"]), language, source
+                ),
+                "output_controls": output_controls(
+                    ctx.incarnation + str(metadata["id"])
+                ),
                 "format_key": key,
                 "format_status": "pending",
             }
 
-        async def publish_snapshot(snapshot: dict[str, Any]) -> None:
-            nonlocal worker_id
-            observed_worker = snapshot["worker_id"]
-            # A private result can arrive after replacement's subscription event.
-            if worker_id is not None and observed_worker < worker_id:
+        async def publish_snapshot(
+            ctx: ConsoleSession, snapshot: dict[str, Any]
+        ) -> None:
+            if not live(ctx):
                 return
-            changed = worker_id is not None and observed_worker != worker_id
-            worker_id = observed_worker
+            observed_worker = snapshot["worker_id"]
+            if ctx.worker_id is not None and observed_worker < ctx.worker_id:
+                return
+            changed = bool(ctx.worker_id) and observed_worker != ctx.worker_id
+            ctx.worker_id = observed_worker
             for item in snapshot["evaluations"]:
-                retained.observe(item)
+                retained.observe({**item, **ctx.metadata()})
             if changed:
-                ready.clear()
-
-                async def replace() -> None:
-                    for language in variable_views:
-                        await change(
-                            variable_views[language],
-                            "Session replaced. Waiting for variables…",
-                        )
-                        await change(table_names[language], [])
-                    await table.reset()
-                    await prepare()
-
-                start(replace())
-            await session.send_custom_message(
+                ctx.ready.clear()
+                if ctx.preparing is not None:
+                    ctx.preparing.cancel()
+                for language in ctx.variable_views:
+                    await change(
+                        ctx.variable_views[language],
+                        "Session replaced. Waiting for variables…",
+                    )
+                    await change(ctx.table_names[language], [])
+                await ctx.table.reset()
+                ctx.preparing = start(prepare(ctx), ctx)
+            await message(
+                ctx,
                 "output-snapshot",
                 {
                     **snapshot,
                     "reset": changed,
                     "evaluations": [
-                        submitted_source(item) for item in snapshot["evaluations"]
+                        submitted_source(ctx, item) for item in snapshot["evaluations"]
                     ],
                 },
             )
 
-        async def guarded(coroutine: Coroutine[Any, Any, None]) -> None:
+        async def guarded(
+            coroutine: Coroutine[Any, Any, Any], ctx: ConsoleSession | None
+        ) -> None:
+            if ctx is not None and not live(ctx):
+                coroutine.close()
+                return
             try:
                 await coroutine
             except Exception as error:
                 LOGGER.exception("Fixture action failed")
-                await change(state, f"Error: {error}")
+                if ctx is None or live(ctx):
+                    await change(
+                        ctx.state if ctx is not None else state, f"Error: {error}"
+                    )
 
-        def start(coroutine: Coroutine[Any, Any, None]) -> None:
-            task = asyncio.create_task(guarded(coroutine))
-            tasks.add(task)
-            task.add_done_callback(tasks.discard)
+        def start(
+            coroutine: Coroutine[Any, Any, Any], ctx: ConsoleSession | None = None
+        ) -> asyncio.Task[Any]:
+            task = asyncio.create_task(guarded(coroutine, ctx))
+            owner = ctx.tasks if ctx is not None else tasks
+            owner.add(task)
+            task.add_done_callback(owner.discard)
+            return task
 
-        table = table_server("table", private_evaluate, immediate, ready, start)
-
-        async def environment_request(**fields: Any) -> dict[str, Any]:
-            if not connected:
-                raise RuntimeError("Console is not connected yet.")
-            return await request(endpoint, **fields)
-
-        async def prepare_requirements(requirements: dict[str, Any]) -> dict[str, Any]:
-            if not connected or not ready.is_set():
+        async def prepare_requirements(
+            ctx: ConsoleSession, requirements: dict[str, Any]
+        ) -> dict[str, Any]:
+            if not connected or not ctx.ready.is_set():
                 raise RuntimeError("Wait for Console's managed session to be ready.")
-            observed_worker = worker_id
-            ready.clear()
+            observed_worker = ctx.worker_id
+            ctx.ready.clear()
             await control_notice(
+                ctx,
                 "requirements",
                 f"Human requested requirement preparation: {json.dumps(requirements)}",
             )
             try:
-                async with immediate:
-                    if not connected or observed_worker != worker_id:
+                async with ctx.immediate:
+                    if not live(ctx) or observed_worker != ctx.worker_id:
                         raise RuntimeError(
                             "Session changed before requirement preparation; review the draft and retry."
                         )
-                    result = await request(
-                        endpoint, op="prepare", requirements=requirements
+                    result = await scoped_request(
+                        ctx, op="prepare", requirements=requirements
                     )
-                await publish_snapshot(await request(endpoint, op="output"))
+                await publish_snapshot(ctx, await scoped_request(ctx, op="output"))
                 await control_notice(
-                    "requirements", f"Requirement preparation: {result['status']}."
+                    ctx, "requirements", f"Requirement preparation: {result['status']}."
                 )
                 return result
             except (RuntimeError, OSError) as error:
                 await control_notice(
-                    "requirements", f"Requirement preparation failed: {error}"
+                    ctx, "requirements", f"Requirement preparation failed: {error}"
                 )
                 raise
             finally:
-                if connected and observed_worker == worker_id:
-                    ready.set()
+                if live(ctx) and observed_worker == ctx.worker_id:
+                    ctx.ready.set()
 
-        environments = environments_server(
-            "environments",
-            request=environment_request,
-            prepare=prepare_requirements,
-            start=start,
-        )
-        export_server(input, session, lambda: environment_request(op="recording"))
-        retained = retained_output_server(
-            input, session, lambda: environment_request(op="recording")
-        )
+        def make_context(name: str) -> ConsoleSession:
+            ctx = ConsoleSession(name)
+            contexts[name] = ctx
+            # Modules are mounted once. Switching preserves input drafts and
+            # their callbacks always target the worker which owns the module.
+            with session_context(session):
+                ctx.table = table_server(
+                    ctx.module_id("table"),
+                    lambda language, source: private_evaluate(ctx, language, source),
+                    ctx.immediate,
+                    ctx.ready,
+                    lambda action: start(action, ctx),
+                )
+                ctx.environments = environments_server(
+                    ctx.module_id("environments"),
+                    request=lambda **fields: scoped_request(ctx, **fields),
+                    prepare=lambda requirements: prepare_requirements(
+                        ctx, requirements
+                    ),
+                    start=lambda action: start(action, ctx),
+                )
+                for kind, factory, host in (
+                    ("table", table_ui, "session-tables"),
+                    ("environments", environments_ui, "session-environments"),
+                ):
+                    ui.insert_ui(
+                        ui.div(
+                            factory(ctx.module_id(kind)),
+                            class_="session-inspector",
+                            hidden=True,
+                            **{
+                                "data-session": name,
+                                "data-incarnation": ctx.incarnation,
+                                "data-inspector": kind,
+                            },
+                        ),
+                        selector="#" + host,
+                        where="beforeEnd",
+                        session=session,
+                    )
+            return ctx
 
-        async def inspect_variables() -> None:
+        async def recording(value: dict[str, Any]) -> dict[str, Any]:
+            return await scoped_request(resolve(value), op="recording")
+
+        export_server(input, session, recording)
+        retained = retained_output_server(input, session, recording)
+        make_context("default")
+
+        async def update_sessions() -> None:
+            async with reactive.lock():
+                with reactive.isolate():
+                    name = selected.get()
+                ui.update_select(
+                    "console_session",
+                    choices=sorted(
+                        name
+                        for name, ctx in contexts.items()
+                        if name == "default" or ctx.subscribed
+                    ),
+                    selected=name,
+                    session=session,
+                )
+                ui.update_action_button(
+                    "close_console_session", disabled=name == "default", session=session
+                )
+                ui.update_action_button(
+                    "new_console_session", disabled=not connected, session=session
+                )
+                await reactive.flush()
+
+        async def activate(ctx: ConsoleSession) -> None:
+            async with selection_lock:
+                if not live(ctx):
+                    return
+                with reactive.isolate():
+                    old = current()
+                if old is not ctx:
+                    if live(old):
+                        start(old.table.close(), old)
+                    await change(selected, ctx.name)
+                await change(state, "")
+                await update_sessions()
+                await message(ctx, "session-selected", {})
+                if ctx.ready.is_set():
+                    start(ctx.environments.refresh(), ctx)
+
+        async def retire(ctx: ConsoleSession) -> None:
+            if contexts.get(ctx.name) is not ctx:
+                return
+            with reactive.isolate():
+                if current() is ctx:
+                    await activate(contexts["default"])
+            ctx.closing = True
+            active = list(ctx.tasks)
+            for task in active:
+                task.cancel()
+            await asyncio.gather(*active, return_exceptions=True)
+            ctx.table.dispose()
+            del contexts[ctx.name]
+            async with reactive.lock():
+                ui.remove_ui(
+                    f'.session-inspector[data-incarnation="{ctx.incarnation}"]',
+                    multiple=True,
+                    session=session,
+                )
+                await reactive.flush()
+            await session.send_custom_message("session-closed", ctx.metadata())
+            await update_sessions()
+
+        async def subscribe(ctx: ConsoleSession) -> None:
+            reader, writer = await asyncio.open_unix_connection(
+                str(endpoint), limit=RESPONSE_LIMIT
+            )
+            try:
+                writer.write(
+                    json.dumps(
+                        {
+                            "id": "output",
+                            "op": "subscribe",
+                            "format": "events",
+                            "session": ctx.name,
+                        }
+                    ).encode()
+                    + b"\n"
+                )
+                await writer.drain()
+                acknowledgement = json.loads(await reader.readline())
+                if "error" in acknowledgement:
+                    raise ControlError(acknowledgement["error"])
+                await publish_snapshot(ctx, await scoped_request(ctx, op="output"))
+                if ctx.preparing is None or ctx.preparing.done():
+                    ctx.preparing = start(prepare(ctx), ctx)
+                start(inspect_variables(ctx), ctx)
+                while line := await reader.readline():
+                    event = json.loads(line)
+                    if event.get("event") == "output":
+                        await publish_snapshot(ctx, event["result"])
+                raise RuntimeError("Console subscription closed")
+            finally:
+                writer.close()
+                await writer.wait_closed()
+
+        def attach(ctx: ConsoleSession) -> None:
+            if not ctx.subscribed:
+                ctx.subscribed = True
+                start(subscribe(ctx), ctx)
+
+        async def discover_sessions() -> None:
+            async with registry_lock:
+                listing = await request(endpoint, op="sessions")
+                for item in listing["sessions"]:
+                    name = item["name"]
+                    ctx = contexts.get(name)
+                    if item["state"] == "stopped" and name != "default":
+                        # Creation is lazy: setup will launch the new worker.
+                        if ctx is not None and ctx.ready.is_set():
+                            await retire(ctx)
+                        continue
+                    if ctx is None:
+                        async with reactive.lock():
+                            ctx = make_context(name)
+                            await reactive.flush()
+                    if not ctx.subscribed:
+                        attach(ctx)
+                        await update_sessions()
+
+        async def watch_sessions() -> None:
             while True:
-                await ready.wait()
+                await discover_sessions()
+                await asyncio.sleep(1)
+
+        async def inspect_variables(ctx: ConsoleSession) -> None:
+            while True:
+                await ctx.ready.wait()
+                with reactive.isolate():
+                    active = current() is ctx
+                if not active:
+                    await asyncio.sleep(1)
+                    continue
                 for language, source in (("r", R_SOURCE), ("python", PYTHON_SOURCE)):
-                    observed_worker = worker_id
+                    observed_worker = ctx.worker_id
                     try:
-                        async with immediate:
-                            if not ready.is_set():
+                        async with ctx.immediate:
+                            if not ctx.ready.is_set():
                                 break
-                            result = await request(
-                                endpoint,
+                            result = await scoped_request(
+                                ctx,
                                 op="evaluate",
                                 language=language,
                                 execution="immediate",
@@ -489,14 +745,14 @@ def make_app(binary: Path, workspace: Path) -> App:
                         # Keep the periodic observer alive across that boundary;
                         # a request failure is visible in its pane, not a fatal
                         # error for the subscription or future inspections.
-                        if error.code != "busy" and observed_worker == worker_id:
+                        if error.code != "busy" and observed_worker == ctx.worker_id:
                             await change(
-                                variable_views[language],
+                                ctx.variable_views[language],
                                 f"Inspection unavailable: {error}",
                             )
-                            await change(table_names[language], [])
+                            await change(ctx.table_names[language], [])
                         continue
-                    if observed_worker != worker_id:
+                    if observed_worker != ctx.worker_id:
                         continue
                     text = "".join(
                         block["text"]
@@ -505,13 +761,13 @@ def make_app(binary: Path, workspace: Path) -> App:
                     )
                     if error := result.get("execution_error"):
                         await change(
-                            variable_views[language],
+                            ctx.variable_views[language],
                             f"{error['ename']}: {error['evalue']}",
                         )
                     else:
                         view = json.loads(text)
-                        await change(variable_views[language], view["text"])
-                        await change(table_names[language], view["tables"])
+                        await change(ctx.variable_views[language], view["text"])
+                        await change(ctx.table_names[language], view["tables"])
                 await asyncio.sleep(1)
 
         async def connect() -> None:
@@ -571,7 +827,9 @@ def make_app(binary: Path, workspace: Path) -> App:
                         developer_instructions=(
                             "Use only the console_fixture MCP send tool to execute "
                             "R, Python, or SQL code requested by the user. The user also "
-                            "runs code directly in this same persistent worker. "
+                            "runs code directly in these same named sessions. Each prompt identifies "
+                            "the selected Console session; include its name in the send session argument "
+                            "for code, polls, and controls unless asked to use another session. "
                             "Do not use a shell, other tools, or another model."
                         ),
                     )
@@ -580,36 +838,18 @@ def make_app(binary: Path, workspace: Path) -> App:
                     async with asyncio.timeout(60):
                         while not endpoint.exists():
                             await asyncio.sleep(0.05)
-                    reader, writer = await asyncio.open_unix_connection(
-                        str(endpoint), limit=RESPONSE_LIMIT
-                    )
+                    connected = True
                     try:
-                        writer.write(
-                            b'{"id":"output","op":"subscribe","format":"events"}\n'
-                        )
-                        await writer.drain()
-                        acknowledgement = json.loads(await reader.readline())
-                        if "error" in acknowledgement:
-                            raise RuntimeError(acknowledgement["error"]["message"])
-                        await prepare()
-                        # Establish the current worker before processing queued
-                        # subscription snapshots from startup.
-                        await publish_snapshot(await request(endpoint, op="output"))
-                        connected = True
-                        await environments.refresh()
-                        start(inspect_variables())
-                        while line := await reader.readline():
-                            event = json.loads(line)
-                            if event.get("event") == "output":
-                                await publish_snapshot(event["result"])
-                        raise RuntimeError("Console subscription closed")
+                        await activate(contexts["default"])
+                        attach(contexts["default"])
+                        await watch_sessions()
                     finally:
                         connected = False
-                        writer.close()
-                        await writer.wait_closed()
 
-        async def evaluate(language: str, source: str, execution: str) -> None:
-            await ready.wait()
+        async def evaluate(
+            ctx: ConsoleSession, language: str, source: str, execution: str
+        ) -> None:
+            await ctx.ready.wait()
             if language == "sql" and execution == "immediate":
                 raise ValueError("SQL supports Ordinary execution only")
             request_id = uuid.uuid4().hex
@@ -622,9 +862,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                 "execution": execution,
                 "state": "running",
             }
-            await session.send_custom_message(
-                "submission", submitted_source(submission)
-            )
+            await message(ctx, "submission", submitted_source(ctx, submission))
             fields = {
                 "id": request_id,
                 "op": "evaluate",
@@ -638,15 +876,18 @@ def make_app(binary: Path, workspace: Path) -> App:
                 fields["execution"] = execution
             try:
                 if execution == "immediate":
-                    async with immediate:
-                        result = await request(endpoint, **fields)
+                    async with ctx.immediate:
+                        result = await scoped_request(ctx, **fields)
                 else:
-                    result = await request(endpoint, **fields)
+                    result = await scoped_request(ctx, **fields)
             except Exception as error:
-                await session.send_custom_message(
-                    "submission", submitted_source({**submission, "state": "failed"})
+                await message(
+                    ctx,
+                    "submission",
+                    submitted_source(ctx, {**submission, "state": "failed"}),
                 )
-                await session.send_custom_message(
+                await message(
+                    ctx,
                     "notice",
                     {
                         "kind": "failed",
@@ -654,20 +895,21 @@ def make_app(binary: Path, workspace: Path) -> App:
                     },
                 )
                 raise
-            await publish_snapshot(result["output"])
-            start(environments.refresh())
+            await publish_snapshot(ctx, result["output"])
+            start(ctx.environments.refresh(), ctx)
 
-        async def control_notice(kind: str, text: str) -> None:
-            await session.send_custom_message("notice", {"kind": kind, "text": text})
+        async def control_notice(ctx: ConsoleSession, kind: str, text: str) -> None:
+            await message(ctx, "notice", {"kind": kind, "text": text})
 
-        async def interrupt_session() -> None:
+        async def interrupt_session(ctx: ConsoleSession) -> None:
             if not connected:
-                await control_notice("interrupt", "Console is not connected.")
+                await control_notice(ctx, "interrupt", "Console is not connected.")
                 return
-            status = await request(endpoint, op="status")
+            status = await scoped_request(ctx, op="status")
             evaluation = status["evaluation"]
             if evaluation is None:
                 await control_notice(
+                    ctx,
                     "interrupt",
                     "No ordinary evaluation is running."
                     if status["idle"]
@@ -675,69 +917,77 @@ def make_app(binary: Path, workspace: Path) -> App:
                 )
                 return
             await control_notice(
+                ctx,
                 "interrupt",
                 f"Human requested interruption of evaluation {evaluation['id']}; execution may still be running.",
             )
             try:
-                await request(endpoint, op="interrupt", evaluation_id=evaluation["id"])
+                await scoped_request(
+                    ctx, op="interrupt", evaluation_id=evaluation["id"]
+                )
             except ControlError as error:
-                await control_notice("interrupt", f"Interrupt request failed: {error}")
+                await control_notice(
+                    ctx, "interrupt", f"Interrupt request failed: {error}"
+                )
             else:
                 await control_notice(
+                    ctx,
                     "interrupt",
                     "Interrupt request accepted; execution may still be running.",
                 )
 
-        async def restart_session() -> None:
-            nonlocal restart_active
+        async def restart_session(ctx: ConsoleSession) -> None:
             if not connected:
-                await control_notice("restart", "Console is not connected.")
+                await control_notice(ctx, "restart", "Console is not connected.")
                 return
-            if restart_active:
+            if ctx.restart_active:
                 return
-            restart_active = True
-            async with reactive.lock():
-                ui.update_action_button("restart", disabled=True, session=session)
-                await reactive.flush()
+            ctx.restart_active = True
             try:
-                await control_notice("restart", "Human requested a session restart.")
-                await change(state, "Restarting…")
-                await request(endpoint, op="restart")
+                await control_notice(
+                    ctx, "restart", "Human requested a session restart."
+                )
+                await change(ctx.state, "Restarting…")
+                await scoped_request(ctx, op="restart")
                 # Observe the new identity even if its subscription update is
                 # still queued. Replacement resets viewers and prepares runtimes.
-                await publish_snapshot(await request(endpoint, op="output"))
+                await publish_snapshot(ctx, await scoped_request(ctx, op="output"))
                 # Replacement is confirmed. Preparation reports its progress and
                 # failures separately; it must not prevent another restart.
                 await control_notice(
+                    ctx,
                     "restart",
                     "Session restarted; previous in-memory state was cleared.",
                 )
             except ControlError as error:
-                await control_notice("restart", f"Restart request failed: {error}")
-                await change(state, f"Restart failed: {error}")
+                await control_notice(ctx, "restart", f"Restart request failed: {error}")
+                await change(ctx.state, f"Restart failed: {error}")
             finally:
-                restart_active = False
-                async with reactive.lock():
-                    ui.update_action_button("restart", disabled=False, session=session)
-                    await reactive.flush()
+                ctx.restart_active = False
 
-        async def open_table(language: str, name: str) -> None:
+        async def open_table(ctx: ConsoleSession, language: str, name: str) -> None:
             async with reactive.lock():
                 ui.update_navset("inspector_tab", selected="Table", session=session)
-            await table.open(language, name)
+            await ctx.table.open(language, name)
 
-        async def agent_reply(prompt: str) -> AsyncIterator[str]:
+        async def agent_reply(ctx: ConsoleSession, prompt: str) -> AsyncIterator[str]:
             nonlocal agent_active
             if agent_active:
                 raise RuntimeError("Wait for the active agent response")
             agent_active = True
             try:
-                await ready.wait()
+                await ctx.ready.wait()
                 assert thread is not None
                 await change(agent_status, "Running")
                 streamed_items: set[str] = set()
                 previous_item: str | None = None
-                turn = await thread.turn(prompt, model=MODEL, effort="low")
+                owners: dict[str, ConsoleSession] = {}
+                origins: dict[str, ConsoleSession] = {}
+                turn = await thread.turn(
+                    f"Selected Console session: {json.dumps(ctx.name)}.\n\n{prompt}",
+                    model=MODEL,
+                    effort="low",
+                )
                 async for event in turn.stream():
                     if event.method == "item/agentMessage/delta":
                         item_id = event.payload.item_id
@@ -763,6 +1013,32 @@ def make_app(binary: Path, workspace: Path) -> App:
                             item.type == "mcpToolCall"
                             and item.server == "console_fixture"
                         ):
+                            if item.id not in owners:
+                                has_code = any(
+                                    item.arguments.get(language)
+                                    for language in ("r", "python", "sql")
+                                )
+                                # An unscoped empty poll covers all sessions. Keep its
+                                # response separate in the view active at call start.
+                                aggregate = (
+                                    not has_code
+                                    and not item.arguments.get("control")
+                                    and not item.arguments.get("requirements")
+                                    and "session" not in item.arguments
+                                )
+                                with reactive.isolate():
+                                    origins[item.id] = current()
+                                    target = (
+                                        current().name
+                                        if aggregate
+                                        else item.arguments.get("session", "default")
+                                    )
+                                if target not in contexts and has_code:
+                                    async with reactive.lock():
+                                        make_context(target)
+                                        await reactive.flush()
+                                owners[item.id] = contexts.get(target, origins[item.id])
+                            owner = owners[item.id]
                             submissions = [
                                 {
                                     "id": f"agent:{item.id}:{language}",
@@ -777,11 +1053,14 @@ def make_app(binary: Path, workspace: Path) -> App:
                             ]
                             if event.method == "item/started":
                                 for submission in submissions:
-                                    await session.send_custom_message(
-                                        "submission", submitted_source(submission)
+                                    await message(
+                                        owner,
+                                        "submission",
+                                        submitted_source(owner, submission),
                                     )
                                 if item.arguments.get("control") == "interrupt":
-                                    await session.send_custom_message(
+                                    await message(
+                                        owner,
                                         "notice",
                                         {
                                             "kind": "interrupt",
@@ -789,11 +1068,29 @@ def make_app(binary: Path, workspace: Path) -> App:
                                         },
                                     )
                             else:
-                                await session.send_custom_message(
+                                await discover_sessions()
+                                if not owner.subscribed:
+                                    # Rejected code never created a Console session.
+                                    # Show its failure in the originating view, without
+                                    # leaving a phantom name in the active selector.
+                                    await retire(owner)
+                                    owner = origins[item.id]
+                                    for submission in submissions:
+                                        await message(
+                                            owner,
+                                            "submission",
+                                            submitted_source(
+                                                owner, {**submission, "state": "failed"}
+                                            ),
+                                        )
+                                await message(
+                                    owner,
                                     "agent-response",
                                     {
                                         "id": item.id,
-                                        "output_controls": response_controls(item.id),
+                                        "output_controls": response_controls(
+                                            owner.incarnation + item.id
+                                        ),
                                         "submission_ids": [
                                             submission["id"]
                                             for submission in submissions
@@ -816,6 +1113,8 @@ def make_app(binary: Path, workspace: Path) -> App:
                                             if item.arguments.get("control")
                                             else "Requirements"
                                             if item.arguments.get("requirements")
+                                            else "All sessions poll"
+                                            if "session" not in item.arguments
                                             else "Poll"
                                         ),
                                         "status": item.status.value,
@@ -832,7 +1131,8 @@ def make_app(binary: Path, workspace: Path) -> App:
                                     if item.result
                                     else "No result returned."
                                 )
-                                await session.send_custom_message(
+                                await message(
+                                    owner,
                                     "agent-outcome",
                                     {
                                         "ids": [item["id"] for item in submissions],
@@ -840,7 +1140,8 @@ def make_app(binary: Path, workspace: Path) -> App:
                                     },
                                 )
                                 if item.arguments.get("control") == "interrupt":
-                                    await session.send_custom_message(
+                                    await message(
+                                        owner,
                                         "notice",
                                         {
                                             "kind": "interrupt",
@@ -860,7 +1161,67 @@ def make_app(binary: Path, workspace: Path) -> App:
                 raise
             finally:
                 agent_active = False
-                start(environments.refresh())
+                if live(ctx):
+                    start(ctx.environments.refresh(), ctx)
+
+        async def create_session(name: str) -> None:
+            async with registry_lock:
+                await request(endpoint, op="create", session=name)
+                if name not in contexts:
+                    async with reactive.lock():
+                        make_context(name)
+                        await reactive.flush()
+                ctx = contexts[name]
+                attach(ctx)
+                await activate(ctx)
+
+        async def close_session(ctx: ConsoleSession) -> None:
+            async with registry_lock:
+                # Fence and cancel UI producers before retirement; otherwise a
+                # queued setup cell could reopen the worker just after close.
+                ctx.closing = True
+                ctx.ready.clear()
+                active = list(ctx.tasks)
+                for task in active:
+                    task.cancel()
+                await asyncio.gather(*active, return_exceptions=True)
+                try:
+                    await request(endpoint, session=ctx.name, op="close")
+                except Exception:
+                    ctx.closing = False
+                    ctx.subscribed = False
+                    attach(ctx)
+                    raise
+                await retire(ctx)
+
+        @reactive.effect
+        @reactive.event(input.console_session)
+        def choose_session() -> None:
+            name = input.console_session()
+            if name in contexts and current().name != name:
+                start(activate(contexts[name]))
+
+        @reactive.effect
+        @reactive.event(input.new_console_session)
+        def new_session() -> None:
+            ui.modal_show(new_session_modal())
+
+        @reactive.effect
+        @reactive.event(input.create_console_session)
+        def create_clicked() -> None:
+            name = input.new_session_name().strip()
+            if not name:
+                ui.notification_show("Enter a session name.", type="error")
+                return
+            ui.modal_remove()
+            start(create_session(name))
+
+        @reactive.effect
+        @reactive.event(input.close_console_session)
+        def close_clicked() -> None:
+            ctx = requested()
+            if ctx.name != "default":
+                start(close_session(ctx))
 
         @reactive.effect
         def editor_language() -> None:
@@ -884,68 +1245,91 @@ def make_app(binary: Path, workspace: Path) -> App:
         @reactive.effect
         @reactive.event(input.submit)
         def submit_code() -> None:
-            start(evaluate(input.language(), input.source(), input.execution()))
+            ctx = requested()
+            start(
+                evaluate(ctx, input.language(), input.source(), input.execution()), ctx
+            )
 
         @reactive.effect
         @reactive.event(input.interrupt)
         def interrupt_console() -> None:
-            start(interrupt_session())
+            ctx = requested()
+            start(interrupt_session(ctx), ctx)
 
         @reactive.effect
         @reactive.event(input.restart)
         def restart_console() -> None:
-            start(restart_session())
+            ctx = requested()
+            start(restart_session(ctx), ctx)
 
         @reactive.effect
         @reactive.event(input.open_table)
         def select_table() -> None:
             value = input.open_table()
-            start(open_table(value["language"], value["name"]))
+            ctx = resolve(value)
+            if ctx is not requested():
+                ui.notification_show(
+                    "Variables changed. Choose the table again.", type="message"
+                )
+                return
+            start(open_table(ctx, value["language"], value["name"]), ctx)
 
         @reactive.effect
         def inspect_environments() -> None:
+            ctx = current()
             if input.inspector_tab() == "Environments" and connected:
-                start(environments.refresh())
+                start(ctx.environments.refresh(), ctx)
 
         @agent_chat.on_user_submit
         async def submit_prompt(prompt: str) -> None:
             # Shiny runs this iterator in its own ExtendedTask, so Console's
             # direct controls and subscriptions remain responsive during a turn.
-            await agent_chat.append_message_stream(agent_reply(prompt))
+            await agent_chat.append_message_stream(agent_reply(requested(), prompt))
 
         @render.text
         def connection_state() -> str:
-            return state.get()
+            shared = state.get()
+            return shared if shared.startswith("Error:") else current().state.get()
 
         @render.text
         def agent_state() -> str:
             return agent_status.get()
 
+        @output(suspend_when_hidden=False)
         @render.code
         def r_variables() -> str:
-            return variable_views["r"].get()
+            return current().variable_views["r"].get()
 
+        @output(suspend_when_hidden=False)
         @render.code
         def python_variables() -> str:
-            return variable_views["python"].get()
+            return current().variable_views["python"].get()
 
         def table_buttons(language: str) -> ui.TagList:
+            ctx = current()
             return ui.TagList(
                 *(
                     ui.tags.button(
                         f"Open {name}",
                         type="button",
                         class_="btn btn-outline-secondary table-open",
-                        **{"data-table-language": language, "data-table-name": name},
+                        **{
+                            "data-table-language": language,
+                            "data-table-name": name,
+                            "data-session": ctx.name,
+                            "data-incarnation": ctx.incarnation,
+                        },
                     )
-                    for name in table_names[language].get()
+                    for name in ctx.table_names[language].get()
                 )
             )
 
+        @output(suspend_when_hidden=False)
         @render.ui
         def r_tables() -> ui.TagList:
             return table_buttons("r")
 
+        @output(suspend_when_hidden=False)
         @render.ui
         def python_tables() -> ui.TagList:
             return table_buttons("python")
@@ -953,11 +1337,14 @@ def make_app(binary: Path, workspace: Path) -> App:
         async def close() -> None:
             with reactive.isolate():
                 agent_chat.latest_message_stream.cancel()
-            active = list(tasks)
+            active = list(tasks) + [
+                task for ctx in contexts.values() for task in ctx.tasks
+            ]
             for task in active:
                 task.cancel()
             await asyncio.gather(*active, return_exceptions=True)
-            table.dispose()
+            for ctx in contexts.values():
+                ctx.table.dispose()
 
         session.on_ended(close)
         start(connect())

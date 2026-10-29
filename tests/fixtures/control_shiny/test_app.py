@@ -134,7 +134,9 @@ def submit_editor(page, language):
 def test_native_chat_suggestions_prefill_without_submitting(app):
     page, _ = app
     chat = Chat(page, "agent_chat")
-    chat.expect_greeting("You and the agent share one R, Python, and SQL session.")
+    chat.expect_greeting(
+        "You and the agent share the selected R, Python, and SQL session."
+    )
     prompts = (
         "List objects in our shared session",
         "Create a small example table in R",

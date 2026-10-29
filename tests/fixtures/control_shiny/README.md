@@ -1,6 +1,6 @@
 # Shiny control-channel fixture
 
-This local Shiny for Python app puts agent chat beside a transcript, Variables pane, plot gallery, and table viewer for the same Console worker.
+This local Shiny for Python app puts agent chat beside a transcript, Variables pane, plot gallery, and table viewer for Console's named sessions.
 It exercises the integrator control channel through an IDE-style interaction model: the human and agent share a live session, while execution history and object inspection remain visible beside the conversation.
 The conversation uses Shiny's native `ui.Chat`, including streamed Markdown and its chat input.
 The agent owns Console's MCP connection.
@@ -31,8 +31,23 @@ Open `http://127.0.0.1:8000`.
 Use `--workspace PATH` to retain files in a particular directory, or omit it to use a temporary workspace.
 Use `--port PORT` to choose another local port, for example `--port 8001` if port 8000 is already in use.
 
+The native **Console session** dropdown selects an active session; **+ New** opens a native dialog to name and create another.
+Each session has separate R and Python objects, SQL connections, requirements, and execution state; workspace files are shared.
+The app uses Console's session registry and capacity limit rather than launching separate Console servers.
+Agent-created sessions appear in the dropdown within the registry observer's one-second interval.
+Each agent prompt identifies the session selected when it was sent; changing the dropdown during a turn does not retarget that prompt or requests already in flight.
+An unscoped agent poll covers all sessions and appears as a separate **All sessions poll** card in the view active when the call began.
+
+Switching sessions preserves their transcript, captured plots, output selections, scroll position, and Environments drafts.
+It closes the previous table snapshot; reopen a table from Variables after returning to that session.
+Inactive sessions continue executing and receiving output.
+**Close** stops the selected named worker and discards its app views; `default` remains available.
+Recreating a closed name starts fresh runtime state and a new app view, while Console retains its requirements declaration and recorded history.
+Late output from a closed view cannot populate its replacement.
+The agent conversation remains shared across sessions; switching the runtime does not clear model context.
+
 Select R, Python, or SQL in the language radio group and click **Submit**, or ask the agent to run code.
-Both paths retain objects in the same worker.
+Both paths retain objects in the selected worker.
 Console selects and prepares its usual managed environments; its embedded Python interpreter is independent of the interpreter running Shiny.
 The app declares its viewer dependencies through Console's ordinary requirements mechanism before making immediate requests.
 SQL uses Console's selected SQL connection and ordinary execution semantics.
@@ -48,7 +63,7 @@ Use Immediate only for code that the integrator can safely run alongside the act
 Python needs the GIL, and R cannot preempt native code that does not process events.
 Plotting from idle Immediate R currently fails because the managed plot device requires an ordinary R evaluation; use Ordinary for R plots.
 
-The compact **Interrupt** and **Restart** buttons beside the editor act directly through the control channel without an agent turn.
+The compact **Interrupt** and **Restart** buttons beside the editor act on the selected session directly through the control channel without an agent turn.
 Interrupt targets the current ordinary evaluation; it does not cancel a standalone immediate request.
 Restart replaces the worker, clears its in-memory objects and viewer snapshots, and prepares the new managed session.
 Connection status reports preparation progress; a preparation failure does not disable Restart.
@@ -89,12 +104,12 @@ Execution, submission matching, and recorded projections always retain the origi
 The native code Copy button copies the currently displayed view; Export copies the original recording.
 SQL formatting is not configured.
 Missing formatters, invalid code, truncated captures, and formatting limits leave the original visible with an explanation.
-Each session runs at most two formatters concurrently, allows five seconds per process and 64 KiB of source, and caches up to 128 results within 1 MiB; formatted results over 256 KiB are discarded.
+Each browser session runs at most two formatters concurrently, allows five seconds per process and 64 KiB of source, and caches up to 128 results within 1 MiB; formatted results over 256 KiB are discarded.
 Repeated pending-output updates reuse the result, and formatter processes are cancelled when the browser session closes.
 
 The **Export** menu at the transcript's top right copies Console's existing projections to the clipboard.
-**Copy QMD** copies source and environment metadata for the current worker; a new worker has no QMD until recorded code is submitted.
-**Copy Markdown** copies the recording's transcript across worker sessions, including recorded output and image links.
+**Copy QMD** copies source and environment metadata for the selected session's current worker; a new worker has no QMD until recorded code is submitted.
+**Copy Markdown** copies the recording's transcript across all named sessions and worker replacements, including recorded output and image links.
 Exports read the recording files rather than the browser's bounded output history, and private inspection calls remain omitted.
 These are text copies at read time: image and retained-output links remain relative to the recording directory, and running output can continue afterward.
 The browser reports clipboard permission or read failures instead of claiming the text was copied.

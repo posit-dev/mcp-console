@@ -1,13 +1,11 @@
 /* Browser-owned transcript nodes survive pending/completed updates and image loads. */
 (() => {
-  const entries = new Map();
-  const plots = new Map();
-  const agentRequests = new Map();
-  const idleOwners = new Map();
+  const sessionViews = new Map();
+  const closedViews = new Set();
   const exports = new Map();
   const sourceFormats = new Map();
-  const responses = new Set();
-  let formattedView = true;
+  let selectedView = null;
+  let historyScroll;
   let nextSourceId = 0;
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -15,23 +13,27 @@
     if (text !== undefined) node.textContent = text;
     return node;
   };
-  function followBottom(container) {
+  function followBottom(container, paused = false) {
     let following = true;
+    let saved = {following: true, top: 0};
     let previousTop = 0;
     let previousHeight = container.scrollHeight;
     let previousClientHeight = container.clientHeight;
     const atBottom = () => container.scrollHeight - container.scrollTop - container.clientHeight <= 8;
     const returnedToBottom = () => container.scrollTop > previousTop + 2 &&
       container.scrollTop >= previousHeight - previousClientHeight - 8;
-    container.addEventListener('scroll', () => {
+    const onScroll = () => {
+      if (paused) return;
       // A content resize can clamp scrollTop. Only a deliberate upward movement
       // turns following off; mutations never infer intent from the new height.
       if (container.scrollTop < previousTop - 2 && container.clientHeight === previousClientHeight) following = false;
       if (returnedToBottom() || atBottom()) following = true;
       previousTop = container.scrollTop;
       previousClientHeight = container.clientHeight;
-    });
+    };
+    container.addEventListener('scroll', onScroll);
     const resize = () => {
+      if (paused) return;
       // Scroll events are dispatched on a later frame. Observe an upward user
       // move before a same-frame mutation can pull the viewer back down.
       const height = container.scrollHeight;
@@ -45,18 +47,101 @@
       container.scrollTop = container.scrollHeight;
       previousTop = container.scrollTop;
     };
-    new MutationObserver(resize).observe(container, {childList: true, subtree: true, characterData: true});
+    const mutations = new MutationObserver(resize);
+    mutations.observe(container, {childList: true, subtree: true, characterData: true});
     const observer = new ResizeObserver(resize);
     observer.observe(container);
     for (const child of container.children) observer.observe(child);
     container.addEventListener('load', resize, true);
-    container.addEventListener('wheel', event => {
+    const onWheel = event => {
+      if (paused) return;
       if (event.deltaY < 0 && event.target.closest('.history, .output-clip') === container) following = false;
-    }, {passive: true});
+    };
+    container.addEventListener('wheel', onWheel, {passive: true});
+    return {
+      pause() {
+        if (!paused) saved = {following, top: container.scrollTop};
+        paused = true;
+        return {...saved};
+      },
+      resume(position = saved) {
+        following = position.following;
+        paused = false;
+        container.scrollTop = following ? container.scrollHeight : position.top;
+        previousTop = container.scrollTop;
+        previousHeight = container.scrollHeight;
+        previousClientHeight = container.clientHeight;
+      },
+      dispose() {
+        mutations.disconnect();
+        observer.disconnect();
+        container.removeEventListener('scroll', onScroll);
+        container.removeEventListener('load', resize, true);
+        container.removeEventListener('wheel', onWheel);
+      },
+    };
+  }
+  function sessionView(message) {
+    if (!message.session || !message.incarnation) throw new Error('Console session identity is required.');
+    if (closedViews.has(message.incarnation)) return null;
+    let view = sessionViews.get(message.incarnation);
+    if (!view) {
+      const transcript = element('div', 'session-transcript');
+      const plotsNode = element('div', 'session-plots');
+      const omissions = element('div', 'session-omissions');
+      for (const node of [transcript, plotsNode, omissions]) {
+        node.dataset.session = message.session;
+        node.dataset.incarnation = message.incarnation;
+        node.hidden = true;
+      }
+      document.querySelector('#transcript').append(transcript);
+      document.querySelector('#plots').append(plotsNode);
+      document.querySelector('#output-omissions').append(omissions);
+      view = {name: message.session, incarnation: message.incarnation, transcript, plotsNode, omissions,
+        entries: new Map(), plots: new Map(), agentRequests: new Map(), idleOwners: new Map(), responses: new Set(),
+        scrollers: new Set(), observers: new Set(), formattedView: true, scrollPosition: null};
+      sessionViews.set(message.incarnation, view);
+    }
+    return view;
+  }
+  function showInspectors() {
+    for (const node of document.querySelectorAll('.session-inspector')) {
+      node.hidden = node.dataset.incarnation !== selectedView?.incarnation;
+    }
+  }
+  function selectSession(message) {
+    const view = sessionView(message);
+    if (!view || view === selectedView) return;
+    if (selectedView) {
+      selectedView.scrollPosition = historyScroll.pause();
+      for (const scroller of selectedView.scrollers) scroller.pause();
+      for (const node of [selectedView.transcript, selectedView.plotsNode, selectedView.omissions]) node.hidden = true;
+    }
+    selectedView = view;
+    for (const node of [view.transcript, view.plotsNode, view.omissions]) node.hidden = false;
+    showInspectors();
+    const sourceView = view.formattedView ? 'formatted' : 'original';
+    document.querySelector(`#source_view input[value="${sourceView}"]`).checked = true;
+    for (const scroller of view.scrollers) scroller.resume();
+    historyScroll.resume(view.scrollPosition || {following: true, top: 0});
+  }
+  function closeSession(message) {
+    closedViews.add(message.incarnation);
+    const view = sessionViews.get(message.incarnation);
+    if (!view) return;
+    if (view === selectedView) {
+      historyScroll.pause();
+      selectedView = null;
+    }
+    for (const scroller of view.scrollers) scroller.dispose();
+    for (const observer of view.observers) observer.disconnect();
+    for (const node of [view.transcript, view.plotsNode, view.omissions]) node.remove();
+    sessionViews.delete(message.incarnation);
+    showInspectors();
   }
   function renderSource(item) {
     const format = sourceFormats.get(item.formatKey) || item.format;
-    const useFormatted = formattedView && format?.status === 'formatted';
+    const useFormatted = item.view.formattedView && format?.status === 'formatted';
     const html = useFormatted ? format.source_html : item.originalHTML;
     if (item.renderedHTML !== html) {
       // Both views come from Shiny's native Markdown component. Formatted text
@@ -76,7 +161,7 @@
     }
     const formatter = format.formatter || (item.meta.language === 'r' ? 'Air' : 'Ruff');
     item.formatStatus.textContent = format.status === 'formatted'
-      ? (formattedView ? `Formatted with ${formatter}` : `Original source · ${formatter} formatting available`)
+      ? (item.view.formattedView ? `Formatted with ${formatter}` : `Original source · ${formatter} formatting available`)
       : format.message || {
         pending: 'Formatting… Original source shown.',
         unavailable: 'Formatter unavailable. Original source shown.',
@@ -143,12 +228,13 @@
     item.agentOutput.append(responseNode(message));
     updateOutput(item);
   }
-  function entry(meta) {
+  function entry(meta, view = sessionView(meta)) {
+    if (!view) return null;
     const key = String(meta.id);
-    let existing = entries.get(key);
+    let existing = view.entries.get(key);
     const provisionalAgent = key.startsWith('agent:');
     if (!existing && meta.origin === 'mcp') {
-      const match = [...entries.entries()].find(([otherKey, value]) =>
+      const match = [...view.entries.entries()].find(([otherKey, value]) =>
         value.meta?.origin === 'mcp' && value.meta.language === meta.language &&
         (value.source === meta.source || (meta.source_truncated && value.source.startsWith(meta.source)) ||
           (value.sourceTruncated && meta.source.startsWith(value.source))) && !value.agentMatched &&
@@ -158,16 +244,16 @@
         existing = match[1];
         existing.agentMatched = true;
         if (provisionalAgent) {
-          agentRequests.set(key, existing);
+          view.agentRequests.set(key, existing);
           if (existing.sourceTruncated) captureSource(existing, meta);
           return existing;
         }
-        entries.delete(match[0]);
+        view.entries.delete(match[0]);
       }
     }
     if (!existing && meta.request_id) {
-      existing = entries.get('request:' + meta.request_id);
-      if (existing) entries.delete('request:' + meta.request_id);
+      existing = view.entries.get('request:' + meta.request_id);
+      if (existing) view.entries.delete('request:' + meta.request_id);
     }
     if (!existing) {
       const node = element('article', 'entry');
@@ -193,9 +279,9 @@
       const outputRegion = element('div', 'output-region');
       outputRegion.append(controls, clip);
       node.append(submission, outputRegion);
-      document.querySelector('#transcript').append(node);
-      followBottom(clip);
-      existing = {node, origin, language, state, truncation, code, formatStatus, content,
+      view.transcript.append(node);
+      view.scrollers.add(followBottom(clip, view !== selectedView));
+      existing = {view, node, origin, language, state, truncation, code, formatStatus, content,
         controls, clip, agentOutput, responseStatus, expanded: false, responseIds: new Set(),
         sourceId: `transcript-source-${++nextSourceId}`, events: new Map()};
       const item = existing;
@@ -205,22 +291,24 @@
         updateOutput(item);
       });
       controls.querySelector('.output-retained')?.addEventListener('click', () => {
-        Shiny.setInputValue('retained_output_request', {call_id: item.meta.call_id, nonce: crypto.randomUUID()}, {priority: 'event'});
+        Shiny.setInputValue('retained_output_request', {session: view.name, incarnation: view.incarnation,
+          call_id: item.meta.call_id, nonce: crypto.randomUUID()}, {priority: 'event'});
       });
       const resize = new ResizeObserver(() => updateOutput(item));
       resize.observe(content);
       resize.observe(agentOutput);
+      view.observers.add(resize);
       clip.addEventListener('load', () => updateOutput(item), true);
     }
     if (existing.pendingOutcome && !provisionalAgent) {
       existing.content.replaceChildren();
       existing.pendingOutcome = false;
     }
-    entries.set(key, existing);
+    view.entries.set(key, existing);
     if (existing.meta?.state === 'complete' && meta.state === 'running') meta = {...meta, state: 'complete'};
     existing.meta = meta;
     existing.actual = !key.startsWith('agent:') && !key.startsWith('request:');
-    if (provisionalAgent) agentRequests.set(key, existing);
+    if (provisionalAgent) view.agentRequests.set(key, existing);
     existing.node.dataset.evaluation = key;
     existing.node.className = `entry ${meta.origin === 'mcp' ? 'agent' : meta.origin === 'session' ? 'session' : 'direct'} ${meta.state}`;
     existing.origin.textContent = meta.origin === 'mcp' ? 'Agent' : meta.origin === 'session' ? 'Session' : 'Human';
@@ -258,28 +346,30 @@
     document.querySelector('#plot-dialog').showModal();
   }
   function snapshot(message) {
+    const view = sessionView(message);
+    if (!view) return;
     if (message.reset) {
-      plots.clear();
-      document.querySelector('#plots').replaceChildren();
+      view.plots.clear();
+      view.plotsNode.replaceChildren();
       // A new worker snapshot confirms retirement of the previous worker.
       // Its final metadata may have been coalesced out of the subscription.
-      for (const item of entries.values()) {
+      for (const item of view.entries.values()) {
         if (item.meta.state !== 'running') continue;
         item.meta = {...item.meta, state: 'retired'};
         item.node.classList.replace('running', 'retired');
         item.state.textContent = 'Stopped · session replaced';
       }
     }
-    for (const meta of message.evaluations) entry(meta);
+    for (const meta of message.evaluations) entry(meta, view);
     let idleOwner = null;
     for (const event of message.events) {
       const eventKey = `${message.worker_id}:${event.evaluation_id}:${event.sequence}`;
-      let owner = entries.get(String(event.evaluation_id));
+      let owner = view.entries.get(String(event.evaluation_id));
       if (event.evaluation_id === null) {
-        idleOwner = idleOwners.get(eventKey) || idleOwner || entry({id: 'idle:' + eventKey,
-          origin: 'session', language: '', source: '', execution: 'serial', state: 'idle'});
+        idleOwner = view.idleOwners.get(eventKey) || idleOwner || entry({id: 'idle:' + eventKey,
+          origin: 'session', language: '', source: '', execution: 'serial', state: 'idle'}, view);
         owner = idleOwner;
-        idleOwners.set(eventKey, owner);
+        view.idleOwners.set(eventKey, owner);
       } else idleOwner = null;
       if (!owner) continue;
       const serialized = JSON.stringify(event);
@@ -290,21 +380,25 @@
       if (prior) prior.node.replaceWith(node); else owner.content.append(node);
       owner.events.set(eventKey, {node, serialized});
       updateOutput(owner);
-      if (event.type === 'image' && !plots.has(eventKey)) {
-        plots.set(eventKey, true);
+      if (event.type === 'image' && !view.plots.has(eventKey)) {
+        view.plots.set(eventKey, true);
         const figure = element('figure');
         figure.append(output(event), element('figcaption', '', `${owner.language.textContent} · ${owner.origin.textContent}`));
-        document.querySelector('#plots').append(figure);
+        view.plotsNode.append(figure);
       }
     }
-    document.querySelector('#output-omissions').textContent = message.omitted_events || message.omitted_bytes
+    view.omissions.textContent = message.omitted_events || message.omitted_bytes
       ? `${message.omitted_events} events and ${message.omitted_bytes} bytes omitted from the bounded server snapshot.` : '';
   }
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.history').forEach(followBottom);
+    historyScroll = followBottom(document.querySelector('#transcript-history'), true);
+    for (const id of ['session-tables', 'session-environments']) {
+      new MutationObserver(showInspectors).observe(document.getElementById(id), {childList: true});
+    }
     document.querySelector('#source_view').addEventListener('change', () => {
-      formattedView = document.querySelector('#source_view input:checked').value === 'formatted';
-      for (const item of entries.values()) renderSource(item);
+      if (!selectedView) return;
+      selectedView.formattedView = document.querySelector('#source_view input:checked').value === 'formatted';
+      for (const item of selectedView.entries.values()) renderSource(item);
     });
     document.querySelector('#plot-close').onclick = () => document.querySelector('#plot-dialog').close();
     document.addEventListener('click', event => {
@@ -312,6 +406,11 @@
       if (copy) {
         const status = document.querySelector('#export_status');
         const label = copy.dataset.exportFormat === 'qmd' ? 'QMD' : 'Markdown';
+        const view = selectedView;
+        if (!view) {
+          status.textContent = 'Copy failed: no Console session is selected.';
+          return;
+        }
         if (!navigator.clipboard?.write || !window.ClipboardItem) {
           status.textContent = 'Copy failed: this browser does not support clipboard writing.';
           return;
@@ -334,16 +433,23 @@
           exports.delete(id);
           document.querySelectorAll('[data-export-format]').forEach(button => { button.disabled = false; });
         });
-        Shiny.setInputValue('export_request', {id, format: copy.dataset.exportFormat}, {priority: 'event'});
+        Shiny.setInputValue('export_request', {id, format: copy.dataset.exportFormat,
+          session: view.name, incarnation: view.incarnation}, {priority: 'event'});
       }
       const button = event.target.closest('[data-table-language]');
-      if (button) Shiny.setInputValue('open_table', {language: button.dataset.tableLanguage, name: button.dataset.tableName, nonce: Date.now()}, {priority: 'event'});
+      if (button) Shiny.setInputValue('open_table', {language: button.dataset.tableLanguage,
+        name: button.dataset.tableName, session: button.dataset.session, incarnation: button.dataset.incarnation,
+        nonce: Date.now()}, {priority: 'event'});
     });
+    Shiny.addCustomMessageHandler('session-selected', selectSession);
+    Shiny.addCustomMessageHandler('session-closed', closeSession);
     Shiny.addCustomMessageHandler('submission', entry);
     Shiny.addCustomMessageHandler('formatted-source', message => {
       sourceFormats.set(message.format_key, message);
-      for (const item of entries.values()) {
-        if (item.formatKey === message.format_key) renderSource(item);
+      for (const view of sessionViews.values()) {
+        for (const item of view.entries.values()) {
+          if (item.formatKey === message.format_key) renderSource(item);
+        }
       }
     });
     Shiny.addCustomMessageHandler('export-projection', message => {
@@ -356,11 +462,12 @@
     });
     Shiny.addCustomMessageHandler('output-snapshot', snapshot);
     Shiny.addCustomMessageHandler('agent-response', message => {
-      if (responses.has(message.id)) return;
-      responses.add(message.id);
+      const view = sessionView(message);
+      if (!view || view.responses.has(message.id)) return;
+      view.responses.add(message.id);
       if (message.submission_ids.length) {
         for (const id of message.submission_ids) {
-          const item = agentRequests.get(id);
+          const item = view.agentRequests.get(id);
           if (item) attachResponse(item, message);
         }
       } else {
@@ -378,16 +485,20 @@
         const expand = controls.querySelector('.output-expand');
         const resize = () => updateExpansion(clip, content, expand, expanded);
         expand.addEventListener('click', () => { expanded = !expanded; resize(); });
-        new ResizeObserver(resize).observe(content);
+        const observer = new ResizeObserver(resize);
+        observer.observe(content);
+        view.observers.add(observer);
         node.append(response);
-        document.querySelector('#transcript').append(node);
-        followBottom(clip);
+        view.transcript.append(node);
+        view.scrollers.add(followBottom(clip, view !== selectedView));
         resize();
       }
     });
     Shiny.addCustomMessageHandler('agent-outcome', message => {
+      const view = sessionView(message);
+      if (!view) return;
       for (const id of message.ids) {
-        const item = agentRequests.get(id);
+        const item = view.agentRequests.get(id);
         if (item && !item.actual) {
           item.node.className = 'entry agent failed';
           item.state.textContent = 'Not executed';
@@ -399,8 +510,10 @@
       }
     });
     Shiny.addCustomMessageHandler('notice', message => {
+      const view = sessionView(message);
+      if (!view) return;
       const node = element('article', `notice ${message.kind}`, message.text);
-      document.querySelector('#transcript').append(node);
+      view.transcript.append(node);
     });
   });
 })();
