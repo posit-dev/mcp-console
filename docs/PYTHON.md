@@ -23,7 +23,7 @@ with MCPConsole() as console:
 ```
 
 Keep the connection open to retain state.
-Closing it ends the session; reconnecting starts a new one.
+Closing it ends all its sessions; reconnecting starts with a fresh default session.
 
 Use [AsyncMCPConsole](https://posit-dev.github.io/mcp-console/python/reference/asyncmcpconsole/) with `async with` and `await` for asynchronous code.
 Enter and close an async connection in the same task.

@@ -37,9 +37,12 @@ result:
   content:
     - type: text
       text: |-
+        [session: "default"; status: stopped]
         [worker sideband read failed: worker sideband closed]
         [worker terminated by signal 9]
         [worker stopped: in-memory state lost]
+  structuredContent:
+    sessions: []
   isError: true
 ---
 send:

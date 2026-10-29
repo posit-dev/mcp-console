@@ -845,6 +845,7 @@ dependencies = [
  "ctor",
  "embed-resource",
  "errno",
+ "futures-util",
  "harp",
  "html2text",
  "libc",

@@ -114,6 +114,7 @@ pub(crate) struct Transcript(
     Arc<Mutex<ProtocolEvents>>,
     Arc<AtomicU64>,
     Arc<CaptureStorage>,
+    Arc<str>,
 );
 struct TranscriptState {
     started_at: DateTime<Utc>,
@@ -164,7 +165,19 @@ pub(crate) struct Call {
 pub(crate) struct CallReceipt {
     pub(crate) id: u64,
     at: DateTime<Utc>,
-    note_session_id: Option<u64>,
+    note_target: Option<NoteTarget>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(super) enum NoteTarget {
+    Worker {
+        session_id: u64,
+    },
+    NextWorker {
+        session: String,
+        after_session_id: u64,
+    },
 }
 
 enum CallSource {
@@ -232,6 +245,17 @@ impl Transcript {
             Arc::default(),
             Arc::default(),
             storage,
+            Arc::from("default"),
+        )
+    }
+    /// Share recording identity and storage while retaining this worker's owner.
+    pub(crate) fn for_session(&self, session: &str) -> Self {
+        Self(
+            self.0.clone(),
+            self.1.clone(),
+            self.2.clone(),
+            self.3.clone(),
+            Arc::from(session),
         )
     }
     pub(crate) fn pending(working_directory: std::io::Result<PathBuf>) -> Self {
@@ -250,6 +274,7 @@ impl Transcript {
             state.metadata_known = true;
             state.capture()?.append(
                 Event::EnvironmentDiscovered {
+                    session: &self.4,
                     dynamic_resolution: configuration.dynamic_resolution,
                     python_preparation: configuration.python_preparation,
                     r_available: configuration.r_available,
@@ -286,17 +311,17 @@ impl Transcript {
             .checked_add(1)
             .expect("recording call ID space exhausted");
         let at = Utc::now();
-        let note_session_id = request.arguments.as_ref().and_then(|arguments| {
+        let note_target = request.arguments.as_ref().and_then(|arguments| {
             (arguments.get("note").is_some_and(Value::is_string)
                 && !["r", "python", "sql"]
                     .iter()
                     .any(|language| arguments.get(*language).is_some_and(Value::is_string)))
-            .then(|| self.note_session())
+            .then(|| self.note_target())
         });
         CallReceipt {
             id,
             at,
-            note_session_id,
+            note_target,
         }
     }
     pub(crate) fn begin(
@@ -339,7 +364,7 @@ impl Transcript {
         let CallReceipt {
             id: call_id,
             at,
-            note_session_id,
+            note_target,
         } = receipt;
         let (origin, omit_from_projections) = match source {
             CallSource::Mcp => (None, false),
@@ -358,7 +383,7 @@ impl Transcript {
             active.append(
                 Event::ToolCall {
                     call_id,
-                    note_session_id,
+                    note_target,
                     request_id,
                     request: &request,
                     origin,

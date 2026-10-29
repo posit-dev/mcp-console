@@ -1,5 +1,6 @@
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -24,6 +25,7 @@ input:
 result: {}
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -34,7 +36,8 @@ result:
         [running; poll with an empty send]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

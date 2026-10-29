@@ -226,7 +226,7 @@ test_that("console_tool exposes configured descriptions and omits hidden paramet
     arguments <- send@arguments@properties
     expect_setequal(
       names(arguments),
-      c("r", "note", "control", "stdin", "requirements")
+      c("r", "note", "session", "control", "stdin", "requirements")
     )
     expect_identical(arguments$r@json$description, "Run one R cell.")
     expect_identical(
@@ -234,6 +234,12 @@ test_that("console_tool exposes configured descriptions and omits hidden paramet
       "R packages."
     )
     expect_identical(send(r = "6 * 7")@text, "[1] 42\n")
+    expect_identical(
+      send(r = "answer <- 42L", session = "analysis")@text,
+      "[done]"
+    )
+    expect_identical(send(r = "answer", session = "analysis")@text, "[1] 42\n")
+    expect_identical(send(r = 'exists("answer")')@text, "[1] FALSE\n")
     rm(send)
     invisible(gc())
   })

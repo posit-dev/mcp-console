@@ -13,15 +13,15 @@ result:
   content:
     - type: text
       text:
-        text_bytes: 8191
+        text_bytes: 8192
         concat:
           - "failed to deserialize parameters: unknown field `argument head "
           - repeat: éλ
             count: 1001
-          - "[… omitted 8424 rendered UTF-8 bytes; not retained …]"
+          - "[… omitted 8434 rendered UTF-8 bytes; not retained …]λ"
           - repeat: éλ
-            count: 989
-          - " argument tail`, expected one of `r`, `python`, `sql`, `note`, `control`, `requirements`, `stdin`, `timeout_ms`"
+            count: 986
+          - " argument tail`, expected one of `r`, `python`, `sql`, `note`, `session`, `control`, `requirements`, `stdin`, `timeout_ms`"
   isError: true
 ---
 send:

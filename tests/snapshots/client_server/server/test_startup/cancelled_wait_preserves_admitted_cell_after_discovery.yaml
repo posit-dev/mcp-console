@@ -6,6 +6,7 @@ send:
 id: <cancelled request 1>
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -32,6 +33,7 @@ input:
 result: {}
 ---
 send:
+  session: default
   timeout_ms: 250
 result:
   content:
@@ -43,6 +45,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 600000
 result:
   content:

@@ -32,10 +32,11 @@ struct ProjectionWriter {
 #[derive(Default)]
 struct Documents {
     calls: BTreeMap<u64, PendingSource>,
-    pending_notes: BTreeMap<u64, BTreeMap<u64, QuartoEntry>>,
+    pending_notes: BTreeMap<String, BTreeMap<u64, QuartoEntry>>,
     sessions: BTreeMap<u64, QuartoWriter>,
     metadata: Metadata,
-    current: Option<u64>,
+    session_metadata: BTreeMap<String, Metadata>,
+    current: BTreeMap<String, u64>,
 }
 struct PendingSource {
     admitted: bool,
@@ -52,6 +53,7 @@ struct Metadata {
     metadata_known: bool,
 }
 struct QuartoWriter {
+    session: String,
     metadata: Metadata,
     // Source association can arrive after later notes. Call IDs preserve the
     // submitted order independently of worker acquisition and dispatch.
@@ -157,39 +159,47 @@ impl Documents {
     fn observe(&mut self, event: &Event<'_>) -> Result<Option<u64>, String> {
         match event {
             Event::EnvironmentDiscovered {
+                session,
                 dynamic_resolution,
                 r_available,
                 startup_requirements,
                 ..
             } => {
-                self.metadata.metadata_known = true;
-                self.metadata.dynamic_resolution = *dynamic_resolution;
-                self.metadata.r_available = *r_available;
-                self.metadata.requirements(
+                let metadata = self.metadata_for(session);
+                metadata.metadata_known = true;
+                metadata.dynamic_resolution = *dynamic_resolution;
+                metadata.r_available = *r_available;
+                metadata.requirements(
                     &serde_json::to_value(startup_requirements).map_err(|e| e.to_string())?,
                 );
-                return Ok(self.update_current_metadata());
+                return Ok(self.update_current_metadata(session));
             }
             Event::WorkerStarted {
+                session,
                 session_id,
                 requirements,
                 ..
             } => {
-                self.metadata.requirements(requirements);
-                self.current = Some(*session_id);
+                let metadata = self.metadata_for(session);
+                metadata.requirements(requirements);
+                let metadata = metadata.clone();
+                self.current.insert((*session).to_owned(), *session_id);
                 self.sessions.insert(
                     *session_id,
                     QuartoWriter {
-                        metadata: self.metadata.clone(),
-                        entries: self.pending_notes.remove(session_id).unwrap_or_default(),
+                        session: (*session).to_owned(),
+                        metadata,
+                        entries: self.pending_notes.remove(*session).unwrap_or_default(),
                     },
                 );
                 return Ok(Some(*session_id));
             }
-            Event::WorkerEnded { .. } => self.current = None,
+            Event::WorkerEnded { session_id, .. } => {
+                self.current.retain(|_, current| current != session_id);
+            }
             Event::ToolCall {
                 call_id,
-                note_session_id,
+                note_target,
                 request,
                 ..
             } => {
@@ -224,16 +234,41 @@ impl Documents {
                 } else if entry.note.is_some() {
                     // Journal I/O can lag retirement or replacement. Use the
                     // receipt's target, including a retained retired document.
-                    let session_id =
-                        note_session_id.ok_or("standalone note has no receipt target")?;
-                    if let Some(session) = self.sessions.get_mut(&session_id) {
-                        session.entries.insert(*call_id, entry);
-                        return Ok(Some(session_id));
-                    }
-                    self.pending_notes
-                        .entry(session_id)
-                        .or_default()
+                    let session_id = match note_target
+                        .as_ref()
+                        .ok_or("standalone note has no receipt target")?
+                    {
+                        super::NoteTarget::Worker { session_id } => *session_id,
+                        super::NoteTarget::NextWorker {
+                            session,
+                            after_session_id,
+                        } => {
+                            let acquired = self
+                                .sessions
+                                .range((
+                                    std::ops::Bound::Excluded(*after_session_id),
+                                    std::ops::Bound::Unbounded,
+                                ))
+                                .find_map(|(id, document)| {
+                                    (document.session == *session).then_some(*id)
+                                });
+                            if let Some(id) = acquired {
+                                id
+                            } else {
+                                self.pending_notes
+                                    .entry(session.clone())
+                                    .or_default()
+                                    .insert(*call_id, entry);
+                                return Ok(None);
+                            }
+                        }
+                    };
+                    self.sessions
+                        .get_mut(&session_id)
+                        .ok_or("note target has no worker document")?
+                        .entries
                         .insert(*call_id, entry);
+                    return Ok(Some(session_id));
                 }
             }
             Event::SourceAdmitted { call_id } => {
@@ -268,9 +303,12 @@ impl Documents {
                     self.calls.remove(call_id);
                 }
             }
-            Event::RequirementsAccepted { requirements } => {
-                self.metadata.requirements(requirements);
-                return Ok(self.update_current_metadata());
+            Event::RequirementsAccepted {
+                session,
+                requirements,
+            } => {
+                self.metadata_for(session).requirements(requirements);
+                return Ok(self.update_current_metadata(session));
             }
             // Selection and Python preparation can describe a replacement
             // before the old worker retires. Only live commits and actual
@@ -296,12 +334,18 @@ impl Documents {
         Ok(None)
     }
 
-    fn update_current_metadata(&mut self) -> Option<u64> {
-        let id = self.current?;
+    fn metadata_for(&mut self, session: &str) -> &mut Metadata {
+        self.session_metadata
+            .entry(session.to_owned())
+            .or_insert_with(|| self.metadata.clone())
+    }
+
+    fn update_current_metadata(&mut self, session: &str) -> Option<u64> {
+        let id = *self.current.get(session)?;
         self.sessions
             .get_mut(&id)
             .expect("current worker document")
-            .metadata = self.metadata.clone();
+            .metadata = self.session_metadata[session].clone();
         Some(id)
     }
 }
@@ -758,7 +802,11 @@ impl Send<'_> {
         if self.note.is_some() {
             return "Note";
         }
-        if self.options.is_empty() || self.options.keys().all(|key| key == "timeout_ms") {
+        if self
+            .options
+            .keys()
+            .all(|key| matches!(key.as_str(), "session" | "timeout_ms"))
+        {
             "Poll"
         } else {
             "Send"
@@ -826,7 +874,14 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     if arguments.keys().any(|key| {
         !matches!(
             key.as_str(),
-            "r" | "python" | "sql" | "note" | "stdin" | "control" | "requirements" | "timeout_ms"
+            "r" | "python"
+                | "sql"
+                | "note"
+                | "stdin"
+                | "control"
+                | "requirements"
+                | "session"
+                | "timeout_ms"
         )
     }) {
         return None;

@@ -95,6 +95,10 @@ impl Worker {
 pub(super) struct WorkerShutdownHandle;
 
 impl WorkerShutdownHandle {
+    pub(super) fn retirement_confirmed(&self) -> bool {
+        unreachable!("unsupported workers cannot start")
+    }
+
     pub(super) fn is_same_connection(&self, _other: &Self) -> bool {
         unreachable!("unsupported workers cannot start")
     }

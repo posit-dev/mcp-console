@@ -62,6 +62,7 @@ def test_replaces_complete_tool_prose(binary: Path) -> TranscriptWithCompanions:
                 "r",
                 "python",
                 "note",
+                "session",
                 "control",
                 "requirements",
                 "timeout_ms",
@@ -119,6 +120,7 @@ def test_hides_parameters_and_keeps_omission_defaults(binary: Path) -> Transcrip
             root,
             {
                 "parameters": {
+                    "session": {"enabled": False},
                     "timeout_ms": {"enabled": False},
                     "requirements": {"parameters": {"python": {"enabled": False}}},
                 }
@@ -134,6 +136,7 @@ def test_hides_parameters_and_keeps_omission_defaults(binary: Path) -> Transcrip
             client.initialize_and_list_tools()
             (tool,) = client.transcript[-1]["result"]["tools"]
             properties = tool["inputSchema"]["properties"]
+            assert "session" not in properties
             assert "timeout_ms" not in properties
             assert "timeout_ms" not in tool["description"]
             assert "60 seconds" in tool["description"]
@@ -144,6 +147,8 @@ def test_hides_parameters_and_keeps_omission_defaults(binary: Path) -> Transcrip
             client.send(python="retained = 42\nprint(retained)")
             assert last_tool_text(client) == "42\n"
             for supplied in (
+                {"session": "analysis"},
+                {"session": None},
                 {"timeout_ms": 0},
                 {"timeout_ms": None},
                 {"requirements": {"python": ["must-not-prepare"]}},
@@ -154,7 +159,9 @@ def test_hides_parameters_and_keeps_omission_defaults(binary: Path) -> Transcrip
                 )
                 assert result.get("isError"), result
                 field = (
-                    "timeout_ms" if "timeout_ms" in supplied else "requirements.python"
+                    next(iter(supplied))
+                    if "requirements" not in supplied
+                    else "requirements.python"
                 )
                 assert result["content"] == [
                     {
@@ -172,8 +179,10 @@ def test_hides_parameters_and_keeps_omission_defaults(binary: Path) -> Transcrip
             client.send(python="print(6 * 7)")
             assert last_tool_text(client) == "42\n"
             assert client.request("tools/list")["result"]["tools"] == [tool]
-            client.send()
-            assert last_tool_text(client) == "\n[idle]", last_tool_text(client)
+            result = client.send()
+            assert result["structuredContent"]["sessions"] == [
+                {"session": "default", "status": "idle"}
+            ], result
             return client.finish()
 
 

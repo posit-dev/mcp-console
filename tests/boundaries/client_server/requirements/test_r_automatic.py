@@ -1068,7 +1068,7 @@ def test_rejects_preparation_while_automatic_r_resolver_is_running(
                 "isError": True,
             }, preparation
 
-            poll = client.start_send()
+            poll = client.start_send(session="default")
             release.release()
             resolver_released = True
             client.receive(poll)

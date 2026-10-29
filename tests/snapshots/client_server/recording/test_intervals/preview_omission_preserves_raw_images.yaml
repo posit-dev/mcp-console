@@ -19,7 +19,8 @@ result:
         after accepted image
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

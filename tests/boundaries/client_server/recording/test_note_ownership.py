@@ -106,7 +106,7 @@ def test_standalone_note_keeps_received_worker_during_delayed_capture(
         assert received["sequence"] < retired["sequence"] < captured["sequence"], (
             capture
         )
-        assert captured["note_session_id"] == 1, captured
+        assert captured["note_target"] == {"kind": "worker", "session_id": 1}, captured
         original = (recording / "sessions/session-001.qmd").read_text()
         replacement = (recording / "sessions/session-002.qmd").read_text()
         assert original.count(note) == 1, original

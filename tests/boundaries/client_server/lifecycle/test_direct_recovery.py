@@ -64,7 +64,7 @@ def test_replaces_direct_relay_after_sigkill(binary: Path) -> Transcript:
                 assert events.wait(remaining), "worker did not stall"
 
             signal_process(relay, signal.SIGKILL)
-            result = client.send()
+            result = client.send(session="default")
             assert result["isError"] is True, result
             assert result["content"] == [
                 {

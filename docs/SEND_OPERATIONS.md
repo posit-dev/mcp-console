@@ -4,7 +4,7 @@ Use `send` to run code and manage a persistent session from your own MCP client.
 The examples below are tool argument objects, not complete JSON-RPC messages.
 If you are using R or Python, the [client packages](BUILD.md#choose-an-integration) provide the connection and framework adapters.
 
-Send one complete cell at a time and collect its result before sending another.
+Send one complete cell at a time per session and collect its result before sending another to that session.
 For exact argument types, operation ordering, and limits, see the [send reference](API.md).
 
 ## Send a cell and collect its result {#cells-and-polling}
@@ -19,13 +19,13 @@ After the cell finishes, later cells can use `values` while the connection remai
 If the response says `[running; poll with an empty send]`, call `send` again without code:
 
 ```json
-{ "timeout_ms": 300000 }
+{ "session": "default", "timeout_ms": 300000 }
 ```
 
 This waits for up to five minutes and returns early when work finishes or needs input.
 Continue collecting output until the cell finishes.
 Do not resubmit the original source: the accepted cell is still running.
-If your tool configuration hides `timeout_ms`, poll with `{}` instead.
+If your tool configuration hides `timeout_ms`, omit that argument.
 
 <span id="server-readiness"></span> <span id="wait-timing-and-cancellation"></span>
 
@@ -35,6 +35,42 @@ Stopping a response wait does not stop an accepted cell.
 Use the interrupt control below when you want to stop execution.
 
 Reference: [Result notices](API.md#results), [server readiness](API.md#server-readiness), and [wait timing and cancellation](API.md#wait-timing-and-cancellation).
+
+## Run separate work concurrently
+
+Supply `session` with code to create or reuse a named session:
+
+```json
+{
+  "session": "analysis",
+  "python": "values = [2, 4, 6]; sum(values)",
+  "timeout_ms": 0
+}
+```
+
+```json
+{
+  "session": "comparison",
+  "python": "values = [3, 6, 9]; sum(values)",
+  "timeout_ms": 0
+}
+```
+
+These sessions keep separate variables and can execute at the same time.
+Calls with code and no name use `default`.
+Supply the name when polling one session:
+
+```json
+{ "session": "analysis", "timeout_ms": 300000 }
+```
+
+An empty call without `session` collects output from all active sessions and lists their statuses.
+It polls them concurrently within one observation budget and can wait for other busy sessions.
+Use the same name for input, requirements, interrupts, and restarts.
+To stop a named session, send its name with `control="restart"` and no code or nonempty input.
+Its next code or nonempty-input call starts a fresh worker with its retained requirements.
+
+Reference: [Named sessions](API.md#named-sessions).
 
 ## Answer an input request {#standard-input-and-managed-reads}
 
@@ -100,7 +136,7 @@ The [operation-order table](API.md#operations) describes combined calls and thei
 ## Close the connection
 
 Keep the connection open for as long as you need its live state.
-Closing it ends the session; reconnecting starts a new one.
+Closing it ends all its sessions; reconnecting starts with a fresh default session.
 [Recordings](RECORDING.md) retain the work for review, but do not restore live objects.
 
 <span id="python-client-cancellation"></span>

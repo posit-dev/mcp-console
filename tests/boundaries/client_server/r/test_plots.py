@@ -62,7 +62,7 @@ def test_routes_input_to_idle_later_callback(
         if time.monotonic() >= deadline:
             raise AssertionError("idle callback did not receive submitted stdin")
         time.sleep(0.01)
-        client.send()
+        client.send(session="default")
     polls = client.transcript[poll_start:]
     final_poll = polls[-1]
     final_poll["send"] = polls[0]["send"]

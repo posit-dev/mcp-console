@@ -52,9 +52,9 @@ stderr: >
 setting: resolution=implicit
 stderr: >
   configuration with CLI overrides: resolution: unknown field
-  `resolution`, expected one of `tool`, `startup`, `cache`, `python`, `r`,
-  `languages`, `inherit_environment`, `environment`, `sandbox`,
-  `resolver`; see docs/CONFIGURATION.md for the public format
+  `resolution`, expected one of `tool`, `sessions`, `startup`, `cache`,
+  `python`, `r`, `languages`, `inherit_environment`, `environment`,
+  `sandbox`, `resolver`; see docs/CONFIGURATION.md for the public format
 ---
 setting: >-
   python.first_available=[{existing: unused}, {managed: {resolution:

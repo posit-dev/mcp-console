@@ -47,6 +47,7 @@ fn interrupted_cell_not_run_response(wait: EvaluationWait) -> Response {
     let mut response = send_response_from_wait(wait);
     match &mut response {
         SendResponse::Idle(output)
+        | SendResponse::Stopped(output)
         | SendResponse::Failed(output)
         | SendResponse::Running(output)
         | SendResponse::InputRequested(output)
@@ -89,8 +90,17 @@ impl Client {
                     .is_some_and(|stdin| !stdin.is_empty())))
         .then(|| RetryAdmissionCancellation(Arc::new(Mutex::new(false))));
         let retry_cancelled = admission_wait.as_ref().map(|wait| wait.0.clone());
+        let activation = (request.cell.is_some()
+            || request
+                .stdin
+                .as_ref()
+                .is_some_and(|input| !input.is_empty())
+            || request.requirements.is_some())
+        .then(|| self.activate_session())
+        .transpose()?;
         let client = self.clone();
         let admission = tokio::task::spawn_blocking(move || {
+            let _activation = activation;
             client.control_and_start_evaluation(control, request, initial_restart, retry_cancelled)
         })
         .await;
@@ -468,14 +478,18 @@ impl Client {
             let mut response = Response::default();
             response.push_notice("runtime discovery retried");
             if cell.is_none() && !stdin_follows {
-                // Changed requirements can retire the unused prewarmed worker.
-                // Empty stdin starts its prepared replacement without using it.
-                if let Err(failure) =
-                    self.write_idle_stdin_blocking(String::new(), generation.clone())
-                {
-                    return Ok(self.return_controlled_failure(response, failure));
+                if self.0.session_kind == super::SessionKind::Named {
+                    response.push_notice("stopped");
+                } else {
+                    // Changed requirements can retire the unused prewarmed worker.
+                    // Empty stdin starts its prepared replacement without using it.
+                    if let Err(failure) =
+                        self.write_idle_stdin_blocking(String::new(), generation.clone())
+                    {
+                        return Ok(self.return_controlled_failure(response, failure));
+                    }
+                    response = output::project_replacement_ready(response);
                 }
-                response = output::project_replacement_ready(response);
             }
             super::lifecycle::RestartAttempt {
                 response,
@@ -485,7 +499,13 @@ impl Client {
             self.restart_blocking(
                 requirements.unwrap_or_default(),
                 WORKER_SHUTDOWN_GRACE,
-                cell.is_some() || stdin_follows,
+                if cell.is_some() || stdin_follows {
+                    super::lifecycle::RestartLaunch::Followup
+                } else if self.0.session_kind == super::SessionKind::Named {
+                    super::lifecycle::RestartLaunch::OnNextSend
+                } else {
+                    super::lifecycle::RestartLaunch::Idle
+                },
                 Some(control),
             )?
         };

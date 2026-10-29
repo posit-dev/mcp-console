@@ -554,7 +554,7 @@ class EvaluationCollectorTests(unittest.TestCase):
             ]
         )
         wait_for_idle_output(client, expected, "split startup diagnostics")
-        self.assertEqual(client.calls, [{}, {}, {}])
+        self.assertEqual(client.calls, [{"session": "default"}] * 3)
         self.assertEqual(len(client.transcript), 1)
         self.assertEqual(client.transcript[0]["result"]["content"][0]["text"], expected)
 
@@ -572,7 +572,7 @@ class EvaluationCollectorTests(unittest.TestCase):
             "startup input",
             completion_timeout_seconds=client.response_timeout,
         )
-        self.assertEqual(client.calls, [{}, {}, {}])
+        self.assertEqual(client.calls, [{"session": "default"}] * 3)
         self.assertEqual(len(client.transcript), 1)
         self.assertEqual(client.transcript[0]["result"]["content"][0]["text"], expected)
         self.assertEqual(client.response_timeout, 600)
@@ -640,9 +640,9 @@ class EvaluationCollectorTests(unittest.TestCase):
                 )
                 self.assertEqual(actual, expected)
                 self.assertEqual(client.calls[0], source)
-                self.assertTrue(
-                    all(call.keys() == {"timeout_ms"} for call in client.calls[1:])
-                )
+                for call in client.calls[1:]:
+                    self.assertEqual(call.keys(), {"timeout_ms", "session"})
+                    self.assertEqual(call["session"], "default")
                 result = {
                     "content": [{"type": "text", "text": expected}],
                     "isError": error,

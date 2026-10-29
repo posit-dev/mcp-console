@@ -239,6 +239,16 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
 ",
         ),
         Field::new(
+            "sessions",
+            "\
+## Limit live sessions, including default. null (default) means unlimited.
+## Default reserves a slot while the MCP connection is open.
+## Starting sessions and restarts with replacement count toward the limit.
+## Stopped named sessions release capacity after cleanup.
+",
+            "# sessions:\n#   max: 4\n",
+        ),
+        Field::new(
             "environment",
             "\
 ## Environment variables for evaluated code and package preparation.

@@ -1,0 +1,492 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  r: value <- 'default'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    value <- "alpha"
+    source <- data.frame(value = 1L)
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE results AS SELECT value FROM source
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    stopifnot(
+      !exists("value"),
+      !DBI::dbExistsTable(.console$sql_connection(), "results")
+    )
+    value <- "beta"
+    source <- data.frame(value = 2L)
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  sql: CREATE TABLE results AS SELECT value FROM source
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    result <- DBI::dbGetQuery(
+      .console$sql_connection(),
+      "SELECT value FROM results"
+    )
+    cat(sprintf("%s %d\n", value, result$value))
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        alpha 1
+  isError: false
+---
+send:
+  r: |
+    result <- DBI::dbGetQuery(
+      .console$sql_connection(),
+      "SELECT value FROM results"
+    )
+    cat(sprintf("%s %d\n", value, result$value))
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        beta 2
+  isError: false
+---
+send:
+  r: |
+    stopifnot(!DBI::dbExistsTable(.console$sql_connection(), "results"))
+    cat(value, "\n", sep = "")
+result:
+  content:
+    - type: text
+      text: |
+        default
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  session: beta
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  session: default
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    duckdb:
+      - core_functions
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "core_functions",
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - core_functions
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  session: beta
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  session: default
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [
+              "icu",
+              "json",
+              "sqlite"
+            ],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [
+              "DBI",
+              "duckdb",
+              "jsonlite",
+              "nanoarrow",
+              "pillar",
+              "reticulate",
+              "tibble",
+              "utf8"
+            ],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+  isError: false
+---
+send:
+  r: |
+    result <- DBI::dbGetQuery(
+      .console$sql_connection(),
+      "SELECT value FROM results"
+    )
+    cat(sprintf("%s %d\n", value, result$value))
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        alpha 1
+  isError: false
+---
+send:
+  r: |
+    result <- DBI::dbGetQuery(
+      .console$sql_connection(),
+      "SELECT value FROM results"
+    )
+    cat(sprintf("%s %d\n", value, result$value))
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        beta 2
+  isError: false

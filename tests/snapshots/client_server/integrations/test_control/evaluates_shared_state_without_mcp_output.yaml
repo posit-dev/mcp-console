@@ -10,7 +10,8 @@ result:
         agent ready
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

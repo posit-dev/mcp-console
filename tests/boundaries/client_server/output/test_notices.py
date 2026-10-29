@@ -58,7 +58,7 @@ def test_names_readable_logs_once_with_long_unicode_paths(
                 else:
                     assert Path(advertised_path) == path
                 assert text.count(str(recording)) == int(not compact)
-                client.send()
+                client.send(session="default")
                 assert last_tool_text(client) == "\n[idle]"
                 client.finish()
     return [
@@ -114,7 +114,7 @@ def test_does_not_offer_logs_after_recording_failures(
             assert not (
                 session / f"capture/sessions/001/cell-{cell_id:03}.txt"
             ).is_file()
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == "\n[idle]"
             _, stderr = client.finish_with_standard_error()
             assert stderr.count("transcript recording disabled:") == int(

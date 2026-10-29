@@ -19,6 +19,8 @@ The activating request publishes that prelude in its observed order with its ori
 If the process exits without either kind of request, Console discards the temporary capture.
 The recording retains the process start time separately from publication time.
 Restarts and automatic worker replacement create numbered sessions within that same recording.
+Named sessions share this recording; each worker lifetime receives its own number, independently of the public `session` name.
+Worker-start events retain the name so concurrent sessions and their replacements can be distinguished.
 Each cell gets a log file when execution starts, even if it produces no text output.
 
 ```text
@@ -56,13 +58,13 @@ The journal and Markdown transcript retain the original note text.
 Source admitted before worker acquisition stays pending until its worker is known, even if an initial response has already returned.
 A validation-rejected restart leaves its source with the surviving addressed worker.
 A note submitted with source follows that source's worker association, including across a restart.
-Without source, a note belongs to the worker current when the call is received, or waits for the next actual worker if none exists.
+Without source, a note belongs to the selected logical session's worker when the call is received, or waits for that session's next actual worker if none exists.
 Notes can create a QMD for a worker that receives no source.
 QMD entries follow original call order, with each note before any source from the same call, even when source association is delayed.
 A failed acquisition does not create a session, and a session without source or notes need not create a QMD.
 Source and notes without a worker association remain in the journal and Markdown transcript.
 
-QMD metadata records accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
+QMD metadata records the owning session's accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
 Retained R requirements carry into replacement sessions; rejected additions do not change metadata, and replacement declarations do not rewrite the retiring session's document.
 The original working directory is descriptive metadata rather than an execution root.
 QMDs omit results, images, input, polls, and control wrappers.

@@ -33,7 +33,8 @@ input:
   method: ping
 result: {}
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -41,7 +42,8 @@ result:
         recovered ghost
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

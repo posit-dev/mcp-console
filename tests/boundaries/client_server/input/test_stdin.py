@@ -79,7 +79,7 @@ def test_idle_stdin_startup_blocks_preparation(
         passed = False
         try:
             client.initialize_and_list_tools()
-            client.send()
+            client.send(session="default")
             assert last_tool_text(client) == "\n[idle]"
             idle_stdin = client.start_send(stdin="queued\n")
             wait_for_marker(
@@ -246,7 +246,7 @@ def test_preserves_unexposed_input_output(
         (waiting.parent / "zod-release-input-request").touch()
         wait_for_marker(temporary_path, "zod-input-received", client)
 
-        client.send(timeout_ms=3_000)
+        client.send(session="default", timeout_ms=3_000)
         assert last_tool_text(client) == (
             """before
 [input requested: "late> "]

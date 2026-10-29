@@ -23,7 +23,8 @@ result:
         zod: combined cell
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

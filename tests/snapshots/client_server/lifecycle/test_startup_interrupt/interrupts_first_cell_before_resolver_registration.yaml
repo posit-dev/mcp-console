@@ -26,6 +26,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 600000
 result:
   content:

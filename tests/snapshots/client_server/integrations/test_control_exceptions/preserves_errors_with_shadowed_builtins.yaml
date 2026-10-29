@@ -17,7 +17,8 @@ result:
       text: "[done]"
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -35,7 +36,8 @@ result:
         True True
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -69,7 +71,8 @@ result:
       text: "[done]"
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -87,7 +90,8 @@ result:
         True True
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

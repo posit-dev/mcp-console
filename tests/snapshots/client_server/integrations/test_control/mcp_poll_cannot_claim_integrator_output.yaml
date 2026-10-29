@@ -9,14 +9,16 @@ result:
       text: "[done]"
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
       text: "[worker is evaluating an integrator request]"
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

@@ -48,6 +48,10 @@ result:
             type:
               - string
               - "null"
+          session:
+            description: Replacement for session.
+            type: string
+            default: default
           timeout_ms:
             description: Replacement for timeout_ms.
             type: integer
@@ -139,6 +143,10 @@ result:
             type:
               - string
               - "null"
+          session:
+            description: Replacement for session.
+            type: string
+            default: default
           timeout_ms:
             description: Replacement for timeout_ms.
             type: integer

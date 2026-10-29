@@ -368,6 +368,7 @@ config_from_json <- function(settings) {
       r = function(fields) config_node_from_json(RConfig, fields),
       python = config_python_from_json,
       startup = function(fields) config_node_from_json(StartupConfig, fields),
+      sessions = function(fields) config_node_from_json(SessionsConfig, fields),
       sandbox = policy,
       resolver = function(fields) {
         config_node_from_json(ResolverConfig, fields, list(sandbox = policy))

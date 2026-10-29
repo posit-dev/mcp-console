@@ -48,7 +48,9 @@ def test_same_producer_tiny_events_keep_bounded_storage(binary: Path) -> Transcr
             )
             assert_preview(result["content"][0]["text"], emitted)
             assert cell_text(client, 2).encode() == emitted.encode()
-            assert client.send()["content"] == [{"type": "text", "text": "\n[idle]"}]
+            assert client.send(session="default")["content"] == [
+                {"type": "text", "text": "\n[idle]"}
+            ]
             assert client.send(r="echo fresh")["content"] == [
                 {"type": "text", "text": "zod: fresh\n"}
             ]
@@ -103,7 +105,9 @@ def test_complete_direct_chunks_do_not_add_decoder_copies(binary: Path) -> Trans
             # excluding concurrent journal/projection work from this comparison.
             assert all(allocations), allocations
             assert allocations[1] < allocations[0] + 1024 * 1024, allocations
-            assert client.send()["content"] == [{"type": "text", "text": "\n[idle]"}]
+            assert client.send(session="default")["content"] == [
+                {"type": "text", "text": "\n[idle]"}
+            ]
             normalize_preview_paths(client)
             compact_previews(client, "ab")
             return client.finish()

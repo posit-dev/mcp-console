@@ -119,7 +119,7 @@ def test_invalid_completion_does_not_confirm_cell_end(binary: Path) -> Transcrip
         await_event(
             client, root, "worker_started", lambda event: event["session_id"] == 2
         )
-        result = client.send(timeout_ms=60000)
+        result = client.send(session="default", timeout_ms=60000)
         text = result["content"][0]["text"]
         assert result["isError"], result
         assert "worker completed with an outstanding input request" in text, text

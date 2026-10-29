@@ -52,7 +52,7 @@ def test_interrupt_preserves_active_poll_output(
             control.send_control(0, "observe_poll_ownership", request=waiting["id"])
             control.wait_for(waiting["id"], "poll_ownership_observed")
             try:
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 assert client.transcript[-1]["result"] == {
                     "content": [
                         {
@@ -80,7 +80,7 @@ def test_interrupt_preserves_active_poll_output(
             assert content[1]["type"] == "image"
             assert content[2] == {"type": "text", "text": "after image\n"}
             assert not waiting["result"]["isError"], waiting
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             assert last_tool_text(client) == "\n[idle]", client.transcript[-1]
             client.send(r="echo next cell")
             assert last_tool_text(client) == "zod: next cell\n"
@@ -182,7 +182,7 @@ def test_interrupt_preserves_completed_response_delivery(
                     ],
                     "isError": False,
                 }, interrupt
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 assert last_tool_text(client) == "\n[idle]", client.transcript[-1]
                 client.send(r="echo after completed interrupt")
                 assert last_tool_text(client) == "zod: after completed interrupt\n"

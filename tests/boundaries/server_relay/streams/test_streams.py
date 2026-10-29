@@ -61,7 +61,7 @@ def test_finishes_partial_utf8_with_its_cell(
     for expected in ("�", "��", "�", "��"):
         output = _tool_text(client.send(r="42"))
         assert output == expected, repr(output)
-        assert _tool_text(client.send()) == "\n[idle]"
+        assert _tool_text(client.send(session="default")) == "\n[idle]"
     return client.finish_active()
 
 
@@ -189,7 +189,7 @@ def test_orders_cross_source_output_by_serialized_observation(
     finally:
         checkpoint.with_name(RELEASE_NAME).touch()
     client._wait_for(DONE_NAME)
-    idle_output = _tool_text(client.send())
+    idle_output = _tool_text(client.send(session="default"))
     assert idle_output == "stdout after grace\n\n[idle]", repr(idle_output)
     transcript = client.finish_active()
 

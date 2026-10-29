@@ -110,12 +110,70 @@ def test_clients_record_notes_with_and_without_code(binary: Path) -> Transcript:
     return asyncio.run(run())
 
 
+def test_clients_preserve_session_selection_and_omission(binary: Path) -> Transcript:
+    async def exercise(console) -> None:
+        for arguments, expected in (
+            ({"python": "named output", "session": "analysis"}, "named output"),
+            ({"session": "default"}, ""),
+            ({"session": None}, ""),
+            ({}, ""),
+        ):
+            output = console.send(**arguments)
+            if inspect.isawaitable(output):
+                output = await output
+            assert output == expected, output
+
+    async def run() -> Transcript:
+        results = []
+        for client_type in (AsyncMCPConsole, MCPConsole):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                console = client_type(
+                    command=sys.executable,
+                    args=[
+                        "-u",
+                        ROOT / "tests/fixtures/python_sync_server.py",
+                        "normal",
+                    ],
+                    server_parameters={
+                        "cwd": root,
+                        "env": dict(os.environ, MCP_CONSOLE_HOME=str(root)),
+                    },
+                )
+                if isinstance(console, AsyncMCPConsole):
+                    async with console:
+                        await exercise(console)
+                else:
+                    with console:
+                        await exercise(console)
+                requests = [
+                    json.loads(line)
+                    for line in (root / "requests.jsonl").read_text().splitlines()
+                ]
+                arguments = [
+                    request["params"]["arguments"]
+                    for request in requests
+                    if request["method"] == "tools/call"
+                ]
+                assert arguments == [
+                    {"python": "named output", "session": "analysis"},
+                    {"session": "default"},
+                    {},
+                    {},
+                ], arguments
+                results.append({"client": client_type.__name__, "arguments": arguments})
+        return results
+
+    return asyncio.run(run())
+
+
 def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcript:
     from agents.tool_context import ToolContext
 
     async def exercise(console) -> dict:
         tool = console.send_tool
         assert "timeout_ms" not in tool.input_schema["properties"]
+        assert "session" not in tool.input_schema["properties"]
         assert tool.description == "Evaluation tool."
         assert (
             tool.input_schema["properties"]["python"]["description"] == "Python cell."
@@ -191,6 +249,8 @@ def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcrip
                     "tool.parameters.python.description=Python cell.",
                     "-c",
                     "tool.parameters.timeout_ms.enabled=false",
+                    "-c",
+                    "tool.parameters.session.enabled=false",
                 ),
                 "server_parameters": {
                     "cwd": directory,
@@ -323,12 +383,12 @@ def test_sync_and_async_clients_receive_bounded_previews(
 
         with MCPConsole(**settings) as console:
             check(console.send(r="overflow console output"))
-            assert console.send() == "\n[idle]"
+            assert console.send(session="default") == "\n[idle]"
 
         async def asynchronous() -> None:
             async with AsyncMCPConsole(**settings) as console:
                 check(await console.send(r="overflow console output"))
-                assert await console.send() == "\n[idle]"
+                assert await console.send(session="default") == "\n[idle]"
 
         asyncio.run(asynchronous())
     return results
@@ -484,6 +544,7 @@ def test_callable_tools_follow_connected_server_fields(
                         "python",
                         "sql",
                         "note",
+                        "session",
                         "control",
                         "requirements",
                         "stdin",
@@ -494,7 +555,15 @@ def test_callable_tools_follow_connected_server_fields(
                     "custom",
                     custom,
                     "echo configured",
-                    {"r", "note", "control", "requirements", "stdin", "timeout_ms"},
+                    {
+                        "r",
+                        "note",
+                        "session",
+                        "control",
+                        "requirements",
+                        "stdin",
+                        "timeout_ms",
+                    },
                 ),
             ):
                 async with AsyncMCPConsole(**settings) as console:
@@ -579,7 +648,7 @@ def test_callable_preserves_mixed_language_state(
                 # A returned send can still be running. Collect its complete output
                 # before submitting the next cell, including on a cold R startup.
                 while chunks[-1].endswith(running):
-                    chunks.append(await console.send())
+                    chunks.append(await console.send(session="default"))
                 transcript.append({language: collected(chunks)})
             return transcript
 
@@ -589,7 +658,7 @@ def test_callable_preserves_mixed_language_state(
         for language, source in cells.items():
             chunks = [console(**{language: source}, timeout_ms=0)]
             while chunks[-1].endswith(running):
-                chunks.append(console.send())
+                chunks.append(console.send(session="default"))
             synchronous.append({language: collected(chunks)})
     assert synchronous == transcript
     return transcript
@@ -642,6 +711,7 @@ def test_responses_preserves_schema_text_and_images(
                 "python",
                 "sql",
                 "note",
+                "session",
                 "stdin",
                 "control",
                 "requirements",
@@ -751,13 +821,22 @@ def test_native_openai_agents_waits_for_console_output(
         async with mcp_console.openai.agents_server(
             **settings, params=parameters
         ) as server:
+            # Finish startup and one cell before measuring the adapter's wait.
+            ready = await server.call_tool("send", {"r": "complete silently"})
+            while ready.content[0].text.endswith(
+                "\n[running; poll with an empty send]"
+            ):
+                ready = await server.call_tool("send", {"session": "default"})
+            assert not ready.is_error
+            assert ready.model_dump(mode="json", exclude_none=True)["content"] == [
+                {"type": "text", "text": "[done]"}
+            ]
             # The fixture stays blocked beyond the SDK's five-second default.
             started = time.monotonic()
             result = await server.call_tool("send", {"r": "stall", "timeout_ms": 6_000})
             assert time.monotonic() - started >= 5.9
             recorded = result.model_dump(mode="json", by_alias=True, exclude_none=True)
             text = recorded["content"][0]["text"]
-            # Startup consumes the call budget before the admission clock begins.
             _, silent = elapsed_progress(text)
             assert silent
             recorded["content"][0]["text"] = normalize_elapsed(text)

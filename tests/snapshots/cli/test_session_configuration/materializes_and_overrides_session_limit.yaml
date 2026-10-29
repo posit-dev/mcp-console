@@ -1,0 +1,17 @@
+---
+case: default
+sessions:
+  max: ~
+pruned: {}
+---
+case: limited
+sessions:
+  max: 3
+pruned:
+  sessions:
+    max: 3
+---
+case: cleared
+sessions:
+  max: ~
+pruned: {}

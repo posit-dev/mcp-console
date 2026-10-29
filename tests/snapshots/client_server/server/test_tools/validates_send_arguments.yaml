@@ -10,8 +10,8 @@ result:
     - type: text
       text: >-
         failed to deserialize parameters: unknown field `wait_ms`, expected one
-        of `r`, `python`, `sql`, `note`, `control`, `requirements`, `stdin`,
-        `timeout_ms`
+        of `r`, `python`, `sql`, `note`, `session`, `control`, `requirements`,
+        `stdin`, `timeout_ms`
   isError: true
 ---
 send:
@@ -162,8 +162,8 @@ result:
     - type: text
       text: >-
         failed to deserialize parameters: unknown field `wait_ms`, expected one
-        of `r`, `python`, `sql`, `note`, `control`, `requirements`, `stdin`,
-        `timeout_ms`
+        of `r`, `python`, `sql`, `note`, `session`, `control`, `requirements`,
+        `stdin`, `timeout_ms`
   isError: true
 ---
 send:

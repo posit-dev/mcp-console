@@ -43,7 +43,8 @@ result:
         Error: SQL unavailable: configured startup did not complete; explicit restart required
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

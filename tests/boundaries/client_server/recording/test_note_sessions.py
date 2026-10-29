@@ -20,6 +20,51 @@ from support.requirements import R, command, requires
 
 
 @executions(RUNTIME)
+def test_notes_keep_their_named_session_before_acquisition(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory)
+        if os.name != "nt":
+            (workspace / "python3").symlink_to(sys.executable)
+        pending = "Record beta's question before starting its worker."
+        alpha = "Alpha has completed its baseline."
+        beta = "Run beta's initial measurement."
+        default = "The default measurement is complete."
+        with McpClient(
+            binary, execution.serve(), selected_environment(workspace), workspace
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect("default\n", python="print('default')")
+            client.expect(note=pending, session="beta")
+            client.expect("alpha\n", python="print('alpha')", session="alpha")
+            client.expect("beta\n", python="print('beta')", note=beta, session="beta")
+            client.expect(note=alpha, session="alpha")
+            client.expect(note=default)
+            transcript = client.finish()
+
+        (recording,) = (workspace / ".agents/console/sessions").iterdir()
+        capture = events(recording)
+        workers = {
+            event.get("session", "default"): event["session_id"]
+            for event in capture
+            if event["event"] == "worker_started"
+        }
+        assert set(workers) == {"default", "alpha", "beta"}, workers
+        for name, expected in {
+            "default": [default],
+            "alpha": [alpha],
+            "beta": [pending, beta],
+        }.items():
+            document = (
+                recording / f"sessions/session-{workers[name]:03}.qmd"
+            ).read_text()
+            for note in [pending, alpha, beta, default]:
+                assert document.count(note) == int(note in expected), (name, document)
+        return normalize_recording(transcript, workspace)
+
+
+@executions(RUNTIME)
 def test_notes_follow_cells_across_restart(
     binary: Path, execution: Execution
 ) -> Transcript:

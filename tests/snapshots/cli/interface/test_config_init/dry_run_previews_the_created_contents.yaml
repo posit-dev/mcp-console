@@ -81,6 +81,13 @@ preview: |
   ## The environment and its required packages must already be installed.
   # python: .venv
 
+  ## Limit live sessions, including default. null (default) means unlimited.
+  ## Default reserves a slot while the MCP connection is open.
+  ## Starting sessions and restarts with replacement count toward the limit.
+  ## Stopped named sessions release capacity after cleanup.
+  # sessions:
+  #   max: 4
+
   ## Environment variables for evaluated code and package preparation.
   ## Values must be strings.
   # environment:
@@ -178,6 +185,13 @@ created: |
   ## Choose this instead of the managed Python settings above.
   ## The environment and its required packages must already be installed.
   # python: .venv
+
+  ## Limit live sessions, including default. null (default) means unlimited.
+  ## Default reserves a slot while the MCP connection is open.
+  ## Starting sessions and restarts with replacement count toward the limit.
+  ## Stopped named sessions release capacity after cleanup.
+  # sessions:
+  #   max: 4
 
   ## Environment variables for evaluated code and package preparation.
   ## Values must be strings.

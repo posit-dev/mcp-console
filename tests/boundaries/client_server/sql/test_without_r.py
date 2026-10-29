@@ -1793,7 +1793,7 @@ def test_interrupt_preserves_sql_and_python_state(
             client.send(control="interrupt", timeout_ms=0)
             release.release()
             release = None
-            client.send()
+            client.send(session="default")
             assert "KeyboardInterrupt" in last_tool_text(client)
             client.send(
                 python="_console.sql_connection(None); print('Python remains usable')"

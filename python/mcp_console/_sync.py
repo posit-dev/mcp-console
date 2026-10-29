@@ -103,7 +103,7 @@ class MCPConsole:
 
     Use as a context manager or explicitly call ``connect()`` and ``close()``.
     The context starts Console and discovers its tools; leaving it closes the
-    connection and subprocess. Variables persist across calls on this connection.
+    connection and subprocess. Variables persist across calls to each named session.
     The application owns its model clients, agents, and tool loops.
     By default the client prefers Console in the current Python environment,
     then PATH, and launches `serve`. Use `command` and `args` to select another
@@ -111,6 +111,7 @@ class MCPConsole:
 
     Calls block while the official MCP client runs on a background event loop.
     Connect and close only when no other call is in progress.
+    Calls to different sessions can run concurrently from separate threads.
     A control-only interrupt may be sent from another thread while a call waits.
 
     A `KeyboardInterrupt` during a response wait cancels that request's wait,
@@ -285,6 +286,7 @@ class MCPConsole:
         python: str | None = None,
         sql: str | None = None,
         note: str | None = None,
+        session: str | None = None,
         control: Literal["interrupt", "restart"] | None = None,
         requirements: Requirements | None = None,
         stdin: str | None = None,
@@ -295,17 +297,19 @@ class MCPConsole:
         The arguments and polling behavior match
         [AsyncMCPConsole.send()](AsyncMCPConsole.html#send). Send one language
         per call. If output ends in `[running; poll with an empty send]`, collect
-        the remaining output with `console.send()` before submitting another cell.
+        the remaining output with `console.send(session=...)` before submitting
+        another cell to that session. Omit `session` on an empty call to poll all
+        active sessions and list their statuses.
         Images appear as MIME placeholders; MCP tool errors raise `RuntimeError`.
         `console(...)` is an alias for `send(...)`.
-        If tool configuration hides `timeout_ms`, poll with `console.send()`
-        without that argument.
+        If tool configuration hides `timeout_ms`, poll without that argument.
         """
         arguments = {
             "r": r,
             "python": python,
             "sql": sql,
             "note": note,
+            "session": session,
             "control": control,
             "requirements": requirements,
             "stdin": stdin,
