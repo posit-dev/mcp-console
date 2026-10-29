@@ -1,0 +1,6 @@
+shiny==1.9.0
+chatlas[mcp]==0.23.0
+mcp==2.3.0
+pandas[output-formatting]==3.1.0
+matplotlib==3.11.2
+duckdb==2.0.0
