@@ -91,6 +91,10 @@ The connection owns a registry of logical sessions; each session owns startup, p
 The default session discovers runtimes, prepares defaults, and prelaunches the built-in worker in a background task.
 New names enter the registry on their first code call and use the same captured configuration and client authority, with independent startup and execution owners.
 Stopping a named worker preserves its registry entry and requirements without prelaunching a replacement.
+The connection's capacity pool reserves one slot for the default session and admits named work without waiting when capacity is available.
+Startup, preparation, and replacement retain the same session's slot independently of request cancellation.
+Worker retirement and preparation cleanup retain separate evidence; one cannot release capacity still owned by the other.
+A completed preparation operation can release capacity while its reusable preparation host remains open, but failed discovery requires that host's confirmed retirement.
 MCP initialization, tool discovery, and pings do not wait.
 Workers supplied through internal testing hooks are launched on demand.
 

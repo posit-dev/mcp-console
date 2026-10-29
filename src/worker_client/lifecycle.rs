@@ -32,6 +32,7 @@ impl WorkerGeneration {
 
 /// Owns admission and process cancellation for one session.
 pub(super) struct LifecycleControl {
+    session: super::SessionSlot,
     pub(super) state: LifecycleState,
     pub(super) generation: WorkerGeneration,
     controlled_send: Option<Arc<()>>,
@@ -50,6 +51,7 @@ struct WorkerStartup {
 
 /// Keeps startup interruptible before and between its resolver processes.
 pub(crate) struct WorkerStartupAdmission {
+    _session: super::SessionActivation,
     client: Client,
     generation: WorkerGeneration,
     pub(super) transport_ready: Arc<AtomicBool>,
@@ -166,8 +168,9 @@ pub(super) enum RestartLaunch {
 }
 
 impl LifecycleControl {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(session: super::SessionSlot) -> Self {
         Self {
+            session,
             state: LifecycleState::Ready,
             generation: WorkerGeneration::new(),
             controlled_send: None,
@@ -471,6 +474,15 @@ impl Drop for WorkerStartupAdmission {
         };
         if lifecycle.generation.is(&self.generation)
             && lifecycle
+                .processes
+                .resolver
+                .as_ref()
+                .is_some_and(|resolver| !resolver.cleanup_confirmed())
+        {
+            lifecycle.session.retain_preparation();
+        }
+        if lifecycle.generation.is(&self.generation)
+            && lifecycle
                 .startup
                 .as_ref()
                 .is_some_and(|startup| std::ptr::eq(startup.owner.as_ptr(), self))
@@ -481,6 +493,26 @@ impl Drop for WorkerStartupAdmission {
 }
 
 impl Client {
+    /// Reserve before request preparation; accepted startup work keeps its own lease.
+    pub(crate) fn activate_session(&self) -> Result<super::SessionActivation, String> {
+        self.0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?
+            .session
+            .activate()
+    }
+
+    /// Initial discovery retains all resolver receipts outside the worker owner.
+    pub(crate) fn finish_session_preparation(&self, cleanup_confirmed: bool) {
+        let lifecycle = self.0.lifecycle.lock().expect("worker lifecycle lock");
+        if !cleanup_confirmed {
+            lifecycle.session.retain_preparation();
+        } else {
+            lifecycle.session.preparation_retired();
+        }
+    }
+
     #[cfg(any(unix, windows))]
     pub(super) fn queue_startup_stdin(
         &self,
@@ -552,6 +584,7 @@ impl Client {
             return Ok(Some(owner));
         }
         let owner = Arc::new(WorkerStartupAdmission {
+            _session: lifecycle.session.activate()?,
             client: self.clone(),
             generation: generation.clone(),
             transport_ready: Arc::new(AtomicBool::new(false)),
@@ -696,6 +729,10 @@ impl Client {
         launch: RestartLaunch,
         control: Option<&ControlledSendAdmission>,
     ) -> Result<RestartAttempt, String> {
+        // Replacement retains capacity even if its initiating request is cancelled.
+        let _activation = (!matches!(launch, RestartLaunch::OnNextSend))
+            .then(|| self.activate_session())
+            .transpose()?;
         let mut restart = if requirements.action == super::RequirementsAction::Add
             && requirements.python_version.is_empty()
             && requirements.exclude_newer.is_none()
@@ -1477,6 +1514,7 @@ impl Client {
                 outcome,
             ));
         }
+        lifecycle.session.worker_retired();
         Ok(FailedWorkerStop::Stopped(outcome))
     }
 
@@ -1496,6 +1534,7 @@ impl Client {
                     if lifecycle.startup_interrupted() {
                         (Instant::now(), "worker startup interrupted")
                     } else {
+                        lifecycle.session.retain_worker();
                         lifecycle.processes.worker = Some(handle.clone());
                         lifecycle.startup = None;
                         #[cfg(any(unix, windows))]
@@ -1544,6 +1583,14 @@ impl Client {
             .lock()
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
         if lifecycle.state == LifecycleState::Ready && lifecycle.generation.is(expected) {
+            if lifecycle
+                .processes
+                .worker
+                .as_ref()
+                .is_some_and(platform::WorkerShutdownHandle::retirement_confirmed)
+            {
+                lifecycle.session.worker_retired();
+            }
             lifecycle.processes.worker = None;
         }
         Ok(())
@@ -1564,6 +1611,7 @@ impl Client {
                     if lifecycle.startup_interrupted() {
                         (Instant::now(), "worker startup interrupted")
                     } else {
+                        lifecycle.session.retain_worker();
                         lifecycle.processes.worker = Some(handle.clone());
                         lifecycle.startup = None;
                         return Ok(());
@@ -1584,6 +1632,14 @@ impl Client {
             .lock()
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
         if matches!(lifecycle.state, LifecycleState::Restarting { .. }) {
+            if lifecycle
+                .processes
+                .worker
+                .as_ref()
+                .is_some_and(platform::WorkerShutdownHandle::retirement_confirmed)
+            {
+                lifecycle.session.worker_retired();
+            }
             lifecycle.processes.worker = None;
         }
         Ok(())
@@ -1635,6 +1691,16 @@ impl Client {
         ) && lifecycle.generation.is(expected))
             || matches!(lifecycle.state, LifecycleState::ShuttingDown { .. })
         {
+            // Successful operations keep their reusable preparation host open.
+            // Its connection lifetime does not keep a stopped worker slot alive.
+            if lifecycle
+                .processes
+                .resolver
+                .as_ref()
+                .is_some_and(|resolver| !resolver.cleanup_confirmed())
+            {
+                lifecycle.session.retain_preparation();
+            }
             lifecycle.processes.resolver = None;
         }
         Ok(())
@@ -1728,7 +1794,7 @@ mod tests {
 
     #[tokio::test]
     async fn replacement_failure_preserves_an_unclaimed_assembled_response() {
-        let client = Client::pending();
+        let client = Client::pending(super::super::SessionPool::new(None).default_slot());
         client.configure(crate::worker_client::ClientConfiguration::new(
             std::path::PathBuf::from("unused-worker"),
             None,
@@ -1785,7 +1851,7 @@ mod tests {
 
     #[tokio::test]
     async fn failed_restart_excludes_a_delivered_response_but_keeps_later_output() {
-        let client = Client::pending();
+        let client = Client::pending(super::super::SessionPool::new(None).default_slot());
         client.configure(crate::worker_client::ClientConfiguration::new(
             std::path::PathBuf::from("unused-worker"),
             None,

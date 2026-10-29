@@ -260,6 +260,7 @@ fn run_server(
         profile,
         network_explicit,
         tool,
+        sessions,
         startup,
         cache,
         python,
@@ -319,6 +320,7 @@ fn run_server(
         startup,
         languages,
         tool,
+        sessions,
         control_socket,
     ));
     // `server::run` has already finished owned runtime retirement and response settling. Tokio's

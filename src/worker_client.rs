@@ -18,6 +18,7 @@ mod output;
 #[cfg_attr(not(unix), allow(dead_code))]
 mod priority;
 mod send;
+mod sessions;
 mod status;
 
 #[cfg(any(unix, windows))]
@@ -48,6 +49,7 @@ pub(crate) use output::{Content, Response, ResponseDelivery};
 use output::{OutputTape, SendFailure};
 #[cfg(unix)]
 pub(crate) use priority::IntegratorExecution;
+pub(crate) use sessions::{SessionActivation, SessionPool, SessionSlot};
 
 pub(crate) const DEFAULT_R_REQUIREMENTS: &[&str] = &[
     "tidyverse",
@@ -317,17 +319,17 @@ struct ActiveEvaluation {
 }
 
 impl Client {
-    pub(crate) fn pending() -> Self {
-        Self::pending_session(SessionKind::Default)
+    pub(crate) fn pending(slot: SessionSlot) -> Self {
+        Self::pending_session(SessionKind::Default, slot)
     }
 
-    pub(crate) fn pending_named() -> Self {
-        Self::pending_session(SessionKind::Named)
+    pub(crate) fn pending_named(slot: SessionSlot) -> Self {
+        Self::pending_session(SessionKind::Named, slot)
     }
 
-    fn pending_session(session_kind: SessionKind) -> Self {
+    fn pending_session(session_kind: SessionKind, slot: SessionSlot) -> Self {
         let (startup, _) = tokio::sync::watch::channel(None);
-        let lifecycle = LifecycleControl::new();
+        let lifecycle = LifecycleControl::new(slot);
         let startup_generation = lifecycle.generation.clone();
         Self(Arc::new(ClientInner {
             session_kind,

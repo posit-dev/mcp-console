@@ -32,10 +32,14 @@ impl Client {
         &self,
         requirements: Requirements,
     ) -> Result<PrepareResult, String> {
+        let activation = self.activate_session()?;
         let client = self.clone();
-        tokio::task::spawn_blocking(move || client.prepare_blocking(requirements))
-            .await
-            .map_err(|error| format!("requirement preparation task failed: {error}"))?
+        tokio::task::spawn_blocking(move || {
+            let _activation = activation;
+            client.prepare_blocking(requirements)
+        })
+        .await
+        .map_err(|error| format!("requirement preparation task failed: {error}"))?
     }
 
     fn prepare_blocking(&self, requirements: Requirements) -> Result<PrepareResult, String> {

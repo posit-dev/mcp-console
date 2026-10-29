@@ -72,6 +72,8 @@ Each session owns its language objects, database connections, unread input, and 
 Sessions use the same launch configuration, working directory, and filesystem permissions; files in writable locations can be shared.
 There is no separate creation call.
 An unknown name on a poll does not start a worker.
+The optional [`sessions.max` configuration](RUNTIME_CONFIGURATION.md#session-limits) limits live sessions, including `default`; the default is unlimited.
+Starting a new or stopped session at capacity returns an error without running its code.
 
 An empty call, optionally with `timeout_ms`, collects output from all active sessions and lists their names and statuses.
 Each output section starts with a session name and status, including when only the default session is active.
@@ -82,6 +84,7 @@ Supplying `session` polls only that session and preserves the ordinary single-se
 
 To release a named session's worker, send `{"session":"analysis","control":"restart"}` without code or nonempty stdin.
 It stays stopped until a later code or nonempty-input call starts it again.
+After worker cleanup, it no longer counts toward `sessions.max`.
 Worker failure also leaves a named session stopped; polling never restarts it or replays failed code.
 The default session retains automatic recovery and immediate explicit restart.
 Closing the MCP connection stops all its sessions.

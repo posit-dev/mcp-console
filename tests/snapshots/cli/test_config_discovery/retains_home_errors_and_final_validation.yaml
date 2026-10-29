@@ -26,18 +26,18 @@ home: invalid
 stderr: >
   configuration from <root>/console-home/config.yaml,
   .agents/console/config.yaml: unknown: unknown field `unknown`, expected
-  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
-  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
-  docs/CONFIGURATION.md for the public format
+  one of `tool`, `sessions`, `startup`, `cache`, `python`, `r`,
+  `languages`, `inherit_environment`, `environment`, `sandbox`,
+  `resolver`; see docs/CONFIGURATION.md for the public format
 ---
 command: sandbox
 home: invalid
 stderr: >
   configuration from <root>/console-home/config.yaml,
   .agents/console/config.yaml: unknown: unknown field `unknown`, expected
-  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
-  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
-  docs/CONFIGURATION.md for the public format
+  one of `tool`, `sessions`, `startup`, `cache`, `python`, `r`,
+  `languages`, `inherit_environment`, `environment`, `sandbox`,
+  `resolver`; see docs/CONFIGURATION.md for the public format
 ---
 command: serve
 home: invalid override

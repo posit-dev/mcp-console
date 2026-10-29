@@ -18,7 +18,8 @@ ConsoleConfig(
   environment = NULL,
   inherit_environment = NULL,
   tool = NULL,
-  startup = NULL
+  startup = NULL,
+  sessions = NULL
 )
 }
 \arguments{
@@ -56,6 +57,8 @@ of the trusted launch environment. Console retains its owned assignments.}
 visibility.}
 
 \item{startup}{\code{NULL} or a \code{\link[=StartupConfig]{StartupConfig()}} selecting a SQL connection.}
+
+\item{sessions}{\code{NULL} or a \code{\link[=SessionsConfig]{SessionsConfig()}} limiting live sessions.}
 }
 \value{
 An S7 configuration object. The constructor is also its S7 class.

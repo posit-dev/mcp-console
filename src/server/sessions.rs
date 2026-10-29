@@ -44,7 +44,7 @@ impl Sessions {
                 serde_json::json!(name)
             ));
         }
-        let session = state.sessions["default"].named(name);
+        let session = state.sessions["default"].named(name)?;
         state.sessions.insert(name.into(), session.clone());
         Ok(session)
     }

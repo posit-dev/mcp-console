@@ -338,6 +338,44 @@ ToolConfig <- S7::new_class(
   )
 )
 
+#' Limit concurrent sessions
+#'
+#' Pass this object as `ConsoleConfig(sessions = SessionsConfig(...))` to limit
+#' live sessions on each MCP connection. The `default` session reserves one slot
+#' for the connection's lifetime, even if startup fails. Starting named sessions
+#' occupy a slot, and a restart that starts a replacement worker retains it.
+#' Stopped named sessions release theirs after worker cleanup. A later call can
+#' reuse a stopped name when capacity is available.
+#' Preparing requirements in a stopped named session occupies a slot until
+#' preparation cleanup finishes.
+#'
+#' @param max `NULL` to inherit configuration (unlimited by default), or one
+#'   positive whole number limiting live sessions.
+#' @inherit ConsoleConfig return
+#' @examples
+#' ConsoleConfig(sessions = SessionsConfig(max = 4))
+#' @export
+SessionsConfig <- S7::new_class(
+  "SessionsConfig",
+  parent = ConfigNode,
+  properties = list(
+    max = S7::new_property(
+      NULL | S7::class_integer | S7::class_double,
+      validator = function(value) {
+        if (
+          !is.null(value) &&
+            (length(value) != 1L ||
+              !is.finite(value) ||
+              value <= 0 ||
+              value != floor(value))
+        ) {
+          "must be NULL or one positive whole number"
+        }
+      }
+    )
+  )
+)
+
 #' Configure a Console session
 #'
 #' `ConsoleConfig()` combines runtime selection, package preparation, worker
@@ -383,6 +421,7 @@ ToolConfig <- S7::new_class(
 #' @param python `NULL`, an [ExistingPython()], a [ManagedPython()], or a
 #'   [FirstAvailablePython()].
 #' @param startup `NULL` or a [StartupConfig()] selecting a SQL connection.
+#' @param sessions `NULL` or a [SessionsConfig()] limiting live sessions.
 #' @param resolver `NULL` or a [ResolverConfig()].
 #' @param sandbox `NULL`, a [SandboxPolicy()], or `FALSE` for host execution.
 #' @param languages `NULL` or a character vector selecting `"r"`, `"python"`,
@@ -460,7 +499,8 @@ ConsoleConfig <- S7::new_class(
     environment = config_environment(),
     inherit_environment = config_flag(),
     tool = NULL | ToolConfig,
-    startup = NULL | StartupConfig
+    startup = NULL | StartupConfig,
+    sessions = NULL | SessionsConfig
   ),
   validator = function(self) {
     if (

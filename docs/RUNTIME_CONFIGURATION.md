@@ -8,11 +8,30 @@ Choose an R installation or Python environment, control native R startup, and se
 - [Choose an R installation](#r-executable-selection).
 - [Control R startup files](#native-r-startup).
 - [Select a SQL connection at startup](#session-startup-source).
+- [Limit concurrent sessions](#session-limits).
 
 Put these settings in a [configuration file](CONFIGURATION.md).
 Relative interpreter paths use Console's launch directory, including when written in a global file; a leading `~` follows the shared [path rules](CONFIGURATION.md#paths).
 Settings are captured when the server starts.
 Open a new server connection to change them; restarting the runtime does not reload YAML.
+
+## Limit concurrent sessions {#session-limits}
+
+Set `sessions.max` to limit live sessions on each MCP connection, including `default`:
+
+```yaml
+sessions:
+  max: 4
+```
+
+The value must be a positive integer or `null`.
+Omission and `null` mean unlimited; `1` allows only the default session.
+The default session reserves a slot for the connection's lifetime, including when its startup fails.
+Starting named sessions count toward the limit, and a restart that starts a replacement worker retains the slot.
+A stopped named session releases its slot after worker cleanup, and can be started again when capacity is available.
+Preparing requirements in a stopped named session occupies a slot until preparation cleanup finishes.
+Calls that would exceed the limit fail without running their code; calls to existing live sessions remain available.
+See [Named sessions](API.md#named-sessions) for creation, polling, and stopping workers.
 
 ## Choose a Python environment {#python-environment-selection}
 

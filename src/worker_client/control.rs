@@ -90,8 +90,17 @@ impl Client {
                     .is_some_and(|stdin| !stdin.is_empty())))
         .then(|| RetryAdmissionCancellation(Arc::new(Mutex::new(false))));
         let retry_cancelled = admission_wait.as_ref().map(|wait| wait.0.clone());
+        let activation = (request.cell.is_some()
+            || request
+                .stdin
+                .as_ref()
+                .is_some_and(|input| !input.is_empty())
+            || request.requirements.is_some())
+        .then(|| self.activate_session())
+        .transpose()?;
         let client = self.clone();
         let admission = tokio::task::spawn_blocking(move || {
+            let _activation = activation;
             client.control_and_start_evaluation(control, request, initial_restart, retry_cancelled)
         })
         .await;

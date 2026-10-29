@@ -237,10 +237,14 @@ impl Client {
         if stdin.is_empty() {
             return Ok(());
         }
+        let activation = self.activate_session()?;
         let client = self.clone();
-        tokio::task::spawn_blocking(move || client.write_idle_stdin_blocking(stdin, generation))
-            .await
-            .map_err(|error| SendFailure::from(format!("worker stdin task failed: {error}")))?
+        tokio::task::spawn_blocking(move || {
+            let _activation = activation;
+            client.write_idle_stdin_blocking(stdin, generation)
+        })
+        .await
+        .map_err(|error| SendFailure::from(format!("worker stdin task failed: {error}")))?
     }
 
     pub(super) fn write_idle_stdin_blocking(

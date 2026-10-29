@@ -65,6 +65,7 @@ impl ConsoleServer {
         startup: Option<crate::settings::startup::Startup>,
         visibility: Option<Languages>,
         tool_settings: crate::settings::Tool,
+        session_settings: crate::settings::Sessions,
     ) -> Result<Self, String> {
         let recording_directory = std::env::current_dir();
         let (languages, language_setting) = match visibility {
@@ -87,8 +88,11 @@ impl ConsoleServer {
                 .is_some_and(crate::settings::ProfileSelection::inherits_codex),
             &tool_settings,
         )?;
+        let session_pool = crate::worker_client::SessionPool::new(
+            session_settings.max.map(std::num::NonZeroUsize::get),
+        );
         let runtime = Arc::new(startup::Runtime {
-            worker: crate::worker_client::Client::pending(),
+            worker: crate::worker_client::Client::pending(session_pool.default_slot()),
             transcript: crate::transcript::Transcript::pending(
                 recording_directory
                     .as_ref()
@@ -107,6 +111,7 @@ impl ConsoleServer {
             input_closed,
             runtime,
             prelaunch,
+            session_pool,
             move |started, diagnostics| {
                 let sandbox = if uses_client_profile {
                     sandbox
@@ -152,7 +157,7 @@ impl ConsoleServer {
             },
         );
         if !uses_client_profile {
-            startup.start();
+            startup.start()?;
         }
         Ok(Self {
             sessions: sessions::Sessions::new(startup.clone()),
@@ -275,10 +280,27 @@ impl ConsoleServer {
             transcript,
             call_id: call.id(),
         };
-        let startup = match request
+        let (startup, _activation) = match request
             .validate(true)
             .and_then(|()| self.sessions.select(&session, request.cell.is_some()))
-        {
+            .and_then(|startup| {
+                let worker = startup.runtime().worker.clone();
+                let activating = request.cell.is_some()
+                    || request
+                        .stdin
+                        .as_ref()
+                        .is_some_and(|input| !input.is_empty())
+                    || request.requirements.as_ref().is_some_and(|requirements| {
+                        requirements.action != crate::worker_client::RequirementsAction::Get
+                    })
+                    || (matches!(
+                        request.control,
+                        Some(crate::worker_client::SendControl::Restart)
+                    ) && !worker.is_configured());
+                let activation = activating.then(|| worker.activate_session()).transpose()?;
+                startup.start()?;
+                Ok((startup, activation))
+            }) {
             Ok(startup) => startup,
             Err(error) => {
                 return Ok(response_to_tool_result(
@@ -290,7 +312,6 @@ impl ConsoleServer {
                 ));
             }
         };
-        startup.start();
         let runtime = startup.runtime();
         if inspect {
             match tokio::time::timeout(
@@ -582,8 +603,11 @@ impl ServerHandler for ConsoleServer {
             .extensions
             .remove::<sandbox::CaptureResult>()
             .expect("console operations must carry transport sandbox capture");
-        if self.inheritance.enabled() && inherited.is_ok() {
-            self.startup.start();
+        if self.inheritance.enabled()
+            && inherited.is_ok()
+            && let Err(error) = self.startup.start()
+        {
+            self.startup.runtime().worker.finish_startup(Err(error));
         }
         context.extensions.insert(delivery.clone());
         let runtime = self.startup.runtime();
@@ -686,6 +710,7 @@ pub async fn run(
     startup: Option<crate::settings::startup::Startup>,
     visibility: Option<Languages>,
     tool_settings: crate::settings::Tool,
+    session_settings: crate::settings::Sessions,
     control_socket: Option<PathBuf>,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(unix)]
@@ -710,6 +735,7 @@ pub async fn run(
         startup,
         visibility,
         tool_settings,
+        session_settings,
     )
     .map_err(std::io::Error::other)?;
     #[cfg(unix)]

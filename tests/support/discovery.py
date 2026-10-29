@@ -25,6 +25,7 @@ class DiscoveryGate:
         self.connection: socket.socket | None = None
         self.process: int | None = None
         self.released = False
+        self.retired = False
         if os.name == "nt":
             self.listener = self.resources.enter_context(closing(socket.socket()))
             self.listener.bind(("127.0.0.1", 0))
@@ -77,6 +78,8 @@ class DiscoveryGate:
             self.released = True
 
     def assert_retired(self) -> None:
+        if self.retired:
+            return
         if os.name == "nt":
             assert self.process is not None
             assert (
@@ -87,6 +90,8 @@ class DiscoveryGate:
                 "discovery survived MCP closure"
             )
             assert self.lifetime.read(1) == b"", "discovery survived MCP closure"
+        # macOS consumes FIFO readiness at EOF; retain the confirmed receipt.
+        self.retired = True
 
     def close(self) -> None:
         if self.connection is not None:

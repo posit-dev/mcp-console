@@ -249,8 +249,13 @@ impl Client {
         transcript: crate::transcript::Transcript,
         call_id: Option<u64>,
     ) -> Response {
+        let activation = match self.activate_session() {
+            Ok(activation) => activation,
+            Err(error) => return output::direct_failure(error),
+        };
         let client = self.clone();
         let admission = tokio::task::spawn_blocking(move || {
+            let _activation = activation;
             client.prepare_and_start_evaluation(cell, stdin, requirements, transcript, call_id)
         })
         .await;
