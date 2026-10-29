@@ -540,8 +540,9 @@ class ReleaseScriptTests(ReleaseFixture):
                             + "\\n"
                         )
 
+            version = os.environ.get("FAKE_CONSOLE_VERSION", "0.0.2")
             if sys.argv[1:] == ["--version"]:
-                print("mcp-console 0.0.2")
+                print(f"mcp-console {version}")
             elif sys.argv[1:] == ["--help"]:
                 print("mcp-console help")
             elif sys.argv[1:3] == ["sandbox", "--"]:
@@ -563,7 +564,7 @@ class ReleaseScriptTests(ReleaseFixture):
                                 "capabilities": {"tools": {}},
                                 "serverInfo": {
                                     "name": "mcp-console",
-                                    "version": "0.0.2",
+                                    "version": os.environ.get("FAKE_MCP_VERSION", version),
                                 },
                             },
                         }
@@ -665,7 +666,7 @@ class ReleaseScriptTests(ReleaseFixture):
             #!/bin/sh
             if test "$1 $2 $3 $5" = "tool run --from mcp-console"; then
               case "$6" in
-                --version) echo 'mcp-console 0.0.2' ;;
+                --version) printf 'mcp-console %s\n' "${FAKE_UV_VERSION:-${FAKE_CONSOLE_VERSION:-0.0.2}}" ;;
                 --help)
                   printf 'mcp-console help\n'
                   if test "${FAKE_UV_HELP_EXTRA_NEWLINE:-}" = 1; then
@@ -714,6 +715,7 @@ class ReleaseScriptTests(ReleaseFixture):
         executable: bool = True,
         glibc: str = "2.34",
     ) -> None:
+        version = wheel.name.split("-")[1]
         with zipfile.ZipFile(wheel, "w") as archive:
             linux = "linux" in wheel.name
             elf_fields = {"versions": [f"GLIBC_{glibc}"]}
@@ -722,16 +724,16 @@ class ReleaseScriptTests(ReleaseFixture):
                     machine="AArch64", interpreter="/lib/ld-linux-aarch64.so.1"
                 )
             archive.writestr(
-                "mcp_console-0.0.2.data/scripts/mcp-console",
+                f"mcp_console-{version}.data/scripts/mcp-console",
                 elf_fixture(**elf_fields) if linux else b"fixture\n",
             )
             archive.writestr(
-                "mcp_console-0.0.2.dist-info/METADATA",
-                "Metadata-Version: 2.4\nName: mcp-console\nVersion: 0.0.2\n",
+                f"mcp_console-{version}.dist-info/METADATA",
+                f"Metadata-Version: 2.4\nName: mcp-console\nVersion: {version}\n",
             )
             tag = wheel.name.removesuffix(".whl").split("-", 2)[2]
             archive.writestr(
-                "mcp_console-0.0.2.dist-info/WHEEL",
+                f"mcp_console-{version}.dist-info/WHEEL",
                 f"Wheel-Version: 1.0\nRoot-Is-Purelib: false\nTag: {tag}\n",
             )
             names = ("mcp-console-sandbox", "LICENSE", "NOTICE")
@@ -751,7 +753,7 @@ class ReleaseScriptTests(ReleaseFixture):
                     else "share/licenses/mcp-console"
                 )
                 info = zipfile.ZipInfo(
-                    f"mcp_console-0.0.2.data/data/{directory}/{name}"
+                    f"mcp_console-{version}.data/data/{directory}/{name}"
                 )
                 mode = 0o755 if directory == "libexec" and executable else 0o644
                 info.external_attr = (stat.S_IFREG | mode) << 16
@@ -1685,6 +1687,76 @@ class ReleaseScriptTests(ReleaseFixture):
                 self.assertEqual(calls.count(["sandbox", "--", "/usr/bin/true"]), 1)
                 self.assertIn(["serve"], calls)
                 self.assertEqual(list(empty.iterdir()), [])
+
+    def test_smoke_wheel_identifies_development_builds(self) -> None:
+        for installed_only in (False, True):
+            for package, runtime, accepted in (
+                ("0.0.2", "0.0.2", True),
+                ("0.0.2+dev", "0.0.2+dev", True),
+                ("0.0.2+dev", "0.0.2+dev.g0123456789ab", True),
+                ("0.0.2", "0.0.2.g0123456789ab", False),
+                ("0.0.2+dev", "0.0.3+dev.g0123456789ab", False),
+                ("0.0.2+dev", "0.0.2+dev.gnotacommitid", False),
+            ):
+                with (
+                    self.subTest(installed_only=installed_only, runtime=runtime),
+                    tempfile.TemporaryDirectory() as temporary,
+                ):
+                    directory = Path(temporary)
+                    environment, _, cargo_bin = self.smoke_environment(directory)
+                    (directory / "Cargo.toml").write_text(
+                        f'[package]\nversion = "{package}"\n', encoding="utf-8"
+                    )
+                    wheel = (
+                        directory
+                        / f"mcp_console-{package}-py3-none-macosx_11_0_arm64.whl"
+                    )
+                    self.write_wheel(wheel)
+                    environment["FAKE_CONSOLE_VERSION"] = runtime
+                    result = self.run_script(
+                        "smoke-wheel",
+                        str(wheel),
+                        *(["--installed-only"] if installed_only else [str(cargo_bin)]),
+                        cwd=directory,
+                        env=environment,
+                    )
+                    if accepted:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assertNotEqual(result.returncode, 0, result.stdout)
+                        self.assertIn("wheel metadata versions differ", result.stderr)
+
+    def test_smoke_wheel_requires_matching_build_identities(self) -> None:
+        for changed, error in (
+            ("FAKE_UV_VERSION", "installed and Cargo versions differ"),
+            ("FAKE_MCP_VERSION", "unexpected initialize serverInfo"),
+        ):
+            with (
+                self.subTest(changed=changed),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                directory = Path(temporary)
+                environment, _, cargo_bin = self.smoke_environment(directory)
+                (directory / "Cargo.toml").write_text(
+                    '[package]\nversion = "0.0.2+dev"\n', encoding="utf-8"
+                )
+                wheel = (
+                    directory / "mcp_console-0.0.2+dev-py3-none-macosx_11_0_arm64.whl"
+                )
+                self.write_wheel(wheel)
+                environment |= {
+                    "FAKE_CONSOLE_VERSION": "0.0.2+dev.g0123456789ab",
+                    changed: "0.0.2+dev.gabcdef012345",
+                }
+                result = self.run_script(
+                    "smoke-wheel",
+                    str(wheel),
+                    str(cargo_bin),
+                    cwd=directory,
+                    env=environment,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn(error, result.stderr)
 
     def test_release_fixtures_use_python_with_spaces(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

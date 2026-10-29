@@ -590,6 +590,7 @@ impl ActiveTranscript {
         };
         transcript.append(
             Event::RecordingStarted {
+                console_version: env!("MCP_CONSOLE_VERSION"),
                 working_directory: &working_directory_text,
                 dynamic_resolution: configuration
                     .metadata_known

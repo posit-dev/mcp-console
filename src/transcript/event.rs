@@ -18,6 +18,7 @@ pub(super) struct Envelope<'a> {
 #[serde(tag = "event", rename_all = "snake_case")]
 pub(super) enum Event<'a> {
     RecordingStarted {
+        console_version: &'a str,
         working_directory: &'a str,
         dynamic_resolution: Option<bool>,
         python_preparation: Option<bool>,

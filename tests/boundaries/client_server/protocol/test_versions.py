@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -48,6 +49,12 @@ def test_negotiates_legacy_and_discovers_modern_versions(
             },
             "io.modelcontextprotocol/clientCapabilities": {},
         },
+    )
+    version = subprocess.check_output([binary, "--version"], text=True).split()[1]
+    assert legacy[0]["result"]["serverInfo"]["version"] == version
+    assert (
+        modern[0]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"]
+        == version
     )
     return legacy + modern
 

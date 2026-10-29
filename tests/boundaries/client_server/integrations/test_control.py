@@ -632,10 +632,14 @@ def test_cancelled_mcp_control_keeps_recovery_out_of_integrator_result(
                 ControlClient(endpoint) as control,
                 ControlClient(endpoint) as inspector,
             ):
+                # Receiving the MCP setup response can precede its delivery
+                # acknowledgment. Queue setup behind that retained owner.
                 pending = control.start(
                     op="evaluate",
                     language="python",
                     code=source,
+                    busy="wait",
+                    wait_ms=30000,
                 )
                 try:
                     entered.wait(client=client)

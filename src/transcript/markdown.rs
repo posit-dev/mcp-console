@@ -553,9 +553,12 @@ Worker process {pid}.
             Ok(())
         }
         Event::RecordingStarted {
-            working_directory, ..
+            console_version,
+            working_directory,
+            ..
         } => {
             let metadata = json!({
+                "console_version": console_version,
                 "run_id": envelope.run_id,
                 "started_at": envelope.at,
                 "working_directory": working_directory,

@@ -50,7 +50,7 @@ Examples:
 #[command(
     name = "mcp-console",
     bin_name = "mcp-console",
-    version,
+    version = env!("MCP_CONSOLE_VERSION"),
     about = env!("CARGO_PKG_DESCRIPTION"),
     after_help = ROOT_EXAMPLES
 )]

@@ -391,7 +391,7 @@ impl ServerHandler for ConsoleServer {
         ServerConfig::new(capabilities)
             .with_server_info(Implementation::new(
                 "mcp-console",
-                env!("CARGO_PKG_VERSION"),
+                env!("MCP_CONSOLE_VERSION"),
             ))
             .with_instructions(self.instructions.clone())
     }

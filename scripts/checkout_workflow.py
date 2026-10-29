@@ -388,6 +388,7 @@ def main() -> None:
         os.environ[GROUP_ENV] = str(os.getpgrp())
         os.execvp(options.arguments[0], options.arguments)
     tooling = [
+        ("build-version-tests", [sys.executable, "tests/build_version.py"]),
         ("release-tests", [sys.executable, "tests/release.py"]),
         ("staging-tests", [sys.executable, "tests/staging.py"]),
         ("runner-tests", ["uv", "run", "--script", "tests/transcript_runner.py"]),
@@ -398,6 +399,7 @@ def main() -> None:
     ]
     if WINDOWS:
         tooling = [
+            ("build-version-tests", [sys.executable, "tests/build_version.py"]),
             ("workflow-tests", [sys.executable, "tests/windows_workflow.py"]),
             ("format-tests", [sys.executable, "tests/format.py"]),
             ("development-tests", [sys.executable, "tests/development.py"]),
