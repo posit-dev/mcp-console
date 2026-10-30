@@ -18,6 +18,11 @@ async def main() -> None:
     parser.add_argument("--browser", required=True, help="Path to Chrome or Chromium")
     parser.add_argument("--live", action="store_true")
     parser.add_argument(
+        "--skip-dynamic",
+        action="store_true",
+        help="For deployments with CONSOLE_CHAT_DYNAMIC_PACKAGES=0",
+    )
+    parser.add_argument(
         "--lifecycle",
         action="store_true",
         help="Test live cancellation and concurrent progress",
@@ -130,17 +135,20 @@ async def main() -> None:
                 "next question"
             )
             await expect(first.locator(".plot-gallery img")).to_have_count(0)
-            await first.get_by_label("Dynamic packages").check()
-            await submit(
-                first,
-                "Use the requirements parameter to add the Python package humanize, "
-                "then run Python to print humanize.intcomma(12345).",
-            )
-            await completed(first)
-            await expect(first.locator("#session_info")).to_contain_text(
-                "dynamic packages"
-            )
-            await expect(first.get_by_role("log")).to_contain_text("12,345")
+            if args.skip_dynamic:
+                await expect(first.get_by_label("Dynamic packages")).to_have_count(0)
+            else:
+                await first.get_by_label("Dynamic packages").check()
+                await submit(
+                    first,
+                    "Use the requirements parameter to add the Python package humanize, "
+                    "then run Python to print humanize.intcomma(12345).",
+                )
+                await completed(first)
+                await expect(first.locator("#session_info")).to_contain_text(
+                    "dynamic packages"
+                )
+                await expect(first.get_by_role("log")).to_contain_text("12,345")
             await second_context.close()
         if args.lifecycle:
             other_context = await browser.new_context()
