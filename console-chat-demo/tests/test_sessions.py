@@ -110,6 +110,30 @@ except OSError as error:
 
 
 @pytest.mark.asyncio
+async def test_duckdb_connections_do_not_ask_for_a_home(pool, tmp_path, monkeypatch):
+    # Posit Connect's HOME has no ~/.duckdb, so an interactive R would ask
+    # whether to create one. Keep the R packages visible from the new HOME.
+    libraries = await asyncio.create_subprocess_exec(
+        "Rscript", "-e", "cat(.libPaths(), sep = ':')", stdout=asyncio.subprocess.PIPE
+    )
+    stdout, _ = await libraries.communicate()
+    monkeypatch.setenv("R_LIBS", stdout.decode())
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    session = await pool.open()
+    output = text(
+        await session.send(
+            r="con <- DBI::dbConnect(duckdb::duckdb())\n"
+            "cat('rows', DBI::dbGetQuery(nyc, 'SELECT count(*) AS n FROM planes')$n,\n"
+            "  DBI::dbGetQuery(con, 'SELECT 1 AS n')$n, '\\n')"
+        )
+    )
+    assert "rows 3322 1" in output, output
+    assert not (home / ".duckdb").exists()
+
+
+@pytest.mark.asyncio
 async def test_prepared_environments_are_the_default(pool, tmp_path, monkeypatch):
     # Posit Connect restores the bundle's R packages into R_LIBS and its
     # Python requirements into the app's own environment.

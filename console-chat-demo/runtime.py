@@ -20,7 +20,10 @@ DATA = Path(__file__).resolve().parent / "data" / "nycflights13"
 TABLES = ("airlines", "airports", "flights", "planes", "weather")
 # Every session reads the same Parquet files instead of loading a private copy.
 # DuckDB scans them on demand, and the operating system caches them once.
-STARTUP = f"""nyc <- DBI::dbConnect(duckdb::duckdb())
+# Without ~/.duckdb, as on Posit Connect, interactive R asks whether to create
+# it on every new DuckDB connection; keep extensions and secrets per session.
+STARTUP = f"""options(duckdb.home = file.path(tempdir(), "duckdb"))
+nyc <- DBI::dbConnect(duckdb::duckdb())
 for (table in {"c(" + ", ".join(f"'{t}'" for t in TABLES) + ")"}) {{
   DBI::dbExecute(nyc, sprintf(
     "CREATE VIEW %s AS FROM read_parquet('%s/%s.parquet')", table, {str(DATA)!r}, table
