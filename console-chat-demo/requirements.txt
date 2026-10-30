@@ -7,6 +7,10 @@ matplotlib==3.11.2
 duckdb==2.0.0
 py-yaml12==0.2.0
 uv==0.13.1
+# Formatters for the displayed code.
+air-formatter==0.12.0
+ruff==0.17.3
+sqlglot==30.26.0
 # Analysis packages for sessions that use this prepared environment.
 numpy==2.5.4
 plotnine==0.15.8

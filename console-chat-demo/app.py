@@ -4,24 +4,92 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import io
 import json
 import logging
 import os
 import re
 import shutil
+import sys
+import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import duckdb
+import sqlglot
 from chatlas import ContentToolRequest, ContentToolResult
 from chatlas.types import ContentImageInline
 from runtime import DATA, MODEL, TABLES, Pool
 from shiny import App, Inputs, Outputs, Session, reactive, render, ui
 from shinychat import message_content
+from shinychat.types import ToolResultDisplay
 from yaml12 import format_yaml
 
 HERE = Path(__file__).resolve().parent
+LANGUAGES = {"r": "R", "python": "Python", "sql": "SQL"}
 LOG = logging.getLogger(__name__)
+
+
+async def formatted(language: str, code: str) -> str:
+    """Code in the formatter's style, or unchanged when it does not parse."""
+    if language == "sql":
+        try:
+            return ";\n\n".join(
+                sqlglot.transpile(code, read="duckdb", write="duckdb", pretty=True)
+            )
+        except sqlglot.ParseError:
+            return code
+    command = {
+        "r": ["air", "format", "--no-configuration", "--stdin-file-path", "cell.R"],
+        "python": ["ruff", "format", "--isolated", "--stdin-filename", "cell.py", "-"],
+    }[language]
+    # The formatters ship in this environment's bin directory.
+    process = await asyncio.create_subprocess_exec(
+        str(Path(sys.executable).parent / command[0]),
+        *command[1:],
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    stdout, _ = await process.communicate(code.encode())
+    return stdout.decode().rstrip("\n") if process.returncode == 0 else code
+
+
+def fenced(language: str, code: str) -> str:
+    longest = max((len(run) for run in re.findall(r"`+", code)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}{language}\n{code}\n{fence}"
+
+
+async def cell(arguments: dict) -> str:
+    """Markdown for a send call's note and code, as written and formatted.
+
+    The Formatted switch chooses a version with CSS, so it also applies to
+    earlier messages without re-rendering them.
+    """
+    parts = [arguments["note"]] if arguments.get("note") else []
+    for language, label in LANGUAGES.items():
+        if code := arguments.get(language):
+            pretty = await formatted(language, code)
+            versions = (
+                [("code-written", code), ("code-formatted", pretty)]
+                if pretty != code
+                else [("", code)]
+            )
+            parts += [
+                f'<div class="code-cell {kind}" data-language="{label}">\n\n'
+                f"{fenced(language, text)}\n\n</div>"
+                for kind, text in versions
+            ]
+    # Options such as a named session or a timeout explain how the code ran.
+    options = {
+        key: value
+        for key, value in arguments.items()
+        if key not in (*LANGUAGES, "note") and value is not None
+    }
+    if options:
+        parts.append(fenced("yaml", format_yaml(options, width=None)))
+    return "".join(f"\n\n{part}\n\n" for part in parts)
 
 
 def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
@@ -118,8 +186,13 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                             ui.input_action_button(
                                 "reset", "New session", class_="btn-sm btn-quiet"
                             ),
-                            ui.download_button(
-                                "download_analysis", "Export", class_="btn-sm btn-quiet"
+                            ui.output_ui("export", inline=True),
+                            ui.div(
+                                ui.input_switch(
+                                    "formatted_code", "Formatted", value=True
+                                ),
+                                title="Show code formatted with air, ruff and sqlglot, or as the model wrote it",
+                                class_="package-mode",
                             ),
                             ui.div(
                                 ui.input_checkbox(
@@ -201,7 +274,9 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
         status = reactive.value("Ready")
         identity = reactive.value("A private session starts with your first question")
         images = reactive.value(())
-        transcript: list[str] = []
+        # The latest recorded report outlives a stopped session until the next
+        # New session, like the messages it accompanies.
+        report = reactive.value(None)
         backend = None
         active: asyncio.Task | None = None
         maintenance: asyncio.Task | None = None
@@ -221,7 +296,6 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 return
             active = asyncio.current_task()
             answer: list[str] = []
-            transcript.append(f"## You\n\n{prompt}\n")
             try:
                 if backend is None:
                     status.set("Starting")
@@ -233,43 +307,13 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                         f"Session {backend.workspace.parent.name[:8]} · {MODEL} · {packages}",
                     )
                 status.set("Working")
+                await backend.send(note=f"**Question:** {prompt}")
                 async with contextlib.aclosing(backend.stream(prompt)) as stream:
                     async for chunk in stream:
                         if isinstance(chunk, ContentToolRequest):
-                            options = {
-                                key: value
-                                for key, value in chunk.arguments.items()
-                                if key not in ("r", "python", "sql")
-                                and value is not None
-                            }
-                            if options:
-                                yaml = format_yaml(options, width=None)
-                                longest = max(
-                                    (len(run) for run in re.findall(r"`+", yaml)),
-                                    default=0,
-                                )
-                                fence = "`" * max(3, longest + 1)
-                                transcript.append(
-                                    f"### Tool options\n\n{fence}yaml\n{yaml}\n{fence}\n"
-                                )
-                            for language in ("r", "python", "sql"):
-                                code = chunk.arguments.get(language)
-                                if code:
-                                    longest = max(
-                                        (len(run) for run in re.findall(r"`+", code)),
-                                        default=0,
-                                    )
-                                    fence = "`" * max(3, longest + 1)
-                                    transcript.append(
-                                        f"### Code submitted\n\n{fence}{language}\n"
-                                        f"{code}\n{fence}\n"
-                                    )
-                            # Keep Shiny's native cards; change only their display text.
-                            display = message_content(chunk)
-                            display.blocks[0]["arguments"] = format_yaml(
-                                chunk.arguments, width=None
-                            )
-                            yield display
+                            # Show the submitted code itself; the result card
+                            # below holds the output.
+                            yield await cell(chunk.arguments)
                         elif isinstance(chunk, ContentToolResult):
                             parts = (
                                 chunk.value
@@ -284,18 +328,31 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                                 for x in parts
                                 if not isinstance(x, ContentImageInline)
                             )
-                            transcript.append(
-                                f"### Console output\n\n```text\n{text}\n```\n"
+                            language = next(
+                                (
+                                    x
+                                    for x in LANGUAGES
+                                    if chunk.request.arguments.get(x)
+                                ),
+                                None,
                             )
                             # Only the display copy changes. Chatlas retains the original
                             # image-bearing result and sends it to the model.
-                            display = message_content(
-                                chunk.model_copy(update={"value": text})
+                            yield message_content(
+                                chunk.model_copy(
+                                    update={
+                                        "value": text,
+                                        "extra": {
+                                            "display": ToolResultDisplay(
+                                                title=f"{LANGUAGES[language]} output"
+                                                if language
+                                                else "Console output",
+                                                show_request=False,
+                                            )
+                                        },
+                                    }
+                                )
                             )
-                            display.blocks[0]["request_call"] = format_yaml(
-                                chunk.request.arguments, width=None
-                            )
-                            yield display
                             for plot in plots:
                                 url = (
                                     f"data:{plot.image_content_type};base64,{plot.data}"
@@ -307,16 +364,23 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                                     alt="Plot produced by Console",
                                     class_="chat-plot",
                                 )
-                            if plots:
-                                transcript.append(
-                                    f"\n[{len(plots)} plot(s) displayed in the app]\n"
-                                )
                         else:
                             # Chatlas streams assistant text as strings even
                             # with content="all"; other chunks are rich content.
                             if isinstance(chunk, str):
                                 answer.append(chunk)
                             yield chunk
+                # The answer, without its clickable follow-up question, closes
+                # this turn in the session's recorded report.
+                await backend.send(
+                    note=re.sub(
+                        r"<span class=\"suggestion[^>]*>.*?</span>",
+                        "",
+                        "".join(answer),
+                        flags=re.DOTALL,
+                    ).strip()
+                )
+                report.set(backend.report())
                 status.set("Ready")
             except asyncio.CancelledError:
                 raise
@@ -329,8 +393,6 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                     backend = None
                 yield f"The analysis could not complete ({type(error).__name__}). Start a new session to retry."
             finally:
-                if answer:
-                    transcript.append("## Assistant\n\n" + "".join(answer) + "\n")
                 active = None
 
         @chat.on_user_submit
@@ -354,7 +416,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 if not disconnected:
                     if clear:
                         await chat.clear_messages(greeting=False)
-                        transcript.clear()
+                        report.set(None)
                         images.set(())
                     else:
                         message = (
@@ -362,7 +424,6 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                             "Your next question starts a fresh session; the earlier messages remain here for reference."
                         )
                         await chat.append_message(message)
-                        transcript.append(f"## Session ended\n\n{message}\n")
                     identity.set("A private session starts with your next question")
                     status.set("Ready")
             except Exception:
@@ -446,11 +507,30 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 class_="plot-gallery",
             )
 
-        @render.download_button(
-            filename="console-chat-analysis.md", media_type="text/markdown"
+        @render.ui
+        def export():
+            if report.get() is None:
+                return None
+            return ui.download_button(
+                "download_analysis",
+                "Export QMD",
+                class_="btn-sm btn-quiet",
+                title="Download a Quarto report of the code with the data it reads",
+            )
+
+        @render.download(
+            filename="console-chat-analysis.zip", media_type="application/zip"
         )
         def download_analysis():
-            yield "# Console Chat analysis\n\n" + "\n".join(transcript)
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("console-chat-analysis/analysis.qmd", report.get())
+                for table in TABLES:
+                    archive.write(
+                        DATA / f"{table}.parquet",
+                        f"console-chat-analysis/nycflights13/{table}.parquet",
+                    )
+            yield buffer.getvalue()
 
     app = App(app_ui, server, static_assets=HERE / "www")
     shiny_lifespan = app.starlette_app.router.lifespan_context

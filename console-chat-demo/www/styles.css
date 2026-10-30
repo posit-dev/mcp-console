@@ -85,6 +85,10 @@ body.console-chat-app {
 .plot-gallery figcaption { color: var(--muted); font-size: 10px; margin-top: 5px; }
 .chatlas-tool-result pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
 .chatlas-tool-request, .chatlas-tool-result { font-size: 12px; }
+.code-cell { position: relative; }
+.code-cell::before { content: attr(data-language); position: absolute; z-index: 1; right: 44px; top: 13px; font-size: 10px; font-weight: 600; letter-spacing: 0.4px; color: var(--muted); }
+body:has(#formatted_code:checked) .code-written,
+body:not(:has(#formatted_code:checked)) .code-formatted { display: none; }
 
 @media (min-width: 1600px) {
   body.console-chat-app { padding-left: max(30px, calc((100vw - 1550px) / 2)); padding-right: max(30px, calc((100vw - 1550px) / 2)); }
