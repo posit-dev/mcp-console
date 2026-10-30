@@ -25,13 +25,14 @@ def test_app_serves_chat_and_only_public_assets(tmp_path, monkeypatch):
         assert response.status_code == 200
         assert "Console Chat" in response.text
         assert "shiny-chat" in response.text
-        assert "Compare regions" in response.text
+        assert "Compare carriers" in response.text
+        assert "336,776" in response.text
         # Sessions use the host's prepared packages unless a user opts in.
         checkbox = re.search(r'<input[^>]*id="dynamic"[^>]*>', response.text)
         assert checkbox and "checked" not in checkbox.group()
         assert client.get("/styles.css").status_code == 200
         assert client.get("/server.lock").status_code == 404
-        assert client.get("/data.csv").status_code == 404
+        assert client.get("/nycflights13/flights.parquet").status_code == 404
 
 
 def test_deployment_can_hide_dynamic_packages(tmp_path, monkeypatch):

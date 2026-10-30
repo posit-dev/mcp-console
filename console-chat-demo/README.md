@@ -38,10 +38,14 @@ The model is `claude-sonnet-5-5` through chatlas's `ChatAnthropic()` with low re
 There is no model substitution.
 Use `--r /path/to/R` when R is not on `PATH`.
 
-Each client gets a copy of `data/sample.csv` as `data.csv` in its own workspace.
+The data are the [nycflights13](https://github.com/tidyverse/nycflights13) tables (CC0), stored as Parquet in `data/nycflights13/`; [data/nycflights13.R](data/nycflights13.R) regenerates them.
+Clients share these read-only files rather than receiving copies.
+Console's `startup` setting gives each session a DuckDB connection, `nyc` in R, with a view for each table, so SQL and dbplyr scan the files on demand.
+Each workspace links the files as `nycflights13/` for direct reads from Python or R.
+The operating system caches the files once for all sessions; a session uses more memory only when its code loads whole tables into data frames, which the model is asked to avoid.
 Objects and files persist for that browser session.
 Closing the browser, stopping work, or starting a new session retires its Console process and removes its workspace and recordings.
-The data preview is the original dataset; transformations performed by the agent appear in tool results and plots.
+The data preview shows the first flights; transformations performed by the agent appear in tool results and plots.
 Download the conversation before ending a session if you want to retain the analysis.
 
 ## Concurrent sessions

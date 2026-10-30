@@ -67,16 +67,17 @@ async def main() -> None:
                 "First execute this complete Python cell:\n"
                 "import pandas as pd\n"
                 "browser_marker = 'alpha'\n"
-                "print(pd.read_csv('data.csv')['revenue'].sum())\n\n"
-                "Then use base R graphics to plot monthly revenue, and use the SQL "
-                "parameter to query total revenue from data.csv. "
+                "print(len(pd.read_parquet('nycflights13/airlines.parquet')))\n\n"
+                "Then use base R graphics to plot the number of flights per month, "
+                "and use SQL to count the flights from each origin airport. "
                 "You must execute Python, R and SQL. End your answer with ALPHA_DONE.",
             )
             await submit(
                 second,
                 "Use Python to verify that browser_marker is absent from globals(), "
-                "then set browser_marker = 'beta' and calculate the total units in "
-                "data.csv. Report the isolation check and total. End with BETA_DONE.",
+                "then set browser_marker = 'beta' and count the planes in "
+                "nycflights13/planes.parquet. Report the isolation check and count. "
+                "End with BETA_DONE.",
             )
             await asyncio.gather(completed(first), completed(second))
             await expect(

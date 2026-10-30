@@ -12,10 +12,10 @@ import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import pandas as pd
+import duckdb
 from chatlas import ContentToolRequest, ContentToolResult
 from chatlas.types import ContentImageInline
-from runtime import MODEL, Pool
+from runtime import DATA, MODEL, TABLES, Pool
 from shiny import App, Inputs, Outputs, Session, reactive, render, ui
 from shinychat import message_content
 from yaml12 import format_yaml
@@ -29,29 +29,32 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
 
     `offer_dynamic` shows the checkbox that lets a session prepare packages.
     """
-    sample = pd.read_csv(HERE / "data" / "sample.csv")
+    # The preview needs only a slice; sessions query the full tables.
+    flights = DATA / "flights.parquet"
+    [(total,)] = duckdb.sql(f"SELECT count(*) FROM '{flights}'").fetchall()
+    sample = duckdb.sql(f"FROM '{flights}' LIMIT 1000").df()
     suggestions = [
         (
-            "Compare regions",
+            "Compare carriers",
             (
-                "Which regions have the strongest profit margins? Use SQL to calculate "
-                "revenue minus cost from data.csv, then compare margins and explain the result."
+                "Which carriers have the worst departure delays from each New York "
+                "airport? Use SQL, and account for how many flights each carrier operates."
             ),
-            "Find where the business earns the most.",
+            "Find where delays concentrate.",
         ),
         (
-            "See the trend",
+            "See the seasons",
             (
-                "Use R to plot monthly revenue from data.csv. Explain the trend and "
-                "any differences between Atlas and Beacon."
+                "Use R and ggplot2 to plot the average departure delay for each day "
+                "of 2013. Explain the seasonal pattern and the worst days."
             ),
-            "Make a revenue chart with R.",
+            "Chart a year of delays with R.",
         ),
         (
-            "Build a model",
+            "Model the weather",
             (
-                "Use Python to fit a simple monthly revenue trend from data.csv. "
-                "Show the fit and explain the limits of forecasting from one year of synthetic data."
+                "Use Python to join flights to weather and model how visibility, "
+                "precipitation and wind relate to departure delays. Explain the limits."
             ),
             "Fit a model and inspect its assumptions.",
         ),
@@ -59,7 +62,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
     greeting = ui.TagList(
         ui.div("A question is a place to start.", class_="welcome-heading"),
         ui.p(
-            "Explore the sample sales data, make a chart, or try a model. "
+            "Explore every flight that left New York in 2013, make a chart, or try a model. "
             "Your R, Python and SQL state stays available as the conversation develops.",
             class_="welcome-copy",
         ),
@@ -135,7 +138,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 ui.chat_ui(
                     "chat",
                     greeting=greeting,
-                    placeholder="Ask a question about the data…",
+                    placeholder="Ask a question about the flights…",
                     height="100%",
                     width="100%",
                     show_history=False,
@@ -150,18 +153,21 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 ui.card(
                     ui.card_header(
                         ui.div("THE STARTING POINT", class_="eyebrow"),
-                        ui.h2("A year in sales"),
-                        ui.p("A small, synthetic dataset with room to explore."),
+                        ui.h2("New York flights, 2013"),
+                        ui.p(
+                            "Every departure from EWR, JFK and LGA, with weather, "
+                            "planes, airports and airlines."
+                        ),
                     ),
                     ui.div(
-                        ui.div(ui.strong(str(len(sample))), ui.span("rows")),
-                        ui.div(ui.strong("12"), ui.span("months")),
-                        ui.div(ui.strong("4"), ui.span("regions")),
+                        ui.div(ui.strong(f"{total:,}"), ui.span("flights")),
+                        ui.div(ui.strong(str(len(TABLES))), ui.span("tables")),
+                        ui.div(ui.strong("3"), ui.span("airports")),
                         class_="dataset-facts",
                     ),
                     ui.output_data_frame("data_preview"),
                     ui.p(
-                        "Original sample · data.csv · currency in USD",
+                        f"First {len(sample):,} flights · nycflights13 · read-only",
                         class_="data-caption",
                     ),
                     class_="data-card",
