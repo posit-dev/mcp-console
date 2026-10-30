@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import json
 import os
-import re
+import zipfile
 from pathlib import Path
 
 from playwright.async_api import async_playwright, expect
@@ -93,13 +93,23 @@ async def main() -> None:
             assert await first.locator(".plot-gallery img").evaluate_all(
                 "images => images.every(x => x.complete && x.naturalWidth > 0)"
             )
-            await first.get_by_role(
-                "button", name=re.compile(r"^Used send")
-            ).first.click()
-            await first.get_by_role("button", name="send", exact=True).first.click()
-            await first.get_by_text("Tool call", exact=True).first.click()
-            call = first.locator(".shiny-tool-result__request code").first
-            assert (await call.inner_text()).startswith("python: |")
+            # Code appears inline; the Formatted switch picks a version with CSS.
+            await expect(
+                first.locator('.code-cell[data-language="Python"]:visible')
+            ).not_to_have_count(0)
+            await expect(
+                first.locator('.code-cell[data-language="SQL"]:visible')
+            ).not_to_have_count(0)
+            assert (
+                "browser_marker = 'alpha'"
+                in await first.locator(
+                    '.code-cell[data-language="Python"]:visible'
+                ).first.inner_text()
+            )
+            await first.get_by_label("Formatted").uncheck()
+            await expect(first.locator(".code-formatted:visible")).to_have_count(0)
+            await first.get_by_label("Formatted").check()
+            await expect(first.locator(".code-written:visible")).to_have_count(0)
             suggestion = first.get_by_role("log").locator(".suggestion").last
             await expect(suggestion).to_be_visible()
             question = await suggestion.inner_text()
@@ -118,15 +128,31 @@ async def main() -> None:
             await expect(
                 first.get_by_role("log").get_by_text("PERSISTENCE_DONE", exact=True)
             ).to_be_visible()
+            await submit(
+                first,
+                "Show the flights from LGA to ORD on New Year's Day in the data panel.",
+            )
+            await completed(first)
+            panel = first.locator(".data-card")
+            await expect(panel.get_by_text("SHOWN BY THE CHAT")).to_be_visible()
+            await expect(panel.locator(".data-caption")).not_to_contain_text(
+                "First 1,000 flights"
+            )
+            await panel.get_by_role("button", name="All flights").click()
+            await expect(panel.locator("h2:visible")).to_have_text(
+                "New York flights, 2013"
+            )
             async with first.expect_download() as download:
-                await first.get_by_role("link", name="Export", exact=True).click()
-            await (await download.value).save_as(artifacts / "analysis.md")
-            exported = (artifacts / "analysis.md").read_text()
-            assert "ALPHA_DONE" in exported and "Code submitted" in exported
-            assert "```python\nimport pandas as pd\n" in exported
-            assert "```r\n" in exported
-            assert "```sql\n" in exported
-            assert "```json\n" not in exported
+                await first.get_by_role("link", name="Export QMD").click()
+            await (await download.value).save_as(artifacts / "analysis.zip")
+            with zipfile.ZipFile(artifacts / "analysis.zip") as archive:
+                names = set(archive.namelist())
+                exported = archive.read("console-chat-analysis/analysis.qmd").decode()
+            assert "console-chat-analysis/nycflights13/flights.parquet" in names
+            assert "#| label: setup" in exported and "ALPHA_DONE" in exported
+            assert "Shown in the data panel" in exported
+            for chunk in ("```{python}", "```{r}", "```{sql}"):
+                assert chunk in exported, chunk
             await first.screenshot(path=str(artifacts / "analysis.png"), full_page=True)
             await second.screenshot(
                 path=str(artifacts / "second-client.png"), full_page=True

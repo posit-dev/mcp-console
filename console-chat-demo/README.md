@@ -1,10 +1,11 @@
 # Console Chat
 
 A Shiny for Python app that gives each browser client a chatlas conversation and a separate, sandboxed MCP Console process with persistent R, Python and SQL.
-Ask questions, calculate summaries, fit models, and make plots.
-The app includes 96 rows of synthetic monthly sales data.
-Expand tool calls to inspect their arguments as YAML, with multiline R and Python code preserved.
-The Markdown export shows submitted code in language-tagged code blocks.
+Ask questions about the 2013 New York flights, calculate summaries, fit models, and make plots.
+The chat shows each submitted cell inline as R, Python or SQL code.
+The **Formatted** switch shows that code as formatted by Air, Ruff or SQLGlot, or as the model wrote it; formatting is display-only, and code that fails to parse is shown unchanged.
+The model can also replace the data panel's table with the result of a SQL query, and **All flights** restores the default view.
+**Export QMD** downloads a zip of a Quarto document and the Parquet files it reads.
 Suggested follow-up questions are clickable buttons that submit the next turn.
 
 The interface follows [querychat](https://posit-dev.github.io/querychat/py/) and its [distinction between data viewing and analytical tool results](https://posit-dev.github.io/querychat/py/tools.html): conversation beside data, with the executed code and results available for inspection.
@@ -45,8 +46,16 @@ Each workspace links the files as `nycflights13/` for direct reads from Python o
 The operating system caches the files once for all sessions; a session uses more memory only when its code loads whole tables into data frames, which the model is asked to avoid.
 Objects and files persist for that browser session.
 Closing the browser, stopping work, or starting a new session retires its Console process and removes its workspace and recordings.
-The data preview shows the first flights; transformations performed by the agent appear in tool results and plots.
-Download the conversation before ending a session if you want to retain the analysis.
+The data panel shows the first flights until the model shows a query result there.
+Those queries run in the server process, not in Console, against a read-only DuckDB copy of the tables with external access disabled; they cannot see objects that session code creates.
+The panel shows at most 5,000 rows of a result.
+
+The export starts from the QMD that Console records for each worker session, which holds the questions, answers and submitted code.
+The app adds a setup chunk that connects `nyc` to the Parquet files and makes it the SQL chunks' connection, because Console does not record its `startup` code.
+After a restart, the documents of each worker session are joined in order, so a rendered report shares state that the sessions did not.
+Data panel queries appear as notes rather than executable chunks.
+The export becomes available after code runs, because Console records notes only into a worker session's document.
+Download the report before ending a session if you want to retain the analysis.
 
 ## Concurrent sessions
 
