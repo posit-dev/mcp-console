@@ -66,13 +66,20 @@ Evaluated code can write only its own workspace and Console's private temporary 
 Direct networking is restricted.
 Console starts from an explicit configuration file, clears inherited worker environment variables, and starts R with `--vanilla`.
 The server's API key is never passed to Console.
-The agent can use all Console tool parameters, including SQL, named sessions, interactive input and explicit package requests.
+The agent can use all Console tool parameters, including SQL, named sessions, interactive input and, in dynamic sessions, explicit package requests.
 Each client can run up to four Console sessions.
-Console prepares a managed Python environment and R dependencies separately for each client, with explicit requests for additional packages.
+
+By default, sessions use prepared packages, so startup does no package preparation.
+Python runs in the app's own environment, which includes the analysis packages in `requirements.txt`.
+R uses its installation's libraries and any library in the server's `R_LIBS`; Console's R package preparation is disabled.
+Package requests fail in these sessions.
+
+The **Dynamic packages** checkbox applies to the next session.
+Console then prepares a managed Python environment and R dependencies separately for that client, and accepts explicit requests for additional packages.
 Preparation has its own sandbox and can download packages from configured sources; package installation and builds can run code, so use trusted packages and sources.
-Each client has its own preparation cache, which is removed when the client disconnects; cold starts can require substantial time and disk space.
+Each client has its own preparation cache, which is removed when the client disconnects; cold starts can take minutes and substantial disk space.
 On the tested macOS host, a client cache reached roughly 1 GiB.
-`--warmup` checks R, Python and SQL on the deployment host, but does not prepopulate future clients' isolated caches.
+`--warmup` checks R, Python and SQL with prepared packages on the deployment host.
 
 **Deploy on a dedicated service account and a clean filesystem containing only the intended runtime and app files.** Console's read-only base permits host-file reads.
 This app denies sibling sessions, its private configuration and recordings, common credential paths, and every path supplied with `--private-path`.
@@ -110,23 +117,28 @@ If native sandbox setup fails, fix the host configuration; the app does not retr
 On a Connect server with native execution, the app runs as Shiny content.
 Console's bubblewrap sandbox needs Connect to permit unprivileged user namespaces; the app does not run without enforcement.
 Build the Linux wheel for this revision with a manual run of the Release workflow, which does not publish.
-Stage the app with that wheel and deploy it:
+Stage a copy of the app's source files without `.runtime`, `.venv`, `tests`, and `deploy`, and download the wheel into it.
+Add the wheel's relative path, such as `wheels/mcp_console-VERSION-py3-none-manylinux_2_34_x86_64.whl`, to the staged copy of `requirements.txt`.
+From the staged directory:
 
 ```sh
 gh run download RUN_ID --name pypi-x86_64-unknown-linux-gnu --dir wheels
-uvx --from rsconnect-python rsconnect deploy shiny -n SERVER \
-  --entrypoint app:app --override-python-version 3.13 \
-  --exclude '.runtime/**' --exclude '.venv/**' --exclude 'tests/**' .
+uvx --from rsconnect-python rsconnect write-manifest shiny \
+  --entrypoint app:app --override-python-version 3.13.18 .
+python3 PATH/TO/console-chat-demo/deploy/r_manifest.py manifest.json 4.6.1
+uvx --from rsconnect-python rsconnect deploy manifest -n SERVER manifest.json
 ```
 
-Add the wheel's relative path, such as `wheels/mcp_console-VERSION-py3-none-manylinux_2_34_x86_64.whl`, to the staged copy of `requirements.txt`.
-The installed `mcp-console` and `uv` executables are on the content's `PATH`.
+Connect installs the Python requirements into the app's environment, including the `mcp-console` and `uv` executables.
+[deploy/r_manifest.py](deploy/r_manifest.py) adds the packages in [deploy/r-packages.txt](deploy/r-packages.txt) and their dependencies, as Ubuntu 22.04 binaries from a fixed Package Manager snapshot.
+Connect restores them for the requested R version and exposes them through `R_LIBS`, which prepared sessions use.
+Use the Python and R versions that the server provides.
 
 Then configure the content:
 
 - Attach an Anthropic integration that uses environment variables.
   When Connect's LLM gateway serves it, Connect injects `ANTHROPIC_BASE_URL` and an ephemeral `ANTHROPIC_API_KEY`; the provider key never enters the content.
-- Set `CONSOLE_CHAT_R` to an installed R executable, such as `/opt/R/4.6.1/bin/R`.
+- Set `CONSOLE_CHAT_R` to the R executable for the manifest's R version, such as `/opt/R/4.6.1/bin/R`.
   Connect does not put R on Python content's `PATH`.
 - Set `CONSOLE_CHAT_RUNTIME` to a directory under `/tmp`, which Connect keeps local and private to each process, instead of the shared, networked app directory.
   Each process then owns its own runtime root and session pool.

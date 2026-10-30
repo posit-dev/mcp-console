@@ -1,0 +1,8 @@
+tidyverse
+DBI
+duckdb
+reticulate
+nanoarrow
+yyjsonr
+broom
+ranger
