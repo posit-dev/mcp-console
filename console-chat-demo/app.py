@@ -24,8 +24,11 @@ HERE = Path(__file__).resolve().parent
 LOG = logging.getLogger(__name__)
 
 
-def create_app(pool: Pool) -> App:
-    """Create one web server; each browser gets its own Console and chat."""
+def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
+    """Create one web server; each browser gets its own Console and chat.
+
+    `offer_dynamic` shows the checkbox that lets a session prepare packages.
+    """
     sample = pd.read_csv(HERE / "data" / "sample.csv")
     suggestions = [
         (
@@ -121,7 +124,9 @@ def create_app(pool: Pool) -> App:
                                 ),
                                 title="Let the agent install packages. Startup is slower. Applies to the next session.",
                                 class_="package-mode",
-                            ),
+                            )
+                            if offer_dynamic
+                            else None,
                             class_="chat-actions",
                         ),
                         class_="section-bar",
@@ -215,7 +220,7 @@ def create_app(pool: Pool) -> App:
                 if backend is None:
                     status.set("Starting")
                     with reactive.isolate():
-                        dynamic = input.dynamic()
+                        dynamic = offer_dynamic and input.dynamic()
                     backend = await pool.open(dynamic=dynamic)
                     packages = "dynamic packages" if dynamic else "prepared packages"
                     identity.set(
@@ -474,5 +479,6 @@ app = create_app(
         r=Path(os.environ["CONSOLE_CHAT_R"])
         if os.environ.get("CONSOLE_CHAT_R")
         else None,
-    )
+    ),
+    offer_dynamic=os.environ.get("CONSOLE_CHAT_DYNAMIC_PACKAGES", "1") == "1",
 )

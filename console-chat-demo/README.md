@@ -144,6 +144,8 @@ Then configure the content:
   Each process then owns its own runtime root and session pool.
 - Set **Max connections per process** to the pool capacity, `CONSOLE_CHAT_CAPACITY` (default 8), so Connect starts another process before a pool is full.
   Bound **Max processes** by the host's CPU, memory, and disk.
+- Set `CONSOLE_CHAT_DYNAMIC_PACKAGES=0` to hide the **Dynamic packages** checkbox.
+  On a fresh Connect host, a dynamic session's first package preparation took about three and a half minutes.
 - Set `CONSOLE_CHAT_PRIVATE_PATHS` to a JSON list of Connect paths that evaluated code must not read: `["/opt/rstudio-connect/mnt/job", "/opt/rstudio-connect/mnt/app-data"]`.
   The job directory holds the content's Connect session token.
 
