@@ -3,7 +3,6 @@ tidymodels
 DBI
 dbplyr
 duckdb
-arrow
 data.table
 reticulate
 nanoarrow
