@@ -144,7 +144,7 @@ uvx --from rsconnect-python rsconnect deploy manifest -n SERVER manifest.json
 Connect installs the Python requirements into the app's environment, including the `mcp-console` and `uv` executables.
 [deploy/r_manifest.py](deploy/r_manifest.py) adds the packages in [deploy/r-packages.txt](deploy/r-packages.txt) and their dependencies, as Ubuntu 22.04 binaries from a fixed Package Manager snapshot.
 Connect restores them for the requested R version and exposes them through `R_LIBS`, which prepared sessions use.
-[.python-version](.python-version) makes the manifest require any Python 3.13 release, so Connect uses the newest 3.13 it provides.
+[.python-version](.python-version) makes the manifest accept any Python 3.13 release the server provides.
 Use an R version that the server provides.
 
 Then configure the content:
