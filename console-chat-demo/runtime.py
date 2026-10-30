@@ -16,7 +16,19 @@ from typing import Any
 from chatlas import ChatAnthropic, ContentToolRequest, ContentToolResult
 
 MODEL = "claude-sonnet-5-5"
-DATA = Path(__file__).parent / "data" / "sample.csv"
+DATA = Path(__file__).resolve().parent / "data" / "nycflights13"
+TABLES = ("airlines", "airports", "flights", "planes", "weather")
+# Every session reads the same Parquet files instead of loading a private copy.
+# DuckDB scans them on demand, and the operating system caches them once.
+STARTUP = f"""nyc <- DBI::dbConnect(duckdb::duckdb())
+for (table in {"c(" + ", ".join(f"'{t}'" for t in TABLES) + ")"}) {{
+  DBI::dbExecute(nyc, sprintf(
+    "CREATE VIEW %s AS FROM read_parquet('%s/%s.parquet')", table, {str(DATA)!r}, table
+  ))
+}}
+rm(table)
+.console$sql_connection(nyc)
+"""
 PROMPT = """You are a data analyst working with the user in Console Chat.
 Use the send tool for calculations, data inspection, modeling and plots. It gives
 you persistent R, Python and SQL in an OS-sandboxed session. send is your only
@@ -25,14 +37,22 @@ To run R, call send with {"r": "<code>"}; for Python, {"python": "<code>"}; for
 SQL, {"sql": "<query>"}. Submit complete cells, one language per call. To use
 several languages, make one send call for each. Poll with an empty send if a
 result says it is running.
-The working directory contains data.csv: 96 synthetic monthly sales observations
-for 2025, with month, region, product, units, revenue and cost (USD). Explain that these
-are demonstration data, not actual business results. Read the data with R
-read.csv('data.csv') or Python pandas.read_csv('data.csv'). Base R statistics,
-graphics, pandas, numpy, matplotlib and DuckDB are available. SQL uses the default
-DuckDB connection; query data.csv with read_csv_auto('data.csv'). Session code has
-no external network access. Use R for statistical models when useful and Python
-for transformations; variables persist across turns.
+The data are the nycflights13 tables: every flight that departed New York City
+airports (EWR, JFK, LGA) in 2013, with related tables. flights (336,776 rows)
+has dates, scheduled and actual departure and arrival times, delays in minutes,
+carrier, tailnum, origin, dest, air_time and distance. airlines names carriers;
+airports describes airports by faa code; planes describes aircraft by tailnum;
+weather has hourly conditions by origin and time_hour. Times, including
+time_hour, are local New York time. Join flights to weather on origin and
+time_hour.
+SQL queries the tables by name, e.g. SELECT count(*) FROM flights. In R, the
+same DuckDB connection is nyc: use DBI::dbGetQuery(nyc, ...) or
+dplyr::tbl(nyc, "flights"). The tables are read-only Parquet files in
+nycflights13/, e.g. nycflights13/flights.parquet, for Python
+duckdb.sql("FROM 'nycflights13/flights.parquet'"), pandas.read_parquet or
+polars. Memory is shared with other users: aggregate in SQL or DuckDB and
+collect only results; avoid loading whole tables into data frames. Session code
+has no external network access. Variables persist across turns.
 For plots use the Console-managed R graphics device or matplotlib.pyplot.show().
 Do not open browsers, GUI windows or HTML files. Report uncertainty and assumptions.
 Give concise answers grounded in results. End with one useful next question as
@@ -153,7 +173,8 @@ class Session:
                 f"Stale session files at {self.workspace}; inspect before reuse."
             )
         self._owns_slot = True
-        shutil.copyfile(DATA, self.workspace / "data.csv")
+        # Writes through the link are outside the session's writable roots.
+        (self.workspace / "nycflights13").symlink_to(DATA, target_is_directory=True)
         temporary = self.slot / "tmp"
         temporary.mkdir(exist_ok=True, mode=0o700)
         cache = self.slot / "cache"
@@ -181,6 +202,7 @@ class Session:
                 "PYTHONDONTWRITEBYTECODE": "1",
             },
             "cache": {"directory": str(cache)},
+            "startup": {"language": "r", "code": STARTUP},
             "sandbox": {
                 "profile": "read_only",
                 "network": "restricted",

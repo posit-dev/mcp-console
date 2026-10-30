@@ -16,6 +16,8 @@ from chatlas.types import ContentImageInline
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from runtime import Pool
 
+HERE = Path(__file__).resolve().parents[1]
+
 
 def text(result) -> str:
     """Read the public chatlas content value without requiring a model turn."""
@@ -61,11 +63,14 @@ async def test_full_tool_surface_and_sql(pool):
     } <= properties.keys()
     result = text(
         await session.send(
-            sql="SELECT region, round(sum(revenue), 2) AS total FROM read_csv_auto('data.csv') GROUP BY region ORDER BY region"
+            sql="SELECT origin, count(*) AS departures FROM flights GROUP BY origin ORDER BY origin"
         )
     )
-    assert "East" in result and "171060" in result and "South" in result
-    assert "42" in text(await session.send(session="second", sql="SELECT 42 AS answer"))
+    assert "EWR" in result and "120835" in result and "LGA" in result
+    # Every session's startup selects the same views.
+    assert "26115" in text(
+        await session.send(session="second", sql="SELECT count(*) AS n FROM weather")
+    )
     assert (await session.send(requirements={"action": "get"})).error is None
     other = pool.slots[1] / "cache" / "private.csv"
     other.parent.mkdir()
@@ -74,6 +79,34 @@ async def test_full_tool_surface_and_sql(pool):
     assert "other-client-secret" not in denied
     # DuckDB's file glob reports inaccessible paths as having no matches.
     assert "No files found that match the pattern" in denied
+
+
+@pytest.mark.asyncio
+async def test_sessions_share_read_only_flights_data(pool):
+    session = await pool.open()
+    # R and SQL share the startup connection, so R can query the views lazily.
+    assert "carriers 16" in text(
+        await session.send(
+            r="cat('carriers', DBI::dbGetQuery(nyc, 'SELECT count(*) AS n FROM airlines')$n, '\\n')"
+        )
+    )
+    output = text(
+        await session.send(
+            python="""
+import errno
+import pandas as pd
+from pathlib import Path
+print('planes', len(pd.read_parquet('nycflights13/planes.parquet')))
+try:
+    Path('nycflights13/flights.parquet').write_bytes(b'')
+except OSError as error:
+    assert error.errno in (errno.EACCES, errno.EPERM, errno.EROFS), error
+    print('data-read-only')
+"""
+        )
+    )
+    assert "planes 3322" in output and "data-read-only" in output
+    assert (HERE / "data/nycflights13/flights.parquet").stat().st_size > 1_000_000
 
 
 @pytest.mark.asyncio
