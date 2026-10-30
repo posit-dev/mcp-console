@@ -136,8 +136,7 @@ From the staged directory:
 
 ```sh
 gh run download RUN_ID --name pypi-x86_64-unknown-linux-gnu --dir wheels
-uvx --from rsconnect-python rsconnect write-manifest shiny \
-  --entrypoint app:app --override-python-version 3.13.18 .
+uvx --from rsconnect-python rsconnect write-manifest shiny --entrypoint app:app .
 python3 PATH/TO/console-chat-demo/deploy/r_manifest.py manifest.json 4.6.1
 uvx --from rsconnect-python rsconnect deploy manifest -n SERVER manifest.json
 ```
@@ -145,7 +144,8 @@ uvx --from rsconnect-python rsconnect deploy manifest -n SERVER manifest.json
 Connect installs the Python requirements into the app's environment, including the `mcp-console` and `uv` executables.
 [deploy/r_manifest.py](deploy/r_manifest.py) adds the packages in [deploy/r-packages.txt](deploy/r-packages.txt) and their dependencies, as Ubuntu 22.04 binaries from a fixed Package Manager snapshot.
 Connect restores them for the requested R version and exposes them through `R_LIBS`, which prepared sessions use.
-Use the Python and R versions that the server provides.
+[.python-version](.python-version) makes the manifest require any Python 3.13 release, so Connect uses the newest 3.13 it provides.
+Use an R version that the server provides.
 
 Then configure the content:
 
