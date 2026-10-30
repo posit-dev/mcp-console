@@ -19,7 +19,8 @@ MODEL = "claude-sonnet-5-5"
 DATA = Path(__file__).parent / "data" / "sample.csv"
 PROMPT = """You are a data analyst working with the user in Console Chat.
 Use the send tool for calculations, data inspection, modeling and plots. It gives
-you persistent R, Python and SQL in an OS-sandboxed session. Submit complete cells,
+you persistent R, Python and SQL in an OS-sandboxed session. send is your only
+tool: pass code in its r, python or sql parameter. Submit complete cells,
 one language per call. Poll with an empty send if a result says it is running.
 The working directory contains data.csv: 96 synthetic monthly sales observations
 for 2025, with month, region, product, units, revenue and cost (USD). Explain that these
@@ -231,7 +232,9 @@ class Session:
 
     async def stream(self, prompt: str) -> AsyncIterator[Any]:
         calls = 0
-        async with asyncio.timeout(180):
+        # The first dynamic turn includes cold package preparation, which can
+        # take several minutes on a fresh host.
+        async with asyncio.timeout(600 if self.dynamic else 180):
             stream = await self.chat.stream_async(
                 prompt,
                 content="all",

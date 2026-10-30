@@ -50,7 +50,7 @@ Run one server process.
 Shiny's nonblocking chat stream lets other clients progress while one client waits for a model or executes code.
 The default capacity is eight active conversations; set `--sessions N` before startup to change it.
 A full pool returns a visible error.
-Each turn has a three-minute deadline and a maximum of sixteen tool calls.
+Each turn has a three-minute deadline, or ten minutes with dynamic packages, and a maximum of sixteen tool calls.
 
 The app pre-creates all session slots.
 Each Console policy denies every other slot, including slots that have not been used yet.
