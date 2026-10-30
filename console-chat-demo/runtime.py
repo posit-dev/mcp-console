@@ -13,6 +13,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
+import duckdb
 from chatlas import ChatAnthropic, ContentToolRequest, ContentToolResult
 
 MODEL = "claude-opus-5-5"
@@ -50,9 +51,12 @@ REPORT_SETUP = f"""```{{r}}
 ```
 """
 PROMPT = """You are a data analyst working with the user in Console Chat.
-Use the send tool for calculations, data inspection, modeling and plots. It gives
-you persistent R, Python and SQL in an OS-sandboxed session. send is your only
-tool. There are no tools named r, python or sql: those are arguments of send.
+You have two tools. send runs code for calculations, data inspection, modeling
+and plots: persistent R, Python and SQL in an OS-sandboxed session. There are no
+tools named r, python or sql: those are arguments of send. show_data shows the
+result of one DuckDB SELECT over the original tables in the data panel beside the
+chat; use it when the user wants to see, filter or sort records. It cannot see
+tables or variables created with send.
 To run R, call send with {"r": "<code>"}; for Python, {"python": "<code>"}; for
 SQL, {"sql": "<query>"}. Submit complete cells, one language per call. To use
 several languages, make one send call for each. Poll with an empty send if a
@@ -91,6 +95,49 @@ and statsmodels.
 DYNAMIC = """To use a package that is not installed, first add it with the send tool's
 requirements parameter.
 """
+
+
+class Catalog:
+    """A read-only copy of the tables for queries the server runs itself.
+
+    show_data runs in the server process, outside Console's sandbox, so its
+    database is locked to the copied tables: no files, environment or writes.
+    """
+
+    rows = 5000
+
+    def __init__(self, path: Path) -> None:
+        path.unlink(missing_ok=True)
+        with duckdb.connect(path) as build:
+            for table in TABLES:
+                build.execute(
+                    f"CREATE TABLE {table} AS FROM read_parquet('{DATA / table}.parquet')"
+                )
+        self.connection = duckdb.connect(path, read_only=True)
+        self.connection.execute("SET threads = 2")
+        self.connection.execute("SET memory_limit = '1GB'")
+        self.connection.execute("SET enable_external_access = false")
+        self.connection.execute("SET lock_configuration = true")
+
+    async def show(self, query: str) -> tuple[Any, int]:
+        """Return up to `rows` rows of a SELECT query and its total row count."""
+        query = query.strip().rstrip(";")
+        cursor = self.connection.cursor()
+
+        def run() -> tuple[Any, int]:
+            # Nesting the query admits only a single SELECT-like statement.
+            [(total,)] = cursor.execute(f"SELECT count(*) FROM ({query})").fetchall()
+            data = cursor.execute(f"FROM ({query}) LIMIT {self.rows}").df()
+            return data, total
+
+        try:
+            async with asyncio.timeout(20):
+                return await asyncio.to_thread(run)
+        except TimeoutError:
+            cursor.interrupt()
+            raise
+        finally:
+            cursor.close()
 
 
 class Pool:
@@ -140,6 +187,7 @@ class Pool:
             )
         ]
         self.denied = [p.resolve() for p in secrets if p.exists()] + list(private_paths)
+        self.catalog = Catalog(self.private / "catalog.duckdb")
         self.active: dict[Path, Session] = {}
 
     async def open(self, dynamic: bool = False) -> Session:
@@ -182,6 +230,32 @@ class Session:
             reasoning="low",
             kwargs={"timeout": 120, "max_retries": 0},
         )
+        catalog = pool.catalog
+
+        async def show_data(query: str, title: str) -> ContentToolResult:
+            """Show a SQL query's result in the data panel beside the chat.
+
+            Use it when the user asks to see, list, filter or sort records, or
+            when a result table is worth browsing. It replaces the panel's
+            current table; the user can return to all flights.
+
+            Parameters
+            ----------
+            query
+                One DuckDB SELECT over the original nycflights13 tables. It
+                cannot see objects created with send.
+            title
+                A short title for the table, such as "Delayed JFK departures".
+            """
+            data, total = await catalog.show(query)
+            shown = f"the first {len(data):,} of " if total > len(data) else ""
+            return ContentToolResult(
+                value=f"The data panel shows {shown}{total:,} rows. First rows:\n"
+                + data.head(10).to_string(),
+                extra={"data": data, "query": query, "title": title, "rows": total},
+            )
+
+        self.chat.register_tool(show_data)
         self._closing: asyncio.Task[None] | None = None
         self._registration: asyncio.Task[Any] | None = None
         self._owns_slot = False
@@ -278,15 +352,17 @@ class Session:
     async def send(self, **kwargs: Any) -> ContentToolResult:
         return await self.tool.func(**kwargs)
 
-    def report(self) -> str:
+    def report(self) -> str | None:
         """Console's recorded QMD for this conversation, runnable beside the data.
 
         Restarts give each worker session its own document; they are appended in
         order, so a rendered report shares state that the sessions did not.
+        None until code has run: Console records notes into a worker's document.
         """
         state = self.pool.private / self.slot.name
         documents = sorted(state.glob("sessions/*/sessions/session-*.qmd"))
-        assert documents, "Console has not recorded this conversation yet"
+        if not documents:
+            return None
         parts = []
         for document in documents:
             _, front, body = document.read_text(encoding="utf-8").split("---\n", 2)

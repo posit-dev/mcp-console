@@ -224,25 +224,27 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
             ),
             ui.div(
                 ui.card(
-                    ui.card_header(
-                        ui.div("THE STARTING POINT", class_="eyebrow"),
-                        ui.h2("New York flights, 2013"),
-                        ui.p(
-                            "Every departure from EWR, JFK and LGA, with weather, "
-                            "planes, airports and airlines."
-                        ),
-                    ),
+                    # A view shown by the chat hides this default header.
                     ui.div(
-                        ui.div(ui.strong(f"{total:,}"), ui.span("flights")),
-                        ui.div(ui.strong(str(len(TABLES))), ui.span("tables")),
-                        ui.div(ui.strong("3"), ui.span("airports")),
-                        class_="dataset-facts",
+                        ui.card_header(
+                            ui.div("THE STARTING POINT", class_="eyebrow"),
+                            ui.h2("New York flights, 2013"),
+                            ui.p(
+                                "Every departure from EWR, JFK and LGA, with weather, "
+                                "planes, airports and airlines."
+                            ),
+                        ),
+                        ui.div(
+                            ui.div(ui.strong(f"{total:,}"), ui.span("flights")),
+                            ui.div(ui.strong(str(len(TABLES))), ui.span("tables")),
+                            ui.div(ui.strong("3"), ui.span("airports")),
+                            class_="dataset-facts",
+                        ),
+                        class_="default-header",
                     ),
+                    ui.output_ui("data_header"),
                     ui.output_data_frame("data_preview"),
-                    ui.p(
-                        f"First {len(sample):,} flights · nycflights13 · read-only",
-                        class_="data-caption",
-                    ),
+                    ui.output_ui("data_caption"),
                     class_="data-card",
                 ),
                 ui.card(
@@ -277,6 +279,8 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
         # The latest recorded report outlives a stopped session until the next
         # New session, like the messages it accompanies.
         report = reactive.value(None)
+        # The table the chat last showed with show_data; None shows all flights.
+        view = reactive.value(None)
         backend = None
         active: asyncio.Task | None = None
         maintenance: asyncio.Task | None = None
@@ -313,7 +317,35 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                         if isinstance(chunk, ContentToolRequest):
                             # Show the submitted code itself; the result card
                             # below holds the output.
-                            yield await cell(chunk.arguments)
+                            if chunk.name == "show_data":
+                                yield await cell({"sql": chunk.arguments["query"]})
+                            else:
+                                yield await cell(chunk.arguments)
+                        elif (
+                            isinstance(chunk, ContentToolResult)
+                            and chunk.request.name == "show_data"
+                        ):
+                            if chunk.error is None:
+                                with reactive.isolate():
+                                    view.set(chunk.extra)
+                                # The panel's query runs outside Console, so the
+                                # report keeps it as prose rather than a chunk.
+                                await backend.send(
+                                    note=f"**Shown in the data panel:** {chunk.extra['title']}\n\n"
+                                    + fenced("sql", chunk.extra["query"])
+                                )
+                            yield message_content(
+                                chunk.model_copy(
+                                    update={
+                                        "extra": {
+                                            "display": ToolResultDisplay(
+                                                title="Shown in the data panel",
+                                                show_request=False,
+                                            )
+                                        }
+                                    }
+                                )
+                            )
                         elif isinstance(chunk, ContentToolResult):
                             parts = (
                                 chunk.value
@@ -418,6 +450,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                         await chat.clear_messages(greeting=False)
                         report.set(None)
                         images.set(())
+                        view.set(None)
                     else:
                         message = (
                             "Stopped. This runtime and agent conversation were discarded. "
@@ -480,9 +513,47 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
         def session_info() -> str:
             return identity.get()
 
+        @reactive.effect
+        @reactive.event(input.all_flights)
+        def all_flights() -> None:
+            view.set(None)
+
+        @render.ui
+        def data_header():
+            shown = view.get()
+            if shown is None:
+                return None
+            return ui.card_header(
+                ui.div(
+                    ui.div("SHOWN BY THE CHAT", class_="eyebrow"),
+                    ui.input_action_button(
+                        "all_flights", "All flights", class_="btn-sm btn-quiet"
+                    ),
+                    class_="view-heading",
+                ),
+                ui.h2(shown["title"]),
+                ui.tags.details(
+                    ui.tags.summary("Query"),
+                    ui.pre(ui.code(shown["query"], class_="language-sql")),
+                ),
+            )
+
         @render.data_frame
         def data_preview():
-            return render.DataGrid(sample, height="265px", filters=True, summary=True)
+            shown = view.get()
+            data = sample if shown is None else shown["data"]
+            return render.DataGrid(data, height="265px", filters=True, summary=True)
+
+        @render.ui
+        def data_caption():
+            shown = view.get()
+            if shown is None:
+                text = f"First {len(sample):,} flights · nycflights13 · read-only"
+            elif shown["rows"] > len(shown["data"]):
+                text = f"First {len(shown['data']):,} of {shown['rows']:,} rows"
+            else:
+                text = f"{shown['rows']:,} rows"
+            return ui.p(text, class_="data-caption")
 
         @render.ui
         def plot_gallery():

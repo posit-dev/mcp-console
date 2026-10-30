@@ -105,3 +105,7 @@ body:not(:has(#formatted_code:checked)) .code-formatted { display: none; }
   .runtime-badge { display: none; }
   .brand h1 { font-size: 21px; }
 }
+.view-heading { display: flex; align-items: center; justify-content: space-between; }
+.data-card details { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.data-card details pre { margin: 6px 0 0; max-height: 120px; overflow: auto; font-size: 11px; }
+.data-card:has(.view-heading) .default-header { display: none; }

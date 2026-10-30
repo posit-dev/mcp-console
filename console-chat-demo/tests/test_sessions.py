@@ -9,6 +9,7 @@ import signal
 import sys
 from pathlib import Path
 
+import duckdb
 import pytest
 import pytest_asyncio
 from chatlas.types import ContentImageInline
@@ -110,9 +111,41 @@ except OSError as error:
 
 
 @pytest.mark.asyncio
+async def test_show_data_queries_original_tables_read_only(pool, tmp_path):
+    session = await pool.open()
+    show = next(t for t in session.chat.get_tools() if t.name == "show_data")
+    result = await show.func(
+        query="SELECT carrier, count(*) AS n FROM flights GROUP BY carrier ORDER BY n DESC;",
+        title="Flights by carrier",
+    )
+    assert result.error is None, result.error
+    assert result.extra["title"] == "Flights by carrier"
+    assert result.extra["rows"] == 16
+    assert list(result.extra["data"].columns) == ["carrier", "n"]
+    assert "UA" in str(result.value) and "58665" in str(result.value)
+    big = await show.func(query="FROM flights", title="All flights")
+    assert big.extra["rows"] == 336776 and len(big.extra["data"]) == 5000
+    # The queries run in the server process, outside Console's sandbox, so they
+    # can reach neither its environment, files, nor the shared tables' contents.
+    secret = tmp_path / "secret.csv"
+    secret.write_text("x\nserver-secret\n")
+    for query in (
+        "SELECT getenv('ANTHROPIC_API_KEY') AS key",
+        f"FROM read_csv('{secret}')",
+        "DROP TABLE flights",
+        "SET enable_external_access = true",
+    ):
+        with pytest.raises(duckdb.Error):
+            await show.func(query=query, title="Denied")
+    assert (await show.func(query="FROM planes", title="Planes")).extra["rows"] == 3322
+
+
+@pytest.mark.asyncio
 async def test_report_renders_beside_the_data(pool, tmp_path):
     session = await pool.open()
     await session.send(note="**Question:** How many flights left each airport?")
+    # Notes wait for code to give them a worker session to record into.
+    assert session.report() is None
     await session.send(sql="SELECT origin, count(*) AS n FROM flights GROUP BY origin")
     await session.send(
         r="busiest <- DBI::dbGetQuery(nyc, 'SELECT max(n) AS n FROM (SELECT count(*) AS n FROM flights GROUP BY origin)')$n\ncat('busiest', busiest, '\\n')"
