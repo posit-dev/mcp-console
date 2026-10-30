@@ -236,7 +236,7 @@ async def main() -> None:
             json.dumps(
                 {
                     "live": args.live or args.lifecycle,
-                    "model": "claude-sonnet-5-5",
+                    "model": "claude-opus-5-5",
                     "browser_errors": errors,
                 }
             )

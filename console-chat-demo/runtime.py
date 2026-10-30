@@ -15,7 +15,7 @@ from typing import Any
 
 from chatlas import ChatAnthropic, ContentToolRequest, ContentToolResult
 
-MODEL = "claude-sonnet-5-5"
+MODEL = "claude-opus-5-5"
 DATA = Path(__file__).resolve().parent / "data" / "nycflights13"
 TABLES = ("airlines", "airports", "flights", "planes", "weather")
 # Every session reads the same Parquet files instead of loading a private copy.

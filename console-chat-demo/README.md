@@ -33,7 +33,7 @@ uv pip install --python .venv/bin/python -r requirements.txt
 Open <http://127.0.0.1:8000>.
 The launcher reads only `ANTHROPIC_API_KEY` from the specified file; it does not execute the file or copy the key to disk.
 Alternatively, set `ANTHROPIC_API_KEY` in the server environment and omit `--renviron`.
-The model is `claude-sonnet-5-5` through chatlas's `ChatAnthropic()` with low reasoning effort.
+The model is `claude-opus-5-5` through chatlas's `ChatAnthropic()` with low reasoning effort.
 `ANTHROPIC_BASE_URL` routes requests through a gateway, such as the one [Posit Connect](#deploy-on-posit-connect) supplies.
 There is no model substitution.
 Use `--r /path/to/R` when R is not on `PATH`.
