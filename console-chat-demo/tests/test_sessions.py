@@ -110,6 +110,41 @@ except OSError as error:
 
 
 @pytest.mark.asyncio
+async def test_report_renders_beside_the_data(pool, tmp_path):
+    session = await pool.open()
+    await session.send(note="**Question:** How many flights left each airport?")
+    await session.send(sql="SELECT origin, count(*) AS n FROM flights GROUP BY origin")
+    await session.send(
+        r="busiest <- DBI::dbGetQuery(nyc, 'SELECT max(n) AS n FROM (SELECT count(*) AS n FROM flights GROUP BY origin)')$n\ncat('busiest', busiest, '\\n')"
+    )
+    await session.send(python="print('python cell')")
+    await session.send(note="EWR had the most departures.")
+    report = session.report()
+    assert report.index("**Question:**") < report.index("GROUP BY origin")
+    assert report.index("python cell") < report.index("EWR had the most")
+    # The exported document recreates the startup connection from Parquet files
+    # beside it, so its R and SQL chunks run outside Console.
+    (tmp_path / "report").mkdir()
+    (tmp_path / "report" / "nycflights13").symlink_to(HERE / "data" / "nycflights13")
+    (tmp_path / "report" / "analysis.qmd").write_text(
+        report.replace("```{python}", "```{.python}")
+    )
+    knit = await asyncio.create_subprocess_exec(
+        "Rscript",
+        "-e",
+        "knitr::knit('analysis.qmd', quiet = TRUE)",
+        cwd=tmp_path / "report",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await knit.communicate()
+    assert knit.returncode == 0, stdout.decode()
+    output = (tmp_path / "report" / "analysis.md").read_text()
+    assert "120835" in output and "busiest 120835" in output, output
+    assert "Error" not in output, output
+
+
+@pytest.mark.asyncio
 async def test_duckdb_connections_do_not_ask_for_a_home(pool, tmp_path, monkeypatch):
     # Posit Connect's HOME has no ~/.duckdb, so an interactive R would ask
     # whether to create one. Keep the R packages visible from the new HOME.

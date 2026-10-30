@@ -18,19 +18,36 @@ from chatlas import ChatAnthropic, ContentToolRequest, ContentToolResult
 MODEL = "claude-opus-5-5"
 DATA = Path(__file__).resolve().parent / "data" / "nycflights13"
 TABLES = ("airlines", "airports", "flights", "planes", "weather")
+
+
+def connect(data: str) -> str:
+    """R code that connects `nyc` to views over the Parquet files in `data`."""
+    tables = "c(" + ", ".join(f"'{t}'" for t in TABLES) + ")"
+    return f"""nyc <- DBI::dbConnect(duckdb::duckdb())
+for (table in {tables}) {{
+  DBI::dbExecute(nyc, sprintf(
+    "CREATE VIEW %s AS FROM read_parquet('%s/%s.parquet')", table, {data!r}, table
+  ))
+}}
+rm(table)
+"""
+
+
 # Every session reads the same Parquet files instead of loading a private copy.
 # DuckDB scans them on demand, and the operating system caches them once.
 # Without ~/.duckdb, as on Posit Connect, interactive R asks whether to create
 # it on every new DuckDB connection; keep extensions and secrets per session.
-STARTUP = f"""options(duckdb.home = file.path(tempdir(), "duckdb"))
-nyc <- DBI::dbConnect(duckdb::duckdb())
-for (table in {"c(" + ", ".join(f"'{t}'" for t in TABLES) + ")"}) {{
-  DBI::dbExecute(nyc, sprintf(
-    "CREATE VIEW %s AS FROM read_parquet('%s/%s.parquet')", table, {str(DATA)!r}, table
-  ))
-}}
-rm(table)
-.console$sql_connection(nyc)
+STARTUP = (
+    'options(duckdb.home = file.path(tempdir(), "duckdb"))\n'
+    + connect(str(DATA))
+    + ".console$sql_connection(nyc)\n"
+)
+# Exported reports read the Parquet files from a directory beside them.
+REPORT_SETUP = f"""```{{r}}
+#| label: setup
+#| include: false
+{connect("nycflights13")}knitr::opts_chunk$set(connection = "nyc")
+```
 """
 PROMPT = """You are a data analyst working with the user in Console Chat.
 Use the send tool for calculations, data inspection, modeling and plots. It gives
@@ -260,6 +277,21 @@ class Session:
 
     async def send(self, **kwargs: Any) -> ContentToolResult:
         return await self.tool.func(**kwargs)
+
+    def report(self) -> str:
+        """Console's recorded QMD for this conversation, runnable beside the data.
+
+        Restarts give each worker session its own document; they are appended in
+        order, so a rendered report shares state that the sessions did not.
+        """
+        state = self.pool.private / self.slot.name
+        documents = sorted(state.glob("sessions/*/sessions/session-*.qmd"))
+        assert documents, "Console has not recorded this conversation yet"
+        parts = []
+        for document in documents:
+            _, front, body = document.read_text(encoding="utf-8").split("---\n", 2)
+            parts.append(body.strip() + "\n")
+        return f"---\n{front}---\n\n{REPORT_SETUP}\n" + "\n".join(parts)
 
     async def stream(self, prompt: str) -> AsyncIterator[Any]:
         calls = 0
