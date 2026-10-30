@@ -10,6 +10,9 @@ uv==0.13.1
 # Analysis packages for sessions that use this prepared environment.
 numpy==2.5.4
 plotnine==0.15.8
+polars==2.1.0
 pyarrow==26.0.0
 scikit-learn==1.9.1
+scipy==1.18.1
+seaborn==0.13.2
 statsmodels==0.15.0
