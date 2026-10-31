@@ -1,27 +1,21 @@
 # Validation
 
-Validated on macOS on October 29, 2026, using this checkout's Console binary (`0.0.6+dev.g6c7e53ca1bb1`) and its matching native sandbox companion.
-The model checks used the real `gpt-6.1-terra` Responses API with low reasoning effort.
-No substitute model or mocked Console was used for those checks.
+Validated locally on macOS on October 31, 2026, with Console `0.0.6+dev.g74e81f4d49ef` and its matching sandbox companion.
+Live browser conversations used `gpt-6.1-terra` through chatlas's Responses API in a local test launcher; the deployed app still uses the configured Anthropic model.
 
-## App checks
+## App and process checks
 
-The five-test app suite passed in one run.
-A subsequent private-path regression and a cold R/Python startup check also passed after the final policy change.
-A capacity-reduction regression then confirmed that retained files in a higher-numbered slot remain inaccessible when the server restarts with fewer slots.
-Together, the seven tests cover:
+The full 19-test suite passed before the final cancellation regression was added, including a cold managed environment that installed and imported `humanize`.
+After that regression and the export changes, all 19 tests excluding the already-exercised dependency download passed against the rebuilt Console binary.
+The checks cover:
 
-- Serving the UI and public assets without a model call; private files are not static routes.
-- Persistent R and Python variables and real PNG plots from both runtimes.
-- Concurrent execution, using a file checkpoint to hold one client while another completes.
-- Denied cross-client workspace and temporary-file reads, including clients started later.
-- Denied reads of retained client files after reducing the server's session capacity, without deleting those files.
-- Capacity limits, clean slot reuse, and cancellation during MCP initialization.
-- Absent API credentials in both runtimes, denied private-file reads and host writes, and blocked networking against a listening local socket.
-- Rejection of missing explicitly configured private paths before creating the runtime root.
-
-After enabling the full tool surface, focused process checks passed for the advertised parameters, SQL over the CSV, a named SQL session, requirements inspection and requests, and denial of SQL reads from another client's slot.
-The concurrent-client isolation and HTTP checks also passed with the per-client preparation caches.
+- Serving the app and public assets without a model session.
+- R/Python state, plots, SQL, named sessions and package requests.
+- Concurrent clients, slot reuse, cancellation during startup, private files, credentials, blocked networking and denied host writes.
+- Parquet views for the table tool, bounded previews, rejection of multiple SQL statements and denied reads outside the five bundled files.
+- Interrupting a cancelled table query before closing its cursor, using an explicit checkpoint at the SQL driver boundary.
+- Rejection of follow-ups in the primary runtime, with the most recent runtime breaking a tie.
+- Separate exports for independent Console sessions, knitr selection for SQL-only exports, and execution of R, Python and SQL chunks from the exported report.
 
 From the repository root:
 
@@ -30,56 +24,36 @@ TMPDIR="$PWD/console-chat-demo/.runtime/tmp" \
 CONSOLE_CHAT_BINARY="$PWD/target/release/mcp-console" \
 PYTHONDONTWRITEBYTECODE=1 \
   console-chat-demo/.venv/bin/python -B -m pytest console-chat-demo/tests \
-  --basetemp=console-chat-demo/.runtime/final-pytest -q
+  --basetemp=console-chat-demo/.runtime/pytest -q
 ```
 
-## Browser checks
+Do not run these tests while rebuilding or staging Console: a changed companion can fail the binary's artifact identity check.
+The cold package test can take several minutes; the final local run omitted it with `-k 'not dynamic_resolution'` after it had passed.
 
-Chromium drove the actual app through its chat input, buttons, download link, and table UI.
-Two independent browser contexts shared one Shiny server process.
-Live model calls verified Python calculations, R plotting, retained state on a follow-up turn, separate client variables, Markdown export, and New session.
-A second check held one client's Python cell at a filesystem checkpoint while the other client completed a model/tool turn, then pressed Stop and verified that the blocked worker PID and workspace disappeared.
+## Browser and export checks
 
-The desktop and 390-pixel mobile layouts were inspected visually.
-Browser assertions check loaded plot pixels, mobile card ordering, an unobstructed usable composer, and absence of JavaScript page errors.
+The in-app browser drove real conversations on one Shiny process: a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
+A second browser client had only its own table views.
+Generated follow-ups were activated through their buttons.
+A downloaded zip contained the QMD source and all five Parquet files; `quarto render analysis.qmd --to html` produced the report.
+The process test also runs the exported Python chunk, rather than treating it as text.
 
-The YAML display and follow-up buttons were also checked interactively in the in-app browser with live Terra calls.
-Assertions first reproduced the JSON display and missing suggestion button, then passed after the change: native cards showed multiline YAML, and clicking a generated suggestion submitted the next question and completed another tool turn with retained Python state.
-The HTTP app test passed.
-The live browser script includes these display and suggestion assertions for subsequent runs.
-An additional live browser session submitted Python and R cells; its exported Markdown preserved each cell in a language-tagged code block and included the corresponding output.
-Another live Terra session used SQL to aggregate the CSV, confirmed a cross-client SQL read was denied, requested and used an additional Python package, and rendered plots from both R and Python.
-A separate browser check with a simulated tool response verified that the export retains tool options as well as the submitted code.
-
-With the app running on port 8008:
+[tests/browser_check.py](tests/browser_check.py) contains repeatable Chromium checks, including concurrent clients and Stop.
+Its live modes make billed model requests using the running server's credentials.
 
 ```sh
 TMPDIR="$PWD/console-chat-demo/.runtime/tmp" \
   console-chat-demo/.venv/bin/python -B console-chat-demo/tests/browser_check.py \
   --browser '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --live
-
-TMPDIR="$PWD/console-chat-demo/.runtime/tmp" \
-  console-chat-demo/.venv/bin/python -B console-chat-demo/tests/browser_check.py \
-  --browser '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --lifecycle
 ```
 
-Supply the installed Chromium executable on another host.
-The live options make billed model requests using the running server's credentials.
-Screenshots, a downloaded analysis, and result receipts are saved under `.runtime/browser/` and excluded from Git.
+## Console checks and limits
 
-## Console checks
+`scripts/preflight` and the core checks passed, including Clippy and all 53 Rust tests.
+`scripts/format` reported success for Ruff, Yamark, rustfmt and Air.
+Use a short checkout-local `TMPDIR` for native socket tests on macOS; a longer path exceeded `SUN_LEN` in the first attempt.
+All 17 smoke cases passed with `scripts/test --jobs 2`.
+The first smoke run at default concurrency had four failures involving busy workers or missing results; the lower-concurrency rerun passed without code changes.
 
-- Offline release build through `scripts/with-checkout` passed.
-- Two focused recording cases passed after replacing a stale `has_source()` call with the existing `has_contents()` predicate in `src/transcript/markdown.rs`.
-- `scripts/preflight --json` passed.
-- `scripts/check-core` passed: runtime-source checks, architecture, rustfmt, Clippy, and all 53 Rust tests.
-- `scripts/test --jobs 2` passed all 17 default smoke cases.
-- `scripts/format` reported success for Ruff, Yamark, rustfmt, and Air.
-
-The ordinary check's core and smoke phases ran separately using an already staged, hash-verified native companion.
-Its unchanged companion rebuild was omitted to keep all writes inside this checkout.
-A short checkout-local temporary path was needed for the native Unix-socket tests.
-Validation records are in `.dev-workflow/runs/20261029-165537-d4rtzoh2/` and `.dev-workflow/runs/20261029-165601-o8fhpyae/` at the repository root.
-
-Linux deployment, service installation, authentication proxy configuration, resource exhaustion, and Windows were not exercised.
-The systemd file is a deployment template, not evidence of a running Linux deployment.
+Linux/Connect deployment, service installation, authentication proxies, resource exhaustion and Windows were not revalidated in this audit.
+The deployment files are templates, not evidence of deployment on a new host.

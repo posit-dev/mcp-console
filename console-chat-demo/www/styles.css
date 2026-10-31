@@ -45,44 +45,45 @@ body.console-chat-app {
 .card { border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 3px 14px #273d3304; overflow: hidden; }
 .card-header { background: transparent; border-bottom: 1px solid var(--line); padding: 16px 20px; }
 .card-body { padding: 18px 20px; }
-.section-bar { justify-content: space-between; gap: 8px; }
-.section-title { font-weight: 600; font-size: 14px; }
-.chat-actions { gap: 4px; }
+.section-bar { justify-content: space-between; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.section-title { font-weight: 600; font-size: 14px; white-space: nowrap; }
+.chat-actions { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 .btn-quiet { border: 1px solid transparent; color: var(--muted); font-size: 12px; padding: 5px 8px; background: transparent; box-shadow: none; }
 .btn-quiet:hover { color: var(--teal); background: #eaf2ed; border-color: #d7e5dc; }
 .btn-quiet:disabled { opacity: 0.4; }
 .package-mode .form-group { margin: 0 0 0 6px; width: auto; }
 .package-mode .form-check { margin: 0; color: var(--muted); font-size: 12px; }
+.package-mode label { font-size: 12px; font-weight: 400; }
 .chat-card { min-height: 560px; }
 .chat-card .card-body { padding: 0 14px; gap: 0; }
 .chat-card shiny-chat { --shiny-chat-bg-assistant: transparent; --shiny-chat-bg-user: #e9f1e9; --shiny-chat-border-color: var(--line); }
-.welcome-heading { font-size: clamp(23px, 2.2vw, 32px); line-height: 1.2; letter-spacing: -0.8px; font-weight: 550; margin: 20px 0 12px; }
-.welcome-copy { color: var(--muted); font-size: 14px; line-height: 1.7; max-width: 470px; }
-.starter-prompts { margin-top: 24px; }
+.welcome-heading { font-size: clamp(21px, 2vw, 28px); line-height: 1.2; letter-spacing: -0.8px; font-weight: 550; margin: 12px 0 10px; }
+.welcome-copy { color: var(--muted); font-size: 13px; line-height: 1.55; max-width: 470px; }
+.shiny-chat-suggestion-list:has(.starter-language) { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 12px 0; }
+.shiny-chat-suggestion-list-item:has(.starter-language) { min-height: 0; padding: 10px 12px; text-align: left; }
+.shiny-chat-suggestion-list-item-body:has(.starter-language) { display: grid; grid-template-columns: 54px 1fr; gap: 3px 10px; font-size: 13px; line-height: 1.35; }
+.starter-language { grid-row: span 2; align-self: center; color: var(--teal); font-weight: 650; }
+.starter-detail { color: var(--muted); font-size: 12px; }
+.next-question { display: block; max-width: 100%; text-align: left; }
 .session-info { color: #84908b; font-size: 10px; text-align: center; padding: 10px 5px 13px; border-top: 1px solid #edf0e9; }
 .inspection-column { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; min-height: 0; padding-right: 3px; }
 .inspection-column .card { flex-shrink: 0; }
 .inspection-column .card-header { display: block; }
-.eyebrow { font-size: 9px; letter-spacing: 1.6px; font-weight: 700; color: #749084; margin-bottom: 8px; }
-.inspection-column h2 { font-size: 20px; line-height: 1.25; font-weight: 550; letter-spacing: -0.5px; margin: 0; }
-.data-card .card-header { border-bottom: 0; padding-bottom: 0; }
-.data-card .card-header p { color: var(--muted); font-size: 12px; margin: 7px 0 0; }
-.dataset-facts { display: flex; gap: 30px; border-bottom: 1px solid var(--line); padding-bottom: 17px; margin-bottom: 3px; }
-.dataset-facts > div { display: flex; flex-direction: column; gap: 2px; }
-.dataset-facts strong { font-size: 23px; line-height: 1.1; font-weight: 550; color: var(--teal); letter-spacing: -0.5px; }
-.dataset-facts span { font-size: 11px; color: var(--muted); }
-#data_preview { font-size: 11px; }
-.data-caption { font-size: 10px; color: #84908b; margin: 0; }
-.results-card .card-header { border-bottom: 0; padding-bottom: 0; }
-.empty-gallery { min-height: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: var(--muted); padding: 5px 15px 15px; }
-.empty-plot-icon { font-size: 28px; color: #9ab4a5; margin-bottom: 7px; }
-.empty-gallery strong { font-size: 12px; color: #5c756a; font-weight: 550; }
-.empty-gallery p { margin: 7px 0 0; max-width: 300px; font-size: 11px; line-height: 1.65; }
+.inspection-column h2 { font-size: 20px; line-height: 1.3; font-weight: 550; margin: 0 0 12px; }
+.inspection-column h3 { font-size: 15px; margin: 22px 0 10px; }
+.inspection-column p, .inspection-column li { font-size: 13px; line-height: 1.6; color: var(--muted); }
+.inspection-column ul { padding-left: 20px; }
+.inspection-column li + li { margin-top: 8px; }
+.dataset-table { width: 100%; font-size: 13px; margin: 10px 0 16px; }
+.dataset-table caption { caption-side: top; font-size: 12px; color: var(--muted); }
+.dataset-table th, .dataset-table td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.dataset-table th:last-child, .dataset-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+#data_preview { font-size: 12px; }
+.inspection-column .data-caption { font-size: 11px; margin-top: 8px; }
+.view-heading details { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.view-heading pre { margin: 6px 0 0; max-height: 120px; overflow: auto; font-size: 11px; }
 .privacy-note { font-size: 11px; color: #7a8981; line-height: 1.7; margin: 0 9px 4px; }
-.plot-gallery { display: flex; flex-direction: column; gap: 16px; }
-.plot-gallery figure { margin: 0; }
-.plot-gallery img, .chat-plot { width: 100%; max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e8ece5; background: white; }
-.plot-gallery figcaption { color: var(--muted); font-size: 10px; margin-top: 5px; }
+.chat-plot { width: 100%; max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e8ece5; background: white; }
 .chatlas-tool-result pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
 .chatlas-tool-request, .chatlas-tool-result { font-size: 12px; }
 .code-cell { position: relative; }
@@ -104,8 +105,6 @@ body:not(:has(#formatted_code:checked)) .code-formatted { display: none; }
   .header-status { gap: 8px; }
   .runtime-badge { display: none; }
   .brand h1 { font-size: 21px; }
+  .section-bar { flex-direction: column; }
+  .chat-actions { justify-content: flex-start; }
 }
-.view-heading { display: flex; align-items: center; justify-content: space-between; }
-.data-card details { font-size: 11px; color: var(--muted); margin-top: 6px; }
-.data-card details pre { margin: 6px 0 0; max-height: 120px; overflow: auto; font-size: 11px; }
-.data-card:has(.view-heading) .default-header { display: none; }

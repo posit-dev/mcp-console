@@ -7,6 +7,7 @@ import os
 import shutil
 import signal
 import sys
+import threading
 from pathlib import Path
 
 import duckdb
@@ -126,7 +127,7 @@ async def test_show_data_queries_original_tables_read_only(pool, tmp_path):
     big = await show.func(query="FROM flights", title="All flights")
     assert big.extra["rows"] == 336776 and len(big.extra["data"]) == 5000
     # The queries run in the server process, outside Console's sandbox, so they
-    # can reach neither its environment, files, nor the shared tables' contents.
+    # must not expose its environment or other files, or modify the source data.
     secret = tmp_path / "secret.csv"
     secret.write_text("x\nserver-secret\n")
     for query in (
@@ -138,6 +139,89 @@ async def test_show_data_queries_original_tables_read_only(pool, tmp_path):
         with pytest.raises(duckdb.Error):
             await show.func(query=query, title="Denied")
     assert (await show.func(query="FROM planes", title="Planes")).extra["rows"] == 3322
+    # Browsing must scan the same Parquet files, not copy their rows into a
+    # second database. Only the five bundled files may be read by this tool.
+    catalog = await show.func(
+        query="SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'main' ORDER BY table_name",
+        title="Dataset views",
+    )
+    assert set(catalog.extra["data"]["table_type"]) == {"VIEW"}
+    assert len(catalog.extra["data"]) == 5
+    for query in (
+        "SELECT 1); SET enable_external_access = true; SELECT (1",
+        "SELECT 1); SELECT (2",
+        f"FROM read_text('{secret}')",
+    ):
+        with pytest.raises((ValueError, duckdb.Error)):
+            await show.func(query=query, title="Denied")
+
+
+@pytest.mark.asyncio
+async def test_follow_up_uses_another_runtime(pool):
+    session = await pool.open()
+    suggest = next(t for t in session.chat.get_tools() if t.name == "suggest_next")
+    # Most cells determine the primary language; a tie uses the most recent.
+    await session.send(r="x <- 1")
+    await session.send(r="x + 1")
+    await session.send(sql="SELECT 1")
+    with pytest.raises(ValueError, match="different.*R"):
+        await suggest.func(language="R", question="Plot the delays?")
+    await suggest.func(language="Python", question="Model delays using weather?")
+    assert session.suggestion == ("Python", "Model delays using weather?")
+    await session.send(sql="SELECT 2")
+    assert session.suggestion is None
+    with pytest.raises(ValueError, match="different.*SQL"):
+        await suggest.func(language="SQL", question="Compare carriers?")
+    await suggest.func(language="R", question="Plot delays by carrier?")
+    assert session.suggestion == ("R", "Plot delays by carrier?")
+
+
+@pytest.mark.asyncio
+async def test_cancelling_table_query_interrupts_before_closing(pool, monkeypatch):
+    session = await pool.open()
+    show = next(t for t in session.chat.get_tools() if t.name == "show_data")
+    started = asyncio.Event()
+    released = threading.Event()
+    finished = threading.Event()
+    interrupted = threading.Event()
+    loop = asyncio.get_running_loop()
+    connection = pool.catalog.connection
+
+    class GatedCursor:
+        """Hold the external SQL operation at an explicit cancellation checkpoint."""
+
+        def extract_statements(self, query):
+            return connection.extract_statements(query)
+
+        def execute(self, query):
+            loop.call_soon_threadsafe(started.set)
+            released.wait()
+            finished.set()
+            raise duckdb.InterruptException("query cancelled")
+
+        def interrupt(self):
+            interrupted.set()
+            released.set()
+
+        def close(self):
+            assert finished.is_set(), "Closed while the query was still running"
+
+    class QueryConnection:
+        def cursor(self):
+            return GatedCursor()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(pool.catalog, "connection", QueryConnection())
+        query = asyncio.create_task(show.func(query="SELECT 1", title="Waiting"))
+        try:
+            await asyncio.wait_for(started.wait(), timeout=5)
+            query.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await query
+            assert interrupted.is_set()
+        finally:
+            released.set()
+            await asyncio.to_thread(finished.wait)
 
 
 @pytest.mark.asyncio

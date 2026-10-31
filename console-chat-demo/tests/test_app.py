@@ -1,6 +1,7 @@
 """The deployable app serves its UI without starting a model session."""
 
 import importlib.util
+import html
 import re
 import sys
 from pathlib import Path
@@ -25,8 +26,16 @@ def test_app_serves_chat_and_only_public_assets(tmp_path, monkeypatch):
         assert response.status_code == 200
         assert "Console Chat" in response.text
         assert "shiny-chat" in response.text
-        assert "Compare carriers" in response.text
+        assert "Which airlines have the longest delays?" in response.text
         assert "336,776" in response.text
+        for count in ("26,115", "3,322", "1,458", "16"):
+            assert count in response.text
+        assert 'role="tab"' in response.text and "Table views" in response.text
+        assert "Parquet" in response.text and "Format code" in response.text
+        assert "Plots &amp; results" not in response.text
+        greeting = html.unescape(response.text).replace('\\"', '"')
+        for language in ("R", "Python", "SQL"):
+            assert f'data-runtime="{language}"' in greeting
         # Sessions use the host's prepared packages unless a user opts in.
         checkbox = re.search(r'<input[^>]*id="dynamic"[^>]*>', response.text)
         assert checkbox and "checked" not in checkbox.group()

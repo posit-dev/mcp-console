@@ -20,7 +20,7 @@ import sqlglot
 from chatlas import ContentToolRequest, ContentToolResult
 from chatlas.types import ContentImageInline
 from runtime import DATA, MODEL, TABLES, Pool
-from shiny import App, Inputs, Outputs, Session, reactive, render, ui
+from shiny import App, Inputs, Outputs, Session, reactive, render, req, ui
 from shinychat import message_content
 from shinychat.types import ToolResultDisplay
 from yaml12 import format_yaml
@@ -64,7 +64,7 @@ def fenced(language: str, code: str) -> str:
 async def cell(arguments: dict) -> str:
     """Markdown for a send call's note and code, as written and formatted.
 
-    The Formatted switch chooses a version with CSS, so it also applies to
+    The Format code switch chooses a version with CSS, so it also applies to
     earlier messages without re-rendering them.
     """
     parts = [arguments["note"]] if arguments.get("note") else []
@@ -97,56 +97,81 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
 
     `offer_dynamic` shows the checkbox that lets a session prepare packages.
     """
-    # The preview needs only a slice; sessions query the full tables.
-    flights = DATA / "flights.parquet"
-    [(total,)] = duckdb.sql(f"SELECT count(*) FROM '{flights}'").fetchall()
-    sample = duckdb.sql(f"FROM '{flights}' LIMIT 1000").df()
+    # Small previews are shared by all viewers; full tables stay in Parquet.
+    originals = {}
+    with duckdb.connect() as preview:
+        for table in TABLES:
+            source = str(DATA / f"{table}.parquet")
+            [(total,)] = preview.execute(
+                "SELECT count(*) FROM read_parquet(?)", [source]
+            ).fetchall()
+            originals[table] = {
+                "title": table,
+                "rows": total,
+                "query": f"FROM {table}",
+                "data": preview.execute(
+                    "FROM read_parquet(?) LIMIT 1000", [source]
+                ).df(),
+            }
+    choices = {
+        name: f"{name} · {item['rows']:,} rows" for name, item in originals.items()
+    }
     suggestions = [
         (
-            "Compare carriers",
+            "SQL",
+            "Which airlines have the longest delays?",
             (
                 "Which carriers have the worst departure delays from each New York "
                 "airport? Use SQL, and account for how many flights each carrier operates."
             ),
-            "Find where delays concentrate.",
+            "Join tables and compare groups.",
         ),
         (
-            "See the seasons",
+            "R",
+            "How do delays change through the year?",
             (
                 "Use R and ggplot2 to plot the average departure delay for each day "
                 "of 2013. Explain the seasonal pattern and the worst days."
             ),
-            "Chart a year of delays with R.",
+            "Plot patterns with ggplot2.",
         ),
         (
-            "Model the weather",
+            "Python",
+            "Can weather help predict a delay?",
             (
                 "Use Python to join flights to weather and model how visibility, "
                 "precipitation and wind relate to departure delays. Explain the limits."
             ),
-            "Fit a model and inspect its assumptions.",
+            "Fit and evaluate a prediction model.",
         ),
     ]
     greeting = ui.TagList(
-        ui.div("A question is a place to start.", class_="welcome-heading"),
+        ui.div("Analyze data with R, Python and SQL", class_="welcome-heading"),
         ui.p(
-            "Explore every flight that left New York in 2013, make a chart, or try a model. "
-            "Your R, Python and SQL state stays available as the conversation develops.",
+            "Ask in plain English. Query in SQL, plot in R, or build a model in Python. "
+            "The languages share your results, so you can switch as you go. "
+            "Each visitor gets a separate sandboxed session, so several people can work at once.",
             class_="welcome-copy",
         ),
         ui.tags.ul(
             *[
                 ui.tags.li(
-                    ui.tags.span(
-                        description,
-                        title=title,
+                    ui.tags.button(
+                        ui.span(language + " ", class_="starter-language"),
+                        ui.strong(question + " "),
+                        ui.span(description, class_="starter-detail"),
+                        type="button",
                         class_="suggestion submit",
-                        **{"data-suggestion": prompt},
+                        **{"data-suggestion": prompt, "data-runtime": language},
                     )
                 )
-                for title, prompt, description in suggestions
+                for language, question, prompt, description in suggestions
             ],
             class_="starter-prompts",
+        ),
+        ui.p(
+            "Choose a starting question or ask your own. Follow-up questions try another language.",
+            class_="welcome-copy",
         ),
     )
     app_ui = ui.page_fillable(
@@ -159,7 +184,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 ui.div(">_", class_="brand-mark", **{"aria-hidden": "true"}),
                 ui.div(
                     ui.h1("Console Chat"),
-                    ui.p("Explore · calculate · model"),
+                    ui.p("A data analysis agent with MCP Console"),
                 ),
                 class_="brand",
             ),
@@ -189,16 +214,16 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                             ui.output_ui("export", inline=True),
                             ui.div(
                                 ui.input_switch(
-                                    "formatted_code", "Formatted", value=True
+                                    "formatted_code", "Format code", value=True
                                 ),
-                                title="Show code formatted with air, ruff and sqlglot, or as the model wrote it",
+                                title="Format the displayed code for readability. The executed code is unchanged.",
                                 class_="package-mode",
                             ),
                             ui.div(
                                 ui.input_checkbox(
-                                    "dynamic", "Dynamic packages", value=False
+                                    "dynamic", "Allow package installs", value=False
                                 ),
-                                title="Let the agent install packages. Startup is slower. Applies to the next session.",
+                                title="Applies to the next session. Packages are prepared in its own sandbox; startup can take minutes.",
                                 class_="package-mode",
                             )
                             if offer_dynamic
@@ -223,42 +248,78 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 fill=True,
             ),
             ui.div(
-                ui.card(
-                    # A view shown by the chat hides this default header.
-                    ui.div(
-                        ui.card_header(
-                            ui.div("THE STARTING POINT", class_="eyebrow"),
-                            ui.h2("New York flights, 2013"),
-                            ui.p(
-                                "Every departure from EWR, JFK and LGA, with weather, "
-                                "planes, airports and airlines."
+                ui.navset_card_tab(
+                    ui.nav_panel(
+                        "About the demo",
+                        ui.h2("New York flights, 2013"),
+                        ui.p(
+                            "nycflights13 contains 336,776 flights from Newark, JFK "
+                            "and LaGuardia, plus four related tables."
+                        ),
+                        ui.tags.table(
+                            ui.tags.caption("Five tables available in every session"),
+                            ui.tags.thead(
+                                ui.tags.tr(ui.tags.th("Table"), ui.tags.th("Rows"))
+                            ),
+                            ui.tags.tbody(
+                                *[
+                                    ui.tags.tr(
+                                        ui.tags.td(name),
+                                        ui.tags.td(f"{item['rows']:,}"),
+                                    )
+                                    for name, item in originals.items()
+                                ]
+                            ),
+                            class_="dataset-table",
+                        ),
+                        ui.p(
+                            "The tables are views over shared, read-only Parquet files. "
+                            "Queries read what they need; opening another session does not "
+                            "load another copy of the full dataset into memory. "
+                            "Query results and objects you create still use memory."
+                        ),
+                        ui.h3("What Console makes possible"),
+                        ui.tags.ul(
+                            ui.tags.li(
+                                "R, Python and SQL share one persistent workspace. "
+                                "Pass results between languages and build on earlier work."
+                            ),
+                            ui.tags.li(
+                                "Each visitor gets a separate agent and sandboxed Console. "
+                                "Several people can work at once on one app server."
+                            ),
+                            ui.tags.li(
+                                "Code can use installed packages and write files in its workspace. "
+                                "It cannot read other sessions or write to the host; network access is restricted."
                             ),
                         ),
-                        ui.div(
-                            ui.div(ui.strong(f"{total:,}"), ui.span("flights")),
-                            ui.div(ui.strong(str(len(TABLES))), ui.span("tables")),
-                            ui.div(ui.strong("3"), ui.span("airports")),
-                            class_="dataset-facts",
+                        ui.p(
+                            "Code, output and plots appear in the chat. Ask the agent to "
+                            "show a filtered table or summary in Table views. Download your "
+                            "code and data as a Quarto report when you finish."
                         ),
-                        class_="default-header",
+                        value="about",
                     ),
-                    ui.output_ui("data_header"),
-                    ui.output_data_frame("data_preview"),
-                    ui.output_ui("data_caption"),
-                    class_="data-card",
-                ),
-                ui.card(
-                    ui.card_header(
-                        ui.div("WHAT YOU DISCOVER", class_="eyebrow"),
-                        ui.h2("Plots & results"),
+                    ui.nav_panel(
+                        "Table views",
+                        ui.p(
+                            "Browse a source table, or ask the agent for a filtered view "
+                            "or summary. Views it creates are saved in this selector for your session."
+                        ),
+                        ui.input_select(
+                            "table_view", "View", choices=choices, selected="flights"
+                        ),
+                        ui.output_ui("data_header"),
+                        ui.output_data_frame("data_preview"),
+                        ui.output_ui("data_caption"),
+                        value="tables",
                     ),
-                    ui.output_ui("plot_gallery"),
-                    class_="results-card",
+                    id="inspection",
+                    selected="about",
                 ),
                 ui.p(
-                    "Code runs in your private Console workspace. Questions and "
-                    "execution results are sent to the model. Expand tool results "
-                    "in the chat to inspect the code and output.",
+                    "Questions, requested data and tool output are sent to the model provider. "
+                    "Your session ends when you disconnect or choose New session.",
                     class_="privacy-note",
                 ),
                 class_="inspection-column",
@@ -275,12 +336,11 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
         chat = ui.Chat("chat", history=False)
         status = reactive.value("Ready")
         identity = reactive.value("A private session starts with your first question")
-        images = reactive.value(())
         # The latest recorded report outlives a stopped session until the next
         # New session, like the messages it accompanies.
         reports = reactive.value({})
-        # The table the chat last showed with show_data; None shows all flights.
-        view = reactive.value(None)
+        # Keep the bounded previews returned by show_data, not full tables.
+        views = reactive.value({})
         backend = None
         active: asyncio.Task | None = None
         maintenance: asyncio.Task | None = None
@@ -314,6 +374,16 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 await backend.send(note=f"**Question:** {prompt}")
                 async with contextlib.aclosing(backend.stream(prompt)) as stream:
                     async for chunk in stream:
+                        if (
+                            isinstance(chunk, (ContentToolRequest, ContentToolResult))
+                            and (
+                                chunk.name
+                                if isinstance(chunk, ContentToolRequest)
+                                else chunk.request.name
+                            )
+                            == "suggest_next"
+                        ):
+                            continue
                         if isinstance(chunk, ContentToolRequest):
                             # Show the submitted code itself; the result card
                             # below holds the output.
@@ -327,11 +397,23 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                         ):
                             if chunk.error is None:
                                 with reactive.isolate():
-                                    view.set(chunk.extra)
+                                    shown = chunk.extra
+                                    key = "query:" + shown["title"]
+                                    saved = {**views.get(), key: shown}
+                                    views.set(saved)
+                                    ui.update_select(
+                                        "table_view",
+                                        choices={
+                                            **choices,
+                                            **{k: v["title"] for k, v in saved.items()},
+                                        },
+                                        selected=key,
+                                    )
+                                    ui.update_navset("inspection", selected="tables")
                                 # The panel's query runs outside Console, so the
                                 # report keeps it as prose rather than a chunk.
                                 await backend.send(
-                                    note=f"**Shown in the data panel:** {chunk.extra['title']}\n\n"
+                                    note=f"**Shown in Table views:** {chunk.extra['title']}\n\n"
                                     + fenced("sql", chunk.extra["query"])
                                 )
                             yield message_content(
@@ -339,7 +421,9 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                                     update={
                                         "extra": {
                                             "display": ToolResultDisplay(
-                                                title="Shown in the data panel",
+                                                title="Shown in Table views"
+                                                if chunk.error is None
+                                                else "Table query failed",
                                                 show_request=False,
                                             )
                                         }
@@ -389,8 +473,6 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                                 url = (
                                     f"data:{plot.image_content_type};base64,{plot.data}"
                                 )
-                                with reactive.isolate():
-                                    images.set((*images.get(), url)[-6:])
                                 yield ui.tags.img(
                                     src=url,
                                     alt="Plot produced by Console",
@@ -402,16 +484,26 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                             if isinstance(chunk, str):
                                 answer.append(chunk)
                             yield chunk
-                # The answer, without its clickable follow-up question, closes
-                # this turn in the session's recorded report.
-                await backend.send(
-                    note=re.sub(
-                        r"<span class=\"suggestion[^>]*>.*?</span>",
-                        "",
-                        "".join(answer),
-                        flags=re.DOTALL,
-                    ).strip()
-                )
+                await backend.send(note="".join(answer).strip())
+                if backend.suggestion is not None:
+                    language, question = backend.suggestion
+                    # Suggestions are enhanced by ShinyChat's Markdown renderer.
+                    # A raw HTML stream block would display an inert span.
+                    yield (
+                        "\n\n"
+                        + str(
+                            ui.tags.button(
+                                f"{language} · {question}",
+                                type="button",
+                                class_="suggestion submit next-question",
+                                **{
+                                    "data-suggestion": f"Use {language}. {question}",
+                                    "data-runtime": language,
+                                },
+                            )
+                        )
+                        + "\n\n"
+                    )
                 reports.set(backend.reports())
                 status.set("Ready")
             except asyncio.CancelledError:
@@ -449,8 +541,11 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                     if clear:
                         await chat.clear_messages(greeting=False)
                         reports.set({})
-                        images.set(())
-                        view.set(None)
+                        views.set({})
+                        ui.update_select(
+                            "table_view", choices=choices, selected="flights"
+                        )
+                        ui.update_navset("inspection", selected="about")
                     else:
                         message = (
                             "Stopped. This runtime and agent conversation were discarded. "
@@ -513,69 +608,47 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
         def session_info() -> str:
             return identity.get()
 
-        @reactive.effect
-        @reactive.event(input.all_flights)
-        def all_flights() -> None:
-            view.set(None)
+        @reactive.calc
+        def selected_view():
+            key = input.table_view()
+            if key in originals:
+                return originals[key]
+            saved = views.get()
+            req(key in saved)  # The select input settles after New session clears it.
+            return saved[key]
 
         @render.ui
         def data_header():
-            shown = view.get()
-            if shown is None:
-                return None
-            return ui.card_header(
-                ui.div(
-                    ui.div("SHOWN BY THE CHAT", class_="eyebrow"),
-                    ui.input_action_button(
-                        "all_flights", "All flights", class_="btn-sm btn-quiet"
-                    ),
-                    class_="view-heading",
-                ),
+            shown = selected_view()
+            return ui.div(
                 ui.h2(shown["title"]),
                 ui.tags.details(
-                    ui.tags.summary("Query"),
+                    ui.tags.summary("View SQL query"),
                     ui.pre(ui.code(shown["query"], class_="language-sql")),
                 ),
+                class_="view-heading",
             )
 
         @render.data_frame
         def data_preview():
-            shown = view.get()
-            data = sample if shown is None else shown["data"]
-            return render.DataGrid(data, height="265px", filters=True, summary=True)
+            shown = selected_view()
+            return render.DataGrid(
+                shown["data"], height="360px", filters=True, summary=True
+            )
 
         @render.ui
         def data_caption():
-            shown = view.get()
-            if shown is None:
-                text = f"First {len(sample):,} flights · nycflights13 · read-only"
-            elif shown["rows"] > len(shown["data"]):
-                text = f"First {len(shown['data']):,} of {shown['rows']:,} rows"
-            else:
-                text = f"{shown['rows']:,} rows"
-            return ui.p(text, class_="data-caption")
-
-        @render.ui
-        def plot_gallery():
-            plots = images.get()
-            if not plots:
-                return ui.div(
-                    ui.span("↗", class_="empty-plot-icon", **{"aria-hidden": "true"}),
-                    ui.strong("The next insight starts with a question"),
-                    ui.p(
-                        "Ask for a chart. Your latest six plots will appear here, with the calculations in the chat."
-                    ),
-                    class_="empty-gallery",
-                )
-            return ui.div(
-                *[
-                    ui.tags.figure(
-                        ui.tags.img(src=url, alt=f"Analysis plot {i + 1}"),
-                        ui.tags.figcaption(f"Plot {i + 1}"),
-                    )
-                    for i, url in enumerate(plots)
-                ],
-                class_="plot-gallery",
+            shown = selected_view()
+            displayed, total = len(shown["data"]), shown["rows"]
+            text = (
+                f"{total:,} rows"
+                if displayed == total
+                else f"First {displayed:,} of {total:,} rows"
+            )
+            return ui.p(
+                text
+                + ". Table filters apply to this preview; ask the agent to filter the full dataset.",
+                class_="data-caption",
             )
 
         @render.ui
@@ -584,9 +657,9 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 return None
             return ui.download_button(
                 "download_analysis",
-                "Export QMD",
+                "Download report",
                 class_="btn-sm btn-quiet",
-                title="Download a Quarto report of the code with the data it reads",
+                title="Download a zip containing a Quarto (.qmd) report and its Parquet data",
             )
 
         @render.download(

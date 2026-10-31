@@ -38,7 +38,18 @@ async def main() -> None:
         first.on("pageerror", lambda error: errors.append(str(error)))
         await first.goto(args.url)
         await expect(first.locator("#connection_status")).to_have_text("Ready")
-        await expect(first.get_by_text("Viewing rows", exact=False)).to_be_visible()
+        await expect(first.get_by_role("tab", name="About the demo")).to_have_attribute(
+            "aria-selected", "true"
+        )
+        await expect(first.get_by_text("336,776", exact=True)).to_be_visible()
+        for language in ("SQL", "R", "Python"):
+            await expect(
+                first.locator(f'.suggestion[data-runtime="{language}"]')
+            ).to_be_visible()
+        await first.get_by_role("tab", name="Table views").click()
+        await first.get_by_label("View", exact=True).select_option("airlines")
+        await expect(first.locator(".data-caption")).to_contain_text("16 rows")
+        await first.get_by_role("tab", name="About the demo").click()
         await first.screenshot(path=str(artifacts / "initial.png"), full_page=True)
 
         async def submit(page, prompt):
@@ -89,11 +100,11 @@ async def main() -> None:
             await expect(first.locator("#session_info")).to_contain_text(
                 "prepared packages"
             )
-            await expect(first.locator(".plot-gallery img")).to_have_count(1)
-            assert await first.locator(".plot-gallery img").evaluate_all(
+            await expect(first.locator(".chat-plot")).to_have_count(1)
+            assert await first.locator(".chat-plot").evaluate_all(
                 "images => images.every(x => x.complete && x.naturalWidth > 0)"
             )
-            # Code appears inline; the Formatted switch picks a version with CSS.
+            # Code appears inline; the Format code switch picks a version with CSS.
             await expect(
                 first.locator('.code-cell[data-language="Python"]:visible')
             ).not_to_have_count(0)
@@ -106,13 +117,13 @@ async def main() -> None:
                     '.code-cell[data-language="Python"]:visible'
                 ).first.inner_text()
             )
-            await first.get_by_label("Formatted").uncheck()
+            await first.get_by_label("Format code").uncheck()
             await expect(first.locator(".code-formatted:visible")).to_have_count(0)
-            await first.get_by_label("Formatted").check()
+            await first.get_by_label("Format code").check()
             await expect(first.locator(".code-written:visible")).to_have_count(0)
             suggestion = first.get_by_role("log").locator(".suggestion").last
             await expect(suggestion).to_be_visible()
-            question = await suggestion.inner_text()
+            question = await suggestion.get_attribute("data-suggestion")
             await suggestion.click()
             await expect(first.locator("#connection_status")).to_have_text("Working")
             await completed(first)
@@ -130,27 +141,29 @@ async def main() -> None:
             ).to_be_visible()
             await submit(
                 first,
-                "Show the flights from LGA to ORD on New Year's Day in the data panel.",
+                "Show the flights from LGA to ORD on New Year's Day as a table view titled New Year flights.",
             )
             await completed(first)
-            panel = first.locator(".data-card")
-            await expect(panel.get_by_text("SHOWN BY THE CHAT")).to_be_visible()
-            await expect(panel.locator(".data-caption")).not_to_contain_text(
-                "First 1,000 flights"
+            panel = first.locator(".inspection-column")
+            await expect(
+                first.get_by_role("tab", name="Table views")
+            ).to_have_attribute("aria-selected", "true")
+            await expect(panel.locator("h2:visible")).to_have_text("New Year flights")
+            await first.get_by_label("View", exact=True).select_option("airlines")
+            await expect(panel.locator(".data-caption")).to_contain_text("16 rows")
+            await first.get_by_label("View", exact=True).select_option(
+                label="New Year flights"
             )
-            await panel.get_by_role("button", name="All flights").click()
-            await expect(panel.locator("h2:visible")).to_have_text(
-                "New York flights, 2013"
-            )
+            await expect(panel.locator("h2:visible")).to_have_text("New Year flights")
             async with first.expect_download() as download:
-                await first.get_by_role("link", name="Export QMD").click()
+                await first.get_by_role("link", name="Download report").click()
             await (await download.value).save_as(artifacts / "analysis.zip")
             with zipfile.ZipFile(artifacts / "analysis.zip") as archive:
                 names = set(archive.namelist())
                 exported = archive.read("console-chat-analysis/analysis.qmd").decode()
             assert "console-chat-analysis/nycflights13/flights.parquet" in names
             assert "#| label: setup" in exported and "ALPHA_DONE" in exported
-            assert "Shown in the data panel" in exported
+            assert "Shown in Table views" in exported
             for chunk in ("```{python}", "```{r}", "```{sql}"):
                 assert chunk in exported, chunk
             await first.screenshot(path=str(artifacts / "analysis.png"), full_page=True)
@@ -161,11 +174,13 @@ async def main() -> None:
             await expect(first.locator("#session_info")).to_contain_text(
                 "next question"
             )
-            await expect(first.locator(".plot-gallery img")).to_have_count(0)
+            await expect(first.locator(".chat-plot")).to_have_count(0)
             if args.skip_dynamic:
-                await expect(first.get_by_label("Dynamic packages")).to_have_count(0)
+                await expect(
+                    first.get_by_label("Allow package installs")
+                ).to_have_count(0)
             else:
-                await first.get_by_label("Dynamic packages").check()
+                await first.get_by_label("Allow package installs").check()
                 await submit(
                     first,
                     "Use the requirements parameter to add the Python package humanize, "
@@ -240,7 +255,7 @@ async def main() -> None:
         await first.set_viewport_size({"width": 390, "height": 844})
         await first.locator(".chat-card").scroll_into_view_if_needed()
         chat_box = await first.locator(".chat-card").bounding_box()
-        data_box = await first.locator(".data-card").bounding_box()
+        data_box = await first.locator(".inspection-column").bounding_box()
         assert data_box["y"] >= chat_box["y"] + chat_box["height"] + 10
         editor = first.locator('[contenteditable="true"]')
         await editor.scroll_into_view_if_needed()
@@ -262,7 +277,7 @@ async def main() -> None:
             json.dumps(
                 {
                     "live": args.live or args.lifecycle,
-                    "model": "claude-opus-5-5",
+                    "session": await first.locator("#session_info").inner_text(),
                     "browser_errors": errors,
                 }
             )

@@ -1,17 +1,21 @@
 # Console Chat
 
-A Shiny for Python app that gives each browser client a chatlas conversation and a separate, sandboxed MCP Console process with persistent R, Python and SQL.
-Ask questions about the 2013 New York flights, calculate summaries, fit models, and make plots.
-The chat shows each submitted cell inline as R, Python or SQL code.
-The **Formatted** switch shows that code as formatted by Air, Ruff or SQLGlot, or as the model wrote it; formatting is display-only, and code that fails to parse is shown unchanged.
-The model can also replace the data panel's table with the result of a SQL query, and **All flights** restores the default view.
-**Export QMD** downloads a zip of a Quarto document and the Parquet files it reads.
-Suggested follow-up questions are clickable buttons that submit the next turn.
+A Shiny for Python demo of a data analysis agent with MCP Console.
+Each visitor gets a separate chatlas conversation and sandboxed Console, with persistent R, Python and SQL.
+One server process can serve several visitors at once.
 
-The interface follows [querychat](https://posit-dev.github.io/querychat/py/) and its [distinction between data viewing and analytical tool results](https://posit-dev.github.io/querychat/py/tools.html): conversation beside data, with the executed code and results available for inspection.
-Console owns code execution, interpreter state, plot capture, and sandbox enforcement.
-Chatlas owns the model/tool loop and the MCP connection.
-The app uses public MCP tools; it does not need the [Shiny fixture's](../tests/fixtures/control_shiny/README.md) private control socket or its object-inspection machinery.
+Ask in plain English, inspect the code and output, and pass results between languages.
+The starter questions demonstrate SQL summaries, R plots and Python models.
+Each follow-up suggests a related task in another runtime; the app rejects suggestions that repeat the turn's primary language.
+Plots appear inline in the chat.
+**Format code** changes only the displayed code, using Air, Ruff or SQLGlot; it does not change what runs.
+**Table views** lets you browse the five source tables and named views the agent creates.
+**Download report** exports Quarto source and the Parquet data in a zip.
+
+The interface builds on [querychat](https://posit-dev.github.io/querychat/py/)'s chat and data-view workflow.
+Console handles code execution, persistent state, cross-language access, plot capture and sandbox enforcement.
+Chatlas handles the model/tool loop and MCP connection.
+The app uses public Console tools; it does not need the [Shiny fixture's](../tests/fixtures/control_shiny/README.md) private control socket.
 
 ## Run locally
 
@@ -36,20 +40,33 @@ The launcher reads only `ANTHROPIC_API_KEY` from the specified file; it does not
 Alternatively, set `ANTHROPIC_API_KEY` in the server environment and omit `--renviron`.
 The model is `claude-opus-5-5` through chatlas's `ChatAnthropic()` with low reasoning effort.
 `ANTHROPIC_BASE_URL` routes requests through a gateway, such as the one [Posit Connect](#deploy-on-posit-connect) supplies.
-There is no model substitution.
 Use `--r /path/to/R` when R is not on `PATH`.
 
-The data are the [nycflights13](https://github.com/tidyverse/nycflights13) tables (CC0), stored as Parquet in `data/nycflights13/`; [data/nycflights13.R](data/nycflights13.R) regenerates them.
-Clients share these read-only files rather than receiving copies.
-Console's `startup` setting gives each session a DuckDB connection, `nyc` in R, with a view for each table, so SQL and dbplyr scan the files on demand.
-Each workspace links the files as `nycflights13/` for direct reads from Python or R.
-The operating system caches the files once for all sessions; a session uses more memory only when its code loads whole tables into data frames, which the model is asked to avoid.
-Objects and files persist for that browser session.
-Closing the browser, stopping work, or starting a new session retires its Console process and removes its workspace and recordings.
-The data panel shows the first flights until the model shows a query result there.
-Those queries run in the server process, not in Console, against a read-only DuckDB copy of the tables with external access disabled; they cannot see objects that session code creates.
-The panel shows at most 5,000 rows of a result.
+The bundled [nycflights13](https://github.com/tidyverse/nycflights13) data (CC0) describe scheduled flights from Newark, JFK and LaGuardia in 2013, including cancellations:
 
+| Table    |    Rows |
+| -------- | ------: |
+| flights  | 336,776 |
+| weather  |  26,115 |
+| planes   |   3,322 |
+| airports |   1,458 |
+| airlines |      16 |
+
+The files live in `data/nycflights13/`; [data/nycflights13.R](data/nycflights13.R) regenerates them.
+Clients share these read-only Parquet files.
+Console's startup code creates a DuckDB connection, `nyc` in R, with a view for each table.
+SQL and dbplyr scan the files as needed; each workspace also links them as `nycflights13/` for direct reads.
+Opening another session does not load another full copy of the dataset into RAM.
+The OS file cache is shared, while queries, collected results and user-created objects still use memory per session.
+
+The Table views tab uses another read-only DuckDB connection over the same Parquet files.
+Its queries run in the app process with access limited to those five files and configuration locked.
+It cannot see objects created inside Console.
+The app shares previews of up to 1,000 rows per source table; each agent-created view retains at most 5,000 rows for that viewer.
+Grid filters apply to the displayed preview; ask the agent to filter the full dataset.
+Reusing a view title replaces that view, and earlier named views remain selectable.
+
+Objects and files persist until the browser disconnects, work is stopped, or a new session starts.
 The export uses Console's recorded QMD source and adds an R setup chunk to open the bundled Parquet files.
 It selects knitr even for SQL-only or Python-only conversations, because the setup uses R.
 Named sessions and restarts produce separate documents (`analysis.qmd`, `analysis-2.qmd`, etc.); render each separately to preserve their independent state.
@@ -89,7 +106,7 @@ Python runs in the app's own environment, which includes the analysis packages i
 R uses its installation's libraries and any library in the server's `R_LIBS`; Console's R package preparation is disabled.
 Package requests fail in these sessions.
 
-The **Dynamic packages** checkbox applies to the next session.
+The **Allow package installs** checkbox applies to the next session.
 Console then prepares a managed Python environment and R dependencies separately for that client, and accepts explicit requests for additional packages.
 Preparation has its own sandbox and can download packages from configured sources; package installation and builds can run code, so use trusted packages and sources.
 Each client has its own preparation cache, which is removed when the client disconnects; cold starts can take minutes and substantial disk space.
@@ -159,7 +176,7 @@ Then configure the content:
   Each process then owns its own runtime root and session pool.
 - Set **Max connections per process** to the pool capacity, `CONSOLE_CHAT_CAPACITY` (default 8), so Connect starts another process before a pool is full.
   Bound **Max processes** by the host's CPU, memory, and disk.
-- Set `CONSOLE_CHAT_DYNAMIC_PACKAGES=0` to hide the **Dynamic packages** checkbox.
+- Set `CONSOLE_CHAT_DYNAMIC_PACKAGES=0` to hide the **Allow package installs** checkbox.
   On a fresh Connect host, a dynamic session's first package preparation took about three and a half minutes.
 - Set `CONSOLE_CHAT_PRIVATE_PATHS` to a JSON list of Connect paths that evaluated code must not read: `["/opt/rstudio-connect/mnt/job", "/opt/rstudio-connect/mnt/app-data"]`.
   The job directory holds the content's Connect session token.
