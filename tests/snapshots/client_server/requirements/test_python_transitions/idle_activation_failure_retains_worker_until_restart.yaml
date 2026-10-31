@@ -15,22 +15,33 @@ send:
   python: |
     import runpy
     import sys
+    import tempfile
+    from pathlib import Path
 
     identity = object()
     identity_id = id(identity)
+    activation_directory = tempfile.TemporaryDirectory()
+    activation_started = Path(activation_directory.name) / "started"
+    activation_release = Path(activation_directory.name) / "release"
 
 
     def fail_activation(_path):
+        with activation_started.open("wb", buffering=0) as gate:
+            gate.write(b"1")
+        with activation_release.open("rb", buffering=0) as gate:
+            assert gate.read(1) == b"1"
         raise ValueError("idle activation failure")
 
 
     runpy.run_path = fail_activation
-    print(sys.executable)
+    print(sys.executable, activation_started, activation_release, sep="\n")
 result:
   content:
     - type: text
       text: |
         <running Python>
+        <activation started>
+        <activation release>
   isError: false
 ---
 send:

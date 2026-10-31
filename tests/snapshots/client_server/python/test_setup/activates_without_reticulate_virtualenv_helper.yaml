@@ -11,6 +11,7 @@ send:
       print = FALSE,
       where = namespace
     )))
+  timeout_ms: 0
 result:
   content:
     - type: text

@@ -518,8 +518,7 @@ def python_inventory_client(
     client.initialize_and_list_tools()
     if not retain_initialization:
         client.transcript.clear()
-    client.send(requirements={"r": ["DBI"]})
-    assert last_result_text(client) == "[prepared]", client.transcript[-1]
+    client.expect("[prepared]", requirements={"r": ["DBI"]})
     arguments.write_text("", encoding="utf-8")
     if resolver_record is not None:
         resolver_record.write_text("", encoding="utf-8")
@@ -607,7 +606,7 @@ def resolve_public_python_version(
         )
         cat(result, "\n", sep = "")
         """)
-    client.send(r=r)
+    client.expect(None, r=r)
     return last_result_text(client)
 
 
@@ -666,8 +665,7 @@ def uv_tool_run_requirements(record: Path) -> list[list[str]]:
 
 
 def initialize_python_and_record_baseline(client: McpClient, record: Path) -> int:
-    client.send(python="None")
-    assert last_result_text(client) == "[done]"
+    client.expect(python="None")
     return len(uv_tool_run_requirements(record))
 
 
@@ -690,7 +688,8 @@ def resolve_managed_python(
         current_directory=workspace,
     ) as client:
         client.initialize_and_list_tools()
-        client.send(
+        client.expect(
+            None,
             # fmt: python
             python=code("""
                 import sys

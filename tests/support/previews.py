@@ -98,6 +98,14 @@ def recording_events(recording: Path) -> list[dict]:
     ]
 
 
+def live_recording_events(recording: Path) -> list[dict]:
+    """Read complete journal frames while its writer may be appending the tail."""
+    return [
+        json.loads(line)
+        for line in (recording / "capture/events.jsonl").read_bytes().split(b"\n")[:-1]
+    ]
+
+
 def cell_output_path(recording: Path, call_id: int) -> Path:
     """Resolve public call/cell associations, including polls and replacements."""
     # Later delivery events may still be mid-append after a response arrives.

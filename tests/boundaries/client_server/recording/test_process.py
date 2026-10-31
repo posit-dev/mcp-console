@@ -22,7 +22,7 @@ from support.events import Events
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
-from support.previews import session_directory
+from support.previews import live_recording_events, session_directory
 from support.processes import host_process_id
 from support.records import Transcript
 from support.requirements import (
@@ -285,7 +285,7 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                             event["event"] == "delivery"
                             and event["call_id"] == 2
                             and event["delivered"]
-                            for event in recording_events(recording)
+                            for event in live_recording_events(recording)
                         )
                         else None
                     ),
@@ -340,7 +340,7 @@ def test_recording_send_keeps_following_cancellation_and_ping_live(
         client.expect("zod: after\n", r="echo after")
         recording = session_directory(client)
         transcript = client.transcript
-        events = recording_events(recording)
+        events = live_recording_events(recording)
         calls = [event for event in events if event["event"] == "tool_call"]
         assert [event["request_id"] for event in calls] == [
             entry["id"] for entry in transcript if "send" in entry
@@ -420,7 +420,7 @@ def test_first_rejected_send_publishes_the_observed_prelude(
                 rejected = client.send(r="must not execute", python="must not execute")
                 assert rejected["isError"] is True
                 (recording,) = (root / ".agents/console/sessions").iterdir()
-                published = recording_events(recording)
+                published = live_recording_events(recording)
                 prelude = [
                     e
                     for e in published
@@ -519,7 +519,7 @@ def test_sessions_follow_actual_worker_lifetimes(
                 len(
                     [
                         e
-                        for e in recording_events(recording)
+                        for e in live_recording_events(recording)
                         if e["event"] == "worker_started"
                     ]
                 )

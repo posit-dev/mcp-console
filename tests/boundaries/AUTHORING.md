@@ -77,6 +77,12 @@ Before closing input to check response delivery, gate an accepted result; EOF ca
 Process startup does not prove a cell log has closed.
 For shutdown output, establish cell completion and its recorded `cell_output` event before asserting which file owns later bytes.
 Sleeps, broader matching, and longer timeouts do not establish ordering.
+Receiving an MCP result frame does not prove its delivery acknowledgment has settled.
+Before a nonwaiting integrator operation that requires idle state, observe `status.idle`; use `busy: "wait"` when submitting an ordinary integrator evaluation.
+An accepted interrupt likewise does not prove the input request has closed: collect the expected interruption output before asserting completion.
+Start a liveness deadline at the fixture checkpoint for the operation under test, after unrelated interpreter discovery and preparation have completed.
+Use `live_recording_events()` for a journal whose writer is still active; a read can end inside a JSON record or UTF-8 character.
+Parse finalized journals in full so truncated recordings remain failures.
 
 For direct pipe fixtures, `read_lines()` consumes an exact batch up to the producer's next command or checkpoint gate.
 Count all records in that batch; adjacent records may arrive in one read.
@@ -90,6 +96,7 @@ Use `client.expect(None, ...)` when asserting the collected content separately, 
 An initial `timeout_ms=0` exercises polling without making query speed part of those assertions.
 Give cold preparation an explicit longer budget.
 The default `send` observation deadline can return while setup is still running; establish completion before dependent requests.
+Use local wheels for packages that serve only as installation or import sentinels, while retaining real libraries when their behavior or permissions are the contract being tested.
 Use the client's preparation budget for resolver collection and initial requirements inspection.
 Use `McpClient.response_deadline()` for client-aware fixture waits so the remaining case deadline retains its shutdown and reap reserve.
 Convert the absolute deadline to a nonnegative timeout immediately before blocking.

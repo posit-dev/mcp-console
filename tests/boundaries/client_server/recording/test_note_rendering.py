@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -259,14 +260,53 @@ writeLines("example", "note-ran")
                 del render_environment[name]
         render_environment["IR_CACHE_DIR"] = ir_cache_directory(environment)
         render_environment["XDG_CONFIG_HOME"] = str(workspace / ".config")
-        rendering = subprocess.run(
-            ["ir", "render", document.name, "--to", "html", "--quiet"],
-            cwd=report,
-            env=render_environment,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+        # IR prepares a separate Jupyter environment for Quarto. Give that
+        # dependency work the remaining preparation budget before timing the
+        # actual render, and prove that preparation executes neither source nor
+        # the note's R example.
+        preparation_timeout = client.response_deadline() - time.monotonic() - 120
+        assert preparation_timeout > 0, "no case budget remains for preparation"
+        try:
+            prewarm = subprocess.run(
+                [
+                    "ir",
+                    "render",
+                    document.name,
+                    "--to",
+                    "html",
+                    "--output",
+                    "prewarm.html",
+                    "--no-execute",
+                ],
+                cwd=report,
+                env=render_environment,
+                capture_output=True,
+                text=True,
+                timeout=preparation_timeout,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise AssertionError(
+                {"phase": "preparation", "stdout": error.stdout, "stderr": error.stderr}
+            ) from error
+        assert prewarm.returncode == 0, {
+            "stdout": prewarm.stdout,
+            "stderr": prewarm.stderr,
+        }
+        assert not (report / "source-ran").exists()
+        assert not (report / "note-ran").exists()
+        try:
+            rendering = subprocess.run(
+                ["ir", "render", document.name, "--to", "html", "--quiet"],
+                cwd=report,
+                env=render_environment,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise AssertionError(
+                {"phase": "rendering", "stdout": error.stdout, "stderr": error.stderr}
+            ) from error
         assert rendering.returncode == 0, {
             "stdout": rendering.stdout,
             "stderr": rendering.stderr,

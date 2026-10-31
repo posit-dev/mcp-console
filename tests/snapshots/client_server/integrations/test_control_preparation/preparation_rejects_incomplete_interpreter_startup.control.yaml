@@ -109,12 +109,23 @@ response:
 ---
 request:
   id: "5"
+  op: status
+  session: default
+response:
+  id: "5"
+  result:
+    state: idle
+    idle: true
+    evaluation: ~
+---
+request:
+  id: "6"
   op: prepare
   requirements:
     r:
       - praise
 response:
-  id: "5"
+  id: "6"
   result:
     requirements:
       r:

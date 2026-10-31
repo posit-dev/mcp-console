@@ -21,6 +21,7 @@ from support.client import McpClient
 from support.checkpoints import wait_for_checkpoint, wait_for_path
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_recording
+from support.previews import live_recording_events
 from support.r import r_test_environment, reference_plots
 from support.records import Transcript, TranscriptWithCompanions
 from support.suites import run_this_suite
@@ -224,12 +225,7 @@ def test_records_real_mixed_language_session(
         assert '"a"' in sql_output and "20" in sql_output, sql_output
         assert '"b"' in sql_output and "50" in sql_output, sql_output
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        events = [
-            json.loads(line)
-            for line in (session / "capture" / "events.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-        ]
+        events = live_recording_events(session)
         artifacts = [event for event in events if event["event"] == "image_retained"]
         assert len(artifacts) == 1, artifacts
         artifact = artifacts[0]

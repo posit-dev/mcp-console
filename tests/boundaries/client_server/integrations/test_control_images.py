@@ -96,11 +96,11 @@ def test_previews_images_without_consuming_or_reaccounting(
                 emitted = "x" * 24000 + "\n"
 
                 def captured() -> Path | None:
-                    journal = (recording / "capture/events.jsonl").read_text()
+                    journal = (recording / "capture/events.jsonl").read_bytes()
                     events = [
                         json.loads(line)
                         for line in journal.splitlines(keepends=True)
-                        if line.endswith("\n")
+                        if line.endswith(b"\n")
                     ]
                     if not any(event["event"] == "image_retained" for event in events):
                         return None

@@ -30,7 +30,7 @@ send:
         return(invisible(NULL))
       }
       stopifnot(file.create(callback_checkpoint))
-      reticulate::py_require("py-yaml12")
+      reticulate::py_require("mcp-console-test-idle-activation")
       cat("idle Python activated\n")
       stopifnot(file.create(callback_complete))
     }
@@ -68,10 +68,12 @@ result:
   isError: false
 ---
 send:
-  python: import yaml12; yaml12.__name__
+  python: >-
+    import mcp_console_test_idle_activation;
+    mcp_console_test_idle_activation.answer
 result:
   content:
     - type: text
       text: |
-        'yaml12'
+        42
   isError: false

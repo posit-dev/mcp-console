@@ -7,6 +7,7 @@ send:
     original_stderr = os.dup(2)
     raw_stderr = tempfile.TemporaryFile()
     _ = os.dup2(raw_stderr.fileno(), 2)
+  timeout_ms: 0
 result:
   content:
     - type: text

@@ -8,7 +8,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from boundaries.client_server.integrations.test_control import ControlClient
+from boundaries.client_server.integrations.test_control import (
+    ControlClient,
+    result_text,
+)
 from boundaries.client_server.python.test_without_r import selected_environment
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
@@ -54,12 +57,15 @@ def test_discovers_current_projections_without_consuming_output(
                 assert Path(first["qmd"]) == recording / "sessions/session-001.qmd"
                 assert first["worker_id"] == 1
                 assert "visible_source = 42" in Path(first["qmd"]).read_text()
-                control.request(
+                hidden = control.request(
                     op="evaluate",
                     language="python",
                     code="hidden_inspection = 1",
                     record=False,
+                    busy="wait",
+                    wait_ms=30000,
                 )
+                assert result_text(hidden) == "[done]", hidden
                 assert "hidden_inspection" not in Path(first["qmd"]).read_text()
                 assert "hidden_inspection" not in Path(first["markdown"]).read_text()
 
