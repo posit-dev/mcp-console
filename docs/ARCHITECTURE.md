@@ -142,6 +142,10 @@ Failed or interrupted native R initialization is not retried in place.
 SQL connections stay in their owning runtime.
 Actual R capability chooses the default managed provider independently of public language visibility or initialization order.
 Selecting or attaching another runtime must not replace a user-selected connection.
+The public connection helpers use reticulate to expose the active connection across runtimes: a Python object proxy in R, or an opaque R object capsule in Python.
+The bridge preserves the native connection and its driver interface; it does not adapt DBI to DB-API or vice versa.
+Getters preserve selection and retained results.
+Setters pass bridged objects to their owning runtime for native validation and selection, with the same result invalidation as a local selection.
 
 Each SQL provider retains one native result and its bounded preview/lookahead rows.
 The public last-result function consumes those rows before fetching more in its owning runtime, with an optional row limit.

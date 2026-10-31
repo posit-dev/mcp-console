@@ -90,22 +90,25 @@ result:
               `text <- capture.output(print(?pkg::topic))`, then print line ranges
               with `writeLines()`. Access Python globals through `py$name`.
               `.console$sql_connection()` returns the active native DBI connection for
-              DBI/dplyr, or errors if another runtime owns SQL. Select a user-owned
-              DBI connection for SQL cells with `.console$sql_connection(connection)`;
-              restore managed DuckDB with `.console$sql_connection(NULL)`. Never
-              disconnect the managed connection; restore it before disconnecting a
-              selection. After R-owned SQL, `.console$sql_last_result(n = 100)`
-              returns a data frame of up to n successive rows, including the original
-              preview first, without re-executing SQL; omit n to materialize all
-              remaining rows. Column types and precision follow the database driver.
-              Cleanup is automatic on exhaustion, replacement, or retrieval failure.
-              Default-device plots return as PNGs and finalize at cell end, including
-              after errors; draw each plot in one cell. Explicit devices are not
-              captured. Set persistent dimensions in inches and DPI with
-              `options(console.plot.width_in = ..., console.plot.height_in = ...,
-              console.plot.dpi = ...)`. For a reusable R script, include imports, data
-              inputs, and `#| packages:`/`#| r-version:` metadata for `ir run
-              script.R`, which starts without live Console objects.
+              DBI/dplyr, or a reticulate proxy for another runtime's connection. Call
+              proxy methods with `$` and convert their results with
+              `reticulate::py_to_r()`. Select a user-owned DBI connection or bridged
+              DB-API connection for SQL cells with
+              `.console$sql_connection(connection)`; restore managed DuckDB with
+              `.console$sql_connection(NULL)`. Never disconnect the managed
+              connection; restore it before disconnecting a selection. After R-owned
+              SQL, `.console$sql_last_result(n = 100)` returns a data frame of up to n
+              successive rows, including the original preview first, without
+              re-executing SQL; omit n to materialize all remaining rows. Column types
+              and precision follow the database driver. Cleanup is automatic on
+              exhaustion, replacement, or retrieval failure. Default-device plots
+              return as PNGs and finalize at cell end, including after errors; draw
+              each plot in one cell. Explicit devices are not captured. Set persistent
+              dimensions in inches and DPI with `options(console.plot.width_in = ...,
+              console.plot.height_in = ..., console.plot.dpi = ...)`. For a reusable R
+              script, include imports, data inputs, and `#| packages:`/`#| r-version:`
+              metadata for `ir run script.R`, which starts without live Console
+              objects.
             type:
               - string
               - "null"
@@ -115,19 +118,22 @@ result:
               final visible expression autoprints; leave the primary result last. Only
               startup dependencies are prepared; later `requirements.python` changes
               and automatic import preparation are disabled. Access R globals and call
-              functions through `r.name`. Select a user-owned DB-API connection for
-              SQL cells with `_console.sql_connection(connection)`; restore managed
-              DuckDB with `_console.sql_connection(None)`. After Python-owned SQL,
-              `data = _console.sql_last_result(n=100)` retrieves up to n successive
-              native rows, including the original preview first, without re-executing
-              SQL; omit n to materialize all remaining rows. It returns a dictionary
-              with `rows` and ordered `columns`, without requiring pandas. Optional
+              functions through `r.name`. Select a user-owned DB-API connection or
+              bridged DBI connection for SQL cells with
+              `_console.sql_connection(connection)`; restore managed DuckDB with
+              `_console.sql_connection(None)`. After Python-owned SQL, `data =
+              _console.sql_last_result(n=100)` retrieves up to n successive native
+              rows, including the original preview first, without re-executing SQL;
+              omit n to materialize all remaining rows. It returns a dictionary with
+              `rows` and ordered `columns`, without requiring pandas. Optional
               `pandas.DataFrame(data["rows"], columns=data["columns"])` conversion
               follows pandas' type rules. Cleanup is automatic on exhaustion,
               replacement, or retrieval failure; connections stay open. For R-owned
               DuckDB, bind Python frames to an R name through `r` before querying.
               `_console.sql_connection()` returns the active native Python connection,
-              or errors if SQL uses R; on Python-owned DuckDB, register frames with
+              or an opaque R DBI handle. Pass that handle to R functions, for example
+              `r['DBI::dbGetQuery'](_console.sql_connection(), 'SELECT 42 AS
+              answer')`. To query frames on Python-owned DuckDB, register them with
               `_console.sql_connection().register(name, frame)` (globals are not
               scanned). `matplotlib.pyplot.show()` returns open figures as PNGs
               immediately and closes them. At cell end, even after errors, remaining

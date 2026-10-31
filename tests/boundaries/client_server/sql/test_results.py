@@ -701,6 +701,92 @@ def test_dbi_bounds_fetches_and_preserves_transactions(
 
 @requires(R, SQL)
 @executions(RUNTIME)
+def test_bridged_connections_preserve_results_and_transactions(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with McpClient(binary, execution.serve()) as client:
+        client.initialize_and_list_tools()
+        client.expect(
+            requirements={"r": ["RSQLite"]},
+            # fmt: r
+            r=code("""
+                selected_r <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+                invisible(DBI::dbExecute(selected_r, "CREATE TABLE values_table (id INTEGER)"))
+                DBI::dbBegin(selected_r)
+                invisible(DBI::dbExecute(selected_r, "INSERT INTO values_table VALUES (42)"))
+                .console$sql_connection(selected_r)
+                """),
+        )
+        client.expect(None, sql="SELECT id FROM values_table")
+        client.expect(
+            # fmt: python
+            python=code("""
+                r = 42
+                borrowed_r = _console.sql_connection()
+                assert r == 42
+                """),
+        )
+        client.expect(r="stopifnot(identical(.console$sql_last_result()$id, 42L))")
+        client.expect(None, sql="SELECT id FROM values_table")
+        client.expect(
+            # fmt: python
+            python=code("""
+                _console.sql_connection(borrowed_r)
+                assert r == 42
+                """),
+        )
+        client.expect(
+            "bridged R selection discards results without committing\n",
+            # fmt: r
+            r=code("""
+                message <- tryCatch(.console$sql_last_result(), error = conditionMessage)
+                stopifnot(grepl("No retained", message, fixed = TRUE))
+                DBI::dbRollback(selected_r)
+                stopifnot(
+                  DBI::dbGetQuery(selected_r, "SELECT count(*) AS n FROM values_table")$n == 0
+                )
+                writeLines("bridged R selection discards results without committing")
+                """),
+        )
+        client.expect(
+            # fmt: python
+            python=code("""
+                import sqlite3
+
+                selected_python = sqlite3.connect(":memory:")
+                selected_python.execute("CREATE TABLE values_table (id INTEGER)")
+                selected_python.execute("INSERT INTO values_table VALUES (42)")
+                _console.sql_connection(selected_python)
+                """),
+        )
+        client.expect(None, sql="SELECT id FROM values_table")
+        client.expect(r="borrowed_python <- .console$sql_connection()")
+        client.expect(
+            python='assert _console.sql_last_result() == {"columns": ("id",), "rows": [(42,)]}'
+        )
+        client.expect(None, sql="SELECT id FROM values_table")
+        client.expect(r=".console$sql_connection(borrowed_python)")
+        client.expect(
+            "bridged Python selection discards results without committing\n",
+            # fmt: python
+            python=code("""
+                try:
+                    _console.sql_last_result()
+                except RuntimeError as error:
+                    assert "No retained" in str(error)
+                else:
+                    raise AssertionError("bridged selection retained unread rows")
+                assert selected_python.in_transaction
+                selected_python.rollback()
+                assert selected_python.execute("SELECT count(*) FROM values_table").fetchone() == (0,)
+                print("bridged Python selection discards results without committing")
+                """),
+        )
+        return client.finish()
+
+
+@requires(R, SQL)
+@executions(RUNTIME)
 def test_invalidates_closes_and_restarts(
     binary: Path, execution: Execution
 ) -> Transcript:

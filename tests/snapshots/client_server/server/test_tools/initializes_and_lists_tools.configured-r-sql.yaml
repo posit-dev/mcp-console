@@ -86,8 +86,10 @@ result:
               UTF-8/ASCII source for other formats. Capture long documentation with
               `text <- capture.output(print(?pkg::topic))`, then print line ranges
               with `writeLines()`. `.console$sql_connection()` returns the active
-              native DBI connection for DBI/dplyr, or errors if another runtime owns
-              SQL. Select a user-owned DBI connection for SQL cells with
+              native DBI connection for DBI/dplyr, or a reticulate proxy for another
+              runtime's connection. Call proxy methods with `$` and convert their
+              results with `reticulate::py_to_r()`. Select a user-owned DBI connection
+              or bridged DB-API connection for SQL cells with
               `.console$sql_connection(connection)`; restore managed DuckDB with
               `.console$sql_connection(NULL)`. Never disconnect the managed
               connection; restore it before disconnecting a selection. After R-owned
