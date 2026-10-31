@@ -18,6 +18,8 @@ request:
   language: python
   code: hidden_inspection = 1
   record: false
+  busy: wait
+  wait_ms: 30000
 response:
   id: "2"
   result:

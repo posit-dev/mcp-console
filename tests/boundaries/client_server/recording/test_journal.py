@@ -15,7 +15,7 @@ from yaml12 import format_yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.previews import cell_output_path
+from support.previews import cell_output_path, live_recording_events
 from support.progress import normalize_elapsed, without_elapsed_result
 from support.requirements import (
     NATIVE_FIXTURES,
@@ -131,12 +131,7 @@ def test_materializes_records_only_for_console_use(
         assert (sessions[0] / "sessions/session-001.qmd").is_file(), sessions
         assert (sessions[0] / "capture/sessions/001").is_dir(), sessions
         assert (cell_output_path(sessions[0], 1)).read_text() == "zod: echo\n"
-        events = [
-            json.loads(line)
-            for line in (sessions[0] / "capture" / "events.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-        ]
+        events = live_recording_events(sessions[0])
         semantic_events = call_events(events)
         assert [event["event"] for event in semantic_events] == [
             "recording_started",
@@ -790,12 +785,7 @@ def test_keeps_recording_after_cell_output_failure(
             "zod: third\n"
         )
 
-        events = [
-            json.loads(line)
-            for line in (session / "capture" / "events.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-        ]
+        events = live_recording_events(session)
         semantic_events = call_events(events)
         assert [event["event"] for event in semantic_events] == [
             "recording_started",

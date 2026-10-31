@@ -308,8 +308,8 @@ def test_prepares_r_requirements_after_worker_startup(
         )
         42L
         """)
-    client.send(r=r, requirements={"r": ["zeallot"]})
-    assert last_result_text(client) == "[1] 42\n"
+    client.expect(None, r=r, requirements={"r": ["zeallot"]}, timeout_ms=0)
+    assert last_result_text(client) == "[1] 42\n", client.transcript[-1]
     return client.finish()
 
 
@@ -360,7 +360,7 @@ def test_stops_live_preparation_for_idle_callback_input(
         later::later(run_callback, delay = 0.01)
         cat(callback_gate, callback_checkpoint, sep = "\n")
         """)
-    client.send(r=r)
+    client.expect(None, r=r)
     release_worker_callback_gate(client, "idle input callback")
     wait_for_idle_output(
         client,
@@ -429,7 +429,7 @@ def test_failed_mixed_preparation_retains_live_python_activation(
                 managed_index <- if (Sys.getenv("MCP_CONSOLE_SANDBOX") == "1") 2L else 1L
                 cat(.libPaths()[[managed_index]])
                 """)
-            client.send(r=setup)
+            client.expect(None, r=setup)
             initial_library = Path(last_result_text(client))
             assert initial_library.is_dir(), initial_library
             client.transcript[-1]["result"]["content"][0]["text"] = (
@@ -674,7 +674,7 @@ def test_evaluates_with_default_managed_r(
             stopifnot(identical(as.integer(csv$value), json$value))
             dplyr::summarise(csv, answer = sum(.data$value))$answer
             """)
-        client.send(r=r)
+        client.expect(None, r=r)
         assert last_result_text(client) == "[1] 42\n", client.transcript[-1]
         # Repository labels vary by mirror. Check the default package references
         # passed to ir, including the registry release of reticulate.

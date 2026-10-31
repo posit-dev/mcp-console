@@ -1,9 +1,20 @@
 ---
 request:
   id: "1"
-  op: output
+  op: status
+  session: default
 response:
   id: "1"
+  result:
+    state: idle
+    idle: true
+    evaluation: ~
+---
+request:
+  id: "2"
+  op: output
+response:
+  id: "2"
   result:
     worker_id: 1
     first_sequence: 1
@@ -54,7 +65,7 @@ response:
         evaluation_id: 2
 ---
 request:
-  id: "2"
+  id: "3"
   op: prepare
   requirements:
     r:
@@ -64,7 +75,7 @@ request:
     duckdb:
       - json
 response:
-  id: "2"
+  id: "3"
   result:
     requirements:
       r:
@@ -106,10 +117,10 @@ response:
     status: prepared
 ---
 request:
-  id: "3"
+  id: "4"
   op: requirements
 response:
-  id: "3"
+  id: "4"
   result:
     requirements:
       r:
@@ -149,34 +160,34 @@ response:
       python: []
 ---
 request:
-  id: "4"
+  id: "5"
   op: prepare
   requirements:
     action: get
 response:
-  id: "4"
+  id: "5"
   error:
     code: invalid_request
     message: prepare supports only requirements.action=add
 ---
 request:
-  id: "5"
+  id: "6"
   op: prepare
   requirements:
     action: set
 response:
-  id: "5"
+  id: "6"
   error:
     code: invalid_request
     message: prepare supports only requirements.action=add
 ---
 request:
-  id: "6"
+  id: "7"
   op: prepare
   requirements:
     action: reset
 response:
-  id: "6"
+  id: "7"
   error:
     code: invalid_request
     message: prepare supports only requirements.action=add

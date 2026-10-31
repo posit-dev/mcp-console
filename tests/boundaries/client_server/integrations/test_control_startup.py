@@ -41,8 +41,8 @@ def assert_prelaunch_failure(
         for path in recordings.glob("*/capture/events.jsonl"):
             events = [
                 json.loads(line)
-                for line in path.read_text().splitlines(keepends=True)
-                if line.endswith("\n")
+                for line in path.read_bytes().splitlines(keepends=True)
+                if line.endswith(b"\n")
             ]
             if any(
                 event["event"] == name

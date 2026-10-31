@@ -13,7 +13,7 @@ from boundaries.client_server.integrations.test_control import (
     result_text,
 )
 from boundaries.client_server.python.test_without_r import selected_environment
-from support.assertions import tool_text
+from support.assertions import tool_text, wait_for_evaluation_output
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
@@ -348,8 +348,16 @@ def test_routes_input_interrupts_and_preparation_to_selected_session(
                 assert control.request(
                     op="interrupt", session="alpha", evaluation_id=target
                 )["result"] == {"accepted": True}
-                interrupted = client.expect(None, session="alpha")
-                assert "KeyboardInterrupt" in tool_text(interrupted), interrupted
+                # Acceptance queues the interrupt; managed input can still be
+                # visible until the worker handles it. Collect through that
+                # nonterminal state and retain the complete traceback.
+                wait_for_evaluation_output(
+                    client,
+                    lambda text: "KeyboardInterrupt" in text,
+                    "named managed input interrupted",
+                    completion_timeout_seconds=client.response_timeout,
+                    session="alpha",
+                )
                 assert control.request(op="status")["result"] == default
                 assert result_text(control.request(op="preview")) == ""
                 control.request(

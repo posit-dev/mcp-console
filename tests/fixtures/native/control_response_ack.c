@@ -24,11 +24,13 @@ static ssize_t checkpoint_write(int descriptor, const void *buffer, size_t count
     write_function next_write = (write_function)dlsym(RTLD_NEXT, "write");
 #endif
     const unsigned char *bytes = buffer;
-    const char match[] = "[output omitted:";
+    const char *match = getenv("MCP_CONSOLE_TEST_ACK_MATCH");
+    if (match == NULL) match = "[output omitted:";
+    size_t match_length = strlen(match);
     bool matched = false;
     if (descriptor == STDOUT_FILENO && count && bytes[count - 1] == '\n') {
-        for (size_t i = 0; i + sizeof(match) - 1 <= count; ++i) {
-            if (memcmp(bytes + i, match, sizeof(match) - 1) == 0) {
+        for (size_t i = 0; i + match_length <= count; ++i) {
+            if (memcmp(bytes + i, match, match_length) == 0) {
                 matched = true;
                 break;
             }

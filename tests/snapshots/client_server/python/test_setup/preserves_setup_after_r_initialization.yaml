@@ -4,6 +4,7 @@
 send:
   r: |
     invisible(reticulate::py_config())
+  timeout_ms: 0
 result:
   content:
     - type: text

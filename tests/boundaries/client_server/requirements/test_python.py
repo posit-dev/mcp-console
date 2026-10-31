@@ -18,7 +18,7 @@ from support.assertions import (
     release_worker_callback_gate,
     wait_for_idle_output,
 )
-from support.checkpoints import FifoCheckpoint
+from support.checkpoints import FifoCheckpoint, wait_for_path
 from support.client import McpClient, stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_python_resolution_error
@@ -1016,59 +1016,75 @@ def test_retains_idle_python_activation_during_continuous_collection(
     binary: Path,
     execution: Execution,
 ) -> Transcript:
-    client = McpClient(
-        binary,
-        execution.serve("-c", "python.managed.resolution=implicit"),
-    )
-    client.initialize_and_list_tools()
-    client.send(requirements={"r": ["later"]})
-    client.expect(r="invisible(reticulate::py_config())")
-
-    # fmt: r
-    r = code(r"""
-        callback_gate <- tempfile("mcp-console-callback-gate-")
-        callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
-        callback_complete <- tempfile("mcp-console-callback-complete-")
-        run_callback <- function() {
-          if (!file.exists(callback_gate)) {
-            later::later(run_callback, delay = 0.01)
-            return(invisible(NULL))
-          }
-          stopifnot(file.create(callback_checkpoint))
-          reticulate::py_require("py-yaml12")
-          cat("idle Python activated\n")
-          stopifnot(file.create(callback_complete))
-        }
-        later::later(run_callback, delay = 0.01)
-        cat(callback_gate, callback_checkpoint, callback_complete, sep = "\n")
-        """)
-    client.send(r=r)
-    (callback_complete,) = release_worker_callback_gate(
-        client,
-        "idle Python activation",
-        ("complete",),
-    )
-    deadline = time.monotonic() + 30
-    while not callback_complete.exists():
-        assert client.process.poll() is None, (
-            "mcp-console stopped before idle Python activation completed"
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        index = write_test_wheel(
+            root, "mcp_console_test_idle_activation", "answer = 42\n"
         )
-        if time.monotonic() >= deadline:
-            raise AssertionError("idle Python activation did not complete")
-        time.sleep(0.01)
-    wait_for_idle_output(
-        client,
-        "idle Python activated\n\n[idle]",
-        "idle Python activation output",
-    )
+        environment = os.environ.copy()
+        environment.pop("RETICULATE_PYTHON", None)
+        environment["UV_TOOL_DIR"] = str(root)
+        environment["UV_INDEX"] = index.as_uri()
+        environment["UV_INDEX_STRATEGY"] = "first-index"
+        for name in ("UV_FIND_LINKS", "UV_INDEX_URL", "UV_EXTRA_INDEX_URL"):
+            environment.pop(name, None)
+        with McpClient(
+            binary,
+            execution.serve("-c", "python.managed.resolution=implicit"),
+            environment,
+            root,
+        ) as client:
+            client.initialize_and_list_tools()
+            client.expect("[prepared]", requirements={"r": ["later"]})
+            client.expect(r="invisible(reticulate::py_config())")
 
-    client.send(control="restart")
-    assert last_tool_text(client) == (
-        "[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]"
-    )
-    client.send(python="import yaml12; yaml12.__name__")
-    assert last_tool_text(client) == "'yaml12'\n"
-    return client.finish()
+            # Install a real local distribution so idle activation and restart
+            # retention do not depend on fetching the sentinel from PyPI.
+            # fmt: r
+            r = code(r"""
+                callback_gate <- tempfile("mcp-console-callback-gate-")
+                callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+                callback_complete <- tempfile("mcp-console-callback-complete-")
+                run_callback <- function() {
+                  if (!file.exists(callback_gate)) {
+                    later::later(run_callback, delay = 0.01)
+                    return(invisible(NULL))
+                  }
+                  stopifnot(file.create(callback_checkpoint))
+                  reticulate::py_require("mcp-console-test-idle-activation")
+                  cat("idle Python activated\n")
+                  stopifnot(file.create(callback_complete))
+                }
+                later::later(run_callback, delay = 0.01)
+                cat(callback_gate, callback_checkpoint, callback_complete, sep = "\n")
+                """)
+            client.send(r=r)
+            (callback_complete,) = release_worker_callback_gate(
+                client,
+                "idle Python activation",
+                ("complete",),
+            )
+            wait_for_path(
+                callback_complete,
+                "idle Python activation completed",
+                client=client,
+                timeout=min(30, max(0, client.response_deadline() - time.monotonic())),
+            )
+            wait_for_idle_output(
+                client,
+                "idle Python activated\n\n[idle]",
+                "idle Python activation output",
+            )
+
+            client.send(control="restart")
+            assert last_tool_text(client) == (
+                "[worker stopped: in-memory state lost]\n[starting new worker]\n[idle]"
+            )
+            client.expect(
+                "42\n",
+                python="import mcp_console_test_idle_activation; mcp_console_test_idle_activation.answer",
+            )
+            return client.finish()
 
 
 @executions(DIRECT, SANDBOXED)

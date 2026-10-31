@@ -1,6 +1,5 @@
 """Source ownership when a response precedes actual worker launch."""
 
-import json
 import os
 import sys
 import tempfile
@@ -11,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
+from support.previews import live_recording_events
 from support.execution import DIRECT, Execution, executions
 from support.records import Transcript
 from support.requirements import POSIX, requires
@@ -55,12 +55,7 @@ def test_retains_source_after_an_early_response(
                 reached.wait("evaluation admitted before relay and worker launch")
                 assert not result.get("isError"), result
                 (recording,) = (workspace / ".agents/console/sessions").iterdir()
-                events = [
-                    json.loads(line)
-                    for line in (recording / "capture/events.jsonl")
-                    .read_text()
-                    .splitlines()
-                ]
+                events = live_recording_events(recording)
                 assert not any(
                     event["event"] == "worker_started" for event in events
                 ), events

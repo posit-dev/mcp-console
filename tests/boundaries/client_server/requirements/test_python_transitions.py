@@ -488,30 +488,47 @@ def test_idle_activation_failure_retains_worker_until_restart(
             )
         )
         client.initialize_and_list_tools()
-        client.send(requirements={"r": ["later"]})
+        client.expect("[prepared]", requirements={"r": ["later"]})
         # fmt: python
         python = code("""
             import runpy
             import sys
+            import tempfile
+            from pathlib import Path
 
             identity = object()
             identity_id = id(identity)
+            activation_directory = tempfile.TemporaryDirectory()
+            activation_started = Path(activation_directory.name) / "started"
+            activation_release = Path(activation_directory.name) / "release"
 
 
             def fail_activation(_path):
+                with activation_started.open("wb", buffering=0) as gate:
+                    gate.write(b"1")
+                with activation_release.open("rb", buffering=0) as gate:
+                    assert gate.read(1) == b"1"
                 raise ValueError("idle activation failure")
 
 
             runpy.run_path = fail_activation
-            print(sys.executable)
+            print(sys.executable, activation_started, activation_release, sep="\\n")
             """)
-        client.send(python=python)
-        executable = Path(last_tool_text(client).strip())
+        client.expect(None, python=python)
+        executable, started_path, release_path = map(
+            Path, last_tool_text(client).splitlines()
+        )
         assert executable.is_absolute() and executable.is_file(), executable
+        activation_started = FifoCheckpoint.create(started_path)
+        activation_release = FifoCheckpoint.create(release_path)
+        cleanup.callback(activation_started.close)
+        cleanup.callback(activation_release.close)
         Path(environment["MCP_CONSOLE_TEST_UV_REUSE_PYTHON"]).write_text(
             str(executable), encoding="utf-8"
         )
-        client.transcript[-1]["result"]["content"][0]["text"] = "<running Python>\n"
+        client.transcript[-1]["result"]["content"][0]["text"] = (
+            "<running Python>\n<activation started>\n<activation release>\n"
+        )
         before = client.send(requirements={"action": "get"})["structuredContent"][
             "requirements"
         ]
@@ -543,7 +560,7 @@ def test_idle_activation_failure_retains_worker_until_restart(
             later::later(run_callback, delay = 0.01)
             cat(callback_gate, callback_checkpoint, callback_complete, sep = "\n")
             """)
-        client.send(r=r)
+        client.expect(None, r=r)
         callback_complete = FifoCheckpoint.create(
             Path(last_tool_text(client).splitlines()[2])
         )
@@ -555,7 +572,19 @@ def test_idle_activation_failure_retains_worker_until_restart(
         )
         resolver_started.wait("idle Python activation resolver")
         resolver_release.release()
-        callback_complete.wait("idle Python activation failure", timeout=5)
+        # Resolution still has to inspect the candidate interpreter. Start the
+        # failure-completion deadline only when the activation hook is entered.
+        try:
+            activation_started.wait(
+                "idle Python activation hook",
+                timeout=client.response_timeout,
+                client=client,
+            )
+        finally:
+            activation_release.release()
+        callback_complete.wait(
+            "idle Python activation failure", timeout=5, client=client
+        )
         assert Path(environment["MCP_CONSOLE_TEST_UV_REUSE_RECORD"]).read_text() == (
             "py-yaml12\n"
         )

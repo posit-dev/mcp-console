@@ -19,7 +19,7 @@ from support.previews import (
     OMISSION,
     assert_preview,
     normalize_preview_paths,
-    recording_events,
+    live_recording_events,
     session_directory,
 )
 from support.client import McpClient
@@ -505,7 +505,7 @@ def test_image_overflow_preserves_later_text_and_fitting_image(
         content = client.transcript[-1]["result"]["content"]
         assert [block["type"] for block in content] == ["text", "image", "text"]
         session = session_directory(client)
-        capture = recording_events(session)
+        capture = live_recording_events(session)
         omitted, artifact = [e for e in capture if e["event"] == "image_retained"]
         path = Path(".agents/console/sessions") / session.name / omitted["path"]
         assert content[0]["text"] == (
@@ -671,10 +671,7 @@ def test_keeps_partial_idle_utf8_out_of_cell_omission_counts(
             errors="replace"
         ) == idle
         assert (cell_output_path(session, 1)).read_text() == cell
-        events = [
-            json.loads(line)
-            for line in (session / "capture/events.jsonl").read_text().splitlines()
-        ]
+        events = live_recording_events(session)
         cell_summaries = [event for event in events if event["event"] == "cell_output"]
         assert cell_summaries[-1]["inline_omitted_bytes"] == cell_omitted
         normalize_preview_paths(client)
