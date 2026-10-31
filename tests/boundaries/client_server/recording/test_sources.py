@@ -16,6 +16,7 @@ from support.suites import run_this_suite
 from boundaries.client_server.python.test_without_r import selected_environment
 
 from boundaries.client_server.recording.test_intervals import events
+from support.previews import live_recording_events
 from support.normalization import normalize_recording
 
 
@@ -122,7 +123,7 @@ def test_rejected_restart_source_stays_with_the_surviving_session(
                 assert f"```{{{language}}}\n#| error: true\n{source}\n```" in managed, (
                     managed
                 )
-            capture = events(recording)
+            capture = live_recording_events(recording)
             assert len([e for e in capture if e["event"] == "worker_started"]) == 1
             return normalize_recording(client.finish(), workspace)
 

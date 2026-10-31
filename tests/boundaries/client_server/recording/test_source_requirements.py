@@ -13,6 +13,7 @@ from support.records import Transcript
 from support.suites import run_this_suite
 
 from boundaries.client_server.recording.test_intervals import events
+from support.previews import live_recording_events
 from support.normalization import normalize_recording
 
 
@@ -172,7 +173,7 @@ def test_rejected_additions_leave_session_metadata_unchanged(
             qmd = path.read_text()
             assert "uncommittedpackage" not in qmd, qmd
             assert "    - praise\n" in qmd, qmd
-            capture = events(recording)
+            capture = live_recording_events(recording)
             assert len([e for e in capture if e["event"] == "worker_started"]) == 1
             return normalize_recording(client.finish(), workspace)
 

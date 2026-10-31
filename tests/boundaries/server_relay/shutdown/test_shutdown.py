@@ -1,6 +1,5 @@
 #!/usr/bin/env -S uv run --script
 
-import json
 import os
 import sys
 import tempfile
@@ -26,7 +25,12 @@ from support.checkpoints import FifoCheckpoint
 from support.client import stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
-from support.previews import compact_previews, assert_preview, normalize_preview_paths
+from support.previews import (
+    compact_previews,
+    assert_preview,
+    normalize_preview_paths,
+    live_recording_events,
+)
 from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, POSIX, requires
 from support.resolvers import fake_ir_environment as _fake_ir_environment
@@ -216,10 +220,7 @@ cell before image
             sum(len(block.get("text", "").encode()) for block in result["content"])
             <= 8192
         )
-        events = [
-            json.loads(line)
-            for line in (session / "capture/events.jsonl").read_text().splitlines()
-        ]
+        events = live_recording_events(session)
         summary = [
             event
             for event in events

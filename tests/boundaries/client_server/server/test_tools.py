@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.requirements import POSIX, SANDBOX, SQL, WORKER, requires
 from support.client import McpClient
 from support.evidence import compact_text
-from support.previews import compact_previews
+from support.previews import compact_previews, live_recording_events
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.linux_sandbox import retain_system_bwrap
 from support.normalization import code
@@ -953,8 +953,8 @@ def test_bounds_argument_decoding_errors(
             session = next((workspace / ".agents/console/sessions").iterdir())
             recorded = [
                 event["result"]
-                for line in (session / "capture/events.jsonl").read_text().splitlines()
-                if (event := json.loads(line))["event"] == "tool_result"
+                for event in live_recording_events(session)
+                if event["event"] == "tool_result"
             ]
             assert recorded == [*results, result]
             compact_previews(client, "éλ")

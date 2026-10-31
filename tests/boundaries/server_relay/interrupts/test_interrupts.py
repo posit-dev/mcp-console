@@ -1,6 +1,5 @@
 #!/usr/bin/env -S uv run --script
 
-import json
 import select
 import sys
 import tempfile
@@ -31,7 +30,7 @@ from support.assertions import wait_for_worker_ready
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
-from support.previews import session_directory
+from support.previews import live_recording_events, session_directory
 from support.records import Transcript
 from support.requirements import POSIX, PROCESS_EVENTS, requires
 from support.resolvers import fake_ir_environment as _fake_ir_environment
@@ -223,11 +222,7 @@ def test_control_only_interrupt_preserves_controlled_completion_marker(
         journal = session_directory(client.client) / "capture/events.jsonl"
 
         def completion_recorded() -> Path | None:
-            events = [
-                json.loads(line)
-                for line in journal.read_text().splitlines(keepends=True)
-                if line.endswith("\n")
-            ]
+            events = live_recording_events(journal.parent.parent)
             calls = {
                 event["call_id"]
                 for event in events

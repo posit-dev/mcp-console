@@ -1,6 +1,5 @@
 #!/usr/bin/env -S uv run --script
 
-import json
 import os
 import re
 import sys
@@ -22,7 +21,7 @@ from support.previews import (
     compact_previews,
     cell_text,
     normalize_preview_paths,
-    recording_events,
+    live_recording_events,
     session_directory,
     TEXT_BUDGET,
 )
@@ -106,7 +105,7 @@ def cancelled_control_recovery(
             )
             received = [
                 event["message"]["method"]
-                for event in recording_events(session_directory(client))
+                for event in live_recording_events(session_directory(client))
                 if event["event"] == "protocol" and event["direction"] == "received"
             ]
             # Protocol capture must retain the cancellation and ping exchanges
@@ -203,12 +202,7 @@ def recovered_recorded_cells(
             text = result["content"][0]["text"]
             assert len(text.encode()) <= 8192
             assert text.endswith("[done]"), repr(text[-200:])
-            events = [
-                json.loads(line)
-                for line in (session_directory(client) / "capture/events.jsonl")
-                .read_text()
-                .splitlines()
-            ]
+            events = live_recording_events(session_directory(client))
             summaries = {
                 event["call_id"]: event
                 for event in events
@@ -392,7 +386,7 @@ def test_cancelled_aggregate_poll_returns_each_sessions_output(
             }, result
             client.send(session=session)
             assert last_tool_text(client) == "\n[idle]"
-        capture = recording_events(session_directory(client))
+        capture = live_recording_events(session_directory(client))
         (aggregate_call,) = [
             event
             for event in capture
@@ -448,7 +442,7 @@ def test_aggregate_poll_keeps_one_text_budget(binary: Path) -> Transcript:
         output = "".join(part["text"] for part in result["content"])
         assert len(output.encode()) <= TEXT_BUDGET, len(output.encode())
         assert "cell 0 head\n" in output and "\ncell 1 tail\n" in output, output
-        capture = recording_events(session_directory(client))
+        capture = live_recording_events(session_directory(client))
         calls = {
             event["request"]["arguments"].get("r"): event["call_id"]
             for event in capture
@@ -508,11 +502,8 @@ def test_cancelled_active_polls_replay_before_later_output(binary: Path) -> Tran
                 assert not result["isError"], result
                 recorded = next(
                     event["result"]
-                    for line in (session_directory(client) / "capture/events.jsonl")
-                    .read_text()
-                    .splitlines()
-                    if (event := json.loads(line))["event"] == "tool_result"
-                    and event["call_id"] == 3
+                    for event in live_recording_events(session_directory(client))
+                    if event["event"] == "tool_result" and event["call_id"] == 3
                 )
                 assert result["content"] == recorded["content"]
                 assert result["isError"] == recorded["isError"]
@@ -578,10 +569,7 @@ def test_image_recovery_moves_the_retained_preview(binary: Path) -> Transcript:
             "isError": False,
         }
         session = session_directory(client)
-        events = [
-            json.loads(line)
-            for line in (session / "capture/events.jsonl").read_text().splitlines()
-        ]
+        events = live_recording_events(session)
         artifacts = [event for event in events if event["event"] == "image_retained"]
         assert len(artifacts) == 1, artifacts
         artifact = artifacts[0]
@@ -690,10 +678,7 @@ def test_composed_image_omission_names_existing_artifact(binary: Path) -> Transc
         omitted = artifacts[1]
         assert omitted.read_bytes() == bytes(6 * 1024 * 1024)
         assert f"images: capture/sessions/001/{omitted.name}" in text
-        events = [
-            json.loads(line)
-            for line in (session / "capture/events.jsonl").read_text().splitlines()
-        ]
+        events = live_recording_events(session)
         summaries = {
             event["call_id"]: event
             for event in events
@@ -726,7 +711,7 @@ def test_composed_image_omission_names_existing_artifact(binary: Path) -> Transc
 def recorded_omission_owners(client: McpClient) -> list[dict | None]:
     result = next(
         event
-        for event in reversed(recording_events(session_directory(client)))
+        for event in reversed(live_recording_events(session_directory(client)))
         if event["event"] == "tool_result"
     )
     return [
