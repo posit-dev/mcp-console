@@ -131,7 +131,11 @@ async def main() -> None:
             await expect(first.locator(".code-formatted:visible")).to_have_count(0)
             await first.get_by_label("Format code").check()
             await expect(first.locator(".code-written:visible")).to_have_count(0)
-            suggestion = first.get_by_role("log").locator(".suggestion").last
+            for kind in ("plot", "continue", "switch"):
+                await expect(
+                    first.locator(f'.next-question[data-kind="{kind}"]')
+                ).to_have_count(1)
+            suggestion = first.locator('.next-question[data-kind="switch"]')
             await expect(suggestion).to_be_visible()
             question = await suggestion.get_attribute("data-suggestion")
             await suggestion.click()

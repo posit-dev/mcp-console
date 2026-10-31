@@ -14,8 +14,8 @@ The checks cover:
 - Concurrent clients, slot reuse, cancellation during startup, private files, credentials, blocked networking and denied host writes.
 - Parquet views for the table tool, bounded previews, rejection of multiple SQL statements and denied reads outside the five bundled files.
 - Interrupting a cancelled table query before closing its cursor, using an explicit checkpoint at the SQL driver boundary.
-- Follow-ups use the least recently used runtime across turns.
-  Every second suggestion requests a plot, alternating R and Python; replacing a suggestion within a turn does not advance the count.
+- Each answer offers three follow-ups: plot, continue in the last runtime, or switch to the least recently used runtime.
+  Plot choices alternate R and Python; replacing the choices within a turn does not advance the alternation.
 - Separate exports for independent Console sessions, knitr selection for SQL-only exports, and execution of R, Python and SQL chunks from the exported report.
 
 From the repository root:
@@ -36,7 +36,9 @@ The cold package test can take several minutes; the final local run omitted it w
 The in-app browser drove real conversations on one Shiny process: a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
 A second browser client had only its own table views.
 Generated follow-ups were activated through their buttons.
-The updated rotation produced R, Python plot, SQL, then R plot after a SQL starter, using a real Terra conversation.
+The three-choice interface offered an R plot, continued SQL analysis, and a switch to R after a SQL starter.
+Clicking the R plot produced an inline chart and offered a Python plot, continued R analysis, and a switch to Python.
+Clicking the Python plot produced Matplotlib output and offered an R plot, continued Python analysis, and a switch to SQL.
 A downloaded zip contained the QMD source and all five Parquet files; `quarto render analysis.qmd --to html` produced the report.
 The process test also runs the exported Python chunk, rather than treating it as text.
 

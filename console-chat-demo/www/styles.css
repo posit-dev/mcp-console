@@ -64,7 +64,20 @@ body.console-chat-app {
 .shiny-chat-suggestion-list-item-body:has(.starter-language) { display: grid; grid-template-columns: 54px 1fr; gap: 3px 10px; font-size: 13px; line-height: 1.35; }
 .starter-language { grid-row: span 2; align-self: center; color: var(--teal); font-weight: 650; }
 .starter-detail { color: var(--muted); font-size: 12px; }
-.next-question { display: block; max-width: 100%; text-align: left; }
+.chat-card .next-question {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #edf2eb;
+  color: var(--teal);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.chat-card .next-question:hover { background: #e1ece2; }
 .session-info { color: #84908b; font-size: 10px; text-align: center; padding: 10px 5px 13px; border-top: 1px solid #edf0e9; }
 .inspection-column { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; min-height: 0; padding-right: 3px; }
 .inspection-column .card { flex-shrink: 0; }

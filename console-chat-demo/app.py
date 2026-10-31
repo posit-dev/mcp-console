@@ -170,7 +170,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
             class_="starter-prompts",
         ),
         ui.p(
-            "Choose a question to see the agent at work, or ask your own. Follow-ups use another language.",
+            "Choose a question or ask your own. Then choose a plot, continue in the same language, or try another.",
             class_="welcome-copy",
         ),
     )
@@ -487,26 +487,28 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                                 answer.append(chunk)
                             yield chunk
                 await backend.send(note="".join(answer).strip())
-                if backend.suggestion is not None:
-                    language, question, plot = backend.suggestion
-                    label = language
+                for kind, language, question in backend.suggestions:
+                    label = {
+                        "plot": "Plot in",
+                        "continue": "Continue in",
+                        "switch": "Switch to",
+                    }[kind]
                     next_prompt = f"Use {language}. {question}"
-                    if plot:
-                        label += " plot" if plot == language else f" + {plot} plot"
-                        next_prompt += f"\n\nInclude a plot drawn in {plot}."
+                    if kind == "plot":
+                        next_prompt += f"\n\nInclude a plot drawn in {language}."
                     # Suggestions are enhanced by ShinyChat's Markdown renderer.
                     # A raw HTML stream block would display an inert span.
                     yield (
                         "\n\n"
                         + str(
                             ui.tags.button(
-                                f"{label} · {question}",
+                                f"{label} {language} · {question}",
                                 type="button",
                                 class_="suggestion submit next-question",
                                 **{
                                     "data-suggestion": next_prompt,
                                     "data-runtime": language,
-                                    "data-plot": plot,
+                                    "data-kind": kind,
                                 },
                             )
                         )

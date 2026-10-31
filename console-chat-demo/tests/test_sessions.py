@@ -157,72 +157,115 @@ async def test_show_data_queries_original_tables_read_only(pool, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_follow_up_uses_least_recently_used_runtime(pool):
+async def test_follow_ups_offer_plot_current_and_least_recent_runtime(pool):
     session = await pool.open()
     suggest = next(t for t in session.chat.get_tools() if t.name == "suggest_next")
     await session.send(sql="SELECT 1")
-    await suggest.func(language="R", question="Estimate uncertainty with a bootstrap?")
+    questions = {
+        "plot_question": "Plot the delay distributions?",
+        "current_question": "Compare delays by carrier?",
+        "switch_question": "Estimate uncertainty with a bootstrap?",
+    }
+    await suggest.func(
+        plot_language="R", current_language="SQL", switch_language="R", **questions
+    )
+    assert session.suggestions == [
+        ("plot", "R", questions["plot_question"]),
+        ("continue", "SQL", questions["current_question"]),
+        ("switch", "R", questions["switch_question"]),
+    ]
     await session.send(r="x <- 1")
     await session.send(r="x + 1")
+    assert session.suggestions == []
     # Python has never run; returning to SQL would skip it.
     with pytest.raises(ValueError, match="Python"):
-        await suggest.func(language="SQL", question="Compare carriers?")
-    await suggest.func(language="Python", question="Model delays using weather?")
-    assert session.suggestion[:2] == ("Python", "Model delays using weather?")
+        await suggest.func(
+            plot_language="R", current_language="R", switch_language="SQL", **questions
+        )
+    with pytest.raises(ValueError, match="continue in R"):
+        await suggest.func(
+            plot_language="R",
+            current_language="SQL",
+            switch_language="Python",
+            **questions,
+        )
+    await suggest.func(
+        plot_language="R", current_language="R", switch_language="Python", **questions
+    )
     await session.send(python="x = 1")
-    assert session.suggestion is None
+    assert session.suggestions == []
     with pytest.raises(ValueError, match="SQL"):
-        await suggest.func(language="R", question="Estimate uncertainty?")
-    await suggest.func(language="SQL", question="Join airlines to flights?")
+        await suggest.func(
+            plot_language="Python",
+            current_language="Python",
+            switch_language="R",
+            **questions,
+        )
+    await suggest.func(
+        plot_language="Python",
+        current_language="Python",
+        switch_language="SQL",
+        **questions,
+    )
     show = next(t for t in session.chat.get_tools() if t.name == "show_data")
     await show.func(query="FROM airlines", title="Airlines")
-    await suggest.func(language="R", question="Estimate uncertainty?")
+    await suggest.func(
+        plot_language="R", current_language="SQL", switch_language="R", **questions
+    )
 
 
 @pytest.mark.asyncio
-async def test_follow_up_plots_alternate_every_second_suggestion(pool, monkeypatch):
+async def test_follow_up_plot_choices_alternate_each_turn(pool, monkeypatch):
     session = await pool.open()
     suggest = next(t for t in session.chat.get_tools() if t.name == "suggest_next")
     turns = iter(
         [
-            ({"sql": "SELECT 1"}, "R", None),
-            ({"r": "x <- 1"}, "Python", "Python"),
-            ({"python": "x = 1"}, "SQL", None),
-            ({"sql": "SELECT 2"}, "R", "R"),
-            ({"r": "x + 1"}, "Python", None),
-            ({"python": "x + 1"}, "SQL", "Python"),
+            ({"sql": "SELECT 1"}, "SQL", "R", "R"),
+            ({"r": "x <- 1"}, "R", "Python", "Python"),
+            ({"python": "x = 1"}, "Python", "SQL", "R"),
+            ({"sql": "SELECT 2"}, "SQL", "R", "Python"),
+            ({"r": "x + 1"}, "R", "Python", "R"),
+            ({"python": "x + 1"}, "Python", "SQL", "Python"),
         ]
     )
 
     # Replace only the external model stream; all code runs in real Console.
     async def model_stream(prompt, **kwargs):
         async def chunks():
-            code, language, plot = next(turns)
+            code, current, switch, plot = next(turns)
             await session.send(**code)
-            if plot:
-                with pytest.raises(ValueError, match=f"plot.*{plot}"):
-                    await suggest.func(language=language, question=prompt)
-                other = "R" if plot == "Python" else "Python"
-                with pytest.raises(ValueError, match=f"plot.*{plot}"):
-                    await suggest.func(language=language, question=prompt, plot=other)
-            # Replacing a suggestion within a turn must not advance the cadence.
+            questions = {
+                "plot_question": "Plot the distributions?",
+                "current_question": "Compare delays by carrier?",
+                "switch_question": "Explore the seasonal differences?",
+                "current_language": current,
+                "switch_language": switch,
+            }
+            other = "R" if plot == "Python" else "Python"
+            with pytest.raises(ValueError, match=f"plot in {plot}"):
+                await suggest.func(plot_language=other, **questions)
+            # Replacing the choices within a turn must not advance the alternation.
             for _ in range(2):
-                await suggest.func(language=language, question=prompt, plot=plot)
+                await suggest.func(plot_language=plot, **questions)
             yield "Analysis complete."
 
         return chunks()
 
     monkeypatch.setattr(session.chat, "stream_async", model_stream)
-    for language, plot in (
-        ("R", None),
-        ("Python", "Python"),
-        ("SQL", None),
-        ("R", "R"),
-        ("Python", None),
-        ("SQL", "Python"),
+    for current, switch, plot in (
+        ("SQL", "R", "R"),
+        ("R", "Python", "Python"),
+        ("Python", "SQL", "R"),
+        ("SQL", "R", "Python"),
+        ("R", "Python", "R"),
+        ("Python", "SQL", "Python"),
     ):
         assert [chunk async for chunk in session.stream("Compare delays?")]
-        assert session.suggestion == (language, "Compare delays?", plot)
+        assert session.suggestions == [
+            ("plot", plot, "Plot the distributions?"),
+            ("continue", current, "Compare delays by carrier?"),
+            ("switch", switch, "Explore the seasonal differences?"),
+        ]
 
 
 @pytest.mark.asyncio
