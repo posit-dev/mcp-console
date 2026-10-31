@@ -4,8 +4,10 @@ A Shiny for Python demo of a data analysis agent with MCP Console.
 Each visitor gets a separate chatlas conversation and sandboxed Console, with persistent R, Python and SQL.
 One server process can serve several visitors at once.
 
-Ask in plain English, inspect the code and output, and pass results between languages.
-The starter questions demonstrate SQL summaries, R plots and Python models.
+Ask a question in plain English.
+The agent writes and runs code to join and filter data, draw plots, fit models, and present selected rows or summaries.
+It can pass results between R, Python and SQL and build on earlier work; its code and output are visible in the chat.
+The starter questions demonstrate the agent's SQL summaries, R plots and Python models.
 Each follow-up suggests a related task in another runtime; the app rejects suggestions that repeat the turn's primary language.
 Plots appear inline in the chat.
 **Format code** changes only the displayed code, using Air, Ruff or SQLGlot; it does not change what runs.
@@ -52,8 +54,8 @@ The bundled [nycflights13](https://github.com/tidyverse/nycflights13) data (CC0)
 | airports |   1,458 |
 | airlines |      16 |
 
-The files live in `data/nycflights13/`; [data/nycflights13.R](data/nycflights13.R) regenerates them.
-Clients share these read-only Parquet files.
+The agent's runtime has access to five read-only Parquet files, one per table, in `data/nycflights13/`; [data/nycflights13.R](data/nycflights13.R) regenerates them.
+Clients share these files.
 Console's startup code creates a DuckDB connection, `nyc` in R, with a view for each table.
 SQL and dbplyr scan the files as needed; each workspace also links them as `nycflights13/` for direct reads.
 Opening another session does not load another full copy of the dataset into RAM.

@@ -124,7 +124,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 "Which carriers have the worst departure delays from each New York "
                 "airport? Use SQL, and account for how many flights each carrier operates."
             ),
-            "Join tables and compare groups.",
+            "The agent joins tables and compares groups.",
         ),
         (
             "R",
@@ -133,7 +133,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 "Use R and ggplot2 to plot the average departure delay for each day "
                 "of 2013. Explain the seasonal pattern and the worst days."
             ),
-            "Plot patterns with ggplot2.",
+            "The agent plots patterns with ggplot2.",
         ),
         (
             "Python",
@@ -142,15 +142,15 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 "Use Python to join flights to weather and model how visibility, "
                 "precipitation and wind relate to departure delays. Explain the limits."
             ),
-            "Fit and evaluate a prediction model.",
+            "The agent fits and evaluates a model.",
         ),
     ]
     greeting = ui.TagList(
-        ui.div("Analyze data with R, Python and SQL", class_="welcome-heading"),
+        ui.div("An agent with R, Python and SQL", class_="welcome-heading"),
         ui.p(
-            "Ask in plain English. Query in SQL, plot in R, or build a model in Python. "
-            "The languages share your results, so you can switch as you go. "
-            "Each visitor gets a separate sandboxed session, so several people can work at once.",
+            "Ask a question in plain English. The agent writes and runs code to join "
+            "and filter data, draw plots, fit models, and show selected rows or summaries. "
+            "It can pass results between R, Python and SQL as the analysis develops.",
             class_="welcome-copy",
         ),
         ui.tags.ul(
@@ -170,7 +170,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
             class_="starter-prompts",
         ),
         ui.p(
-            "Choose a starting question or ask your own. Follow-up questions try another language.",
+            "Choose a question to see the agent at work, or ask your own. Follow-ups use another language.",
             class_="welcome-copy",
         ),
     )
@@ -253,11 +253,12 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                         "About the demo",
                         ui.h2("New York flights, 2013"),
                         ui.p(
-                            "nycflights13 contains 336,776 flights from Newark, JFK "
-                            "and LaGuardia, plus four related tables."
+                            "The agent's runtime has access to five read-only Parquet files "
+                            "from nycflights13: 336,776 scheduled flights from Newark, JFK "
+                            "and LaGuardia in 2013, plus weather, aircraft, airports and airlines."
                         ),
                         ui.tags.table(
-                            ui.tags.caption("Five tables available in every session"),
+                            ui.tags.caption("Five Parquet files, one table per file"),
                             ui.tags.thead(
                                 ui.tags.tr(ui.tags.th("Table"), ui.tags.th("Rows"))
                             ),
@@ -273,38 +274,38 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                             class_="dataset-table",
                         ),
                         ui.p(
-                            "The tables are views over shared, read-only Parquet files. "
-                            "Queries read what they need; opening another session does not "
-                            "load another copy of the full dataset into memory. "
-                            "Query results and objects you create still use memory."
+                            "The runtime exposes these files as table views. The agent can "
+                            "join, filter and summarize them on demand. Sessions share the files "
+                            "instead of loading a full copy into memory for each visitor. "
+                            "Query results and objects the agent creates still use memory."
                         ),
-                        ui.h3("What Console makes possible"),
+                        ui.h3("The agent's workspace"),
                         ui.tags.ul(
                             ui.tags.li(
-                                "R, Python and SQL share one persistent workspace. "
-                                "Pass results between languages and build on earlier work."
+                                "The agent can run R, Python and SQL in one persistent workspace, "
+                                "reuse earlier results and pass objects between languages."
                             ),
                             ui.tags.li(
-                                "Each visitor gets a separate agent and sandboxed Console. "
+                                "Each visitor gets a separate agent and sandboxed runtime. "
                                 "Several people can work at once on one app server."
                             ),
                             ui.tags.li(
-                                "Code can use installed packages and write files in its workspace. "
-                                "It cannot read other sessions or write to the host; network access is restricted."
+                                "The agent can use installed packages and create files in its workspace. "
+                                "The sandbox blocks access to other sessions and restricts file writes and networking."
                             ),
                         ),
                         ui.p(
-                            "Code, output and plots appear in the chat. Ask the agent to "
-                            "show a filtered table or summary in Table views. Download your "
-                            "code and data as a Quarto report when you finish."
+                            "The agent's code, output and plots appear in the chat. It can also "
+                            "present selected rows or summaries in Table views. Download the "
+                            "analysis as a Quarto report when you finish."
                         ),
                         value="about",
                     ),
                     ui.nav_panel(
                         "Table views",
                         ui.p(
-                            "Browse a source table, or ask the agent for a filtered view "
-                            "or summary. Views it creates are saved in this selector for your session."
+                            "Ask the agent to show a subset of the data or a summary here. "
+                            "Choose a source table or one of the views it has created."
                         ),
                         ui.input_select(
                             "table_view", "View", choices=choices, selected="flights"
