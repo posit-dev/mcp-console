@@ -352,22 +352,26 @@ class Session:
     async def send(self, **kwargs: Any) -> ContentToolResult:
         return await self.tool.func(**kwargs)
 
-    def report(self) -> str | None:
-        """Console's recorded QMD for this conversation, runnable beside the data.
+    def reports(self) -> dict[str, str]:
+        """One recorded QMD per worker, with setup for the bundled Parquet files.
 
-        Restarts give each worker session its own document; they are appended in
-        order, so a rendered report shares state that the sessions did not.
-        None until code has run: Console records notes into a worker's document.
+        Keep named and restarted sessions separate so rendering cannot mix their
+        variables. Documents become available after code runs.
         """
         state = self.pool.private / self.slot.name
         documents = sorted(state.glob("sessions/*/sessions/session-*.qmd"))
-        if not documents:
-            return None
-        parts = []
-        for document in documents:
+        reports = {}
+        for index, document in enumerate(documents, start=1):
             _, front, body = document.read_text(encoding="utf-8").split("---\n", 2)
-            parts.append(body.strip() + "\n")
-        return f"---\n{front}---\n\n{REPORT_SETUP}\n" + "\n".join(parts)
+            # Even a SQL-only conversation needs knitr for the R setup chunk.
+            front = "\n".join(
+                line for line in front.splitlines() if not line.startswith("engine:")
+            )
+            name = "analysis.qmd" if index == 1 else f"analysis-{index}.qmd"
+            reports[name] = (
+                f"---\n{front}\nengine: knitr\n---\n\n{REPORT_SETUP}\n{body.strip()}\n"
+            )
+        return reports
 
     async def stream(self, prompt: str) -> AsyncIterator[Any]:
         calls = 0

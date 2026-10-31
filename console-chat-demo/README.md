@@ -50,12 +50,14 @@ The data panel shows the first flights until the model shows a query result ther
 Those queries run in the server process, not in Console, against a read-only DuckDB copy of the tables with external access disabled; they cannot see objects that session code creates.
 The panel shows at most 5,000 rows of a result.
 
-The export starts from the QMD that Console records for each worker session, which holds the questions, answers and submitted code.
-The app adds a setup chunk that connects `nyc` to the Parquet files and makes it the SQL chunks' connection, because Console does not record its `startup` code.
-After a restart, the documents of each worker session are joined in order, so a rendered report shares state that the sessions did not.
-Data panel queries appear as notes rather than executable chunks.
-The export becomes available after code runs, because Console records notes only into a worker session's document.
-Download the report before ending a session if you want to retain the analysis.
+The export uses Console's recorded QMD source and adds an R setup chunk to open the bundled Parquet files.
+It selects knitr even for SQL-only or Python-only conversations, because the setup uses R.
+Named sessions and restarts produce separate documents (`analysis.qmd`, `analysis-2.qmd`, etc.); render each separately to preserve their independent state.
+Table-view queries appear as notes, not executable chunks.
+Export becomes available after code runs.
+Review the code and prepare its packages before rendering; files created by the agent are not bundled.
+Console-specific helpers may need adapting for a standalone report.
+Download the report before ending the session.
 
 ## Concurrent sessions
 

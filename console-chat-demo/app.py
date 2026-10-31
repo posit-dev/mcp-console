@@ -278,7 +278,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
         images = reactive.value(())
         # The latest recorded report outlives a stopped session until the next
         # New session, like the messages it accompanies.
-        report = reactive.value(None)
+        reports = reactive.value({})
         # The table the chat last showed with show_data; None shows all flights.
         view = reactive.value(None)
         backend = None
@@ -412,7 +412,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                         flags=re.DOTALL,
                     ).strip()
                 )
-                report.set(backend.report())
+                reports.set(backend.reports())
                 status.set("Ready")
             except asyncio.CancelledError:
                 raise
@@ -448,7 +448,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 if not disconnected:
                     if clear:
                         await chat.clear_messages(greeting=False)
-                        report.set(None)
+                        reports.set({})
                         images.set(())
                         view.set(None)
                     else:
@@ -580,7 +580,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
 
         @render.ui
         def export():
-            if report.get() is None:
+            if not reports.get():
                 return None
             return ui.download_button(
                 "download_analysis",
@@ -595,7 +595,8 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
         def download_analysis():
             buffer = io.BytesIO()
             with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-                archive.writestr("console-chat-analysis/analysis.qmd", report.get())
+                for name, report in reports.get().items():
+                    archive.writestr(f"console-chat-analysis/{name}", report)
                 for table in TABLES:
                     archive.write(
                         DATA / f"{table}.parquet",

@@ -145,28 +145,27 @@ async def test_report_renders_beside_the_data(pool, tmp_path):
     session = await pool.open()
     await session.send(note="**Question:** How many flights left each airport?")
     # Notes wait for code to give them a worker session to record into.
-    assert session.report() is None
+    assert session.reports() == {}
     await session.send(sql="SELECT origin, count(*) AS n FROM flights GROUP BY origin")
     await session.send(
         r="busiest <- DBI::dbGetQuery(nyc, 'SELECT max(n) AS n FROM (SELECT count(*) AS n FROM flights GROUP BY origin)')$n\ncat('busiest', busiest, '\\n')"
     )
     await session.send(python="print('python cell')")
     await session.send(note="EWR had the most departures.")
-    report = session.report()
+    report = session.reports()["analysis.qmd"]
     assert report.index("**Question:**") < report.index("GROUP BY origin")
     assert report.index("python cell") < report.index("EWR had the most")
     # The exported document recreates the startup connection from Parquet files
     # beside it, so its R and SQL chunks run outside Console.
     (tmp_path / "report").mkdir()
     (tmp_path / "report" / "nycflights13").symlink_to(HERE / "data" / "nycflights13")
-    (tmp_path / "report" / "analysis.qmd").write_text(
-        report.replace("```{python}", "```{.python}")
-    )
+    (tmp_path / "report" / "analysis.qmd").write_text(report)
     knit = await asyncio.create_subprocess_exec(
         "Rscript",
         "-e",
         "knitr::knit('analysis.qmd', quiet = TRUE)",
         cwd=tmp_path / "report",
+        env=os.environ | {"RETICULATE_PYTHON": sys.executable},
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
@@ -174,7 +173,29 @@ async def test_report_renders_beside_the_data(pool, tmp_path):
     assert knit.returncode == 0, stdout.decode()
     output = (tmp_path / "report" / "analysis.md").read_text()
     assert "120835" in output and "busiest 120835" in output, output
+    assert output.count("python cell") == 2, output
     assert "Error" not in output, output
+
+
+@pytest.mark.asyncio
+async def test_sql_only_report_uses_r_setup(pool):
+    session = await pool.open()
+    await session.send(note="Count airlines")
+    await session.send(sql="SELECT count(*) FROM airlines")
+    assert "engine: knitr\n" in session.reports()["analysis.qmd"].split("---\n")[1]
+
+
+@pytest.mark.asyncio
+async def test_export_keeps_independent_sessions_separate(pool):
+    session = await pool.open()
+    await session.send(r="first_worker_only <- 42")
+    await session.send(session="second", r="stopifnot(!exists('first_worker_only'))")
+    reports = session.reports()
+    assert len(reports) == 2
+    assert "first_worker_only <- 42" in reports["analysis.qmd"]
+    assert "stopifnot" not in reports["analysis.qmd"]
+    assert "stopifnot" in reports["analysis-2.qmd"]
+    assert "first_worker_only <- 42" not in reports["analysis-2.qmd"]
 
 
 @pytest.mark.asyncio
