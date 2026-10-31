@@ -8,7 +8,8 @@ Ask a question in plain English.
 The agent writes and runs code to join and filter data, draw plots, fit models, and present selected rows or summaries.
 It can pass results between R, Python and SQL and build on earlier work; its code and output are visible in the chat.
 The starter questions demonstrate the agent's SQL summaries, R plots and Python models.
-Each follow-up suggests a related task in another runtime; the app rejects suggestions that repeat the turn's primary language.
+Follow-ups use the least recently used runtime across the conversation, trying unused languages first.
+Every second follow-up requests a plot, alternating between R and Python; a SQL follow-up can prepare the data before plotting in either language.
 Plots appear inline in the chat.
 **Format code** changes only the displayed code, using Air, Ruff or SQLGlot; it does not change what runs.
 **Table views** lets you browse the five source tables and named views the agent creates.

@@ -488,19 +488,25 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                             yield chunk
                 await backend.send(note="".join(answer).strip())
                 if backend.suggestion is not None:
-                    language, question = backend.suggestion
+                    language, question, plot = backend.suggestion
+                    label = language
+                    next_prompt = f"Use {language}. {question}"
+                    if plot:
+                        label += " plot" if plot == language else f" + {plot} plot"
+                        next_prompt += f"\n\nInclude a plot drawn in {plot}."
                     # Suggestions are enhanced by ShinyChat's Markdown renderer.
                     # A raw HTML stream block would display an inert span.
                     yield (
                         "\n\n"
                         + str(
                             ui.tags.button(
-                                f"{language} · {question}",
+                                f"{label} · {question}",
                                 type="button",
                                 class_="suggestion submit next-question",
                                 **{
-                                    "data-suggestion": f"Use {language}. {question}",
+                                    "data-suggestion": next_prompt,
                                     "data-runtime": language,
+                                    "data-plot": plot,
                                 },
                             )
                         )

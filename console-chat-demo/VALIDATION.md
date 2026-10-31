@@ -5,8 +5,8 @@ Live browser conversations used `gpt-6.1-terra` through chatlas's Responses API 
 
 ## App and process checks
 
-The full 19-test suite passed before the final cancellation regression was added, including a cold managed environment that installed and imported `humanize`.
-After that regression and the export changes, all 19 tests excluding the already-exercised dependency download passed against the rebuilt Console binary.
+The final app run passed 20 tests against the rebuilt Console binary.
+The cold package test was excluded from this run after an earlier pass installed and imported `humanize` in a managed environment.
 The checks cover:
 
 - Serving the app and public assets without a model session.
@@ -14,7 +14,8 @@ The checks cover:
 - Concurrent clients, slot reuse, cancellation during startup, private files, credentials, blocked networking and denied host writes.
 - Parquet views for the table tool, bounded previews, rejection of multiple SQL statements and denied reads outside the five bundled files.
 - Interrupting a cancelled table query before closing its cursor, using an explicit checkpoint at the SQL driver boundary.
-- Rejection of follow-ups in the primary runtime, with the most recent runtime breaking a tie.
+- Follow-ups use the least recently used runtime across turns.
+  Every second suggestion requests a plot, alternating R and Python; replacing a suggestion within a turn does not advance the count.
 - Separate exports for independent Console sessions, knitr selection for SQL-only exports, and execution of R, Python and SQL chunks from the exported report.
 
 From the repository root:
@@ -35,6 +36,7 @@ The cold package test can take several minutes; the final local run omitted it w
 The in-app browser drove real conversations on one Shiny process: a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
 A second browser client had only its own table views.
 Generated follow-ups were activated through their buttons.
+The updated rotation produced R, Python plot, SQL, then R plot after a SQL starter, using a real Terra conversation.
 A downloaded zip contained the QMD source and all five Parquet files; `quarto render analysis.qmd --to html` produced the report.
 The process test also runs the exported Python chunk, rather than treating it as text.
 
