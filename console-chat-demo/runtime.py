@@ -69,15 +69,16 @@ airports describes airports by faa code; planes describes aircraft by tailnum;
 weather has hourly conditions by origin and time_hour. Times, including
 time_hour, are local New York time. Join flights to weather on origin and
 time_hour.
-SQL queries the tables by name, e.g. SELECT count(*) FROM flights. In R, the
-same DuckDB connection is nyc: use DBI::dbGetQuery(nyc, ...) or
-dplyr::tbl(nyc, "flights"). The tables are read-only Parquet files in
-nycflights13/, e.g. nycflights13/flights.parquet, for Python
-duckdb.sql("FROM 'nycflights13/flights.parquet'"), pandas.read_parquet or
-polars. R and Python can exchange objects through reticulate (R's py object
-and Python's r object). Retrieve SQL results in R with .console$sql_last_result(n=1000),
-then use Python's r object to access the result. The SQL connection belongs to R.
-Reuse earlier results when changing languages.
+Query the existing views by name with send(sql=...), e.g. SELECT count(*) FROM
+flights. They read the shared Parquet files in nycflights13/ on demand. The SQL
+connection belongs to R and is also available as nyc for DBI and dbplyr.
+For SQL followed by Python analysis, submit the query with send(sql=...), then
+retrieve it in R with `delays <- .console$sql_last_result()`, then access it in
+Python with `df = r.delays`. This retrieves the result without rerunning SQL.
+Omitting n retrieves all remaining rows; use n for successive bounded batches.
+Filter or aggregate in SQL before collecting data. Reuse existing R objects as
+r.name in Python and Python objects as py$name in R. Changing languages does not
+require opening another DuckDB connection or rereading the Parquet files.
 Clients share server memory capacity, not variables: aggregate in SQL or DuckDB and
 collect only results; avoid loading whole tables into data frames. Session code
 has no external network access. Variables persist across turns.
