@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import zipfile
 from pathlib import Path
 
@@ -131,11 +132,14 @@ async def main() -> None:
             await expect(first.locator(".code-formatted:visible")).to_have_count(0)
             await first.get_by_label("Format code").check()
             await expect(first.locator(".code-written:visible")).to_have_count(0)
-            for kind in ("plot", "continue", "switch"):
+            for kind in ("visualize", "investigate", "method"):
                 await expect(
                     first.locator(f'.next-question[data-kind="{kind}"]')
                 ).to_have_count(1)
-            suggestion = first.locator('.next-question[data-kind="switch"]')
+                await expect(
+                    first.locator(f'.next-question[data-kind="{kind}"] .next-language')
+                ).to_have_text(re.compile(r"^(R|Python|SQL)$"))
+            suggestion = first.locator('.next-question[data-kind="investigate"]')
             await expect(suggestion).to_be_visible()
             question = await suggestion.get_attribute("data-suggestion")
             await suggestion.click()

@@ -170,7 +170,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
             class_="starter-prompts",
         ),
         ui.p(
-            "Choose a question or ask your own. Then choose a plot, continue in the same language, or try another.",
+            "Choose a question or ask your own. Follow-ups help you visualize, investigate, or try another method.",
             class_="welcome-copy",
         ),
     )
@@ -489,12 +489,12 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                 await backend.send(note="".join(answer).strip())
                 for kind, language, question in backend.suggestions:
                     label = {
-                        "plot": "Plot in",
-                        "continue": "Continue in",
-                        "switch": "Switch to",
+                        "visualize": "Visualize",
+                        "investigate": "Investigate",
+                        "method": "Try another method",
                     }[kind]
-                    next_prompt = f"Use {language}. {question}"
-                    if kind == "plot":
+                    next_prompt = f"Use {language} as the main language. {question}"
+                    if kind == "visualize":
                         next_prompt += f"\n\nInclude a plot drawn in {language}."
                     # Suggestions are enhanced by ShinyChat's Markdown renderer.
                     # A raw HTML stream block would display an inert span.
@@ -502,7 +502,16 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                         "\n\n"
                         + str(
                             ui.tags.button(
-                                f"{label} {language} · {question}",
+                                ui.span(
+                                    ui.span(label, class_="next-category"),
+                                    ui.span(
+                                        language,
+                                        class_="next-language",
+                                        title="Preferred language",
+                                    ),
+                                    class_="next-heading",
+                                ),
+                                ui.span(question, class_="next-question-text"),
                                 type="button",
                                 class_="suggestion submit next-question",
                                 **{

@@ -78,6 +78,10 @@ body.console-chat-app {
   cursor: pointer;
 }
 .chat-card .next-question:hover { background: #e1ece2; }
+.next-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.next-category { font-size: 13px; font-weight: 600; }
+.next-language { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; }
+.next-question-text { font-size: 14px; color: var(--ink); }
 .session-info { color: #84908b; font-size: 10px; text-align: center; padding: 10px 5px 13px; border-top: 1px solid #edf0e9; }
 .inspection-column { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; min-height: 0; padding-right: 3px; }
 .inspection-column .card { flex-shrink: 0; }

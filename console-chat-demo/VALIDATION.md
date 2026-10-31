@@ -5,7 +5,7 @@ Live browser conversations used `gpt-6.1-terra` through chatlas's Responses API 
 
 ## App and process checks
 
-The final app run passed 20 tests against the rebuilt Console binary.
+The final app run passed 19 tests against the rebuilt Console binary.
 The cold package test was excluded from this run after an earlier pass installed and imported `humanize` in a managed environment.
 The checks cover:
 
@@ -14,8 +14,9 @@ The checks cover:
 - Concurrent clients, slot reuse, cancellation during startup, private files, credentials, blocked networking and denied host writes.
 - Parquet views for the table tool, bounded previews, rejection of multiple SQL statements and denied reads outside the five bundled files.
 - Interrupting a cancelled table query before closing its cursor, using an explicit checkpoint at the SQL driver boundary.
-- Each answer offers three follow-ups: plot, continue in the last runtime, or switch to the least recently used runtime.
-  Plot choices alternate R and Python; replacing the choices within a turn does not advance the alternation.
+- Each answer offers Visualize, Investigate, and Try another method, with a preferred language for each.
+  The public tool accepts repeated languages, clears outdated choices after code runs, and preserves them across notes and polls.
+  A retained SQL result is retrieved in R and reused as a data frame in Python.
 - Separate exports for independent Console sessions, knitr selection for SQL-only exports, and execution of R, Python and SQL chunks from the exported report.
 
 From the repository root:
@@ -36,9 +37,10 @@ The cold package test can take several minutes; the final local run omitted it w
 The in-app browser drove real conversations on one Shiny process: a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
 A second browser client had only its own table views.
 Generated follow-ups were activated through their buttons.
-The three-choice interface offered an R plot, continued SQL analysis, and a switch to R after a SQL starter.
-Clicking the R plot produced an inline chart and offered a Python plot, continued R analysis, and a switch to Python.
-Clicking the Python plot produced Matplotlib output and offered an R plot, continued Python analysis, and a switch to SQL.
+The task-based interface offered R and SQL follow-ups after a SQL starter, with small preferred-language badges.
+Clicking Visualize created an R data frame and an inline chart; the next Visualize question offered Python using that existing frame.
+That Python turn drew a Matplotlib plot directly from `r.carrier_delays`, without another SQL query or R retrieval cell.
+Language selection follows agent instructions and conversation context; the app does not enforce a rotation or inspect the runtime's objects to select suggestions.
 A downloaded zip contained the QMD source and all five Parquet files; `quarto render analysis.qmd --to html` produced the report.
 The process test also runs the exported Python chunk, rather than treating it as text.
 
