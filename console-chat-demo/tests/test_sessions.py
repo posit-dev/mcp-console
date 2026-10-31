@@ -168,13 +168,32 @@ async def test_follow_ups_use_task_categories_and_reusable_data(pool):
         "investigate_question": "How do flight counts change by month?",
         "method_question": "How concentrated are flights across airports?",
     }
+    with pytest.raises(
+        ValueError, match="Visualize in R, Investigate in SQL, and Model in Python"
+    ):
+        await suggest.func(
+            plot_language="Python",
+            investigate_language="Python",
+            method_language="Python",
+            **questions,
+        )
+    with pytest.raises(ValueError, match="Model in Python"):
+        await suggest.func(
+            plot_language="R",
+            investigate_language="SQL",
+            method_language="R",
+            **questions,
+        )
     await suggest.func(
-        plot_language="R", investigate_language="SQL", method_language="R", **questions
+        plot_language="R",
+        investigate_language="SQL",
+        method_language="Python",
+        **questions,
     )
     assert session.suggestions == [
         ("visualize", "R", questions["plot_question"]),
         ("investigate", "SQL", questions["investigate_question"]),
-        ("method", "R", questions["method_question"]),
+        ("method", "Python", questions["method_question"]),
     ]
     # A note or poll does not invalidate the choices or consume the SQL result.
     await session.send(note="Keep the airport summary for the next question.")
@@ -186,10 +205,10 @@ async def test_follow_ups_use_task_categories_and_reusable_data(pool):
         )
     )
     assert session.suggestions == []
-    # Repeating an R plot is allowed; language variety is a preference.
+    # Replacing choices before the answer finishes must not advance the rotation.
     await suggest.func(
         plot_language="R",
-        investigate_language="R",
+        investigate_language="SQL",
         method_language="Python",
         **questions,
     )
@@ -201,19 +220,60 @@ async def test_follow_ups_use_task_categories_and_reusable_data(pool):
     )
     assert session.suggestions == []
     await suggest.func(
-        plot_language="Python",
+        plot_language="R",
         investigate_language="SQL",
         method_language="Python",
         **questions,
     )
     assert session.suggestions == [
-        ("visualize", "Python", questions["plot_question"]),
+        ("visualize", "R", questions["plot_question"]),
         ("investigate", "SQL", questions["investigate_question"]),
         ("method", "Python", questions["method_question"]),
     ]
     show = next(t for t in session.chat.get_tools() if t.name == "show_data")
     await show.func(query="FROM airlines", title="Airlines")
     assert session.suggestions == []
+
+
+@pytest.mark.asyncio
+async def test_follow_up_plots_alternate_with_one_choice_per_language(
+    pool, monkeypatch
+):
+    session = await pool.open()
+    suggest = next(t for t in session.chat.get_tools() if t.name == "suggest_next")
+    languages = iter([("R", "Python"), ("Python", "R"), ("R", "Python")])
+
+    # Only replace the model's stream; the SQL cells run in real Console.
+    async def model_stream(prompt, **kwargs):
+        async def chunks():
+            plot, model = next(languages)
+            await session.send(sql="SELECT 1 AS answer")
+            questions = {
+                "plot_question": "Plot the distributions?",
+                "investigate_question": "How do delays vary by airport?",
+                "method_question": "Estimate uncertainty with a bootstrap?",
+                "investigate_language": "SQL",
+            }
+            with pytest.raises(ValueError, match=f"Visualize in {plot}"):
+                await suggest.func(
+                    plot_language=model, method_language=plot, **questions
+                )
+            for _ in range(2):
+                await suggest.func(
+                    plot_language=plot, method_language=model, **questions
+                )
+            yield "Analysis complete."
+
+        return chunks()
+
+    monkeypatch.setattr(session.chat, "stream_async", model_stream)
+    for plot, model in (("R", "Python"), ("Python", "R"), ("R", "Python")):
+        assert [chunk async for chunk in session.stream("Compare delays?")]
+        assert [(kind, language) for kind, language, _ in session.suggestions] == [
+            ("visualize", plot),
+            ("investigate", "SQL"),
+            ("method", model),
+        ]
 
 
 @pytest.mark.asyncio

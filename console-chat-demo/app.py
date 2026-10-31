@@ -139,10 +139,11 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
             "Python",
             "Can weather help predict a delay?",
             (
-                "Use Python to join flights to weather and model how visibility, "
-                "precipitation and wind relate to departure delays. Explain the limits."
+                "Join flights to weather in SQL, then use Python to model how "
+                "visibility, precipitation and wind relate to departure delays. "
+                "Explain the limits."
             ),
-            "The agent fits and evaluates a model.",
+            "The agent combines a SQL join with a Python model.",
         ),
     ]
     greeting = ui.TagList(
@@ -170,7 +171,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
             class_="starter-prompts",
         ),
         ui.p(
-            "Choose a question or ask your own. Follow-ups help you visualize, investigate, or try another method.",
+            "Choose a question or ask your own. Follow-ups help you visualize, investigate, or model the data.",
             class_="welcome-copy",
         ),
     )
@@ -491,7 +492,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                     label = {
                         "visualize": "Visualize",
                         "investigate": "Investigate",
-                        "method": "Try another method",
+                        "method": "Model",
                     }[kind]
                     next_prompt = f"Use {language} as the main language. {question}"
                     if kind == "visualize":

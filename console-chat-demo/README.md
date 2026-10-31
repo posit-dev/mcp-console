@@ -8,10 +8,11 @@ Ask a question in plain English.
 The agent writes and runs code to join and filter data, draw plots, fit models, and present selected rows or summaries.
 It can pass results between R, Python and SQL and build on earlier work; its code and output are visible in the chat.
 The starter questions demonstrate the agent's SQL summaries, R plots and Python models.
-Each answer offers three next questions: **Visualize**, **Investigate**, and **Try another method**, with a small badge showing the preferred language.
-The agent chooses languages for the task and data already available in its session.
-After SQL, suggestions favor R; Python becomes a natural next step when it can reuse an existing R data frame or Python object.
-Language variety and alternating R/Python plots are preferences, with useful next steps and data reuse taking priority.
+Each answer offers **Visualize**, **Investigate**, and **Model**, with small language badges: one R, one Python, and one SQL choice.
+Visualize alternates R and Python; Investigate uses SQL; Model uses the other language.
+The agent starts with a SQL cell, retains a focused query result as a named R data frame, and reuses it from Python through `r.`.
+The prompt keeps joins and SQL summaries in SQL cells, including for Python modeling questions.
+The buttons describe the analytical task; the agent handles data preparation.
 Plots appear inline in the chat.
 **Format code** changes only the displayed code, using Air, Ruff or SQLGlot; it does not change what runs.
 **Table views** lets you browse the five source tables and named views the agent creates.

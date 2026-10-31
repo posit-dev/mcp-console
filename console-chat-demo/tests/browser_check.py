@@ -139,6 +139,11 @@ async def main() -> None:
                 await expect(
                     first.locator(f'.next-question[data-kind="{kind}"] .next-language')
                 ).to_have_text(re.compile(r"^(R|Python|SQL)$"))
+            assert set(await first.locator(".next-language").all_text_contents()) == {
+                "R",
+                "Python",
+                "SQL",
+            }
             suggestion = first.locator('.next-question[data-kind="investigate"]')
             await expect(suggestion).to_be_visible()
             question = await suggestion.get_attribute("data-suggestion")

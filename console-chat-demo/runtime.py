@@ -69,12 +69,21 @@ airports describes airports by faa code; planes describes aircraft by tailnum;
 weather has hourly conditions by origin and time_hour. Times, including
 time_hour, are local New York time. Join flights to weather on origin and
 time_hour.
-Query the existing views by name with send(sql=...), e.g. SELECT count(*) FROM
-flights. They read the shared Parquet files in nycflights13/ on demand. The SQL
-connection belongs to R and is also available as nyc for DBI and dbplyr.
-For SQL followed by Python analysis, submit the query with send(sql=...), then
-retrieve it in R with `delays <- .console$sql_last_result()`, then access it in
-Python with `df = r.delays`. This retrieves the result without rerunning SQL.
+The first code cell in a new conversation must use send(sql=...) to inspect or
+select the data for the question. Use the existing views by name, e.g. SELECT
+count(*) FROM flights. They scan the shared Parquet files on demand.
+Run joins, filtering, and grouped SQL summaries as SQL cells, including when
+the user asks for a Python model. Do not embed SQL in Python strings, call
+duckdb.connect()/execute(), or reread Parquet files to perform these queries.
+Use SQL for data preparation and Python for the model or analysis itself.
+The SQL connection belongs to R. Retrieve the selected result with an R cell,
+for example `delays <- .console$sql_last_result()`, and give the data frame a
+meaningful name. Python then accesses that existing frame with `df = r.delays`.
+Before finishing a SQL analysis, retain its focused result as a named R data
+frame so later questions can reuse it. Keep joins and aggregation in SQL;
+collect the result needed for the analysis, not entire source tables.
+This retrieves the result without rerunning SQL. Reuse named frames in later
+steps; a request to use Python does not mean every preparation cell is Python.
 Omitting n retrieves all remaining rows; use n for successive bounded batches.
 Filter or aggregate in SQL before collecting data. Reuse existing R objects as
 r.name in Python and Python objects as py$name in R. Changing languages does not
@@ -86,20 +95,18 @@ For plots use the Console-managed R graphics device or matplotlib.pyplot.show().
 Do not open browsers, GUI windows or HTML files. Report uncertainty and assumptions.
 Give concise answers grounded in results. After the analysis, call suggest_next
 with three distinct, related questions for the user to choose from:
-1. Visualize: draw a plot that helps answer a new question about the results.
-2. Investigate: examine a pattern, subgroup, exception or possible explanation.
-3. Try another method: use a different statistical or modeling approach.
-Choose each question's preferred language from the data and objects actually
-available in that Console session. After SQL, favor R for analysis or plotting.
-Suggest Python when a relevant named R data frame or Python object already
-exists and can be reused directly. A SQL preview or show_data table alone is
-not such an object. Do not propose a Python task that first needs a new SQL-to-R
-retrieval just to get its input; propose the useful R analysis first.
-Spread language variety across the conversation. Prefer alternating R and Python
-plots when the data is ready, but reuse and a useful next step take priority.
-Questions may use the same language. Do not run extra preparation solely to make
-a language eligible for a suggestion. Build on earlier results rather than
-repeating calculations in different syntax.
+1. Visualize: draw a plot. Alternate R and Python on successive answers,
+   starting with R.
+2. Investigate: use SQL to examine a pattern, subgroup or exception.
+3. Model: fit a model, estimate uncertainty, predict or simulate. Use whichever
+   of R and Python is not used by Visualize.
+Every set must include one R, one Python and one SQL question. If suggest_next
+rejects the languages, use the ones in its error. Base questions on data already
+available: R can analyze the retained data frame and Python can reuse it via r.
+A show_data table is outside Console; use a SQL cell for data needed by R/Python.
+Ask questions that build on the analysis, not translations of the same calculation.
+Keep the SQL-to-R-to-Python preparation out of the question text; the agent handles
+that workflow when answering. The submitted code remains visible in the chat.
 Write concise questions in plain English. Name the technique when it helps
 explain the task, but omit language names and category labels from the question;
 the app displays those separately. The buttons include the preferred language
@@ -256,6 +263,7 @@ class Session:
         self.slot = slot
         self.dynamic = dynamic
         self.workspace = slot / "workspace"
+        self._next_plot = "R"
         self.suggestions: list[tuple[str, str, str]] = []
         # ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL come from the server
         # environment, such as a Posit Connect Anthropic integration.
@@ -297,33 +305,42 @@ class Session:
         async def suggest_next(
             plot_language: Literal["R", "Python"],
             plot_question: str,
-            investigate_language: Literal["R", "Python", "SQL"],
+            investigate_language: Literal["SQL"],
             investigate_question: str,
-            method_language: Literal["R", "Python", "SQL"],
+            method_language: Literal["R", "Python"],
             method_question: str,
         ) -> str:
             """Offer three next steps based on results and objects already available.
 
-            Choose languages for the task and reusable data. After SQL, favor R;
-            propose Python when a relevant R frame or Python object already exists.
-            Prefer alternating plot languages when ready, without a fixed rotation.
+            Include one R, one Python and one SQL question. Visualize alternates
+            R and Python, starting with R. Investigate uses SQL. Model uses the
+            other plotting language. Reuse named R/Python data frames.
             Questions should be distinct and omit the separately displayed language.
 
             Parameters
             ----------
             plot_language
-                Preferred plotting language, considering the data already available.
+                R for the first answer, then alternate Python and R.
             plot_question
                 One question asking for a plot, naming what to show and how.
             investigate_language
-                Preferred language for investigating a result further.
+                SQL, for investigating a result further.
             investigate_question
                 One question about a pattern, subgroup, exception or explanation.
             method_language
-                Preferred language for trying a different analytical method.
+                Whichever of R and Python is not used for the plot.
             method_question
-                One question using another statistical or modeling approach.
+                One question about fitting a model, uncertainty, prediction or simulation.
             """
+            model = "Python" if self._next_plot == "R" else "R"
+            if (plot_language, investigate_language, method_language) != (
+                self._next_plot,
+                "SQL",
+                model,
+            ):
+                raise ValueError(
+                    f"Use Visualize in {self._next_plot}, Investigate in SQL, and Model in {model}."
+                )
             self.suggestions = [
                 ("visualize", plot_language, plot_question),
                 ("investigate", investigate_language, investigate_question),
@@ -479,6 +496,8 @@ class Session:
                             "This turn reached its limit of 16 tool calls."
                         )
                 yield chunk
+        if self.suggestions:
+            self._next_plot = "Python" if self._next_plot == "R" else "R"
 
     async def close(self) -> None:
         if self._closing is None:
