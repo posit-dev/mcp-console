@@ -1,0 +1,91 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: retained = 'default'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: retained = 'alpha'
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: beta
+  python: print(42)
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  python: import os; os._exit(86)
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+
+        [stopped]
+  isError: false
+---
+send:
+  python: print(42)
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "beta"; status: idle]
+
+        [idle]
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: beta
+        status: idle
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  python: print(retained)
+result:
+  content:
+    - type: text
+      text: |
+        default
+  isError: false

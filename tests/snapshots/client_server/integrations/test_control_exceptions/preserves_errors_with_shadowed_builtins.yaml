@@ -1,0 +1,118 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: sentinel = object(); original = sentinel
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: list = None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(list is None, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        True True
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(list is None, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        True True
+  isError: false
+---
+send:
+  python: del list
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: str = None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(str is None, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        True True
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: print(str is None, sentinel is original)
+result:
+  content:
+    - type: text
+      text: |
+        True True
+  isError: false
+---
+send:
+  python: del str
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

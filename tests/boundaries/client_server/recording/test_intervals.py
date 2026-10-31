@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.client import McpClient
+from support.previews import live_recording_events
 from support.checkpoints import release_fixture_checkpoint, wait_for_checkpoint
 from support.normalization import normalize_recording
 from boundaries.client_server._harness import wait_for_marker
@@ -84,7 +85,7 @@ def test_preview_omission_preserves_raw_images(
             assert not result["isError"], result
             (image,) = [b for b in result["content"] if b["type"] == "image"]
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            capture = events(recording)
+            capture = live_recording_events(recording)
             artifacts = [e for e in capture if e["event"] == "image_retained"]
             assert len(artifacts) == 2, artifacts
             omitted, returned = artifacts
@@ -111,7 +112,7 @@ def test_preview_omission_preserves_raw_images(
             assert owners == [{"session_id": 1, "cell_id": 1, "interval": "cell"}], (
                 owners
             )
-            client.send()
+            client.send(session="default")
             assert (recording / omitted["path"]).read_bytes() == b"\0" * (
                 6 * 1024 * 1024 + 3
             )
@@ -142,7 +143,7 @@ def test_raw_image_limit_preserves_inline_output_and_resets_at_cell_boundary(
             assert base64.b64decode(image["data"]) == b"\0" * (4 * 1024 * 1024)
             image["data"] = "<4 MiB of zero bytes, verified byte-for-byte>"
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            capture = events(recording)
+            capture = live_recording_events(recording)
             artifacts = [e for e in capture if e["event"] == "image_retained"]
             assert len(artifacts) == 10, len(artifacts)
             assert sum(
@@ -207,7 +208,7 @@ def test_cell_intervals_and_empty_cells(
             post = wait_for_marker(workspace, "zod-recording-post-release", client)
             release_fixture_checkpoint(post, client=client)
             wait_for_marker(workspace, "zod-recording-post-observed", client)
-            client.send()
+            client.send(session="default")
             (active_recording,) = (workspace / ".agents/console/sessions").iterdir()
             active_capture = active_recording / "capture/sessions/001"
             capture = events(active_recording)

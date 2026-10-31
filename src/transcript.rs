@@ -42,6 +42,8 @@ pub(crate) struct Owner {
     pub session_id: u64,
     pub cell_id: Option<u64>,
     pub interval: Interval,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) omit_from_projections: bool,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -66,6 +68,37 @@ impl Owner {
         )
     }
 }
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(untagged)]
+enum ImageOwner {
+    Interval(Owner),
+    Call(CallImageOwner),
+}
+
+#[derive(Clone, Copy, Serialize)]
+struct CallImageOwner {
+    session_id: u64,
+    call_id: u64,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    omit_from_projections: bool,
+}
+
+impl ImageOwner {
+    fn omit_from_projections(self) -> bool {
+        match self {
+            Self::Interval(owner) => owner.omit_from_projections,
+            Self::Call(owner) => owner.omit_from_projections,
+        }
+    }
+}
+
+/// Immediate images belong to their call without changing foreground capture.
+pub(crate) struct CallImages {
+    transcript: Transcript,
+    owner: CallImageOwner,
+    budget: queue::ImageBudget,
+}
 /// Byte ranges in the actual assembled text blocks, or one image block.
 #[derive(Clone, Serialize)]
 pub(crate) struct ResultPart {
@@ -81,6 +114,7 @@ pub(crate) struct Transcript(
     Arc<Mutex<ProtocolEvents>>,
     Arc<AtomicU64>,
     Arc<CaptureStorage>,
+    Arc<str>,
 );
 struct TranscriptState {
     started_at: DateTime<Utc>,
@@ -124,6 +158,34 @@ pub(crate) struct Call {
     parts: Arc<Mutex<Vec<ResultPart>>>,
     /// Actual worker addressed by a call that submitted source.
     addressed_session: Option<u64>,
+    omit_from_projections: bool,
+}
+
+/// Request identity and note ownership observed before any journal I/O.
+pub(crate) struct CallReceipt {
+    pub(crate) id: u64,
+    at: DateTime<Utc>,
+    note_target: Option<NoteTarget>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub(super) enum NoteTarget {
+    Worker {
+        session_id: u64,
+    },
+    NextWorker {
+        session: String,
+        after_session_id: u64,
+    },
+}
+
+enum CallSource {
+    Mcp,
+    #[cfg(unix)]
+    Integrator {
+        include_in_projections: bool,
+    },
 }
 #[derive(Clone)]
 pub(crate) struct Artifact {
@@ -134,6 +196,34 @@ pub(crate) struct Artifact {
     pub(crate) public_directory: Arc<Mutex<PathBuf>>,
 }
 impl Transcript {
+    #[cfg(unix)]
+    pub(crate) fn integrator_recording(&self) -> Result<serde_json::Value, String> {
+        let state = self.0.lock().map_err(|_| "transcript lock poisoned")?;
+        if let Some(error) = &state.failure {
+            return Err(format!("recording is unavailable: {error}"));
+        }
+        let active = state.active.as_ref().ok_or("recording has not started")?;
+        let projections = active
+            .projections
+            .as_ref()
+            .ok_or("recording projections are unavailable")?;
+        Ok(projections.integrator_recording(&self.4))
+    }
+
+    pub(crate) fn call_images(&self, call: &Call) -> Option<CallImages> {
+        let call_id = call.id?;
+        let session_id = self.owner()?.session_id;
+        Some(CallImages {
+            transcript: self.clone(),
+            owner: CallImageOwner {
+                session_id,
+                call_id,
+                omit_from_projections: call.omit_from_projections,
+            },
+            budget: queue::ImageBudget::default(),
+        })
+    }
+
     #[cfg(test)]
     pub(crate) fn new(dynamic_resolution: bool) -> Self {
         Self::configured(
@@ -169,6 +259,17 @@ impl Transcript {
             Arc::default(),
             Arc::default(),
             storage,
+            Arc::from("default"),
+        )
+    }
+    /// Share recording identity and storage while retaining this worker's owner.
+    pub(crate) fn for_session(&self, session: &str) -> Self {
+        Self(
+            self.0.clone(),
+            self.1.clone(),
+            self.2.clone(),
+            self.3.clone(),
+            Arc::from(session),
         )
     }
     pub(crate) fn pending(working_directory: std::io::Result<PathBuf>) -> Self {
@@ -187,6 +288,7 @@ impl Transcript {
             state.metadata_known = true;
             state.capture()?.append(
                 Event::EnvironmentDiscovered {
+                    session: &self.4,
                     dynamic_resolution: configuration.dynamic_resolution,
                     python_preparation: configuration.python_preparation,
                     r_available: configuration.r_available,
@@ -214,21 +316,77 @@ impl Transcript {
         }));
     }
 
-    /// Reserve protocol identity without waiting for the journal writer.
-    pub(crate) fn reserve_call_id(&self) -> u64 {
-        self.2
+    /// Capture receipt without waiting for the journal writer. Source-bearing
+    /// notes follow source association; standalone notes keep this worker target.
+    pub(crate) fn receive_call(&self, request: &CallToolRequestParams) -> CallReceipt {
+        let id = self
+            .2
             .fetch_add(1, Ordering::Relaxed)
             .checked_add(1)
-            .expect("recording call ID space exhausted")
+            .expect("recording call ID space exhausted");
+        let at = Utc::now();
+        let note_target = request.arguments.as_ref().and_then(|arguments| {
+            (arguments.get("note").is_some_and(Value::is_string)
+                && !["r", "python", "sql"]
+                    .iter()
+                    .any(|language| arguments.get(*language).is_some_and(Value::is_string)))
+            .then(|| self.note_target())
+        });
+        CallReceipt {
+            id,
+            at,
+            note_target,
+        }
     }
     pub(crate) fn begin(
         &self,
-        call_id: u64,
-        at: DateTime<Utc>,
+        receipt: CallReceipt,
         request_id: &RequestId,
         request_meta: &RequestMetaObject,
         request: &CallToolRequestParams,
     ) -> Call {
+        self.begin_call(receipt, request_id, request_meta, request, CallSource::Mcp)
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn begin_integrator(
+        &self,
+        request_id: &RequestId,
+        arguments: &serde_json::Map<String, Value>,
+        include_in_projections: bool,
+    ) -> Call {
+        let request = CallToolRequestParams::new("send").with_arguments(arguments.clone());
+        self.begin_call(
+            self.receive_call(&request),
+            request_id,
+            &RequestMetaObject::default(),
+            &request,
+            CallSource::Integrator {
+                include_in_projections,
+            },
+        )
+    }
+
+    fn begin_call(
+        &self,
+        receipt: CallReceipt,
+        request_id: &RequestId,
+        request_meta: &RequestMetaObject,
+        request: &CallToolRequestParams,
+        source: CallSource,
+    ) -> Call {
+        let CallReceipt {
+            id: call_id,
+            at,
+            note_target,
+        } = receipt;
+        let (origin, omit_from_projections) = match source {
+            CallSource::Mcp => (None, false),
+            #[cfg(unix)]
+            CallSource::Integrator {
+                include_in_projections,
+            } => (Some("integrator"), !include_in_projections),
+        };
         self.activate();
         self.update(|state| {
             let active = state.capture()?;
@@ -239,8 +397,11 @@ impl Transcript {
             active.append(
                 Event::ToolCall {
                     call_id,
+                    note_target,
                     request_id,
                     request: &request,
+                    origin,
+                    omit_from_projections,
                 },
                 at,
             )?;
@@ -257,11 +418,19 @@ impl Transcript {
             } else {
                 None
             };
+            if omit_from_projections {
+                self.1
+                    .lock()
+                    .expect("protocol capture lock")
+                    .omitted_calls
+                    .insert(call_id);
+            }
             Ok(Call {
                 id: Some(call_id),
                 result_images: Arc::new(Mutex::new(None)),
                 parts: Arc::new(Mutex::new(Vec::new())),
                 addressed_session,
+                omit_from_projections,
             })
         })
         .unwrap_or_else(Call::unrecorded)
@@ -293,7 +462,22 @@ impl Transcript {
                     Utc::now(),
                 )?;
             }
-            active.finish(call_id, images, &parts, response, Utc::now())
+            active.finish(
+                call_id,
+                images,
+                &parts,
+                response,
+                call.omit_from_projections,
+                Utc::now(),
+            )?;
+            if !active.call_sessions.contains_key(&call_id) {
+                self.1
+                    .lock()
+                    .expect("protocol capture lock")
+                    .omitted_calls
+                    .remove(&call_id);
+            }
+            Ok(())
         });
     }
     pub(crate) fn finalize(&self) {
@@ -464,6 +648,7 @@ impl ActiveTranscript {
         };
         transcript.append(
             Event::RecordingStarted {
+                console_version: env!("MCP_CONSOLE_VERSION"),
                 working_directory: &working_directory_text,
                 dynamic_resolution: configuration
                     .metadata_known
@@ -639,6 +824,7 @@ impl ActiveTranscript {
         result_images: ResultImages,
         parts: &[ResultPart],
         response: &Result<CallToolResponse, ErrorData>,
+        omit_from_projections: bool,
         at: DateTime<Utc>,
     ) -> Result<(), String> {
         let outcome = match response {
@@ -655,6 +841,7 @@ impl ActiveTranscript {
                 call_id,
                 parts,
                 outcome,
+                omit_from_projections,
             },
             at,
         )
@@ -732,6 +919,7 @@ impl Call {
             result_images: Arc::new(Mutex::new(None)),
             parts: Arc::new(Mutex::new(Vec::new())),
             addressed_session: None,
+            omit_from_projections: false,
         }
     }
 

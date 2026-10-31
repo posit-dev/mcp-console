@@ -235,7 +235,7 @@ def test_times_out_and_polls_automatic_python_resolution(
 
             begin.release()
             started.wait("automatic Python resolver")
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             assert without_elapsed(last_result_text(client)) == (
                 "\n[running; poll with an empty send]"
             )
@@ -243,7 +243,7 @@ def test_times_out_and_polls_automatic_python_resolution(
 
             release.release()
             resolver_released = True
-            client.send(timeout_ms=30_000)
+            client.send(session="default", timeout_ms=30_000)
             assert last_result_text(client) == (
                 "[resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']\n"
                 "('yaml12', 1)\n"
@@ -353,7 +353,7 @@ def interrupts_automatic_python_resolver_and_preserves_worker(
             # Collect the admitted cell's response before it can enter preparation.
             begin.release()
             started.wait("automatic Python resolver")
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             assert without_elapsed(last_result_text(client)) == (
                 "\n[running; poll with an empty send]"
             )

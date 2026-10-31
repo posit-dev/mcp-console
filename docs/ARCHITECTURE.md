@@ -51,6 +51,38 @@ The [server-relay](RELAY_PROTOCOL.md) and [relay-worker](WORKER_PROTOCOL.md) tra
 Interactive stdin and direct stdout/stderr are separate streams.
 Each producer preserves order, but their observation order does not reconstruct a global chronology.
 
+### Integrator control
+
+The hidden, internal Unix listener in [`server/control.rs`](../src/server/control.rs) shares the existing server and worker owners and has no compatibility guarantee.
+MCP input closure owns shutdown; control connections cannot keep the runtime alive.
+Ordinary integrator evaluations acquire the same admission and preparation boundaries as MCP evaluations, retaining the generation they observed while waiting.
+Their terminal collector owns response delivery independently of the socket lifetime and prevents MCP polling or recovery from claiming their output.
+Previously pending MCP output stays with MCP.
+Inspection copies bounded presentation state without draining output, sealing terminal frames, accounting omissions, or acknowledging delivery.
+Subscriptions observe changes to that bounded pending view through a coalescing watch; they never queue unbounded output or block producers.
+Delivery cancellation also invalidates the view when a claimed response returns to its evaluation.
+When the control listener is enabled, the output owner also retains a bounded history of typed observations before terminal rendering and MCP response assembly.
+Evaluation metadata and event sequences let integrators reconcile pending and completed output independently of MCP delivery.
+This history is a replaceable snapshot, not a lossless event log; its limits and attribution rules are specified in [Integrator control](INTEGRATOR_CONTROL.md).
+Immediate requests retain their own private history, and inspection output does not enter the shared history.
+Input and interruption pin the observed evaluation identity so a delayed control cannot affect its successor.
+The socket does not select a new sandbox authority.
+
+Control requests with `execution: "immediate"` use a separate connection-owned result slot and bounded output tape.
+An immediate R request returns busy while an ordinary non-R cell is admitted.
+It also returns busy until an admitted ordinary R cell has entered the worker.
+Immediate admission holds the evaluation publication lock through command enqueue; once an ordinary cell is admitted, further immediate R requests cannot overtake its entry.
+Ordinary admission is unchanged while immediate R runs.
+The connection's operation owner holds ordinary dispatch until immediate R completes, keeping the accepted cell cancellable before its source is sent.
+An interrupt withholds that cell and wakes dispatch even if private R catches its own interrupt; failure and retirement release the wait through the existing operation boundary.
+The worker ingress thread dispatches Python requests to a background thread and queues R requests for the owning thread's event hook.
+R requests share one pending coordinator wakeup; only consuming that wakeup clears it, so event-hook execution cannot fill the command pipe with unread notifications.
+Neither path claims the ordinary evaluation or its output.
+Restart and worker failure settle the priority slot through the same connection's retirement events.
+Managed output follows the current thread's request identity; native streams retain foreground attribution.
+Priority execution holds preparation admission until completion and cannot initiate dependency preparation or managed input.
+Its request and result are journaled without creating a nested numbered cell interval.
+
 ## Startup and runtime ownership
 
 The server captures configuration once and constructs tool presentation from it.
@@ -59,7 +91,15 @@ Native capture owns file parsing, layering, full materialization, and pruning; t
 Optional source paths require automatic discovery to be disabled and retain the same missing-file, regular-file, and deduplication rules as native discovery.
 Overrides apply after the selected files and before ordinary `-c` overrides; explicit permission nodes retain replacement semantics.
 The adapter removes the file after synchronous materialization or the server's initialization handshake, when native capture has finished reading it.
-One connection-owned background task discovers runtimes, prepares defaults, and prelaunches the built-in worker.
+The connection owns a registry of logical sessions; each session owns startup, preparation, accepted requirements, and worker generations.
+The default session discovers runtimes, prepares defaults, and prelaunches the built-in worker in a background task.
+New names enter the registry on their first code call or an explicit integrator `create` request and use the same captured configuration and client authority, with independent startup and execution owners.
+The integrator control channel selects workers from this same registry.
+Stopping a named worker preserves its registry entry and requirements without prelaunching a replacement.
+The connection's capacity pool reserves one slot for the default session and admits named work without waiting when capacity is available.
+Startup, preparation, and replacement retain the same session's slot independently of request cancellation.
+Worker retirement and preparation cleanup retain separate evidence; one cannot release capacity still owned by the other.
+A completed preparation operation can release capacity while its reusable preparation host remains open, but failed discovery requires that host's confirmed retirement.
 MCP initialization, tool discovery, and pings do not wait.
 Workers supplied through internal testing hooks are launched on demand.
 
@@ -82,8 +122,10 @@ Python-only workers can replace an unused blocked bootstrap because they cannot 
 Early cells reserve the ordinary evaluation slot; there is no queue.
 Cancelling a call's wait does not cancel shared startup or replay an admitted cell.
 
-A failed initial attempt is retried only by explicit restart and only after its preparation and execution owners confirm cleanup.
+A failed initial discovery or preparation attempt is retried by explicit restart, or by a later code call to a named session, only after its preparation and execution owners confirm cleanup.
 Every stage's cleanup evidence matters; a later successful inspection cannot erase an earlier unretired process.
+Input alone cannot create a session or retry a creation whose initial discovery failed.
+Once configured session startup code or native R initialization may have run, only explicit restart grants another attempt, even for a named session.
 
 ### Worker
 
@@ -166,7 +208,8 @@ Restart input/code targets only the replacement; an interrupt's follow-up cannot
 Restart prepares a changed environment before retiring the current worker.
 Failure before acceptance preserves the old declaration and worker.
 Failure after retirement cannot restore live state.
-An established worker failure can trigger one replacement attempt, but never replay of the failed cell or input.
+An established default-session worker failure can trigger one replacement attempt, but never replay of the failed cell or input.
+Named workers retire without automatic replacement; their next code or nonempty-input call can start a fresh worker after cleanup completes.
 
 Interrupt selection retains one resolver operation, startup admission, or worker connection and generation through acknowledgment and observation.
 A selected resolver that already completed does not authorize selecting another target.
@@ -177,6 +220,8 @@ Automatic replacement can reuse a generation, so bundled follow-up work also che
 The hidden `resolve` process materializes environments under the separate [resolver policy](PACKAGE_CONFIGURATION.md).
 The preparation owner publishes a result only after its process and I/O cleanup contract completes.
 The server owns accepted declarations, not the materializer.
+A confirmed stopped named session uses prestart preparation for changed declarations; unresolved activation failures still require an explicit restart.
+Its next worker records the accepted declaration without changing the retired worker's source metadata.
 
 Installation warmup captures a private launch hint and gives preparation host permissions without changing cache selection or worker enforcement.
 The controller removes that hint from resolver and worker launches so their subprocesses do not inherit it.
@@ -221,23 +266,30 @@ Recovery after runner loss can still permit replacement without confirming nativ
 A forced launcher kill, pipe EOF, or suppressed status diagnostic cannot prove that cleanup.
 The pinned runner has no separate Unix cleanup receipt; a nonzero status can represent workload failure or a cleanup error.
 
-Connection closure cancels startup/preparation, retires execution resources, settles accepted responses, and bounds blocked MCP delivery.
+Connection closure closes registry admission, cancels every session's startup/preparation, and retires their execution resources concurrently within one shutdown deadline.
+It also settles accepted responses and bounds blocked MCP delivery.
 Physical EOF can precede transport consumption of queued requests; response settlement waits for the transport's input drain within the same delivery deadline.
+On Windows, the single reader retains physical EOF for sessions registered later from buffered input, so their startup still triggers cancellation even when protocol output is blocked.
 Before session initialization, EOF succeeds after a complete bootstrap response and transport input drain; receiving another message clears that completion.
 Native runner loss retains the [documented lifetime limits](SANDBOX_CONFIGURATION.md#supported-hosts-and-lifetime-limits); Console has no independent recovery daemon.
 
 ## Output and delivery
 
-The server owns an ordered output tape, finite response cuts, text/image budgets, and generated notices.
+Each session owns an ordered output tape and finite response cuts; the server applies text/image budgets and generated notices to complete responses.
 Relays forward events; they do not decide MCP response boundaries or candidate acceptance.
 
-One recoverable response remains owned until local delivery or cancellation settles it.
+Transport admission and cancellation remain connection-owned and preserve request order without serializing independent session execution.
+An aggregate poll claims output from each session under one response-delivery owner; confirmed delivery settles every claim, and cancelled or failed delivery returns all claims to their session owners.
+Polling tasks are owned by the call and cannot continue collecting output after cancellation.
+
+One recoverable response per session remains owned until local delivery or cancellation settles it.
 Failed delivery restores the entire claimed region, including output preceding a combined control-and-cell call.
 An admitted poll waits within its existing deadline for pending response delivery before claiming output, including when a later cell began before the poll's handler ran.
 If another call delivered the terminal result, the poll rechecks the active slot and follows the ordinary idle path, including any submitted input.
 This does not guarantee exactly-once observation: cancellation can race with bytes already visible to a client.
 
-The journal records protocol traffic, canonical calls and assembled results, and actual worker lifetimes.
+One connection-wide journal records protocol traffic, canonical calls and assembled results, and actual worker lifetimes.
+Session-scoped transcript handles retain the public name; worker numbers remain unique across the recording, and concurrent workers keep separate output and requirement-metadata owners.
 Transport receipt reserves send capture in wire order without waiting for the recorder mutex or journal I/O.
 The bounded capture queue retains its ownership across handler and delivery cancellation and releases request payloads after capture.
 If 64 captures remain unfinished, the next send is retained in the bounded protocol queue without a canonical call record, and the transport reports the overload on stderr before retiring the connection.
@@ -285,7 +337,7 @@ Any replacement must preserve these boundaries and the [existing plot contract](
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | MCP arguments and presentation     | [`src/server/arguments.rs`](../src/server/arguments.rs), [`src/server/presentation.rs`](../src/server/presentation.rs)          |
 | Connection startup                 | [`src/server/startup.rs`](../src/server/startup.rs)                                                                             |
-| Session and generation ownership   | [`src/worker_client.rs`](../src/worker_client.rs)                                                                               |
+| Session and generation ownership   | [`src/server/sessions.rs`](../src/server/sessions.rs), [`src/worker_client.rs`](../src/worker_client.rs)                        |
 | Relay and direct worker            | [`src/worker_relay.rs`](../src/worker_relay.rs)                                                                                 |
 | Interpreter coordination           | [`src/worker/coordinator.rs`](../src/worker/coordinator.rs), [`src/python.rs`](../src/python.rs), [`src/sql.rs`](../src/sql.rs) |
 | Preparation                        | [`src/resolver/preparation.rs`](../src/resolver/preparation.rs)                                                                 |
@@ -379,8 +431,8 @@ They cannot be inferred from `cell_started` and `cell_ended`, which describe act
 `source_associated` identifies the owning worker without claiming that the source ran.
 Actual acquisition and dispatch associate source with its worker; validation rejection can associate otherwise unclaimed source only with the still-surviving addressed worker.
 Calls without source do not acquire source associations.
-Unsettled associations retain call identity and settlement flags, and the source projection retains source rather than complete requests or stdin.
-Both release settled call entries.
+Unsettled associations retain call identity and settlement flags, and the session projection retains source and notes rather than complete requests or stdin.
+Both release settled source call entries.
 Completion closes the cell interval, and the final startup or post-cell interval includes shutdown output.
 Confirmed completion follows protocol validation; cell entry observed during retirement still starts its capture interval.
 Worker termination closes the final interval and clears its owner before later process diagnostics arrive.
@@ -391,10 +443,20 @@ Combined text/image omission notices retain their common observed interval owner
 Image omission ownership is aggregated before per-interval receipts retire, with bounded state independent of the number of omitted images.
 Response assembly uses those receipts without waiting for the journal to rediscover ownership.
 
-Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and source-only `sessions/session-NNN.qmd` remain projections of the journal.
-Session documents follow actual worker lifetimes, including automatic replacements, and are created only when source is associated.
+Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and session documents at `sessions/session-NNN.qmd` remain projections of the journal.
+Session documents follow actual worker lifetimes, including automatic replacements, and are created when source or notes are associated.
+Notes accompanying source follow its worker association.
+Source-free notes belong to the selected logical session's current worker when received; without a worker, they remain pending until that named session's next actual acquisition.
+Receipt snapshots that target under the protocol ownership lock before waiting for journal I/O, and `tool_call.note_target` carries it into the projection.
+Pending targets record the logical name and the last global acquisition ID observed at receipt, so another session's acquisition cannot claim the note.
+Delayed capture can therefore append to a retired worker's document without transferring the note to its replacement.
+If no worker is acquired, pending notes remain only in the journal and Markdown transcript.
+QMD entries use original call order, with notes before same-call source, so delayed source association does not reorder the narrative.
 Their metadata follows accepted live requirements and acquisition snapshots, including retained R declarations; replacement preparation does not rewrite a retiring session.
 The Markdown projection retains calls and assembled results, including previews and omission notices, while the journal retains routine protocol, delivery, and low-level lifecycle evidence.
+Integrator calls may omit their human-readable projections while preserving journal and raw capture.
+That choice moves from the recorded call into its evaluation owner, then into observed cell/post interval owners, so admission settlement cannot erase it before a late cell-entry receipt.
+Result fragments retain the same choice when later responses include their output; projection writers filter those fragments without changing the journal or delivery data.
 Completed interval files and images become read-only after their writers retire.
 The temporary-publication registry keeps weak references to active file handles and releases completed entries; publication copies completed files while relocating live producers.
 Process-wide files finalize only after retirement, delivery settlement, queued initial capture, and blocking result writers settle.
@@ -421,7 +483,8 @@ See [Output and delivery](#output-and-delivery) for ownership and [Open work](TO
 It owns admission, retained declarations, bounded responses, and recording.
 
 **Worker:** The process holding interpreter and database state.
-The built-in worker coordinates R, Python, and SQL on one execution thread.
+The built-in worker coordinates ordinary R, Python, and SQL cells on one execution thread.
+Opt-in `execution: "immediate"` can reenter R on that thread or execute Python on a background thread, according to the request's language.
 
 **Generation:** The admission and callback identity retained by lifecycle operations.
 Old input, callbacks, evaluations, and candidate commits must not reach its replacement.

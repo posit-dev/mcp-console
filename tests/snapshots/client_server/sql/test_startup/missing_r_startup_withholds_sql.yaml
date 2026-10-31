@@ -7,7 +7,8 @@ config:
 ---
 !same-as python-only MCP initialization for this execution mode
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

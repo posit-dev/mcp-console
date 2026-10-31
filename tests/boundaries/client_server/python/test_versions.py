@@ -1050,7 +1050,7 @@ def test_interrupts_python_cache_warmup_without_committing(
         interrupt_result = interrupt["result"]
         assert interrupt_result.get("isError") is not True, interrupt_result
 
-        client.send()
+        client.send(session="default")
         assert last_result_text(client) == "\n[idle]", client.transcript[-1]
         client.send(requirements={"python": ["py-yaml12"]})
         assert last_result_text(client) == "[prepared]"
@@ -1176,7 +1176,7 @@ def test_stops_before_cache_warmup_after_python_resolver_interrupt(
             "cache warmup started after the resolver accepted an interrupt"
         )
 
-        client.send()
+        client.send(session="default")
         assert last_result_text(client) == "\n[idle]", client.transcript[-1]
         block_tool_run.unlink()
         client.send(requirements={"python": ["py-yaml12"]})

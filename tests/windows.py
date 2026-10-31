@@ -228,6 +228,7 @@ class Session:
 
     def send(self, **arguments):
         observe_completion = "timeout_ms" not in arguments
+        arguments.setdefault("session", "default")
         arguments.setdefault("timeout_ms", 10000)
         result = self.request("tools/call", {"name": "send", "arguments": arguments})
         # Cold resolver caches can outlive one observation. Preserve tests that
@@ -242,7 +243,14 @@ class Session:
                 ):
                     break
                 result = self.request(
-                    "tools/call", {"name": "send", "arguments": {"timeout_ms": 10000}}
+                    "tools/call",
+                    {
+                        "name": "send",
+                        "arguments": {
+                            "session": arguments["session"],
+                            "timeout_ms": 10000,
+                        },
+                    },
                 )
         return result
 
@@ -257,7 +265,10 @@ class Session:
             assert "running;" in output or "waiting for stdin" in output, result
             remaining = deadline - time.monotonic()
             assert remaining > 0, f"did not observe {expected!r}: {result}"
-            result = self.send(timeout_ms=min(1000, max(1, int(remaining * 1000))))
+            result = self.send(
+                session=arguments.get("session", "default"),
+                timeout_ms=min(1000, max(1, int(remaining * 1000))),
+            )
 
     def close(self):
         self.process.stdin.close()
@@ -999,8 +1010,14 @@ class WindowsConsole(unittest.TestCase):
         self.addCleanup(session.close)
         session.initialize()
         self.assertIn("42", json.dumps(session.send(r="answer <- 42L; answer")))
+        # A running response can precede evaluator entry; observe cell output.
         self.assertIn(
-            "running;", json.dumps(session.send(r="Sys.sleep(60)", timeout_ms=100))
+            "running;",
+            json.dumps(
+                session.expect(
+                    "R sleep entered", r='cat("R sleep entered\\n"); Sys.sleep(60)'
+                )
+            ),
         )
         self.assertNotIn(
             "running;", json.dumps(session.send(control="interrupt", timeout_ms=2000))
@@ -1090,10 +1107,14 @@ class WindowsConsole(unittest.TestCase):
                     session.send(python="import time; saved = 42")
                     if order == "python-r":
                         self.assertIn("42", json.dumps(session.send(r="42")))
+                    # Wait for execution rather than a short observation timeout.
                     self.assertIn(
                         "running;",
                         json.dumps(
-                            session.send(python="time.sleep(60)", timeout_ms=100)
+                            session.expect(
+                                "Python sleep entered",
+                                python="print('Python sleep entered'); time.sleep(60)",
+                            )
                         ),
                     )
                     result = session.send(control="interrupt", timeout_ms=2000)
@@ -1108,7 +1129,12 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn("42", json.dumps(session.send(python="saved = 42; saved")))
         self.assertIn(
             "running;",
-            json.dumps(session.send(python="while True: pass", timeout_ms=100)),
+            json.dumps(
+                session.expect(
+                    "Python loop entered",
+                    python="print('Python loop entered')\nwhile True: pass",
+                )
+            ),
         )
         self.assertIn(
             "KeyboardInterrupt",
@@ -1117,7 +1143,10 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn("42", json.dumps(session.send(r="42L")))
         # A failed iteration leaves an active cell: stop at the first failure.
         for _ in range(12):
-            result = session.send(r="repeat { Sys.sleep(0) }", timeout_ms=50)
+            result = session.expect(
+                "R loop entered",
+                r='cat("R loop entered\\n"); repeat { Sys.sleep(0) }',
+            )
             self.assertIn("running;", json.dumps(result))
             result = session.send(control="interrupt", timeout_ms=2000)
             self.assertNotIn("running;", json.dumps(result))
@@ -1125,10 +1154,7 @@ class WindowsConsole(unittest.TestCase):
                 {"r": "readline('R input: ')"},
                 {"python": "input('Python input: ')"},
             ):
-                result = session.send(**arguments, timeout_ms=50)
-                deadline = time.monotonic() + 10
-                while "running;" in json.dumps(result) and time.monotonic() < deadline:
-                    result = session.send(timeout_ms=1000)
+                result = session.expect("waiting for stdin", **arguments)
                 self.assertIn("waiting for stdin", json.dumps(result))
                 result = session.send(control="interrupt", timeout_ms=2000)
                 self.assertNotIn("running;", json.dumps(result))
@@ -1188,7 +1214,10 @@ class WindowsConsole(unittest.TestCase):
                 session.expect("caf\u00e9", stdin="caf\u00e9\n"), ensure_ascii=False
             ),
         )
-        result = session.send(python="while True: pass", timeout_ms=100)
+        result = session.expect(
+            "Python loop entered",
+            python="print('Python loop entered')\nwhile True: pass",
+        )
         self.assertIn("running;", json.dumps(result))
         result = session.send(control="interrupt", timeout_ms=2000)
         self.assertIn("KeyboardInterrupt", json.dumps(result))
@@ -2108,6 +2137,9 @@ class WindowsConsole(unittest.TestCase):
         )
         result = session.send(r="windows_value <- 40L; windows_value + 2L")
         self.assertIn("42", json.dumps(result))
+        self.assertEqual(
+            session.send()["content"], [{"type": "text", "text": "\n[idle]"}]
+        )
         result = session.send(r="windows_value + 3L")
         self.assertIn("43", json.dumps(result))
         session.send(control="restart")
@@ -2312,7 +2344,10 @@ class WindowsConsole(unittest.TestCase):
         self.assertTrue(
             any(item["type"] == "image" for item in result["content"]), result
         )
-        result = session.send(python="while True: pass", timeout_ms=100)
+        result = session.expect(
+            "Python loop entered",
+            python="print('Python loop entered')\nwhile True: pass",
+        )
         self.assertIn("running", json.dumps(result))
         result = session.send(control="interrupt", timeout_ms=2000)
         self.assertNotIn("running;", json.dumps(result))

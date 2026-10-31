@@ -108,13 +108,14 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 30000
 result:
   content:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 373, in dispatch
+          File "<string>", line 377, in dispatch
           File "<mcp-console:python:e1>", line 45, in pause_provider_probe
         KeyboardInterrupt
   isError: false

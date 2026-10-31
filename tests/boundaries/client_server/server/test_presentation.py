@@ -309,7 +309,7 @@ def _configured_language_matrix(binary: Path) -> Transcript:
                 records.append({"languages": enabled, "language_guidance": guidance})
                 # Observe completed preparation before closing. Discovery stays
                 # responsive even when eager startup cannot prepare a runtime.
-                result = client.send(timeout_ms=10_000)
+                result = client.send(session="default", timeout_ms=10_000)
                 assert result["isError"] is True, result
                 assert client.request("tools/list")["result"]["tools"] == [tool]
                 _, stderr = client.finish_with_standard_error(expected_exit_status=1)

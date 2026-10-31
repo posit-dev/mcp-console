@@ -13,7 +13,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 490, in initialize_connection
+          File "<string>", line 496, in initialize_connection
           File "<console startup>", line 1, in <module>
           File "<string>", line 143, in sql_connection
           File "<string>", line 108, in _validate_connection
@@ -36,7 +36,7 @@ language: python
 failure: cursor()
 first_sql: |
   Traceback (most recent call last):
-    File "<string>", line 490, in initialize_connection
+    File "<string>", line 496, in initialize_connection
     File "<console startup>", line 1, in <module>
     File "<string>", line 143, in sql_connection
     File "<string>", line 108, in _validate_connection

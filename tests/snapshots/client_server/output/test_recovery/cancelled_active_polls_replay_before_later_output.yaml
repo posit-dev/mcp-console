@@ -23,6 +23,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 id: <cancelled request 1>
 ---
@@ -36,6 +37,7 @@ input:
 result: {}
 ---
 send:
+  session: default
   timeout_ms: 0
 id: <cancelled request 2>
 ---
@@ -75,6 +77,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -99,14 +102,16 @@ result:
             [running; poll with an empty send]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
       text: "[done]"
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

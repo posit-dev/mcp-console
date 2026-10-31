@@ -695,9 +695,26 @@ pub(super) fn configure_module_defaults() -> Result<bool, String> {
     })
 }
 
+enum EvaluationMode {
+    Serial,
+    Immediate,
+}
+
 pub(super) fn evaluate(source: &str, filename: &str) -> Result<(), String> {
+    evaluate_function(source, filename, EvaluationMode::Serial)
+}
+
+pub(super) fn evaluate_priority(source: &str) -> Result<(), String> {
+    evaluate_function(source, "<integrator>", EvaluationMode::Immediate)
+}
+
+fn evaluate_function(source: &str, filename: &str, mode: EvaluationMode) -> Result<(), String> {
+    let (module, function) = match mode {
+        EvaluationMode::Serial => (c"_mcp_console", c"eval_cell"),
+        EvaluationMode::Immediate => (c"_mcp_console_services", c"eval_priority"),
+    };
     api()?.with_gil(|api| unsafe {
-        let function = api.function(c"_mcp_console", c"eval_cell")?;
+        let function = api.function(module, function)?;
         let source =
             (api.unicode_from_string_and_size)(source.as_ptr().cast(), source.len() as isize);
         let filename =
@@ -720,11 +737,18 @@ pub(super) fn evaluate(source: &str, filename: &str) -> Result<(), String> {
         (api.dec_ref)(source);
         (api.dec_ref)(filename);
         if result.is_null() {
-            // Only an uncaught cell exit reaches CPython's REPL exit handler.
-            // Adapter and service calls retain their handled-exception boundary.
-            if (api.err_exception_matches)(api.system_exit as *mut PyObject) != 0 {
+            // Only serial evaluation may invoke CPython's process-exit handler.
+            // Immediate teardown/reporting can raise beyond propagate_exit=False;
+            // those exceptions still belong to the private request.
+            if matches!(mode, EvaluationMode::Serial)
+                && (api.err_exception_matches)(api.system_exit as *mut PyObject) != 0
+            {
                 (api.err_print)();
             } else {
+                crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                    "PythonError",
+                    "Python evaluation failed",
+                ));
                 api.display_pending_exception();
             }
         } else {
@@ -1206,6 +1230,10 @@ impl PythonApi {
                 // Database errors are normally caught by the Python adapter.
                 // Escaping exceptions such as KeyboardInterrupt remain ordinary
                 // console output and must not fall through to an R provider.
+                crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                    "SQLError",
+                    "SQL evaluation failed",
+                ));
                 self.display_pending_exception();
                 return Ok(super::SqlProvider::Handled);
             }

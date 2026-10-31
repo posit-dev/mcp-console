@@ -15,7 +15,7 @@ from yaml12 import format_yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.previews import cell_output_path
+from support.previews import cell_output_path, live_recording_events
 from support.progress import normalize_elapsed, without_elapsed_result
 from support.requirements import (
     NATIVE_FIXTURES,
@@ -131,12 +131,7 @@ def test_materializes_records_only_for_console_use(
         assert (sessions[0] / "sessions/session-001.qmd").is_file(), sessions
         assert (sessions[0] / "capture/sessions/001").is_dir(), sessions
         assert (cell_output_path(sessions[0], 1)).read_text() == "zod: echo\n"
-        events = [
-            json.loads(line)
-            for line in (sessions[0] / "capture" / "events.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-        ]
+        events = live_recording_events(sessions[0])
         semantic_events = call_events(events)
         assert [event["event"] for event in semantic_events] == [
             "recording_started",
@@ -144,6 +139,14 @@ def test_materializes_records_only_for_console_use(
             "cell_output",
             "tool_result",
         ], events
+        console_version = (
+            subprocess.check_output([binary, "--version"], text=True)
+            .strip()
+            .removeprefix("mcp-console ")
+        )
+        assert semantic_events[0]["console_version"] == console_version
+        markdown = (sessions[0] / "transcript.md").read_text(encoding="utf-8")
+        assert f'"console_version": {json.dumps(console_version)}' in markdown
         assert semantic_events[1]["request"]["name"] == "send", semantic_events[1]
         client.finish()
 
@@ -478,6 +481,12 @@ def test_records_tool_calls_and_images(
         assert run_id.endswith(f"-{client.process.pid:010d}"), run_id
         assert session.name == run_id, (session, run_id)
         assert Path(events[0]["working_directory"]).samefile(workspace), events[0]
+        console_version = (
+            subprocess.check_output([binary, "--version"], text=True)
+            .strip()
+            .removeprefix("mcp-console ")
+        )
+        assert events[0]["console_version"] == console_version
         assert all(event["run_id"] == run_id for event in events), events
         assert all("schema_version" not in event for event in events), events
         assert events[1]["call_id"] == events[2]["call_id"] == 1, events
@@ -616,6 +625,7 @@ def test_records_tool_calls_and_images(
             if "request_id" in event:
                 event["request_id"] = "<request ID>"
         events[0]["working_directory"] = "<workspace>"
+        events[0]["console_version"] = "<Console version>"
         assert journal_text.endswith("\n"), journal_text
         assert markdown_text.endswith("\n"), markdown_text
         assert quarto_text.endswith("\n"), quarto_text
@@ -775,12 +785,7 @@ def test_keeps_recording_after_cell_output_failure(
             "zod: third\n"
         )
 
-        events = [
-            json.loads(line)
-            for line in (session / "capture" / "events.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-        ]
+        events = live_recording_events(session)
         semantic_events = call_events(events)
         assert [event["event"] for event in semantic_events] == [
             "recording_started",
@@ -958,7 +963,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             "cell_output",
         ], completed_events
         assert completed_semantic[-1]["call_id"] == 2, completed_semantic[-1]
-        client.send(timeout_ms=3_000)
+        client.send(session="default", timeout_ms=3_000)
         poll_result = client.transcript[-1]["result"]
         assert poll_result == {
             "content": [{"type": "image", "data": PNG_1X1, "mimeType": "image/png"}],
@@ -1254,7 +1259,7 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
                 )
                 client.send(r="stop('failed discovery ran the cell')", timeout_ms=0)
                 discovery.release()
-                response = client.send()
+                response = client.send(session="default")
                 assert response["isError"], response
                 assert "fixture R discovery failed" in last_result_text(client)
                 _, stderr = client.finish_with_standard_error(expected_exit_status=1)
@@ -1432,7 +1437,7 @@ def test_preserves_early_requirements_in_published_quarto(binary: Path) -> Trans
                     "[running; poll with an empty send]"
                 ), admitted
                 discovery.release()
-                result = client.send()
+                result = client.send(session="default")
                 assert not result["isError"], result
                 assert last_tool_text(client).endswith("[1] 42\n")
                 transcript = client.finish()

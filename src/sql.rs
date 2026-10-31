@@ -62,6 +62,10 @@ impl Bridge {
     pub(crate) fn evaluate(&mut self, source: &str) -> Result<(), String> {
         close_r_result()?;
         if let Some(message) = &self.startup_failure {
+            crate::worker::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "SQLStartupError",
+                message.clone(),
+            ));
             crate::worker::emit_output(
                 crate::worker_protocol::ConsoleChannel::Diagnostic,
                 format!("Error: SQL unavailable: {message}; explicit restart required\n")

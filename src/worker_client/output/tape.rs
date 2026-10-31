@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 
 #[derive(Default)]
 pub(super) struct OutputTapeState {
+    history: super::events::History,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     stream: Option<Stream>,
@@ -41,25 +42,88 @@ enum Stream {
 
 impl OutputTape {
     pub(in crate::worker_client) fn new() -> Self {
-        Self(Arc::new(Mutex::new(OutputTapeState::default())))
+        Self(
+            Arc::new(Mutex::new(OutputTapeState::default())),
+            tokio::sync::watch::channel(()).0,
+        )
+    }
+
+    pub(in crate::worker_client) fn history_enabled(&self) -> bool {
+        self.lock().history.enabled()
+    }
+
+    pub(in crate::worker_client) fn enable_history(&self) {
+        self.change().history.enable();
+    }
+
+    pub(in crate::worker_client) fn worker_id(&self) -> u64 {
+        self.lock().history.worker_id()
+    }
+
+    pub(in crate::worker_client) fn set_worker_id(&self, id: u64) {
+        self.change().history.set_worker_id(id);
+    }
+
+    pub(in crate::worker_client) fn begin_evaluation(
+        &self,
+        metadata: serde_json::Value,
+        hidden: bool,
+    ) {
+        self.change().history.begin(metadata, hidden);
+    }
+
+    pub(in crate::worker_client) fn finish_evaluation(&self) -> OutputCut {
+        let mut state = self.change();
+        let cut = state.finish_cell_output(false);
+        state.history.finish();
+        cut
+    }
+
+    pub(in crate::worker_client) fn typed_output(
+        &self,
+        evaluation_id: Option<u64>,
+    ) -> serde_json::Value {
+        self.lock().history.snapshot(evaluation_id)
+    }
+
+    pub(in crate::worker_client) fn execution_error(
+        &self,
+        error: &crate::worker_protocol::ExecutionError,
+    ) {
+        self.change().history.execution_error(error);
+    }
+
+    pub(in crate::worker_client) fn subscribe(&self) -> tokio::sync::watch::Receiver<()> {
+        self.1.subscribe()
+    }
+
+    pub(in crate::worker_client) fn notify_observers(&self) {
+        self.1.send_replace(());
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, OutputTapeState> {
         self.0.lock().unwrap_or_else(|error| error.into_inner())
     }
 
+    fn change(&self) -> Changed<'_> {
+        Changed {
+            state: self.lock(),
+            changed: &self.1,
+        }
+    }
+
     pub(in crate::worker_client) fn record_session_output(
         &self,
         transcript: crate::transcript::Transcript,
     ) {
-        let mut state = self.lock();
+        let mut state = self.change();
         if state.session_recording.is_none() {
             state.session_recording = Some(transcript);
         }
     }
 
     pub(in crate::worker_client) fn finish_session_output(&self) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.seal(true);
         if let Some(output) = state.cell_output.take() {
             let record = output.record();
@@ -88,9 +152,10 @@ impl OutputTape {
         pid: u32,
         requirements: &serde_json::Value,
     ) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.seal(true);
         state.finish_idle_interval();
+        state.history.worker_started();
         state.owner = state.session_recording.as_ref().and_then(|transcript| {
             transcript.worker_started(pid, requirements);
             transcript.owner()
@@ -98,7 +163,7 @@ impl OutputTape {
     }
 
     pub(in crate::worker_client) fn worker_ended(&self, outcome: &str) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.seal(true);
         if let Some(output) = state.cell_output.take() {
             let record = output.record();
@@ -134,13 +199,13 @@ impl OutputTape {
             // Native readers and worker stderr are different producers. Each
             // reader keeps its identity across writes, including split controls.
             let stream = {
-                let mut state = output.lock();
+                let mut state = output.change();
                 state.next_diagnostic += 1;
                 Stream::NativeDiagnostic(state.next_diagnostic)
             };
             let mut pending = Vec::new();
             Box::new(move |bytes| {
-                let mut state = output.lock();
+                let mut state = output.change();
                 if bytes.is_empty() {
                     state.text(stream, &String::from_utf8_lossy(&pending));
                     pending.clear();
@@ -173,7 +238,7 @@ impl OutputTape {
         if text.is_empty() {
             return;
         }
-        let mut state = self.lock();
+        let mut state = self.change();
         state.worker_revision += 1;
         let notice = state.spool(text.as_bytes());
         state.flush_decoders();
@@ -196,28 +261,33 @@ impl OutputTape {
     where
         F: FnOnce(&str, &str) -> Result<Option<crate::transcript::Artifact>, String>,
     {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.worker_revision += 1;
         state.flush_decoders();
         state.flush_terminal();
         // Raw capture has its own interval budget. Preview admission may drop
         // the payload while keeping its file receipt and omission accounting.
         let artifact = make_artifact(&data, &mime_type)?;
+        state.history.image(&data, &mime_type);
         state.current.image(data, mime_type, artifact);
         Ok(())
     }
 
     pub(in crate::worker_client) fn push_notice_line(&self, message: impl Into<String>) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
+        let message = message.into();
+        state.history.text("notice", &message);
         state.current.notice_line(message);
     }
 
     pub(in crate::worker_client) fn push_bounded_notice_line(&self, message: impl Into<String>) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
+        let message = message.into();
+        state.history.text("notice", &message);
         // Informational resolver messages share the ordinary text allowance.
         let prefix = if state.current.needs_line_break() && !state.current.response.is_empty() {
             "\n"
@@ -232,20 +302,52 @@ impl OutputTape {
     }
 
     pub(in crate::worker_client) fn push_failure(&self, failure: SendFailure) {
-        let mut state = self.lock();
+        let mut state = self.change();
         state.flush_decoders();
         state.flush_terminal();
+        state.history.text("notice", &failure.message);
         state.current.send_failure(failure);
     }
 
     pub(in crate::worker_client) fn cut(&self) -> OutputCut {
-        self.lock().seal(false)
+        self.change().seal(false)
     }
 
     pub(in crate::worker_client) fn take(&self) -> Response {
-        let mut state = self.lock();
+        let mut state = self.change();
         let cut = state.seal(false);
         state.drain(cut)
+    }
+
+    pub(in crate::worker_client) fn preview(&self) -> Vec<Content> {
+        self.snapshot().preview()
+    }
+
+    pub(in crate::worker_client) fn snapshot(&self) -> Response {
+        let state = self.lock();
+        let mut response = state
+            .recovered
+            .as_ref()
+            .map(Response::snapshot)
+            .unwrap_or_default();
+        state.snapshot_intervals_into(&mut response);
+        response
+    }
+
+    pub(in crate::worker_client) fn snapshot_cell(&self) -> Response {
+        let mut response = Response::default();
+        self.lock().snapshot_intervals_into(&mut response);
+        response
+    }
+
+    /// Return output held aside by an integrator evaluation to the front of
+    /// the MCP stream, preserving any response recovered in the meantime.
+    pub(in crate::worker_client) fn restore_prelude(&self, mut prelude: Response) {
+        let mut state = self.change();
+        if let Some(recovered) = state.recovered.take() {
+            prelude.extend(recovered);
+        }
+        state.recovered = Some(prelude);
     }
 
     pub(in crate::worker_client) fn take_prelude(&self) -> Response {
@@ -253,7 +355,7 @@ impl OutputTape {
     }
 
     pub(in crate::worker_client) fn take_admission_prelude(&self) -> (Response, u64) {
-        let mut state = self.lock();
+        let mut state = self.change();
         let cut = state.seal(true);
         (state.drain(cut), cut.worker_revision)
     }
@@ -270,7 +372,7 @@ impl OutputTape {
         capture: bool,
         boundary: impl FnOnce(),
     ) -> Response {
-        let mut state = self.lock();
+        let mut state = self.change();
         let cut = state.seal(true);
         let response = if capture {
             state.drain(cut)
@@ -285,8 +387,9 @@ impl OutputTape {
         &self,
         transcript: &crate::transcript::Transcript,
         call_id: Option<u64>,
+        omit_from_projections: bool,
     ) -> Result<(), String> {
-        let mut state = self.lock();
+        let mut state = self.change();
         if state.cell_active {
             return Err("worker sent a duplicate cell start".into());
         }
@@ -296,7 +399,8 @@ impl OutputTape {
         state.seal(true);
         state.finish_idle_interval();
         state.cell_active = true;
-        match transcript.create_cell_output(call_id) {
+        state.history.entered();
+        match transcript.create_cell_output(call_id, omit_from_projections) {
             Ok(output) => state.cell_output = output,
             Err(error) => state.recording_notice(Some(format!("cell output file was not created: {error}; text omitted from inline responses will be permanently discarded"))),
         }
@@ -308,32 +412,55 @@ impl OutputTape {
         &self,
         completion_confirmed: bool,
     ) -> OutputCut {
-        let mut state = self.lock();
-        let cut = state.seal(true);
-        let notice = state.cell_output.take().and_then(|output| output.finish());
-        state.cell_active = false;
-        state.owner = state.session_recording.as_ref().and_then(|transcript| {
-            transcript.end_cell(completion_confirmed);
-            transcript.owner()
-        });
-        if notice.is_some() {
-            state.recording_notice(notice);
-            return state.seal(false);
-        }
-        cut
+        self.change().finish_cell_output(completion_confirmed)
     }
 
     pub(in crate::worker_client) fn drain_through(&self, cut: OutputCut) -> Response {
-        self.lock().drain(cut)
+        self.change().drain(cut)
+    }
+
+    /// Recovered MCP replies retain their transport owner even when they arrive
+    /// after an integrator cell has taken its admission-time idle prelude.
+    pub(in crate::worker_client) fn drain_cell_through(&self, cut: OutputCut) -> Response {
+        let mut response = Response::default();
+        self.change().drain_intervals_into(cut, &mut response);
+        response
     }
 
     pub(in crate::worker_client) fn recover(&self, response: Response) {
-        let mut state = self.lock();
-        assert!(
-            state.recovered.is_none(),
-            "only one response can be recovered at a time"
-        );
-        state.recovered = Some(response);
+        let mut state = self.change();
+        // Cancelled MCP controls can settle while an integrator still owns the
+        // active cell. Preserve their order in one bounded response projection.
+        match state.recovered.as_mut() {
+            Some(recovered) => recovered.extend_logical_region(response),
+            None => state.recovered = Some(response),
+        }
+    }
+}
+
+/// Wake observers for every mutation, including response consumption and recovery.
+/// The watch stores no output: slow readers coalesce changes without a queue.
+struct Changed<'a> {
+    state: std::sync::MutexGuard<'a, OutputTapeState>,
+    changed: &'a tokio::sync::watch::Sender<()>,
+}
+
+impl std::ops::Deref for Changed<'_> {
+    type Target = OutputTapeState;
+    fn deref(&self) -> &Self::Target {
+        &self.state
+    }
+}
+
+impl std::ops::DerefMut for Changed<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.state
+    }
+}
+
+impl Drop for Changed<'_> {
+    fn drop(&mut self) {
+        self.changed.send_replace(());
     }
 }
 
@@ -342,7 +469,7 @@ impl DirectOutput {
         if bytes.is_empty() {
             return;
         }
-        let mut state = self.output.lock();
+        let mut state = self.output.change();
         state.worker_revision += 1;
         let notice = state.spool(bytes);
         let stream = match self.stream {
@@ -371,7 +498,7 @@ impl DirectOutput {
     }
 
     pub(in crate::worker_client) fn close(&self) {
-        let mut state = self.output.lock();
+        let mut state = self.output.change();
         let stream = match self.stream {
             DirectOutputStream::Stdout => Stream::Stdout,
             DirectOutputStream::Stderr => Stream::Stderr,
@@ -384,6 +511,21 @@ impl DirectOutput {
 }
 
 impl OutputTapeState {
+    fn finish_cell_output(&mut self, completion_confirmed: bool) -> OutputCut {
+        let cut = self.seal(true);
+        let notice = self.cell_output.take().and_then(|output| output.finish());
+        self.cell_active = false;
+        self.owner = self.session_recording.as_ref().and_then(|transcript| {
+            transcript.end_cell(completion_confirmed);
+            transcript.owner()
+        });
+        if notice.is_some() {
+            self.recording_notice(notice);
+            return self.seal(false);
+        }
+        cut
+    }
+
     fn finish_idle_interval(&mut self) {
         self.idle_recording_attempted = false;
         if let Some(output) = self.session_output.take() {
@@ -435,6 +577,16 @@ impl OutputTapeState {
         if text.is_empty() {
             return;
         }
+        self.history.text(
+            match stream {
+                Stream::Output => "output",
+                Stream::Diagnostic => "diagnostic",
+                Stream::Stdout => "stdout",
+                Stream::Stderr => "stderr",
+                Stream::NativeDiagnostic(_) => "diagnostic",
+            },
+            text,
+        );
         if self.stream != Some(stream) {
             self.flush_terminal();
             self.stream = Some(stream);
@@ -473,6 +625,7 @@ impl OutputTapeState {
         if let Some(notice) = notice {
             // A recording failure does not retire a direct output stream.
             self.flush_terminal();
+            self.history.text("notice", &notice);
             self.current.notice_line(notice);
         }
     }
@@ -518,6 +671,11 @@ impl OutputTapeState {
 
     fn drain(&mut self, cut: OutputCut) -> Response {
         let mut output = self.recovered.take().unwrap_or_default();
+        self.drain_intervals_into(cut, &mut output);
+        output
+    }
+
+    fn drain_intervals_into(&mut self, cut: OutputCut, output: &mut Response) {
         while self
             .sealed
             .front()
@@ -525,7 +683,38 @@ impl OutputTapeState {
         {
             output.extend(self.sealed.pop_front().expect("checked sealed interval").1);
         }
-        output
+    }
+
+    fn snapshot_intervals_into(&self, response: &mut Response) {
+        for (_, sealed) in &self.sealed {
+            response.extend(sealed.snapshot());
+        }
+        let mut current = self.current.response.snapshot();
+        // Finishing a copy reveals a pending progress frame without changing
+        // how later carriage returns or split terminal controls are interpreted.
+        self.terminal.clone().finish(&mut current.preview);
+        let output = if self.cell_active {
+            &self.cell_output
+        } else {
+            &self.session_output
+        };
+        let source = match output {
+            Some(output) => Source {
+                owner: self.owner,
+                file: Some(output.record().inspection_copy()),
+                journal: None,
+                raw_bytes: self.raw_bytes,
+                retained_bytes: output.retained_bytes(),
+                discarded_bytes: output.discarded_bytes(),
+            },
+            None => Source {
+                owner: self.owner,
+                raw_bytes: self.raw_bytes,
+                ..self.process_output.clone()
+            },
+        };
+        current.preview.source(source);
+        response.extend(current);
     }
 }
 

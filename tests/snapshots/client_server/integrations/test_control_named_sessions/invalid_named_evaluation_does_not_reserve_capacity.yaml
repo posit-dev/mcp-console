@@ -1,0 +1,10 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

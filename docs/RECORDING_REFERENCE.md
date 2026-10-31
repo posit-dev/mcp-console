@@ -1,6 +1,6 @@
 # Recording reference
 
-Console retains calls, source, input, requirements, output, and artifacts on the execution host, without redaction.
+Console retains calls, notes, source, input, requirements, output, and artifacts on the execution host, without redaction.
 For reading a recording, retrieving omitted output, or making a report, see [Recordings and reports](RECORDING.md).
 
 ## Storage and retention
@@ -10,15 +10,17 @@ Otherwise they use `~/.agents/console/sessions/<run-id>/`; `MCP_CONSOLE_HOME` re
 Console does not create a project `.agents` directory just to select project storage.
 There is no aggregate quota or automatic cleanup, so remove old recordings deliberately.
 
-The first received MCP `tools/call` targeting `send` activates a recording for the Console process.
-Polls, input, controls, rejected submissions, and requests cancelled before execution all activate recording.
+The first received MCP `tools/call` targeting `send`, or a request on the optional [integrator control channel](INTEGRATOR_CONTROL.md), activates a recording for the Console process.
+Notes, polls, input, controls, rejected submissions, and requests cancelled before execution all activate recording.
 Initialization, tool discovery, pings, startup output, and startup failure alone do not create a persistent recording.
 
 Console retains preceding protocol traffic and startup text/images temporarily.
-The first send publishes that prelude in its observed order with its original timestamps.
-If the process exits without send, Console discards the temporary capture.
+The activating request publishes that prelude in its observed order with its original timestamps.
+If the process exits without either kind of request, Console discards the temporary capture.
 The recording retains the process start time separately from publication time.
 Restarts and automatic worker replacement create numbered sessions within that same recording.
+Named sessions share this recording; each worker lifetime receives its own number, independently of the public `session` name.
+Worker-start events retain the name so concurrent sessions and their replacements can be distinguished.
 Each cell gets a log file when execution starts, even if it produces no text output.
 
 ```text
@@ -42,26 +44,43 @@ recording/
 └── transcript.md
 ```
 
-`transcript.md` records calls, source, results, polls, input, controls, and worker session boundaries, with links to source documents and retained output.
+`transcript.md` records calls, notes, source, results, polls, input, controls, and worker session boundaries, with links to source documents and retained output.
+Notes appear as prose before any source in the same call; the journal retains the original `note` string in that call's arguments.
+Its Console process metadata and the journal's `recording_started` event retain the executable's version, including the Git revision for development builds when available.
 It preserves response previews and omission notices while leaving routine protocol and lifecycle details in the journal.
 Results describe response assembly; local transport delivery is recorded separately in `capture/events.jsonl`.
 
-Each `sessions/session-NNN.qmd` contains source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
+Each `sessions/session-NNN.qmd` contains notes and source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
+Ordinary notes retain their Markdown and HTML.
+A note containing recognized metadata delimiters, executable code syntax, or Quarto shortcodes is wrapped as a whole in a `{verbatim}` chunk so it remains an example rather than changing document settings or executing code.
+Documents with notes select the Quarto engine from recorded source cells, so examples in notes do not change it: `knitr` for R, `jupyter` for Python or SQL without R, and `markdown` without source.
+This fallback covers common notebook annotations; it does not sanitize arbitrary Markdown or HTML, and Quarto may still preprocess shortcodes or inline syntax inside verbatim examples.
+The journal and Markdown transcript retain the original note text.
 Source admitted before worker acquisition stays pending until its worker is known, even if an initial response has already returned.
 A validation-rejected restart leaves its source with the surviving addressed worker.
-A failed acquisition does not create a session, and a session without source need not create a QMD.
-Source without a worker association remains in the journal and Markdown transcript.
+A note submitted with source follows that source's worker association, including across a restart.
+Without source, a note belongs to the selected logical session's worker when the call is received, or waits for that session's next actual worker if none exists.
+Notes can create a QMD for a worker that receives no source.
+QMD entries follow original call order, with each note before any source from the same call, even when source association is delayed.
+A failed acquisition does not create a session, and a session without source or notes need not create a QMD.
+Source and notes without a worker association remain in the journal and Markdown transcript.
 
-QMD metadata records accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
+QMD metadata records the owning session's accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
 Retained R requirements carry into replacement sessions; rejected additions do not change metadata, and replacement declarations do not rewrite the retiring session's document.
 The original working directory is descriptive metadata rather than an execution root.
 QMDs omit results, images, input, polls, and control wrappers.
 Existing recordings are not migrated or rewritten.
 
+An integrator evaluation can set `record: false` to omit its source, result, and associated output from the Markdown and QMD projections.
+Inspection requests on that channel also stay out of those documents.
+Their journal events and raw capture remain retained under the same limits and failure behavior.
+Immediate integrator images use `capture/sessions/NNN/call-CCC-III.png`, where `CCC` is the call ID and `III` is the image number within that request.
+Their image-event owner identifies the session and call, without a cell or interval; each request has its own image retention budget using the limits below.
+
 ### Output intervals
 
 Each actual worker session numbers executed cells from `001`.
-Polls, input, controls, and rejected source do not create cells.
+Notes, polls, input, controls, and rejected source do not create cells.
 Source remains in the journal and documents even when it does not execute.
 
 Output belongs to the interval in which Console observes it:
@@ -78,7 +97,7 @@ Every executed cell has a text file, including silent cells.
 Startup and post-cell text files are created only when text arrives.
 One file retains each interval's raw text, up to 1 GiB, even when text and images alternate.
 Each retained image has its own numbered file in that interval; PNGs use `.png`, and other emitted image formats use `.bin`.
-Raw images have a separate budget per startup, cell, or post-cell interval: 64 MiB of decoded image data, 4,096 files, and 64 KiB of MIME metadata.
+Raw images have a separate budget per startup, cell, or post-cell interval, and per immediate integrator request: 64 MiB of decoded image data, 4,096 files, and 64 KiB of MIME metadata.
 An image is saved whole only if it fits the remaining raw budget.
 The response preview has its own limits: images omitted from a preview can still be saved, and images that exceed the raw budget can still appear in a response.
 Console retains emitted text and images, not arbitrary files written by submitted code.
@@ -87,8 +106,8 @@ Omission notices for that output reference the capture journal.
 
 ### Capture events and completion
 
-`capture/events.jsonl` records one JSON object per event, including MCP requests, responses, and notifications, canonical tool calls/results, worker lifetimes, dependency selections, and references to output logs and images.
-Protocol events reference the canonical send call/result records instead of duplicating their payloads.
+`capture/events.jsonl` records one JSON object per event, including MCP and integrator requests and responses, MCP notifications, canonical calls/results, worker lifetimes, dependency selections, and references to output logs and images.
+MCP protocol events reference the canonical send call/result records instead of duplicating their payloads.
 Events preserve observation timestamps and sequence numbers and identify the session, cell, and interval explicitly.
 Text events give byte ranges in the interval log so text/image ordering can be reconstructed.
 Each retained image has an `image_retained` event with its owner, artifact ID, and file path relative to the recording directory.

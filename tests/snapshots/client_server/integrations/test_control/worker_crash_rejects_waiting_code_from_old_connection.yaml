@@ -1,0 +1,39 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: pass
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    import os
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+    os._exit(17)
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 17]
+        [worker stopped: in-memory state lost]
+        [starting new worker]
+        [idle]
+  isError: true
+---
+send:
+  python: print('must_not_run' in globals())
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false

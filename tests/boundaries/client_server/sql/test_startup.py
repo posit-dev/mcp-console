@@ -289,7 +289,9 @@ def startup_sql_result(client: McpClient) -> ToolResult:
             break
         remaining = deadline - time.monotonic()
         assert remaining > 0, "startup SQL did not complete"
-        result = client.send(timeout_ms=max(1, int(remaining * 1_000)))
+        result = client.send(
+            session="default", timeout_ms=max(1, int(remaining * 1_000))
+        )
     result["content"] = content
     submitted = client.transcript[first_call]
     submitted["result"] = result

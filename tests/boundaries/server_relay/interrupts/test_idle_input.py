@@ -74,18 +74,18 @@ def test_withholding_attached_cell_preserves_idle_input(
             prelude.release()
             processed.wait("the idle input request reached the controller")
             assert (
-                tool_text(client.send())
+                tool_text(client.send(session="default"))
                 == '[input requested: "idle> "]\n[waiting for stdin]'
             )
             pending = client.send(r="withheld cell", timeout_ms=0)
             assert pending["isError"] is False, pending
             attached.wait("the pending cell owns the idle callback input request")
-            assert tool_text(client.send()) == "\n[waiting for stdin]"
+            assert tool_text(client.send(session="default")) == "\n[waiting for stdin]"
             client.send(control="interrupt", timeout_ms=0)
             release.release()
             # A withheld source has no executed-cell log. The public completion
             # wait proves detachment before returning the idle callback's input.
-            settled = client.send(timeout_ms=60000)
+            settled = client.send(session="default", timeout_ms=60000)
             assert tool_text(settled) == "[done]", settled
             reply = client.send(stdin="answer\n")
             assert reply["isError"] is False, reply
@@ -93,7 +93,9 @@ def test_withholding_attached_cell_preserves_idle_input(
                 received.wait("InputReceived was accepted without replacing the worker")
             except AssertionError as error:
                 capture = client._read_capture(client._capture_path())
-                raise AssertionError((reply, client.send(), capture)) from error
+                raise AssertionError(
+                    (reply, client.send(session="default"), capture)
+                ) from error
             assert (
                 tool_text(client.send(r="fresh cell")) == "original worker survived\n"
             )

@@ -13,7 +13,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    version: 0.0.6
+    version: <Console version>
   instructions: >-
     Persistent R, Python, and SQL REPL for calculations, data exploration
     and analysis, database queries, debugging, simulations, and plots. Reuse
@@ -52,14 +52,14 @@ result:
         extensions.
 
 
-        Run one cell at a time. Wait for its `send` to return before another
-        call with code. You can interrupt a pending call with
-        `send(control="interrupt")`. An error can leave earlier changes in
-        place. If work is still running, poll with an empty `send`; do not
-        resubmit the cell. When waiting for completion, use `timeout_ms=300000`
-        for a long poll; it returns early when work finishes or needs input.
-        Avoid repeated short polls such as `timeout_ms=1000`. Defaults:
-        `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
+        Run one cell at a time per session; collect its result before more code.
+        Sessions can run concurrently. Use `control="interrupt"` to interrupt.
+        An error can leave earlier changes in place. Poll without code; do not
+        resubmit. Empty calls poll all sessions; supply `session` to select one.
+        Use `timeout_ms=300000` for a long poll of one session; it returns early
+        on completion or input. Avoid repeated short polls such as
+        `timeout_ms=1000`. Defaults: `timeout_ms=60000` (60 seconds),
+        `requirements.action="add"`.
 
 
         Text results, including notices, have an 8 KiB limit, retaining the
@@ -171,15 +171,36 @@ result:
             type:
               - string
               - "null"
+          note:
+            description: |-
+              Plain text or Markdown journal annotation, recorded as prose before any same-call code.
+              Use it to record observations, questions, or the purpose of a step. May accompany other
+              arguments or stand alone. A note-only call returns without waiting for or collecting
+              worker output. Notes are not evaluated.
+            type:
+              - string
+              - "null"
+          session:
+            description: |-
+              Select a session by name (default: "default"). A new name starts an independent session
+              with its first code cell. Each session retains its own variables, database
+              state, and requirements; different sessions can execute concurrently. Supply the name
+              again to poll, interrupt, or restart it. An empty call without session polls all active
+              sessions and lists their statuses. Restart without code or nonempty stdin stops a named
+              session until its next code or nonempty-input call; the default session restarts immediately.
+            type: string
+            default: default
           timeout_ms:
             description: >-
-              Wait for output for up to this many milliseconds (default 60,000). When
-              waiting for completion, use `timeout_ms=300000` for a long poll; it
-              returns early when work finishes or needs input. Avoid repeated short
-              polls such as `timeout_ms=1000`. `0` returns without waiting for
-              completion. Expiry returns available output while work continues. This
-              is a wait budget, not cancellation or a whole-call deadline: preparation
-              and control can exceed it; standalone preparation has no timeout.
+              Wait for output for up to this many milliseconds (default 60,000). Use
+              `timeout_ms=300000` with `session` for a long poll; it returns early
+              when that session finishes or needs input. An empty call without session
+              polls all sessions concurrently within this budget and can wait for
+              other busy sessions. Avoid repeated short polls such as
+              `timeout_ms=1000`. `0` returns without waiting for completion. Expiry
+              returns available output while work continues. This is a wait budget,
+              not cancellation or a whole-call deadline: preparation and control can
+              exceed it; standalone preparation has no timeout.
             type: integer
             format: uint64
             minimum: 0

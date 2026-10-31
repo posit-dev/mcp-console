@@ -1,0 +1,8 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: sentinel = 99
+  busy: wait
+  wait_ms: 30000

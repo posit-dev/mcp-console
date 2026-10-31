@@ -29,5 +29,5 @@ For exact fields and signatures, see [Tool settings](TOOL_CONFIGURATION.md), the
 
 Console is a development preview; public interfaces can change, with their changes documented.
 Build against the documented configuration, MCP tool, and client packages.
-Hidden subcommands, internal environment handoffs, process layouts, and recording journal schemas are implementation interfaces, not public compatibility contracts.
+The [internal integrator socket](INTEGRATOR_CONTROL.md), hidden subcommands, internal environment handoffs, process layouts, and recording journal schemas have no compatibility guarantees.
 See the [interface boundaries](API.md#what-is-not-a-public-compatibility-contract) for details.

@@ -1,0 +1,148 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
+---
+send:
+  python: retained = 40
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: alpha
+  python: rejected = True
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  session: beta
+  python: raise AssertionError('ran')
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: gamma
+  python: raise AssertionError('ran')
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: beta
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: unknown session "beta"; submit a code cell to create it
+  isError: true
+---
+send:
+  session: gamma
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: unknown session "gamma"; submit a code cell to create it
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "alpha"; status: starting]
+
+        [elapsed: <elapsed>s since admission; no new output; phase: startup]
+        [running; poll with an empty send]
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: alpha
+        status: starting
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: alpha
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: >-
+        worker R home discovery failed with exit status: 17: fixture R discovery
+        failed
+  isError: true
+---
+send:
+  session: beta
+  python: print(42)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  session: alpha
+  python: raise AssertionError('ran')
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: beta
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  session: alpha
+  python: print('rejected' in globals())
+result:
+  content:
+    - type: text
+      text: |
+        False
+  isError: false
+---
+send:
+  python: print(retained)
+result:
+  content:
+    - type: text
+      text: |
+        40
+  isError: false

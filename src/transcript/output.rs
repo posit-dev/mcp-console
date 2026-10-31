@@ -38,6 +38,7 @@ pub(crate) struct OutputRecord {
     pub(crate) public_directory: Arc<Mutex<std::path::PathBuf>>,
     pub(crate) path: Arc<str>,
     accounted: Arc<AtomicU64>,
+    inspection_only: bool,
 }
 
 struct OutputRecordState {
@@ -67,7 +68,19 @@ impl Drop for OutputRecordState {
 }
 
 impl OutputRecord {
+    /// Keep paths and byte counts available to an inspector without letting
+    /// preview compaction publish delivery accounting through the shared receipt.
+    pub(crate) fn inspection_copy(&self) -> Self {
+        Self {
+            inspection_only: true,
+            ..self.clone()
+        }
+    }
+
     pub(crate) fn note_inline_omission(&self, bytes: u64) {
+        if self.inspection_only {
+            return;
+        }
         let previous = self.accounted.fetch_max(bytes, Ordering::Relaxed);
         if bytes > previous {
             self.state
@@ -79,6 +92,9 @@ impl OutputRecord {
     }
 
     pub(crate) fn publish(&self) {
+        if self.inspection_only {
+            return;
+        }
         self.state
             .lock()
             .unwrap_or_else(|error| error.into_inner())
@@ -93,8 +109,9 @@ impl Transcript {
     pub(crate) fn create_cell_output(
         &self,
         call_id: Option<u64>,
+        omit_from_projections: bool,
     ) -> Result<Option<CellOutput>, String> {
-        if self.start_cell(call_id).is_none() {
+        if self.start_cell(call_id, omit_from_projections).is_none() {
             return Ok(None);
         }
         self.create_output(call_id)
@@ -149,6 +166,7 @@ impl CellOutput {
             public_directory: self.public_directory.clone(),
             path: Arc::from(self.path.as_str()),
             accounted: Arc::new(AtomicU64::new(0)),
+            inspection_only: false,
         }
     }
 

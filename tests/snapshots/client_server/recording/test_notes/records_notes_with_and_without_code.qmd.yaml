@@ -1,0 +1,57 @@
+---
+qmd: |+
+  ---
+  # Source recorded by MCP Console; review before executing.
+  title: MCP Console session
+  engine: jupyter
+  # From a working copy, run `ir render session-001.qmd` in a prepared environment.
+  # IR rendering requires R on the render host, including for Python-only documents.
+  ir:
+    isolated: true
+    packages: []
+    python-packages: []
+  mcp-console:
+    original-working-directory: <workspace>
+    r-available: false
+    dynamic-resolution: false
+    duckdb-extensions: []
+    python-version: []
+  ---
+
+  ## Investigation
+
+  Compare the café measurements.
+
+  Check the **total** before comparing groups.
+
+  ```{python}
+  #| error: true
+  total = 6 * 7; print(total)
+  ```
+
+  The total is 42.
+
+  ```python
+  raise RuntimeError('prose only')
+  ```
+
+  ```{python}
+  #| error: true
+  label = input('label: '); print(label, total)
+  ```
+
+  Waiting for the measurement label; preserve the active cell.
+
+  Use sample A.
+
+  ```{python}
+  #| error: true
+  total = -1
+  ```
+
+  ```{python}
+  #| error: true
+  print(total)
+  ```
+
+read_only: true

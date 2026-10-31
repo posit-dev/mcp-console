@@ -13,6 +13,7 @@ pub(in crate::worker_client) struct WorkerOperationState(Arc<OperationStateCell>
 struct OperationState {
     bootstrap: Bootstrap,
     bootstrap_suspended: bool,
+    r_priority: Option<u64>,
     operation: Option<Operation>,
     failure: Option<String>,
     relay_exit_caused_failure: bool,
@@ -93,6 +94,7 @@ impl WorkerOperationState {
                     Bootstrap::Disabled
                 },
                 bootstrap_suspended: false,
+                r_priority: None,
                 operation: None,
                 failure: None,
                 relay_exit_caused_failure: false,
@@ -143,7 +145,7 @@ impl WorkerOperationState {
         // The caller holds the active-cell publication guard. Include cells
         // whose evaluator has not attached yet, but never a later admission.
         if interrupted && let Some(evaluation) = admitted {
-            evaluation.admission.interrupt(|| Ok(()))?;
+            let _ = evaluation.admission.interrupt(|| Ok(()))?;
         }
         state.bootstrap = if interrupted {
             Bootstrap::Interrupted
@@ -159,14 +161,20 @@ impl WorkerOperationState {
         &self,
         evaluation: Option<&Evaluation>,
         enqueue: impl FnOnce() -> Result<T, String>,
-    ) -> Result<T, String> {
+    ) -> Result<Option<T>, String> {
         // Lock order: active publication -> lifecycle -> operation -> admission
         // -> response/output. Never wait for a receipt while holding these.
-        let _state = self.lock()?;
-        match evaluation {
+        let state = self.lock()?;
+        state.ensure_running()?;
+        let result = match evaluation {
             Some(evaluation) => evaluation.admission.interrupt(enqueue),
-            None => enqueue(),
-        }
+            None => enqueue().map(Some),
+        };
+        drop(state);
+        // Withholding must release dispatch even if private R ignores SIGINT
+        // or the signal could not be queued after cancellation was committed.
+        self.0.runtime_r_reply.notify_all();
+        result
     }
 
     pub(in crate::worker_client) fn dispatch_cell(
@@ -174,8 +182,18 @@ impl WorkerOperationState {
         evaluation: &Evaluation,
         enqueue: impl FnOnce() -> Result<(), String>,
     ) -> Result<bool, String> {
-        let state = self.lock()?;
-        state.ensure_running()?;
+        let mut state = self.lock()?;
+        loop {
+            state.ensure_running()?;
+            if state.r_priority.is_none() || evaluation.admission.withheld()? {
+                break;
+            }
+            state = self
+                .0
+                .runtime_r_reply
+                .wait(state)
+                .map_err(|_| "worker operation state lock poisoned".to_string())?;
+        }
         assert!(!matches!(state.bootstrap, Bootstrap::Running));
         evaluation.admission.dispatch(|| {
             evaluation.associate_session();
@@ -183,18 +201,68 @@ impl WorkerOperationState {
         })
     }
 
+    pub(in crate::worker_client) fn dispatch_r_priority(
+        &self,
+        request_id: u64,
+        enqueue: impl FnOnce() -> Result<(), String>,
+    ) -> Result<(), String> {
+        let mut state = self.lock()?;
+        state.ensure_running()?;
+        // Ordinary source stays Pending until private R releases this gate.
+        // The client result slot serializes requests, but its next owner can
+        // arrive before this dispatcher clears the preceding completion ID.
+        state.r_priority = Some(request_id);
+        if let Err(error) = enqueue() {
+            state.r_priority = None;
+            drop(state);
+            self.0.runtime_r_reply.notify_all();
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    pub(in crate::worker_client) fn finish_r_priority(
+        &self,
+        request_id: u64,
+    ) -> Result<(), String> {
+        let mut state = self.lock()?;
+        if state.r_priority == Some(request_id) {
+            state.r_priority = None;
+            drop(state);
+            self.0.runtime_r_reply.notify_all();
+        }
+        Ok(())
+    }
+
     pub(in crate::worker_client) fn is_bootstrapping(&self) -> Result<bool, String> {
         Ok(matches!(self.lock()?.bootstrap, Bootstrap::Running))
     }
 
-    pub(in crate::worker_client) fn abort_bootstrap_cell(&self) -> Result<(), String> {
+    pub(in crate::worker_client) fn phase_observation(&self) -> Option<&'static str> {
+        let Ok(state) = self.0.state.try_lock() else {
+            return Some("busy");
+        };
+        if state.failure.is_some() {
+            Some("failed")
+        } else if matches!(state.bootstrap, Bootstrap::Running) {
+            Some("starting")
+        } else if state.idle_input.is_some() {
+            Some("input_requested")
+        } else if state.operation.is_some() || state.environment_preparation_reserved {
+            Some("busy")
+        } else {
+            None
+        }
+    }
+
+    pub(in crate::worker_client) fn abort_undispatched_cell(&self) -> Result<(), String> {
         let mut state = self.lock()?;
         let operation = state
             .operation
             .take()
-            .ok_or("interrupted bootstrap has no waiting cell")?;
+            .ok_or("withheld source has no waiting cell")?;
         let OperationKind::Cell(evaluation) = operation.kind else {
-            return Err("interrupted bootstrap did not own a waiting cell".into());
+            return Err("withheld source did not own a waiting cell".into());
         };
         // Withholding never ran this cell. Its input may still belong to an
         // idle callback that ignored interruption; return ownership before

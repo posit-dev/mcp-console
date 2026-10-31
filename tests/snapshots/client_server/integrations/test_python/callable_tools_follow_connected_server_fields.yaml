@@ -3,9 +3,11 @@ bare: |
   [1] 2
 fields:
   - control
+  - note
   - python
   - r
   - requirements
+  - session
   - sql
   - stdin
   - timeout_ms
@@ -14,7 +16,9 @@ custom: |
   zod: configured
 fields:
   - control
+  - note
   - r
   - requirements
+  - session
   - stdin
   - timeout_ms

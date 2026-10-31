@@ -1,6 +1,5 @@
 #!/usr/bin/env -S uv run --script
 
-import json
 import os
 import sys
 import tempfile
@@ -9,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.previews import cell_output_path
+from support.previews import cell_output_path, live_recording_events
 from support.progress import without_elapsed
 from support.assertions import last_tool_text
 from support.checkpoints import (
@@ -138,12 +137,12 @@ def test_reports_partial_retention_and_later_unretained_output(
                 # Intermediate polls would reset the inline budget and split counts.
                 release_fixture_checkpoint(release, client=client)
                 processed.wait(timeout=client.response_timeout)
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 first = client.transcript[-1]
                 first_text = last_tool_text(client)
                 release_fixture_checkpoint(release, client=client)
                 processed.wait(timeout=client.response_timeout)
-                client.send(timeout_ms=0)
+                client.send(session="default", timeout_ms=0)
                 second = client.transcript[-1]
                 second_text = last_tool_text(client)
 
@@ -180,10 +179,7 @@ def test_reports_partial_retention_and_later_unretained_output(
             assert (
                 cell_output_path(session, 6)
             ).read_bytes() == b"zod: after failure\n"
-            events = [
-                json.loads(line)
-                for line in (session / "capture/events.jsonl").read_text().splitlines()
-            ]
+            events = live_recording_events(session)
             output_event = next(
                 event for event in events if event["event"] == "cell_output"
             )
@@ -238,7 +234,7 @@ def test_reports_omitted_bytes_retained_at_the_file_limit(
             # Keep all output pending until the server acknowledges completion;
             # intermediate polls would reset the inline budget and split counts.
             completed.wait(timeout=client.response_timeout)
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         output = last_tool_text(client)
         assert client.temporary_directory is not None
         workspace = Path(client.temporary_directory.name)
@@ -261,10 +257,7 @@ def test_reports_omitted_bytes_retained_at_the_file_limit(
         assert "logs contain prefixes; later raw text unavailable" in output
         assert f"cell output retention limit reached at {limit} bytes" in output
         omitted = sum(int(match[1]) for match in OMISSION.finditer(output))
-        events = [
-            json.loads(line)
-            for line in (session / "capture/events.jsonl").read_text().splitlines()
-        ]
+        events = live_recording_events(session)
         summary = next(
             event
             for event in events

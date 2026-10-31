@@ -1,0 +1,173 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: retained = 'default state'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: unknown
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: unknown session "unknown"; submit a code cell to create it
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: ~
+  python: retained = 'invalid null'
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: null, expected a string
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: 42
+  python: retained = 'invalid number'
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: integer `42`, expected a
+        string
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: invalid
+  python: retained = 'invalid source'
+  r: "42"
+result:
+  content:
+    - type: text
+      text: only one of `r`, `python`, or `sql` may be supplied
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        'default state'
+  isError: false
+---
+send:
+  python: retained = 'empty session name'
+  session: ""
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: retained
+  session: ""
+result:
+  content:
+    - type: text
+      text: |
+        'empty session name'
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: ""; status: idle]
+
+        [idle]
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: ""
+        status: idle
+      - session: default
+        status: idle
+  isError: false

@@ -164,6 +164,8 @@ pub fn native_variant_name(value: &Value) -> Option<&str> {
 #[serde(default, deny_unknown_fields)]
 struct Project {
     tool: Tool,
+    #[serde(deserialize_with = "sandbox::mapping")]
+    sessions: Sessions,
     startup: Option<startup::Startup>,
     cache: Option<Cache>,
     python: Option<python::Python>,
@@ -178,6 +180,12 @@ struct Project {
     sandbox: Option<sandbox::Sandbox>,
     #[serde(deserialize_with = "sandbox::mapping")]
     resolver: Resolver,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct Sessions {
+    pub max: Option<std::num::NonZeroUsize>,
 }
 
 #[derive(Clone, Default, serde::Serialize, Deserialize)]
@@ -239,6 +247,7 @@ pub(crate) struct Captured {
     pub profile: Option<ProfileSelection>,
     pub network_explicit: bool,
     pub tool: Tool,
+    pub sessions: Sessions,
     pub startup: Option<startup::Startup>,
     pub cache: Option<Cache>,
     pub python: Option<PythonChoice>,
@@ -482,6 +491,7 @@ fn capture(
             profile,
             network_explicit,
             tool: project.tool,
+            sessions: project.sessions,
             r: project.r,
             startup: project.startup,
             cache: project.cache,

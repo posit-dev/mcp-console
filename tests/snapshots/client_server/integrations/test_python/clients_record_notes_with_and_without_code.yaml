@@ -1,0 +1,24 @@
+---
+client: AsyncMCPConsole
+outputs:
+  - |
+    42
+  - "[done]"
+notes:
+  - |-
+    ## Investigation
+
+    Check the observed **total**.
+  - The total is 42; compare it with the expected value next. λ
+---
+client: MCPConsole
+outputs:
+  - |
+    42
+  - "[done]"
+notes:
+  - |-
+    ## Investigation
+
+    Check the observed **total**.
+  - The total is 42; compare it with the expected value next. λ

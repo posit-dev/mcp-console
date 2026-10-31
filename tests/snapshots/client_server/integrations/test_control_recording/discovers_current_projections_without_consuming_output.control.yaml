@@ -1,0 +1,77 @@
+---
+request:
+  id: "1"
+  op: recording
+response:
+  id: "1"
+  result:
+    directory: <workspace>/.agents/console/sessions/<recording ID>
+    markdown: <workspace>/.agents/console/sessions/<recording ID>/transcript.md
+    qmd: >-
+      <workspace>/.agents/console/sessions/<recording
+      ID>/sessions/session-001.qmd
+    worker_id: 1
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  code: hidden_inspection = 1
+  record: false
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: "[done]"
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: recording
+response:
+  id: "3"
+  result:
+    directory: <workspace>/.agents/console/sessions/<recording ID>
+    markdown: <workspace>/.agents/console/sessions/<recording ID>/transcript.md
+    qmd: >-
+      <workspace>/.agents/console/sessions/<recording
+      ID>/sessions/session-001.qmd
+    worker_id: 1
+---
+request:
+  id: "4"
+  op: restart
+response:
+  id: "4"
+  result:
+    accepted: true
+    worker_id: 2
+---
+request:
+  id: "5"
+  op: recording
+response:
+  id: "5"
+  result:
+    directory: <workspace>/.agents/console/sessions/<recording ID>
+    markdown: <workspace>/.agents/console/sessions/<recording ID>/transcript.md
+    qmd: ~
+    worker_id: 2
+---
+request:
+  id: "6"
+  op: recording
+response:
+  id: "6"
+  result:
+    directory: <workspace>/.agents/console/sessions/<recording ID>
+    markdown: <workspace>/.agents/console/sessions/<recording ID>/transcript.md
+    qmd: >-
+      <workspace>/.agents/console/sessions/<recording
+      ID>/sessions/session-002.qmd
+    worker_id: 2

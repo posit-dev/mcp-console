@@ -9,6 +9,25 @@ use super::{
     WorkerState, environment, output, platform,
 };
 
+pub(super) enum EvaluationStartError {
+    Busy(String),
+    Failed(String),
+}
+
+impl EvaluationStartError {
+    fn into_message(self) -> String {
+        match self {
+            Self::Busy(message) | Self::Failed(message) => message,
+        }
+    }
+}
+
+impl From<String> for EvaluationStartError {
+    fn from(message: String) -> Self {
+        Self::Failed(message)
+    }
+}
+
 impl Client {
     pub(super) fn start_evaluation(
         &self,
@@ -43,11 +62,42 @@ impl Client {
         control_prelude: &mut Option<Response>,
         initial_requirements: Option<Requirements>,
     ) -> Result<(Arc<Evaluation>, evaluation::WaitClaim), String> {
+        self.start_evaluation_owned(
+            cell,
+            stdin,
+            generation,
+            transcript,
+            call_id,
+            control,
+            control_prelude,
+            initial_requirements,
+            evaluation::Origin::Mcp,
+            None,
+        )
+        .map_err(EvaluationStartError::into_message)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn start_evaluation_owned(
+        &self,
+        cell: crate::cell::Cell,
+        stdin: Option<String>,
+        generation: WorkerGeneration,
+        transcript: crate::transcript::Transcript,
+        call_id: Option<u64>,
+        control: Option<&ControlledSendAdmission>,
+        control_prelude: &mut Option<Response>,
+        initial_requirements: Option<Requirements>,
+        origin: evaluation::Origin,
+        observation: Option<super::integrator::IntegratorObservation>,
+    ) -> Result<(Arc<Evaluation>, evaluation::WaitClaim), EvaluationStartError> {
         self.ensure_evaluation_admission(&generation, control)?;
 
         let mut active = self.evaluation()?;
         if let Some(active) = active.as_ref() {
-            return Err(active.evaluation.reject_new_cell_message().to_string());
+            return Err(EvaluationStartError::Busy(
+                active.evaluation.reject_new_cell_message().to_string(),
+            ));
         }
         self.ensure_evaluation_admission(&generation, control)?;
         let startup = self.reserve_worker_startup(&generation)?;
@@ -58,16 +108,20 @@ impl Client {
             None => None,
         };
         let (idle_prelude, worker_revision) = self.0.output.take_admission_prelude();
-        let evaluation = Arc::new(Evaluation::new(
-            generation.clone(),
-            transcript,
-            call_id,
-            self.0.output.clone(),
-            control_prelude.take().unwrap_or_default(),
-            idle_prelude,
-            control.is_some(),
-            worker_revision,
-        ));
+        let evaluation = Arc::new(
+            Evaluation::new(
+                generation.clone(),
+                transcript,
+                call_id,
+                self.0.output.clone(),
+                control_prelude.take().unwrap_or_default(),
+                idle_prelude,
+                control.is_some(),
+                worker_revision,
+            )
+            .owned_by(origin, self.0.admission_changed.clone()),
+        );
+        evaluation.observe_source(&cell, observation);
         // Controlled restart retires its worker before admitting this evaluation.
         // Early ordinary cells also need association while awaiting startup.
         evaluation.associate_waiting_session();
@@ -140,6 +194,7 @@ impl Client {
             .unwrap_or(false);
         if reap {
             *active = None;
+            self.0.admission_changed.notify_waiters();
         }
         Ok(active)
     }
@@ -185,10 +240,14 @@ impl Client {
         if stdin.is_empty() {
             return Ok(());
         }
+        let activation = self.activate_session()?;
         let client = self.clone();
-        tokio::task::spawn_blocking(move || client.write_idle_stdin_blocking(stdin, generation))
-            .await
-            .map_err(|error| SendFailure::from(format!("worker stdin task failed: {error}")))?
+        tokio::task::spawn_blocking(move || {
+            let _activation = activation;
+            client.write_idle_stdin_blocking(stdin, generation)
+        })
+        .await
+        .map_err(|error| SendFailure::from(format!("worker stdin task failed: {error}")))?
     }
 
     pub(super) fn write_idle_stdin_blocking(
@@ -315,6 +374,11 @@ impl Client {
             }
         }
 
+        // Named sessions retain the stopped outcome until their next submitted
+        // cell starts a worker. Polling must never create a replacement.
+        if self.0.session_kind == super::SessionKind::Named {
+            return Err(failure.worker_stopped());
+        }
         let replacement_startup = self.0.preparation.blocking_read();
         evaluation.start_replacement(failure.worker_stopped());
         let replacement = self.start_ordinary_worker(worker, &generation);

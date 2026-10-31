@@ -283,7 +283,8 @@ result:
         first use or with control: restart]
   isError: true
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

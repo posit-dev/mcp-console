@@ -106,6 +106,8 @@ def test_configures_captured_tool_surface(
                 fields = set(tool["inputSchema"]["properties"])
                 assert fields == {
                     *languages,
+                    "note",
+                    "session",
                     "control",
                     "requirements",
                     "stdin",
@@ -366,7 +368,7 @@ def _sql_profile(
             assert {"r", "python", "duckdb"} <= set(
                 inspected["structuredContent"]["requirements"]
             )
-            client.send()
+            client.send(session="default")
             client.send(control="interrupt")
             config.write_text("languages: [r]\n", encoding="utf-8")
             client.send(control="restart")

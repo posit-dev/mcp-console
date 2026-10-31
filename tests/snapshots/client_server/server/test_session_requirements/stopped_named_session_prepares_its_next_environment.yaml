@@ -1,0 +1,194 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: retained = 'default state'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: alpha
+  python: >-
+    import mcp_console_test_session_base;
+    mcp_console_test_session_base.answer
+result:
+  content:
+    - type: text
+      text: |
+        41
+  isError: false
+---
+send:
+  session: alpha
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    python:
+      - mcp_console_test_session_combined
+  python: >-
+    import mcp_console_test_session_combined;
+    mcp_console_test_session_combined.answer
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        42
+  isError: false
+---
+send:
+  session: alpha
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    python:
+      - mcp_console_test_session_standalone
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+
+        [stopped]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  session: alpha
+  python: >-
+    import mcp_console_test_session_standalone;
+    mcp_console_test_session_standalone.answer
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        43
+  isError: false
+---
+send:
+  session: alpha
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    action: set
+    python:
+      - mcp_console_test_session_base==2.0.0
+  python: |
+    import importlib.util
+    import mcp_console_test_session_base
+
+    assert importlib.util.find_spec('mcp_console_test_session_combined') is None
+    assert importlib.util.find_spec('mcp_console_test_session_standalone') is None
+    print(mcp_console_test_session_base.answer)
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        44
+  isError: false
+---
+send:
+  session: alpha
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    action: reset
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+
+        [stopped]
+  isError: false
+---
+send:
+  session: alpha
+  python: >-
+    import mcp_console_test_session_base;
+    mcp_console_test_session_base.answer
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        41
+  isError: false
+---
+send:
+  python: retained
+result:
+  content:
+    - type: text
+      text: |
+        'default state'
+  isError: false

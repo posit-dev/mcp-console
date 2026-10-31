@@ -222,7 +222,7 @@ def test_interrupts_running_python_evaluation(
             )
             release.release()
             release = None
-            client.send()
+            client.send(session="default")
             assert "KeyboardInterrupt" in last_result_text(client)
 
             client.send(
@@ -519,6 +519,9 @@ def test_retries_python_runtime_initialization_after_interrupt(
 ) -> Transcript:
     configuration_line = runtime_source_line("_defaults.apply(name)")
     numpy_line = runtime_source_line('if module.get_printoptions()["linewidth"] == 75:')
+    input_line = runtime_source_line(
+        "return readline(str(prompt))", filename="services.py"
+    )
     with tempfile.TemporaryDirectory() as temporary_directory:
         environment = os.environ.copy()
         environment["TMPDIR"] = temporary_directory
@@ -565,7 +568,7 @@ def test_retries_python_runtime_initialization_after_interrupt(
                 f'  File "<string>", line {configuration_line}, in _mcp_console_configure_module_defaults\n'
                 f'  File "<string>", line {numpy_line}, in apply\n'
                 '  File "<runtime setup checkpoint>", line 9, in configuration_checkpoint\n'
-                '  File "<string>", line 50, in _console_input\n'
+                f'  File "<string>", line {input_line}, in _console_input\n'
                 "KeyboardInterrupt\n"
             ), repr(output)
 
@@ -741,7 +744,7 @@ def test_interrupts_live_python_resolver(
                 "managed Python resolution cancelled by interrupt"
             )
 
-            client.send()
+            client.send(session="default")
             assert last_result_text(client) == "\n[idle]"
 
             client.send(
@@ -805,7 +808,7 @@ def test_restart_cancels_live_python_preparation(
 
             watchdog = threading.Thread(target=release_if_calls_block)
             watchdog.start()
-            poll = client.start_send()
+            poll = client.start_send(session="default")
             second_prepare = client.start_send(
                 requirements={"python": ["py-yaml12"]},
             )

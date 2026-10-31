@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from collections.abc import Iterator
@@ -16,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.requirements import POSIX, SANDBOX, SQL, WORKER, requires
 from support.client import McpClient
 from support.evidence import compact_text
-from support.previews import compact_previews
+from support.previews import compact_previews, live_recording_events
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.linux_sandbox import retain_system_bwrap
 from support.normalization import code
@@ -299,6 +300,12 @@ def _initializes_and_lists_tools(
         ) as client:
             client.initialize_and_list_tools()
             listed_tools = client.transcript[-1]["result"]["tools"]
+            version = subprocess.check_output([binary, "--version"], text=True).strip()
+            assert (
+                version
+                == "mcp-console "
+                + client.transcript[0]["result"]["serverInfo"]["version"]
+            )
             assert [tool["name"] for tool in listed_tools] == ["send"], listed_tools
             send = listed_tools[0]
             instructions = client.transcript[0]["result"].get("instructions")
@@ -316,6 +323,8 @@ def _initializes_and_lists_tools(
             if languages is not None:
                 assert set(send["inputSchema"]["properties"]) == {
                     *languages,
+                    "note",
+                    "session",
                     "control",
                     "requirements",
                     "stdin",
@@ -347,6 +356,8 @@ def _initializes_and_lists_tools(
                     "r",
                     "python",
                     "sql",
+                    "note",
+                    "session",
                     "timeout_ms",
                     "control",
                     "stdin",
@@ -396,6 +407,9 @@ def _initializes_and_lists_tools(
                 "ir run script.R" in properties.get("r", {}).get("description", "")
             ) == (not custom and "r" in send["inputSchema"]["properties"]), description
             assert "Run one cell at a time" in description
+            assert "per session" in description
+            assert properties["session"]["type"] == "string"
+            assert properties["session"]["default"] == "default"
             assert "An error can leave earlier changes in place" in description
             assert f"`timeout_ms={properties['timeout_ms']['default']}`" in description
             assert '`requirements.action="add"`' in description
@@ -745,6 +759,8 @@ def test_limits_send_languages_from_environment(binary: Path) -> Transcript:
             assert send_properties.keys() == {
                 "r",
                 "sql",
+                "note",
+                "session",
                 "control",
                 "requirements",
                 "stdin",
@@ -812,7 +828,17 @@ def _reject_send_arguments(client: McpClient) -> None:
     assert result["isError"] is True, result
     assert result["content"][0]["text"] == (
         "failed to deserialize parameters: unknown field `wait_ms`, expected one "
-        "of `r`, `python`, `sql`, `control`, `requirements`, `stdin`, `timeout_ms`"
+        "of `r`, `python`, `sql`, `note`, `session`, `control`, `requirements`, `stdin`, `timeout_ms`"
+    ), result
+    result = client.send(
+        python="sentinel = -1",
+        note=42,
+        control="restart",
+        stdin="must not queue\n",
+    )
+    assert result["isError"] is True, result
+    assert result["content"][0]["text"] == (
+        "failed to deserialize parameters: invalid type: integer `42`, expected a string"
     ), result
     result = client.send(
         r="1",
@@ -939,8 +965,8 @@ def test_bounds_argument_decoding_errors(
             session = next((workspace / ".agents/console/sessions").iterdir())
             recorded = [
                 event["result"]
-                for line in (session / "capture/events.jsonl").read_text().splitlines()
-                if (event := json.loads(line))["event"] == "tool_result"
+                for event in live_recording_events(session)
+                if event["event"] == "tool_result"
             ]
             assert recorded == [*results, result]
             compact_previews(client, "éλ")

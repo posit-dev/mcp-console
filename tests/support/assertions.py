@@ -45,10 +45,10 @@ def _send_before(
 
 
 def wait_for_worker_ready(client: McpClient, description: str) -> None:
-    """Wait through public startup snapshots and retain the initial empty poll."""
+    """Wait through default-session startup snapshots and retain the first poll."""
     deadline = time.monotonic() + client.response_timeout
     poll_start = len(client.transcript)
-    result = _send_before(client, deadline, description)
+    result = _send_before(client, deadline, description, session="default")
     # Phase observation is optional when its owner is busy.
     while tool_text(result) in {
         "[worker starting]",
@@ -58,7 +58,11 @@ def wait_for_worker_ready(client: McpClient, description: str) -> None:
         remaining = deadline - time.monotonic()
         assert remaining > 0, f"{description} did not complete"
         result = _send_before(
-            client, deadline, description, timeout_ms=max(1, int(remaining * 1_000))
+            client,
+            deadline,
+            description,
+            session="default",
+            timeout_ms=max(1, int(remaining * 1_000)),
         )
     assert tool_text(result) == "\n[idle]", result
     submitted = client.transcript[poll_start]
@@ -68,7 +72,7 @@ def wait_for_worker_ready(client: McpClient, description: str) -> None:
 
 def wait_for_prepared_ready(client: McpClient) -> str:
     """Drain provider startup diagnostics before checking an evaluation's output."""
-    result = client.send(timeout_ms=60_000)
+    result = client.send(session="default", timeout_ms=60_000)
     output = tool_text(result)
     assert output.endswith("\n[idle]"), output
     return output.removesuffix("\n[idle]")
@@ -168,6 +172,7 @@ def wait_for_idle_output(
     **send_arguments: Any,
 ) -> None:
     """Accumulate public idle output until all expected worker events arrive."""
+    send_arguments.setdefault("session", "default")
     deadline = time.monotonic() + completion_timeout_seconds
     poll_start = len(client.transcript)
     collected = ""
@@ -213,6 +218,10 @@ def wait_for_evaluation_output(
     assert received is None or not send_arguments, (
         "a received call must not be resubmitted"
     )
+    selected_arguments = received["send"] if received is not None else send_arguments
+    session = selected_arguments.get("session", "default")
+    if received is None and send_arguments.keys() <= {"timeout_ms"}:
+        send_arguments["session"] = session
     deadline = time.monotonic() + completion_timeout_seconds
     poll_start = len(client.transcript)
     running = "\n[running; poll with an empty send]"
@@ -282,7 +291,9 @@ def wait_for_evaluation_output(
             # Observe a nonterminal state without making completion the event
             # that wakes the receive at the logical deadline.
             poll_ms = min(poll_ms, 100)
-        result = _send_before(client, deadline, description, timeout_ms=poll_ms)
+        result = _send_before(
+            client, deadline, description, timeout_ms=poll_ms, session=session
+        )
 
     assert expected_error is None or result.get("isError", False) is expected_error, (
         result
@@ -318,6 +329,7 @@ def collect_running_output(
         None,
         description,
         completion_timeout_seconds=sum(timeouts_ms) / 1_000,
+        session="default",
         timeout_ms=timeouts_ms[0],
         initial_cuts=initial_cuts,
         output_cuts=cuts,

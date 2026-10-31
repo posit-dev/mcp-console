@@ -2,6 +2,7 @@
 !same-as r-only-writable MCP initialization for this execution mode
 ---
 send:
+  session: default
   timeout_ms: 10000
 result:
   content:
@@ -27,6 +28,7 @@ result:
 ---
 send:
   timeout_ms: 0
+  session: default
 result:
   content:
     - type: text
@@ -34,7 +36,8 @@ result:
         [1] 42
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

@@ -1,7 +1,8 @@
 ---
 !same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.python-only.direct.yaml
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -22,7 +23,8 @@ result:
         [idle]
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -50,7 +52,8 @@ result:
       text: "[done]"
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.records import Transcript, TranscriptEntry
 from support.installation import native_console
+from support.snapshots import normalize_console_version
 from support.suites import run_this_suite
 
 
@@ -48,6 +49,7 @@ def test_help(binary: Path) -> Transcript:
     ]
     for entry in entries:
         output = entry.get("stdout", "") + entry.get("stderr", "")
+        assert "--control-socket" not in output, entry
         assert all(len(line) <= 80 for line in output.splitlines()), entry
         if entry["command"] == "mcp-console sandbox --help":
             assert "--config-env <NAME>" in output, entry
@@ -74,7 +76,12 @@ def test_help(binary: Path) -> Transcript:
 
 
 def test_version(binary: Path) -> Transcript:
-    return [record(binary, "--version")]
+    entry = record(binary, "--version")
+    assert "exit_code" not in entry and "stderr" not in entry, entry
+    version = entry["stdout"].removeprefix("mcp-console ").removesuffix("\n")
+    assert entry["stdout"] == f"mcp-console {version}\n", entry
+    entry["stdout"] = f"mcp-console {normalize_console_version(version)}\n"
+    return [entry]
 
 
 def test_executable_suffix_keeps_help_within_80_columns(binary: Path) -> Transcript:

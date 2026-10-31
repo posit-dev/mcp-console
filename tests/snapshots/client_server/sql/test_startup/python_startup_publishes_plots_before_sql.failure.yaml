@@ -36,14 +36,15 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 490, in initialize_connection
+          File "<string>", line 496, in initialize_connection
           File "<console startup>", line 15, in <module>
         RuntimeError: startup failed after plotting
         Error: configured startup did not complete; SQL withheld; explicit restart required
         Error: SQL unavailable: configured startup did not complete; explicit restart required
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

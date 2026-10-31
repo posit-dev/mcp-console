@@ -10,7 +10,8 @@ result:
         zod: ready
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text
@@ -39,7 +40,8 @@ result:
         zod stdin: supplied answer
   isError: false
 ---
-send: {}
+send:
+  session: default
 result:
   content:
     - type: text

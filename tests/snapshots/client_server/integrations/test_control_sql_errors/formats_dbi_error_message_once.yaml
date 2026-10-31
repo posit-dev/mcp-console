@@ -1,0 +1,102 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    formatter_calls <- 0L
+    registerS3method(
+      "conditionMessage",
+      "SingleUseSqlError",
+      function(condition) {
+        formatter_calls <<- formatter_calls + 1L
+        # stop(condition) formats once before signaling. The SQL bridge
+        # may format the delivered condition once for its diagnostic.
+        if (formatter_calls > 2L) {
+          stop("condition message formatted again")
+        }
+        "driver failure"
+      },
+      envir = baseenv()
+    )
+    fail_query <- function() {
+      stop(structure(
+        list(message = "unused", call = NULL),
+        class = c("SingleUseSqlError", "error", "condition")
+      ))
+    }
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    library(DBI)
+    sentinel <- new.env()
+    original <- sentinel
+    setClass(
+      "ControlErrorConnection",
+      contains = "DBIConnection",
+      slots = c(native = "ANY")
+    )
+    setMethod(
+      "dbIsValid",
+      "ControlErrorConnection",
+      function(dbObj, ...) DBI::dbIsValid(dbObj@native)
+    )
+    setMethod(
+      "dbSendQuery",
+      c("ControlErrorConnection", "character"),
+      function(conn, statement, ...) {
+        if (identical(statement, "SELECT fail")) {
+          fail_query()
+        }
+        DBI::dbSendQuery(conn@native, statement, ...)
+      }
+    )
+    selected <- new("ControlErrorConnection", native = .console$sql_connection())
+    .console$sql_connection(selected)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    cat(
+      paste(
+        formatter_calls,
+        identical(sentinel, original),
+        identical(.console$sql_connection(), selected)
+      ),
+      "\n",
+      sep = ""
+    )
+result:
+  content:
+    - type: text
+      text: |
+        2 TRUE TRUE
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

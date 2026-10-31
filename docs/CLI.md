@@ -129,6 +129,9 @@ Client startup limits still apply; a cold `uvx` launch can delay tool availabili
 Codex's Strict Code Mode Only controls tool exposure independently and overrides the visibility setting.
 Use a current client version that supports the respective setting.
 
+For Codex, setup also sets `tool_input_schema_max_bytes = 12000` on the selected server.
+This raises its input-schema compaction threshold from 5,000 to 12,000 bytes so Console's argument descriptions are retained, including with `--no-auto-load`.
+
 Configuration also allows Console's `send` tool to run without a per-call approval prompt:
 
 - Codex: [`approval_mode = "approve"`](https://learn.chatgpt.com/docs/config-file/config-reference) in `[mcp_servers.console.tools.send]`.
@@ -156,6 +159,7 @@ mcp-console warmup -c 'languages=[python,sql]'
 ```
 
 `warmup` starts a server, initializes an MCP connection, discovers its tools, and evaluates a small check in each enabled language before shutting down.
+It checks the default session, selecting it explicitly when the server advertises named sessions.
 It prepares the configured startup packages and reuses the same dependency caches as `serve`, so a later session with the same settings can reuse them.
 The first run may download Python, packages, and DuckDB extensions.
 

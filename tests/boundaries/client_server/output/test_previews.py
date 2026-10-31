@@ -19,7 +19,7 @@ from support.previews import (
     OMISSION,
     assert_preview,
     normalize_preview_paths,
-    recording_events,
+    live_recording_events,
     session_directory,
 )
 from support.client import McpClient
@@ -96,7 +96,7 @@ after final image
         for block in result["content"]:
             if block["type"] == "text":
                 block["text"] = block["text"].replace(session.name, "<run ID>")
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         client.send(r="echo fresh")
         assert last_tool_text(client) == "zod: fresh\n"
@@ -290,7 +290,9 @@ def test_edits_mcp_unicode_preview_without_changing_raw_stream(
             assert (
                 cell_output_path(session_directory(client), 1 + 2 * call_id)
             ).read_bytes() == raw
-            assert client.send()["content"] == [{"type": "text", "text": "\n[idle]"}]
+            assert client.send(session="default")["content"] == [
+                {"type": "text", "text": "\n[idle]"}
+            ]
         normalize_preview_paths(client)
         return client.finish()
 
@@ -486,7 +488,7 @@ def test_preserves_active_prompt_and_state_after_text_flood(
         assert last_tool_text(client) == "\n[waiting for stdin]"
         control.send_control(0, "read_preview_input")
         control.wait_for(0, "preview_input_processed")
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "received answer\n", last_tool_text(client)
         return client.finish()
 
@@ -503,7 +505,7 @@ def test_image_overflow_preserves_later_text_and_fitting_image(
         content = client.transcript[-1]["result"]["content"]
         assert [block["type"] for block in content] == ["text", "image", "text"]
         session = session_directory(client)
-        capture = recording_events(session)
+        capture = live_recording_events(session)
         omitted, artifact = [e for e in capture if e["event"] == "image_retained"]
         path = Path(".agents/console/sessions") / session.name / omitted["path"]
         assert content[0]["text"] == (
@@ -618,7 +620,7 @@ def test_combines_old_worker_and_replacement_cell_under_one_budget(
         )
         assert not result.get("isError", False), result
         normalize_preview_paths(client)
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
         return client.finish()
 
@@ -669,10 +671,7 @@ def test_keeps_partial_idle_utf8_out_of_cell_omission_counts(
             errors="replace"
         ) == idle
         assert (cell_output_path(session, 1)).read_text() == cell
-        events = [
-            json.loads(line)
-            for line in (session / "capture/events.jsonl").read_text().splitlines()
-        ]
+        events = live_recording_events(session)
         cell_summaries = [event for event in events if event["event"] == "cell_output"]
         assert cell_summaries[-1]["inline_omitted_bytes"] == cell_omitted
         normalize_preview_paths(client)

@@ -30,8 +30,9 @@ impl WorkerGeneration {
     }
 }
 
-/// Owns admission and process cancellation for the implicit session.
+/// Owns admission and process cancellation for one session.
 pub(super) struct LifecycleControl {
+    session: super::SessionSlot,
     pub(super) state: LifecycleState,
     pub(super) generation: WorkerGeneration,
     controlled_send: Option<Arc<()>>,
@@ -50,6 +51,7 @@ struct WorkerStartup {
 
 /// Keeps startup interruptible before and between its resolver processes.
 pub(crate) struct WorkerStartupAdmission {
+    _session: super::SessionActivation,
     client: Client,
     generation: WorkerGeneration,
     pub(super) transport_ready: Arc<AtomicBool>,
@@ -75,11 +77,32 @@ pub(super) enum SelectedInterruptTarget {
     NoTarget,
 }
 
+/// Owns the selected evaluation and connection across interrupt acknowledgment.
+#[cfg(unix)]
+pub(crate) struct IntegratorInterrupt(SelectedInterruptTarget);
+
+pub(super) enum InterruptOutcome {
+    Accepted,
+    TargetCompleted,
+}
+
+#[cfg(unix)]
+impl IntegratorInterrupt {
+    pub(crate) fn interrupt(self) -> Result<(), super::IntegratorError> {
+        match self.0.interrupt()? {
+            InterruptOutcome::Accepted => Ok(()),
+            InterruptOutcome::TargetCompleted => Err(super::IntegratorError::StaleEvaluation),
+        }
+    }
+}
+
 impl SelectedInterruptTarget {
-    fn interrupt(&self) -> Result<(), String> {
+    fn interrupt(&self) -> Result<InterruptOutcome, String> {
         match self {
-            Self::Resolver { resolver, .. } => resolver.interrupt().map(|_| ()),
-            Self::Startup { .. } => Ok(()),
+            Self::Resolver { resolver, .. } => {
+                resolver.interrupt().map(|_| InterruptOutcome::Accepted)
+            }
+            Self::Startup { .. } => Ok(InterruptOutcome::Accepted),
             Self::Worker {
                 worker, evaluation, ..
             } => worker.interrupt(evaluation.as_deref()),
@@ -138,9 +161,16 @@ pub(super) enum OldGenerationCommitDisposition {
     DiscardForReplacement,
 }
 
+pub(super) enum RestartLaunch {
+    Idle,
+    Followup,
+    OnNextSend,
+}
+
 impl LifecycleControl {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(session: super::SessionSlot) -> Self {
         Self {
+            session,
             state: LifecycleState::Ready,
             generation: WorkerGeneration::new(),
             controlled_send: None,
@@ -204,6 +234,41 @@ impl LifecycleControl {
 
     pub(super) fn starting(&self) -> bool {
         self.startup_observation().is_some()
+    }
+
+    pub(super) fn has_worker(&self) -> bool {
+        self.processes.worker.is_some()
+    }
+
+    pub(super) fn worker_bootstrapping(&self) -> Result<bool, String> {
+        self.processes
+            .worker
+            .as_ref()
+            .map_or(Ok(false), |worker| worker.is_bootstrapping())
+    }
+
+    pub(super) fn worker_connection(&self) -> Option<platform::WorkerShutdownHandle> {
+        self.processes.worker.clone()
+    }
+
+    pub(super) fn integrator_phase(&self) -> Option<&'static str> {
+        if self
+            .processes
+            .resolver
+            .as_ref()
+            .and_then(|resolver| resolver.phase_observation().phase())
+            .is_some()
+        {
+            return Some("preparing");
+        }
+        if self.controlled_send.is_some() {
+            return Some("busy");
+        }
+        #[cfg(any(unix, windows))]
+        if let Some(worker) = &self.processes.worker {
+            return worker.phase_observation();
+        }
+        None
     }
 
     pub(super) fn startup_observation(&self) -> Option<Weak<AtomicBool>> {
@@ -397,6 +462,7 @@ impl Drop for ControlledSendAdmission {
             .is_some_and(|token| Arc::ptr_eq(token, &self.token))
         {
             lifecycle.controlled_send = None;
+            self.client.0.admission_changed.notify_waiters();
         }
     }
 }
@@ -406,6 +472,15 @@ impl Drop for WorkerStartupAdmission {
         let Ok(mut lifecycle) = self.client.0.lifecycle.lock() else {
             return;
         };
+        if lifecycle.generation.is(&self.generation)
+            && lifecycle
+                .processes
+                .resolver
+                .as_ref()
+                .is_some_and(|resolver| !resolver.cleanup_confirmed())
+        {
+            lifecycle.session.retain_preparation();
+        }
         if lifecycle.generation.is(&self.generation)
             && lifecycle
                 .startup
@@ -418,6 +493,26 @@ impl Drop for WorkerStartupAdmission {
 }
 
 impl Client {
+    /// Reserve before request preparation; accepted startup work keeps its own lease.
+    pub(crate) fn activate_session(&self) -> Result<super::SessionActivation, String> {
+        self.0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?
+            .session
+            .activate()
+    }
+
+    /// Initial discovery retains all resolver receipts outside the worker owner.
+    pub(crate) fn finish_session_preparation(&self, cleanup_confirmed: bool) {
+        let lifecycle = self.0.lifecycle.lock().expect("worker lifecycle lock");
+        if !cleanup_confirmed {
+            lifecycle.session.retain_preparation();
+        } else {
+            lifecycle.session.preparation_retired();
+        }
+    }
+
     #[cfg(any(unix, windows))]
     pub(super) fn queue_startup_stdin(
         &self,
@@ -489,6 +584,7 @@ impl Client {
             return Ok(Some(owner));
         }
         let owner = Arc::new(WorkerStartupAdmission {
+            _session: lifecycle.session.activate()?,
             client: self.clone(),
             generation: generation.clone(),
             transport_ready: Arc::new(AtomicBool::new(false)),
@@ -510,7 +606,32 @@ impl Client {
     }
 
     pub(super) fn interrupt_standalone_blocking(&self) -> Result<(), String> {
-        self.select_interrupt_target(false)?.interrupt()
+        self.select_interrupt_target(false)?.interrupt().map(|_| ())
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn select_integrator_interrupt(
+        &self,
+        evaluation_id: u64,
+    ) -> Result<IntegratorInterrupt, super::IntegratorError> {
+        let active = self.evaluation()?;
+        let mut lifecycle = self
+            .0
+            .lifecycle
+            .lock()
+            .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        let evaluation = &active
+            .as_ref()
+            .filter(|active| active.evaluation.id() == evaluation_id)
+            .ok_or(super::IntegratorError::StaleEvaluation)?
+            .evaluation;
+        lifecycle.ensure_generation(&evaluation.admission.generation)?;
+        if evaluation.admission.outcome()?.is_some() {
+            return Err(super::IntegratorError::StaleEvaluation);
+        }
+        Self::select_interrupt_locked(false, &active, &mut lifecycle)
+            .map(IntegratorInterrupt)
+            .map_err(Into::into)
     }
 
     pub(super) fn interrupt_blocking(&self) -> Result<SelectedInterruptTarget, String> {
@@ -529,6 +650,14 @@ impl Client {
             .lifecycle
             .lock()
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+        Self::select_interrupt_locked(controlled, &active, &mut lifecycle)
+    }
+
+    fn select_interrupt_locked(
+        controlled: bool,
+        active: &Option<super::ActiveEvaluation>,
+        lifecycle: &mut LifecycleControl,
+    ) -> Result<SelectedInterruptTarget, String> {
         let evaluation = active
             .as_ref()
             .filter(|active| {
@@ -543,7 +672,7 @@ impl Client {
         if startup.is_some()
             && let Some(evaluation) = &evaluation
         {
-            evaluation.admission.interrupt(|| Ok(()))?;
+            let _ = evaluation.admission.interrupt(|| Ok(()))?;
         }
         if let Some(resolver) = lifecycle.processes.resolver.clone() {
             return Ok(SelectedInterruptTarget::Resolver {
@@ -597,9 +726,13 @@ impl Client {
         &self,
         requirements: super::Requirements,
         grace: Duration,
-        defer_idle: bool,
+        launch: RestartLaunch,
         control: Option<&ControlledSendAdmission>,
     ) -> Result<RestartAttempt, String> {
+        // Replacement retains capacity even if its initiating request is cancelled.
+        let _activation = (!matches!(launch, RestartLaunch::OnNextSend))
+            .then(|| self.activate_session())
+            .transpose()?;
         let mut restart = if requirements.action == super::RequirementsAction::Add
             && requirements.python_version.is_empty()
             && requirements.exclude_newer.is_none()
@@ -666,7 +799,7 @@ impl Client {
         match self.replace_worker(
             &mut restart.evaluation,
             restart.generation.clone(),
-            !defer_idle,
+            launch,
             restart.processes.worker.as_ref(),
         ) {
             Ok(replacement) => {
@@ -792,6 +925,7 @@ impl Client {
         self.publish_replacement_requirements(environment);
         let (processes, deadline, generation) =
             lifecycle.start_restart(grace, OldGenerationCommitDisposition::DiscardForReplacement);
+        self.0.admission_changed.notify_waiters();
         self.0
             .startup_stdin
             .lock()
@@ -814,7 +948,7 @@ impl Client {
         &self,
         evaluation: &mut Option<EvaluationReservation>,
         generation: WorkerGeneration,
-        report_idle: bool,
+        launch: RestartLaunch,
         retiring_worker: Option<&platform::WorkerShutdownHandle>,
     ) -> Result<WorkerReplacement, RestartFailure> {
         let mut worker = self
@@ -853,6 +987,17 @@ impl Client {
 
         let mut response = self.settle_reserved_evaluation(evaluation.take(), retired_worker)?;
 
+        self.0
+            .startup_permitted
+            .store(true, std::sync::atomic::Ordering::Release);
+        if matches!(launch, RestartLaunch::OnNextSend) {
+            response.push_notice("stopped");
+            return Ok(WorkerReplacement {
+                response,
+                ready: true,
+            });
+        }
+
         let mut worker = match self.0.worker.lock() {
             Ok(worker) => worker,
             Err(_) => {
@@ -867,9 +1012,6 @@ impl Client {
         }
         response.push_notice_line(super::output::WORKER_STARTING_NOTICE);
 
-        self.0
-            .startup_permitted
-            .store(true, std::sync::atomic::Ordering::Release);
         let completion_generation = generation.clone();
         if let Err(mut failure) = self.start_worker(
             &mut worker,
@@ -894,7 +1036,7 @@ impl Client {
             });
         }
         response.extend(self.0.output.take());
-        if report_idle {
+        if matches!(launch, RestartLaunch::Idle) {
             response.push_notice(super::output::WORKER_IDLE_NOTICE);
         }
         Ok(WorkerReplacement {
@@ -913,6 +1055,45 @@ impl Client {
             || (self.0.output.take(), Response::default()),
             |evaluation| evaluation.take_output(&self.0.output),
         );
+
+        if evaluation
+            .as_ref()
+            .is_some_and(EvaluationReservation::is_integrator)
+        {
+            let mut evaluation = evaluation.expect("integrator reservation");
+            let mut response = post_completion_output;
+            let mut sideband = old_output;
+            if evaluation.unfinished() {
+                sideband.push_notice(evaluation.stopped_notice());
+                sideband.mark_error();
+            }
+            let delivery = if let Some(delivery) = evaluation.take_pending_delivery() {
+                // A terminal sideband response already owns the cell cut.
+                // Remaining observations belong to the ordinary idle interval.
+                response.extend_logical_region(sideband);
+                Some(delivery)
+            } else {
+                match evaluation.deliver(sideband) {
+                    Ok(RestartDelivery::Waiting(delivery)) => Some(delivery),
+                    Ok(RestartDelivery::Unclaimed(_)) => None,
+                    Err(error) => {
+                        return Err(RestartFailure::with_response(error.message, response));
+                    }
+                }
+            };
+            if let Some(delivery) = delivery {
+                // Sideband results are never recovered by an MCP control response.
+                let _ = delivery.recv();
+            }
+            // The private collector restores its held MCP prelude before
+            // acknowledging. Retain that output and any later MCP recovery or
+            // post-cell intervals ahead of the restart's own notices.
+            response.extend_logical_region(self.0.output.take());
+            if retired_worker {
+                response.push_notice(super::output::WORKER_STOPPED_NOTICE);
+            }
+            return Ok(response);
+        }
 
         let mut response = Response::default();
         let mut wait_for_send = None;
@@ -1208,6 +1389,7 @@ impl Client {
             .transpose()?;
         let (processes, deadline, generation) =
             lifecycle.start_restart(grace, OldGenerationCommitDisposition::Commit);
+        self.0.admission_changed.notify_waiters();
         self.0
             .startup_stdin
             .lock()
@@ -1332,6 +1514,7 @@ impl Client {
                 outcome,
             ));
         }
+        lifecycle.session.worker_retired();
         Ok(FailedWorkerStop::Stopped(outcome))
     }
 
@@ -1351,6 +1534,7 @@ impl Client {
                     if lifecycle.startup_interrupted() {
                         (Instant::now(), "worker startup interrupted")
                     } else {
+                        lifecycle.session.retain_worker();
                         lifecycle.processes.worker = Some(handle.clone());
                         lifecycle.startup = None;
                         #[cfg(any(unix, windows))]
@@ -1399,6 +1583,14 @@ impl Client {
             .lock()
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
         if lifecycle.state == LifecycleState::Ready && lifecycle.generation.is(expected) {
+            if lifecycle
+                .processes
+                .worker
+                .as_ref()
+                .is_some_and(platform::WorkerShutdownHandle::retirement_confirmed)
+            {
+                lifecycle.session.worker_retired();
+            }
             lifecycle.processes.worker = None;
         }
         Ok(())
@@ -1419,6 +1611,7 @@ impl Client {
                     if lifecycle.startup_interrupted() {
                         (Instant::now(), "worker startup interrupted")
                     } else {
+                        lifecycle.session.retain_worker();
                         lifecycle.processes.worker = Some(handle.clone());
                         lifecycle.startup = None;
                         return Ok(());
@@ -1439,6 +1632,14 @@ impl Client {
             .lock()
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
         if matches!(lifecycle.state, LifecycleState::Restarting { .. }) {
+            if lifecycle
+                .processes
+                .worker
+                .as_ref()
+                .is_some_and(platform::WorkerShutdownHandle::retirement_confirmed)
+            {
+                lifecycle.session.worker_retired();
+            }
             lifecycle.processes.worker = None;
         }
         Ok(())
@@ -1490,6 +1691,16 @@ impl Client {
         ) && lifecycle.generation.is(expected))
             || matches!(lifecycle.state, LifecycleState::ShuttingDown { .. })
         {
+            // Successful operations keep their reusable preparation host open.
+            // Its connection lifetime does not keep a stopped worker slot alive.
+            if lifecycle
+                .processes
+                .resolver
+                .as_ref()
+                .is_some_and(|resolver| !resolver.cleanup_confirmed())
+            {
+                lifecycle.session.retain_preparation();
+            }
             lifecycle.processes.resolver = None;
         }
         Ok(())
@@ -1503,6 +1714,7 @@ impl Client {
             .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
         if !matches!(lifecycle.state, LifecycleState::ShuttingDown { .. }) {
             lifecycle.state = LifecycleState::ShuttingDown { deadline };
+            self.0.admission_changed.notify_waiters();
         }
         let handles = lifecycle.processes.clone();
         let deadline = match lifecycle.state {
@@ -1582,7 +1794,7 @@ mod tests {
 
     #[tokio::test]
     async fn replacement_failure_preserves_an_unclaimed_assembled_response() {
-        let client = Client::pending();
+        let client = Client::pending(super::super::SessionPool::new(None).default_slot());
         client.configure(crate::worker_client::ClientConfiguration::new(
             std::path::PathBuf::from("unused-worker"),
             None,
@@ -1609,11 +1821,15 @@ mod tests {
         };
         let response = render_response(SendResponse::Completed(response));
         let mut reservation = Some(evaluation.reserve_for_restart().unwrap());
-        let failure =
-            match client.replace_worker(&mut reservation, WorkerGeneration::new(), true, None) {
-                Ok(_) => panic!("replacement unexpectedly succeeded outside a restart"),
-                Err(failure) => failure,
-            };
+        let failure = match client.replace_worker(
+            &mut reservation,
+            WorkerGeneration::new(),
+            RestartLaunch::Idle,
+            None,
+        ) {
+            Ok(_) => panic!("replacement unexpectedly succeeded outside a restart"),
+            Err(failure) => failure,
+        };
         assert_eq!(failure.message, "worker restart state changed");
         assert!(reservation.is_some());
         let (_, _, delivery, _) = response.into_parts();
@@ -1635,7 +1851,7 @@ mod tests {
 
     #[tokio::test]
     async fn failed_restart_excludes_a_delivered_response_but_keeps_later_output() {
-        let client = Client::pending();
+        let client = Client::pending(super::super::SessionPool::new(None).default_slot());
         client.configure(crate::worker_client::ClientConfiguration::new(
             std::path::PathBuf::from("unused-worker"),
             None,

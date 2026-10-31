@@ -33,7 +33,7 @@ def test_queued_calls_keep_their_response_identity(
             release,
         ),
     ):
-        first = client.start_send()
+        first = client.start_send(session="default")
         try:
             reached.wait(
                 "first result retained before response assembly", client=client
@@ -240,7 +240,7 @@ def test_protocol_writer_does_not_hold_frame_reception(binary: Path) -> Transcri
                 try:
                     client.initialize_and_list_tools()
                     observed.wait("protocol journal writer stalled", client=client)
-                    pending = client.start_send()
+                    pending = client.start_send(session="default")
                     client.notify("notifications/cancelled", requestId=pending["id"])
                     assert client.request("ping")["result"] == {}
                     client.stdin.close()

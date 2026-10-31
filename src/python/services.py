@@ -1,4 +1,4 @@
-"""Main-thread console hooks; other contexts retain their original streams."""
+"""Managed console hooks; other contexts retain their original streams."""
 
 from __future__ import annotations
 
@@ -16,7 +16,9 @@ _input = builtins.input
 
 
 def _managed() -> bool:
-    return os.getpid() == _pid and threading.get_ident() == _thread
+    return os.getpid() == _pid and (
+        threading.get_ident() == _thread or bool(priority_active())
+    )
 
 
 class _Output:
@@ -45,14 +47,38 @@ class _Output:
 
 
 def _console_input(prompt: object = "") -> str:
+    if priority_active():
+        raise RuntimeError("stdin is unavailable during priority execution")
     if not _managed():
         return _input(prompt)
     return readline(str(prompt))
 
 
+def eval_priority(source: str, filename: str) -> None:
+    import _mcp_console
+
+    _mcp_console.eval_cell(source, filename, finalize=False, propagate_exit=False)
+
+
 def resolve_import(module: str, distribution: str) -> str:
     return resolve_import_request(
         json.dumps({"module": module, "distribution": distribution})
+    )
+
+
+def report_execution_error(
+    error: BaseException, message: str, traceback: list[str] | None = None
+) -> None:
+    # Reuse TracebackException's captured message. Calling str(error) again can
+    # execute user code and replace the exception while reporting it.
+    execution_error(
+        json.dumps(
+            {
+                "ename": type(error).__name__,
+                "evalue": message,
+                "traceback": [] if traceback is None else traceback,
+            }
+        )
     )
 
 

@@ -77,33 +77,33 @@ case: top-level field
 command: serve
 stderr: >
   .agents/console/config.yaml: profile: unknown field `profile`, expected
-  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
-  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
-  docs/CONFIGURATION.md for the public format
+  one of `tool`, `sessions`, `startup`, `cache`, `python`, `r`,
+  `languages`, `inherit_environment`, `environment`, `sandbox`,
+  `resolver`; see docs/CONFIGURATION.md for the public format
 ---
 case: top-level field
 command: sandbox
 stderr: >
   .agents/console/config.yaml: profile: unknown field `profile`, expected
-  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
-  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
-  docs/CONFIGURATION.md for the public format
+  one of `tool`, `sessions`, `startup`, `cache`, `python`, `r`,
+  `languages`, `inherit_environment`, `environment`, `sandbox`,
+  `resolver`; see docs/CONFIGURATION.md for the public format
 ---
 case: tagged unknown field
 command: serve
 stderr: >
   .agents/console/config.yaml: profile: unknown field `profile`, expected
-  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
-  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
-  docs/CONFIGURATION.md for the public format
+  one of `tool`, `sessions`, `startup`, `cache`, `python`, `r`,
+  `languages`, `inherit_environment`, `environment`, `sandbox`,
+  `resolver`; see docs/CONFIGURATION.md for the public format
 ---
 case: tagged unknown field
 command: sandbox
 stderr: >
   .agents/console/config.yaml: profile: unknown field `profile`, expected
-  one of `tool`, `startup`, `cache`, `python`, `r`, `languages`,
-  `inherit_environment`, `environment`, `sandbox`, `resolver`; see
-  docs/CONFIGURATION.md for the public format
+  one of `tool`, `sessions`, `startup`, `cache`, `python`, `r`,
+  `languages`, `inherit_environment`, `environment`, `sandbox`,
+  `resolver`; see docs/CONFIGURATION.md for the public format
 ---
 case: sandbox type
 command: serve

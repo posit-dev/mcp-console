@@ -1,0 +1,48 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: kept_r <- new.env(); kept_r$value <- 42L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: "kept_python = {'value': 42}"
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: >-
+    stopifnot(kept_r$value == 42L, requireNamespace('praise', quietly =
+    TRUE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: >-
+    import more_itertools; assert kept_python['value'] == 42; assert
+    more_itertools.one([42]) == 42
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

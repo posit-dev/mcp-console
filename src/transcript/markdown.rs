@@ -28,17 +28,19 @@ struct ProjectionWriter {
     header_written: bool,
     description: &'static str,
 }
-/// Retain only source awaiting association and each worker's source document.
+/// Retain only source and notes awaiting association and each worker's document.
 #[derive(Default)]
 struct Documents {
     calls: BTreeMap<u64, PendingSource>,
+    pending_notes: BTreeMap<String, BTreeMap<u64, QuartoEntry>>,
     sessions: BTreeMap<u64, QuartoWriter>,
     metadata: Metadata,
-    current: Option<u64>,
+    session_metadata: BTreeMap<String, Metadata>,
+    current: BTreeMap<String, u64>,
 }
 struct PendingSource {
     admitted: bool,
-    sources: Vec<QuartoSource>,
+    entry: QuartoEntry,
 }
 #[derive(Clone, Default)]
 struct Metadata {
@@ -51,7 +53,14 @@ struct Metadata {
     metadata_known: bool,
 }
 struct QuartoWriter {
+    session: String,
     metadata: Metadata,
+    // Source association can arrive after later notes. Call IDs preserve the
+    // submitted order independently of worker acquisition and dispatch.
+    entries: BTreeMap<u64, QuartoEntry>,
+}
+struct QuartoEntry {
+    note: Option<String>,
     sources: Vec<QuartoSource>,
 }
 struct QuartoSource {
@@ -59,6 +68,20 @@ struct QuartoSource {
     contents: String,
 }
 impl Writers {
+    #[cfg(unix)]
+    pub(super) fn integrator_recording(&self, session: &str) -> Value {
+        let worker_id = self.documents.current.get(session).copied();
+        let qmd = worker_id
+            .filter(|id| self.documents.sessions[id].has_contents())
+            .map(|id| self.directory.join(format!("sessions/session-{id:03}.qmd")));
+        json!({
+            "directory": self.directory,
+            "markdown": self.directory.join("transcript.md"),
+            "qmd": qmd,
+            "worker_id": worker_id,
+        })
+    }
+
     pub(super) fn new(
         directory: &Path,
         working_directory: &Path,
@@ -100,11 +123,32 @@ impl Writers {
         Ok(())
     }
     pub(super) fn append(&mut self, event: &Envelope<'_>) -> Result<(), String> {
+        // Capture remains complete. Only these derived documents honor the
+        // integrator's choice, including output observed after its result.
+        match &event.event {
+            Event::ToolCall {
+                omit_from_projections: true,
+                ..
+            }
+            | Event::ToolResult {
+                omit_from_projections: true,
+                ..
+            } => return Ok(()),
+            Event::ImageRetained { owner, .. } if owner.omit_from_projections() => {
+                return Ok(());
+            }
+            Event::CellOutput { owner, .. } | Event::SessionOutput { owner, .. }
+                if owner.omit_from_projections =>
+            {
+                return Ok(());
+            }
+            _ => {}
+        }
         let mut fragment = String::new();
         render_event(&mut fragment, event)?;
         if let Some(id) = self.documents.observe(&event.event)? {
             let document = &self.documents.sessions[&id];
-            if document.has_source() {
+            if document.has_contents() {
                 let path = self.directory.join(format!("sessions/session-{id:03}.qmd"));
                 let first = !path.exists();
                 super::replace_private_file(
@@ -129,59 +173,116 @@ impl Documents {
     fn observe(&mut self, event: &Event<'_>) -> Result<Option<u64>, String> {
         match event {
             Event::EnvironmentDiscovered {
+                session,
                 dynamic_resolution,
                 r_available,
                 startup_requirements,
                 ..
             } => {
-                self.metadata.metadata_known = true;
-                self.metadata.dynamic_resolution = *dynamic_resolution;
-                self.metadata.r_available = *r_available;
-                self.metadata.requirements(
+                let metadata = self.metadata_for(session);
+                metadata.metadata_known = true;
+                metadata.dynamic_resolution = *dynamic_resolution;
+                metadata.r_available = *r_available;
+                metadata.requirements(
                     &serde_json::to_value(startup_requirements).map_err(|e| e.to_string())?,
                 );
-                return Ok(self.update_current_metadata());
+                return Ok(self.update_current_metadata(session));
             }
             Event::WorkerStarted {
+                session,
                 session_id,
                 requirements,
                 ..
             } => {
-                self.metadata.requirements(requirements);
-                self.current = Some(*session_id);
+                let metadata = self.metadata_for(session);
+                metadata.requirements(requirements);
+                let metadata = metadata.clone();
+                self.current.insert((*session).to_owned(), *session_id);
                 self.sessions.insert(
                     *session_id,
                     QuartoWriter {
-                        metadata: self.metadata.clone(),
-                        sources: Vec::new(),
+                        session: (*session).to_owned(),
+                        metadata,
+                        entries: self.pending_notes.remove(*session).unwrap_or_default(),
                     },
                 );
+                return Ok(Some(*session_id));
             }
-            Event::WorkerEnded { .. } => self.current = None,
+            Event::WorkerEnded { session_id, .. } => {
+                self.current.retain(|_, current| current != session_id);
+            }
             Event::ToolCall {
-                call_id, request, ..
+                call_id,
+                note_target,
+                request,
+                ..
             } => {
-                // The journal owns full requests. Retain only source awaiting
-                // association, never stdin or request metadata.
-                let mut sources = Vec::new();
+                // The journal owns full requests. Retain only document content,
+                // never stdin or request metadata.
+                let mut entry = QuartoEntry {
+                    note: None,
+                    sources: Vec::new(),
+                };
                 if let Some(arguments) = &request.arguments {
+                    entry.note = arguments
+                        .get("note")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned);
                     for language in ["r", "python", "sql"] {
                         if let Some(contents) = arguments.get(language).and_then(Value::as_str) {
-                            sources.push(QuartoSource {
+                            entry.sources.push(QuartoSource {
                                 language,
                                 contents: contents.into(),
                             });
                         }
                     }
                 }
-                if !sources.is_empty() {
+                if !entry.sources.is_empty() {
                     self.calls.insert(
                         *call_id,
                         PendingSource {
                             admitted: false,
-                            sources,
+                            entry,
                         },
                     );
+                } else if entry.note.is_some() {
+                    // Journal I/O can lag retirement or replacement. Use the
+                    // receipt's target, including a retained retired document.
+                    let session_id = match note_target
+                        .as_ref()
+                        .ok_or("standalone note has no receipt target")?
+                    {
+                        super::NoteTarget::Worker { session_id } => *session_id,
+                        super::NoteTarget::NextWorker {
+                            session,
+                            after_session_id,
+                        } => {
+                            let acquired = self
+                                .sessions
+                                .range((
+                                    std::ops::Bound::Excluded(*after_session_id),
+                                    std::ops::Bound::Unbounded,
+                                ))
+                                .find_map(|(id, document)| {
+                                    (document.session == *session).then_some(*id)
+                                });
+                            if let Some(id) = acquired {
+                                id
+                            } else {
+                                self.pending_notes
+                                    .entry(session.clone())
+                                    .or_default()
+                                    .insert(*call_id, entry);
+                                return Ok(None);
+                            }
+                        }
+                    };
+                    self.sessions
+                        .get_mut(&session_id)
+                        .ok_or("note target has no worker document")?
+                        .entries
+                        .insert(*call_id, entry);
+                    return Ok(Some(session_id));
                 }
             }
             Event::SourceAdmitted { call_id } => {
@@ -200,8 +301,8 @@ impl Documents {
                     self.sessions
                         .get_mut(session_id)
                         .ok_or("associated source has no session")?
-                        .sources
-                        .extend(pending.sources);
+                        .entries
+                        .insert(*call_id, pending.entry);
                     return Ok(Some(*session_id));
                 }
             }
@@ -216,9 +317,12 @@ impl Documents {
                     self.calls.remove(call_id);
                 }
             }
-            Event::RequirementsAccepted { requirements } => {
-                self.metadata.requirements(requirements);
-                return Ok(self.update_current_metadata());
+            Event::RequirementsAccepted {
+                session,
+                requirements,
+            } => {
+                self.metadata_for(session).requirements(requirements);
+                return Ok(self.update_current_metadata(session));
             }
             // Selection and Python preparation can describe a replacement
             // before the old worker retires. Only live commits and actual
@@ -244,12 +348,18 @@ impl Documents {
         Ok(None)
     }
 
-    fn update_current_metadata(&mut self) -> Option<u64> {
-        let id = self.current?;
+    fn metadata_for(&mut self, session: &str) -> &mut Metadata {
+        self.session_metadata
+            .entry(session.to_owned())
+            .or_insert_with(|| self.metadata.clone())
+    }
+
+    fn update_current_metadata(&mut self, session: &str) -> Option<u64> {
+        let id = *self.current.get(session)?;
         self.sessions
             .get_mut(&id)
             .expect("current worker document")
-            .metadata = self.metadata.clone();
+            .metadata = self.session_metadata[session].clone();
         Some(id)
     }
 }
@@ -274,8 +384,8 @@ impl Metadata {
     }
 }
 impl QuartoWriter {
-    fn has_source(&self) -> bool {
-        !self.sources.is_empty()
+    fn has_contents(&self) -> bool {
+        !self.entries.is_empty()
     }
     fn render(&self, filename: &str) -> String {
         let mut document = String::from(
@@ -284,6 +394,23 @@ impl QuartoWriter {
 title: MCP Console session
 ",
         );
+        if self.entries.values().any(|entry| entry.note.is_some()) {
+            // Quarto scans nested fences even inside verbatim notes when
+            // guessing the engine. Only recorded source should select it.
+            let engine = if self
+                .entries
+                .values()
+                .flat_map(|entry| &entry.sources)
+                .any(|source| source.language == "r")
+            {
+                "knitr"
+            } else if self.entries.values().any(|entry| !entry.sources.is_empty()) {
+                "jupyter"
+            } else {
+                "markdown"
+            };
+            writeln!(document, "engine: {engine}").unwrap();
+        }
         writeln!(
             document,
             "# From a working copy, run `ir render {filename}` in a prepared environment.
@@ -347,13 +474,18 @@ title: MCP Console session
 
 ",
         );
-        for source in &self.sources {
-            push_quarto_fence(
-                &mut document,
-                &format!("{{{}}}", source.language),
-                source.language,
-                &source.contents,
-            );
+        for entry in self.entries.values() {
+            if let Some(note) = &entry.note {
+                push_quarto_note(&mut document, note);
+            }
+            for source in &entry.sources {
+                push_quarto_fence(
+                    &mut document,
+                    &format!("{{{}}}", source.language),
+                    source.language,
+                    &source.contents,
+                );
+            }
         }
         document
     }
@@ -499,9 +631,12 @@ Worker process {pid}.
             Ok(())
         }
         Event::RecordingStarted {
-            working_directory, ..
+            console_version,
+            working_directory,
+            ..
         } => {
             let metadata = json!({
+                "console_version": console_version,
                 "run_id": envelope.run_id,
                 "started_at": envelope.at,
                 "working_directory": working_directory,
@@ -529,8 +664,11 @@ Worker process {pid}.
             )
         }
         Event::ToolCall {
-            call_id, request, ..
-        } => render_tool_call(document, *call_id, request),
+            call_id,
+            request,
+            origin,
+            ..
+        } => render_tool_call(document, *call_id, request, *origin),
         Event::ImageRetained {
             artifact_id,
             call_id,
@@ -600,8 +738,11 @@ Worker process {pid}.
             Ok(())
         }
         Event::ToolResult {
-            call_id, outcome, ..
-        } => render_tool_result(document, *call_id, outcome),
+            call_id,
+            parts,
+            outcome,
+            ..
+        } => render_tool_result(document, *call_id, parts, outcome),
     }
 }
 
@@ -609,6 +750,7 @@ fn render_tool_call(
     document: &mut String,
     call_id: u64,
     request: &CallToolRequestParams,
+    origin: Option<&str>,
 ) -> Result<(), String> {
     let Some(send) = parse_send(request) else {
         writeln!(
@@ -629,12 +771,20 @@ fn render_tool_call(
     };
 
     let label = send.label();
+    let origin = if origin == Some("integrator") {
+        "Integrator call: "
+    } else {
+        ""
+    };
     writeln!(
         document,
-        "## Call {call_id}: {label}
+        "## Call {call_id}: {origin}{label}
 "
     )
     .expect("writing to a String cannot fail");
+    if let Some(note) = send.note {
+        push_note(document, note);
+    }
     if let Some(source) = send.source {
         push_fence(document, source.language, source.contents);
     }
@@ -659,6 +809,7 @@ fn render_tool_call(
 
 struct Send<'a> {
     source: Option<Source<'a>>,
+    note: Option<&'a str>,
     stdin: Option<&'a str>,
     options: Map<String, Value>,
 }
@@ -679,7 +830,14 @@ impl Send<'_> {
         if self.options.contains_key("requirements") {
             return "Requirements";
         }
-        if self.options.is_empty() || self.options.keys().all(|key| key == "timeout_ms") {
+        if self.note.is_some() {
+            return "Note";
+        }
+        if self
+            .options
+            .keys()
+            .all(|key| matches!(key.as_str(), "session" | "timeout_ms"))
+        {
             "Poll"
         } else {
             "Send"
@@ -708,6 +866,9 @@ fn submitted_source(request: &CallToolRequestParams) -> Option<Source<'_>> {
         let Some(value) = arguments.get(field) else {
             continue;
         };
+        if value.is_null() {
+            continue;
+        }
         let value = value.as_str()?;
         if source
             .replace(Source {
@@ -735,6 +896,7 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
         None => {
             return Some(Send {
                 source: None,
+                note: None,
                 stdin: None,
                 options: Map::new(),
             });
@@ -743,7 +905,14 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     if arguments.keys().any(|key| {
         !matches!(
             key.as_str(),
-            "r" | "python" | "sql" | "stdin" | "control" | "requirements" | "timeout_ms"
+            "r" | "python"
+                | "sql"
+                | "note"
+                | "stdin"
+                | "control"
+                | "requirements"
+                | "session"
+                | "timeout_ms"
         )
     }) {
         return None;
@@ -751,22 +920,30 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
     let source = submitted_source(request);
     if source.is_none()
         && arguments
-            .keys()
-            .any(|key| matches!(key.as_str(), "r" | "python" | "sql"))
+            .iter()
+            .any(|(key, value)| matches!(key.as_str(), "r" | "python" | "sql") && !value.is_null())
     {
         return None;
     }
     let stdin = match arguments.get("stdin") {
+        Some(Value::Null) | None => None,
         Some(stdin) => Some(stdin.as_str()?),
-        None => None,
+    };
+    let note = match arguments.get("note") {
+        Some(Value::Null) | None => None,
+        Some(note) => Some(note.as_str()?),
     };
     let options = arguments
         .iter()
-        .filter(|(key, _)| !matches!(key.as_str(), "r" | "python" | "sql" | "stdin"))
+        .filter(|(key, _)| !matches!(key.as_str(), "r" | "python" | "sql" | "note" | "stdin"))
+        .filter(|(key, value)| {
+            !matches!(key.as_str(), "control" | "requirements") || !value.is_null()
+        })
         .map(|(key, value)| (key.clone(), value.clone()))
         .collect();
     Some(Send {
         source,
+        note,
         stdin,
         options,
     })
@@ -775,6 +952,7 @@ fn parse_send(request: &CallToolRequestParams) -> Option<Send<'_>> {
 fn render_tool_result(
     document: &mut String,
     call_id: u64,
+    parts: &[super::ResultPart],
     outcome: &Outcome<'_>,
 ) -> Result<(), String> {
     writeln!(
@@ -784,7 +962,7 @@ fn render_tool_result(
     )
     .expect("writing to a String cannot fail");
     match outcome {
-        Outcome::Result { result } => render_result(document, call_id, result),
+        Outcome::Result { result } => render_result(document, call_id, parts, result),
         Outcome::Error { error } => {
             document.push_str(
                 "### Tool error
@@ -799,6 +977,7 @@ fn render_tool_result(
 fn render_result(
     document: &mut String,
     call_id: u64,
+    parts: &[super::ResultPart],
     result: &RecordedResult<'_>,
 ) -> Result<(), String> {
     if result.is_error == Some(true) {
@@ -815,9 +994,28 @@ fn render_result(
 ",
         );
     }
-    for block in &result.content {
+    for (index, block) in result.content.iter().enumerate() {
+        let omitted = || {
+            parts.iter().filter(|part| {
+                part.block == index && part.owner.is_some_and(|owner| owner.omit_from_projections)
+            })
+        };
         match block {
-            RecordedContent::Text(text) => push_fence(document, "text", &text.text),
+            RecordedContent::Text(text) => {
+                let mut visible = String::new();
+                let mut start = 0;
+                let mut removed = false;
+                for part in omitted() {
+                    visible.push_str(&text.text[start..part.start]);
+                    start = part.end;
+                    removed = true;
+                }
+                visible.push_str(&text.text[start..]);
+                if !visible.is_empty() || !removed {
+                    push_fence(document, "text", &visible);
+                }
+            }
+            RecordedContent::Image { .. } if omitted().next().is_some() => {}
             RecordedContent::Image {
                 artifact_id: Some(artifact_id),
                 path: Some(path),
@@ -862,6 +1060,46 @@ fn push_json(document: &mut String, value: &(impl Serialize + ?Sized)) -> Result
 
 fn push_fence(document: &mut String, language: &str, contents: &str) {
     push_fence_with_prefix(document, language, "", contents);
+}
+
+fn push_note(document: &mut String, note: &str) {
+    document.push_str(note);
+    if !note.ends_with('\n') {
+        document.push('\n');
+    }
+    document.push('\n');
+}
+
+fn push_quarto_note(document: &mut String, note: &str) {
+    // Keep ordinary notebook Markdown and HTML unchanged. Recognizable Quarto
+    // execution or metadata syntax gets a whole-note verbatim fallback instead
+    // of trying to sanitize every Markdown construct.
+    // YAML metadata starts with a separator followed by a nonblank line;
+    // blank-separated Markdown rules and underlined headings stay unchanged.
+    let metadata = note.lines().zip(note.lines().skip(1)).any(|(line, next)| {
+        line.trim_start_matches([' ', '\t', '>']).trim_end() == "---"
+            && !next
+                .trim_start_matches([' ', '\t', '>'])
+                .trim_end()
+                .is_empty()
+    });
+    let verbatim = metadata
+        || note.contains("`{")
+        || note.contains("~{")
+        || note.contains("`r ")
+        || note.contains("`r#")
+        || note.contains("{{<")
+        || note
+            .lines()
+            .any(|line| (line.contains("```") || line.contains("~~~")) && line.contains('{'));
+    if verbatim {
+        // A leading blank keeps note text such as `#| include: false` from
+        // becoming options for the verbatim chunk. The shared fence writer
+        // chooses a delimiter longer than any fence in the note.
+        push_fence_with_prefix(document, "{verbatim}", "\n", note);
+    } else {
+        push_note(document, note);
+    }
 }
 
 fn push_quarto_fence(document: &mut String, language: &str, source_language: &str, contents: &str) {

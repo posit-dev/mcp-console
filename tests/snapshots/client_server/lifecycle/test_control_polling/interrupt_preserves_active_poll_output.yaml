@@ -81,6 +81,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:
@@ -101,6 +102,7 @@ result:
   isError: false
 ---
 send:
+  session: default
   timeout_ms: 0
 result:
   content:

@@ -1,0 +1,157 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: retained = 'default'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: retained = 'alpha'
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: alpha
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  python: retained = 'beta'
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: >-
+        session limit reached (sessions.max = 2); stop a named session before
+        starting another
+  isError: true
+---
+send:
+  session: alpha
+  requirements:
+    action: get
+result:
+  content:
+    - type: text
+      text: |-
+        {
+          "requirements": {
+            "r": [],
+            "python": [],
+            "duckdb": [],
+            "python_version": [],
+            "exclude_newer": null
+          },
+          "prepared": true,
+          "runtime_requirements": {
+            "r": [],
+            "python": []
+          }
+        }
+  structuredContent:
+    requirements:
+      r: []
+      python: []
+      duckdb: []
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r: []
+      python: []
+  isError: false
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+
+        [stopped]
+  isError: false
+---
+send:
+  python: print(retained)
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        beta
+  isError: false
+---
+send:
+  session: beta
+  control: restart
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  session: alpha
+  requirements:
+    action: set
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+
+        [stopped]
+  isError: false
+---
+send:
+  session: beta
+  python: print(42)
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        42
+  isError: false
+---
+send:
+  python: print(retained)
+result:
+  content:
+    - type: text
+      text: |
+        default
+  isError: false

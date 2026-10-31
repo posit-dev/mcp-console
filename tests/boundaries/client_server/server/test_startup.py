@@ -302,7 +302,7 @@ def test_cancelled_send_does_not_cancel_shared_discovery(binary: Path) -> Transc
         client.notify("notifications/cancelled", requestId=pending["id"])
         client.request("ping")
         release.release()
-        result = client.send()
+        result = client.send(session="default")
         assert result["isError"], result
         assert "fixture R discovery failed" in str(result), result
         transcript, errors = client.finish_with_standard_error(expected_exit_status=1)
@@ -312,7 +312,7 @@ def test_cancelled_send_does_not_cancel_shared_discovery(binary: Path) -> Transc
         )
 
 
-def wait_for_send_admission(client: McpClient) -> None:
+def wait_for_send_admission(client: McpClient, *, session: str = "default") -> None:
     # Writing a request does not mean its handler has reserved the cell yet.
     # Startup is gated, so an empty observation can only report startup or
     # the pending send's exclusive wait claim. Never submit a competing cell
@@ -320,7 +320,7 @@ def wait_for_send_admission(client: McpClient) -> None:
     deadline = time.monotonic() + 30
     first_poll = len(client.transcript)
     while True:
-        result = client.send(timeout_ms=0)
+        result = client.send(session=session, timeout_ms=0)
         if result.get("isError"):
             assert result == {
                 "content": [
@@ -379,7 +379,7 @@ def test_queued_r_cell_executes_once_after_discovery(binary: Path) -> Transcript
         client.request("ping")
         release.release()
         evaluated.wait("the accepted R cell executed", timeout=600)
-        client.send(timeout_ms=10_000)
+        client.send(session="default", timeout_ms=10_000)
         assert last_result_text(client) == "[1] 1\n", client.transcript[-1]
         client.send(r="started")
         assert last_result_text(client) == "[1] 1\n", last_result_text(client)
@@ -403,7 +403,7 @@ def test_cancelled_wait_preserves_admitted_cell_after_discovery(
         assert "already evaluating" in str(client.transcript[-1]["result"])
         client.notify("notifications/cancelled", requestId=pending["id"])
         client.request("ping")
-        client.send(timeout_ms=250)
+        client.send(session="default", timeout_ms=250)
         age, silent = elapsed_progress(last_result_text(client))
         assert age >= 0.2 and silent
         release.release()
@@ -411,7 +411,7 @@ def test_cancelled_wait_preserves_admitted_cell_after_discovery(
         # cell to finish. Keep the raw cancellation/poll exchange intact.
         client.response_timeout = 600
         try:
-            client.send(timeout_ms=600_000)
+            client.send(session="default", timeout_ms=600_000)
         finally:
             client.response_timeout = 5
         assert last_result_text(client) == "[done]", client.transcript[-1]

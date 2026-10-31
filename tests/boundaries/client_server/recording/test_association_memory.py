@@ -51,12 +51,12 @@ def test_settled_calls_release_association_memory(
             # Warm allocator/thread caches with an equal-sized batch before
             # checking that settled-call state stops growing.
             for _ in range(16384):
-                client.send()
+                client.send(session="default")
             client.request("ping")
             baseline = struct.unpack_from("=Q", mapping)[0]
             for arguments in ({}, {"requirements": {"action": "get"}}):
                 for _ in range(16384):
-                    result = client.send(**arguments)
+                    result = client.send(session="default", **arguments)
                     assert not result.get("isError"), result
                 client.request("ping")
                 growth = struct.unpack_from("=Q", mapping)[0] - baseline

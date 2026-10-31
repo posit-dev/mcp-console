@@ -291,7 +291,7 @@ def test_no_r_interrupt_requirements_reject_before_control_and_stdin(
             )
             assert result["isError"], result
             assert last_result_text(client) == expected, result
-            client.send()
+            client.send(session="default")
             assert "[waiting for stdin]" in last_result_text(client), last_result_text(
                 client
             )

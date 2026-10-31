@@ -1,0 +1,92 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  note: |
+    ## Investigation
+
+    Compare the café measurements.
+  timeout_ms: 0
+  r: ~
+  stdin: ~
+  control: ~
+  requirements: ~
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: total = 6 * 7; print(total)
+  r: ~
+  note: Check the **total** before comparing groups.
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  note: |-
+    The total is 42.
+
+    ```python
+    raise RuntimeError('prose only')
+    ```
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: "label = input('label: '); print(label, total)"
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "label: "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  note: Waiting for the measurement label; preserve the active cell.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  stdin: |
+    sample
+  note: Use sample A.
+result:
+  content:
+    - type: text
+      text: |
+        sample 42
+  isError: false
+---
+send:
+  python: total = -1
+  note: 42
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid type: integer `42`, expected a
+        string
+  isError: true
+---
+send:
+  python: print(total)
+  note: ~
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

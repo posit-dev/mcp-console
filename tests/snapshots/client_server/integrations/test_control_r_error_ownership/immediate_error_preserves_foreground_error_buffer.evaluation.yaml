@@ -1,0 +1,45 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  code: stop("foreground failure", call. = FALSE)
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: foreground failure
+          foreground error handler ready
+          foreground handler message: Error: foreground failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: foreground failure
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  code: |
+    options(error = NULL)
+    stopifnot(identical(geterrmessage(), "Error: foreground failure\n"))
+    cat("recovered\n")
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          recovered
+    isError: false
+    execution_error: ~

@@ -1,0 +1,113 @@
+---
+request:
+  id: "1"
+  op: requirements
+response:
+  id: "1"
+  result:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+---
+request:
+  id: "2"
+  op: status
+  session: default
+response:
+  id: "2"
+  result:
+    state: idle
+    idle: true
+    evaluation: ~
+---
+request:
+  id: "3"
+  op: prepare
+  requirements:
+    python:
+      - mcp-console-control-prepare-failure
+response:
+  id: "3"
+  result:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+    worker_id: 1
+    status: failed
+    message: |-
+      managed Python resolution failed:
+      resolver input:
+      {
+        "python": "<running Python>",
+        "packages": [
+          "numpy",
+          "pandas",
+          "matplotlib",
+          "plotnine",
+          "mcp-console-control-prepare-failure"
+        ]
+      }
+      uv output:
+      synthetic uv failure

@@ -1,10 +1,13 @@
 mod arguments;
+#[cfg(unix)]
+mod control;
 #[cfg(windows)]
 mod input_windows;
 mod presentation;
 mod sandbox;
 pub(crate) use presentation::{materialized_tool, parameter_schema};
 pub(crate) use sandbox::Configuration as SandboxConfiguration;
+mod sessions;
 mod startup;
 use std::error::Error;
 use std::path::PathBuf;
@@ -13,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use arguments::{Requirements, SendArguments, SendControl};
+use arguments::{SendArguments, SendControl};
 use rmcp::{
     ErrorData, RoleServer, ServerHandler, ServiceExt,
     handler::server::{
@@ -32,10 +35,15 @@ use tokio::sync::oneshot;
 use crate::worker_client::WORKER_SHUTDOWN_GRACE;
 
 use crate::cell::{LANGUAGES_ENV, Languages};
+use futures_util::{StreamExt, stream::FuturesUnordered};
+
+#[derive(Clone)]
+struct PollAll(bool);
 
 #[derive(Clone)]
 struct ConsoleServer {
     startup: startup::Startup,
+    sessions: sessions::Sessions,
     deliveries: crate::server_transport::ResponseDeliveries,
     languages: Languages,
     language_setting: &'static str,
@@ -57,6 +65,7 @@ impl ConsoleServer {
         startup: Option<crate::settings::startup::Startup>,
         visibility: Option<Languages>,
         tool_settings: crate::settings::Tool,
+        session_settings: crate::settings::Sessions,
     ) -> Result<Self, String> {
         let recording_directory = std::env::current_dir();
         let (languages, language_setting) = match visibility {
@@ -79,8 +88,11 @@ impl ConsoleServer {
                 .is_some_and(crate::settings::ProfileSelection::inherits_codex),
             &tool_settings,
         )?;
+        let session_pool = crate::worker_client::SessionPool::new(
+            session_settings.max.map(std::num::NonZeroUsize::get),
+        );
         let runtime = Arc::new(startup::Runtime {
-            worker: crate::worker_client::Client::pending(),
+            worker: crate::worker_client::Client::pending(session_pool.default_slot()),
             transcript: crate::transcript::Transcript::pending(
                 recording_directory
                     .as_ref()
@@ -99,6 +111,7 @@ impl ConsoleServer {
             input_closed,
             runtime,
             prelaunch,
+            session_pool,
             move |started, diagnostics| {
                 let sandbox = if uses_client_profile {
                     sandbox
@@ -144,9 +157,10 @@ impl ConsoleServer {
             },
         );
         if !uses_client_profile {
-            startup.start();
+            startup.start()?;
         }
         Ok(Self {
+            sessions: sessions::Sessions::new(startup.clone()),
             startup,
             deliveries: crate::server_transport::ResponseDeliveries::default(),
             languages,
@@ -164,7 +178,7 @@ impl ConsoleServer {
     #[tool]
     async fn send(
         &self,
-        Extension(runtime): Extension<Arc<startup::Runtime>>,
+        Extension(poll_all): Extension<PollAll>,
         Extension(call): Extension<crate::transcript::Call>,
         Extension(delivery): Extension<crate::server_transport::ResponseDeliveryCall>,
         Extension(started): Extension<Instant>,
@@ -172,12 +186,26 @@ impl ConsoleServer {
             r,
             python,
             sql,
+            note,
+            session,
             control,
             requirements,
             stdin,
             timeout_ms,
         }): Parameters<SendArguments>,
     ) -> Result<CallToolResult, String> {
+        // The request recorder already owns the note. Standalone annotations
+        // neither claim a worker operation nor consume its pending output.
+        if note.is_some()
+            && r.is_none()
+            && python.is_none()
+            && sql.is_none()
+            && control.is_none()
+            && requirements.is_none()
+            && stdin.is_none()
+        {
+            return Ok(CallToolResult::success(vec![ContentBlock::text("[done]")]));
+        }
         let cell = match (r, python, sql) {
             (Some(source), None, None) => Some(crate::cell::Cell {
                 language: crate::cell::Language::R,
@@ -213,82 +241,25 @@ impl ConsoleServer {
                         .into(),
                 );
             }
-            if requirements.action == Get {
-                if cell.is_some() || stdin.is_some() || control.is_some() {
-                    return Err(
-                        "requirements.action=get cannot be combined with code, stdin, or control"
-                            .into(),
-                    );
-                }
-                match tokio::time::timeout(
-                    Duration::from_millis(timeout_ms).saturating_sub(started.elapsed()),
-                    runtime.worker.ready(),
-                )
-                .await
-                {
-                    Ok(Ok(())) => {}
-                    Ok(Err(error)) => {
-                        return Ok(response_to_tool_result(
-                            runtime.worker.startup_failure_response(error),
-                            &call,
-                            &runtime.transcript,
-                            &self.deliveries,
-                            &delivery,
-                        ));
-                    }
-                    Err(_) => {
-                        let response = runtime.worker.starting_response();
-                        return Ok(response_to_tool_result(
-                            response,
-                            &call,
-                            &runtime.transcript,
-                            &self.deliveries,
-                            &delivery,
-                        ));
-                    }
-                }
-                if let Some(response) = runtime.worker.take_prelaunch_failure()? {
-                    return Ok(response_to_tool_result(
-                        response,
-                        &call,
-                        &runtime.transcript,
-                        &self.deliveries,
-                        &delivery,
-                    ));
-                }
-                let snapshot = runtime.worker.inspect_requirements();
-                let json = serde_json::to_string_pretty(&snapshot).expect("requirements JSON");
-                let text = if json.len() <= 8 * 1024 {
-                    json
-                } else {
-                    "The complete requirements declaration is in structuredContent.requirements; supply that object with action=\"set\". The manifest exceeds the text preview limit and is not reproduced here.".into()
-                };
-                let mut result =
-                    CallToolResult::success(vec![rmcp::model::ContentBlock::text(text)]);
-                result.structured_content = Some(snapshot);
-                return Ok(result);
+            if requirements.action == Get
+                && (cell.is_some() || stdin.is_some() || control.is_some())
+            {
+                return Err(
+                    "requirements.action=get cannot be combined with code, stdin, or control"
+                        .into(),
+                );
             }
         }
-        let requirements = requirements.map(
-            |Requirements {
-                 action,
-                 duckdb,
-                 r,
-                 python,
-                 python_version,
-                 exclude_newer,
-             }| {
-                crate::worker_client::Requirements {
-                    action,
-                    call_id: call.id(),
-                    duckdb: duckdb.unwrap_or_default(),
-                    r: r.unwrap_or_default(),
-                    python: python.unwrap_or_default(),
-                    python_version: python_version.unwrap_or_default(),
-                    exclude_newer,
-                }
-            },
-        );
+        let inspect = requirements.as_ref().is_some_and(|requirements| {
+            requirements.action == crate::worker_client::RequirementsAction::Get
+        });
+        let requirements = requirements.map(|requirements| requirements.into_worker(call.id()));
+        if poll_all.0 {
+            return self
+                .poll_sessions(timeout_ms, started, &call, &delivery)
+                .await;
+        }
+        let transcript = self.startup.runtime().transcript.for_session(&session);
         let request = crate::worker_client::SendRequest {
             cell,
             stdin,
@@ -300,15 +271,96 @@ impl ConsoleServer {
             deadline: started
                 .checked_add(Duration::from_millis(timeout_ms))
                 .unwrap_or(started),
-            transcript: runtime.transcript.clone(),
+            transcript,
             call_id: call.id(),
         };
+        let (startup, _activation) = match request
+            .validate(true)
+            .and_then(|()| self.sessions.select(&session, request.cell.is_some()))
+            .and_then(|startup| {
+                let worker = startup.runtime().worker.clone();
+                let activating = request.cell.is_some()
+                    || request
+                        .stdin
+                        .as_ref()
+                        .is_some_and(|input| !input.is_empty())
+                    || request.requirements.as_ref().is_some_and(|requirements| {
+                        requirements.action != crate::worker_client::RequirementsAction::Get
+                    })
+                    || (matches!(
+                        request.control,
+                        Some(crate::worker_client::SendControl::Restart)
+                    ) && !worker.is_configured());
+                let activation = activating.then(|| worker.activate_session()).transpose()?;
+                startup.start()?;
+                Ok((startup, activation))
+            }) {
+            Ok(startup) => startup,
+            Err(error) => {
+                return Ok(response_to_tool_result(
+                    crate::worker_client::Response::tool_error(error),
+                    &call,
+                    &request.transcript,
+                    &self.deliveries,
+                    &delivery,
+                ));
+            }
+        };
+        let runtime = startup.runtime();
+        if inspect {
+            match tokio::time::timeout(
+                Duration::from_millis(timeout_ms).saturating_sub(started.elapsed()),
+                runtime.worker.ready(),
+            )
+            .await
+            {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    return Ok(response_to_tool_result(
+                        runtime.worker.startup_failure_response(error),
+                        &call,
+                        &runtime.transcript,
+                        &self.deliveries,
+                        &delivery,
+                    ));
+                }
+                Err(_) => {
+                    let response = runtime.worker.starting_response();
+                    return Ok(response_to_tool_result(
+                        response,
+                        &call,
+                        &runtime.transcript,
+                        &self.deliveries,
+                        &delivery,
+                    ));
+                }
+            }
+            if let Some(response) = runtime.worker.take_prelaunch_failure()? {
+                return Ok(response_to_tool_result(
+                    response,
+                    &call,
+                    &runtime.transcript,
+                    &self.deliveries,
+                    &delivery,
+                ));
+            }
+            let snapshot = runtime.worker.inspect_requirements();
+            let json = serde_json::to_string_pretty(&snapshot).expect("requirements JSON");
+            let text = if json.len() <= 8 * 1024 {
+                json
+            } else {
+                "The complete requirements declaration is in structuredContent.requirements; supply that object with action=\"set\". The manifest exceeds the text preview limit and is not reproduced here.".into()
+            };
+            let mut result = CallToolResult::success(vec![rmcp::model::ContentBlock::text(text)]);
+            result.structured_content = Some(snapshot);
+            return Ok(result);
+        }
         let response = async {
-            request.validate(true)?;
-            let initial_restart = matches!(
+            let retry = matches!(
                 request.control,
                 Some(crate::worker_client::SendControl::Restart)
-            ) && self.startup.retry_failed()?;
+            ) || (session != "default" && request.cell.is_some());
+            let initial_restart = retry && startup.retry_failed()?;
             runtime.worker.send(request, initial_restart).await
         }
         .await
@@ -323,6 +375,73 @@ impl ConsoleServer {
     }
 }
 
+impl ConsoleServer {
+    async fn poll_sessions(
+        &self,
+        timeout_ms: u64,
+        started: Instant,
+        call: &crate::transcript::Call,
+        delivery: &crate::server_transport::ResponseDeliveryCall,
+    ) -> Result<CallToolResult, String> {
+        let deadline = started
+            .checked_add(Duration::from_millis(timeout_ms))
+            .unwrap_or(started);
+        // Local futures release every observation claim synchronously when the
+        // aggregate call is cancelled; session execution has separate owners.
+        let mut polls = FuturesUnordered::new();
+        for (name, startup) in self.sessions.snapshot() {
+            let runtime = startup.runtime();
+            let call_id = call.id();
+            polls.push(async move {
+                let response = runtime
+                    .worker
+                    .poll_active(crate::worker_client::SendRequest {
+                        cell: None,
+                        stdin: None,
+                        requirements: None,
+                        control: None,
+                        deadline,
+                        transcript: runtime.transcript.clone(),
+                        call_id,
+                    })
+                    .await
+                    .unwrap_or_else(crate::worker_client::Response::tool_error);
+                (name, runtime, response)
+            });
+        }
+        let mut observed = std::collections::BTreeMap::new();
+        while let Some((name, runtime, response)) = polls.next().await {
+            observed.insert(name, (runtime, response));
+        }
+        let responses = observed
+            .into_iter()
+            .map(|(name, (runtime, response))| {
+                let current = runtime.worker.session_status();
+                let status = if current == "stopped" {
+                    current
+                } else {
+                    response.session_status().unwrap_or(current)
+                };
+                (name, status, response)
+            })
+            .collect::<Vec<_>>();
+        let statuses = responses
+            .iter()
+            .filter(|(_, status, _)| *status != "stopped")
+            .map(|(name, status, _)| serde_json::json!({"session": name, "status": status}))
+            .collect::<Vec<_>>();
+        let mut result = responses_to_tool_result(
+            responses,
+            call,
+            &self.startup.runtime().transcript,
+            &self.deliveries,
+            delivery,
+        );
+        result.structured_content = Some(serde_json::json!({"sessions": statuses}));
+        Ok(result)
+    }
+}
+
 fn response_to_tool_result(
     response: crate::worker_client::Response,
     call: &crate::transcript::Call,
@@ -330,34 +449,50 @@ fn response_to_tool_result(
     deliveries: &crate::server_transport::ResponseDeliveries,
     delivery: &crate::server_transport::ResponseDeliveryCall,
 ) -> CallToolResult {
-    let (content, is_error, response_delivery, parts) = response.into_parts();
+    let (blocks, is_error, response_delivery, parts) = response.into_parts();
+    if let Some(response_delivery) = response_delivery {
+        deliveries.register(delivery, response_delivery);
+    }
     call.record_result_parts(parts);
-    let mut result_images = Vec::new();
-    let content = content
+    let mut images = Vec::new();
+    let content = blocks
         .into_iter()
-        .map(|content| match content {
+        .map(|block| match block {
             crate::worker_client::Content::Text(text) => ContentBlock::text(text),
             crate::worker_client::Content::Image {
                 data,
                 mime_type,
                 artifact,
             } => {
-                result_images.push(artifact);
+                images.push(artifact);
                 ContentBlock::image(data, mime_type)
             }
         })
         .collect();
-    if let Err(error) = call.record_result_images(result_images) {
+    if let Err(error) = call.record_result_images(images) {
         transcript.disable(error);
-    }
-    if let Some(response_delivery) = response_delivery {
-        deliveries.register(delivery, response_delivery);
     }
     if is_error {
         CallToolResult::error(content)
     } else {
         CallToolResult::success(content)
     }
+}
+
+fn responses_to_tool_result(
+    responses: Vec<(String, &'static str, crate::worker_client::Response)>,
+    call: &crate::transcript::Call,
+    transcript: &crate::transcript::Transcript,
+    deliveries: &crate::server_transport::ResponseDeliveries,
+    delivery: &crate::server_transport::ResponseDeliveryCall,
+) -> CallToolResult {
+    let mut combined = crate::worker_client::Response::default();
+    for (name, status, response) in responses {
+        if let Some(acknowledgment) = combined.append_session(&name, status, response) {
+            deliveries.register(delivery, acknowledgment);
+        }
+    }
+    response_to_tool_result(combined, call, transcript, deliveries, delivery)
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -376,7 +511,7 @@ impl ServerHandler for ConsoleServer {
         ServerConfig::new(capabilities)
             .with_server_info(Implementation::new(
                 "mcp-console",
-                env!("CARGO_PKG_VERSION"),
+                env!("MCP_CONSOLE_VERSION"),
             ))
             .with_instructions(self.instructions.clone())
     }
@@ -404,7 +539,20 @@ impl ServerHandler for ConsoleServer {
             .remove::<crate::server_transport::RecordingCall>()
             .expect("send carries its recording call");
         let call = recording.clone().recorded().await;
-        let transcript = self.startup.runtime().transcript.clone();
+        let session = request
+            .arguments
+            .as_ref()
+            .and_then(|arguments| arguments.get("session"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("default");
+        let transcript = self.startup.runtime().transcript.for_session(session);
+        let poll_all = request.arguments.as_ref().is_none_or(|arguments| {
+            arguments
+                .iter()
+                .all(|(key, value)| key == "timeout_ms" || (key == "note" && value.is_null()))
+        });
+        let selected = self.sessions.get(session);
+        context.extensions.insert(PollAll(poll_all));
         let admitted = tokio::select! {
             biased;
             _ = context.ct.cancelled() => Err(ErrorData::internal_error(
@@ -450,8 +598,11 @@ impl ServerHandler for ConsoleServer {
             .extensions
             .remove::<sandbox::CaptureResult>()
             .expect("console operations must carry transport sandbox capture");
-        if self.inheritance.enabled() && inherited.is_ok() {
-            self.startup.start();
+        if self.inheritance.enabled()
+            && inherited.is_ok()
+            && let Err(error) = self.startup.start()
+        {
+            self.startup.runtime().worker.finish_startup(Err(error));
         }
         context.extensions.insert(delivery.clone());
         let runtime = self.startup.runtime();
@@ -460,9 +611,11 @@ impl ServerHandler for ConsoleServer {
         let runtime_worker = runtime.worker.clone();
         // A restart can reset completed failed readiness later in this call.
         // Its wait stays cancellable until initial configuration is accepted.
-        let waiting_for_startup =
-            !runtime.worker.startup_finished() || !runtime.worker.is_configured();
-        context.extensions.insert(runtime);
+        let cancellable_observation = poll_all
+            || selected.is_none_or(|startup| {
+                let runtime = startup.runtime();
+                !runtime.worker.startup_finished() || !runtime.worker.is_configured()
+            });
         context.extensions.insert(call.clone());
         // Call the known send route directly so argument decoding errors enter
         // the bounded renderer before the router converts them to plain text.
@@ -488,7 +641,7 @@ impl ServerHandler for ConsoleServer {
             validation.map_err(|message| ErrorData::invalid_params(message, None))?;
             (send.call)(ToolCallContext::new(self, request, context)).await
         };
-        let result = if waiting_for_startup {
+        let result = if cancellable_observation {
             tokio::select! {
                 biased;
                 _ = cancellation.cancelled() => Err(ErrorData::internal_error("request cancelled; poll with an empty send for any admitted cell", None)),
@@ -552,9 +705,19 @@ pub async fn run(
     startup: Option<crate::settings::startup::Startup>,
     visibility: Option<Languages>,
     tool_settings: crate::settings::Tool,
+    session_settings: crate::settings::Sessions,
+    control_socket: Option<PathBuf>,
 ) -> Result<(), Box<dyn Error>> {
+    #[cfg(unix)]
+    let control_listener = control_socket.map(control::Listener::bind).transpose()?;
+    #[cfg(not(unix))]
+    let _ = control_socket;
     let (input_closed, wait_for_input_close) = oneshot::channel();
-    let input_closed = InputClosed(Arc::new(Mutex::new(Some(input_closed))));
+    let input_closed = InputClosed {
+        sender: Arc::new(Mutex::new(Some(input_closed))),
+        #[cfg(windows)]
+        physical_eof: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    };
     #[cfg(not(windows))]
     let input = tokio::io::stdin();
     let server = ConsoleServer::new(
@@ -567,19 +730,28 @@ pub async fn run(
         startup,
         visibility,
         tool_settings,
+        session_settings,
     )
     .map_err(std::io::Error::other)?;
+    #[cfg(unix)]
+    let control = control_listener.map(|listener| listener.start(server.clone()));
     let startup = server.startup.clone();
     let deliveries = server.deliveries.clone();
+    let sessions = server.sessions.clone();
     #[cfg(windows)]
     let input = {
-        let startup = startup.clone();
+        let sessions = sessions.clone();
         let closed = input_closed.clone();
         input_windows::Input::new(move || {
             // Physical EOF can cancel unfinished preparation even if protocol
-            // output is blocked. Once startup finishes, ShutdownReader alone
-            // reports EOF after the queued MCP input has been consumed.
-            if !startup.runtime().worker.startup_finished() {
+            // output is blocked. Remember it before inspecting registered names:
+            // a queued request can create another startup after this snapshot.
+            closed.note_physical_eof();
+            if sessions
+                .snapshot()
+                .iter()
+                .any(|(_, startup)| !startup.runtime().worker.startup_finished())
+            {
                 closed.close();
             }
         })?
@@ -605,36 +777,31 @@ pub async fn run(
             .await
             .unwrap_or_else(|_| Instant::now());
         let deadline = shutdown_started + WORKER_SHUTDOWN_GRACE;
-        let cancellation = startup.cancel(deadline).await;
-        let result = match startup.ready().await {
-            Ok(runtime) => runtime.worker.shutdown(deadline).await,
-            Err(error) => {
-                let runtime = startup.runtime();
-                let retirement = if runtime.worker.is_configured() {
-                    runtime.worker.shutdown(deadline).await
-                } else {
-                    Ok(())
-                };
-                retirement.and_then(|()| startup.finish_failed_preparation(error))
-            }
-        };
+        #[cfg(unix)]
+        if let Some(control) = &control {
+            control.close();
+        }
+        let result = sessions.shutdown(deadline).await;
         deliveries
             .settle_before_close(Instant::now() + WORKER_SHUTDOWN_GRACE)
             .await;
         // Cancellation releases response admission, not capture ownership.
         // Settle every received send before finalizing its journal and projections.
         recordings.close_and_settle().await;
+        #[cfg(unix)]
+        if let Some(control) = control {
+            control.finish().await;
+        }
         let runtime = startup.runtime();
         let diagnostics = runtime.transcript.clone();
         if let Err(error) = tokio::task::spawn_blocking(move || {
-            runtime.worker.finish_recording();
+            sessions.finish_recording();
             runtime.transcript.finalize();
         })
         .await
         {
             diagnostics.disable(format!("recording finalization task failed: {error}"));
         }
-        cancellation?;
         result?;
         Ok::<(), String>(())
     };
@@ -684,12 +851,29 @@ pub async fn run(
 }
 
 #[derive(Clone)]
-struct InputClosed(Arc<Mutex<Option<oneshot::Sender<Instant>>>>);
+struct InputClosed {
+    sender: Arc<Mutex<Option<oneshot::Sender<Instant>>>>,
+    #[cfg(windows)]
+    physical_eof: Arc<std::sync::atomic::AtomicBool>,
+}
 
 impl InputClosed {
     fn close(&self) {
-        if let Some(sender) = self.0.lock().expect("input closure lock").take() {
+        if let Some(sender) = self.sender.lock().expect("input closure lock").take() {
             let _ = sender.send(Instant::now());
+        }
+    }
+
+    #[cfg(windows)]
+    fn note_physical_eof(&self) {
+        self.physical_eof
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    #[cfg(windows)]
+    fn cancel_startup_after_physical_eof(&self) {
+        if self.physical_eof.load(std::sync::atomic::Ordering::Acquire) {
+            self.close();
         }
     }
 }

@@ -1,0 +1,19 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: shared <- 40L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: shared
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false

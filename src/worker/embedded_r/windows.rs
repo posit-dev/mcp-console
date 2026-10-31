@@ -49,6 +49,7 @@ pub(super) fn run_ready_handlers() {
 
 pub(super) extern "C-unwind" fn process_events() {
     super::super::interrupt::deliver_windows_r_interrupt();
+    super::super::priority::run_r();
 }
 
 pub(super) fn initialize_r(

@@ -89,7 +89,7 @@ def test_interrupt_following_cell_does_not_migrate_to_automatic_replacement(
                 assert "cell was not run" in text, text
                 assert "must not migrate\n" not in text, text
                 # A rejected follow-up leaves the prior failure recoverable.
-                prior = client.send()
+                prior = client.send(session="default")
                 assert "selected worker failed" in "".join(
                     item["text"] for item in prior["content"] if item["type"] == "text"
                 ), prior
@@ -153,7 +153,7 @@ def test_lost_interrupt_ack_does_not_signal_replacement(
                 )
                 client.receive(interrupt)
                 assert interrupt["result"].get("isError") is True, interrupt
-                client.send()
+                client.send(session="default")
                 client.send(r="fresh cell")
                 assert tool_text(client.transcript[-1]["result"]) == "fresh cell\n"
                 # The replacement fixture accepts only fresh Evaluate or Shutdown.
@@ -198,7 +198,7 @@ def test_interrupt_before_first_resolver_registration_withholds_accepted_cell(
                 interrupted = client.send(control="interrupt", timeout_ms=0)
                 assert not interrupted.get("isError"), interrupted
                 checkpoints["release"].release()
-                settled = client.send()
+                settled = client.send(session="default")
                 assert settled.get("isError") is True, settled
                 assert "worker startup interrupted" in str(settled), settled
                 client.send(control="restart", timeout_ms=600_000)

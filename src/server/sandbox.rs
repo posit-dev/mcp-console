@@ -133,6 +133,11 @@ impl Inheritance {
             .is_some_and(ProfileSelection::inherits_codex)
     }
 
+    #[cfg(unix)]
+    pub fn captured(&self) -> bool {
+        self.captured.get().is_some()
+    }
+
     pub fn capture(&self, metadata: &RequestMetaObject) -> Result<(), String> {
         if !self.enabled() {
             return Ok(());

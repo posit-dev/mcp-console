@@ -14,6 +14,15 @@ pub(super) enum Operation {
 impl From<RelayCommand> for Operation {
     fn from(command: RelayCommand) -> Self {
         let message = match command {
+            RelayCommand::EvaluatePriority {
+                request_id,
+                execution,
+                source,
+            } => ServerMessage::EvaluatePriority {
+                request_id,
+                execution,
+                source,
+            },
             RelayCommand::Evaluate { language, source } => {
                 ServerMessage::Evaluate { language, source }
             }

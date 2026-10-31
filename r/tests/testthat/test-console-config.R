@@ -89,6 +89,28 @@ test_that("ConsoleConfig preserves a custom cache directory", {
   expect_error(ConsoleConfig(cache = list(path = cache)), "cache")
 })
 
+test_that("ConsoleConfig validates and serializes session limits", {
+  expect_identical(
+    as.list(ConsoleConfig(sessions = SessionsConfig(max = 3L))),
+    list(sessions = list(max = 3L))
+  )
+  expect_identical(SessionsConfig(max = 3)@max, 3)
+  expect_null(SessionsConfig()@max)
+  for (value in list(
+    0,
+    -1,
+    1.5,
+    Inf,
+    NA_real_,
+    numeric(),
+    c(1, 2),
+    TRUE,
+    "2"
+  )) {
+    expect_error(SessionsConfig(max = value), "max")
+  }
+})
+
 test_that("resolution policies accept implicit and reject automatic", {
   expect_identical(RConfig(resolution = "implicit")@resolution, "implicit")
   expect_identical(
@@ -121,6 +143,7 @@ test_that("configuration classes have matching uppercase CamelCase names", {
     "ExistingPython",
     "FirstAvailablePython",
     "StartupConfig",
+    "SessionsConfig",
     "ResolverConfig",
     "SandboxPolicy",
     "SandboxFilesystem",

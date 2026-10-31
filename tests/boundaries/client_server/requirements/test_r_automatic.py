@@ -200,7 +200,7 @@ def test_resolves_missing_r_packages_during_evaluation(
             input <- readLines(connection, n = 1L)
             cat("answer: ", input, "\n", sep = "")
             """)
-        client.send(r=r, stdin="42\n")
+        client.expect(None, r=r, stdin="42\n")
         output = last_result_text(client)
         assert output == "answer: 42\n", repr(output)
 
@@ -857,8 +857,10 @@ def test_r_activation_failure_requires_restart_without_stopping_worker(
               )
             })
             """)
-        client.send(r=r)
-        assert "synthetic managed R activation failure" in last_result_text(client)
+        client.expect(None, r=r, timeout_ms=0)
+        assert "synthetic managed R activation failure" in last_result_text(client), (
+            client.transcript[-1]
+        )
         assert len(ir_run_records(record)) == baseline + 1
 
         client.expect(
@@ -997,12 +999,13 @@ def test_restart_discards_unactivated_r_candidate(
             )
             assert len(ir_run_records(record)) == baseline + 1
 
-            client.send(
+            client.expect(
+                None,
                 r=(
                     f"package <- '{package}'; "
                     "invisible(base::do.call(base::loadNamespace, "
                     "list(package = package))); 42L"
-                )
+                ),
             )
             output = last_result_text(client)
             assert output == "[1] 42\n", repr(output)
@@ -1068,7 +1071,7 @@ def test_rejects_preparation_while_automatic_r_resolver_is_running(
                 "isError": True,
             }, preparation
 
-            poll = client.start_send()
+            poll = client.start_send(session="default")
             release.release()
             resolver_released = True
             client.receive(poll)

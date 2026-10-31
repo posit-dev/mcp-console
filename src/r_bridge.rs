@@ -2,6 +2,13 @@ use std::ffi::{CStr, c_int};
 
 type TryEval = unsafe extern "C-unwind" fn(libr::SEXP, libr::SEXP, *mut c_int) -> libr::SEXP;
 
+/// A language outcome, separate from failures of the adapter itself.
+pub(crate) enum EvaluationOutcome {
+    Complete,
+    Error(String),
+    Interrupted,
+}
+
 /// Calls a language adapter held in a process-lifetime private R environment.
 pub(crate) struct Bridge {
     state: libr::SEXP,
@@ -73,10 +80,6 @@ impl Bridge {
         })
     }
 
-    pub(crate) fn evaluate(&self, source: &str) -> Result<(), String> {
-        self.evaluate_completed(source).map(|_| ())
-    }
-
     pub(crate) fn evaluate_completed(&self, source: &str) -> Result<bool, String> {
         self.evaluate_completed_with(source, |_| Ok(()))
             .map(|value| value.is_some())
@@ -85,6 +88,20 @@ impl Bridge {
     pub(crate) fn evaluate_completed_string(&self, source: &str) -> Result<Option<String>, String> {
         self.evaluate_completed_with(source, |value| {
             String::try_from(harp::object::RObject::view(value)).map_err(|error| error.to_string())
+        })
+    }
+
+    /// The adapter returns NULL on success or a condition message on failure.
+    /// An empty message remains a failure; interruption has its own outcome.
+    pub(crate) fn evaluate_outcome(&self, source: &str) -> Result<EvaluationOutcome, String> {
+        let value = self.evaluate_completed_with(source, |value| {
+            harp::object::r_null_or_try_into::<String>(harp::object::RObject::view(value))
+                .map_err(|error| error.to_string())
+        })?;
+        Ok(match value {
+            Some(None) => EvaluationOutcome::Complete,
+            Some(Some(message)) => EvaluationOutcome::Error(message),
+            None => EvaluationOutcome::Interrupted,
         })
     }
 

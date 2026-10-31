@@ -1,0 +1,65 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: import sys; print('diagnostic only', file=sys.stderr)
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          diagnostic only
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  code: raise ValueError('invalid value')
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<mcp-console:python:e3>", line 1, in <module>
+          ValueError: invalid value
+    isError: false
+    execution_error:
+      ename: ValueError
+      evalue: invalid value
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<mcp-console:python:e3>", line 1, in <module>
+        - |
+          ValueError: invalid value
+---
+request:
+  id: "3"
+  op: evaluate
+  language: python
+  code: "42"
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          42
+    isError: false
+    execution_error: ~

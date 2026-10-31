@@ -1,0 +1,66 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: value = 'default state'
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: value = 'old state'
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: import os; os._exit(86)
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+        [worker sideband read failed: worker sideband closed]
+        [worker exited with status 86]
+        [worker stopped: in-memory state lost]
+  isError: true
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "default"; status: idle]
+
+        [idle]
+  structuredContent:
+    sessions:
+      - session: default
+        status: idle
+  isError: false
+---
+send:
+  python: value
+result:
+  content:
+    - type: text
+      text: |
+        'default state'
+  isError: false
+---
+send:
+  python: "'value' in globals()"
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        [starting new worker]
+        False
+  isError: false

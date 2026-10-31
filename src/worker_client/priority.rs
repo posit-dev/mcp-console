@@ -1,0 +1,222 @@
+//! Priority results have their own bounded tape and connection identity. They
+//! never reserve, drain, or acknowledge an ordinary MCP evaluation.
+
+use std::sync::atomic::Ordering;
+
+use super::integrator::IntegratorError;
+use super::lifecycle::LifecycleState;
+use super::{Client, OutputTape, Response};
+use crate::cell::{Cell, Language};
+use crate::worker_protocol::{ExecutionError, PriorityEvent, PriorityExecution};
+
+#[derive(Clone, Copy, Default, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum IntegratorExecution {
+    #[default]
+    Serial,
+    Immediate,
+}
+
+pub(super) struct Request {
+    id: u64,
+    connection: super::platform::WorkerShutdownHandle,
+    output: OutputTape,
+    images: Option<crate::transcript::CallImages>,
+    error: Option<ExecutionError>,
+    completed:
+        tokio::sync::oneshot::Sender<Result<(Response, u64, serde_json::Value), IntegratorError>>,
+}
+
+impl Client {
+    pub(crate) async fn integrator_priority_evaluate(
+        &self,
+        cell: Cell,
+        transcript: crate::transcript::Transcript,
+        call: &crate::transcript::Call,
+        cancelled: tokio::sync::watch::Receiver<bool>,
+        request_id: String,
+    ) -> Result<(Response, u64, serde_json::Value), IntegratorError> {
+        let execution = match cell.language {
+            Language::R => PriorityExecution::RReentrant,
+            Language::Python => PriorityExecution::PythonThread,
+            Language::Sql => {
+                return Err(IntegratorError::Failed(
+                    "immediate execution supports only R and Python".into(),
+                ));
+            }
+        };
+        if *cancelled.borrow() {
+            return Err(IntegratorError::Cancelled);
+        }
+        self.startup_result()
+            .borrow()
+            .clone()
+            .ok_or(IntegratorError::Busy)??;
+        self.validate_cell(&cell)?;
+        let operation = self
+            .0
+            .admission
+            .try_read()
+            .map_err(|_| IntegratorError::Busy)?;
+        // Exclude explicit preparation through completion. The integrator must
+        // prepare dependencies before concurrent work; ordinary runtime callbacks
+        // retain their existing environment ownership. Restart can retire us.
+        let _preparation = self
+            .0
+            .preparation
+            .try_read()
+            .map_err(|_| IntegratorError::Busy)?;
+        let result = {
+            // Ordinary cells take precedence once admitted. Do not let another
+            // immediate R request overtake a cell awaiting worker entry.
+            // Retain publication through enqueue to serialize that decision.
+            let active = self.evaluation()?;
+            if matches!(execution, PriorityExecution::RReentrant)
+                && let Some(active) = active.as_ref()
+                && match active.language {
+                    Language::R => !active.evaluation.has_entered_cell()?,
+                    Language::Python | Language::Sql => true,
+                }
+            {
+                return Err(IntegratorError::Busy);
+            }
+            let lifecycle = self
+                .0
+                .lifecycle
+                .lock()
+                .map_err(|_| "worker lifecycle lock poisoned".to_string())?;
+            // No command has been admitted yet. Replacement temporarily removes
+            // the execution target; already admitted requests still fail through
+            // their connection's retirement path instead of being retried.
+            match lifecycle.state {
+                LifecycleState::Restarting { .. } => return Err(IntegratorError::Busy),
+                LifecycleState::Ready | LifecycleState::ShuttingDown { .. } => {
+                    lifecycle.ensure_generation(&lifecycle.generation)?;
+                }
+            }
+            if lifecycle.worker_bootstrapping()? || self.0.startup_failed.load(Ordering::Acquire) {
+                return Err(IntegratorError::Busy);
+            }
+            let connection = lifecycle.worker_connection().ok_or_else(|| {
+                IntegratorError::Failed(
+                    "initialize the worker with a serial evaluation before priority execution"
+                        .into(),
+                )
+            })?;
+            let mut pending = self.0.priority.lock().expect("priority evaluation lock");
+            if pending.is_some() {
+                return Err(IntegratorError::Busy);
+            }
+            if *cancelled.borrow() {
+                return Err(IntegratorError::Cancelled);
+            }
+            let id = super::evaluation::next_id();
+            let (completed, result) = tokio::sync::oneshot::channel();
+            let output = OutputTape::new();
+            output.enable_history();
+            output.set_worker_id(self.0.output.worker_id());
+            output.begin_evaluation(
+                serde_json::json!({
+                    "id": id, "origin": "integrator", "language": cell.language,
+                    "source": cell.source, "execution": "immediate", "request_id": request_id,
+                    "call_id": call.id(),
+                }),
+                false,
+            );
+            *pending = Some(Request {
+                id,
+                connection: connection.clone(),
+                output,
+                images: transcript.call_images(call),
+                error: None,
+                completed,
+            });
+            if let Err(error) = connection.priority_evaluate(id, execution, cell.source) {
+                *pending = None;
+                return Err(IntegratorError::Failed(error));
+            }
+            result
+        };
+        drop(operation);
+        // Socket closure does not abandon accepted work or transfer its output
+        // to MCP. The control handler records this result before closing.
+        result
+            .await
+            .map_err(|_| IntegratorError::Failed("priority result owner stopped".into()))?
+    }
+
+    pub(super) fn priority_event(
+        &self,
+        commands: &super::platform::RelayCommandSender,
+        request_id: u64,
+        event: PriorityEvent,
+    ) -> Result<(), String> {
+        let mut pending = self.0.priority.lock().expect("priority evaluation lock");
+        let Some(request) = pending
+            .as_mut()
+            .filter(|request| request.connection.owns_commands(commands))
+        else {
+            return Ok(());
+        };
+        if request.id != request_id {
+            return Err("worker sent a priority event for another request".into());
+        }
+        match event {
+            PriorityEvent::Output { data, diagnostic } => request.output.push_console_text(
+                if diagnostic {
+                    crate::worker_protocol::ConsoleChannel::Diagnostic
+                } else {
+                    crate::worker_protocol::ConsoleChannel::Output
+                },
+                data,
+            ),
+            PriorityEvent::Image { data, mime_type } => {
+                request
+                    .output
+                    .push_image_with_artifact(data, mime_type, |data, mime_type| {
+                        request
+                            .images
+                            .as_mut()
+                            .map_or(Ok(None), |images| images.persist(data, mime_type))
+                    })?
+            }
+            PriorityEvent::ExecutionError { error } => {
+                let error = super::output::bounded_execution_error(error);
+                request.output.execution_error(&error);
+                request.error.get_or_insert(error);
+            }
+            PriorityEvent::Completed { error } => {
+                let request = pending.take().expect("priority request");
+                let result = match error {
+                    Some(error) => Err(IntegratorError::Failed(error)),
+                    None => {
+                        request.output.finish_evaluation();
+                        let typed = request.output.typed_output(None);
+                        let mut response = request.output.take();
+                        response.set_execution_error(request.error);
+                        Ok((response, request.id, typed))
+                    }
+                };
+                let _ = request.completed.send(result);
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn fail_priority(
+        &self,
+        commands: &super::platform::RelayCommandSender,
+        message: &str,
+    ) {
+        let mut pending = self.0.priority.lock().expect("priority evaluation lock");
+        if pending
+            .as_ref()
+            .is_some_and(|request| request.connection.owns_commands(commands))
+        {
+            let request = pending.take().expect("priority request");
+            let _ = request
+                .completed
+                .send(Err(IntegratorError::Failed(message.into())));
+        }
+    }
+}

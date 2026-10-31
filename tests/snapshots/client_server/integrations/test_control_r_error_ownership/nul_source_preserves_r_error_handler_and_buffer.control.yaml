@@ -1,0 +1,96 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: serial
+  code: "nul_source_ran <- TRUE\0"
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: R source cannot contain NUL
+    isError: false
+    execution_error:
+      ename: SyntaxError
+      evalue: |
+        Error: R source cannot contain NUL
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: |
+    stopifnot(identical(getOption("error"), nul_error_option))
+    cat(
+      nul_handler_runs,
+      nul_source_ran,
+      identical(geterrmessage(), nul_previous_error),
+      sep = "\n"
+    )
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          0
+          FALSE
+          TRUE
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: "nul_source_ran <- TRUE\0"
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: R source cannot contain NUL
+    isError: false
+    execution_error:
+      ename: SyntaxError
+      evalue: |
+        Error: R source cannot contain NUL
+      traceback: []
+---
+request:
+  id: "4"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: |
+    stopifnot(identical(getOption("error"), nul_error_option))
+    cat(
+      nul_handler_runs,
+      nul_source_ran,
+      identical(geterrmessage(), nul_previous_error),
+      sep = "\n"
+    )
+response:
+  id: "4"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          0
+          FALSE
+          TRUE
+    isError: false
+    execution_error: ~

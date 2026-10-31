@@ -118,7 +118,7 @@ def test_completed_early_cell_keeps_prelaunch_phase(binary: Path) -> Transcript:
         client.send(requirements={"action": "get"}, timeout_ms=0)
         assert last_result_text(client) == "\n[phase: startup]\n[worker starting]"
         startup_release.release()
-        client.send()
+        client.send(session="default")
         assert client.transcript[-1]["result"]["isError"]
         assert (
             last_result_text(client)
@@ -170,7 +170,7 @@ def test_lazy_worker_startup_phase_lasts_until_transport_ready(
         # The process is registered, but the worker has not sent ready.
         wait_for_path(started, "custom worker is waiting before ready", client=client)
         for _ in range(2):
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             text = last_result_text(client)
             assert phase_progress(text) == "startup", text
             elapsed_progress(text)
@@ -182,15 +182,15 @@ def test_lazy_worker_startup_phase_lasts_until_transport_ready(
         with ExitStack() as completion:
             completion.callback(evaluation.with_name("zod-release-evaluation").touch)
             # Readiness ends startup visibility while the cell remains active.
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             text = last_result_text(client)
             assert "phase:" not in text, text
             elapsed_progress(text)
             assert without_elapsed(text) == "\n[running; poll with an empty send]"
             evaluation.with_name("zod-release-evaluation").touch()
-            client.send()
+            client.send(session="default")
             assert last_result_text(client) == "zod: complete after release\n"
-            client.send()
+            client.send(session="default")
             assert last_result_text(client) == "\n[idle]"
         return client.finish()
 
@@ -268,7 +268,7 @@ def test_phase_observation_does_not_wait_for_failed_worker_retirement(
         release.release()
         returned.wait("retirement signal completed")
         client.response_timeout = 600
-        client.send()
+        client.send(session="default")
         assert "scripted phase failure" in (
             failed["result"]["content"][0]["text"] + last_result_text(client)
         ), client.transcript
@@ -283,7 +283,7 @@ def test_shared_startup_phase_has_no_future_cell_clock(binary: Path) -> Transcri
     with gated_discovery(binary) as (client, release):
         client.initialize_and_list_tools()
         for arguments in ({}, {"requirements": {"action": "get"}}):
-            client.send(**arguments, timeout_ms=0)
+            client.send(session="default", **arguments, timeout_ms=0)
             assert last_result_text(client) == "\n[phase: startup]\n[worker starting]"
             assert "elapsed:" not in last_result_text(client)
         client.send(r="stop('must not run')", timeout_ms=0)
@@ -292,17 +292,17 @@ def test_shared_startup_phase_has_no_future_cell_clock(binary: Path) -> Transcri
         )
         assert phase_progress(last_result_text(client)) == "startup"
         elapsed_progress(last_result_text(client))
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_result_text(client)) == (
             "\n[running; poll with an empty send]"
         )
         assert phase_progress(last_result_text(client)) == "startup"
         release.release()
-        client.send()
+        client.send(session="default")
         assert client.transcript[-1]["result"]["isError"]
         assert "fixture R discovery failed" in last_result_text(client)
         assert "phase:" not in last_result_text(client)
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert "phase:" not in last_result_text(client)
         transcript, stderr = client.finish_with_standard_error(expected_exit_status=1)
         return json.loads(
@@ -319,7 +319,7 @@ def test_admitted_cell_keeps_shared_preparation_phase(
         client = fixture.client
         fixture.wait_for_resolver()
         client.initialize_and_list_tools()
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert last_result_text(client) == (
             "\n[phase: dependency preparation]\n[worker starting]"
         )
@@ -332,7 +332,7 @@ def test_admitted_cell_keeps_shared_preparation_phase(
             last_result_text(client)
         )
         elapsed_progress(last_result_text(client))
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         assert without_elapsed(last_result_text(client)) == (
             "\n[running; poll with an empty send]"
         )
@@ -342,9 +342,9 @@ def test_admitted_cell_keeps_shared_preparation_phase(
         elapsed_progress(last_result_text(client))
         client.response_timeout = 600
         fixture.release.release()
-        client.send(timeout_ms=600_000)
+        client.send(session="default", timeout_ms=600_000)
         assert last_result_text(client) == "cell completed\n"
-        client.send()
+        client.send(session="default")
         assert last_result_text(client) == "\n[idle]"
         return client.finish()
 
@@ -425,7 +425,7 @@ def reached_preparation(
         assert "phase:" not in last_result_text(client)
         begin.release()
         started.wait("reached import owns dependency preparation")
-        client.send(timeout_ms=0)
+        client.send(session="default", timeout_ms=0)
         text = last_result_text(client)
         assert len(text.encode()) <= TEXT_BUDGET
         if large_output:
@@ -443,18 +443,18 @@ def reached_preparation(
         assert phase_progress(last_result_text(client)) == "dependency preparation"
         elapsed_progress(last_result_text(client))
         for _ in range(2):
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             assert without_elapsed(last_result_text(client)) == (
                 "\n[running; poll with an empty send]"
             )
             assert phase_progress(last_result_text(client)) == "dependency preparation"
         release.release()
-        client.send()
+        client.send(session="default")
         assert last_result_text(client) == (
             "[resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']\n"
             "yaml12 1\n"
         ), last_result_text(client)
-        client.send()
+        client.send(session="default")
         assert last_result_text(client) == "\n[idle]"
         if large_output:
             normalize_preview_paths(client)
@@ -490,7 +490,7 @@ def test_explicit_preparation_interrupt_keeps_phase_until_completion(
             "Python startup did not return an executable path", client
         )
         client.transcript[-1]["result"]["content"][0]["text"] = "<running Python>\n"
-        client.send()
+        client.send(session="default")
         assert last_result_text(client) == "\n[idle]"
         pending = client.start_send(requirements={"python": ["six"]})
         started.wait("explicit preparation owns resolver")

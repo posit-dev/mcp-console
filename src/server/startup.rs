@@ -25,6 +25,7 @@ pub(super) struct Startup {
     cancellation: Arc<Mutex<Cancellation>>,
     input_closed: super::InputClosed,
     prelaunch: bool,
+    session_pool: crate::worker_client::SessionPool,
     initialize: Arc<Initializer>,
 }
 
@@ -46,10 +47,32 @@ struct Cancellation {
 }
 
 impl Startup {
+    /// Each name owns preparation and execution; only captured launch settings
+    /// and connection closure are shared with the default session.
+    pub fn named(&self, name: &str) -> Result<Self, String> {
+        let runtime = Arc::new(Runtime {
+            worker: crate::worker_client::Client::pending_named(self.session_pool.try_reserve()?),
+            transcript: self.runtime.transcript.for_session(name),
+        });
+        runtime.worker.record_with(runtime.transcript.clone());
+        runtime
+            .worker
+            .inherit_integrator_output(&self.runtime.worker);
+        Ok(Self {
+            runtime,
+            cancellation: Arc::new(Mutex::new(Cancellation::default())),
+            input_closed: self.input_closed.clone(),
+            prelaunch: false,
+            session_pool: self.session_pool.clone(),
+            initialize: self.initialize.clone(),
+        })
+    }
+
     pub fn new(
         input_closed: super::InputClosed,
         runtime: Arc<Runtime>,
         prelaunch: bool,
+        session_pool: crate::worker_client::SessionPool,
         initialize: impl Fn(
             &dyn Fn(crate::resolver::ResolverStopHandle) -> Result<(), String>,
             crate::process_output::Diagnostics,
@@ -64,18 +87,25 @@ impl Startup {
             cancellation: Arc::new(Mutex::new(Cancellation::default())),
             input_closed,
             prelaunch,
+            session_pool,
             initialize: Arc::new(initialize),
         }
     }
 
-    pub fn start(&self) {
-        {
+    pub fn start(&self) -> Result<(), String> {
+        let activation = {
             let mut control = self.cancellation.lock().expect("startup cancellation lock");
             if control.started || control.closed {
-                return;
+                return Ok(());
             }
+            let activation = self.runtime.worker.activate_session()?;
             control.started = true;
-        }
+            activation
+        };
+        // Windows' reader can observe EOF before queued MCP input registers
+        // this name. Finished sessions still drain through ShutdownReader.
+        #[cfg(windows)]
+        self.input_closed.cancel_startup_after_physical_eof();
         let control = self.cancellation.clone();
         let completion = control.clone();
         let worker = self.runtime.worker.clone();
@@ -87,6 +117,9 @@ impl Startup {
         let input_closed = self.input_closed.clone();
         let prelaunch = self.prelaunch;
         tokio::spawn(async move {
+            // Startup owns capacity before its blocking task can be scheduled.
+            // Cancellation of the initiating call must not release that slot.
+            let _activation = activation;
             let result = tokio::task::spawn_blocking(move || {
                 observe_input(input_closed, || {
                     let (generation, startup) = {
@@ -145,9 +178,13 @@ impl Startup {
                 }
             }
             let mut control = completion.lock().expect("startup cancellation lock");
+            worker.finish_session_preparation(control.resolvers.iter().all(|resolver| {
+                resolver.cleanup_confirmed() && (result.is_ok() || resolver.retirement_confirmed())
+            }));
             worker.finish_startup(result);
             control.retrying = false;
         });
+        Ok(())
     }
 
     /// Failed initial setup is retried under the connection's existing owner.
@@ -170,6 +207,7 @@ impl Startup {
         {
             return Err("runtime discovery retry requires confirmed preparation cleanup".into());
         }
+        let _activation = self.runtime.worker.activate_session()?;
         if !self.runtime.worker.retry_failed_startup() {
             return Ok(false);
         }
@@ -179,7 +217,7 @@ impl Startup {
         control.retrying = true;
         control.started = false;
         drop(control);
-        self.start();
+        self.start()?;
         Ok(true)
     }
 

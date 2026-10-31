@@ -1,0 +1,28 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    release_foreground_error <- FALSE
+    options(error = function() {
+      cat("foreground error handler ready\n")
+      while (!release_foreground_error) {
+        Sys.sleep(0.01)
+      }
+      cat("foreground handler message: ", geterrmessage(), sep = "")
+    })
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false

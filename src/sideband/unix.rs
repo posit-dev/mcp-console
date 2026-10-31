@@ -16,6 +16,8 @@ const READ_CHUNK_SIZE: usize = 8 * 1024;
 static SIDEBAND_ALLOWED: AtomicBool = AtomicBool::new(true);
 static FORK_READ_FD: AtomicI32 = AtomicI32::new(-1);
 static FORK_WRITE_FD: AtomicI32 = AtomicI32::new(-1);
+static FORK_LOCAL_READ_FD: AtomicI32 = AtomicI32::new(-1);
+static FORK_LOCAL_WRITE_FD: AtomicI32 = AtomicI32::new(-1);
 static ATFORK_RESULT: OnceLock<libc::c_int> = OnceLock::new();
 
 pub(crate) struct Reader {
@@ -29,6 +31,17 @@ pub(crate) struct Writer(Arc<Mutex<PipeWriter>>);
 pub(crate) struct ChildEndpoints {
     reader: PipeReader,
     writer: PipeWriter,
+}
+
+/// A process-local command pipe retains native readiness while an ingress
+/// thread handles explicitly concurrent requests from the original sideband.
+pub(crate) fn local() -> io::Result<(Reader, Writer)> {
+    let (reader, writer) = io::pipe()?;
+    // Fork-only descendants must not retain a writer that hides ingress EOF
+    // from the coordinator after the original sideband closes.
+    FORK_LOCAL_READ_FD.store(reader.as_raw_fd(), Ordering::SeqCst);
+    FORK_LOCAL_WRITE_FD.store(writer.as_raw_fd(), Ordering::SeqCst);
+    split(reader, writer)
 }
 
 /// Creates the two anonymous pipes used for one worker sideband.
@@ -316,7 +329,12 @@ pub(crate) fn available_in_process() -> bool {
 
 extern "C" fn close_sideband_in_fork_child() {
     SIDEBAND_ALLOWED.store(false, Ordering::SeqCst);
-    for descriptor in [&FORK_READ_FD, &FORK_WRITE_FD] {
+    for descriptor in [
+        &FORK_READ_FD,
+        &FORK_WRITE_FD,
+        &FORK_LOCAL_READ_FD,
+        &FORK_LOCAL_WRITE_FD,
+    ] {
         let descriptor = descriptor.swap(-1, Ordering::SeqCst);
         // Closing the child's descriptors leaves the parent's pipes usable.
         unsafe {

@@ -213,7 +213,8 @@ def test_controlled_restart_resolves_requirements_before_replacement_and_timeout
             replacement_evaluation_release.release()
             replacement_evaluation_released = True
             assert (
-                _tool_text(client.send()) == "replacement requirement cell ran\n[done]"
+                _tool_text(client.send(session="default"))
+                == "replacement requirement cell ran\n[done]"
             )
             old_transcript = client._read_open_capture(old_capture)
             replacement_transcript = client.finish_active()
@@ -312,7 +313,7 @@ def test_controlled_restart_requirement_failure_preserves_old_worker(
                 ],
                 "isError": True,
             }, result
-            assert _tool_text(client.send()) == "\n[idle]"
+            assert _tool_text(client.send(session="default")) == "\n[idle]"
 
             before_cleanup = client._read_open_capture(old_capture)
             assert not any(entry.keys() == {"server"} for entry in before_cleanup), (

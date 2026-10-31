@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::error::Error;
 use std::ffi::{CStr, CString, c_char, c_int, c_uchar, c_void};
 use std::io;
@@ -6,6 +7,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
+
+use libr::SEXP;
 
 use super::core::{
     self, emit_output, observe_stdin_shutdown, record_worker_failure, send_input_cancelled,
@@ -17,6 +20,7 @@ use crate::worker_protocol::ConsoleChannel;
 
 mod documentation;
 mod parse;
+mod priority;
 #[cfg(unix)]
 mod unix;
 #[cfg(windows)]
@@ -34,6 +38,17 @@ static R_CHECK_USER_INTERRUPT: OnceLock<CheckUserInterrupt> = OnceLock::new();
 static CELL_SOURCE: Mutex<Option<CellSource>> = Mutex::new(None);
 // R's DLL REPL reads submitted source before Busy(1), then interactive input.
 static REPL_EVALUATING: AtomicBool = AtomicBool::new(false);
+enum ReplCondition {
+    None,
+    ErrorAwaitingDiagnostic,
+    ErrorWithoutDiagnostic,
+    Error(String),
+    Interrupt,
+}
+
+thread_local! {
+    static REPL_CONDITION: RefCell<ReplCondition> = const { RefCell::new(ReplCondition::None) };
+}
 type ReplInit = unsafe extern "C-unwind" fn();
 type ReplDoOne = unsafe extern "C-unwind" fn() -> c_int;
 type TopLevelExec = unsafe extern "C-unwind" fn(
@@ -54,6 +69,7 @@ type ExecWithCleanup = unsafe extern "C-unwind" fn(
     *mut c_void,
 ) -> *mut c_void;
 type ObjectFn = unsafe extern "C-unwind" fn(*mut c_void);
+type Eval = unsafe extern "C-unwind" fn(libr::SEXP, libr::SEXP) -> libr::SEXP;
 
 #[repr(C)]
 struct ReplApi {
@@ -66,6 +82,10 @@ struct ReplApi {
     stack_top: *mut c_int,
     stack: *mut *mut *mut c_void,
     nil: libr::SEXP,
+    eval: Eval,
+    condition_handlers: libr::SEXP,
+    base_env: libr::SEXP,
+    interrupts_suspended: *mut libr::Rboolean,
 }
 
 struct CellSource {
@@ -75,6 +95,7 @@ struct CellSource {
 
 pub(super) struct Runtime {
     parser: parse::Parser,
+    priority: priority::Evaluator,
     graphics: crate::r_graphics::Bridge,
     environment: crate::r_environment::Bridge,
 }
@@ -97,6 +118,7 @@ impl Runtime {
         harp::parse_eval_base(include_str!("embedded_r/documentation.R"))?;
         Ok(Self {
             parser: parse::Parser::initialize()?,
+            priority: priority::Evaluator::initialize()?,
             graphics: crate::r_graphics::Bridge::initialize()?,
             environment: crate::r_environment::Bridge::initialize()?,
         })
@@ -132,6 +154,12 @@ impl Runtime {
         }
         evaluate_r_cell(source)
     }
+
+    pub(super) fn evaluate_priority(&self, source: &str) -> Result<(), String> {
+        // Keep the DLL REPL's parser and deferred warning state with the
+        // suspended ordinary evaluation.
+        self.priority.evaluate(source)
+    }
 }
 
 unsafe extern "C" {
@@ -141,6 +169,7 @@ unsafe extern "C" {
 }
 
 unsafe extern "C-unwind" {
+    fn mcp_r_observe_conditions();
     fn mcp_r_console_configure(
         read_console: ReadConsole,
         check_interrupt: CheckUserInterrupt,
@@ -216,8 +245,16 @@ fn evaluate_r_cell(r: String) -> Result<(), String> {
     let status = run_repl_cell();
     clear_cell_source();
     match status {
-        0 | 1 => Ok(()),
+        0 => {
+            record_unwind_error();
+            Ok(())
+        }
+        1 => Ok(()),
         2 => {
+            super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(
+                "SyntaxError",
+                "Incomplete code",
+            ));
             emit_output(ConsoleChannel::Diagnostic, b"Error: Incomplete code\n");
             Ok(())
         }
@@ -313,6 +350,9 @@ fn initialize_r_repl() -> Result<(), Box<dyn Error>> {
     let do_one = unsafe { *library.get::<ReplDoOne>(b"R_ReplDLLdo1\0")? };
     let top_level_exec = unsafe { *library.get::<TopLevelExec>(b"R_ToplevelExec\0")? };
     let events = native::Events::load(&library, top_level_exec)?;
+    let condition_handlers = harp::parse_eval_base(include_str!("embedded_r/conditions.R"))?;
+    // The native REPL configuration and this expression live until worker exit.
+    harp::top_level_exec(|| unsafe { libr::R_PreserveObject(condition_handlers.sexp) })?;
     unsafe {
         mcp_r_repl_configure(&ReplApi {
             init,
@@ -324,6 +364,10 @@ fn initialize_r_repl() -> Result<(), Box<dyn Error>> {
             stack_top: *library.get::<*mut c_int>(b"R_PPStackTop\0")?,
             stack: *library.get::<*mut *mut *mut c_void>(b"R_PPStack\0")?,
             nil: libr::R_NilValue,
+            eval: *library.get::<Eval>(b"Rf_eval\0")?,
+            condition_handlers: condition_handlers.sexp,
+            base_env: libr::R_BaseEnv,
+            interrupts_suspended: libr::R_interrupts_suspended,
         });
     }
     events.install()?;
@@ -339,16 +383,63 @@ fn run_ready_handlers(graphics: &crate::r_graphics::Bridge) -> Result<(), String
 }
 
 fn run_repl_cell() -> c_int {
+    reset_condition_observation();
     // SAFETY: The configured API consists of process-lifetime libR symbols.
     // This main thread owns R; the C shim keeps a live top-level context so
     // errors and interrupts cannot bypass a Rust frame.
     unsafe { mcp_r_repl_run_cell(before_repl_iteration) }
 }
 
+fn reset_condition_observation() {
+    REPL_CONDITION.with(|condition| condition.replace(ReplCondition::None));
+}
+
+fn record_unwind_error() {
+    let (name, message) =
+        match REPL_CONDITION.with(|condition| condition.replace(ReplCondition::None)) {
+            ReplCondition::Error(message) => ("RError", message),
+            // Suppressed or redirected diagnostics need not reach our callback.
+            // Exact metadata for those errors is outside this internal interface:
+            // never read the mutable error buffer after user handlers have run.
+            ReplCondition::ErrorAwaitingDiagnostic | ReplCondition::ErrorWithoutDiagnostic => (
+                "RError",
+                "R evaluation failed (diagnostic unavailable)".into(),
+            ),
+            ReplCondition::Interrupt => ("Interrupt", "R evaluation interrupted".into()),
+            // Native jumps and explicit global handler replacement may bypass
+            // the observers. Never attribute R's retained error buffer to them.
+            ReplCondition::None => ("RAbort", "R evaluation aborted".into()),
+        };
+    super::core::record_execution_error(crate::worker_protocol::ExecutionError::new(name, message));
+}
+
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_repl_interrupt() -> harp::Result<libr::SEXP> {
+    REPL_CONDITION.with(|condition| condition.replace(ReplCondition::Interrupt));
+    unsafe { Ok(libr::R_NilValue) }
+}
+
+#[allow(clippy::result_large_err)]
+#[harp::register]
+pub extern "C-unwind" fn mcp_console_repl_error(
+    diagnostic_visible: SEXP,
+) -> harp::Result<libr::SEXP> {
+    // A resumed interrupt can be followed by a real error in the same cell.
+    let observation = if bool::try_from(harp::object::RObject::view(diagnostic_visible))? {
+        ReplCondition::ErrorAwaitingDiagnostic
+    } else {
+        ReplCondition::ErrorWithoutDiagnostic
+    };
+    REPL_CONDITION.with(|condition| condition.replace(observation));
+    unsafe { Ok(libr::R_NilValue) }
+}
+
 extern "C" fn before_repl_iteration() {
     // R may reuse buffered source without calling Busy(0), so reset before
     // every outer DLL step. Busy(1) latches evaluation in r_busy().
     REPL_EVALUATING.store(false, Ordering::SeqCst);
+    reset_condition_observation();
 }
 
 extern "C-unwind" fn r_busy(which: c_int) {
@@ -430,6 +521,21 @@ extern "C-unwind" fn r_write_console(buf: *const c_char, buflen: c_int, otype: c
     let channel = if otype == 0 {
         ConsoleChannel::Output
     } else {
+        if !super::priority::active() {
+            REPL_CONDITION.with_borrow_mut(|condition| {
+                if matches!(condition, ReplCondition::ErrorAwaitingDiagnostic) {
+                    // R formats and writes this buffer after signaling the
+                    // condition, before invoking options(error). Capture once
+                    // without calling user conditionMessage methods again.
+                    // R_curErrorBuf returns R's non-null static buffer and
+                    // performs no R allocation or event dispatch.
+                    let message = unsafe { CStr::from_ptr(libr::R_curErrorBuf()) };
+                    if bytes == message.to_bytes() {
+                        *condition = ReplCondition::Error(message.to_string_lossy().into_owned());
+                    }
+                }
+            });
+        }
         ConsoleChannel::Diagnostic
     };
     emit_output(channel, bytes);
@@ -450,6 +556,11 @@ extern "C-unwind" fn r_read_console(
     buflen: c_int,
     _add_history: c_int,
 ) -> c_int {
+    if super::priority::active() {
+        // The priority evaluator retains R_ToplevelExec; no Rust-owned value
+        // exists here for the error jump to skip.
+        unsafe { libr::Rf_error(c"stdin is unavailable during priority execution".as_ptr()) };
+    }
     if let Err(error) = super::interrupt::reinstall() {
         record_worker_failure(error.to_string());
         return 0;

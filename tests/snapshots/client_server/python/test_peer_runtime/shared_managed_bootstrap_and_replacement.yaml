@@ -62,7 +62,8 @@ result:
 ---
 send:
   python: >-
-    import more_itertools; assert id(peer_object) == peer_id; assert
+    import mcp_console_test_added; assert mcp_console_test_added.answer ==
+    42; assert id(peer_object) == peer_id; assert
     os.path.samefile(sys.base_prefix, peer_library); print('live import
     retained objects')
 result:
@@ -96,7 +97,8 @@ result:
 ---
 send:
   python: >-
-    import yaml12, more_itertools; print('accepted additions survived
+    import yaml12, mcp_console_test_added; assert
+    mcp_console_test_added.answer == 42; print('accepted additions survived
     restart')
 result:
   content:
@@ -120,7 +122,8 @@ result:
 ---
 send:
   python: >-
-    import yaml12, more_itertools; print('accepted additions survived
+    import yaml12, mcp_console_test_added; assert
+    mcp_console_test_added.answer == 42; print('accepted additions survived
     crash')
 result:
   content:

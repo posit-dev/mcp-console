@@ -134,6 +134,7 @@ Updates preserve unselected/skipped cases, unrun declared execution modes (inclu
 
 Preserve complete errors, tracebacks, output, and meaningful ordering.
 Normalize only incidental values such as temporary paths.
+Console versions are asserted by the version, initialization, and recording cases before snapshot normalization, so commit and release changes do not rewrite transcripts.
 Use mappings for data, but retain serialized JSON when quoting or escaping is the contract; code and literal output remain strings.
 The case chooses the representation, not the serializer.
 

@@ -18,6 +18,7 @@ pub(super) struct Envelope<'a> {
 #[serde(tag = "event", rename_all = "snake_case")]
 pub(super) enum Event<'a> {
     RecordingStarted {
+        console_version: &'a str,
         working_directory: &'a str,
         dynamic_resolution: Option<bool>,
         python_preparation: Option<bool>,
@@ -35,6 +36,8 @@ pub(super) enum Event<'a> {
         delivered: bool,
     },
     WorkerStarted {
+        #[serde(skip_serializing_if = "default_session")]
+        session: &'a str,
         session_id: u64,
         pid: u32,
         requirements: &'a Value,
@@ -80,7 +83,7 @@ pub(super) enum Event<'a> {
     /// Rejected by raw image retention limits: no image file was created.
     /// Retained images have an ImageRetained event with their file path.
     ImageOmitted {
-        owner: Option<super::Owner>,
+        owner: Option<super::ImageOwner>,
         encoded_bytes: usize,
         mime_type: &'a str,
     },
@@ -89,6 +92,8 @@ pub(super) enum Event<'a> {
         discarded_bytes: usize,
     },
     EnvironmentDiscovered {
+        #[serde(skip_serializing_if = "default_session")]
+        session: &'a str,
         dynamic_resolution: bool,
         python_preparation: bool,
         r_available: bool,
@@ -102,6 +107,8 @@ pub(super) enum Event<'a> {
         packages: &'a [String],
     },
     RequirementsAccepted {
+        #[serde(skip_serializing_if = "default_session")]
+        session: &'a str,
         requirements: &'a Value,
     },
     RequirementsSelected {
@@ -111,11 +118,17 @@ pub(super) enum Event<'a> {
     },
     ToolCall {
         call_id: u64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        note_target: Option<super::NoteTarget>,
         request_id: &'a RequestId,
         request: &'a CallToolRequestParams,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        origin: Option<&'static str>,
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        omit_from_projections: bool,
     },
     ImageRetained {
-        owner: super::Owner,
+        owner: super::ImageOwner,
         artifact_id: u64,
         call_id: Option<u64>,
         path: &'a str,
@@ -144,7 +157,13 @@ pub(super) enum Event<'a> {
         parts: &'a [super::ResultPart],
         #[serde(flatten)]
         outcome: Outcome<'a>,
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        omit_from_projections: bool,
     },
+}
+
+fn default_session(session: &&str) -> bool {
+    *session == "default"
 }
 
 #[derive(Serialize)]

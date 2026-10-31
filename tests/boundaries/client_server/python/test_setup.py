@@ -963,10 +963,10 @@ def test_recovers_from_conflicting_requirements_after_python_startup(
     environment = dict(os.environ, RUST_LOG="error")
     with McpClient(binary, execution.serve(), environment) as client:
         client.initialize_and_list_tools()
-        client.send(r="startup_marker <- 41L")
-        assert last_result_text(client) == "[done]", client.transcript[-1]
-        client.send(
-            python="import sys; retained_object = object(); retained_object_id = id(retained_object); print(sys.executable)"
+        client.expect(r="startup_marker <- 41L", timeout_ms=0)
+        client.expect(
+            None,
+            python="import sys; retained_object = object(); retained_object_id = id(retained_object); print(sys.executable)",
         )
         running_python = last_result_text(client).strip()
         assert Path(running_python).is_file(), client.transcript[-1]
@@ -1088,8 +1088,7 @@ def test_activates_without_reticulate_virtualenv_helper(
               where = namespace
             )))
             """)
-        client.send(r=r)
-        assert last_result_text(client) == "[done]", client.transcript[-1]
+        client.expect(r=r, timeout_ms=0)
         # fmt: python
         python = code("""
             import multiprocessing.spawn
@@ -1150,13 +1149,13 @@ def test_preserves_setup_after_r_initialization(
         execution.serve("-c", "python.managed.resolution=implicit"),
     ) as client:
         client.initialize_and_list_tools()
-        client.send(
+        client.expect(
             # fmt: r
             r=code("""
                 invisible(reticulate::py_config())
-                """)
+                """),
+            timeout_ms=0,
         )
-        assert last_result_text(client) == "[done]", client.transcript[-1]
         # Load multiprocessing before activation so a spawned child must use
         # the updated interpreter after the new requirements are available.
         # fmt: python
@@ -1206,6 +1205,9 @@ def test_retries_managed_import_setup_after_interrupt(
     binary: Path, execution: Execution
 ) -> Transcript:
     thread_line = runtime_source_line("self._thread = self._threading.get_ident()")
+    input_line = runtime_source_line(
+        "return readline(str(prompt))", filename="services.py"
+    )
     # The import finder captures its configuring thread after module defaults.
     # Interrupt that public threading call once, then retry without bootstrap.
     source = code("""
@@ -1228,16 +1230,17 @@ def test_retries_managed_import_setup_after_interrupt(
     with startup_client(
         binary, execution, source, "-c", "python.managed.resolution=implicit"
     ) as client:
-        client.send(python="raise AssertionError('interrupted setup ran the cell')")
-        assert last_result_text(client) == (
-            '[input requested: "Managed import setup> "]\n[waiting for stdin]'
-        ), client.transcript[-1]
+        client.expect(
+            '[input requested: "Managed import setup> "]\n[waiting for stdin]',
+            python="raise AssertionError('interrupted setup ran the cell')",
+            timeout_ms=0,
+        )
         wait_for_evaluation_output(
             client,
             "Traceback (most recent call last):\n"
             f'  File "<string>", line {thread_line}, in configure\n'
             '  File "<setup checkpoint>", line 9, in configuring_thread\n'
-            '  File "<string>", line 50, in _console_input\n'
+            f'  File "<string>", line {input_line}, in _console_input\n'
             "KeyboardInterrupt\n",
             "managed import setup interruption",
             control="interrupt",
@@ -1272,6 +1275,9 @@ def test_retries_matplotlib_setup_after_interrupt(
     configuration_line = runtime_source_line("_defaults.apply(name)")
     apply_line = runtime_source_line("self._install_show()")
     show_line = runtime_source_line('_setattr(pyplot, "show", show)')
+    input_line = runtime_source_line(
+        "return readline(str(prompt))", filename="services.py"
+    )
     # A module attribute setter blocks first-cell setup on managed input.
     # Its public input request is the checkpoint for a real interrupt.
     source = code("""
@@ -1318,7 +1324,7 @@ def test_retries_matplotlib_setup_after_interrupt(
             f'  File "<string>", line {apply_line}, in apply\n'
             f'  File "<string>", line {show_line}, in _mcp_console_install_matplotlib_show\n'
             '  File "<setup checkpoint>", line 13, in __setattr__\n'
-            '  File "<string>", line 50, in _console_input\n'
+            f'  File "<string>", line {input_line}, in _console_input\n'
             "KeyboardInterrupt\n",
             "Matplotlib setup interruption",
             control="interrupt",

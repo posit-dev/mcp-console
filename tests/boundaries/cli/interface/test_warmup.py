@@ -198,7 +198,12 @@ def test_respects_configuration_and_disabled_languages(
             json.dumps(
                 {
                     "languages": ["r", "python"],
-                    "tool": {"parameters": {"r": {"enabled": False}}},
+                    "tool": {
+                        "parameters": {
+                            "r": {"enabled": False},
+                            "session": {"enabled": False},
+                        }
+                    },
                     "startup": {
                         "language": "python",
                         # fmt: python

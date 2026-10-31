@@ -1,0 +1,45 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: sql
+  execution: immediate
+  code: SELECT 1
+response:
+  id: "1"
+  error:
+    code: execution_failed
+    message: immediate execution supports only R and Python
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: |
+    print("private priority pending", flush=True)
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    threading.Event().wait()
+response:
+  id: "2"
+  error:
+    code: execution_failed
+    message: worker stopped before operation completed
+---
+request:
+  id: "3"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: print('new priority')
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          new priority
+    isError: false
+    execution_error: ~

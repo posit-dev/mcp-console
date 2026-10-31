@@ -9,9 +9,16 @@ mod control;
 mod environment;
 mod evaluation;
 mod execution;
+// The public transport currently uses Unix-domain sockets. Keep its execution
+// ownership compiled on every worker platform while that transport is optional.
+#[cfg_attr(not(unix), allow(dead_code))]
+mod integrator;
 mod lifecycle;
 mod output;
+#[cfg_attr(not(unix), allow(dead_code))]
+mod priority;
 mod send;
+mod sessions;
 mod status;
 
 #[cfg(any(unix, windows))]
@@ -35,9 +42,14 @@ pub(crate) use environment::validate_r_requirements;
 pub(crate) use environment::{Declaration, Requirements, RequirementsAction};
 use environment::{Environment, PythonEnvironment, RuntimeRResolutionFailure};
 use evaluation::Evaluation;
+#[cfg(unix)]
+pub(crate) use integrator::{IntegratorError, IntegratorObservation, IntegratorRestart};
 use lifecycle::{LifecycleControl, OldGenerationCommitDisposition, WorkerGeneration};
 pub(crate) use output::{Content, Response, ResponseDelivery};
 use output::{OutputTape, SendFailure};
+#[cfg(unix)]
+pub(crate) use priority::IntegratorExecution;
+pub(crate) use sessions::{SessionActivation, SessionPool, SessionSlot};
 
 pub(crate) const DEFAULT_R_REQUIREMENTS: &[&str] = &[
     "tidyverse",
@@ -112,11 +124,18 @@ impl SendRequest {
     }
 }
 
-/// A cloneable handle to the single implicit session, including its startup.
+/// A cloneable handle to one session, including its startup.
 #[derive(Clone)]
 pub(crate) struct Client(Arc<ClientInner>);
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SessionKind {
+    Default,
+    Named,
+}
+
 struct ClientInner {
+    session_kind: SessionKind,
     configuration: OnceLock<ClientConfiguration>,
     startup: Mutex<tokio::sync::watch::Sender<Option<Result<(), String>>>>,
     /// Identity of connection startup, including the interval before admission.
@@ -125,6 +144,9 @@ struct ClientInner {
     startup_observation_complete: AtomicBool,
     /// The one evaluation occupying this session, independently of who is polling it.
     evaluation: Mutex<Option<ActiveEvaluation>>,
+    priority: Mutex<Option<priority::Request>>,
+    /// Wakes queued integrator admissions after response delivery or lifecycle changes.
+    admission_changed: Arc<tokio::sync::Notify>,
     /// Settles operations admitted before inline control reserves its optional new cell.
     admission: tokio::sync::RwLock<()>,
     preparation: tokio::sync::RwLock<()>,
@@ -297,16 +319,27 @@ struct ActiveEvaluation {
 }
 
 impl Client {
-    pub(crate) fn pending() -> Self {
+    pub(crate) fn pending(slot: SessionSlot) -> Self {
+        Self::pending_session(SessionKind::Default, slot)
+    }
+
+    pub(crate) fn pending_named(slot: SessionSlot) -> Self {
+        Self::pending_session(SessionKind::Named, slot)
+    }
+
+    fn pending_session(session_kind: SessionKind, slot: SessionSlot) -> Self {
         let (startup, _) = tokio::sync::watch::channel(None);
-        let lifecycle = LifecycleControl::new();
+        let lifecycle = LifecycleControl::new(slot);
         let startup_generation = lifecycle.generation.clone();
         Self(Arc::new(ClientInner {
+            session_kind,
             configuration: OnceLock::new(),
             startup: Mutex::new(startup),
             startup_generation,
             startup_observation_complete: AtomicBool::new(false),
             evaluation: Mutex::new(None),
+            priority: Mutex::new(None),
+            admission_changed: Arc::new(tokio::sync::Notify::new()),
             admission: tokio::sync::RwLock::new(()),
             preparation: tokio::sync::RwLock::new(()),
             output: OutputTape::new(),
@@ -346,6 +379,7 @@ impl Client {
                     .store(true, Ordering::Release);
                 true
             });
+        self.0.admission_changed.notify_waiters();
     }
 
     fn take_startup_failure(&self, generation: &WorkerGeneration) -> Result<bool, String> {
@@ -521,7 +555,9 @@ impl WorkerCallbacks {
             .as_ref()
             .filter(|active| active.evaluation.admission.generation.is(&self.generation))
             .map(|active| active.evaluation.as_ref());
-        operation.finish_bootstrap(interrupted, evaluation)
+        let result = operation.finish_bootstrap(interrupted, evaluation);
+        self.client.0.admission_changed.notify_waiters();
+        result
     }
 
     fn resolve_r(

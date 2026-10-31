@@ -1,7 +1,8 @@
 ---
 !same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
 ---
-send: {}
+send:
+  session: default
 id: <cancelled request 1>
 ---
 input:

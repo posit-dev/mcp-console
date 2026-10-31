@@ -1,0 +1,53 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: import threading; shared_python = 40
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: "[done]"
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: shared_r <- shared_r + 2L; shared_r
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          [1] 42
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: >-
+    assert threading.current_thread() is not threading.main_thread();
+    shared_python += 2; print(shared_python)
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          42
+    isError: false
+    execution_error: ~

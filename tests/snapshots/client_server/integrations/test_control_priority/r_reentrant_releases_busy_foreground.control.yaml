@@ -1,0 +1,55 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: stop("priority failure")
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Error: priority failure
+    isError: false
+    execution_error:
+      ename: RError
+      evalue: |
+        Error: priority failure
+      traceback: []
+---
+request:
+  id: "2"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: release <- TRUE; cat("priority output\n")
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          priority output
+    isError: false
+    execution_error: ~
+---
+request:
+  id: "3"
+  op: evaluate
+  language: r
+  execution: immediate
+  code: priority_value <- 42L; priority_value
+response:
+  id: "3"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          [1] 42
+    isError: false
+    execution_error: ~

@@ -15,13 +15,13 @@ description: >-
   languages when useful, using the worker's capabilities.
 
 
-  Run one cell at a time. Wait for its `send` to return before another call with
-  code. You can interrupt a pending call with `send(control="interrupt")`. An
-  error can leave earlier changes in place. If work is still running, poll with
-  an empty `send`; do not resubmit the cell. When waiting for completion, use
-  `timeout_ms=300000` for a long poll; it returns early when work finishes or
-  needs input. Avoid repeated short polls such as `timeout_ms=1000`. Defaults:
-  `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
+  Run one cell at a time per session; collect its result before more code.
+  Sessions can run concurrently. Use `control="interrupt"` to interrupt. An
+  error can leave earlier changes in place. Poll without code; do not resubmit.
+  Empty calls poll all sessions; supply `session` to select one. Use
+  `timeout_ms=300000` for a long poll of one session; it returns early on
+  completion or input. Avoid repeated short polls such as `timeout_ms=1000`.
+  Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
 
 
   Text results, including notices, have an 8 KiB limit, retaining the beginning
@@ -52,13 +52,13 @@ description: >-
   languages when useful, using the worker's capabilities.
 
 
-  Run one cell at a time. Wait for its `send` to return before another call with
-  code. You can interrupt a pending call with `send(control="interrupt")`. An
-  error can leave earlier changes in place. If work is still running, poll with
-  an empty `send`; do not resubmit the cell. When waiting for completion, use
-  `timeout_ms=300000` for a long poll; it returns early when work finishes or
-  needs input. Avoid repeated short polls such as `timeout_ms=1000`. Defaults:
-  `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
+  Run one cell at a time per session; collect its result before more code.
+  Sessions can run concurrently. Use `control="interrupt"` to interrupt. An
+  error can leave earlier changes in place. Poll without code; do not resubmit.
+  Empty calls poll all sessions; supply `session` to select one. Use
+  `timeout_ms=300000` for a long poll of one session; it returns early on
+  completion or input. Avoid repeated short polls such as `timeout_ms=1000`.
+  Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
 
 
   Text results, including notices, have an 8 KiB limit, retaining the beginning

@@ -36,6 +36,7 @@ Dotted paths show nesting; managed Python also accepts package and policy settin
 | `sandbox.network.proxy.mode`, `sandbox.network.proxy.socks5`, `sandbox.network.proxy.allow_upstream_proxy`                                   | <span id="proxy-settings"></span> [Proxy settings](SANDBOX_CONFIGURATION.md#proxy-modes-and-destinations)                         |
 | `sandbox.network.proxy.domains.allow`, `sandbox.network.proxy.domains.deny`                                                                  | <span id="destination-rules"></span> [Destination rules](SANDBOX_CONFIGURATION.md#destination-rules)                              |
 | `sandbox.network.sockets.unix_sockets`, `sandbox.network.allow_local_binding`                                                                | <span id="local-sockets-and-binding"></span> [Local sockets and binding](SANDBOX_CONFIGURATION.md#unix-sockets-and-local-binding) |
+| `sessions`, `sessions.max`                                                                                                                   | [Concurrent session limits](RUNTIME_CONFIGURATION.md#session-limits)                                                              |
 | `startup`, `startup.language`, `startup.code`                                                                                                | <span id="session-startup"></span> [SQL connection startup](RUNTIME_CONFIGURATION.md#session-startup-source)                      |
 | `tool`, `tool.description`, `tool.instructions`                                                                                              | <span id="tool-presentation"></span> [Tool descriptions and instructions](TOOL_CONFIGURATION.md#tool-descriptions-and-parameters) |
 | `tool.parameters.<name>.enabled`, `tool.parameters.<name>.description`, `tool.parameters.<name>.parameters`, `tool.parameters.<name>.schema` | <span id="parameter-settings"></span> [Tool parameter settings](TOOL_CONFIGURATION.md#parameter-settings)                         |
@@ -69,6 +70,10 @@ For reading and reusing a session, see [Recordings and reports](RECORDING.md).
 
 - [MCP send reference](API.md) documents tool arguments, results, output limits, call ordering, and requirements actions.
 - [Drive send directly](SEND_OPERATIONS.md) is a guide to polling, interactive input, interruption, and restart.
+
+### Internal integrator socket
+
+- [Integrator control channel](INTEGRATOR_CONTROL.md) documents the experimental Unix socket, which has no compatibility guarantees.
 
 ### Packages
 

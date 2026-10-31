@@ -17,6 +17,14 @@ pub(crate) struct Reader {
 pub(crate) struct Writer(Arc<Mutex<Pipe>>);
 pub(crate) struct ChildEndpoints(OwnedHandle, OwnedHandle);
 
+pub(crate) fn local() -> io::Result<(Reader, Writer)> {
+    let (reader, writer) = crate::windows::pipe(true, true)?;
+    Ok((
+        Reader::new(Pipe::from(reader)),
+        Writer(Arc::new(Mutex::new(Pipe::from(writer)))),
+    ))
+}
+
 pub(crate) fn bind(cancel: Event) -> io::Result<(Reader, Writer, ChildEndpoints)> {
     let (worker_reader, relay_writer) = crate::windows::pipe(true, true)?;
     let (relay_reader, worker_writer) = crate::windows::pipe(true, true)?;

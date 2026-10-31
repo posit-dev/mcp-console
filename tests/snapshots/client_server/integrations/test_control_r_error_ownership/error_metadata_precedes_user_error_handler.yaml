@@ -1,0 +1,45 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    options(error = function() try(stop("inner"), silent = TRUE))
+    formatter_calls <- 0L
+    conditionMessage.owned_error <- function(condition) {
+      formatter_calls <<- formatter_calls + 1L
+      stopifnot(formatter_calls == 1L)
+      "custom outer"
+    }
+    custom_error <- structure(
+      list(message = "unformatted", call = NULL),
+      class = c("owned_error", "error", "condition")
+    )
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  r: |
+    options(error = NULL)
+    stopifnot(formatter_calls == 1L, grepl("inner", geterrmessage()))
+    close(error_file)
+    stopifnot(identical(readLines(error_path), "Error: redirected outer"))
+    cat("recovered\n")
+result:
+  content:
+    - type: text
+      text: |
+        recovered
+  isError: false

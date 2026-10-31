@@ -81,7 +81,7 @@ def test_custom_worker_skips_managed_python_preflight(
     )
     client.send(r="echo echo")
     assert last_tool_text(client) == "zod: echo\n"
-    client.send()
+    client.send(session="default")
     assert last_tool_text(client) == "\n[idle]"
     return client.finish()
 
@@ -654,7 +654,7 @@ def test_custom_worker_prepares_r_and_duckdb_requirements(
                 "isError": True,
             }, result
 
-            client.send(timeout_ms=0)
+            client.send(session="default", timeout_ms=0)
             assert without_elapsed_result(client.transcript[-1]["result"]) == {
                 "content": [
                     {"type": "text", "text": "before pending image\n"},
@@ -668,7 +668,7 @@ def test_custom_worker_prepares_r_and_duckdb_requirements(
             }, client.transcript[-1]
         finally:
             (image_started.parent / "zod-release-image-completion").touch()
-        client.send(timeout_ms=3_000)
+        client.send(session="default", timeout_ms=3_000)
         assert last_tool_text(client) == "[done]"
 
         result = client.send(
@@ -803,7 +803,7 @@ def test_combined_requirements_keep_idle_output_as_one_prelude(
             "[output produced while idle]\n"
             "zod: combined cell\n"
         ), last_tool_text(client)
-        client.send()
+        client.send(session="default")
         assert last_tool_text(client) == "\n[idle]"
 
         expose_idle_sideband_output(
@@ -874,7 +874,7 @@ def test_custom_worker_resolves_idle_activity_before_evaluation(
         output = last_tool_text(client)
         if output != "zod: echo\n":
             assert output == "\n[waiting for stdin]", repr(output)
-            client.send()
+            client.send(session="default")
             output = last_tool_text(client)
         assert output == "zod: echo\n", repr(output)
         calls = client.transcript[poll_start:]

@@ -1,6 +1,7 @@
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 
+mod events;
 mod terminal;
 
 mod preview;
@@ -19,7 +20,7 @@ pub(super) const ACTIVE_EVALUATION_STOPPED_NOTICE: &str =
 
 /// Stores pending session output in publication order until one response drains it.
 #[derive(Clone)]
-pub(super) struct OutputTape(Arc<Mutex<OutputTapeState>>);
+pub(super) struct OutputTape(Arc<Mutex<OutputTapeState>>, tokio::sync::watch::Sender<()>);
 
 /// An opaque boundary between sealed response intervals.
 #[derive(Clone, Copy)]
@@ -43,9 +44,10 @@ enum DirectOutputStream {
 pub(crate) struct Response {
     preview: Box<Preview>,
     is_error: bool,
-    delivery: Option<ResponseDeliveryTarget>,
-    phase_terminal: Option<TerminalState>,
+    delivery: Option<Box<ResponseDeliveryTarget>>,
+    terminal: Option<TerminalState>,
     phase: Option<super::status::Source>,
+    execution_error: Option<Box<crate::worker_protocol::ExecutionError>>,
 }
 
 pub(super) enum ResponseAcknowledgment {
@@ -54,7 +56,11 @@ pub(super) enum ResponseAcknowledgment {
 }
 
 enum ResponseDeliveryTarget {
-    Evaluation(SyncSender<ResponseAcknowledgment>, Arc<tokio::sync::Notify>),
+    Evaluation(
+        SyncSender<ResponseAcknowledgment>,
+        Arc<tokio::sync::Notify>,
+        OutputTape,
+    ),
     Output(OutputTape),
 }
 
@@ -63,7 +69,7 @@ enum ResponseDeliveryTarget {
 /// The bounded recovery response remains owned here after MCP projection so transport
 /// cancellation or write failure can return the complete reply to restart.
 pub(crate) struct ResponseDelivery {
-    target: Option<ResponseDeliveryTarget>,
+    target: Option<Box<ResponseDeliveryTarget>>,
     unclaimed: Option<Response>,
 }
 
@@ -89,12 +95,14 @@ pub(super) enum TerminalState {
     Running,
     StdinNeeded,
     Idle,
+    Stopped,
     WorkerStarting,
     ReplacementReady,
 }
 
 pub(super) enum SendResponse {
     Idle(Response),
+    Stopped(Response),
     Failed(Response),
     Running(Response),
     InputRequested(Response),
@@ -144,6 +152,116 @@ impl SendFailure {
 }
 
 impl Response {
+    /// Combine session previews under the ordinary complete-result bounds while
+    /// keeping each session's original response available for delivery recovery.
+    pub(crate) fn append_session(
+        &mut self,
+        name: &str,
+        status: &str,
+        mut response: Self,
+    ) -> Option<ResponseDelivery> {
+        let phase = response
+            .phase
+            .as_ref()
+            .filter(|_| {
+                matches!(
+                    response.terminal,
+                    Some(TerminalState::Running | TerminalState::WorkerStarting)
+                )
+            })
+            .and_then(|source| source.phase());
+        let delivery = response.delivery.take().map(|target| ResponseDelivery {
+            target: Some(target),
+            unclaimed: Some(Response {
+                preview: response.preview.clone(),
+                is_error: response.is_error,
+                terminal: response.terminal,
+                phase: response.phase.take(),
+                delivery: None,
+                execution_error: response.execution_error.clone(),
+            }),
+        });
+        let empty_stopped = !response.is_error
+            && matches!(response.terminal, Some(TerminalState::Stopped))
+            && matches!(response.preview.render_recorded().0.as_slice(),
+                [Content::Text(text)] if text == "\n[stopped]");
+        if !empty_stopped {
+            self.push_notice_line(format!(
+                "session: {}; status: {status}",
+                serde_json::json!(name)
+            ));
+            if let Some(phase) = phase {
+                response.preview.bound();
+                response.preview.phase_before_terminal(
+                    phase,
+                    matches!(response.terminal, Some(TerminalState::Running)),
+                );
+            }
+            self.extend(response);
+        }
+        delivery
+    }
+
+    /// The same observation used by the text response, without parsing notices.
+    pub(crate) fn session_status(&self) -> Option<&'static str> {
+        let terminal = self.terminal?;
+        if matches!(
+            terminal,
+            TerminalState::Running | TerminalState::WorkerStarting
+        ) && self
+            .phase
+            .as_ref()
+            .is_some_and(|source| source.phase().is_some())
+        {
+            return Some("starting");
+        }
+        Some(match terminal {
+            TerminalState::Completed | TerminalState::Idle | TerminalState::ReplacementReady => {
+                "idle"
+            }
+            TerminalState::Running => "running",
+            TerminalState::StdinNeeded => "waiting_for_stdin",
+            TerminalState::WorkerStarting => "starting",
+            TerminalState::Stopped => "stopped",
+        })
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn execution_error(&self) -> Option<&crate::worker_protocol::ExecutionError> {
+        self.execution_error.as_deref()
+    }
+
+    pub(super) fn set_execution_error(
+        &mut self,
+        error: Option<crate::worker_protocol::ExecutionError>,
+    ) {
+        self.execution_error = error.map(Box::new);
+    }
+
+    /// Copy presentation state without claiming or acknowledging its delivery.
+    pub(super) fn snapshot(&self) -> Self {
+        Self {
+            preview: Box::new(self.preview.inspection_copy()),
+            is_error: self.is_error,
+            delivery: None,
+            terminal: None,
+            phase: None,
+            execution_error: self.execution_error.clone(),
+        }
+    }
+
+    pub(super) fn preview(&self) -> Vec<Content> {
+        self.preview.inspection_copy().render_preview()
+    }
+
+    /// The integrator collector owns its result even if its socket disconnects.
+    /// Acknowledge that ownership so MCP cannot recover the private response.
+    pub(super) fn settle_delivery(&mut self) {
+        if let Some(target) = self.delivery.take() {
+            target.delivered();
+        }
+    }
+
     pub(crate) fn tool_error(message: String) -> Self {
         let mut response = Self::default();
         response.push_tool_error(message);
@@ -164,7 +282,12 @@ impl Response {
         let (content, recorded_parts) = match self
             .phase
             .as_ref()
-            .filter(|_| self.phase_terminal.is_some())
+            .filter(|_| {
+                matches!(
+                    self.terminal,
+                    Some(TerminalState::Running | TerminalState::WorkerStarting)
+                )
+            })
             .and_then(|source| source.phase())
         {
             Some(phase) => {
@@ -172,7 +295,7 @@ impl Response {
                 let mut preview = self.preview.clone();
                 preview.phase_before_terminal(
                     phase,
-                    matches!(self.phase_terminal, Some(TerminalState::Running)),
+                    matches!(self.terminal, Some(TerminalState::Running)),
                 );
                 preview.render_recorded()
             }
@@ -185,8 +308,9 @@ impl Response {
                 preview: std::mem::take(&mut self.preview),
                 is_error,
                 delivery: None,
-                phase_terminal: self.phase_terminal,
+                terminal: self.terminal,
                 phase: self.phase.take(),
+                execution_error: self.execution_error.take(),
             }),
         });
         (content, is_error, delivery, recorded_parts)
@@ -220,12 +344,17 @@ impl Response {
         &mut self,
         acknowledgment: SyncSender<ResponseAcknowledgment>,
         changed: Arc<tokio::sync::Notify>,
+        output: OutputTape,
     ) {
         assert!(
             self.delivery.is_none(),
             "a response can carry only one acknowledgment"
         );
-        self.delivery = Some(ResponseDeliveryTarget::Evaluation(acknowledgment, changed));
+        self.delivery = Some(Box::new(ResponseDeliveryTarget::Evaluation(
+            acknowledgment,
+            changed,
+            output,
+        )));
     }
 
     pub(super) fn recover_to(&mut self, output: OutputTape) {
@@ -233,7 +362,7 @@ impl Response {
             self.delivery.is_none(),
             "a response can carry only one delivery target"
         );
-        self.delivery = Some(ResponseDeliveryTarget::Output(output));
+        self.delivery = Some(Box::new(ResponseDeliveryTarget::Output(output)));
     }
 
     fn is_empty(&self) -> bool {
@@ -324,6 +453,9 @@ impl ResponseBuilder {
             .preview
             .extend(*std::mem::take(&mut other.preview));
         self.response.is_error |= other.is_error;
+        if other.execution_error.is_some() {
+            self.response.execution_error = other.execution_error.take();
+        }
     }
 
     pub(super) fn append_logical_region(&mut self, mut other: Response) {
@@ -383,10 +515,7 @@ impl ResponseBuilder {
     }
 
     pub(super) fn terminal(&mut self, state: TerminalState) {
-        self.response.phase_terminal = match state {
-            TerminalState::Running | TerminalState::WorkerStarting => Some(state),
-            _ => None,
-        };
+        self.response.terminal = Some(state);
         match state {
             TerminalState::Completed => {
                 if self.response.is_empty() {
@@ -405,6 +534,7 @@ impl ResponseBuilder {
                     self.state_banner(WORKER_IDLE_NOTICE);
                 }
             }
+            TerminalState::Stopped => self.state_banner("stopped"),
             TerminalState::WorkerStarting => self.notice(WORKER_STARTING_STATE),
             TerminalState::ReplacementReady => self.notice(WORKER_IDLE_NOTICE),
         }
@@ -464,8 +594,9 @@ impl Drop for Response {
             preview: std::mem::take(&mut self.preview),
             is_error: self.is_error,
             delivery: None,
-            phase_terminal: self.phase_terminal,
+            terminal: self.terminal,
             phase: self.phase.take(),
+            execution_error: self.execution_error.take(),
         };
         target.unclaimed(response);
     }
@@ -473,17 +604,19 @@ impl Drop for Response {
 
 impl ResponseDeliveryTarget {
     fn delivered(self) {
-        if let Self::Evaluation(acknowledgment, changed) = self {
+        if let Self::Evaluation(acknowledgment, changed, output) = self {
             let _ = acknowledgment.send(ResponseAcknowledgment::Delivered);
             changed.notify_waiters();
+            output.notify_observers();
         }
     }
 
     fn unclaimed(self, response: Response) {
         match self {
-            Self::Evaluation(acknowledgment, changed) => {
+            Self::Evaluation(acknowledgment, changed, output) => {
                 let _ = acknowledgment.send(ResponseAcknowledgment::Unclaimed(response));
                 changed.notify_waiters();
+                output.notify_observers();
             }
             Self::Output(output) => output.recover(response),
         }
@@ -514,6 +647,7 @@ pub(super) fn render_response(response: SendResponse) -> Response {
         SendResponse::InputRequested(output) => (output, Some(TerminalState::StdinNeeded)),
         SendResponse::Running(output) => (output, Some(TerminalState::Running)),
         SendResponse::Idle(output) => (output, Some(TerminalState::Idle)),
+        SendResponse::Stopped(output) => (output, Some(TerminalState::Stopped)),
         SendResponse::ReplacementStarting(output) => (output, Some(TerminalState::WorkerStarting)),
         SendResponse::ReplacementReady(output) => (output, Some(TerminalState::ReplacementReady)),
     };
@@ -537,6 +671,39 @@ pub(super) fn direct_failure(message: impl Into<String>) -> Response {
 
 fn render_notice(message: impl Into<String>) -> String {
     format!("[{}]", message.into())
+}
+
+/// Typed diagnostics have a separate text allowance and must not retain an
+/// unbounded exception beside the ordinary bounded output projection.
+pub(super) fn bounded_execution_error(
+    mut error: crate::worker_protocol::ExecutionError,
+) -> crate::worker_protocol::ExecutionError {
+    fn trim(text: &mut String, remaining: &mut usize, truncated: &mut bool) {
+        let length = utf8_prefix_length(text, *remaining);
+        if length < text.len() {
+            *text = text[..length].to_owned();
+            *truncated = true;
+        }
+        *remaining -= length;
+    }
+    let mut remaining = preview::TEXT_BYTES
+        - 2 * std::mem::size_of::<String>()
+        - std::mem::size_of::<Vec<String>>();
+    trim(&mut error.ename, &mut remaining, &mut error.truncated);
+    trim(&mut error.evalue, &mut remaining, &mut error.truncated);
+    let mut retained = 0;
+    for frame in &mut error.traceback {
+        if remaining < std::mem::size_of::<String>() {
+            break;
+        }
+        remaining -= std::mem::size_of::<String>();
+        trim(frame, &mut remaining, &mut error.truncated);
+        retained += 1;
+    }
+    error.truncated |= retained < error.traceback.len();
+    error.traceback.truncate(retained);
+    error.traceback.shrink_to_fit();
+    error
 }
 
 fn utf8_prefix_length(text: &str, limit: usize) -> usize {

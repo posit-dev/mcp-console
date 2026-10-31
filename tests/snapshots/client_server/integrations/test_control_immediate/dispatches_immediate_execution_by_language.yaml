@@ -1,0 +1,28 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: shared_r <- 40L
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: shared_r
+result:
+  content:
+    - type: text
+      text: |
+        [1] 42
+  isError: false
+---
+send:
+  python: print(shared_python)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

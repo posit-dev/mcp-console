@@ -74,10 +74,9 @@ def test_overlapping_resolvers_share_writable_cache(
                             with (state / "release").open("rb", buffering=0) as release:
                                 assert release.read(1) == b"1"
                         cache = Path(os.environ["CACHE_TEST_SHARED"])
-                        for name in (".git", ".agents", ".codex", ".aws"):
-                            directory = cache / name
-                            directory.mkdir(exist_ok=True)
-                            directory.joinpath(state.name).write_text("prepared")
+                        directory = cache / "packages"
+                        directory.mkdir(exist_ok=True)
+                        directory.joinpath(state.name).write_text("prepared")
                         cache.joinpath("ordinary-cache-file").write_text("prepared")
                         temporary = Path(os.environ["TMPDIR"])
                         assert temporary.is_relative_to(os.environ["CACHE_TEST_TEMP"])
@@ -129,8 +128,6 @@ def test_overlapping_resolvers_share_writable_cache(
                 client.initialize_and_list_tools()
                 started.wait("resolver reached shared cache", timeout=60, client=client)
                 clients.append((client, release))
-            for name in (".git", ".agents", ".codex", ".aws"):
-                assert not (cache / name).exists(), f"sandbox created {name}"
             first, first_release = clients[0]
             second, second_release = clients[1]
             first_release.release()
@@ -138,14 +135,12 @@ def test_overlapping_resolvers_share_writable_cache(
             first.finish()
             # The second resolver is still inside the native sandbox. Retiring
             # the first must preserve its data and the survivor's full grant.
-            for name in (".git", ".agents", ".codex", ".aws"):
-                assert (cache / name / "first").read_text() == "prepared"
+            assert (cache / "packages/first").read_text() == "prepared"
             second_release.release()
             second.expect("ready\n", python="print('ready')")
             second.finish()
-            for name in (".git", ".agents", ".codex", ".aws"):
-                for owner in ("first", "second"):
-                    assert (cache / name / owner).read_text() == "prepared"
+            for owner in ("first", "second"):
+                assert (cache / "packages" / owner).read_text() == "prepared"
     return [{"overlapping_resolvers_retain_full_host_and_managed_cache_writes": True}]
 
 
@@ -624,10 +619,9 @@ def cache_locations(
             if metadata:
                 metadata_root = Path(env["UV_CACHE_DIR"]) if host else console_root
                 env["CACHE_TEST_METADATA_ROOT"] = str(metadata_root)
-                for name in (".git", ".agents", ".codex", ".aws"):
-                    directory = metadata_root / name
-                    directory.mkdir(parents=True)
-                    (directory / "keep").write_text("cache contents")
+                directory = metadata_root / ".git"
+                directory.mkdir(parents=True)
+                (directory / "keep").write_text("cache contents")
             if source in ("isolated", "path_isolated"):
                 settings["environment"]["CACHE_TEST_EXPECTED"] = env[
                     "CACHE_TEST_EXPECTED"
@@ -674,16 +668,15 @@ def cache_locations(
                         matplotlib.mkdir(parents=True, exist_ok=True)
                         matplotlib.joinpath("resolver-probe").write_text("prepared")
                     if {metadata!r}:
-                        for name in (".git", ".agents", ".codex", ".aws"):
-                            file = Path(os.environ["CACHE_TEST_METADATA_ROOT"]) / name / "keep"
-                            assert file.read_text() == "cache contents"
-                            file.write_text("updated")
-                            assert file.read_text() == "updated"
-                            file.write_text("cache contents")
-                            nested = file.parent / ".git"
-                            nested.mkdir(exist_ok=True)
-                            nested.joinpath("new").write_text("created")
-                            nested.joinpath("new").unlink()
+                        file = Path(os.environ["CACHE_TEST_METADATA_ROOT"]) / ".git/keep"
+                        assert file.read_text() == "cache contents"
+                        file.write_text("updated")
+                        assert file.read_text() == "updated"
+                        file.write_text("cache contents")
+                        nested = file.parent / ".git"
+                        nested.mkdir(exist_ok=True)
+                        nested.joinpath("new").write_text("created")
+                        nested.joinpath("new").unlink()
                         cache.joinpath("metadata-check-passed").write_text("checked")
                     if {git_dependency is not None!r}:
                         result = subprocess.run(
@@ -747,10 +740,7 @@ def cache_locations(
                 client.finish()
             assert not (root / "host-write").exists()
             if metadata:
-                for name in (".git", ".agents", ".codex", ".aws"):
-                    assert (
-                        metadata_root / name / "keep"
-                    ).read_text() == "cache contents"
+                assert (metadata_root / ".git/keep").read_text() == "cache contents"
             if host and source == "platform":
                 assert (
                     Path(env["CACHE_TEST_MATPLOTLIB"])

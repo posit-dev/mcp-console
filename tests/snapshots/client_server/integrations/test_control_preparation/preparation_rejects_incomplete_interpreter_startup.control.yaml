@@ -1,0 +1,166 @@
+---
+request:
+  id: "1"
+  op: create
+  session: default
+response:
+  id: "1"
+  result:
+    session: default
+    state: idle
+    worker_id: 1
+---
+request:
+  id: "2"
+  op: status
+response:
+  id: "2"
+  result:
+    state: starting
+    idle: false
+    evaluation: ~
+---
+request:
+  id: "3"
+  op: requirements
+response:
+  id: "3"
+  result:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+---
+request:
+  id: "4"
+  op: prepare
+  requirements:
+    r:
+      - praise
+response:
+  id: "4"
+  result:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+    worker_id: 1
+    status: busy
+---
+request:
+  id: "5"
+  op: status
+  session: default
+response:
+  id: "5"
+  result:
+    state: idle
+    idle: true
+    evaluation: ~
+---
+request:
+  id: "6"
+  op: prepare
+  requirements:
+    r:
+      - praise
+response:
+  id: "6"
+  result:
+    requirements:
+      r:
+        - DBI
+        - dbplyr
+        - dplyr
+        - duckdb
+        - ggplot2
+        - nanoarrow
+        - praise
+        - reticulate
+        - tidyverse
+        - yyjsonr
+      python:
+        - numpy
+        - pandas
+        - matplotlib
+        - plotnine
+      duckdb:
+        - icu
+        - json
+        - sqlite
+      python_version: []
+      exclude_newer: ~
+    prepared: true
+    runtime_requirements:
+      r:
+        - DBI
+        - duckdb
+        - jsonlite
+        - nanoarrow
+        - pillar
+        - reticulate
+        - tibble
+        - utf8
+      python: []
+    worker_id: 1
+    status: prepared

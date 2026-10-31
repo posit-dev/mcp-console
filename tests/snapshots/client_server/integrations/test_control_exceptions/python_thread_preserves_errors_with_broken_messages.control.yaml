@@ -1,0 +1,56 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: raise BrokenMessage()
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<integrator>", line 1, in <module>
+          BrokenMessage: <exception str() failed>
+    isError: false
+    execution_error:
+      ename: BrokenMessage
+      evalue: <exception str() failed>
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<integrator>", line 1, in <module>
+        - |
+          BrokenMessage: <exception str() failed>
+---
+request:
+  id: "2"
+  op: evaluate
+  language: python
+  execution: immediate
+  code: raise BrokenMessage()
+response:
+  id: "2"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |
+          Traceback (most recent call last):
+            File "<integrator>", line 1, in <module>
+          BrokenMessage: <exception str() failed>
+    isError: false
+    execution_error:
+      ename: BrokenMessage
+      evalue: <exception str() failed>
+      traceback:
+        - |
+          Traceback (most recent call last):
+        - |2
+            File "<integrator>", line 1, in <module>
+        - |
+          BrokenMessage: <exception str() failed>

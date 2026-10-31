@@ -1,0 +1,24 @@
+---
+request:
+  id: "1"
+  op: evaluate
+  language: python
+  code: |
+    print("integrator pending", flush=True)
+    with open('<workspace>/entered', "wb", buffering=0) as gate:
+        gate.write(b"1")
+    with open('<workspace>/release', "rb", buffering=0) as gate:
+        gate.read(1)
+  busy: wait
+  wait_ms: 30000
+response:
+  id: "1"
+  result:
+    resultType: complete
+    content:
+      - type: text
+        text: |-
+          integrator pending
+          [stopped by session restart request before evaluation finished]
+    isError: true
+    execution_error: ~

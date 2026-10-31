@@ -462,7 +462,10 @@ def _mcp_console_print_exception(
     _services_globals=_services.__dict__,
     _getattr=_builtins.getattr,
     _id=_builtins.id,
+    _list=_builtins.list,
+    _str=_builtins.str,
     _zip=_builtins.zip,
+    _record_error=_services.report_execution_error,
 ):
     # Build every frame first so filtering retains Python's source positions.
     rendered = _traceback.TracebackException.from_exception(error, limit=_sys.maxsize)
@@ -498,7 +501,9 @@ def _mcp_console_print_exception(
             remove_private_frames(child, child_summary)
 
     remove_private_frames(error, rendered)
-    _sys.stderr.write("".join(rendered.format()))
+    traceback = _list(rendered.format())
+    _record_error(error, _str(rendered), traceback)
+    _sys.stderr.write("".join(traceback))
 
 
 def _mcp_console_collect_plots(
@@ -605,6 +610,9 @@ def _mcp_console_eval_cell(
     _print_exception=_mcp_console_print_exception,
     _ValueError=_builtins.ValueError,
     _SyntaxError=_builtins.SyntaxError,
+    *,
+    finalize=True,
+    propagate_exit=True,
 ):
     try:
         module = _parse(source, filename=filename, mode="exec")
@@ -617,7 +625,7 @@ def _mcp_console_eval_cell(
             statements = _compile(module, filename, "exec")
             expression = None
     except _BaseException as error:
-        if _isinstance(error, _SystemExit):
+        if propagate_exit and _isinstance(error, _SystemExit):
             raise
         if "\0" in source and _isinstance(error, _ValueError):
             error = _SyntaxError("source code string cannot contain null bytes")
@@ -629,10 +637,11 @@ def _mcp_console_eval_cell(
             if expression is not None:
                 _sys.displayhook(_eval(expression, _main.__dict__))
         except _BaseException as error:
-            if _isinstance(error, _SystemExit):
+            if propagate_exit and _isinstance(error, _SystemExit):
                 raise
             _print_exception(error)
-    _finalize_plots()
+    if finalize:
+        _finalize_plots()
     return None
 
 

@@ -28,7 +28,14 @@ impl SendArguments {
             }
         }
         let mut fields = languages.fields();
-        fields.extend(["control", "requirements", "stdin", "timeout_ms"]);
+        fields.extend([
+            "note",
+            "session",
+            "control",
+            "requirements",
+            "stdin",
+            "timeout_ms",
+        ]);
         if let Some(unknown) = arguments
             .keys()
             .find(|field| !fields.contains(&field.as_str()))
@@ -55,6 +62,19 @@ pub(super) struct SendArguments {
     pub(super) python: Option<String>,
     #[schemars(description = super::presentation::sql_description())]
     pub(super) sql: Option<String>,
+    /// Plain text or Markdown journal annotation, recorded as prose before any same-call code.
+    /// Use it to record observations, questions, or the purpose of a step. May accompany other
+    /// arguments or stand alone. A note-only call returns without waiting for or collecting
+    /// worker output. Notes are not evaluated.
+    pub(super) note: Option<String>,
+    /// Select a session by name (default: "default"). A new name starts an independent session
+    /// with its first code cell. Each session retains its own variables, database
+    /// state, and requirements; different sessions can execute concurrently. Supply the name
+    /// again to poll, interrupt, or restart it. An empty call without session polls all active
+    /// sessions and lists their statuses. Restart without code or nonempty stdin stops a named
+    /// session until its next code or nonempty-input call; the default session restarts immediately.
+    #[serde(default = "default_session")]
+    pub(super) session: String,
     #[serde(default = "default_timeout_ms")]
     #[schemars(description = super::presentation::timeout_description())]
     pub(super) timeout_ms: u64,
@@ -128,6 +148,20 @@ pub(super) struct Requirements {
     pub(super) python: Option<Vec<String>>,
 }
 
+impl Requirements {
+    pub(super) fn into_worker(self, call_id: Option<u64>) -> crate::worker_client::Requirements {
+        crate::worker_client::Requirements {
+            action: self.action,
+            call_id,
+            duckdb: self.duckdb.unwrap_or_default(),
+            r: self.r.unwrap_or_default(),
+            python: self.python.unwrap_or_default(),
+            python_version: self.python_version.unwrap_or_default(),
+            exclude_newer: self.exclude_newer,
+        }
+    }
+}
+
 fn supplied_list<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<Vec<String>>, D::Error> {
@@ -142,4 +176,8 @@ fn supplied_nullable<'de, D: serde::Deserializer<'de>>(
 
 fn default_timeout_ms() -> u64 {
     DEFAULT_TIMEOUT_MS
+}
+
+fn default_session() -> String {
+    "default".into()
 }

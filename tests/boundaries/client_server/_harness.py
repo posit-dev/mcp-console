@@ -483,7 +483,7 @@ def expose_idle_input_request(client: McpClient, temporary_path: Path) -> None:
         "zod-idle-input-request-processed",
         client,
     )
-    client.send()
+    client.send(session="default")
     assert last_result_text(client) == (
         '[input requested: "idle> "]\n[waiting for stdin]'
     )
@@ -502,7 +502,7 @@ def submit_prompted_stdin(
     client.receive(submitted)
     if last_result_text(client) != expected:
         assert last_result_text(client) == "\n[waiting for stdin]"
-        client.send()
+        client.send(session="default")
     assert last_result_text(client) == expected
     calls = client.transcript[poll_start:]
     submitted["result"] = calls[-1]["result"]

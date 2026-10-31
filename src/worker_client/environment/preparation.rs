@@ -5,7 +5,8 @@ use super::super::lifecycle::{
     RequirementChangeState, WorkerGeneration,
 };
 use super::super::{
-    Client, EnvironmentPreparationAdmissionFailure, PreparationOutcome, Response, WorkerState,
+    Client, EnvironmentPreparationAdmissionFailure, PreparationOutcome, Response, SessionKind,
+    WorkerState,
 };
 use super::requirements::{RequirementDelta, Requirements, push_duckdb_r_target};
 use super::resolution::EnvironmentResolutionFailure;
@@ -14,8 +15,8 @@ use super::state::{Environment, commit_managed_r};
 pub(in crate::worker_client) enum PrepareResult {
     Prepared,
     RestartRequired,
-    Failed(Response),
-    WorkerStopped(Response),
+    Failed { response: Response, message: String },
+    WorkerStopped { response: Response, message: String },
 }
 
 #[derive(Clone, Copy)]
@@ -31,10 +32,14 @@ impl Client {
         &self,
         requirements: Requirements,
     ) -> Result<PrepareResult, String> {
+        let activation = self.activate_session()?;
         let client = self.clone();
-        tokio::task::spawn_blocking(move || client.prepare_blocking(requirements))
-            .await
-            .map_err(|error| format!("requirement preparation task failed: {error}"))?
+        tokio::task::spawn_blocking(move || {
+            let _activation = activation;
+            client.prepare_blocking(requirements)
+        })
+        .await
+        .map_err(|error| format!("requirement preparation task failed: {error}"))?
     }
 
     fn prepare_blocking(&self, requirements: Requirements) -> Result<PrepareResult, String> {
@@ -162,8 +167,12 @@ impl Client {
         if delta.is_empty() {
             return Ok(PrepareResult::Prepared);
         }
+        // Named sessions can remain stopped after confirmed retirement. Their
+        // next declaration uses prestart preparation, with no live state to patch.
+        let stopped_named =
+            self.0.session_kind == SessionKind::Named && matches!(*worker, WorkerState::Stopped);
         self.require_explicit_restart(&delta)?;
-        if self.0.python_only && !replace_default {
+        if self.0.python_only && !replace_default && !stopped_named {
             match &*worker {
                 WorkerState::Initial => {}
                 WorkerState::Running(_) => {
@@ -188,13 +197,14 @@ impl Client {
                 );
             }
         };
-        if !delta.restart_required
+        if (!delta.restart_required || stopped_named)
             && self.requirement_change_state(generation)? == RequirementChangeState::RestartRequired
         {
             return Ok(PrepareResult::RestartRequired);
         }
         if !delta.restart_required
             && matches!(*worker, WorkerState::Stopped)
+            && !stopped_named
             && matches!(intent, PreparationIntent::Standalone)
         {
             return Ok(PrepareResult::RestartRequired);
@@ -312,7 +322,11 @@ impl Client {
                 lifecycle.processes.resolver = None;
                 *environment = resolved;
                 self.record_accepted_python(&environment);
-                self.publish_requirements(&environment);
+                if stopped_named {
+                    self.publish_replacement_requirements(&environment);
+                } else {
+                    self.publish_requirements(&environment);
+                }
                 self.record_requirements(action, call_id, &environment);
                 Ok(PrepareResult::Prepared)
             }
@@ -559,21 +573,28 @@ impl Client {
                 if stop_worker {
                     return match self.stop_failed_worker(worker, generation) {
                         Ok(FailedWorkerStop::Stopped(outcome)) => {
+                            let message = error.clone();
                             self.0.output.push_failure(
                                 super::super::output::SendFailure::from(error)
                                     .worker_outcome(outcome)
                                     .worker_stopped(),
                             );
-                            Ok(PrepareResult::WorkerStopped(self.0.output.take()))
+                            Ok(PrepareResult::WorkerStopped {
+                                response: self.0.output.take(),
+                                message,
+                            })
                         }
                         Ok(FailedWorkerStop::RestartOwnsWorker) => Err(error),
                         Err(stop_error) => {
-                            self.0.output.push_failure(
-                                stop_error
-                                    .attach_to(super::super::output::SendFailure::from(error))
-                                    .worker_stopped(),
-                            );
-                            Ok(PrepareResult::WorkerStopped(self.0.output.take()))
+                            let failure = stop_error
+                                .attach_to(super::super::output::SendFailure::from(error))
+                                .worker_stopped();
+                            let message = failure.message.clone();
+                            self.0.output.push_failure(failure);
+                            Ok(PrepareResult::WorkerStopped {
+                                response: self.0.output.take(),
+                                message,
+                            })
                         }
                     };
                 }
@@ -585,16 +606,22 @@ impl Client {
 
     fn failed_preparation_response(&self, error: String) -> PrepareResult {
         let mut response = self.0.output.take();
-        response.push_tool_error(error);
-        PrepareResult::Failed(response)
+        response.push_tool_error(error.clone());
+        PrepareResult::Failed {
+            response,
+            message: error,
+        }
     }
 
     fn failed_pre_evaluation_resolution(&self, error: String) -> PrepareResult {
         let mut response = self.0.output.take_prelude();
         let mut failure = Response::default();
-        failure.push_tool_error(error);
+        failure.push_tool_error(error.clone());
         response.extend_cell_after_idle_prelude(failure);
-        PrepareResult::Failed(response)
+        PrepareResult::Failed {
+            response,
+            message: error,
+        }
     }
 
     fn commit_running_environment(

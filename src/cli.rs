@@ -50,7 +50,7 @@ Examples:
 #[command(
     name = "mcp-console",
     bin_name = "mcp-console",
-    version,
+    version = env!("MCP_CONSOLE_VERSION"),
     about = env!("CARGO_PKG_DESCRIPTION"),
     after_help = ROOT_EXAMPLES
 )]
@@ -171,6 +171,10 @@ pub enum Command {
     Serve {
         #[command(flatten)]
         overrides: ConfigOverrides,
+
+        /// Listen for integrator JSONL requests on a private Unix socket
+        #[arg(long, value_name = "PATH", hide = true)]
+        control_socket: Option<PathBuf>,
 
         /// Run evaluated code and dependency resolution with host permissions
         #[arg(long)]

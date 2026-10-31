@@ -1,0 +1,58 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: print('default')
+result:
+  content:
+    - type: text
+      text: |
+        default
+  isError: false
+---
+send:
+  note: Record beta's question before starting its worker.
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: print('alpha')
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        alpha
+  isError: false
+---
+send:
+  python: print('beta')
+  note: Run beta's initial measurement.
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        beta
+  isError: false
+---
+send:
+  note: Alpha has completed its baseline.
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  note: The default measurement is complete.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
