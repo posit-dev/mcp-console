@@ -1,0 +1,27 @@
+---
+scenario: >-
+  Nonwaiting preparation needs completed MCP delivery, not only received
+  result bytes.
+fixture: >-
+  A native checkpoint holds the response write after its full frame
+  reaches the client and before delivery acknowledgment.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: print('delivered before acknowledgment')
+result:
+  content:
+    - type: text
+      text: |
+        delivered before acknowledgment
+  isError: false
+---
+send:
+  python: import delivery_probe; print(delivery_probe.value)
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false

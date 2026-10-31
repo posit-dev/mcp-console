@@ -3,12 +3,16 @@
 import json
 import sys
 import tempfile
+import time
 from contextlib import closing
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.integrations.test_control import ControlClient
+from boundaries.client_server.python.test_without_r import (
+    environment as sans_r_environment,
+)
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
@@ -17,15 +21,100 @@ from support.normalization import (
     normalize_python_resolution_error,
     normalize_recording,
 )
+from support.native import LOADER_VARIABLE, build_interposer
+from support.python import write_test_wheel
 from support.r import r_test_environment
 from support.records import TranscriptWithCompanions
-from support.requirements import POSIX, R, requires
-from support.resolvers import recording_uv_environment
+from support.requirements import NATIVE_FIXTURES, POSIX, R, requires
+from support.resolvers import expose_uv, recording_uv_environment
 from support.suites import run_this_suite
 
 
 def text(result: dict) -> str:
     return "".join(block.get("text", "") for block in result["content"])
+
+
+@requires(NATIVE_FIXTURES, POSIX)
+@executions(DIRECT)
+def test_preparation_waits_for_mcp_delivery_acknowledgment(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-prepare-"
+    ) as directory:
+        root = Path(directory)
+        (root / "python3").symlink_to(sys.executable)
+        expose_uv(root)
+        index = write_test_wheel(root, "delivery_probe", "value = 42\n")
+        endpoint = root / "control.sock"
+        with (
+            closing(FifoCheckpoint.create(root / "ack-reached")) as reached,
+            closing(FifoCheckpoint.create(root / "ack-release")) as release,
+            McpClient(
+                binary,
+                execution.serve("--control-socket", str(endpoint)),
+                {
+                    **sans_r_environment(root),
+                    "UV_INDEX": index.as_uri(),
+                    "UV_INDEX_STRATEGY": "first-index",
+                    LOADER_VARIABLE: str(
+                        build_interposer(root, "control_response_ack")
+                    ),
+                    "MCP_CONSOLE_TEST_ACK_MATCH": "delivered before acknowledgment",
+                    "MCP_CONSOLE_TEST_ACK_REACHED": str(reached.path),
+                    "MCP_CONSOLE_TEST_ACK_RELEASE": str(release.path),
+                },
+                root,
+            ) as client,
+        ):
+            client.transcript.append(
+                {
+                    "scenario": "Nonwaiting preparation needs completed MCP delivery, not only received result bytes.",
+                    "fixture": "A native checkpoint holds the response write after its full frame reaches the client and before delivery acknowledgment.",
+                }
+            )
+            client.initialize_and_list_tools()
+            try:
+                client.expect(
+                    "delivered before acknowledgment\n",
+                    python="print('delivered before acknowledgment')",
+                )
+                reached.wait(
+                    "completed MCP response awaits acknowledgment", client=client
+                )
+                with ControlClient(endpoint) as control:
+                    pending = control.request(op="status")["result"]
+                    assert pending["state"] == "awaiting_result", pending
+                    busy = control.request(
+                        op="prepare", requirements={"python": ["delivery-probe"]}
+                    )["result"]
+                    assert busy["status"] == "busy", busy
+                    assert "delivery-probe" not in busy["requirements"]["python"], busy
+                    release.release()
+                    control.wait_for_idle(client)
+                    prepared = control.request(
+                        op="prepare",
+                        requirements={"python": ["delivery-probe"]},
+                        response_timeout=max(
+                            0, client.response_deadline() - time.monotonic()
+                        ),
+                    )["result"]
+                    assert prepared["status"] == "prepared", prepared
+                    assert prepared["worker_id"] == busy["worker_id"], prepared
+                    assert "delivery-probe" in prepared["requirements"]["python"], (
+                        prepared
+                    )
+                    client.expect(
+                        "42\n",
+                        python="import delivery_probe; print(delivery_probe.value)",
+                    )
+                    transcript = client.finish()
+                return TranscriptWithCompanions(
+                    normalize_recording(transcript, root),
+                    {"control.yaml": normalize_recording(control.transcript, root)},
+                )
+            finally:
+                release.release()
 
 
 @requires(POSIX, R)
@@ -96,8 +185,13 @@ def test_preparation_rejects_incomplete_interpreter_startup(
                             "native startup output\n[output produced while idle]\nready\n",
                             r='cat("ready\\n")',
                         )
+                        control.wait_for_idle(client)
                         prepared = control.request(
-                            op="prepare", requirements={"r": ["praise"]}
+                            op="prepare",
+                            requirements={"r": ["praise"]},
+                            response_timeout=max(
+                                0, client.response_deadline() - time.monotonic()
+                            ),
                         )["result"]
                         assert prepared["status"] == "prepared", prepared
                         assert prepared["worker_id"] == configured["worker_id"], (
@@ -140,7 +234,12 @@ def test_prepares_named_requirements_before_start_and_after_stop(
                 )
                 for package, worker in (("praise", 0), ("cli", 1)):
                     prepared = control.request(
-                        op="prepare", session="analysis", requirements={"r": [package]}
+                        op="prepare",
+                        session="analysis",
+                        requirements={"r": [package]},
+                        response_timeout=max(
+                            0, client.response_deadline() - time.monotonic()
+                        ),
                     )["result"]
                     assert prepared["status"] == "prepared", prepared
                     assert prepared["worker_id"] == worker, prepared
@@ -183,6 +282,7 @@ def test_prepares_live_requirements_without_replacing_session(
             client.expect(r="kept_r <- new.env(); kept_r$value <- 42L")
             client.expect(python="kept_python = {'value': 42}")
             with ControlClient(endpoint) as control:
+                control.wait_for_idle(client)
                 worker = control.request(op="output")["result"]["worker_id"]
                 prepared = control.request(
                     op="prepare",
@@ -191,6 +291,9 @@ def test_prepares_live_requirements_without_replacing_session(
                         "python": ["more-itertools"],
                         "duckdb": ["json"],
                     },
+                    response_timeout=max(
+                        0, client.response_deadline() - time.monotonic()
+                    ),
                 )["result"]
                 assert prepared["status"] == "prepared", prepared
                 assert prepared["worker_id"] == worker, prepared
@@ -253,7 +356,13 @@ def test_busy_preparation_preserves_private_evaluation(
                     with open({str(release.path)!r}, "rb", buffering=0) as gate:
                         gate.read(1)
                     """)
-                pending = evaluator.start(op="evaluate", language="python", code=source)
+                pending = evaluator.start(
+                    op="evaluate",
+                    language="python",
+                    code=source,
+                    busy="wait",
+                    wait_ms=30000,
+                )
                 try:
                     entered.wait(client=client)
                     busy = control.request(
@@ -323,6 +432,7 @@ def test_failed_preparation_retains_manifest_state_and_mcp_output(
                     threading.Thread(target=background_output).start()
                     """)
                 client.expect(python=source)
+                control.wait_for_idle(client)
                 release.release()
                 while True:
                     snapshot = json.loads(observer.reader.readline(timeout=30))[
@@ -334,7 +444,11 @@ def test_failed_preparation_retains_manifest_state_and_mcp_output(
                     ):
                         break
                 failed = control.request(
-                    op="prepare", requirements={"python": [candidate]}
+                    op="prepare",
+                    requirements={"python": [candidate]},
+                    response_timeout=max(
+                        0, client.response_deadline() - time.monotonic()
+                    ),
                 )["result"]
                 assert failed["status"] == "failed", failed
                 assert "synthetic uv failure" in failed["message"], failed
