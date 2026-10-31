@@ -1,0 +1,22 @@
+shiny==1.9.0
+shinychat==0.7.2
+chatlas[anthropic,mcp]==0.23.0
+mcp==2.3.0
+pandas[output-formatting]==3.1.0
+matplotlib==3.11.2
+duckdb==2.0.0
+py-yaml12==0.2.0
+uv==0.13.1
+# Formatters for the displayed code.
+air-formatter==0.12.0
+ruff==0.17.3
+sqlglot==30.26.0
+# Analysis packages for sessions that use this prepared environment.
+numpy==2.5.4
+plotnine==0.15.8
+polars==2.1.0
+pyarrow==26.0.0
+scikit-learn==1.9.1
+scipy==1.18.1
+seaborn==0.13.2
+statsmodels==0.15.0

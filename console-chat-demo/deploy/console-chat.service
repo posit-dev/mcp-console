@@ -1,0 +1,21 @@
+[Unit]
+Description=Console Chat Shiny demo
+After=network-online.target
+
+[Service]
+Type=simple
+User=console-chat
+Group=console-chat
+WorkingDirectory=/srv/console-chat-demo
+EnvironmentFile=/srv/console-chat-secrets/anthropic.env
+ExecStart=/srv/console-chat-demo/.venv/bin/python -B run.py --binary /opt/mcp-console/bin/mcp-console --private-path /srv/console-chat-secrets --host 127.0.0.1 --port 8000 --sessions 8
+Restart=on-failure
+UMask=0077
+MemoryMax=4G
+TasksMax=512
+CPUQuota=200%
+TimeoutStopSec=30
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
