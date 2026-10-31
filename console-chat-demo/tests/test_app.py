@@ -31,6 +31,7 @@ def test_app_serves_chat_and_only_public_assets(tmp_path, monkeypatch):
         for count in ("26,115", "3,322", "1,458", "16"):
             assert count in response.text
         assert 'role="tab"' in response.text and "Table views" in response.text
+        assert 'aria-label="Expand card"' in response.text
         assert "Parquet" in response.text and "Format code" in response.text
         assert "Plots &amp; results" not in response.text
         greeting = html.unescape(response.text).replace('\\"', '"')

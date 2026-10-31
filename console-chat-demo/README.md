@@ -12,6 +12,7 @@ Each follow-up suggests a related task in another runtime; the app rejects sugge
 Plots appear inline in the chat.
 **Format code** changes only the displayed code, using Air, Ruff or SQLGlot; it does not change what runs.
 **Table views** lets you browse the five source tables and named views the agent creates.
+Its **Full screen** control expands the table to fill the window; **About the demo** remains the opening tab.
 **Download report** exports Quarto source and the Parquet data in a zip.
 
 The interface builds on [querychat](https://posit-dev.github.io/querychat/py/)'s chat and data-view workflow.

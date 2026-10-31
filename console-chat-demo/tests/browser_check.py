@@ -42,14 +42,24 @@ async def main() -> None:
             "aria-selected", "true"
         )
         await expect(first.get_by_text("336,776", exact=True)).to_be_visible()
+        await expect(first.get_by_role("button", name="Expand card")).to_be_hidden()
         for language in ("SQL", "R", "Python"):
             await expect(
                 first.locator(f'.suggestion[data-runtime="{language}"]')
             ).to_be_visible()
         await first.get_by_role("tab", name="Table views").click()
+        await first.get_by_role("button", name="Expand card").click()
+        await expect(first.get_by_role("button", name="Close card")).to_be_visible()
+        assert await first.locator("#data_preview").evaluate(
+            "el => el.getBoundingClientRect().width > innerWidth * 0.9"
+        ), "The expanded grid should use the window's width"
+        await first.screenshot(path=str(artifacts / "table-full-screen.png"))
         await first.get_by_label("View", exact=True).select_option("airlines")
         await expect(first.locator(".data-caption")).to_contain_text("16 rows")
+        await first.get_by_role("button", name="Close card").click()
+        await expect(first.get_by_label("View", exact=True)).to_have_value("airlines")
         await first.get_by_role("tab", name="About the demo").click()
+        await expect(first.get_by_role("button", name="Expand card")).to_be_hidden()
         await first.screenshot(path=str(artifacts / "initial.png"), full_page=True)
 
         async def submit(page, prompt):

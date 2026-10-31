@@ -79,6 +79,11 @@ body.console-chat-app {
 .dataset-table th, .dataset-table td { padding: 5px 0; border-bottom: 1px solid var(--line); }
 .dataset-table th:last-child, .dataset-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 #data_preview { font-size: 12px; }
+.inspection-column .card[data-full-screen="false"] #data_preview { flex: 0 0 360px; height: 360px; }
+.inspection-column .bslib-full-screen-enter { opacity: 1; top: 6px; bottom: auto; }
+.inspection-column .bslib-full-screen-enter::after { content: "Full screen"; margin-left: 6px; }
+.inspection-column .card:has(#inspection [data-value="about"].active) .bslib-full-screen-enter { display: none; }
+.inspection-column .card:has(#inspection [data-value="tables"].active) > .card-header { padding-right: 120px; }
 .inspection-column .data-caption { font-size: 11px; margin-top: 8px; }
 .view-heading details { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
 .view-heading pre { margin: 6px 0 0; max-height: 120px; overflow: auto; font-size: 11px; }

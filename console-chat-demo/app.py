@@ -317,6 +317,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                     ),
                     id="inspection",
                     selected="about",
+                    full_screen=True,
                 ),
                 ui.p(
                     "Questions, requested data and tool output are sent to the model provider. "
@@ -634,7 +635,7 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
         def data_preview():
             shown = selected_view()
             return render.DataGrid(
-                shown["data"], height="360px", filters=True, summary=True
+                shown["data"], width="100%", filters=True, summary=True
             )
 
         @render.ui
