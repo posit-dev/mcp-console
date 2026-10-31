@@ -963,10 +963,10 @@ def test_recovers_from_conflicting_requirements_after_python_startup(
     environment = dict(os.environ, RUST_LOG="error")
     with McpClient(binary, execution.serve(), environment) as client:
         client.initialize_and_list_tools()
-        client.send(r="startup_marker <- 41L")
-        assert last_result_text(client) == "[done]", client.transcript[-1]
-        client.send(
-            python="import sys; retained_object = object(); retained_object_id = id(retained_object); print(sys.executable)"
+        client.expect(r="startup_marker <- 41L", timeout_ms=0)
+        client.expect(
+            None,
+            python="import sys; retained_object = object(); retained_object_id = id(retained_object); print(sys.executable)",
         )
         running_python = last_result_text(client).strip()
         assert Path(running_python).is_file(), client.transcript[-1]
@@ -1088,8 +1088,7 @@ def test_activates_without_reticulate_virtualenv_helper(
               where = namespace
             )))
             """)
-        client.send(r=r)
-        assert last_result_text(client) == "[done]", client.transcript[-1]
+        client.expect(r=r, timeout_ms=0)
         # fmt: python
         python = code("""
             import multiprocessing.spawn
@@ -1150,13 +1149,13 @@ def test_preserves_setup_after_r_initialization(
         execution.serve("-c", "python.managed.resolution=implicit"),
     ) as client:
         client.initialize_and_list_tools()
-        client.send(
+        client.expect(
             # fmt: r
             r=code("""
                 invisible(reticulate::py_config())
-                """)
+                """),
+            timeout_ms=0,
         )
-        assert last_result_text(client) == "[done]", client.transcript[-1]
         # Load multiprocessing before activation so a spawned child must use
         # the updated interpreter after the new requirements are available.
         # fmt: python
@@ -1231,10 +1230,11 @@ def test_retries_managed_import_setup_after_interrupt(
     with startup_client(
         binary, execution, source, "-c", "python.managed.resolution=implicit"
     ) as client:
-        client.send(python="raise AssertionError('interrupted setup ran the cell')")
-        assert last_result_text(client) == (
-            '[input requested: "Managed import setup> "]\n[waiting for stdin]'
-        ), client.transcript[-1]
+        client.expect(
+            '[input requested: "Managed import setup> "]\n[waiting for stdin]',
+            python="raise AssertionError('interrupted setup ran the cell')",
+            timeout_ms=0,
+        )
         wait_for_evaluation_output(
             client,
             "Traceback (most recent call last):\n"

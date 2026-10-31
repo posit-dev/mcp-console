@@ -1736,7 +1736,7 @@ def live_python_activation_failure_requires_restart(
             # Separate fd 2 from the sideband deterministically. Activation
             # diagnostics must arrive before their preparation result even
             # when the relay cannot observe the raw stderr stream.
-            client.send(
+            client.expect(
                 # fmt: python
                 python=code("""
                     import os, tempfile
@@ -1745,7 +1745,8 @@ def live_python_activation_failure_requires_restart(
                     original_stderr = os.dup(2)
                     raw_stderr = tempfile.TemporaryFile()
                     _ = os.dup2(raw_stderr.fileno(), 2)
-                    """)
+                    """),
+                timeout_ms=0,
             )
             initial = client.send(requirements={"action": "get"})["structuredContent"][
                 "requirements"

@@ -965,7 +965,10 @@ def test_shared_managed_bootstrap_and_replacement(
     for mode in ("without-r", "python-first", "r-first"):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            environment = dict(os.environ)
+            index = write_test_wheel(root, "mcp_console_test_added", "answer = 42\n")
+            environment = dict(
+                os.environ, UV_INDEX=index.as_uri(), UV_INDEX_STRATEGY="first-index"
+            )
             environment.pop("RETICULATE_PYTHON", None)
             if mode == "python-first":
                 environment["RETICULATE_PYTHON"] = "managed"
@@ -1047,7 +1050,7 @@ def test_shared_managed_bootstrap_and_replacement(
                     )
                 client.expect(
                     "live import retained objects\n",
-                    python="import more_itertools; assert id(peer_object) == peer_id; assert os.path.samefile(sys.base_prefix, peer_library); print('live import retained objects')",
+                    python="import mcp_console_test_added; assert mcp_console_test_added.answer == 42; assert id(peer_object) == peer_id; assert os.path.samefile(sys.base_prefix, peer_library); print('live import retained objects')",
                 )
                 client.send(python="raise ValueError('after accepted activation')")
                 assert last_result_text(client).endswith(
@@ -1056,12 +1059,12 @@ def test_shared_managed_bootstrap_and_replacement(
                 client.send(control="restart")
                 client.expect(
                     "accepted additions survived restart\n",
-                    python="import yaml12, more_itertools; print('accepted additions survived restart')",
+                    python="import yaml12, mcp_console_test_added; assert mcp_console_test_added.answer == 42; print('accepted additions survived restart')",
                 )
                 client.send(python="import os; os._exit(47)")
                 client.expect(
                     "accepted additions survived crash\n",
-                    python="import yaml12, more_itertools; print('accepted additions survived crash')",
+                    python="import yaml12, mcp_console_test_added; assert mcp_console_test_added.answer == 42; print('accepted additions survived crash')",
                 )
                 current = client.finish()[3:]
                 if not with_r:

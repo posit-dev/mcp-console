@@ -3,6 +3,7 @@
 ---
 send:
   r: startup_marker <- 41L
+  timeout_ms: 0
 result:
   content:
     - type: text
