@@ -9,7 +9,7 @@ response:
     markdown: <workspace>/.agents/console/sessions/<recording ID>/transcript.md
     qmd: >-
       <workspace>/.agents/console/sessions/<recording
-      ID>/sessions/session-001.qmd
+      ID>/sessions/session-001/session.qmd
     worker_id: 1
 ---
 request:
@@ -40,7 +40,7 @@ response:
     markdown: <workspace>/.agents/console/sessions/<recording ID>/transcript.md
     qmd: >-
       <workspace>/.agents/console/sessions/<recording
-      ID>/sessions/session-001.qmd
+      ID>/sessions/session-001/session.qmd
     worker_id: 1
 ---
 request:
@@ -73,5 +73,5 @@ response:
     markdown: <workspace>/.agents/console/sessions/<recording ID>/transcript.md
     qmd: >-
       <workspace>/.agents/console/sessions/<recording
-      ID>/sessions/session-002.qmd
+      ID>/sessions/session-002/session.qmd
     worker_id: 2

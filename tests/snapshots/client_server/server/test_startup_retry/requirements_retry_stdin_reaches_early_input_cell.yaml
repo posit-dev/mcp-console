@@ -25,6 +25,8 @@ result:
         [input requested: "retry> "]
         repaired input
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: answer = input('retry> '); print(answer)

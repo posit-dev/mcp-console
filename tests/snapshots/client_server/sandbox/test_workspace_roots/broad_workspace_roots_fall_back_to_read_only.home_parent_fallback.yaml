@@ -37,6 +37,8 @@ result:
       text: |
         broad workspace read-only; explicit output and private temp writable
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -79,6 +81,8 @@ result:
       text: |
         broad workspace read-only; explicit output and private temp writable
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 stderr: >
   Warning: refusing automatic workspace writes to '<launch>'; falling back

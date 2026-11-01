@@ -42,3 +42,5 @@ result:
       text: |
         Symlinked package and helper keep their optional-import fallback
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

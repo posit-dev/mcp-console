@@ -43,6 +43,8 @@ result:
       text: |
         [1] 42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -63,3 +65,5 @@ result:
       text: |
         [1] 42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

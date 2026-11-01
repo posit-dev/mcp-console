@@ -16,6 +16,8 @@ result:
       text: |
         delivered before acknowledgment
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: import delivery_probe; print(delivery_probe.value)

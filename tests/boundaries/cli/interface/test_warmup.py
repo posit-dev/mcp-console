@@ -80,6 +80,51 @@ def test_checks_all_languages(binary: Path, execution: Execution) -> Transcript:
         return [{"stdout": result.stdout}]
 
 
+def test_polls_without_merging_progress_and_check_output(binary: Path) -> Transcript:
+    server = Path(__file__).resolve().parents[3] / "fixtures/python_sync_server.py"
+    with TemporaryDirectory() as temporary:
+        workspace = Path(temporary)
+        result = subprocess.run(
+            [binary, "warmup-server", sys.executable, "-I", server, "warmup-progress"],
+            cwd=workspace,
+            env=os.environ | {"MCP_CONSOLE_HOME": str(workspace / "home")},
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+        assert result.returncode == 0 and not result.stderr, result
+        assert "R: OK\n" in result.stdout, result
+        assert "Python: OK\n" in result.stdout, result
+        assert "SQL: OK\n" in result.stdout, result
+        assert result.stdout.endswith(
+            "Shutdown: OK\nAll checks passed. Runtime caches are warm.\n"
+        ), result
+        calls = [
+            request["params"]["arguments"]
+            for line in (workspace / "requests.jsonl").read_text().splitlines()
+            if (request := json.loads(line))["method"] == "tools/call"
+        ]
+        assert len(calls) == 6, calls
+        assert [list(arguments) for arguments in calls] == [
+            ["r"],
+            [],
+            ["python"],
+            [],
+            ["sql"],
+            [],
+        ], calls
+        return [
+            {
+                "scenario": "A fake MCP server returns preparation/startup progress, "
+                "then each language's success on an empty poll. Cells are submitted once.",
+                "send_arguments": calls,
+                "stdout": result.stdout,
+            }
+        ]
+
+
 def trusted_warmup_environment(workspace: Path) -> dict[str, str]:
     environment = no_r_environment(workspace)
     uv = workspace / "commands/uv"

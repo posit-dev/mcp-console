@@ -72,6 +72,8 @@ result:
       data: <PNG byte-identical to live seaborn savefig 2>
       mimeType: image/png
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: (matplotlib.get_backend(), plt.get_fignums())

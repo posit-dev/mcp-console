@@ -20,6 +20,8 @@ result:
         [input requested: "answer> "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:

@@ -14,6 +14,8 @@ result:
       text: |
         explicit selection retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -32,6 +34,8 @@ result:
         explicit selection retained
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 !same-as python-only MCP initialization for this execution mode
 ---
@@ -48,6 +52,8 @@ result:
       text: |
         explicit selection retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -66,3 +72,5 @@ result:
         explicit selection retained
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

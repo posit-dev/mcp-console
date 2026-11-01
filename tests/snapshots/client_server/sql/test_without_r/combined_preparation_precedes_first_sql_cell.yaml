@@ -14,6 +14,8 @@ result:
         -------
         [0 rows]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: import six; print('combined SQL preparation')

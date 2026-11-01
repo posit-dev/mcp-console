@@ -1,5 +1,9 @@
 ---
 bare: |
+  Session bundle on the Console host: "<recording>/sessions/session-001"
+  Source: "<recording>/sessions/session-001/session.qmd"
+  Report: "<recording>/sessions/session-001/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
   [1] 2
 fields:
   - control
@@ -13,6 +17,10 @@ fields:
   - timeout_ms
 ---
 custom: |
+  Session bundle on the Console host: "<recording>/sessions/session-001"
+  Source: "<recording>/sessions/session-001/session.qmd"
+  Report: "<recording>/sessions/session-001/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
   zod: configured
 fields:
   - control

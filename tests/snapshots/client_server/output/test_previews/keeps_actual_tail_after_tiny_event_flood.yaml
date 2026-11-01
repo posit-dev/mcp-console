@@ -19,6 +19,8 @@ result:
       text: |
         after final image
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   session: default

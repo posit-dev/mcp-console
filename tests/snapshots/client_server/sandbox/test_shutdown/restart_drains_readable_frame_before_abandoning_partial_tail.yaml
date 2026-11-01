@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: wait after readable frame and partial tail
@@ -40,3 +42,5 @@ result:
       text: |
         zod: replacement ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

@@ -9,6 +9,8 @@ result:
       text: |
         zod: original
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: interrupt
@@ -54,3 +56,5 @@ result:
         [starting new worker]
         zod: replacement
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

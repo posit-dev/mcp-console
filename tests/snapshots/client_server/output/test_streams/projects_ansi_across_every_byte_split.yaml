@@ -17,6 +17,8 @@ result:
               plain red €🙂
             count: 32
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 fixture:
   operation: project_ansi_sample_02

@@ -28,6 +28,8 @@ result:
         child=<processx child pid>
         temp=<sandbox temp>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 transcript_normalization:
   target: result.content[0].text
   process_ids: omitted

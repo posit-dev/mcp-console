@@ -20,6 +20,8 @@ result:
       text: |
         closed
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 launch_path: custom worker
 send:
@@ -42,6 +44,8 @@ result:
       text: |
         closed
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 launch_path: custom relay and worker
 send:
@@ -64,3 +68,5 @@ result:
       text: |
         closed
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

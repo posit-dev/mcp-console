@@ -13,6 +13,8 @@ result:
         [starting new worker]
         [idle]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: echo echo
@@ -22,3 +24,5 @@ result:
       text: |
         zod: echo
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

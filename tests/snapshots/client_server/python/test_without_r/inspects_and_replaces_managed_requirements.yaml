@@ -107,6 +107,8 @@ result:
       text: |
         42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   requirements:
@@ -149,6 +151,8 @@ result:
         True
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   requirements:
@@ -264,3 +268,5 @@ result:
       text: |
         42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004

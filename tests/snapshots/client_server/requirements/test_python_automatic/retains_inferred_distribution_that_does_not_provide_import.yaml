@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: import mcp_console_distribution_without_module
@@ -67,3 +69,5 @@ result:
       text: |
         [1] TRUE
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

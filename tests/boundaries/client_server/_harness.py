@@ -426,6 +426,8 @@ class SocketGateMcpClient(McpClient):
         self.stdout = SocketTextReader(output_reader)
         self.stderr = TextReader(process.stderr)
         self.transcript = []
+        self.bundle_notices = []
+        self._announced_bundles = set()
         self._next_request_id = 1
         self._issued_request_ids = set()
         self.input_reader = input_reader

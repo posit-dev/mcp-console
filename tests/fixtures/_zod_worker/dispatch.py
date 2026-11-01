@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from . import failures, input, lifecycle, output, preparation, probes
+from . import failures, input, lifecycle, output, preparation, probes, recording
 from .state import LoopAction, WorkerContext
 
 EXACT_HANDLERS: dict[str, Callable[[WorkerContext, str], LoopAction | None]] = {
@@ -35,6 +35,7 @@ EXACT_HANDLERS: dict[str, Callable[[WorkerContext, str], LoopAction | None]] = {
     "record intervals": output.recording_intervals,
     "emit console kinds": output.emit_console_kinds,
     "emit image": output.emit_image,
+    "emit image formats": recording.emit_image_formats,
     "emit image before completion": output.emit_image_before_completion,
     "emit output and image before completion": output.emit_image_before_completion,
     # Input

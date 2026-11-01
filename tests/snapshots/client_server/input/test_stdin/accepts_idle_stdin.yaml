@@ -20,6 +20,8 @@ result:
       text: |
         zod stdin: cold
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   stdin: |

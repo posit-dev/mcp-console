@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.python.test_startup import selected_python
 from boundaries.client_server.python.test_without_r import environment as without_r
-from support.assertions import last_result_text
+from support.assertions import last_result_text, wait_for_worker_ready
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
@@ -173,6 +173,9 @@ def test_named_session_completes_while_another_send_waits(
             ) as client,
         ):
             client.initialize_and_list_tools()
+            # The default worker prelaunches independently. Settle its acquisition
+            # before assigning recording identities to the named workers.
+            wait_for_worker_ready(client, "default worker ready before named workers")
             for session in ("alpha", "beta"):
                 client.expect(python="pass", session=session)
             try:

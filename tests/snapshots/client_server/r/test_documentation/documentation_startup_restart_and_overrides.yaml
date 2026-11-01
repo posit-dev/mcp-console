@@ -15,6 +15,8 @@ result:
       text: |
         documentation defaults installed after native profiles
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |
@@ -154,3 +156,5 @@ result:
       text: |
         documentation defaults installed after native profiles
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

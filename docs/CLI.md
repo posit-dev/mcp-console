@@ -181,6 +181,7 @@ Disabled languages report `SKIP (disabled)`; R reports `SKIP (not installed)` wh
 An explicitly selected or discovered but broken R installation remains a failure, as do package preparation and runtime errors.
 Warmup prints diagnostics, continues after completed language failures, and exits with status 1 if a check or server shutdown fails.
 `--timeout SECONDS` limits initialization and each language check to 600 seconds by default.
+Startup and dependency preparation progress keep the original check running; warmup polls for completion within that deadline without resubmitting its code.
 A timeout or interactive input request stops further checks and shuts down the server.
 
 ## MCP server

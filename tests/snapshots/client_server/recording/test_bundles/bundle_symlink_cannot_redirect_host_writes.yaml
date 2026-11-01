@@ -1,0 +1,46 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: |
+    from pathlib import Path
+
+    target = Path.cwd().parent / "denied"
+    try:
+        (target / "worker-write").write_text("forbidden")
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("target must be outside the worker write policy")
+    print("ready")
+result:
+  content:
+    - type: text
+      text: |
+        ready
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-001
+---
+send:
+  python: |
+    (recording,) = Path(".agents/console/sessions").iterdir()
+    bundle = recording / "sessions/session-001"
+    bundle.rename(recording / "saved-session")
+    bundle.symlink_to(target, target_is_directory=True)
+    print("swapped")
+result:
+  content:
+    - type: text
+      text: |
+        swapped
+  isError: false
+---
+send:
+  python: print('still running')
+result:
+  content:
+    - type: text
+      text: |
+        still running
+  isError: false

@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |
@@ -19,6 +21,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   sql: CREATE TABLE results AS SELECT value FROM source
@@ -43,6 +47,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   sql: CREATE TABLE results AS SELECT value FROM source

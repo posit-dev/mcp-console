@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -50,3 +52,5 @@ result:
         True True
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

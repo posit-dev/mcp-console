@@ -12,6 +12,8 @@ result:
       text: |
         relative startup paths retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -26,3 +28,5 @@ result:
       text: |
         relative startup paths retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

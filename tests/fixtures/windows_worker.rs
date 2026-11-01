@@ -157,6 +157,8 @@ fn main() -> io::Result<()> {
                 std::fs::write(marker.with_extension("stdin"), input)?;
                 return Ok(());
             }
+            // A wire-consumption receipt for every forwarded command, including
+            // resolver replies; this peer does not model cell execution.
             send(write, "{\"kind\":\"completed\"}\n")?;
             continue;
         }

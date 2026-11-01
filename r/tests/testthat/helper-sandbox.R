@@ -98,13 +98,23 @@ with_sandbox_directory <- function(code) {
   stopifnot(dir.create(directory))
   old <- setwd(directory)
   old_home <- Sys.getenv("MCP_CONSOLE_HOME", unset = NA_character_)
-  Sys.setenv(MCP_CONSOLE_HOME = file.path(directory, "console"))
+  old_cache <- Sys.getenv("MCP_CONSOLE_CACHE_DIR", unset = NA_character_)
+  # Share only this R test session's cache, never the caller's prepared state.
+  Sys.setenv(
+    MCP_CONSOLE_HOME = file.path(directory, "console"),
+    MCP_CONSOLE_CACHE_DIR = file.path(tempdir(), "mcp-console-test-cache")
+  )
   on.exit(
     {
       if (is.na(old_home)) {
         Sys.unsetenv("MCP_CONSOLE_HOME")
       } else {
         Sys.setenv(MCP_CONSOLE_HOME = old_home)
+      }
+      if (is.na(old_cache)) {
+        Sys.unsetenv("MCP_CONSOLE_CACHE_DIR")
+      } else {
+        Sys.setenv(MCP_CONSOLE_CACHE_DIR = old_cache)
       }
       setwd(old)
       unlink(directory, recursive = TRUE)

@@ -233,13 +233,19 @@ test_that("console_tool exposes configured descriptions and omits hidden paramet
       arguments$requirements@json$properties$r$description,
       "R packages."
     )
-    expect_identical(send(r = "6 * 7")@text, "[1] 42\n")
+    expect_identical(console_output_text(send(r = "6 * 7")), "[1] 42\n")
     expect_identical(
-      send(r = "answer <- 42L", session = "analysis")@text,
+      console_output_text(send(r = "answer <- 42L", session = "analysis")),
       "[done]"
     )
-    expect_identical(send(r = "answer", session = "analysis")@text, "[1] 42\n")
-    expect_identical(send(r = 'exists("answer")')@text, "[1] FALSE\n")
+    expect_identical(
+      console_output_text(send(r = "answer", session = "analysis")),
+      "[1] 42\n"
+    )
+    expect_identical(
+      console_output_text(send(r = 'exists("answer")')),
+      "[1] FALSE\n"
+    )
     rm(send)
     invisible(gc())
   })
@@ -304,7 +310,9 @@ test_that("console_tool works when registered with an ellmer chat", {
               console_tool(config = ConsoleConfig(sandbox = FALSE))
             ))
             text <- NULL
-            chat$on_tool_result(function(result) text <<- result@value@text)
+            chat$on_tool_result(function(result) {
+              text <<- console_output_text(result@value)
+            })
 
             expect_identical(
               as.character(chat$chat("Use the console.")),
@@ -319,6 +327,11 @@ test_that("console_tool works when registered with an ellmer chat", {
             expect_match(
               jsonlite::toJSON(requests[[2L]], auto_unbox = TRUE),
               "[1] 42",
+              fixed = TRUE
+            )
+            expect_match(
+              jsonlite::toJSON(requests[[2L]], auto_unbox = TRUE),
+              "Session bundle on the Console host: ",
               fixed = TRUE
             )
             expect_type(text, "character")
@@ -446,7 +459,11 @@ test_that("resolved configurations can be inspected, edited, and launched", {
     expect_identical(tool@description, "Run an evaluation cell.")
     expect_false("timeout_ms" %in% names(tool@arguments@properties))
     expect_identical(tool@arguments@properties$r@json$description, "")
-    expect_match(tool(r = "cat(6 * 7)")@text, "42", fixed = TRUE)
+    expect_match(
+      console_output_text(tool(r = "cat(6 * 7)")),
+      "42",
+      fixed = TRUE
+    )
     expect_identical(tool(r = "cat(basename(getwd()))")@text, basename(project))
     rm(tool)
     invisible(gc())
@@ -492,7 +509,11 @@ test_that("materialization preserves typed policies and startup source", {
       expect_identical(config@python@first_available[[4]]@packages, character())
       config <- resolve_console_config(config, path = binary)
       tool <- console_tool(config = config, path = binary)
-      expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
+      expect_match(
+        console_output_text(tool(sql = "SELECT 42 AS answer")),
+        "42",
+        fixed = TRUE
+      )
       rm(tool)
       invisible(gc())
 
@@ -578,7 +599,11 @@ test_that("large constructed and materialized settings use bounded launch argume
     for (config in list(source, resolved)) {
       tool <- console_tool(config = config, path = binary)
       expect_identical(tool@description, description)
-      expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
+      expect_match(
+        console_output_text(tool(sql = "SELECT 42 AS answer")),
+        "42",
+        fixed = TRUE
+      )
       expect_identical(
         tool(python = "import os; print(os.environ['LARGE_CONFIG'])")@text,
         "discovered\n"

@@ -16,6 +16,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: interrupt
@@ -61,3 +63,5 @@ result:
       text: |
         replacement ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

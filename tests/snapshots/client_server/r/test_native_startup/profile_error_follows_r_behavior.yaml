@@ -12,6 +12,8 @@ result:
         Error: native profile error continues in R
         R continued initialization
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: 6 * 7

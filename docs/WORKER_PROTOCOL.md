@@ -211,3 +211,9 @@ Explicit R/DuckDB preparation and optional runtime R callbacks must honor prepar
 
 [`tests/fixtures/zod`](../tests/fixtures/zod) exercises conformance; fixture commands are not protocol extensions.
 Use the [boundary tests](../tests/boundaries/README.md), not prose alone, to validate changes to either endpoint.
+
+## Recording
+
+`cell_started` is emitted when an accepted evaluation enters the worker coordinator, before its source executes.
+It establishes the observed execution interval; receipt of `evaluate` alone does not create an executed-cell log.
+`completed` ends that interval, while later observed text belongs to the post-cell interval.

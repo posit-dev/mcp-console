@@ -18,6 +18,8 @@ result:
       text: |
         4
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: values.append(8); statistics.mean(values)

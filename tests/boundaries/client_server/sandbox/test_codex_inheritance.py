@@ -508,6 +508,12 @@ def test_first_received_send_selects_authority_before_cancelled_handler(
             )
             assert not (root / "created").exists()
             transcript = finish(client, root)
+            projection = next(
+                root.glob(".agents/console/sessions/*/sessions/session-001/session.qmd")
+            )
+            assert "cancelled first handler ran" not in projection.read_text(), (
+                "the fixture must cancel the first handler before execution admission"
+            )
             return transcript
 
 
@@ -642,7 +648,7 @@ def test_inherits_filesystem_and_network_before_first_worker(
                 warning="Warning: could not parse Codex sandbox settings; reconnect to apply the read_only fallback\n",
             )
             projection = next(
-                root.glob(".agents/console/sessions/*/sessions/session-001.qmd")
+                root.glob(".agents/console/sessions/*/sessions/session-001/session.qmd")
             )
             assert "retained = -1" in projection.read_text(), (
                 "rejected call was not recorded"

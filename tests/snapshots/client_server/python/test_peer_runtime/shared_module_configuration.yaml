@@ -28,6 +28,8 @@ result:
       text: |
         shared module defaults installed
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: >-

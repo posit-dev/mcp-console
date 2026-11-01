@@ -44,6 +44,8 @@ result:
         {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
         pid>"}
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 transcript_normalization:
   target: result.content[0].text
   process_ids_and_namespace: >-
@@ -92,6 +94,8 @@ result:
         {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
         pid>"}
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 transcript_normalization:
   target: result.content[0].text
   process_ids_and_namespace: >-
@@ -140,6 +144,8 @@ result:
         {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
         pid>"}
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 transcript_normalization:
   target: result.content[0].text
   process_ids_and_namespace: >-

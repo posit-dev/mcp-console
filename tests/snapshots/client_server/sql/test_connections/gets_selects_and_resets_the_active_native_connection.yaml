@@ -14,15 +14,14 @@ send:
     stopifnot(is.null(.console$sql_connection(connection = sqlite)))
     stopifnot(identical(.console$sql_connection(), sqlite))
     writeLines("selected native DBI identity")
-  requirements:
-    r:
-      - RSQLite
 result:
   content:
     - type: text
       text: |
         selected native DBI identity
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   sql: CREATE TABLE chosen AS SELECT 11 AS value
@@ -224,6 +223,8 @@ result:
         ℹ Error type: CATALOG
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   r: >-

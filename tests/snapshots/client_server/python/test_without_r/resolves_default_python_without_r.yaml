@@ -43,6 +43,8 @@ result:
       text: |
         42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: assert id(identity) == identity_id; retained + 2
@@ -177,3 +179,5 @@ result:
         <selected Python>
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

@@ -136,7 +136,7 @@ def interrupt_held_evaluator(
                 assert not list((recording / "capture/sessions").glob("*/cell-*.txt"))
                 assert (
                     "discarded_cell = True"
-                    in (recording / "sessions/session-001.qmd").read_text()
+                    in (recording / "sessions/session-001/session.qmd").read_text()
                 )
                 fresh = client.send(
                     python="assert 'discarded_cell' not in globals(); 42"

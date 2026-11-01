@@ -32,6 +32,8 @@ result:
       text: |
         managed R and Python requirements retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: |
@@ -78,6 +80,8 @@ result:
       text: |
         managed R and Python requirements retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   python: |

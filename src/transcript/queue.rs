@@ -39,6 +39,9 @@ struct WorkerEvents {
 pub(super) enum QueuedEvent {
     Event(Event<'static>),
     WorkerStarting,
+    ProjectionFailed {
+        message: String,
+    },
     AssociateWaitingCall {
         call_id: u64,
         session_id: u64,
@@ -123,6 +126,11 @@ impl QueuedEvent {
                 return active.append(event, at);
             }
             Self::WorkerStarting => return Ok(()),
+            Self::ProjectionFailed { message } => {
+                active.projections = None;
+                active.pending_projection_failure = Some(message.clone());
+                return Ok(());
+            }
             Self::AssociateWaitingCall {
                 call_id,
                 session_id,

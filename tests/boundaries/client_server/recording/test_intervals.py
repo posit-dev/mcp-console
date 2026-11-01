@@ -175,6 +175,10 @@ def test_raw_image_limit_preserves_inline_output_and_resets_at_cell_boundary(
         capture = events(recording)
         assert capture[-1]["event"] == "recording_ended"
         assert "_Image not retained._" in (recording / "transcript.md").read_text()
+        assert (
+            "[Recorded image unavailable: capture did not retain this image.]"
+            in (recording / "sessions/session-001/session.md").read_text()
+        )
         assert len([e for e in capture if e["event"] == "image_omitted"]) == 1
         assert (
             len(
@@ -279,10 +283,26 @@ def test_cell_intervals_and_empty_cells(
                 for part in restart["parts"]
                 if part["owner"] is not None
             } == {1, 2}, restart
-            for name in ("transcript.md", "sessions/session-002.qmd"):
+            original_report = (
+                active_recording / "sessions/session-001/session.md"
+            ).read_text()
+            replacement_report = (
+                active_recording / "sessions/session-002/session.md"
+            ).read_text()
+            assert "shutdown text\n```" in original_report, original_report
+            assert "shutdown text" not in replacement_report, replacement_report
+            assert "## Startup output" in replacement_report, replacement_report
+            assert "rejected source" in original_report, original_report
+            assert "rejected source" not in replacement_report, replacement_report
+            for name in (
+                "transcript.md",
+                "sessions/session-002/session.qmd",
+                "sessions/session-002/session.md",
+                "sessions/session-001/session.md",
+            ):
                 assert (active_recording / name).stat().st_mode & 0o200
             assert (
-                active_recording / "sessions/session-001.qmd"
+                active_recording / "sessions/session-001/session.qmd"
             ).stat().st_mode & 0o200
             transcript = client.finish()
         (recording,) = (workspace / ".agents/console/sessions").iterdir()
@@ -316,7 +336,10 @@ def test_cell_intervals_and_empty_cells(
         assert (capture / "cell-002.txt").read_bytes() == b""
         assert not (capture / "cell-003.txt").exists()
         assert (recording / "capture/sessions/002/cell-001.txt").read_bytes() == b""
-        assert "rejected source" in (recording / "sessions/session-001.qmd").read_text()
+        assert (
+            "rejected source"
+            in (recording / "sessions/session-001/session.qmd").read_text()
+        )
         assert all(e["sequence"] == i + 1 for i, e in enumerate(events(recording)))
         for path in recording.rglob("*"):
             if path.is_file():
@@ -385,7 +408,7 @@ def test_sessions_without_cells_keep_shutdown_in_startup(
             2,
         ]
         assert not any(e["event"] == "cell_started" for e in capture)
-        assert not list((recording / "sessions").glob("*.qmd"))
+        assert not list((recording / "sessions").glob("session-*/session.qmd"))
         assert sorted(
             p.relative_to(recording).as_posix() for p in recording.rglob("*.txt")
         ) == ["capture/sessions/001/startup.txt", "capture/sessions/002/startup.txt"]
@@ -417,7 +440,7 @@ def test_projection_failure_preserves_capture_and_finalizes_files(
             client.initialize_and_list_tools()
             client.expect("zod: first\n", r="echo first")
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            qmd = recording / "sessions/session-001.qmd"
+            qmd = recording / "sessions/session-001/session.qmd"
             qmd.unlink()
             qmd.mkdir()
             client.expect("zod: second\n", r="echo second")

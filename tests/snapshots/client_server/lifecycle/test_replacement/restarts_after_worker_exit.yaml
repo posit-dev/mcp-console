@@ -13,6 +13,8 @@ result:
         [starting new worker]
         [idle]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   stdin: |
@@ -33,3 +35,5 @@ result:
       text: |
         zod stdin: replacement
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

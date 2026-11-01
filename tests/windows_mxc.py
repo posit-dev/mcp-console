@@ -2,6 +2,7 @@
 
 import json
 import os
+import stat
 import subprocess
 import sys
 import unittest
@@ -19,6 +20,59 @@ from windows_sandbox import BINARY, workspace
 
 @unittest.skipUnless(os.name == "nt", "native Windows MXC")
 class WindowsMxc(unittest.TestCase):
+    def test_host_session_bundle_completes_read_only(self):
+        from support.client import McpClient
+
+        with workspace() as root:
+            (root / ".agents/console").mkdir(parents=True)
+            with McpClient(
+                BINARY,
+                (
+                    "serve",
+                    "--no-sandbox",
+                    "--no-config",
+                    "-c",
+                    "languages=[python]",
+                    "-c",
+                    "python=" + json.dumps(sys.executable),
+                ),
+                os.environ | {"MCP_CONSOLE_HOME": str(root / "home")},
+                root,
+            ) as client:
+                client.initialize_and_list_tools()
+                result = client.expect(
+                    "recorded result\n", python="print('recorded result')", timeout_ms=0
+                )
+                self.assertEqual(
+                    result,
+                    {
+                        "content": [{"type": "text", "text": "recorded result\n"}],
+                        "isError": False,
+                    },
+                )
+                self.assertEqual(len(client.bundle_notices), 1)
+                client.finish()
+            (recording,) = (root / ".agents/console/sessions").iterdir()
+            self.assertEqual(
+                (recording / "capture/sessions/001/cell-001.txt").read_text(),
+                "recorded result\n",
+            )
+            for path in recording.rglob("*"):
+                if path.is_file():
+                    self.assertTrue(
+                        path.stat().st_file_attributes & stat.FILE_ATTRIBUTE_READONLY,
+                        path,
+                    )
+            self.assertIn(
+                "recorded result",
+                (recording / "sessions/session-001/session.md").read_text(),
+            )
+            qmd = (recording / "sessions/session-001/session.qmd").read_text()
+            self.assertIn("print('recorded result')", qmd)
+            self.assertNotIn("export_session", qmd)
+            self.assertTrue(root.is_dir())
+        self.assertFalse(root.exists())
+
     def test_startup_failures_withhold_code_at_every_public_entry_point(self):
         from support.windows_faults import run_with_unavailable_mxc
 

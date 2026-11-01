@@ -33,6 +33,8 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: interrupt
@@ -64,3 +66,5 @@ result:
       text: |
         fresh cell
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

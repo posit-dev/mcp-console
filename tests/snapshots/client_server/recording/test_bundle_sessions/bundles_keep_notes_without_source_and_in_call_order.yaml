@@ -1,0 +1,40 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  note: First record the question.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-001
+---
+send:
+  note: Then measure the result.
+  python: print('measurement')
+result:
+  content:
+    - type: text
+      text: |
+        measurement
+  isError: false
+---
+send:
+  note: Finally explain the measurement.
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

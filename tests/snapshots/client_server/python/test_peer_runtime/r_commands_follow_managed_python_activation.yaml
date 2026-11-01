@@ -16,6 +16,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   r: |
@@ -140,6 +142,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   r: check_cli("peer-cli-added", "mcp_console_test_cli_added")

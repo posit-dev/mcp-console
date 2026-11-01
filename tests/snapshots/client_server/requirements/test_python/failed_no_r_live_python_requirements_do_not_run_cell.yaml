@@ -29,6 +29,8 @@ result:
       text: |
         <running Python>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   requirements:

@@ -1,5 +1,9 @@
 ---
 callable: |
+  Session bundle on the Console host: "<recording>/sessions/session-001"
+  Source: "<recording>/sessions/session-001/session.qmd"
+  Report: "<recording>/sessions/session-001/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
   zod: sync
 ---
 error: only one of `r`, `python`, or `sql` may be supplied
@@ -18,4 +22,8 @@ closed: >-
   `console.connect()` first
 ---
 reconnected: |
+  Session bundle on the Console host: "<recording>/sessions/session-001"
+  Source: "<recording>/sessions/session-001/session.qmd"
+  Report: "<recording>/sessions/session-001/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
   zod: reconnected

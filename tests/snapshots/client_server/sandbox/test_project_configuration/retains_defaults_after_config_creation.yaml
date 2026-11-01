@@ -45,6 +45,8 @@ result:
       text: |
         captured grants, proxy selection, and restricted network verified
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -101,6 +103,8 @@ result:
       text: |
         captured grants, proxy selection, and restricted network verified
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: os._exit(23)
@@ -159,6 +163,8 @@ result:
       text: |
         captured grants, proxy selection, and restricted network verified
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   control: restart
@@ -218,6 +224,8 @@ result:
       text: |
         captured grants, proxy selection, and restricted network verified
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004
 ---
 send:
   python: import yaml12; print(yaml12.__name__)

@@ -14,6 +14,8 @@ result:
         [starting new worker]
         [idle]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: 1 + 1
@@ -23,3 +25,5 @@ result:
       text: |
         [1] 2
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

@@ -9,6 +9,8 @@ result:
       text: |
         zod: hello
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: echo precise 👩🏽‍💻

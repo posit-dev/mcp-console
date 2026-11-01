@@ -9,6 +9,8 @@ result:
       text: |
         default
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   note: Record beta's question before starting its worker.
@@ -28,6 +30,8 @@ result:
       text: |
         alpha
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: print('beta')
@@ -39,6 +43,8 @@ result:
       text: |
         beta
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   note: Alpha has completed its baseline.

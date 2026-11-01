@@ -1,0 +1,33 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  sql: >-
+    CREATE SEQUENCE IF NOT EXISTS execution_count START 1; SELECT
+    nextval('execution_count') AS value
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+            value
+          <int64>
+        1       1
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-001
+---
+send:
+  sql: SELECT currval('execution_count') AS still_one
+  requirements:
+    duckdb:
+      - fts
+result:
+  content:
+    - type: text
+      text: |
+        # A tibble: 1 × 1
+          still_one
+            <int64>
+        1         1
+  isError: false

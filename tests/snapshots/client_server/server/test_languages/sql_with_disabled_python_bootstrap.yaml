@@ -11,6 +11,8 @@ result:
         -----
         [0 rows]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   sql: INSERT INTO retained VALUES (41)
@@ -174,3 +176,5 @@ result:
         ----
         [0 rows]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

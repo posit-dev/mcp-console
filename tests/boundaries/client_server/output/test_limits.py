@@ -90,7 +90,7 @@ def test_bounds_mcp_preview_and_retains_raw_stream_after_overflow(
         markdown = (session / "transcript.md").read_text(encoding="utf-8")
         assert f"[Retained text output for call 1](<{relative_output}>)" in markdown
         assert relative_output.as_posix() not in (
-            session / "sessions/session-001.qmd"
+            session / "sessions/session-001/session.qmd"
         ).read_text(encoding="utf-8")
 
         overflow["result"]["content"][0]["text"] = output.replace(

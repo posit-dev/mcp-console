@@ -303,12 +303,21 @@ def wait_for_evaluation_output(
         if final_progress
         else collected
     )
+    calls = client.transcript[poll_start:]
+    submitted = received if received is not None else calls[0]
+    # Folding polls into one result must retain every validated discovery notice,
+    # regardless of which response first observed the worker's source document.
+    bundles = [
+        bundle
+        for entry in ([received] if received is not None else []) + calls
+        for bundle in entry.get("session_bundles", [])
+    ]
+    if bundles:
+        submitted["session_bundles"] = bundles
     if received is not None:
         received["result"] = result
         del client.transcript[poll_start:]
     else:
-        calls = client.transcript[poll_start:]
-        submitted = calls[0]
         submitted["result"] = calls[-1]["result"]
         client.transcript[poll_start:] = [submitted]
     return collected

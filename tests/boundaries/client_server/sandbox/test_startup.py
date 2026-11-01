@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 
 import os
-import re
+import json
 import select
 import time
 import sys
@@ -99,10 +99,11 @@ def test_sandbox_setup_failure_is_reported_and_retryable(binary: Path) -> Transc
             _assert_zod_echo(client.transcript[-1])
             transcript, stderr = client.finish_with_standard_error()
             prefix = "mcp-console: transcript recording disabled: failed to create temporary capture: Not a directory (os error 20) at path "
-            assert re.fullmatch(
-                re.escape(prefix + '"' + str(temporary_parent)) + r'/\.tmp[^"\n]+"\n',
-                stderr,
-            ), stderr
+            assert stderr.startswith(prefix), stderr
+            path = Path(json.loads(stderr.removeprefix(prefix)))
+            assert path.parent == temporary_parent and path.name.startswith(".tmp"), (
+                stderr
+            )
             transcript.append({"stderr": prefix + '"<temporary capture>"\n'})
             return transcript
         finally:

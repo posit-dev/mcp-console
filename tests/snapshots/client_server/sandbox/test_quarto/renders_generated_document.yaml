@@ -13,6 +13,8 @@ result:
       text: |
         executed-r=40
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |2-

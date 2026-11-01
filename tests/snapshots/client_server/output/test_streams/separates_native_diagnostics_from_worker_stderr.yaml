@@ -41,3 +41,5 @@ result:
         worker before native diagnostic
         worker after
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

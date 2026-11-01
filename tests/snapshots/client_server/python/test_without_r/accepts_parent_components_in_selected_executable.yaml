@@ -25,6 +25,8 @@ result:
       text: |
         selected executable and environment retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -54,3 +56,5 @@ result:
         selected executable and environment retained
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

@@ -32,3 +32,5 @@ result:
       text: |
         zod: echo
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

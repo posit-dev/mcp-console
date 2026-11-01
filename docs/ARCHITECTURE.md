@@ -439,7 +439,7 @@ Combined text/image omission notices retain their common observed interval owner
 Image omission ownership is aggregated before per-interval receipts retire, with bounded state independent of the number of omitted images.
 Response assembly uses those receipts without waiting for the journal to rediscover ownership.
 
-Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and session documents at `sessions/session-NNN.qmd` remain projections of the journal.
+Raw files live under `capture/sessions/NNN/`; recording-wide `transcript.md` and portable `sessions/session-NNN/` bundles remain projections of the journal.
 Session documents follow actual worker lifetimes, including automatic replacements, and are created when source or notes are associated.
 Notes accompanying source follow its worker association.
 Source-free notes belong to the selected logical session's current worker when received; without a worker, they remain pending until that named session's next actual acquisition.
@@ -455,10 +455,28 @@ That choice moves from the recorded call into its evaluation owner, then into ob
 Result fragments retain the same choice when later responses include their output; projection writers filter those fragments without changing the journal or delivery data.
 Completed interval files and images become read-only after their writers retire.
 The temporary-publication registry keeps weak references to active file handles and releases completed entries; publication copies completed files while relocating live producers.
+After producers and projections retire, scratch cleanup releases its pinned directory handle before removing an unpublished capture.
 Process-wide files finalize only after retirement, delivery settlement, queued initial capture, and blocking result writers settle.
-Session QMD permissions finalize at that same barrier because source associations and metadata updates can follow worker termination.
+Session document permissions finalize at that same barrier because source associations and metadata updates can follow worker termination.
 Capture completion ownership survives handler cancellation and delivery deadlines, including after a result writer releases the journal mutex.
 Finalization completes permissions on retained files even after recording or projection failure, without inventing a successful `recording_ended` event for disabled capture.
+
+Session bundles contain the source QMD, report-style Markdown, and relative image links, with notes retained in both documents.
+The existing projection owner updates them from typed events and assembled results, never by scanning the journal during a runtime callback.
+Result fragments use the output tape's recorded interval ownership, so a later poll can append to an earlier cell or session.
+One anonymous temporary file spools report sections through its original handle; memory retains section ranges and pending source associations, not cumulative response text or stdin.
+Bundle traversal, source replacement, portable image creation, and final permission updates use a pinned recording-directory capability.
+Managed bundle components reject symlinks; concurrent replacement cannot redirect these operations outside the pinned directory.
+Publication retains the original private handle and offsets for the most recently updated report, closing the previous session's report handle.
+Late updates to an evicted session reconstruct a private replacement from the existing spool without reopening its managed file or executing source.
+Ordinary source/result updates append new content and replace the tail's completion note; a late result for an earlier interval rewrites only the affected suffix.
+Unchanged preceding sections are neither scanned nor recopied, and raw output chunks do not trigger report publication.
+Portable image copies are written from emitted bytes under the capture producer, before links are published, without reopening worker-modifiable capture paths.
+The ordinary blocking recording task owns document I/O; the MCP receive loop and worker event dispatcher remain available.
+Each bundle's first available notice is included in its assembled tool result and canonical journal record, but omitted from the report presentation.
+Discovery paths refer to Console-managed files on the host, convey no filesystem authority, and introduce no destination-writing sideband or runtime helper.
+QMD replacement is atomic; the report updates in place, so a reader can observe an update in progress.
+Copying an active bundle does not establish a cross-file snapshot.
 
 A journal or artifact failure disables further recording without stopping computation.
 Queued and in-flight protocol, worker lifecycle, and output capture events share a bound of 1,024 events or 8 MiB of serialized event data.
@@ -471,7 +489,7 @@ Diagnostics and notices report unavailable or partial retention.
 Journal events and generated projections are internal formats, not independently versioned public APIs.
 A journaled result records response assembly.
 Separate delivery events record whether a local transport write completed successfully, without claiming client acknowledgment or model observation.
-See [Output and delivery](#output-and-delivery) for ownership and [Open work](TODO.md) for retention and export gaps.
+See [Output and delivery](#output-and-delivery) for ownership and [Open work](TODO.md) for retention gaps.
 
 ## Developer terms
 

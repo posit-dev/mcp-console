@@ -10,6 +10,8 @@ result:
         [input requested: "default: "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   session: alpha
@@ -21,6 +23,8 @@ result:
         [input requested: "alpha: "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   session: alpha

@@ -21,6 +21,8 @@ result:
         [elapsed: <elapsed>s since admission]
         [running; poll with an empty send]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -41,3 +43,5 @@ result:
       text: |
         zod: echo
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

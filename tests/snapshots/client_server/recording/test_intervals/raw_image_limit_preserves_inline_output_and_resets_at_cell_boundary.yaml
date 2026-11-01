@@ -13,6 +13,8 @@ result:
       data: <4 MiB of zero bytes, verified byte-for-byte>
       mimeType: image/png
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: preview image limit

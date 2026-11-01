@@ -69,6 +69,8 @@ result:
       text: |
         configured startup retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:

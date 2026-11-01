@@ -27,6 +27,8 @@ result:
         [input requested: "second> "]
         Ada|Lovelace
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |

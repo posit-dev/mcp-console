@@ -72,6 +72,8 @@ result:
         [input requested: ""]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   requirements:
@@ -160,6 +162,8 @@ result:
         'six'
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   requirements:

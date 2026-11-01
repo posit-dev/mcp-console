@@ -31,6 +31,7 @@ from support.requirements import (
     requires,
 )
 from support.normalization import code
+from support.previews import live_recording_events
 from support.resolvers import resolver_interrupt_permission_environment
 from support.suites import run_this_suite
 
@@ -236,6 +237,7 @@ def test_supervises_stopped_and_continued_workers(
             binary,
             execution.serve("--worker", str(wrapper)),
             environment,
+            current_directory=temporary_path,
         )
         workers: list[tuple[int, int]] = []
         passed = False
@@ -322,6 +324,19 @@ def test_supervises_stopped_and_continued_workers(
 
             client.send(r="echo echo")
             assert last_tool_text(client) == "zod: echo\n"
+            (recording,) = (temporary_path / ".agents/console/sessions").iterdir()
+            captured = live_recording_events(recording)
+            cells = [
+                event["owner"] for event in captured if event["event"] == "cell_started"
+            ]
+            assert [(owner["session_id"], owner["cell_id"]) for owner in cells] == [
+                (1, 1),
+                (2, 1),
+            ], cells
+            for session_id in (1, 2):
+                assert (
+                    recording / f"capture/sessions/{session_id:03}/cell-001.txt"
+                ).read_text() == "zod: echo\n"
             transcript = client.finish()
             passed = True
             return transcript

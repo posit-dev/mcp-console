@@ -9,6 +9,8 @@ result:
       text: |
         zod: ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -29,3 +31,5 @@ result:
       text: |
         zod: usable
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

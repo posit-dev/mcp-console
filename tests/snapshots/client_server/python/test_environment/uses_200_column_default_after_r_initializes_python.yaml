@@ -24,3 +24,5 @@ result:
         R-first NumPy linewidth: 200
         R-first pandas display.width: 200
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

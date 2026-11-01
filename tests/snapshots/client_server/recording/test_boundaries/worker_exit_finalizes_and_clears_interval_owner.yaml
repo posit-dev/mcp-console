@@ -12,3 +12,5 @@ result:
       text: |
         post-cell text
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

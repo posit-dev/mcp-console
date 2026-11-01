@@ -9,6 +9,8 @@ result:
       text: |
         original session
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -35,3 +37,5 @@ result:
       text: |
         replacement session
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

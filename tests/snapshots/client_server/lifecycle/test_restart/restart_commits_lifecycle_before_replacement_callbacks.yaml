@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -39,3 +41,5 @@ result:
       text: |
         zod: echo
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

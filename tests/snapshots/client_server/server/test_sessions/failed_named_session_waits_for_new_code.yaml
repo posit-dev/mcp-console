@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: value = 'old state'
@@ -17,6 +19,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: import os; os._exit(86)
@@ -64,3 +68,5 @@ result:
         [starting new worker]
         False
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

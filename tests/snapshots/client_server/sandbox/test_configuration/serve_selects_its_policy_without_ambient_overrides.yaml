@@ -16,3 +16,5 @@ result:
       text: |
         serve supplied its own policy
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

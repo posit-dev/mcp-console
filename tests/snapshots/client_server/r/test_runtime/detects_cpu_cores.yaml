@@ -16,3 +16,5 @@ result:
       text: |
         R core detection available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

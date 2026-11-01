@@ -28,6 +28,8 @@ result:
       text: |
         [('NUMBER', '42')]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: importlib.util.find_spec("rpython") is None

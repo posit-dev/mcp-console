@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   session: analysis
@@ -20,6 +22,8 @@ result:
       text: |
         named requirements ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   session: analysis
@@ -36,3 +40,5 @@ result:
         [starting new worker]
         named requirements ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

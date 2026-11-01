@@ -48,6 +48,8 @@ result:
       text: |
         after image
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 fixture:
   operation: emit_ansi_cell_02

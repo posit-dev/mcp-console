@@ -19,3 +19,5 @@ result:
           - repeat: y
             count: 3968
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

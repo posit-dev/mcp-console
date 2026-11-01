@@ -37,3 +37,5 @@ result:
       text: |
         headers, multiple files, and cleanup retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

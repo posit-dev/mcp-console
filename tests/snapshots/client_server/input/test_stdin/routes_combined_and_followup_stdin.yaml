@@ -10,6 +10,8 @@ result:
       text: |
         zod stdin length: 1030
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: input without request

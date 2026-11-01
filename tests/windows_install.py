@@ -109,6 +109,7 @@ if __name__ == "__main__":
             wheel,
             environment=tool_environment,
         )
+        native, _ = inspect_installation(directory / "commands/mcp-console.exe")
         run(
             sys.executable,
             ROOT / "tests/windows.py",
@@ -117,7 +118,10 @@ if __name__ == "__main__":
             "WindowsSandbox.test_python_state_and_restart_with_private_temporary_storage",
             "WindowsSandbox.test_stdio_write_policy_and_exit_status",
             environment=tool_environment
-            | {"MCP_CONSOLE_TEST_BINARY": str(directory / "commands/mcp-console.exe")},
+            | {
+                "MCP_CONSOLE_TEST_BINARY": str(directory / "commands/mcp-console.exe"),
+                "MCP_CONSOLE_TEST_NATIVE_BINARY": str(native),
+            },
         )
         run("uv", "venv", "--python", sys.executable, venv)
         python = venv / "Scripts/python.exe"

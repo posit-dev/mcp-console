@@ -1,0 +1,34 @@
+---
+scenario: >-
+  A fake MCP server returns preparation/startup progress, then each language's
+  success on an empty poll. Cells are submitted once.
+send_arguments:
+  - r: |-
+      stopifnot(1 + 1 == 2)
+      cat('mcp-console warmup: R OK\n')
+  - {}
+  - python: |-
+      assert sum((1, 1)) == 2
+      print('mcp-console warmup: Python OK')
+  - {}
+  - sql: >-
+      SELECT CASE WHEN 1 + 1 = 2 THEN 'mcp-console warmup: SQL OK' ELSE
+      'arithmetic failed' END AS result
+  - {}
+stdout: |
+  MCP Console warmup
+  Server: OK
+  Checking R...
+  R: OK
+
+  [elapsed: 60.0s since admission; no new output; phase: dependency preparation]
+  [running; poll with an empty send]
+  Checking Python...
+  Python: OK
+
+  [phase: startup]
+  [worker starting]
+  Checking SQL...
+  SQL: OK
+  Shutdown: OK
+  All checks passed. Runtime caches are warm.

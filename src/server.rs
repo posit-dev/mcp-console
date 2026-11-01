@@ -677,16 +677,25 @@ impl ServerHandler for ConsoleServer {
         let recorder = transcript.clone();
         let recording_result = Arc::clone(&result);
         let completion = recording.clone();
-        if let Err(error) = tokio::task::spawn_blocking(move || {
+        let notices = match tokio::task::spawn_blocking(move || {
             let _completion = completion;
-            recorder.finish(call, recording_result.as_ref());
+            recorder.finish(call, recording_result.as_ref())
         })
         .await
         {
-            transcript.disable(format!("transcript task failed: {error}"));
-        }
-        let result =
+            Ok(notices) => notices,
+            Err(error) => {
+                transcript.disable(format!("transcript task failed: {error}"));
+                Vec::new()
+            }
+        };
+        let mut result =
             Arc::into_inner(result).expect("transcript task should release the tool result");
+        if let Ok(CallToolResponse::Complete(result)) = &mut result {
+            result
+                .content
+                .splice(0..0, notices.into_iter().map(ContentBlock::Text));
+        }
         operation.complete();
         recording.response(result)
     }

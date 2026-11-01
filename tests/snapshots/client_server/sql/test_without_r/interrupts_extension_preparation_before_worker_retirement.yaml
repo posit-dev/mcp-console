@@ -9,6 +9,8 @@ result:
         -----
         1
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: >-

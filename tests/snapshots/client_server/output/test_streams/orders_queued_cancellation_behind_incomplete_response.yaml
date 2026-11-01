@@ -35,6 +35,8 @@ result:
       text: |
         zod response-gated operation
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 input:
   method: notifications/cancelled

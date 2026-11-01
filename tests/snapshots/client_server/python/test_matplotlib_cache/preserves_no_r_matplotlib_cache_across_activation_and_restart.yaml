@@ -38,6 +38,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -111,3 +113,5 @@ result:
       text: |
         (True, 7.25, True)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

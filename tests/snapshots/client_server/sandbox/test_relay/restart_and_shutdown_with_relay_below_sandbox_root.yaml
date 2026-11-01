@@ -16,6 +16,8 @@ result:
         <sandbox root> <relay pid> <worker pid> <descendant pid>
         <sandbox temp>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 transcript_normalization:
   target: result.content[0].text
   process_ids: omitted
@@ -33,6 +35,8 @@ result:
         replacement ready
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: |

@@ -57,7 +57,7 @@ def test_notes_keep_their_named_session_before_acquisition(
             "beta": [pending, beta],
         }.items():
             document = (
-                recording / f"sessions/session-{workers[name]:03}.qmd"
+                recording / f"sessions/session-{workers[name]:03}/session.qmd"
             ).read_text()
             for note in [pending, alpha, beta, default]:
                 assert document.count(note) == int(note in expected), (name, document)
@@ -91,7 +91,7 @@ def test_notes_follow_cells_across_restart(
             )
             client.expect(note=before)
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            note_only = (recording / "sessions/session-001.qmd").read_text(
+            note_only = (recording / "sessions/session-001/session.qmd").read_text(
                 encoding="utf-8"
             )
             assert note_only.count(before) == 1, note_only
@@ -108,10 +108,10 @@ def test_notes_follow_cells_across_restart(
             client.expect(note=ending)
             transcript = client.finish()
 
-        documents = sorted((recording / "sessions").glob("*.qmd"))
-        assert [path.name for path in documents] == [
-            "session-001.qmd",
-            "session-002.qmd",
+        documents = sorted((recording / "sessions").glob("session-*/session.qmd"))
+        assert [path.parent.name for path in documents] == [
+            "session-001",
+            "session-002",
         ], documents
         original, restarted = [path.read_text(encoding="utf-8") for path in documents]
         original_parts = [before, first, first_source, conclusion]
@@ -188,7 +188,9 @@ def test_notes_keep_request_order_while_source_waits_for_discovery(
             and event["call_id"] == source_call["call_id"]
         )
         assert later_note["sequence"] < association["sequence"], capture
-        quarto = (recording / "sessions/session-001.qmd").read_text(encoding="utf-8")
+        quarto = (recording / "sessions/session-001/session.qmd").read_text(
+            encoding="utf-8"
+        )
         parts = [before, accompanying, "```{r}\n#| error: true\n42L\n```", after]
         assert all(quarto.count(part) == 1 for part in parts), quarto
         positions = [quarto.index(part) for part in parts]

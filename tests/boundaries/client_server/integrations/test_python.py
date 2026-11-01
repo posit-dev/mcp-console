@@ -18,7 +18,8 @@ import mcp_console
 from mcp_console import AsyncMCPConsole, MCPConsole
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.r import r_test_environment
-from support.normalization import code
+from support.normalization import code, evaluation_output
+from support.bundles import normalize_bundle_locations
 from support.records import Transcript
 from support.previews import assert_preview
 from support.progress import elapsed_progress, normalize_elapsed, without_elapsed
@@ -56,7 +57,10 @@ def test_clients_record_notes_with_and_without_code(binary: Path) -> Transcript:
         ):
             output = console.send(**arguments)
             outputs.append(await output if inspect.isawaitable(output) else output)
-        assert outputs == ["42\n", "[done]"], outputs
+        assert [evaluation_output(output) for output in outputs] == [
+            "42\n",
+            "[done]",
+        ], outputs
         return outputs
 
     async def run() -> Transcript:
@@ -216,7 +220,9 @@ def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcrip
         ):
             output = invoke()
             outputs.append(await output if inspect.isawaitable(output) else output)
-        assert outputs == ["42\n"] * 6, outputs
+        assert [evaluation_output(output) for output in outputs] == ["42\n"] * 6, (
+            outputs
+        )
         try:
             output = console.send(**arguments, timeout_ms=60_000)
             if inspect.isawaitable(output):
@@ -369,7 +375,7 @@ def test_sync_and_async_clients_receive_bounded_previews(
         emitted = "x" * (8 * 1024 * 1024 + 7)
 
         def check(text: str) -> None:
-            assert_preview(text, emitted)
+            assert_preview(evaluation_output(text), emitted)
             session = max(
                 (Path(temporary) / ".agents/console/sessions").iterdir(),
                 key=lambda path: path.name,
@@ -378,7 +384,14 @@ def test_sync_and_async_clients_receive_bounded_previews(
                 session / "capture/sessions/001/cell-001.txt"
             ).read_text() == emitted
             results.append(
-                {"preview": compact_text(text.replace(session.name, "<run ID>"), "x")}
+                {
+                    "preview": compact_text(
+                        normalize_bundle_locations(text).replace(
+                            session.name, "<run ID>"
+                        ),
+                        "x",
+                    )
+                }
             )
 
         with MCPConsole(**settings) as console:
@@ -431,7 +444,7 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
         settings["args"] = ["-u", str(gate), str(binary), *settings["args"]]
         with MCPConsole(**settings) as console:
             result = console.send(r="echo initialized")
-            assert result == "zod: initialized\n", result
+            assert evaluation_output(result) == "zod: initialized\n", result
         return [{"startup_kept_one_lifecycle": True, "output": result}]
 
 
@@ -517,7 +530,10 @@ def test_callable_tools_follow_connected_server_fields(
                 assert not validator.is_valid(arguments | {omitted: value}), schema
             output = invoke()
             outputs.append(await output if inspect.isawaitable(output) else output)
-        assert all(output == outputs[0] for output in outputs), outputs
+        assert all(
+            evaluation_output(output) == evaluation_output(outputs[0])
+            for output in outputs
+        ), outputs
         return outputs[0]
 
     async def exercise():
@@ -578,9 +594,9 @@ def test_callable_tools_follow_connected_server_fields(
                         ]
                     output = await exercise_tools(console, source, expected_fields)
                 with MCPConsole(**settings) as console:
-                    assert (
-                        await exercise_tools(console, source, expected_fields) == output
-                    )
+                    assert normalize_bundle_locations(
+                        await exercise_tools(console, source, expected_fields)
+                    ) == normalize_bundle_locations(output)
                 transcript.append({label: output, "fields": sorted(expected_fields)})
         return transcript
 
@@ -600,8 +616,8 @@ def test_callable_preserves_line_breaks_around_images(
     with MCPConsole(**options(binary, execution)) as console:
         synchronous = console.send(r="emit image")
     assert (
-        synchronous
-        == asynchronous
+        evaluation_output(synchronous)
+        == evaluation_output(asynchronous)
         == """before image
 [image/png output]
 after image
@@ -660,7 +676,9 @@ def test_callable_preserves_mixed_language_state(
             while chunks[-1].endswith(running):
                 chunks.append(console.send(session="default"))
             synchronous.append({language: collected(chunks)})
-    assert synchronous == transcript
+    assert normalize_bundle_locations(synchronous) == normalize_bundle_locations(
+        transcript
+    )
     return transcript
 
 
@@ -823,23 +841,37 @@ def test_native_openai_agents_waits_for_console_output(
         ) as server:
             # Finish startup and one cell before measuring the adapter's wait.
             ready = await server.call_tool("send", {"r": "complete silently"})
-            while ready.content[0].text.endswith(
+            while ready.content[-1].text.endswith(
                 "\n[running; poll with an empty send]"
             ):
                 ready = await server.call_tool("send", {"session": "default"})
             assert not ready.is_error
-            assert ready.model_dump(mode="json", exclude_none=True)["content"] == [
-                {"type": "text", "text": "[done]"}
-            ]
+            ready_content = ready.model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )["content"]
+            assert (
+                evaluation_output("".join(block["text"] for block in ready_content))
+                == "[done]"
+            )
+            assert [
+                block
+                for block in ready_content
+                if block.get("_meta", {}).get("mcp-console/session-bundle") is not True
+            ] == [{"type": "text", "text": "[done]"}]
             # The fixture stays blocked beyond the SDK's five-second default.
             started = time.monotonic()
             result = await server.call_tool("send", {"r": "stall", "timeout_ms": 6_000})
             assert time.monotonic() - started >= 5.9
             recorded = result.model_dump(mode="json", by_alias=True, exclude_none=True)
-            text = recorded["content"][0]["text"]
+            (block,) = [
+                block
+                for block in recorded["content"]
+                if block.get("_meta", {}).get("mcp-console/session-bundle") is not True
+            ]
+            text = block["text"]
             _, silent = elapsed_progress(text)
             assert silent
-            recorded["content"][0]["text"] = normalize_elapsed(text)
+            block["text"] = normalize_elapsed(text)
             return [recorded]
 
     return asyncio.run(exercise())

@@ -37,6 +37,8 @@ result:
       text: |
         project writes allowed; explicit output and private temp writable
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -79,3 +81,5 @@ result:
       text: |
         project writes allowed; explicit output and private temp writable
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

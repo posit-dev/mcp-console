@@ -254,8 +254,7 @@ def test_interrupts_raw_python_stdin(binary: Path, execution: Execution) -> Tran
         r = code("""
             raw_event_wait <- function() Sys.sleep(0.001)
             """)
-        client.send(r=r)
-        assert last_result_text(client) == "[done]"
+        client.expect(r=r)
         # fmt: python
         python = code("""
             raw_state = object()
@@ -263,8 +262,7 @@ def test_interrupts_raw_python_stdin(binary: Path, execution: Execution) -> Tran
             # Complete bridge attachment before the blocking-read checkpoint.
             r.raw_event_wait()
             """)
-        client.send(python=python)
-        assert last_result_text(client) == "[done]"
+        client.expect(python=python)
         # fmt: python
         python = code("""
             import os

@@ -107,8 +107,8 @@ def test_standalone_note_keeps_received_worker_during_delayed_capture(
             capture
         )
         assert captured["note_target"] == {"kind": "worker", "session_id": 1}, captured
-        original = (recording / "sessions/session-001.qmd").read_text()
-        replacement = (recording / "sessions/session-002.qmd").read_text()
+        original = (recording / "sessions/session-001/session.qmd").read_text()
+        replacement = (recording / "sessions/session-002/session.qmd").read_text()
         assert original.count(note) == 1, original
         assert note not in replacement, replacement
         return normalize_recording(transcript, root)

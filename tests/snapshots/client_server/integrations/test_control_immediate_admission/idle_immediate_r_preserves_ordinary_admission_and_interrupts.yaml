@@ -36,6 +36,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: writeLines("ordinary ran", "interrupted-source")
@@ -160,3 +162,5 @@ result:
       text: |
         worker usable
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   session: alpha
@@ -105,6 +107,8 @@ result:
       text: |
         42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   session: alpha
@@ -137,6 +141,8 @@ result:
       text: |
         False
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   python: print(retained)

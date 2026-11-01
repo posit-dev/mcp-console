@@ -1,0 +1,13 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  python: print('visible')
+result:
+  content:
+    - type: text
+      text: |
+        visible
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-001

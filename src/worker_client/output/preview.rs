@@ -3,7 +3,8 @@
 use super::{Content, utf8_prefix_length};
 use std::sync::Arc;
 
-/// Complete rendered tool-result text, including all Console notices.
+/// Rendered execution preview, including state and omission notices.
+/// The MCP adapter can attach separate session-discovery metadata.
 pub(crate) const TEXT_BYTES: usize = 8 * 1024;
 const COLLECT_BYTES: usize = 2 * TEXT_BYTES;
 const CONTROL_BYTES: usize = TEXT_BYTES / 2;

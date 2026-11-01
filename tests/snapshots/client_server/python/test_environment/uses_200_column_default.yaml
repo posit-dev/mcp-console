@@ -25,3 +25,5 @@ result:
            column_00  column_01  column_02  column_03  column_04  column_05  column_06  column_07  column_08  column_09  column_10  column_11
         0          0          1          2          3          4          5          6          7          8          9         10         11
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

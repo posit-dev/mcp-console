@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -21,3 +23,5 @@ result:
         [1] FALSE
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

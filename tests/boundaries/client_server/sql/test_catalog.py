@@ -1176,6 +1176,7 @@ def test_keeps_repeated_previews_deterministic(
         raw = path.read_bytes().decode("utf-8", errors="replace")
         assert_preview(output, raw)
         retained.append(raw)
+        assert path.name in output, output
         outputs.append(output.replace(path.name, "cell-<cell>.txt"))
 
     assert retained[0] == retained[1] == retained[2]

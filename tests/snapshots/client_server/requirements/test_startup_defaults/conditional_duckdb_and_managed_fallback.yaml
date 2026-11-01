@@ -17,6 +17,8 @@ result:
       text: |
         conditional startup available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:
@@ -163,6 +165,8 @@ result:
       text: |
         conditional startup available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   requirements:

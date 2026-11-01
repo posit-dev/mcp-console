@@ -168,7 +168,18 @@ def test_worker_replaces_uv_configuration_and_wheel(binary: Path) -> Transcript:
         env.pop("UV_NO_CONFIG")
         env["UV_CONFIG_FILE"] = str(config)
         with McpClient(
-            binary, ("serve", "--writable-root", str(working)), env, working
+            binary,
+            (
+                "serve",
+                "--writable-root",
+                str(working),
+                "-c",
+                "languages=[python]",
+                "-c",
+                "python.packages=[]",
+            ),
+            env,
+            working,
         ) as client:
             client.initialize_and_list_tools()
             client.expect(
@@ -197,7 +208,7 @@ def test_worker_replaces_uv_configuration_and_wheel(binary: Path) -> Transcript:
                         for name, contents in entries.items():
                             wheel.writestr(name, contents)
                     Path("uv.toml").write_text(
-                        "find-links = [" + json.dumps(str(wheels.resolve())) + "]\\n"
+                        "no-index = true\\nfind-links = [" + json.dumps(str(wheels.resolve())) + "]\\n"
                     )
                     os.environ["UV_CONFIG_FILE"] = "/missing/worker-config"
                     print("worker supplied package startup code")
@@ -293,8 +304,21 @@ def test_worker_supplies_package_build_backend(binary: Path) -> Transcript:
         config.write_text("")
         env.pop("UV_NO_CONFIG")
         env["UV_CONFIG_FILE"] = str(config)
+        # This backend needs only the standard library. Resolve its local source
+        # archive without querying a public index for the fixture-only package.
         with McpClient(
-            binary, ("serve", "--writable-root", str(working)), env, working
+            binary,
+            (
+                "serve",
+                "--writable-root",
+                str(working),
+                "-c",
+                "languages=[python]",
+                "-c",
+                "python.packages=[]",
+            ),
+            env,
+            working,
         ) as client:
             client.initialize_and_list_tools()
             client.expect(
@@ -323,7 +347,7 @@ def test_worker_supplies_package_build_backend(binary: Path) -> Transcript:
                             member.size = len(payload)
                             archive.addfile(member, io.BytesIO(payload))
                     Path("uv.toml").write_text(
-                        "find-links = [" + json.dumps(str(sources.resolve())) + "]\\n"
+                        "no-index = true\\nfind-links = [" + json.dumps(str(sources.resolve())) + "]\\n"
                     )
                     print("worker supplied build backend")
                     """),

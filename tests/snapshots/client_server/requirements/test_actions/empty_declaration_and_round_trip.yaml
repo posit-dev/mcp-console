@@ -388,6 +388,8 @@ result:
       text: |
         (42, None, None, None, None)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   requirements:
@@ -543,6 +545,8 @@ result:
       text: |
         (42, None, None, None, None)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   requirements:
@@ -699,6 +703,8 @@ result:
         'six'
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004
 ---
 send:
   requirements:
@@ -820,6 +826,8 @@ result:
         False
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-005
 ---
 send:
   requirements:
@@ -1332,6 +1340,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-009
 ---
 send:
   r: stopifnot(requireNamespace("ggplot2", quietly = TRUE))

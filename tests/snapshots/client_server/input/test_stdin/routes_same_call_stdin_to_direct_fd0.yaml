@@ -11,3 +11,5 @@ result:
       text: |
         zod fd 0: 'direct café\n'
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

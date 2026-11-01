@@ -74,7 +74,7 @@ def test_renders_generated_document(binary: Path) -> Transcript:
         report = workspace / "report"
         report.mkdir()
         document = report / "session.qmd"
-        shutil.copyfile(recording / "sessions/session-001.qmd", document)
+        shutil.copyfile(recording / "sessions/session-001/session.qmd", document)
         shutil.copy2(
             workspace / "render-value.txt", document.parent / "render-value.txt"
         )

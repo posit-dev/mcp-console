@@ -9,6 +9,8 @@ result:
     - type: text
       text: "[stopped by session restart request before evaluation finished]"
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -29,3 +31,5 @@ result:
       text: |
         zod: echo
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

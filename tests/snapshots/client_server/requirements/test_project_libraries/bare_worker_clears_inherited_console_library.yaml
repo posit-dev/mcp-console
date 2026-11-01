@@ -11,6 +11,8 @@ result:
       text: |
         bare library ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -33,3 +35,5 @@ result:
       text: |
         bare library ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

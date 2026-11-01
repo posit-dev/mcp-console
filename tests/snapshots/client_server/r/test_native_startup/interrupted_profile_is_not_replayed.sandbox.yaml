@@ -52,3 +52,5 @@ result:
       text: |
         [1] TRUE
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

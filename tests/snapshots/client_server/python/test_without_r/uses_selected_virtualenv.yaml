@@ -21,6 +21,8 @@ result:
       text: |
         <worker temporary>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: value += 1; print('before error'); raise ValueError('recoverable')
@@ -116,6 +118,8 @@ result:
         False
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: import tempfile; print(tempfile.gettempdir())

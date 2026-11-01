@@ -78,6 +78,8 @@ result:
       text: |
         requirements declared without Python
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:
@@ -465,3 +467,5 @@ result:
       text: |
         accepted requirements retained across restart
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

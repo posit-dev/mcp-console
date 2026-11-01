@@ -9,6 +9,8 @@ result:
       text: |
         zod process group: <process group>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: violate protocol
@@ -31,3 +33,5 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

@@ -16,6 +16,8 @@ result:
         [starting new worker]
         [idle]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: '"answer" in globals()'
@@ -25,6 +27,8 @@ result:
       text: |
         False
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: 1 + 1

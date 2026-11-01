@@ -16,6 +16,8 @@ result:
       text: |
         relative grant used
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -50,3 +52,5 @@ result:
       text: |
         home remains read-only after restart
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

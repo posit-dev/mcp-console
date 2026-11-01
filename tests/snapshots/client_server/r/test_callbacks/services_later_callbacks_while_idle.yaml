@@ -33,6 +33,8 @@ result:
         <worker callback gate>
         <worker callback checkpoint>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: idle_value

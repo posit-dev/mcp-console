@@ -28,6 +28,8 @@ result:
       text: |
         HTML remains available for a deferred pager
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |

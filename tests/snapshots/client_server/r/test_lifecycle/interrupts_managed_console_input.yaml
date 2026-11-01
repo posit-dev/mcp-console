@@ -16,6 +16,8 @@ result:
         [input requested: "R interrupt> "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: interrupt

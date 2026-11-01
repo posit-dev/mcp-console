@@ -54,7 +54,9 @@ def test_discovers_current_projections_without_consuming_output(
                     recording.is_absolute() and recording.parent == project_recordings
                 )
                 assert Path(first["markdown"]) == recording / "transcript.md"
-                assert Path(first["qmd"]) == recording / "sessions/session-001.qmd"
+                assert (
+                    Path(first["qmd"]) == recording / "sessions/session-001/session.qmd"
+                )
                 assert first["worker_id"] == 1
                 assert "visible_source = 42" in Path(first["qmd"]).read_text()
                 hidden = control.request(
@@ -100,7 +102,10 @@ def test_discovers_current_projections_without_consuming_output(
                 client.expect(None)
                 client.expect(python="replacement_source = 43")
                 latest = control.request(op="recording")["result"]
-                assert Path(latest["qmd"]) == recording / "sessions/session-002.qmd"
+                assert (
+                    Path(latest["qmd"])
+                    == recording / "sessions/session-002/session.qmd"
+                )
                 assert "visible_source" not in Path(latest["qmd"]).read_text()
                 assert "replacement_source = 43" in Path(latest["qmd"]).read_text()
                 assert "visible_source" in Path(latest["markdown"]).read_text()

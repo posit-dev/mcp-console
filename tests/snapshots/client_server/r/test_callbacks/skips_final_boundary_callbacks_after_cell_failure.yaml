@@ -33,3 +33,5 @@ result:
         [starting new worker]
         [idle]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001

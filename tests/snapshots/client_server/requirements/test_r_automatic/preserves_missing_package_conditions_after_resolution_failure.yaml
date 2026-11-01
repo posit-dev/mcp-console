@@ -13,6 +13,8 @@ result:
       text: |
         [1] "expected missing-package error"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |
@@ -84,6 +86,8 @@ result:
       text: |
         [1] "expected missing-package error"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   r: |

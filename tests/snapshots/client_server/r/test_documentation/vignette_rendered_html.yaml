@@ -41,6 +41,8 @@ result:
         [1]: https://example.org/vignette?x=1&y=2
         [2]: other.html#details
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: saved <- utils::vignette("rendered", package = "consolehelp")

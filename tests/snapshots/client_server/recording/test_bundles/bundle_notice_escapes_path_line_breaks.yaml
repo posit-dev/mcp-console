@@ -1,0 +1,13 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: print('ready')
+result:
+  content:
+    - type: text
+      text: |
+        ready
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-001

@@ -4,7 +4,7 @@ qmd: |+
   ---
   # Source recorded by MCP Console; review before executing.
   title: MCP Console session
-  # From a working copy, run `ir render session-001.qmd` in a prepared environment.
+  # From a working copy, run `ir render session.qmd` in a prepared environment.
   # IR rendering requires R on the render host, including for Python-only documents.
   ir:
     isolated: true
@@ -63,14 +63,14 @@ qmd: |+
   open("old-worker-consumed-input", "w").close()
   ```
 
-path: sessions/session-001.qmd
+path: sessions/session-001/session.qmd
 ---
 session: 2
 qmd: |+
   ---
   # Source recorded by MCP Console; review before executing.
   title: MCP Console session
-  # From a working copy, run `ir render session-002.qmd` in a prepared environment.
+  # From a working copy, run `ir render session.qmd` in a prepared environment.
   # IR rendering requires R on the render host, including for Python-only documents.
   ir:
     isolated: true
@@ -111,14 +111,14 @@ qmd: |+
   print("cumulative packages retained")
   ```
 
-path: sessions/session-002.qmd
+path: sessions/session-002/session.qmd
 ---
 session: 3
 qmd: |+
   ---
   # Source recorded by MCP Console; review before executing.
   title: MCP Console session
-  # From a working copy, run `ir render session-003.qmd` in a prepared environment.
+  # From a working copy, run `ir render session.qmd` in a prepared environment.
   # IR rendering requires R on the render host, including for Python-only documents.
   ir:
     isolated: true
@@ -160,14 +160,14 @@ qmd: |+
   os._exit(47)
   ```
 
-path: sessions/session-003.qmd
+path: sessions/session-003/session.qmd
 ---
 session: 4
 qmd: |+
   ---
   # Source recorded by MCP Console; review before executing.
   title: MCP Console session
-  # From a working copy, run `ir render session-004.qmd` in a prepared environment.
+  # From a working copy, run `ir render session.qmd` in a prepared environment.
   # IR rendering requires R on the render host, including for Python-only documents.
   ir:
     isolated: true
@@ -202,14 +202,14 @@ qmd: |+
   print("cumulative packages retained")
   ```
 
-path: sessions/session-004.qmd
+path: sessions/session-004/session.qmd
 ---
 session: 5
 qmd: |+
   ---
   # Source recorded by MCP Console; review before executing.
   title: MCP Console session
-  # From a working copy, run `ir render session-005.qmd` in a prepared environment.
+  # From a working copy, run `ir render session.qmd` in a prepared environment.
   # IR rendering requires R on the render host, including for Python-only documents.
   ir:
     isolated: true
@@ -240,14 +240,14 @@ qmd: |+
   print("retained restart")
   ```
 
-path: sessions/session-005.qmd
+path: sessions/session-005/session.qmd
 ---
 session: 6
 qmd: |+
   ---
   # Source recorded by MCP Console; review before executing.
   title: MCP Console session
-  # From a working copy, run `ir render session-006.qmd` in a prepared environment.
+  # From a working copy, run `ir render session.qmd` in a prepared environment.
   # IR rendering requires R on the render host, including for Python-only documents.
   ir:
     isolated: true
@@ -279,4 +279,4 @@ qmd: |+
   42
   ```
 
-path: sessions/session-006.qmd
+path: sessions/session-006/session.qmd

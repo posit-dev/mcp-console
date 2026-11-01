@@ -9,6 +9,8 @@ result:
       text: |
         [1] "original worker source"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: print('replacement worker source')
@@ -22,6 +24,8 @@ result:
         [1] "replacement worker source"
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   r: print('surviving worker source')

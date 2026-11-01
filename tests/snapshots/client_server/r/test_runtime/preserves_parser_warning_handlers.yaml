@@ -16,6 +16,8 @@ result:
       text: |
         global warning handler
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: parser_warnings

@@ -313,6 +313,12 @@ async fn evaluate(
             .content
             .iter()
             .filter_map(|content| content.as_text())
+            // Discovery is useful to an agent, but is not runtime diagnostics.
+            .filter(|content| {
+                !content.meta.as_ref().is_some_and(|meta| {
+                    meta.get(crate::transcript::BUNDLE_META) == Some(&serde_json::Value::Bool(true))
+                })
+            })
             .map(|content| content.text.as_str())
             .collect::<String>();
         output.push_str(&text);
@@ -332,6 +338,9 @@ async fn evaluate(
             return Ok((output, is_error, r_available));
         }
         // An observation timeout does not cancel or authorize replaying the cell.
+        // Progress notices end their response without a newline. Separate them
+        // from later output so they cannot absorb a successful check's first line.
+        output.push('\n');
         arguments = serde_json::Map::new();
     }
 }

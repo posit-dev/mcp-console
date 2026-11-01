@@ -44,6 +44,8 @@ result:
       text: |
         unrestricted filesystem with restricted networking
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 input:
   method: tools/call

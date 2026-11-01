@@ -23,5 +23,7 @@ result:
       text: |
         zod: echo
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 startup_supervision_recovery:
   custom_relay: executed only for the replacement generation

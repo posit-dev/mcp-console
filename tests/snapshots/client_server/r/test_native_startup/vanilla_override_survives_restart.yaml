@@ -18,6 +18,8 @@ result:
       text: |
         vanilla startup complete
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -47,3 +49,5 @@ result:
       text: |
         vanilla startup complete
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

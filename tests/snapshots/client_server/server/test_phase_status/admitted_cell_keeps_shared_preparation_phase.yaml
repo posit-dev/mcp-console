@@ -46,6 +46,8 @@ result:
       text: |
         cell completed
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   session: default

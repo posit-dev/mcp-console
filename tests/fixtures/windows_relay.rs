@@ -39,6 +39,7 @@ unsafe extern "system" {
 fn main() -> io::Result<()> {
     match std::env::var("TEST_RELAY_SCENARIO").unwrap().as_str() {
         "stall_shutdown" | "exit_shutdown" => {
+            // This fixture stands in for both relay and worker lifetime.
             println!(r#"{{"kind":"worker_started","pid":{}}}"#, std::process::id());
             println!(r#"{{"kind":"ready"}}"#);
             io::stdout().flush()?;

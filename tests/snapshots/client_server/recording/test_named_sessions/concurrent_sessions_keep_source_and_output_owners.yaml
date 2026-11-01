@@ -13,6 +13,8 @@ result:
         [input requested: "alpha> "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: |
@@ -26,6 +28,8 @@ result:
         [input requested: "beta> "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   stdin: |

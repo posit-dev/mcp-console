@@ -32,6 +32,10 @@ def resolve() -> None:
         # A Python callback can remain deferred across a blocking FIFO read.
         previous = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
         assert signal.SIGINT not in previous
+    failure_file = os.environ.get("MCP_CONSOLE_TEST_R_RESOLUTION_FAILURE")
+    if failure_file and Path(failure_file).exists():
+        print("fixture R resolver failed", file=sys.stderr)
+        raise SystemExit(1)
     if failure := os.environ.get("MCP_CONSOLE_TEST_IR_FAILURE"):
         print(failure, file=sys.stderr)
         raise SystemExit(1)

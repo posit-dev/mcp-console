@@ -10,6 +10,8 @@ result:
         Warning message:
         integer literal 1.0L contains unnecessary decimal point 
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |

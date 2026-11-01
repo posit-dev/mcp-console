@@ -82,8 +82,12 @@ def test_gets_selects_and_resets_the_active_native_connection(
 ) -> Transcript:
     environment = r_duckdb_snapshot_environment()
     environment["RETICULATE_PYTHON"] = ""
+    # Prepare this test's packages at startup: an additive declaration can
+    # otherwise replace an unused prelaunched worker depending on readiness.
     with McpClient(
-        binary, execution.serve("-c", "r.packages=[]"), environment
+        binary,
+        execution.serve("-c", "r.packages=[RSQLite]"),
+        environment,
     ) as client:
         client.initialize_and_list_tools()
         # fmt: r
@@ -100,9 +104,7 @@ def test_gets_selects_and_resets_the_active_native_connection(
             stopifnot(identical(.console$sql_connection(), sqlite))
             writeLines("selected native DBI identity")
             """)
-        client.expect(
-            "selected native DBI identity\n", r=r, requirements={"r": ["RSQLite"]}
-        )
+        client.expect("selected native DBI identity\n", r=r)
         client.send(sql="CREATE TABLE chosen AS SELECT 11 AS value")
         assert last_tool_text(client) == "[done]"
         # fmt: r
