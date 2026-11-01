@@ -1,0 +1,38 @@
+---
+client: AsyncMCPConsole
+bundle_notice: |
+  Session bundle on the Console host: "<recording>/sessions/session-001"
+  Source: "<recording>/sessions/session-001/session.qmd"
+  Report: "<recording>/sessions/session-001/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
+requirements:
+  requirements:
+    r: []
+    python: []
+    duckdb: []
+    python_version: []
+    exclude_newer: ~
+  prepared: false
+  runtime_requirements:
+    r: []
+    python: []
+next_inspection: identical requirement JSON without another notice
+---
+client: MCPConsole
+bundle_notice: |
+  Session bundle on the Console host: "<recording>/sessions/session-001"
+  Source: "<recording>/sessions/session-001/session.qmd"
+  Report: "<recording>/sessions/session-001/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
+requirements:
+  requirements:
+    r: []
+    python: []
+    duckdb: []
+    python_version: []
+    exclude_newer: ~
+  prepared: false
+  runtime_requirements:
+    r: []
+    python: []
+next_inspection: identical requirement JSON without another notice

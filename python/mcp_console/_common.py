@@ -52,5 +52,12 @@ def result_text(result: CallToolResult) -> str:
         isinstance(result.structured_content, dict)
         and "requirements" in result.structured_content
     ):
-        return json.dumps(result.structured_content, indent=2)
+        notices = "".join(
+            item.text
+            for item in result.content
+            if item.type == "text"
+            and item.meta is not None
+            and item.meta.get("mcp-console/session-bundle") is True
+        )
+        return notices + json.dumps(result.structured_content, indent=2)
     return text
