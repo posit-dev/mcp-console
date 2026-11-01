@@ -1,0 +1,41 @@
+---
+!same-as MCP initialization for this execution mode
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  python: |
+    executions = globals().get("executions", 0) + 1
+    identity = object()
+    print("observed value")
+result:
+  content:
+    - type: text
+      text: |
+        observed value
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-001
+---
+send:
+  python: >-
+    assert identity is not None and executions == 1; raise ValueError('kept
+    error')
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e2>", line 1, in <module>
+        ValueError: kept error
+  isError: false
+---
+send:
+  python: assert not hasattr(_console, 'export_session')
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

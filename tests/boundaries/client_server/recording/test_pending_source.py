@@ -62,7 +62,7 @@ def test_retains_source_after_an_early_response(
             finally:
                 release.release()
             client.expect("zod: delayed source\n")
-            source = recording / "sessions/session-001.qmd"
+            source = recording / "sessions/session-001/session.qmd"
             assert source.is_file(), "accepted source was lost after its early response"
             assert "echo delayed source" in source.read_text()
             return client.finish()

@@ -261,6 +261,14 @@ Before using the connection directly from R or Python, finish retrieval or selec
 For queries submitted directly through Python DuckDB 2.x, fetch until no rows remain (or use `fetchall()`) before other operations such as registering a frame on that connection.
 Direct connection use while a result is pending is unsupported: it can invalidate the result without Console detecting the change.
 
+## Locate the session report
+
+Console announces the current session bundle when its source and report first become available.
+Open `session.md` for recorded previews and images or copy the entire bundle with your client's file tools.
+`session.qmd` contains notes, source, and dependency metadata for review and later execution.
+Paths refer to the Console host and do not grant filesystem access.
+See [Session bundles](RECORDING_REFERENCE.md#session-bundles) for updates, portability, and completion.
+
 ## Plots and images
 
 R's managed device returns PNG pages and finalizes open pages at cell end, including after language errors.

@@ -93,6 +93,7 @@ Preserve warnings that errors do not roll back effects and restart discards live
 Ordinary use should not require declaration inspection, preparation, language switching, or restart.
 Do not turn the description into a package list, protocol guide, or help API.
 Response notices own current state, missing prerequisites, and omitted-output locations.
+Execution previews keep their text budget; session bundle discovery adds separate location metadata.
 
 Do not remove a capability's only usable explanation in favor of a repository link: the agent may not have the checkout.
 Exact helper names and essential restrictions must remain available in the tool definition.

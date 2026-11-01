@@ -17,6 +17,8 @@ result:
         <probe release>
         <probe pid>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: marker = object(); marker_id = id(marker)
@@ -55,6 +57,8 @@ result:
       text: |
         True
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   requirements:

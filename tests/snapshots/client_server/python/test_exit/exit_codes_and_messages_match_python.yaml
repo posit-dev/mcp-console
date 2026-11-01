@@ -10,6 +10,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |-
@@ -35,6 +37,8 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: |-
@@ -60,6 +64,8 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   python: |-
@@ -85,6 +91,8 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004
 ---
 send:
   python: |-
@@ -111,6 +119,8 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-005
 ---
 send:
   python: |-
@@ -137,6 +147,8 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-006
 ---
 send:
   python: |-
@@ -161,6 +173,8 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-007
 ---
 send:
   python: |-
@@ -185,6 +199,8 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-008
 ---
 send:
   python: |-
@@ -211,3 +227,5 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-009

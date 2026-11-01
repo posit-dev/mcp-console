@@ -2,6 +2,10 @@
 type: function_call_output
 call_id: call_1
 output: |
+  Session bundle on the Console host: "<recording>/sessions/session-001"
+  Source: "<recording>/sessions/session-001/session.qmd"
+  Report: "<recording>/sessions/session-001/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
   zod: response
 ---
 type: function_call_output

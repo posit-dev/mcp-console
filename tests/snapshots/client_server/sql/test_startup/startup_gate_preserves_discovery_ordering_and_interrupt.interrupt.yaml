@@ -28,6 +28,8 @@ result:
         [input requested: "Startup gate> "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: interrupt
@@ -81,6 +83,8 @@ result:
         42
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: assert startup_count == 1

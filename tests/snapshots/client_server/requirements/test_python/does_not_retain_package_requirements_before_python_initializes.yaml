@@ -12,6 +12,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: tools::pskill(Sys.getpid(), signal = 9L)
@@ -35,6 +37,8 @@ result:
       text: |
         [1] FALSE
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   r: library(mcpconsolepyrequire); yaml12 <- reticulate::import("yaml12")

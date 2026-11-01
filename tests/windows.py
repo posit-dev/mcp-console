@@ -25,9 +25,10 @@ import unittest
 import zipfile
 
 from windows_gate import Gate
-from support.checkpoints import wait_for_path
+from support.checkpoints import wait_for_path, wait_for_checkpoint
 from support.installation import native_console
 from support.normalization import code
+from support.bundles import split_bundle_notice
 from support.r import r_duckdb_snapshot_environment, r_test_environment
 from windows_distribution import NATIVE_SUFFIXES, inspect_artifacts
 
@@ -82,6 +83,7 @@ class Session:
             )
         (Path(self.directory.name) / ".agents/console").mkdir(parents=True)
         self.errors = tempfile.TemporaryFile()
+        self.bundle_notices = []
         command = [str(binary or BINARY), "serve"]
         if not sandbox:
             command.append("--no-sandbox")
@@ -188,7 +190,27 @@ class Session:
                 )
             if response.get("id") == self.sequence:
                 assert "error" not in response, response
-                return response["result"]
+                result = response["result"]
+                if method == "tools/call" and params.get("name") == "send":
+                    notices = [
+                        item
+                        for item in result.get("content", [])
+                        if item.get("_meta", {}).get("mcp-console/session-bundle")
+                        is True
+                    ]
+                    for notice in notices:
+                        text, remainder = split_bundle_notice(notice["text"])
+                        assert text == notice["text"] and remainder == "", notice
+                        self.bundle_notices.append(text)
+                    result = {
+                        **result,
+                        "content": [
+                            item
+                            for item in result.get("content", [])
+                            if item not in notices
+                        ],
+                    }
+                return result
 
     def initialize(self):
         self.server_info = self.request(
@@ -1931,11 +1953,12 @@ class WindowsConsole(unittest.TestCase):
             Path(session.directory.name) / ".agents/console/sessions"
         ).iterdir()
         source_documents = [
-            recording / f"sessions/session-{session_id:03}.qmd"
+            recording / f"sessions/session-{session_id:03}/session.qmd"
             for session_id in range(1, 14)
         ]
         self.assertEqual(
-            sorted((recording / "sessions").glob("*.qmd")), source_documents
+            sorted((recording / "sessions").glob("session-*/session.qmd")),
+            source_documents,
         )
         self.assertFalse((recording / "transcript.qmd").exists())
         for path in (
@@ -2426,6 +2449,90 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn("exited", json.dumps(result))
         result = session.send(r="42L")
         self.assertIn("42", json.dumps(result))
+
+    def test_bundle_junction_cannot_redirect_host_writes(self):
+        session = self.session()
+        session.expect("ready", python="print('ready')")
+        (recording,) = (
+            Path(session.directory.name) / ".agents/console/sessions"
+        ).iterdir()
+        # Active Windows report handles pin their directory names. A junction
+        # can still be planted for a replacement before its first source.
+        session.send(control="restart")
+        bundle = recording / "sessions/session-002"
+        self.assertFalse(bundle.exists())
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary)
+            subprocess.run(
+                ["cmd.exe", "/d", "/c", "mklink", "/J", str(bundle), str(target)],
+                check=True,
+                capture_output=True,
+            )
+            try:
+                session.expect("still running", python="print('still running')")
+                self.assertEqual(list(target.iterdir()), [])
+                session.errors.seek(0)
+                self.assertIn(
+                    b"transcript projections disabled:", session.errors.read()
+                )
+            finally:
+                bundle.rmdir()
+
+    def test_shutdown_discards_unpublished_capture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scratch = root / "scratch"
+            scratch.mkdir()
+            hooks = root / "hooks"
+            hooks.mkdir()
+            (hooks / "sitecustomize.py").write_text(
+                # fmt: python
+                code("""
+                    import sys
+                    from pathlib import Path
+
+                    if "_mcp_console_services" in sys.modules:
+                        print("unpublished startup output", flush=True)
+                        Path("startup-ready").touch()
+                    """)
+            )
+            session = Session(
+                {
+                    **os.environ,
+                    "RETICULATE_PYTHON": sys.executable,
+                    "RETICULATE_PYTHONPATH": str(hooks),
+                    "TMP": str(scratch),
+                    "TEMP": str(scratch),
+                    "TMPDIR": str(scratch),
+                }
+            )
+            try:
+                session.initialize()
+                wait_for_path(
+                    Path(session.directory.name) / "startup-ready",
+                    "worker startup without send",
+                    timeout=session.timeout,
+                )
+                capture = wait_for_checkpoint(
+                    lambda: next(
+                        (
+                            path
+                            for path in scratch.iterdir()
+                            if (path / "capture/events.jsonl").is_file()
+                        ),
+                        None,
+                    ),
+                    "unpublished capture observed",
+                    root=scratch,
+                    recursive=True,
+                    timeout=session.timeout,
+                )
+                self.assertFalse(
+                    (Path(session.directory.name) / ".agents/console/sessions").exists()
+                )
+            finally:
+                session.close()
+            self.assertFalse(capture.exists())
 
     def test_eof_retires_running_worker(self):
         session = self.session()

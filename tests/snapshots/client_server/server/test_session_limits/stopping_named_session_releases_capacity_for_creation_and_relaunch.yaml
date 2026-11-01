@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: retained = 100
@@ -17,6 +19,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   session: beta
@@ -51,6 +55,8 @@ result:
         100
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   python: retained += 1; print(retained)
@@ -81,6 +87,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004
 ---
 send:
   session: alpha
@@ -217,6 +225,8 @@ result:
         [input requested: "fresh> "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-005
 ---
 send:
   session: alpha

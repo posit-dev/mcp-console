@@ -57,6 +57,9 @@ The [R API](https://posit-dev.github.io/mcp-console/r/reference/) documents the 
 
 ## Work with the session
 
+Console announces a session's source and report paths when its bundle first appears.
+The adapter preserves this notice alongside execution text and images as ordered content objects; a direct tool call can return a list of these objects.
+
 The shared guides explain [sessions and languages](BUILTIN_RUNTIME.md), [packages and environments](REQUIREMENTS.md), [sandbox permissions](SANDBOX.md), and [recordings and reports](RECORDING.md).
 These describe the same workbench your agent uses from R.
 

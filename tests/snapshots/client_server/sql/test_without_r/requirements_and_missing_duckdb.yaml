@@ -61,6 +61,8 @@ result:
         -----
         1
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: identity = object(); identity_id = id(identity)
@@ -227,6 +229,8 @@ result:
         selected Python environment, or select a DB-API connection with
         _console.sql_connection(connection)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: |
@@ -385,3 +389,5 @@ result:
         --------
         9
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

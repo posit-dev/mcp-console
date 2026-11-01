@@ -637,13 +637,23 @@ class ReleaseScriptTests(ReleaseFixture):
                     }
                     if os.environ.get("FAKE_MCP_EVALUATION_HANG"):
                         signal.pause()
+                    content = [{"type": "text", "text": output}]
+                    if os.environ.get("FAKE_MCP_BUNDLE_NOTICE") and language == "python":
+                        content.insert(
+                            0,
+                            {
+                                "type": "text",
+                                "text": "session bundle location\\n",
+                                "_meta": {"mcp-console/session-bundle": True},
+                            },
+                        )
                     print(
                         json.dumps(
                             {
                                 "jsonrpc": "2.0",
                                 "id": evaluation["id"],
                                 "result": {
-                                    "content": [{"type": "text", "text": output}],
+                                    "content": content,
                                     "isError": False,
                                 },
                             }
@@ -1781,6 +1791,22 @@ class ReleaseScriptTests(ReleaseFixture):
                 text=True,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_smoke_wheel_accepts_session_bundle_discovery(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            environment, wheel, cargo_bin = self.smoke_environment(directory)
+            environment["FAKE_MCP_BUNDLE_NOTICE"] = "1"
+            result = self.run_script(
+                "smoke-wheel",
+                str(wheel),
+                str(cargo_bin),
+                "--target",
+                "aarch64-apple-darwin",
+                cwd=directory,
+                env=environment,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_smoke_wheel_evaluates_peers_and_bounds_response_waits(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

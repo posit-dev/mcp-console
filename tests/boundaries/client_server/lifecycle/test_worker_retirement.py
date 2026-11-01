@@ -155,7 +155,16 @@ def _overlapping_failed_retirement(
                 "[worker is already evaluating a cell; poll without a code field]",
             ), probe
             assert time.monotonic() < deadline, client.transcript
+        # The first bundle can be announced by an intermediate admission probe.
+        # Preserve its checked receipt when compacting the asserted probes.
+        bundles = [
+            bundle
+            for entry in client.transcript[first_probe:]
+            for bundle in entry.get("session_bundles", [])
+        ]
+        assert bundles == ["<recording>/sessions/session-001"], bundles
         client.transcript[first_probe:] = client.transcript[-1:]
+        client.transcript[-1]["session_bundles"] = bundles
         fault_release.release()
         fault_sent.wait("old relay published Fatal during retirement")
         if cleanup_failure:

@@ -195,7 +195,7 @@ def test_previews_images_without_consuming_or_reaccounting(
                 markdown = (recording / "transcript.md").read_text()
                 assert public_artifact["path"] in markdown, markdown
                 assert hidden_artifact["path"] not in markdown, markdown
-                (qmd,) = (recording / "sessions").glob("*.qmd")
+                (qmd,) = (recording / "sessions").glob("session-*/session.qmd")
                 assert hidden_source not in qmd.read_text(), qmd.read_text()
                 journal = (recording / "capture/events.jsonl").read_text()
                 assert public_encoded not in journal and hidden_encoded not in journal

@@ -37,3 +37,5 @@ result:
       text: |
         custom pagers receive the standard native encoding
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

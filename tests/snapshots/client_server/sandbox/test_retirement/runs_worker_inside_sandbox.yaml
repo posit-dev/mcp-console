@@ -9,3 +9,5 @@ result:
       text: |
         sandbox blocked host write
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

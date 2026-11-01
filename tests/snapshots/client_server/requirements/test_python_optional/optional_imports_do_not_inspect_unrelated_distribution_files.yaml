@@ -49,3 +49,5 @@ result:
       text: |
         Optional initialization leaves unrelated data files untouched
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

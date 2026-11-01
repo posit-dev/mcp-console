@@ -13,6 +13,8 @@ result:
         [worker stopped: in-memory state lost]
         [startup may have executed; explicit restart required]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send: {}
 result:
@@ -98,3 +100,5 @@ result:
       text: |
         [1] TRUE
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

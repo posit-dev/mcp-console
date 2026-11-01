@@ -102,6 +102,8 @@ result:
         [output produced while idle]
         42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: >-
@@ -325,6 +327,8 @@ result:
       text: |
         2
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   control: restart

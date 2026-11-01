@@ -214,3 +214,5 @@ result:
              ### less simple examples in "See Also" above
 
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

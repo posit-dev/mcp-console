@@ -16,6 +16,8 @@ result:
       data: <PNG byte-identical to live Rscript page 1>
       mimeType: image/png
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: plot(3:1)

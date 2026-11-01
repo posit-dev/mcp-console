@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   session: alpha
@@ -18,6 +20,8 @@ result:
       text: |
         agent alpha
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   session: alpha
@@ -52,6 +56,10 @@ result:
         [output produced while idle]
         False
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
+  - <recording>/sessions/session-004
+  - <recording>/sessions/session-005
 ---
 send:
   python: print(shared)

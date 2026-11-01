@@ -121,7 +121,9 @@ def test_named_sessions_isolate_r_sql_and_requirements(
         }
         assert workers.keys() == {"default", "alpha", "beta"}, workers
         for session, worker in workers.items():
-            source = (recording / f"sessions/session-{worker:03}.qmd").read_text()
+            source = (
+                recording / f"sessions/session-{worker:03}/session.qmd"
+            ).read_text()
             assert ("    - core_functions\n" in source) == (session == "alpha"), (
                 session,
                 source,

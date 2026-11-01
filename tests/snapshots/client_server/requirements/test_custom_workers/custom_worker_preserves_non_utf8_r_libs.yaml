@@ -19,3 +19,5 @@ result:
       text: |
         zod raw R library: preserved=true
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

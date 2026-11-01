@@ -22,6 +22,8 @@ result:
       text: |
         short executable path retained the selected environment
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -48,3 +50,5 @@ result:
         short executable path retained the selected environment
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

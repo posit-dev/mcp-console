@@ -12,6 +12,8 @@ result:
       text: |
         no R executable visible
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   sql: CREATE TABLE managed_marker AS SELECT 7 AS value

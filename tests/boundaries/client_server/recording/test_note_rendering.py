@@ -126,7 +126,7 @@ writeLines("option", "note-option-ran")
         report = workspace / "report"
         report.mkdir()
         document = report / "session.qmd"
-        shutil.copyfile(recording / "sessions/session-001.qmd", document)
+        shutil.copyfile(recording / "sessions/session-001/session.qmd", document)
         (report / "included.qmd").write_text(
             '```{r}\nwriteLines("include", "note-include-ran")\n```\n',
             encoding="utf-8",
@@ -215,7 +215,7 @@ writeLines("example", "note-ran")
             wait_for_worker_ready(client, "worker acquired before Python journal")
             client.expect(note=note)
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            note_only = (recording / "sessions/session-001.qmd").read_text(
+            note_only = (recording / "sessions/session-001/session.qmd").read_text(
                 encoding="utf-8"
             )
             client.expect(
@@ -234,7 +234,7 @@ writeLines("example", "note-ran")
         report = workspace / "report"
         report.mkdir()
         document = report / "session.qmd"
-        shutil.copyfile(recording / "sessions/session-001.qmd", document)
+        shutil.copyfile(recording / "sessions/session-001/session.qmd", document)
         document_text = document.read_text(encoding="utf-8")
         assert "  packages: []\n" in document_text, document_text
         (report / "note-only.qmd").write_text(note_only, encoding="utf-8")

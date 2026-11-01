@@ -9,7 +9,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.python.test_peer_runtime import without_r
-from support.assertions import last_result_text
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
@@ -105,9 +104,9 @@ def test_launches_children_without_confusing_executable_and_script_arguments(
             with McpClient(binary, execution.serve(), environment, workspace) as client:
                 client.initialize_and_list_tools()
                 if mode == "r-first":
-                    client.send(r="invisible(reticulate::py_config())")
-                    assert last_result_text(client) == "[done]"
-                client.send(
+                    client.expect(r="invisible(reticulate::py_config())")
+                client.expect(
+                    "Python interpreter and children retain executable, arguments, and environment\n",
                     # fmt: python
                     python=code(r"""
                         import builtins
@@ -166,13 +165,10 @@ def test_launches_children_without_confusing_executable_and_script_arguments(
                         print("Python interpreter and children retain executable, arguments, and environment")
                         """),
                 )
-                assert last_result_text(client) == (
-                    "Python interpreter and children retain executable, arguments, and environment\n"
-                ), client.transcript[-1]
                 if mode != "without-r":
-                    client.send(r="invisible(reticulate::py_config())")
-                    assert last_result_text(client) == "[done]", client.transcript[-1]
-                client.send(
+                    client.expect(r="invisible(reticulate::py_config())")
+                client.expect(
+                    "user argv retained across cells and R attachment\n",
                     # fmt: python
                     python=code("""
                         assert sys.argv == ["user script.py", "two words", "λ", "--literal"]
@@ -185,10 +181,6 @@ def test_launches_children_without_confusing_executable_and_script_arguments(
                         ]
                         print("user argv retained across cells and R attachment")
                         """),
-                )
-                assert (
-                    last_result_text(client)
-                    == "user argv retained across cells and R attachment\n"
                 )
                 records.extend(client.finish()[3:])
     return records

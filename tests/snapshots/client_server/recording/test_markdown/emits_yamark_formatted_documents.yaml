@@ -15,6 +15,8 @@ result:
       text: |
         after image
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |-
@@ -69,4 +71,4 @@ result:
 ---
 generated documents:
   transcript.md: Yamark formatted
-  sessions/session-001.qmd: Yamark formatted
+  sessions/session-001/session.qmd: Yamark formatted

@@ -9,6 +9,8 @@ result:
       text: |
         [1] 100000
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 transcript_normalization:
   target: send.r
   repeated_character: é

@@ -9,6 +9,8 @@ result:
       text: |
         zod: ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: stall accepted relay shutdown
@@ -43,3 +45,5 @@ result:
       text: |
         zod: echo
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

@@ -83,7 +83,7 @@ def test_records_notes_with_and_without_code(
         assert markdown.index(notes[2]) < markdown.index(notes[3])
         assert "## Call 1: Note\n\n" + notes[0] in markdown
         assert "Use sample A.\n\n### Submitted stdin" in markdown
-        quarto_path = recording / "sessions/session-001.qmd"
+        quarto_path = recording / "sessions/session-001/session.qmd"
         quarto = quarto_path.read_text(encoding="utf-8")
         read_only = not bool(quarto_path.stat().st_mode & 0o222)
         assert read_only, quarto_path

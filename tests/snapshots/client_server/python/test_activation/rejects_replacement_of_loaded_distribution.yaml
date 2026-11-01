@@ -28,6 +28,8 @@ result:
       text: |
         1.0
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: cell_was_run = True
@@ -81,3 +83,5 @@ result:
       text: |
         1.0
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

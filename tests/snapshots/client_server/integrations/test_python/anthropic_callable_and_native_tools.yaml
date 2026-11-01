@@ -1,8 +1,18 @@
 ---
 callable: |
+  Session bundle on the Console host: "<recording>/sessions/session-001"
+  Source: "<recording>/sessions/session-001/session.qmd"
+  Report: "<recording>/sessions/session-001/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
   zod: anthropic
 ---
 native:
+  - type: text
+    text: |
+      Session bundle on the Console host: "<recording>/sessions/session-001"
+      Source: "<recording>/sessions/session-001/session.qmd"
+      Report: "<recording>/sessions/session-001/session.md"
+      This live bundle updates as results are assembled; the path grants no filesystem access.
   - type: text
     text: |
       before image

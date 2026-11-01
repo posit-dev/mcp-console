@@ -25,6 +25,8 @@ result:
       text: |
         zod response-gated operation
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: checkpoint 5

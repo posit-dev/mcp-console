@@ -17,3 +17,5 @@ result:
         replacement launch diagnostic
         [idle]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001

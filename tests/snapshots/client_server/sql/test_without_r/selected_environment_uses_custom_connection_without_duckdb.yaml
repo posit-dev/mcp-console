@@ -10,6 +10,8 @@ result:
         selected Python environment, or select a DB-API connection with
         _console.sql_connection(connection)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |

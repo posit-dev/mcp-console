@@ -24,9 +24,9 @@ description: >-
   Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
 
 
-  Text results, including notices, have an 8 KiB limit, retaining the beginning
-  and latest tail; images have separate limits. Response notices report state
-  and omitted-output locations.
+  Execution previews and their notices have an 8 KiB limit, retaining head and
+  tail; images have separate limits. Separate notices give session bundle paths
+  on the Console host.
 
 
   Evaluated code can read host files subject to configured restrictions and
@@ -60,9 +60,9 @@ description: >-
   Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
 
 
-  Text results, including notices, have an 8 KiB limit, retaining the beginning
-  and latest tail; images have separate limits. Response notices report state
-  and omitted-output locations.
+  Execution previews and their notices have an 8 KiB limit, retaining head and
+  tail; images have separate limits. Separate notices give session bundle paths
+  on the Console host.
 
 
   Evaluated code can read host files subject to configured restrictions and can
@@ -96,9 +96,9 @@ description: >-
   Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
 
 
-  Text results, including notices, have an 8 KiB limit, retaining the beginning
-  and latest tail; images have separate limits. Response notices report state
-  and omitted-output locations.
+  Execution previews and their notices have an 8 KiB limit, retaining head and
+  tail; images have separate limits. Separate notices give session bundle paths
+  on the Console host.
 
 
   Evaluated code can read host files subject to configured restrictions and can
@@ -132,9 +132,9 @@ description: >-
   Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
 
 
-  Text results, including notices, have an 8 KiB limit, retaining the beginning
-  and latest tail; images have separate limits. Response notices report state
-  and omitted-output locations.
+  Execution previews and their notices have an 8 KiB limit, retaining head and
+  tail; images have separate limits. Separate notices give session bundle paths
+  on the Console host.
 
 
   Evaluated code can read host files subject to configured restrictions and can
@@ -168,9 +168,9 @@ description: >-
   Defaults: `timeout_ms=60000` (60 seconds), `requirements.action="add"`.
 
 
-  Text results, including notices, have an 8 KiB limit, retaining the beginning
-  and latest tail; images have separate limits. Response notices report state
-  and omitted-output locations.
+  Execution previews and their notices have an 8 KiB limit, retaining head and
+  tail; images have separate limits. Separate notices give session bundle paths
+  on the Console host.
 
 
   Evaluated code runs without a sandbox, with the server's permissions,

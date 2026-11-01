@@ -34,6 +34,8 @@ result:
       text: |
         True
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   session: default

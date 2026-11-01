@@ -115,14 +115,14 @@ def test_records_python_without_r_dependencies(
             assert last_result_text(client) == "42\n", last_result_text(client)
             transcript = client.finish()
         session = next((workspace / ".agents/console/sessions").iterdir())
-        quarto = (session / "sessions/session-001.qmd").read_text()
+        quarto = (session / "sessions/session-001/session.qmd").read_text()
         assert "original-working-directory:" in quarto and "root.dir:" not in quarto, (
             quarto
         )
         assert "\nir:\n  isolated: true\n  packages: []\n" in quarto, quarto
         assert "execute:\n  eval: false" not in quarto, quarto
         assert "review before executing" in quarto
-        assert "# From a working copy, run `ir render session-001.qmd`" in quarto
+        assert "# From a working copy, run `ir render session.qmd`" in quarto
         assert "# IR rendering requires R on the render host" in quarto
         assert "```{python}" in quarto, quarto
         return TranscriptWithCompanions(

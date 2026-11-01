@@ -128,7 +128,7 @@ def test_materializes_records_only_for_console_use(
         assert len(sessions) == 1, sessions
         assert not (workspace / ".mcp-console").exists(), workspace
         assert (sessions[0] / "transcript.md").is_file(), sessions
-        assert (sessions[0] / "sessions/session-001.qmd").is_file(), sessions
+        assert (sessions[0] / "sessions/session-001/session.qmd").is_file(), sessions
         assert (sessions[0] / "capture/sessions/001").is_dir(), sessions
         assert (cell_output_path(sessions[0], 1)).read_text() == "zod: echo\n"
         events = live_recording_events(sessions[0])
@@ -354,7 +354,9 @@ def test_updates_quarto_without_rereading_journal(
             journal_read_disabled = True
 
             client.send(python="echo second")
-            quarto = (session / "sessions/session-001.qmd").read_text(encoding="utf-8")
+            quarto = (session / "sessions/session-001/session.qmd").read_text(
+                encoding="utf-8"
+            )
 
             journal.chmod(0o600)
             journal_read_disabled = False
@@ -404,7 +406,7 @@ def test_records_tool_calls_and_images(
             requirements={"r": ["praise"]},
         )
         session = next((workspace / ".agents/console" / "sessions").iterdir())
-        quarto_path = session / "sessions/session-001.qmd"
+        quarto_path = session / "sessions/session-001/session.qmd"
         initial_quarto = quarto_path.read_text(encoding="utf-8")
         # Retain the old inode while checking atomic replacement. An unlinked
         # inode can otherwise be reused immediately on Linux filesystems.
@@ -526,8 +528,16 @@ def test_records_tool_calls_and_images(
             "discarded_bytes": 0,
             "retention_limit_bytes": CELL_OUTPUT_RETENTION_LIMIT,
         }, events[3]
+        # Discovery is part of the canonical response, separate from cell output.
+        notice = events[4]["result"]["content"][0]
+        assert notice == {
+            "type": "text",
+            "text": client.bundle_notices[0],
+            "_meta": {"mcp-console/session-bundle": True},
+        }, notice
         assert events[4]["result"] == {
             "content": [
+                notice,
                 {"type": "text", "text": "before image\n"},
                 {
                     "type": "image",
@@ -581,7 +591,7 @@ def test_records_tool_calls_and_images(
             event.get("request", {}).get("name") != "missing" for event in events
         ), events
 
-        image_path = session / events[4]["result"]["content"][1]["path"]
+        image_path = session / events[4]["result"]["content"][2]["path"]
         output_path = session / events[3]["path"]
         image_bytes = image_path.read_bytes()
         assert image_bytes == base64.b64decode(PNG_1X1), image_path
@@ -614,6 +624,11 @@ def test_records_tool_calls_and_images(
         assert output_path.stat().st_mode & 0o777 == 0o400
         assert set(file_modes.values()) == {0o400}, file_modes
 
+        notice["text"] = (
+            notice["text"]
+            .replace(str(session.resolve()), "<recording>")
+            .replace(str(session), "<recording>")
+        )
         for event in events:
             assert event["at"].endswith("Z"), event
             datetime.fromisoformat(event["at"])
@@ -656,7 +671,9 @@ def test_records_tool_calls_and_images(
                             "files": [
                                 "capture/events.jsonl",
                                 "transcript.md",
-                                "sessions/session-001.qmd",
+                                "sessions/session-001/session.qmd",
+                                "sessions/session-001/session.md",
+                                "sessions/session-001/images/image-000001.png",
                                 "capture/sessions/001/cell-001-001.png",
                                 "capture/sessions/001/cell-001.txt",
                             ],
@@ -842,7 +859,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             return [json.loads(line) for line in journal.read_bytes().split(b"\n")[:-1]]
 
         markdown = session / "transcript.md"
-        quarto = session / "sessions/session-001.qmd"
+        quarto = session / "sessions/session-001/session.qmd"
         before_release = live_events()
         assert [event["event"] for event in call_events(before_release)] == [
             "recording_started",
@@ -1144,7 +1161,7 @@ def test_records_early_calls_before_discovery(binary: Path) -> Transcript:
             markdown = (session / "transcript.md").read_text()
             assert markdown.index("## Call 1:") < markdown.index("## Call 2:"), markdown
             assert "## Runtime discovery" not in markdown, markdown
-            quarto = (session / "sessions/session-001.qmd").read_text()
+            quarto = (session / "sessions/session-001/session.qmd").read_text()
             assert "environment: unknown" not in quarto, quarto
             assert "eval: false" not in quarto, quarto
             return [{"early_call_and_result_precede_discovery": True}]
@@ -1291,7 +1308,7 @@ def test_records_early_calls_when_discovery_fails(binary: Path) -> Transcript:
                 if event["event"] == "process_output"
             )
             assert not any(event["event"] == "worker_started" for event in events)
-            assert not list((session / "sessions").glob("*.qmd"))
+            assert not list((session / "sessions").glob("session-*/session.qmd"))
             assert (
                 "stop('failed discovery ran the cell')"
                 in (session / "transcript.md").read_text()
@@ -1442,7 +1459,7 @@ def test_preserves_early_requirements_in_published_quarto(binary: Path) -> Trans
                 assert last_tool_text(client).endswith("[1] 42\n")
                 transcript = client.finish()
             (recording,) = (root / ".agents/console/sessions").iterdir()
-            quarto = (recording / "sessions/session-001.qmd").read_text()
+            quarto = (recording / "sessions/session-001/session.qmd").read_text()
             assert "    - praise\n" in quarto, quarto
             assert "```{r}\n#| error: true\n42L\n```" in quarto, quarto
             assert "eval: false" not in quarto, quarto

@@ -1,0 +1,24 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: answer = input('answer> '); print(answer)
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "answer> "]
+        [waiting for stdin]
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-001
+---
+send:
+  stdin: |
+    accepted
+result:
+  content:
+    - type: text
+      text: |
+        accepted
+  isError: false

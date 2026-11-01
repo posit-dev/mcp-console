@@ -74,6 +74,8 @@ result:
       text: |
         Error in loadNamespace(x) : there is no package called ‘mcpsecond’
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:

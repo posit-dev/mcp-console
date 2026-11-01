@@ -28,6 +28,8 @@ result:
         [worker stopped: in-memory state lost]
         [startup may have executed; explicit restart required]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   sql: SELECT 42 AS answer
@@ -50,6 +52,8 @@ result:
         42
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 crashed_startup: |-
   [worker sideband read failed: worker sideband closed]

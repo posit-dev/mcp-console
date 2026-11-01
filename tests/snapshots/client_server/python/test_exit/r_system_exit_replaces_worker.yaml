@@ -10,6 +10,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: r_marker <- 42L
@@ -43,6 +45,8 @@ result:
       text: |
         (False, 2)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   r: stopifnot(!exists("r_marker", inherits = FALSE)); 1 + 1

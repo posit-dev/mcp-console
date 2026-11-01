@@ -161,10 +161,10 @@ Existing MCP output and shared preparation/lifecycle diagnostics remain availabl
 Unknown request fields and unsupported actions are `invalid_request` errors; unavailable configuration or inherited permissions are `not_ready` errors.
 
 `recording` returns `directory`, `markdown`, `qmd`, and `worker_id` for existing projections.
-Paths are absolute; `qmd` selects the addressed session's current worker and is null until that worker has visible recorded source.
+Paths are absolute; `qmd` selects the addressed session's current worker and is null until that worker has visible recorded source or notes.
 `worker_id` can be null before a worker starts or after it stops.
 This is the recording's global worker identity, distinct from the per-name typed-output `worker_id`.
-The recording directory and Markdown projection span all names in the MCP connection; QMD files remain worker-specific.
+The recording directory and Markdown projection span all names in the MCP connection; `qmd` points to the worker-specific bundle's `session.qmd`.
 The lookup does not materialize projections, run code, or consume output.
 If a Markdown projection is not available, the request fails with `projection_unavailable`.
 

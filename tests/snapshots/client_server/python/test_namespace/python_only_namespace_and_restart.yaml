@@ -12,6 +12,8 @@ result:
         None, '__annotations__': {}, '__builtins__': <module 'builtins'
         (built-in)>}
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -98,3 +100,5 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

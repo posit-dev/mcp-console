@@ -104,3 +104,10 @@ Retain raw exchanges when delivery or polling is the contract being tested.
 
 See the [Python lifecycle cases](client_server/python/test_lifecycle.py) and [retention cases](client_server/output/test_spools.py).
 Preserve complete output assertions and use the [snapshot rules](README.md#snapshots) for normalization.
+
+### Session bundle notices
+
+`McpClient` validates each automatic bundle notice, including its metadata marker, exact path relationships, existing documents, and once-per-session publication.
+After checking the full notice text, it records the discovered location under `session_bundles` with its incidental recording path normalized, then leaves the evaluation content available for exact output assertions.
+`client.bundle_notices` retains the original notice text for path-discovery assertions.
+The notice remains in the canonical recorded tool result; recording tests can compare it with that original text.

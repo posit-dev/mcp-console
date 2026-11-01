@@ -50,6 +50,10 @@ descendants; the R wrapper's fallback targets only the server process.
 With \code{ConsoleConfig(sandbox = FALSE)}, worker descendants may survive
 server shutdown.
 
+Tool calls return one content object or a list of ordered text and image
+objects. When a session bundle first appears, a text notice gives its source
+and report paths on the Console host.
+
 See \code{vignette("autonomous-report", package = "mcp.console")} for an explicit
 configuration, permission edits, inspection, and an ellmer launch.
 }

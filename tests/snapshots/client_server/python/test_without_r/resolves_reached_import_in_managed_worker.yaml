@@ -19,6 +19,8 @@ result:
       text: |
         state created
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -228,6 +230,8 @@ result:
       text: |
         restart retained imports
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: import os; os._exit(47)
@@ -250,3 +254,5 @@ result:
       text: |
         replacement retained imports
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

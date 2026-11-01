@@ -14,6 +14,7 @@ from support.records import (
     YamlStream,
 )
 from support.progress import normalize_elapsed
+from support.bundles import normalize_bundle_locations
 
 root = Path(__file__).resolve().parents[2]
 snapshot_directory = root / "tests" / "snapshots"
@@ -271,7 +272,7 @@ def normalize_request_ids(transcript: Transcript) -> Transcript:
                     "params": {**params, "requestId": labels[params["requestId"]]},
                 }
         rendered.append(entry)
-    return rendered
+    return normalize_bundle_locations(rendered)
 
 
 def compact_initializations(

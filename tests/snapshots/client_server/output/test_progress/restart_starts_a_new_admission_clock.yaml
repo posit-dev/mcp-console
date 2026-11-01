@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: stall
@@ -36,6 +38,8 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   control: restart
@@ -57,3 +61,5 @@ result:
       text: |
         zod: after restart
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

@@ -51,6 +51,8 @@ result:
       text: |
         1
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: counter
@@ -60,3 +62,5 @@ result:
       text: |
         1
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

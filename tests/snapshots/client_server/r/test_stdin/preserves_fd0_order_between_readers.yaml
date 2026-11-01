@@ -13,6 +13,8 @@ result:
         <fd 0 started checkpoint>
         <fd 0 release checkpoint>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |

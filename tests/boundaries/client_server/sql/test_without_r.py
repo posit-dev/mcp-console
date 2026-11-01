@@ -1621,7 +1621,7 @@ def test_records_managed_sql_cells(
             records = client.finish()[3:]
         (session,) = (workspace / ".agents/console/sessions").iterdir()
         markdown = (session / "transcript.md").read_text()
-        quarto = (session / "sessions/session-001.qmd").read_text()
+        quarto = (session / "sessions/session-001/session.qmd").read_text()
         events = [
             json.loads(line)
             for line in (session / "capture/events.jsonl").read_text().splitlines()

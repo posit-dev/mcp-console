@@ -21,7 +21,10 @@ Results record response assembly; transport write evidence is retained separatel
 pub(super) struct Writers {
     markdown: ProjectionWriter,
     directory: PathBuf,
+    bundles: std::sync::Arc<super::bundle::Root>,
     documents: Documents,
+    reports: super::report::Reports,
+    announced: std::collections::BTreeSet<u64>,
 }
 struct ProjectionWriter {
     writer: BufWriter<File>,
@@ -73,7 +76,10 @@ impl Writers {
         let worker_id = self.documents.current.get(session).copied();
         let qmd = worker_id
             .filter(|id| self.documents.sessions[id].has_contents())
-            .map(|id| self.directory.join(format!("sessions/session-{id:03}.qmd")));
+            .map(|id| {
+                self.directory
+                    .join(format!("sessions/session-{id:03}/session.qmd"))
+            });
         json!({
             "directory": self.directory,
             "markdown": self.directory.join("transcript.md"),
@@ -83,18 +89,22 @@ impl Writers {
     }
 
     pub(super) fn new(
-        directory: &Path,
+        storage: &super::CaptureStorage,
         working_directory: &Path,
         dynamic_resolution: bool,
         r_available: bool,
         requirements: &crate::worker_client::Declaration,
         metadata_known: bool,
     ) -> Result<Self, String> {
+        let directory = storage.directory()?;
         let markdown = super::create_private_file(&directory.join("transcript.md"))
             .map_err(|e| e.to_string())?;
         Ok(Self {
             markdown: ProjectionWriter::new(markdown, "Markdown transcript"),
             directory: directory.to_owned(),
+            bundles: storage.bundles()?,
+            reports: super::report::Reports::new()?,
+            announced: Default::default(),
             documents: Documents {
                 metadata: Metadata {
                     working_directory: working_directory
@@ -112,7 +122,8 @@ impl Writers {
             },
         })
     }
-    pub(super) fn relocate(&mut self, directory: &Path) -> Result<(), String> {
+    pub(super) fn relocate(&mut self, storage: &super::CaptureStorage) -> Result<(), String> {
+        let directory = storage.directory()?;
         self.markdown.writer = BufWriter::new(
             std::fs::OpenOptions::new()
                 .append(true)
@@ -120,6 +131,7 @@ impl Writers {
                 .map_err(|e| e.to_string())?,
         );
         self.directory = directory.to_owned();
+        self.bundles = storage.bundles()?;
         Ok(())
     }
     pub(super) fn append(&mut self, event: &Envelope<'_>) -> Result<(), String> {
@@ -137,7 +149,10 @@ impl Writers {
             Event::ImageRetained { owner, .. } if owner.omit_from_projections() => {
                 return Ok(());
             }
-            Event::CellOutput { owner, .. } | Event::SessionOutput { owner, .. }
+            Event::CellOutput { owner, .. }
+            | Event::SessionOutput { owner, .. }
+            | Event::CellStarted { owner, .. }
+            | Event::CellEnded { owner, .. }
                 if owner.omit_from_projections =>
             {
                 return Ok(());
@@ -146,27 +161,52 @@ impl Writers {
         }
         let mut fragment = String::new();
         render_event(&mut fragment, event)?;
-        if let Some(id) = self.documents.observe(&event.event)? {
-            let document = &self.documents.sessions[&id];
+        let mut changed = self.reports.observe(event)?;
+        let source_changed = self.documents.observe(&event.event)?;
+        if let Some(id) = source_changed {
+            changed.push(id);
+        }
+        changed.sort_unstable();
+        changed.dedup();
+        for id in changed {
+            let Some(document) = self.documents.sessions.get(&id) else {
+                continue;
+            };
             if document.has_contents() {
-                let path = self.directory.join(format!("sessions/session-{id:03}.qmd"));
+                let bundle = self.directory.join(format!("sessions/session-{id:03}"));
+                let bundle_directory = self.bundles.session(id).map_err(|e| e.to_string())?;
+                let path = bundle.join("session.qmd");
                 let first = !path.exists();
-                super::replace_private_file(
-                    &path,
-                    document.render(&format!("session-{id:03}.qmd")).as_bytes(),
-                )?;
+                if first || source_changed == Some(id) {
+                    super::bundle::replace_source(
+                        &bundle_directory,
+                        document.render("session.qmd").as_bytes(),
+                    )?;
+                }
+                self.reports.publish(&bundle_directory, id)?;
                 if first {
-                    writeln!(
-                        fragment,
-                        "[Session {id:03} source (QMD)](<sessions/session-{id:03}.qmd>)
-"
-                    )
-                    .unwrap();
+                    writeln!(fragment, "[Session {id:03} source (QMD)](<sessions/session-{id:03}/session.qmd>) · [Report (Markdown)](<sessions/session-{id:03}/session.md>)\n").unwrap();
                 }
             }
         }
         self.markdown.append(MARKDOWN_HEADER, &fragment)?;
         Ok(())
+    }
+    pub(super) fn take_notices(&mut self) -> Vec<String> {
+        self.documents.sessions.iter().filter_map(|(id, document)| {
+            if self.announced.contains(id) { return None; }
+            // Components use native separators even when storage was selected
+            // with mixed separators, so all three advertised paths agree.
+            let bundle = self.directory.join(format!("sessions/session-{id:03}")).components().collect::<PathBuf>();
+            if document.has_contents() && bundle.join("session.qmd").is_file()
+                && bundle.join("session.md").is_file() && self.announced.insert(*id) {
+                // JSON strings round-trip separators, quotes, and control
+                // characters while keeping each advertised path on one line.
+                let path = |path: &Path| serde_json::to_string(&path.to_string_lossy()).unwrap()
+                    .replace('\u{85}', "\\u0085").replace('\u{2028}', "\\u2028").replace('\u{2029}', "\\u2029");
+                Some(format!("Session bundle on the Console host: {}\nSource: {}\nReport: {}\nThis live bundle updates as results are assembled; the path grants no filesystem access.\n", path(&bundle), path(&bundle.join("session.qmd")), path(&bundle.join("session.md"))))
+            } else { None }
+        }).collect()
     }
 }
 impl Documents {
@@ -1058,11 +1098,11 @@ fn push_json(document: &mut String, value: &(impl Serialize + ?Sized)) -> Result
     Ok(())
 }
 
-fn push_fence(document: &mut String, language: &str, contents: &str) {
+pub(super) fn push_fence(document: &mut String, language: &str, contents: &str) {
     push_fence_with_prefix(document, language, "", contents);
 }
 
-fn push_note(document: &mut String, note: &str) {
+pub(super) fn push_note(document: &mut String, note: &str) {
     document.push_str(note);
     if !note.ends_with('\n') {
         document.push('\n');

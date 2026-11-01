@@ -18,6 +18,8 @@ result:
       text: |
         True
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: import importlib; importlib.reload(package).fallback

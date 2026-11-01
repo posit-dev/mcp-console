@@ -14,3 +14,5 @@ result:
       text: |
         caller-selected Python retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

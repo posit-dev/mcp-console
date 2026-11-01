@@ -26,6 +26,8 @@ result:
     - type: text
       text: <error output identical to live sandboxed Rscript --vanilla>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 transcript_normalization:
   target: result.content[0].text
   comparison: exact equality with live sandboxed Rscript --vanilla

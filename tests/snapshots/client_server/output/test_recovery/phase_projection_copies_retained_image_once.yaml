@@ -9,6 +9,8 @@ result:
       text: |
         zod: ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: preview allocation image then fail
@@ -57,3 +59,5 @@ result:
       text: |
         zod: after replacement
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

@@ -1,0 +1,30 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: |
+    executions <- if (exists("executions", inherits = FALSE)) {
+      executions + 1L
+    } else {
+      1L
+    }
+    stopifnot(!"export_session" %in% names(.console))
+    cat("recorded once\n")
+result:
+  content:
+    - type: text
+      text: |
+        recorded once
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-001
+---
+send:
+  r: >-
+    stopifnot(executions == 1L, !reticulate::py_available(initialize =
+    FALSE))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false

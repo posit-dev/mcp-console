@@ -9,6 +9,8 @@ result:
       text: |
         original worker source
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: print('replacement worker source')
@@ -22,6 +24,8 @@ result:
         replacement worker source
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: print('surviving worker source')

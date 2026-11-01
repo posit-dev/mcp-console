@@ -11,6 +11,8 @@ result:
     - type: text
       text: <initial managed R library>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:
@@ -48,3 +50,5 @@ result:
       text: |
         'answer: 42'
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

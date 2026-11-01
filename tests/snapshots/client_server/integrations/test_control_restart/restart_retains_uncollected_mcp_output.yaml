@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -74,6 +76,8 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   session: default
@@ -106,3 +110,5 @@ result:
       text: |
         False
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

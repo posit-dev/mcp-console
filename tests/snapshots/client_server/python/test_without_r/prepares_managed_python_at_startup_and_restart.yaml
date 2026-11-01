@@ -13,6 +13,8 @@ result:
       text: |
         startup package available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -103,6 +105,8 @@ result:
         replacement input
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: |
@@ -139,6 +143,8 @@ result:
         cumulative packages retained
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   python: |
@@ -171,6 +177,8 @@ result:
       text: |
         cumulative packages retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004
 ---
 send:
   requirements:
@@ -202,6 +210,8 @@ result:
         retained restart
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-005
 ---
 send:
   control: restart
@@ -228,3 +238,5 @@ result:
       text: |
         42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-006

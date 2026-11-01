@@ -44,7 +44,7 @@ def test_records_accepted_live_duckdb_additions(
                 python="assert session_identity is not None; print('same worker')"
             )
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            managed = list((recording / "sessions").glob("*.qmd"))
+            managed = list((recording / "sessions").glob("session-*/session.qmd"))
             assert len(managed) == 1, managed
             assert "    - fts\n" in managed[0].read_text()
             return normalize_recording(client.finish(), workspace)
@@ -98,7 +98,7 @@ def test_replacement_records_retained_r_requirements(
             if event["event"] == "cell_started" and event["call_id"] == call["call_id"]
         ]
         session = cell["owner"]["session_id"]
-        path = recording / f"sessions/session-{session:03}.qmd"
+        path = recording / f"sessions/session-{session:03}/session.qmd"
         qmd = path.read_text()
         assert "  packages:\n    - praise\n" in qmd, qmd
         assert "uncommittedpackage" not in qmd, qmd
@@ -124,7 +124,7 @@ def test_restart_requirements_leave_retired_source_unchanged(
             client.initialize_and_list_tools()
             client.expect("original session\n", r='cat("original session\\n")')
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            original = recording / "sessions/session-001.qmd"
+            original = recording / "sessions/session-001/session.qmd"
             before = original.read_text()
             client.send(
                 control="restart", requirements={"action": "set", "r": ["praise"]}
@@ -134,7 +134,7 @@ def test_restart_requirements_leave_retired_source_unchanged(
                 r='stopifnot(requireNamespace("praise", quietly = TRUE)); cat("replacement session\\n")',
             )
             assert original.read_text() == before, original.read_text()
-            path = recording / "sessions/session-002.qmd"
+            path = recording / "sessions/session-002/session.qmd"
             qmd = path.read_text()
             assert "  packages:\n    - praise\n" in qmd, qmd
             assert "original session" not in qmd and "replacement session" in qmd
@@ -169,7 +169,7 @@ def test_rejected_additions_leave_session_metadata_unchanged(
             assert after == before, (before, after)
             client.expect(r="stopifnot(is.environment(token))")
             (recording,) = (workspace / ".agents/console/sessions").iterdir()
-            path = recording / "sessions/session-001.qmd"
+            path = recording / "sessions/session-001/session.qmd"
             qmd = path.read_text()
             assert "uncommittedpackage" not in qmd, qmd
             assert "    - praise\n" in qmd, qmd

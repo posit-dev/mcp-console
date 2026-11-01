@@ -1263,7 +1263,8 @@ def test_python_input_eof_retires_worker(
 
 @executions(RUNTIME)
 def test_python_debugger_input(binary: Path, execution: Execution) -> Transcript:
-    client = McpClient(binary, execution.serve())
+    # Debugger frame presentation follows CPython's version, not cache selection.
+    client = McpClient(binary, execution.serve("-c", 'python.version="3.14"'))
     client.initialize_and_list_tools()
 
     # fmt: python

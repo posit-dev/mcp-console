@@ -45,3 +45,5 @@ result:
       text: |
         (True, 8.25, True, True)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

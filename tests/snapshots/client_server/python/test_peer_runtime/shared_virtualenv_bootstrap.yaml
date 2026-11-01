@@ -52,3 +52,5 @@ result:
       text: |
         selected environment retained by interpreter and children
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

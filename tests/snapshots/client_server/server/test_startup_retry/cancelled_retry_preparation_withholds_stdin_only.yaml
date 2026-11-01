@@ -87,6 +87,8 @@ result:
         [input requested: "fresh> "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   stdin: |

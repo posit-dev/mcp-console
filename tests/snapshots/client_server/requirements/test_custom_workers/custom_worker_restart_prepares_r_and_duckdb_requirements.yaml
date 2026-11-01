@@ -24,3 +24,5 @@ result:
       text: |
         zod R requirement: prepared=true
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

@@ -26,6 +26,8 @@ result:
             [starting new worker]
             [idle]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: malformed sideband after stderr
@@ -52,3 +54,5 @@ result:
             [starting new worker]
             [idle]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-002

@@ -78,6 +78,8 @@ result:
       text: |
         inherited grants and network; local grants retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 input:
   method: tools/call
@@ -262,6 +264,8 @@ result:
         False
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 stderr: >
   Warning: could not parse Codex sandbox settings; reconnect to apply the

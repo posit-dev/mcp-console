@@ -1,0 +1,4 @@
+---
+!same-as MCP initialization for this execution mode
+---
+report publication: bounded writes across cells and polls

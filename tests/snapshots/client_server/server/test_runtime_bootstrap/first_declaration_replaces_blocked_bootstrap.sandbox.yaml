@@ -38,6 +38,8 @@ result:
         [input requested: "first cell> "]
         'retained input'
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: counter

@@ -29,3 +29,5 @@ result:
       text: |
         ('matplotlib', 'yaml12')
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

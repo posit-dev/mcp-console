@@ -8,6 +8,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: tools::pskill(Sys.getpid(), signal = 9L)
@@ -46,3 +48,5 @@ result:
       text: |
         [1] "replacement"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

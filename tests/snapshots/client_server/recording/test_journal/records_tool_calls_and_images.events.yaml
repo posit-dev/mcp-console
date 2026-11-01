@@ -53,21 +53,21 @@
 - event: tool_result
   call_id: 1
   parts:
-  - block: 0
+  - block: 1
     start: 0
     end: 13
     owner:
       session_id: 1
       cell_id: 1
       interval: cell
-  - block: 1
+  - block: 2
     start: 0
     end: 0
     owner:
       session_id: 1
       cell_id: 1
       interval: cell
-  - block: 2
+  - block: 3
     start: 0
     end: 12
     owner:
@@ -76,6 +76,14 @@
       interval: cell
   result:
     content:
+      - type: text
+        text: |
+          Session bundle on the Console host: "<recording>/sessions/session-001"
+          Source: "<recording>/sessions/session-001/session.qmd"
+          Report: "<recording>/sessions/session-001/session.md"
+          This live bundle updates as results are assembled; the path grants no filesystem access.
+        _meta:
+          mcp-console/session-bundle: true
       - type: text
         text: |
           before image
@@ -174,6 +182,8 @@ produced session:
   files:
     - capture/events.jsonl
     - transcript.md
-    - sessions/session-001.qmd
+    - sessions/session-001/session.qmd
+    - sessions/session-001/session.md
+    - sessions/session-001/images/image-000001.png
     - capture/sessions/001/cell-001-001.png
     - capture/sessions/001/cell-001.txt

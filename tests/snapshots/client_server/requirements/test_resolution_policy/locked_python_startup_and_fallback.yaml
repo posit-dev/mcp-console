@@ -67,6 +67,8 @@ result:
       text: |
         startup available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -425,6 +427,8 @@ result:
       text: |
         startup available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   requirements:

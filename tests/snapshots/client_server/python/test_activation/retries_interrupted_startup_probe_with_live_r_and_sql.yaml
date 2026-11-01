@@ -23,6 +23,8 @@ result:
         <probe release>
         <probe pid>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   sql: CREATE TABLE startup_state AS SELECT 42 AS answer

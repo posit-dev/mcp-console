@@ -16,6 +16,8 @@ result:
       text: |
         False
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -51,6 +53,8 @@ result:
       text: |
         False
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 !same-as MCP initialization for this execution mode
 ---
@@ -69,6 +73,8 @@ result:
       text: |
         False
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |

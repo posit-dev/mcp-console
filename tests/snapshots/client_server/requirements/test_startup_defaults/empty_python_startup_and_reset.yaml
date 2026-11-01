@@ -17,6 +17,8 @@ result:
       text: |
         configured Python available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:
@@ -80,6 +82,8 @@ result:
       text: |
         packaging available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   requirements:
@@ -222,3 +226,5 @@ result:
       text: |
         configured Python available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

@@ -30,3 +30,5 @@ result:
       text: |
         full access with host caches
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

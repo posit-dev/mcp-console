@@ -93,6 +93,8 @@ result:
         [output produced while idle]
         [1] 2
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: 1 + 1

@@ -39,8 +39,13 @@ recording/
 │       └── 002/
 │           └── startup.txt
 ├── sessions/
-│   ├── session-001.qmd
-│   └── session-002.qmd
+│   ├── session-001/
+│   │   ├── session.qmd
+│   │   ├── session.md
+│   │   └── images/
+│   └── session-002/
+│       ├── session.qmd
+│       └── session.md
 └── transcript.md
 ```
 
@@ -50,7 +55,7 @@ Its Console process metadata and the journal's `recording_started` event retain 
 It preserves response previews and omission notices while leaving routine protocol and lifecycle details in the journal.
 Results describe response assembly; local transport delivery is recorded separately in `capture/events.jsonl`.
 
-Each `sessions/session-NNN.qmd` contains notes and source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
+Each `sessions/session-NNN/session.qmd` contains notes and source associated with that actual worker lifetime, including failed and rejected source, with error-permitting chunk options.
 Ordinary notes retain their Markdown and HTML.
 A note containing recognized metadata delimiters, executable code syntax, or Quarto shortcodes is wrapped as a whole in a `{verbatim}` chunk so it remains an example rather than changing document settings or executing code.
 Documents with notes select the Quarto engine from recorded source cells, so examples in notes do not change it: `knitr` for R, `jupyter` for Python or SQL without R, and `markdown` without source.
@@ -60,9 +65,9 @@ Source admitted before worker acquisition stays pending until its worker is know
 A validation-rejected restart leaves its source with the surviving addressed worker.
 A note submitted with source follows that source's worker association, including across a restart.
 Without source, a note belongs to the selected logical session's worker when the call is received, or waits for that session's next actual worker if none exists.
-Notes can create a QMD for a worker that receives no source.
+Notes can create a bundle for a worker that receives no source.
 QMD entries follow original call order, with each note before any source from the same call, even when source association is delayed.
-A failed acquisition does not create a session, and a session without source or notes need not create a QMD.
+A failed acquisition does not create a session; source documents and reports appear only after source or notes are associated.
 Source and notes without a worker association remain in the journal and Markdown transcript.
 
 QMD metadata records the owning session's accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
@@ -127,13 +132,59 @@ Its format may change between Console releases.
 Completed managed files become read-only while retaining their existing privacy permissions.
 Cell logs close at their cell boundary; startup and post-cell logs stay writable until their next boundary.
 Images become read-only after writing.
-The journal, Markdown transcript, and session QMDs remain writable until worker output, queued capture, source associations, result writers, and transport settlement can no longer update them.
+The journal, Markdown transcript, and session documents remain writable until worker output, queued capture, source associations, result writers, and transport settlement can no longer update them.
 Directories remain writable while Console needs them.
 These permissions protect against accidental edits; abrupt termination can leave files writable.
 
 Returned paths refer to the Console host.
 Project paths are normally relative to the launch directory; fallback paths are absolute.
 A long-location notice may instead name a path relative to the selected Console directory.
+
+## Session bundles {#session-bundles}
+
+Each `sessions/session-NNN/` is a portable bundle of notes, source, recorded results, and images for one actual worker lifetime.
+The first send response after a bundle becomes available includes a separate notice with its directory, QMD, and Markdown paths on the Console host.
+Each path is a JSON string on one line; decode its quotes and escapes to recover the filesystem path, including any embedded line breaks.
+Execution previews retain their existing 8 KiB budget; the discovery notice adds location metadata without reducing or expanding the captured output preview.
+Restarts and automatic replacement produce separate bundles and notices when their source documents become available.
+A session with no associated source or notes has no bundle to announce.
+Initialization, discovery, and pings never publish a recording or a bundle.
+
+`session.qmd` contains notes, source, and accepted dependency metadata without captured output.
+Review the code and supply its data, connections, and environment before executing a working copy.
+The original working directory is descriptive metadata, not an execution root imposed on the copy.
+The document includes an `ir render session.qmd` hint; IR rendering requires R, even when the recorded session used only Python.
+Each chunk permits errors so failed submissions can remain without stopping later chunks.
+These options do not assert that a submission succeeded or failed in the recorded session.
+
+`session.md` groups notes, recorded source, and assembled client-facing results into prose, source chunks, output blocks, errors, and images.
+Results collected through later polls stay with their actual cells and observed intervals.
+Cell completion notes come from recorded worker receipts; they do not assert successful evaluation or client receipt.
+Startup and between-cell output remain distinguishable; polling and control request wrappers are omitted.
+Output previews and omission notices are preserved; raw logs are never expanded into results the model was not shown.
+The raw logs mentioned in notices are supplementary and remain in capture.
+Images use portable relative links and preserve their emitted format.
+The images directory can also retain emitted images omitted from a response preview; the report links only displayed results.
+If an inline image was not retained by capture, the report says it is unavailable rather than inventing a file.
+
+Console updates documents from recording events and assembled results, without invoking Quarto, executing source, repeating SQL, or recomputing plots.
+The bundle includes current source, including an executing cell, and only results assembled so far.
+A recorded result proves response assembly; local transport delivery is separate evidence in capture, and neither proves that a model read it.
+
+The QMD is atomically replaced; the report updates in place and can be read partway through an update.
+Images are written before a report links to them.
+A live bundle is a progress view, not an atomic archive snapshot.
+Replacing managed bundle directories with symlinks disables their projection; Console does not write through those links.
+Its documents remain writable until recording finalization, when pending source associations, results, output, and delivery owners have settled.
+Managed images become read-only after writing, and completed documents become read-only while retaining their privacy permissions.
+Abrupt termination can leave files writable or projections incomplete.
+
+Copy a whole bundle with ordinary filesystem tools; no runtime export API or privileged destination write exists.
+Copying needs read access on the Console host and write access at the destination.
+Path discovery grants neither permission.
+The included content and image links do not depend on the recording's original location.
+Copies can preserve read-only permissions; make a working copy writable before editing.
+Existing recordings are not migrated or rewritten.
 
 <span id="recording-failures"></span>
 

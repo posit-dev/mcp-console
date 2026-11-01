@@ -74,6 +74,8 @@ result:
         -------
         [0 rows]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   sql: ATTACH 'audit.sqlite' AS audit (TYPE sqlite, READ_ONLY)

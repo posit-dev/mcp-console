@@ -15,5 +15,7 @@ result:
         [input requested: "Startup close gate> "]
         [waiting for stdin]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 blocked_captured_startup_retired: true

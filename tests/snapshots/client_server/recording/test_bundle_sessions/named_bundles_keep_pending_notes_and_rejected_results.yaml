@@ -1,0 +1,56 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  note: Beta's question before acquisition.
+  session: beta
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: print('alpha')
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |
+        alpha
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-002
+---
+send:
+  python: print('beta')
+  session: beta
+result:
+  content:
+    - type: text
+      text: |
+        beta
+  isError: false
+session_bundles:
+  - <recording>/sessions/session-003
+---
+send:
+  requirements: {}
+  session: alpha
+result:
+  content:
+    - type: text
+      text: >-
+        at least one of `requirements.r`, `requirements.python`, or
+        `requirements.duckdb` is required
+  isError: true

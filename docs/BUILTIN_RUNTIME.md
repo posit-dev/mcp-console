@@ -132,6 +132,9 @@ Reference: [Retrieve the last SQL result](RUNTIME_REFERENCE.md#retrieve-the-last
 
 [Recordings](RECORDING.md) retain the code, output, and plots so you can see what the agent did and inspect its results.
 Ask the agent for the recording's location.
-The recorded Quarto document provides a starting point for a report; review its code, inputs, and package requirements before rendering it.
+Console announces a portable session bundle when its documents first become available.
+Open its `session.md` or copy the bundle with your client's file tools; included images use relative links.
+Paths refer to the Console host and do not grant sandbox access.
+Review the source, inputs, and package requirements before executing the QMD.
 
 Continue with [Packages and environments](REQUIREMENTS.md) to learn how the agent gets the libraries it uses.

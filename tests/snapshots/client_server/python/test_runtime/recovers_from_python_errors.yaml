@@ -20,6 +20,8 @@ result:
           File "<mcp-console:python:e1>", line 5, in fail
         ValueError: boom
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |

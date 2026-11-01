@@ -2,6 +2,10 @@
 client: AsyncMCPConsole
 outputs:
   - |
+    Session bundle on the Console host: "<recording>/sessions/session-001"
+    Source: "<recording>/sessions/session-001/session.qmd"
+    Report: "<recording>/sessions/session-001/session.md"
+    This live bundle updates as results are assembled; the path grants no filesystem access.
     42
   - "[done]"
 notes:
@@ -14,6 +18,10 @@ notes:
 client: MCPConsole
 outputs:
   - |
+    Session bundle on the Console host: "<recording>/sessions/session-001"
+    Source: "<recording>/sessions/session-001/session.qmd"
+    Report: "<recording>/sessions/session-001/session.md"
+    This live bundle updates as results are assembled; the path grants no filesystem access.
     42
   - "[done]"
 notes:

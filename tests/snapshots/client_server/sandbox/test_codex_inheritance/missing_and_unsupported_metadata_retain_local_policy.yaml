@@ -11,6 +11,8 @@ result:
       text: |
         local sandbox
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 input:
   method: tools/call

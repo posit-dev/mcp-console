@@ -19,7 +19,8 @@ class Requirements(TypedDict, total=False):
     environment; installing a framework extra prepares the calling application.
 
     Inspection normally returns JSON text, but can return a startup notice
-    before the runtime is ready; check the response before parsing it.
+    before the runtime is ready or a session bundle path notice before the JSON;
+    check the response before parsing it.
     See the [send reference](../../API.html#requirements) for accepted package
     syntax, preparation policies, and complete replacement rules.
 
@@ -204,16 +205,17 @@ class AsyncMCPConsole:
             requirements: Declaration keyed by r, python, or duckdb, with optional
                 python_version and exclude_newer constraints. action defaults to
                 add; get normally returns inspection JSON, but can return a
-                startup notice before the runtime is ready; set replaces omitted
-                fields with empty values; reset restores startup defaults.
+                startup notice before the runtime is ready. A newly available
+                session bundle adds a path notice before the JSON. The set action
+                replaces omitted fields with empty values; reset restores startup defaults.
                 Changed replacements of a live worker require control="restart".
             stdin: Exact input for an active prompt or debugger.
             timeout_ms: Maximum observation wait; timeout does not cancel work.
                 Omission or None uses the server default of 60,000 ms.
 
         Returns:
-            Collected text output and lifecycle notices. Images appear as MIME
-            placeholders. MCP tool errors raise `RuntimeError`.
+            Collected text output, lifecycle notices, and session bundle paths.
+            Images appear as MIME placeholders. MCP tool errors raise `RuntimeError`.
 
         Examples:
             A short observation window may return before the cell finishes.

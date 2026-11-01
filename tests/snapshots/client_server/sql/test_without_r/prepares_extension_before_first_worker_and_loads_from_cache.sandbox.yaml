@@ -30,6 +30,8 @@ result:
       text: |
         worker network denied
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   sql: SET autoinstall_known_extensions = false; LOAD fts
@@ -78,6 +80,8 @@ result:
         [0 rows]
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   python: import os; print(os.environ['TMPDIR'])
@@ -111,6 +115,8 @@ result:
         -------
         [0 rows]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004
 ---
 send:
   requirements:

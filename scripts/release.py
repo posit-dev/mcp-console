@@ -360,8 +360,21 @@ def smoke_mcp(
             require(
                 evaluation.get("id") == identifier, "unexpected evaluation response ID"
             )
+            result = evaluation.get("result", {})
+            result = {
+                **result,
+                "content": [
+                    item
+                    for item in result.get("content", [])
+                    if not (
+                        item.get("type") == "text"
+                        and item.get("_meta", {}).get("mcp-console/session-bundle")
+                        is True
+                    )
+                ],
+            }
             require(
-                evaluation.get("result")
+                result
                 == {
                     "content": [{"type": "text", "text": output}],
                     "isError": False,

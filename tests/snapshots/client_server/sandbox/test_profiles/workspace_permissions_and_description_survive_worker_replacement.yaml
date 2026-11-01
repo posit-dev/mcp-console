@@ -52,6 +52,8 @@ result:
       text: |
         fixed workspace permits edits and protects metadata after cwd changes
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -115,6 +117,8 @@ result:
       text: |
         fixed workspace permits edits and protects metadata after cwd changes
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: os._exit(23)
@@ -180,6 +184,8 @@ result:
       text: |
         fixed workspace permits edits and protects metadata after cwd changes
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   control: restart
@@ -246,6 +252,8 @@ result:
       text: |
         fixed workspace permits edits and protects metadata after cwd changes
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004
 ---
 send:
   python: import yaml12; print(yaml12.__name__)

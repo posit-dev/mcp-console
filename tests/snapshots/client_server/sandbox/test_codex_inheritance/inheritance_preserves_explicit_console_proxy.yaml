@@ -36,3 +36,5 @@ result:
       text: |
         configured limited proxy and destination restrictions retained
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001

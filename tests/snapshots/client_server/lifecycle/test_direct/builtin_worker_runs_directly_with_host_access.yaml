@@ -18,6 +18,8 @@ result:
       text: |
         host write succeeded
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -31,3 +33,5 @@ result:
         False
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

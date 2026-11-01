@@ -9,6 +9,8 @@ result:
       text: |
         zod: first
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: interrupt
@@ -59,6 +61,8 @@ result:
       text: |
         zod: second
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   r: exit unexpectedly
@@ -81,3 +85,5 @@ result:
       text: |
         zod: third
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

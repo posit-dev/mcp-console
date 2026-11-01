@@ -9,6 +9,8 @@ result:
       text: |
         selected existing Python
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:
@@ -64,3 +66,5 @@ result:
       text: |
         selected existing Python
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

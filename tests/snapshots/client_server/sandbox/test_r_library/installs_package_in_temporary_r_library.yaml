@@ -68,6 +68,8 @@ result:
         ** testing if installed package keeps a record of temporary installation path
         * DONE (mcpconsolelocalpkg)
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart
@@ -96,3 +98,5 @@ result:
       text: |
         new sandbox library ready
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

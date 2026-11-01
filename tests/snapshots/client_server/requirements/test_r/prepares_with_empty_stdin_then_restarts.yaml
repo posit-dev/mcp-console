@@ -50,6 +50,8 @@ result:
       text: |
         [1] "ready"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   stdin: ""
@@ -101,3 +103,5 @@ result:
       text: |
         [1] "restarted"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

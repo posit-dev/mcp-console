@@ -6,6 +6,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: steps.append('empty'); import mcp_console_test_empty_pkg

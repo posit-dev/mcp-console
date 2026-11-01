@@ -25,6 +25,8 @@ result:
         <activation sent>
         <import release>
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |
@@ -92,3 +94,5 @@ result:
       text: |
         [1]  TRUE FALSE
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

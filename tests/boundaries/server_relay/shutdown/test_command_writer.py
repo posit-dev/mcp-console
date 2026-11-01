@@ -47,6 +47,7 @@ def retirement_case(
             binary,
             execution.serve(*writable, "--worker", str(binary), "--relay", str(relay)),
             environment,
+            current_directory=root,
             response_timeout=15,
         )
         identities = []
@@ -54,6 +55,10 @@ def retirement_case(
             client.initialize_and_list_tools()
             first = client.send(r="writer-probe")
             assert tool_text(first) == "[done]", first
+            (recording,) = (root / ".agents/console/sessions").iterdir()
+            executed = recording / "capture/sessions/001/cell-001.txt"
+            assert executed.is_file(), "relay fixture omitted its worker/cell lifecycle"
+            assert executed.read_bytes() == b""
             for generation in range(1, restarts + 1):
                 if mode != "stdout":
                     client.send(stdin="x" * (8 * 1024 * 1024), timeout_ms=0)

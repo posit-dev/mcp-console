@@ -53,6 +53,8 @@ result:
       text: |
         native R available
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: import packaging; print('Python available')

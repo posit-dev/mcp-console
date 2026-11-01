@@ -44,6 +44,8 @@ result:
       text: |
         read_only fallback
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 stderr: |
   Warning: could not parse Codex sandbox settings; falling back to read_only

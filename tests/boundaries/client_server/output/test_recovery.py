@@ -31,6 +31,64 @@ from support.suites import run_this_suite
 
 
 @requires(NATIVE_FIXTURES)
+def test_recording_send_keeps_following_cancellation_and_ping_live(
+    binary: Path,
+) -> Transcript:
+    with recovery_client(binary) as (client, profile, reached, release):
+        first = client.start_send(control="interrupt")
+        reached.wait("result journal writer owns the recorder")
+        try:
+            assert client.request("ping")["result"] == {}
+            queued = client.start_send(r="echo cancelled cell must not run")
+            controlled = client.start_send(
+                control="restart", r="echo cancelled restart must not run"
+            )
+            client.notify("notifications/cancelled", requestId=queued["id"])
+            client.notify("notifications/cancelled", requestId=controlled["id"])
+            client.response_timeout = 2
+            assert client.request("ping")["result"] == {}
+        finally:
+            client.response_timeout = 600
+            profile.pause_results(False)
+            release.release()
+        client.receive(first)
+        assert first["result"] == {
+            "content": [{"type": "text", "text": "\n[idle]"}],
+            "isError": False,
+        }, first
+        client.expect("zod: after\n", r="echo after")
+        recording = session_directory(client)
+        transcript = client.transcript
+        events = live_recording_events(recording)
+        calls = [event for event in events if event["event"] == "tool_call"]
+        assert [event["request_id"] for event in calls] == [
+            entry["id"] for entry in transcript if "send" in entry
+        ]
+        assert (
+            len([event for event in events if event["event"] == "worker_started"]) == 1
+        )
+        assert [
+            event["call_id"] for event in events if event["event"] == "cell_started"
+        ] == [1, 5]
+        received = [
+            event["message"]
+            for event in events
+            if event["event"] == "protocol" and event["direction"] == "received"
+        ]
+        positions = {
+            message["id"]: i for i, message in enumerate(received) if "id" in message
+        }
+        assert positions[queued["id"]] < positions[controlled["id"]]
+        cancellations = [
+            message["params"]["requestId"]
+            for message in received
+            if message.get("method") == "notifications/cancelled"
+        ]
+        assert cancellations == [queued["id"], controlled["id"]]
+        return client.finish()
+
+
+@requires(NATIVE_FIXTURES)
 def test_cancelled_controls_recover_output(binary: Path) -> Transcript:
     return cancelled_control_recovery(binary, count=4)
 

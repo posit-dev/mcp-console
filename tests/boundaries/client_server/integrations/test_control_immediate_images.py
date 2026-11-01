@@ -109,7 +109,7 @@ def test_retains_immediate_images_without_claiming_foreground_recording(
                     and e["call_id"] == ordinary["call_id"]
                 ]
                 markdown = (recording / "transcript.md").read_text()
-                (qmd,) = (recording / "sessions").glob("*.qmd")
+                (qmd,) = (recording / "sessions").glob("session-*/session.qmd")
                 source_document = qmd.read_text()
                 assert "Image not retained" not in markdown, markdown
                 for call, artifact, image, record in zip(

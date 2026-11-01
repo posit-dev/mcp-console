@@ -18,6 +18,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   control: restart
@@ -41,3 +43,5 @@ result:
       text: |
         (False, 'yaml12')
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

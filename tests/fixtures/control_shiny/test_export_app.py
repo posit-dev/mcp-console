@@ -40,7 +40,7 @@ def test_export_copies_recorded_source_and_transcript_without_private_inspection
     expect(page.locator("#transcript img")).to_have_count(1)
     (recording,) = (workspace / ".agents/console/sessions").iterdir()
     qmd = copy_projection(page, "QMD")
-    assert qmd == (recording / "sessions/session-001.qmd").read_text()
+    assert qmd == (recording / "sessions/session-001/session.qmd").read_text()
     assert source in qmd
     assert "export-output-" in qmd
     assert "omitted_lines" not in qmd
@@ -72,7 +72,7 @@ def test_qmd_export_follows_current_worker_and_reports_missing_source(app):
     expect(page.locator("#transcript .entry.complete")).to_have_count(2, timeout=30_000)
     qmd = copy_projection(page, "QMD")
     (recording,) = (workspace / ".agents/console/sessions").iterdir()
-    assert qmd == (recording / "sessions/session-002.qmd").read_text()
+    assert qmd == (recording / "sessions/session-002/session.qmd").read_text()
     assert "after_export_restart" in qmd
     assert "before_export_restart" not in qmd
     markdown = copy_projection(page, "Markdown")

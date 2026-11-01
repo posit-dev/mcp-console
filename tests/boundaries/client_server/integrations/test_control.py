@@ -466,7 +466,7 @@ def test_projection_omission_keeps_journal_and_raw_output(
             (recording,) = (root / ".agents/console/sessions").iterdir()
             journal = (recording / "capture/events.jsonl").read_text()
             markdown = (recording / "transcript.md").read_text()
-            (source_document,) = (recording / "sessions").glob("*.qmd")
+            (source_document,) = (recording / "sessions").glob("session-*/session.qmd")
             document = source_document.read_text()
             calls = [
                 event

@@ -20,4 +20,6 @@ with os.fdopen(reader, "rb") as source, os.fdopen(writer, "wb", buffering=0) as 
             if json.loads(line)["kind"] == "shutdown":
                 marker.with_suffix(".stdin").write_bytes(sys.stdin.buffer.read())
                 break
+            # A wire-consumption receipt, including for resolver replies; this
+            # transport-only peer does not model interpreter cell execution.
             sink.write(b'{"kind":"completed"}\n')

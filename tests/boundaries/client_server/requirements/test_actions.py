@@ -718,7 +718,7 @@ def test_records_requirement_boundaries(
         ]
         documents = [
             path.read_text()
-            for path in sorted((session / "sessions").glob("session-*.qmd"))
+            for path in sorted((session / "sessions").glob("session-*/session.qmd"))
         ]
         assert len(documents) == 2, documents
         first, second = documents
@@ -739,7 +739,9 @@ def test_records_requirement_boundaries(
                 "transcript.md",
                 *[
                     str(path.relative_to(session))
-                    for path in sorted((session / "sessions").glob("session-*.qmd"))
+                    for path in sorted(
+                        (session / "sessions").glob("session-*/session.qmd")
+                    )
                 ],
             ],
             cwd=session,

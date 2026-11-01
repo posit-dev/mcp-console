@@ -1,4 +1,4 @@
-"""A stdio peer for public Python client lifecycle and framing tests."""
+"""A stdio peer for public client lifecycle, framing, and warmup tests."""
 
 import json
 import os
@@ -33,6 +33,7 @@ def main() -> None:
     mode = sys.argv[1]
     abandoned = None
     tail = ""
+    pending_language = None
     for line in sys.stdin:
         request = json.loads(line)
         with Path("requests.jsonl").open("a", encoding="utf-8") as record:
@@ -61,7 +62,14 @@ def main() -> None:
                         "description": "Fixture send",
                         "inputSchema": {
                             "type": "object",
-                            "properties": {"python": {"type": "string"}},
+                            "properties": {
+                                field: {"type": "string"}
+                                for field in (
+                                    ("r", "python", "sql")
+                                    if mode == "warmup-progress"
+                                    else ("python",)
+                                )
+                            },
                         },
                     }
                 ]
@@ -79,6 +87,39 @@ def main() -> None:
                 reply(request, output("missing request cancellation"))
                 continue
             arguments = request["params"]["arguments"]
+            if mode == "warmup-progress":
+                fields = [
+                    field for field in ("r", "python", "sql") if field in arguments
+                ]
+                if fields:
+                    assert len(fields) == 1 and pending_language is None, arguments
+                    pending_language = fields[0]
+                    text = (
+                        "\n[phase: startup]\n[worker starting]"
+                        if pending_language == "python"
+                        else "\n[elapsed: 60.0s since admission; no new output; "
+                        "phase: dependency preparation]\n[running; poll with an empty send]"
+                    )
+                elif pending_language is not None:
+                    label = {"r": "R", "python": "Python", "sql": "SQL"}[
+                        pending_language
+                    ]
+                    text = f"mcp-console warmup: {label} OK\n"
+                    pending_language = None
+                else:
+                    text = "\n[idle]"
+                reply(
+                    request,
+                    output(text)
+                    | {
+                        "_meta": {
+                            "io.github.t-kalinowski.mcp-console/warmup-runtime": {
+                                "r": True
+                            }
+                        }
+                    },
+                )
+                continue
             source = arguments.get("python", "")
             if source == "cancel wait":
                 abandoned = request["id"]

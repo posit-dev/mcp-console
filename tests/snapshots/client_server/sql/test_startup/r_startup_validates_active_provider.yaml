@@ -24,6 +24,8 @@ result:
         Error: configured startup did not complete; SQL withheld; explicit restart required
         Error: SQL unavailable: configured startup did not complete; explicit restart required
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: |

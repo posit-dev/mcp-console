@@ -14,6 +14,8 @@ result:
         [stopped by session restart request before evaluation finished]
         [worker stopped: in-memory state lost]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   control: restart

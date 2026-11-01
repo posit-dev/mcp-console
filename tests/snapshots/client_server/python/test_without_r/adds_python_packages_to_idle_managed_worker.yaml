@@ -19,6 +19,8 @@ result:
       text: |
         running state created
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   requirements:
@@ -209,6 +211,8 @@ result:
       text: |
         plain restart retained additions
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: import os; os._exit(47)
@@ -233,3 +237,5 @@ result:
       text: |
         crash replacement retained additions
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

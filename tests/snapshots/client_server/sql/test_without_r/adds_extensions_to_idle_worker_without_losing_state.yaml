@@ -9,6 +9,8 @@ result:
         -----
         1
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |
@@ -177,6 +179,8 @@ result:
         [0 rows]
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   python: import os; os._exit(47)
@@ -201,3 +205,5 @@ result:
         -------
         [0 rows]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003

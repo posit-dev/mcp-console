@@ -70,6 +70,8 @@ result:
       text: |
         [1] 0
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: "0"

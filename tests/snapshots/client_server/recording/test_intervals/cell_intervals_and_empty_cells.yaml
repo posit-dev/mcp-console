@@ -24,6 +24,8 @@ result:
       data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
       mimeType: image/png
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   session: default
@@ -86,3 +88,5 @@ result:
 
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002

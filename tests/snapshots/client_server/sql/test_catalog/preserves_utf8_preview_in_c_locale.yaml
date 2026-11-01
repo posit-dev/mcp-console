@@ -12,6 +12,8 @@ result:
           <string>     
         1 "façade 漢字"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   sql: |

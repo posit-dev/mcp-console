@@ -87,13 +87,14 @@ def test_concurrent_sessions_keep_source_and_output_owners(
                 f"{session} output: {session} answer\n"
             )
             document = (
-                recording / f"sessions/session-{cell['owner']['session_id']:03}.qmd"
+                recording
+                / f"sessions/session-{cell['owner']['session_id']:03}/session.qmd"
             ).read_text()
             assert source in document, document
             other = "beta" if session == "alpha" else "alpha"
             assert sources[other] not in document, document
         assert owners["alpha"]["session_id"] != owners["beta"]["session_id"]
-        assert len(list((recording / "sessions").glob("*.qmd"))) == 2
+        assert len(list((recording / "sessions").glob("session-*/session.qmd"))) == 2
         return normalize_recording(transcript, root)
 
 

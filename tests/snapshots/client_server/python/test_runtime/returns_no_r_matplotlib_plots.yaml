@@ -53,6 +53,8 @@ result:
       data: <PNG byte-identical to live matplotlib savefig 2>
       mimeType: image/png
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   python: |

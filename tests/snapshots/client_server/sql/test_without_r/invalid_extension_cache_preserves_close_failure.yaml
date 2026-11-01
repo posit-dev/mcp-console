@@ -16,6 +16,8 @@ result:
         ------
         42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 stderr: |
   resolver input closed; local resolver sandbox exited with exit status: 47

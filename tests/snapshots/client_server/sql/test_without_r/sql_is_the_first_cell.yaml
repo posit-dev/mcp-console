@@ -9,6 +9,8 @@ result:
         ------
         42
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   sql: CREATE TABLE retained AS SELECT 7 AS value
@@ -234,6 +236,8 @@ result:
         [starting new worker]
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   sql: SELECT value FROM retained

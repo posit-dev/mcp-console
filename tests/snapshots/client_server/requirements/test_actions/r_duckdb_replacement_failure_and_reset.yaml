@@ -75,6 +75,8 @@ result:
     - type: text
       text: "[done]"
   isError: false
+session_bundles:
+  - <recording>/sessions/session-002
 ---
 send:
   requirements:
@@ -295,6 +297,8 @@ result:
         Loading required namespace: praise
         [done]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-003
 ---
 send:
   requirements:
@@ -445,6 +449,8 @@ result:
         [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
         'yaml12'
   isError: false
+session_bundles:
+  - <recording>/sessions/session-004
 ---
 send:
   requirements:

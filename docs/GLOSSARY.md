@@ -39,6 +39,9 @@ Accepted requirements survive session restarts within the same Console process.
 A recording belongs to one Console process and can include multiple sessions.
 Recordings are unredacted and do not preserve live state.
 
+**Session bundle:** The notes and source document, report of assembled response previews, and portable image links for one recorded worker session.
+Console maintains it as the session progresses and announces its location on the Console host.
+
 **Capture:** The authoritative retained events, text, and images in a recording.
 
 **Transcript:** The human-readable account derived from capture.

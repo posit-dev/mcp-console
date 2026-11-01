@@ -10,6 +10,8 @@ result:
         [scripted evaluation failure; additionally failed to stop the worker:
         scripted retirement failure]
   isError: true
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   r: "42"

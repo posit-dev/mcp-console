@@ -153,13 +153,20 @@ md: |+
 
   Worker process <PID>.
 
-  [Session 002 source (QMD)](<sessions/session-002.qmd>)
+  [Session 002 source (QMD)](<sessions/session-002/session.qmd>) · [Report (Markdown)](<sessions/session-002/session.md>)
 
   ## Image 1 for call 4
 
   [Image 1 from call 4](<capture/sessions/002/cell-001-001.png>)
 
   ## Result for call 4
+
+  ```text
+  Session bundle on the Console host: "<recording>/sessions/session-002"
+  Source: "<recording>/sessions/session-002/session.qmd"
+  Report: "<recording>/sessions/session-002/session.md"
+  This live bundle updates as results are assembled; the path grants no filesystem access.
+  ```
 
   ![Image 1](<capture/sessions/002/cell-001-001.png>)
 
@@ -197,7 +204,7 @@ qmd: |+
   ---
   # Source recorded by MCP Console; review before executing.
   title: MCP Console session
-  # From a working copy, run `ir render session-002.qmd` in a prepared environment.
+  # From a working copy, run `ir render session.qmd` in a prepared environment.
   # IR rendering requires R on the render host, including for Python-only documents.
   ir:
     isolated: true

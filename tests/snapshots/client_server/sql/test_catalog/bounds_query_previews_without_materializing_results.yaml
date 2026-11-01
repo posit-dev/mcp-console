@@ -50,6 +50,8 @@ result:
         [2 additional columns omitted]
         [cell values truncated to 160 characters]
   isError: false
+session_bundles:
+  - <recording>/sessions/session-001
 ---
 send:
   sql: |

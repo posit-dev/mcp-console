@@ -217,7 +217,7 @@ def test_refreshes_numpy_configuration_after_live_preparation(
         environment,
     ) as client:
         client.initialize_and_list_tools()
-        client.send(
+        client.expect(
             # fmt: r
             r=code("""
                 reticulate::py_require(character(), action = "set")
