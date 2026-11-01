@@ -147,14 +147,17 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                 DIRECT.serve("--worker", str(worker)),
                 environment,
                 root,
-                response_timeout=5,
             ) as client:
+                response_timeout = client.response_timeout
                 try:
                     client.initialize_and_list_tools()
                     pending = (
                         client.start_send(r="echo ready") if large_frames else None
                     )
                     observed.wait("protocol journal writer stalled", client=client)
+                    # Bound protocol responsiveness at the stalled writer, not
+                    # unrelated discovery or the first worker startup afterward.
+                    client.response_timeout = 5
                     baseline = profile.live
                     for _ in range(24 if large_frames else 400):
                         client.notify(
@@ -168,6 +171,7 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                         profile.live - baseline
                     )
                 finally:
+                    client.response_timeout = response_timeout
                     release.release()
                 if pending is not None:
                     client.receive(pending)
