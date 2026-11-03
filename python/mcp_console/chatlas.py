@@ -10,6 +10,7 @@ from ._common import Command, result_text, stdio_command
 
 if TYPE_CHECKING:
     from chatlas import Tool
+    from mcp.types import Tool as MCPTool
 
     from ._client import AsyncMCPConsole
     from ._sync import MCPConsole
@@ -62,22 +63,13 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
         `set_tools()` replaces the chat's tools. If the chat already has tools,
         use `chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])`.
     """
-    return [tool(console, name=definition.name) for definition in console.tools]
+    return [_tool(console, definition) for definition in console.tools]
 
 
-def tool(console: MCPConsole | AsyncMCPConsole, *, name: str = "send") -> Tool:
-    """Adapt one discovered Console tool, selecting `send` by default.
-
-    Use [tools()](chatlas.tools.html) for general registration and
-    the complete model workflow. Keep the connection open while using the tool.
-
-    Args:
-        console: A connected `MCPConsole` or `AsyncMCPConsole`.
-        name: Exact discovered tool name.
-    """
+def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
     from chatlas import Tool
 
-    definition = console.get_tool(name)
+    name = definition.name
     if iscoroutinefunction(console.call_tool):
 
         async def invoke(**arguments: Any) -> str:

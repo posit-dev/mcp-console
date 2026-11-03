@@ -20,7 +20,6 @@ reference:
         - get_tool
         - call_tool
         - send
-        - send_tool
         - __enter__
         - __exit__
       - name: AsyncMCPConsole
@@ -31,7 +30,6 @@ reference:
         - get_tool
         - call_tool
         - send
-        - send_tool
         - __aenter__
         - __aexit__
       - name: Requirements
@@ -39,18 +37,15 @@ reference:
     - title: chatlas
       contents:
       - chatlas.tools
-      - chatlas.tool
       - chatlas.register
     - title: openai — Responses API
       contents:
       - openai.responses_tools
-      - openai.responses_tool
       - openai.ResponsesTool
       - openai.AsyncResponsesTool
     - title: openai-agents — Agents SDK
       contents:
       - openai.agents_tools
-      - openai.agents_tool
       - openai.agents_server
     - title: openai-codex — Codex SDK
       contents:
@@ -58,5 +53,4 @@ reference:
     - title: Anthropic
       contents:
       - anthropic.callable_tools
-      - anthropic.tool
       - anthropic.tools

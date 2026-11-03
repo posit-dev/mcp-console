@@ -61,7 +61,7 @@ by_name = {tool.definition["name"]: tool for tool in tools}
 
 The clients expose all definitions through `console.tools` and preserve complete MCP results through `console.call_tool(name, arguments)`.
 Discovery follows pagination and does not require a tool named `send`.
-The `send()` convenience and singular adapter defaults still select `send`; pass `name=` to a singular adapter to select another tool.
+Use `console.get_tool(name)` to inspect a particular definition, or `send()` to call the server's `send` tool directly.
 Tool definitions are captured when the connection opens.
 
 ## Work with the session

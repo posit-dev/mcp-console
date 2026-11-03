@@ -43,7 +43,7 @@ def test_sync_connection_closes_resources(binary: Path) -> Transcript:
         before = set(threading.enumerate())
         with client(root) as console:
             assert console.connect() is console
-            assert console.send_tool.name == "send"
+            assert console.get_tool("send").name == "send"
             assert console.send(python="hello") == "hello"
             assert console.send(control="interrupt") == "interrupted"
         assert (root / "closed").exists()

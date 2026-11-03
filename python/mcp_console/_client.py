@@ -291,11 +291,3 @@ class AsyncMCPConsole:
             if tool.name == name:
                 return tool
         raise RuntimeError(f"MCP Console did not expose a tool named {name!r}")
-
-    @property
-    def send_tool(self) -> "Tool":
-        """The discovered `send` definition; requires a server exposing `send`.
-
-        Use `tools` for integrations that should include every server tool.
-        """
-        return self.get_tool("send")

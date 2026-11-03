@@ -64,25 +64,16 @@ def agents_tools(console: MCPConsole | AsyncMCPConsole) -> list[FunctionTool]:
             print(result.final_output)
         ```
     """
-    return [agents_tool(console, name=definition.name) for definition in console.tools]
+    return [_agents_tool(console, definition) for definition in console.tools]
 
 
-def agents_tool(
-    console: MCPConsole | AsyncMCPConsole, *, name: str = "send"
+def _agents_tool(
+    console: MCPConsole | AsyncMCPConsole, definition: Tool
 ) -> FunctionTool:
-    """Adapt one discovered Console tool, selecting `send` by default.
-
-    Use [agents_tools()](openai.agents_tools.html) for general registration and
-    the complete model workflow. Keep the connection open while using the tool.
-
-    Args:
-        console: A connected `MCPConsole` or `AsyncMCPConsole`.
-        name: Exact discovered tool name.
-    """
     from agents import FunctionTool
     from anyio import to_thread
 
-    tool = console.get_tool(name)
+    name = definition.name
 
     async def invoke(context: Any, arguments: str) -> str:
         parsed = json.loads(arguments)
@@ -93,9 +84,9 @@ def agents_tool(
         )
 
     return FunctionTool(
-        name=tool.name,
-        description=tool.description or "",
-        params_json_schema=tool.input_schema,
+        name=name,
+        description=definition.description or "",
+        params_json_schema=definition.input_schema,
         on_invoke_tool=invoke,
         strict_json_schema=False,
     )
@@ -171,41 +162,11 @@ def responses_tools(
         calls. `parallel_tool_calls=False` requests sequential calls to the
         persistent Console. Keep passing all tool definitions on each request.
     """
-    return [
-        responses_tool(console, name=definition.name) for definition in console.tools
-    ]
-
-
-@overload
-def responses_tool(console: MCPConsole, *, name: str = "send") -> ResponsesTool: ...
-
-
-@overload
-def responses_tool(
-    console: AsyncMCPConsole, *, name: str = "send"
-) -> AsyncResponsesTool: ...
-
-
-def responses_tool(
-    console: MCPConsole | AsyncMCPConsole,
-    *,
-    name: str = "send",
-) -> ResponsesTool | AsyncResponsesTool:
-    """Adapt one discovered Console tool, selecting `send` by default.
-
-    Use [responses_tools()](openai.responses_tools.html) for general registration and
-    the complete model workflow. Keep the connection open while using the tool.
-
-    Args:
-        console: A connected `MCPConsole` or `AsyncMCPConsole`.
-        name: Exact discovered tool name.
-    """
     from ._sync import MCPConsole
 
-    tool = console.get_tool(name)
     if isinstance(console, MCPConsole):
-        return ResponsesTool(console, tool)
-    return AsyncResponsesTool(console, tool)
+        return [ResponsesTool(console, definition) for definition in console.tools]
+    return [AsyncResponsesTool(console, definition) for definition in console.tools]
 
 
 def agents_server(
@@ -339,8 +300,9 @@ class AsyncResponsesTool:
 
         async def main():
             async with AsyncMCPConsole() as console:
-                tool = mcp_console.openai.responses_tool(console)
-                output = await tool.call(
+                tools = mcp_console.openai.responses_tools(console)
+                by_name = {tool.definition["name"]: tool for tool in tools}
+                output = await by_name["send"].call(
                     {"python": "sum([12, 15, 18, 20, 25])"}
                 )
                 print(output)
@@ -405,8 +367,9 @@ class ResponsesTool:
         from mcp_console import MCPConsole
 
         with MCPConsole() as console:
-            tool = mcp_console.openai.responses_tool(console)
-            output = tool.call({"python": "sum([12, 15, 18, 20, 25])"})
+            tools = mcp_console.openai.responses_tools(console)
+            by_name = {tool.definition["name"]: tool for tool in tools}
+            output = by_name["send"].call({"python": "sum([12, 15, 18, 20, 25])"})
             print(output)
         ```
     """

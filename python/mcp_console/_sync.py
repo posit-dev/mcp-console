@@ -347,11 +347,3 @@ class MCPConsole:
     def get_tool(self, name: str) -> "Tool":
         """Return a discovered definition, or raise if the name is absent."""
         return self._async.get_tool(name)
-
-    @property
-    def send_tool(self) -> "Tool":
-        """The discovered `send` definition; requires a server exposing `send`.
-
-        Use `tools` for integrations that should include every server tool.
-        """
-        return self._async.send_tool

@@ -806,7 +806,6 @@ class WebsiteTests(unittest.TestCase):
             routes = (
                 "/readme/",
                 "/builtin_runtime/",
-                "/python/reference/openai.responses_tool/",
                 "/python/reference/openai.responses_tools/",
                 "/r/reference/console_tools/",
             )
@@ -1332,17 +1331,13 @@ class WebsiteTests(unittest.TestCase):
             "AsyncMCPConsole",
             "Requirements",
             "chatlas.tools",
-            "chatlas.tool",
             "chatlas.register",
             "openai.responses_tools",
-            "openai.responses_tool",
             "openai.ResponsesTool",
             "openai.AsyncResponsesTool",
             "openai.agents_tools",
-            "openai.agents_tool",
             "openai.agents_server",
             "anthropic.callable_tools",
-            "anthropic.tool",
             "anthropic.tools",
             "codex.server",
         ):
@@ -1454,7 +1449,7 @@ class WebsiteTests(unittest.TestCase):
             "python/reference/mcpconsole/",
             {urlsplit(entry["href"]).path for entry in search},
         )
-        for method in ("send_tool", "get_tool", "call_tool"):
+        for method in ("get_tool", "call_tool"):
             with self.subTest(method=method):
                 self.assertTrue(
                     any(
@@ -1470,13 +1465,11 @@ class WebsiteTests(unittest.TestCase):
         groups = {
             "openai — Responses API": {
                 "openai.responses_tools",
-                "openai.responses_tool",
                 "openai.ResponsesTool",
                 "openai.AsyncResponsesTool",
             },
             "openai-agents — Agents SDK": {
                 "openai.agents_tools",
-                "openai.agents_tool",
                 "openai.agents_server",
             },
             "openai-codex — Codex SDK": {"codex.server"},
@@ -1536,7 +1529,6 @@ class WebsiteTests(unittest.TestCase):
                     "get_tool",
                     "call_tool",
                     "send",
-                    "send_tool",
                     *context_methods,
                 ):
                     self.assertIn(f"mcp_console.{name}.{method}", page.ids)
@@ -1592,8 +1584,8 @@ class WebsiteTests(unittest.TestCase):
             ("chatlas.tools", "chatlas.tools"),
             ("chatlas.register", "chatlas.register"),
             ("openai.responses_tools", "openai.responses_tools"),
-            ("openai.ResponsesTool", "openai.responses_tool"),
-            ("openai.AsyncResponsesTool", "openai.responses_tool"),
+            ("openai.ResponsesTool", "openai.responses_tools"),
+            ("openai.AsyncResponsesTool", "openai.responses_tools"),
             ("openai.agents_tools", "openai.agents_tools"),
             ("openai.agents_server", "openai.agents_server"),
             ("anthropic.callable_tools", "anthropic.callable_tools"),

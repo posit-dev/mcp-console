@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Any
 from ._common import Command, result_text, stdio_command
 
 if TYPE_CHECKING:
+    from mcp.types import Tool
+
     from ._client import AsyncMCPConsole
     from ._sync import MCPConsole
 
@@ -67,27 +69,17 @@ def callable_tools(console: MCPConsole | AsyncMCPConsole, **kwargs: Any) -> list
                     print(block.text)
         ```
     """
-    return [
-        tool(console, name=definition.name, **kwargs) for definition in console.tools
-    ]
+    return [_callable_tool(console, definition, kwargs) for definition in console.tools]
 
 
-def tool(
-    console: MCPConsole | AsyncMCPConsole, *, name: str = "send", **kwargs: Any
+def _callable_tool(
+    console: MCPConsole | AsyncMCPConsole,
+    definition: Tool,
+    kwargs: Mapping[str, Any],
 ) -> Any:
-    """Adapt one discovered Console tool, selecting `send` by default.
-
-    Use [callable_tools()](anthropic.callable_tools.html) for general registration and
-    the complete model workflow. Keep the connection open while using the tool.
-
-    Args:
-        console: A connected `MCPConsole` or `AsyncMCPConsole`.
-        name: Exact discovered tool name.
-        **kwargs: Options passed to Anthropic's tool decorator.
-    """
     from anthropic import beta_async_tool, beta_tool
 
-    definition = console.get_tool(name)
+    name = definition.name
     if iscoroutinefunction(console.call_tool):
 
         async def invoke(**arguments: Any) -> str:
