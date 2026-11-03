@@ -27,7 +27,6 @@ Your model provider's credentials belong in the calling R process.
 The tools share one Console connection.
 Keep them available while the chat is using them.
 `console_tools()` discovers every advertised tool without requiring a particular name.
-`console_tool()` remains available for direct `send` calls and requires that tool to exist.
 For dependent calls through `chat$chat_async()`, select `tool_mode = "sequential"`.
 
 `console_tools()` uses Console on PATH or launches the latest published release through `reticulate::uv_run_tool()`.

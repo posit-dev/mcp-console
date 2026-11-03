@@ -76,7 +76,7 @@ The [configuration workflow reference](https://posit-dev.github.io/mcp-console/r
 
 Each tool uses the name, description, and argument schema advertised by the connected server.
 `console_tools()` discovers every advertised tool, including tools introduced by future server versions.
-`console_tool()` remains available for direct `send` calls and requires that tool to exist.
+Select a tool by name from the returned list for direct calls, for example `tools$send(r = "1 + 1")`.
 
 For `send`, requirement actions are `get`, `add`, `set`, and `reset`; use `character()` for an explicitly empty list.
 Changed live replacements normally require restart.

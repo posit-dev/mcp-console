@@ -199,9 +199,9 @@ mock_completion <- function(message, finish_reason) {
   )
 }
 
-test_that("console_tool exposes configured descriptions and omits hidden parameters", {
+test_that("console_tools expose configured descriptions and omit hidden parameters", {
   with_temp_working_directory({
-    send <- console_tool(
+    send <- console_tools(
       path = real_mcp_console(),
       config = ConsoleConfig(
         r = RConfig(resolution = "disabled"),
@@ -221,7 +221,7 @@ test_that("console_tool exposes configured descriptions and omits hidden paramet
           )
         )
       )
-    )
+    )$send
     expect_identical(send@description, "Evaluation tool.")
     arguments <- send@arguments@properties
     expect_setequal(
@@ -372,7 +372,10 @@ test_that("requirements actions preserve scalar fields and empty lists", {
     fixture <- managed_python_mcp_console()
     send <- with_mcp_console_environment(
       fixture,
-      console_tool(path = fixture$path, config = ConsoleConfig(sandbox = FALSE))
+      console_tools(
+        path = fixture$path,
+        config = ConsoleConfig(sandbox = FALSE)
+      )$send
     )
     startup <- inspect_requirements(send)
     # Inspect the committed default environment after worker readiness.
@@ -437,11 +440,11 @@ test_that("resolved configurations can be inspected, edited, and launched", {
     dir.create("another-directory")
     project <- getwd()
     setwd("another-directory")
-    tool <- console_tool(
+    tool <- console_tools(
       path = binary,
       config = reconstructed,
       project = project
-    )
+    )$send
     setwd(project)
     expect_identical(tool@description, "Run an evaluation cell.")
     expect_false("timeout_ms" %in% names(tool@arguments@properties))
@@ -491,7 +494,7 @@ test_that("materialization preserves typed policies and startup source", {
       expect_identical(config@sandbox, FALSE)
       expect_identical(config@python@first_available[[4]]@packages, character())
       config <- resolve_console_config(config, path = binary)
-      tool <- console_tool(config = config, path = binary)
+      tool <- console_tools(config = config, path = binary)$send
       expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
       rm(tool)
       invisible(gc())
@@ -576,7 +579,7 @@ test_that("large constructed and materialized settings use bounded launch argume
     expect_identical(resolved@tool@description, description)
     expect_identical(resolved@startup@code, startup@code)
     for (config in list(source, resolved)) {
-      tool <- console_tool(config = config, path = binary)
+      tool <- console_tools(config = config, path = binary)$send
       expect_identical(tool@description, description)
       expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
       expect_identical(

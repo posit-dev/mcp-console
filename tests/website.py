@@ -110,7 +110,7 @@ class WebsiteTests(unittest.TestCase):
             (directory / "package-links.md").write_text(
                 "# Package links\n\n"
                 "[R reference](https://posit-dev.github.io/mcp-console/"
-                "r/reference/console_tool.html?view=full#arguments)\n\n"
+                "r/reference/console_tools.html?view=full#arguments)\n\n"
                 "[Python reference](https://posit-dev.github.io/mcp-console/"
                 "python/reference/MCPConsole.html?view=full#"
                 "mcp_console.MCPConsole.send)\n\n"
@@ -240,7 +240,6 @@ class WebsiteTests(unittest.TestCase):
     def test_r_reference_offers_automatic_color_scheme(self) -> None:
         for name in (
             "r/index.html",
-            "r/reference/console_tool/index.html",
             "r/reference/console_tools/index.html",
             "r/articles/autonomous-report/index.html",
         ):
@@ -809,7 +808,6 @@ class WebsiteTests(unittest.TestCase):
                 "/builtin_runtime/",
                 "/python/reference/openai.responses_tool/",
                 "/python/reference/openai.responses_tools/",
-                "/r/reference/console_tool/",
                 "/r/reference/console_tools/",
             )
             # Start from a completed render, as when switching from render-site
@@ -1196,17 +1194,15 @@ class WebsiteTests(unittest.TestCase):
             )
         }
         search = json.loads((self.site / "r/search.json").read_text())
-        for name in ("console_tool", "console_tools"):
-            with self.subTest(symbol=name):
-                reference = (self.site / f"r/reference/{name}/index.html").resolve()
-                self.assertIn(reference, self.pages, f"{name} reference is missing")
-                self.assertIn(name, self.pages[reference].title)
-                reference_url = (
-                    f"https://posit-dev.github.io/mcp-console/r/reference/{name}/"
-                )
-                self.assertIn(reference_url, urls)
-                self.assertIn(reference_url, {entry["path"] for entry in search})
-                self.assertIn("arguments", self.pages[reference].ids)
+        reference = (self.site / "r/reference/console_tools/index.html").resolve()
+        self.assertIn(reference, self.pages, "console_tools reference is missing")
+        self.assertIn("console_tools", self.pages[reference].title)
+        reference_url = (
+            "https://posit-dev.github.io/mcp-console/r/reference/console_tools/"
+        )
+        self.assertIn(reference_url, urls)
+        self.assertIn(reference_url, {entry["path"] for entry in search})
+        self.assertIn("arguments", self.pages[reference].ids)
         navbar = BeautifulSoup(reference.read_text(), "html.parser").select_one(
             ".navbar"
         )
@@ -1563,7 +1559,7 @@ class WebsiteTests(unittest.TestCase):
             with self.subTest(page=name):
                 page = self.pages[self.site / name]
                 for target in (
-                    "r/reference/console_tool/?view=full#arguments",
+                    "r/reference/console_tools/?view=full#arguments",
                     "python/reference/mcpconsole/?view=full#"
                     "mcp_console.MCPConsole.send",
                     "r/",

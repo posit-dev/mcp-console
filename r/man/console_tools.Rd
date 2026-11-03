@@ -35,8 +35,8 @@ this directory; the caller's working directory is unchanged.}
 }
 \value{
 \code{console_tools()} returns a named list of \link[ellmer:ToolDef]{ellmer::ToolDef} objects
-to pass to an ellmer chat's \verb{$register_tools()} method. \code{console_tool()}
-returns the \code{send} \link[ellmer:ToolDef]{ellmer::ToolDef} for \verb{$register_tool()} or direct calls.
+to pass to an ellmer chat's \verb{$register_tools()} method. Select a tool by
+name from the list for direct calls.
 }
 \description{
 \code{console_tools()} starts \verb{mcp-console serve} and returns a named list of
@@ -45,10 +45,6 @@ does not require a tool named \code{send}. The tools share one server process an
 its persistent R, Python, and DuckDB state.
 }
 \details{
-\code{console_tool()} is a compatibility helper that returns only the \code{send}
-tool and errors if the server does not advertise it. Prefer \code{console_tools()}
-when registering Console with a chat.
-
 When the last tool is garbage collected, it closes the server's input to request
 shutdown and waits up to 15 seconds before forcibly stopping the server.
 With sandboxing enabled, the sandbox manager owns cleanup of worker

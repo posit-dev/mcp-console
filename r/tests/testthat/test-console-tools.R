@@ -80,31 +80,9 @@ test_that("console_tools discovers, registers, and calls all tools across pages"
   )
 })
 
-test_that("console_tool keeps its send-only compatibility contract", {
-  with_console_config_probe(function(path, record) {
-    tool <- console_tool(path = path, config = ConsoleConfig())
-    expect_identical(tool@name, "send")
-    expect_identical(tool(r = "1 + 1")@text, "fixture")
-  })
-  with_console_config_probe(
-    function(path, record) {
-      expect_error(
-        console_tool(path = path, config = ConsoleConfig()),
-        "did not expose.*send"
-      )
-      expect_identical(readLines(paste0(record, ".closed")), "closed")
-    },
-    fixture = "console-tools-probe.R"
-  )
-})
-
 test_that("tool discovery reserves all unused arguments", {
   expect_error(
     console_tools(tool = "inspect", config = ConsoleConfig(), path = "missing"),
-    "must be empty"
-  )
-  expect_error(
-    console_tool(tool = "inspect", config = ConsoleConfig(), path = "missing"),
     "must be empty"
   )
 })

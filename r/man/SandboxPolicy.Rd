@@ -370,13 +370,14 @@ shiny_policy <- SandboxPolicy(
   network = SandboxNetwork(allow_local_binding = TRUE)
 )
 \dontrun{
-send <- console_tool(
+tools <- console_tools(
   project = "/path/to/app",
   config = ConsoleConfig(
     r = RConfig(packages = "shiny"),
     sandbox = shiny_policy
   )
 )
+send <- tools$send
 send(
   r = "shiny::runApp('.', host = '127.0.0.1', port = 3838, launch.browser = FALSE)",
   timeout_ms = 1000L

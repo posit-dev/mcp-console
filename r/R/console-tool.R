@@ -5,10 +5,6 @@
 #' does not require a tool named `send`. The tools share one server process and
 #' its persistent R, Python, and DuckDB state.
 #'
-#' `console_tool()` is a compatibility helper that returns only the `send`
-#' tool and errors if the server does not advertise it. Prefer `console_tools()`
-#' when registering Console with a chat.
-#'
 #' When the last tool is garbage collected, it closes the server's input to request
 #' shutdown and waits up to 15 seconds before forcibly stopping the server.
 #' With sandboxing enabled, the sandbox manager owns cleanup of worker
@@ -45,8 +41,8 @@
 #'   directory, defaulting to `getwd()`. Relative config and runtime paths use
 #'   this directory; the caller's working directory is unchanged.
 #' @return `console_tools()` returns a named list of [ellmer::ToolDef] objects
-#'   to pass to an ellmer chat's `$register_tools()` method. `console_tool()`
-#'   returns the `send` [ellmer::ToolDef] for `$register_tool()` or direct calls.
+#'   to pass to an ellmer chat's `$register_tools()` method. Select a tool by
+#'   name from the list for direct calls.
 #' @examples
 #' \dontrun{
 #' chat <- ellmer::chat_openai()
@@ -73,21 +69,6 @@ console_tools <- function(
   if (...length() != 0L) {
     stop("`...` must be empty.", call. = FALSE)
   }
-  launch_console_tools(
-    path = path,
-    version = version,
-    config = config,
-    project = project
-  )
-}
-
-launch_console_tools <- function(
-  path,
-  version,
-  config,
-  project,
-  tool = NULL
-) {
   if (is.null(config)) {
     config <- ConsoleConfig()
   }
@@ -139,53 +120,10 @@ launch_console_tools <- function(
     }
     params <- list(cursor = page$nextCursor)
   }
-  if (!is.null(tool)) {
-    matches <- vapply(metadata, \(x) identical(x$name, tool), logical(1))
-    if (sum(matches) != 1L) {
-      stop(
-        sprintf("mcp-console did not expose exactly one `%s` tool.", tool),
-        call. = FALSE
-      )
-    }
-    metadata <- metadata[matches]
-  }
   tools <- lapply(metadata, mcp_ellmer_tool, client = client)
   names(tools) <- vapply(metadata, \(tool) tool$name, character(1))
   ready <- TRUE
   tools
-}
-
-#' Use the Console send tool
-#'
-#' `console_tool()` returns only the `send` tool for existing callers and
-#' direct evaluation. It errors if the server does not advertise `send`.
-#' Use [console_tools()] to register every available Console tool with a chat.
-#'
-#' @inheritParams console_tools
-#' @return The `send` [ellmer::ToolDef].
-#' @export
-console_tool <- function(
-  ...,
-  path = NULL,
-  version = NULL,
-  config = discover_console_config(
-    path = path,
-    version = version,
-    project = project
-  ),
-  project = getwd()
-) {
-  if (...length() != 0L) {
-    stop("`...` must be empty.", call. = FALSE)
-  }
-  tools <- launch_console_tools(
-    path = path,
-    version = version,
-    config = config,
-    project = project,
-    tool = "send"
-  )
-  tools$send
 }
 
 mcp_ellmer_tool <- function(metadata, client) {

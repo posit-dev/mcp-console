@@ -231,7 +231,7 @@ test_that("selected JSON and YAML files are required and bypass discovery", {
   })
 })
 
-test_that("the default tool discovers once while explicit configs bypass files", {
+test_that("tool discovery reads files once while explicit configs bypass them", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     dir.create(".agents/console", recursive = TRUE)
@@ -243,7 +243,7 @@ test_that("the default tool discovers once while explicit configs bypass files",
       ),
       ".agents/console/config.yaml"
     )
-    send <- console_tool(path = binary)
+    send <- console_tools(path = binary)$send
     expect_identical(send@description, "Discovered report tool")
     rm(send)
     invisible(gc())
@@ -254,7 +254,7 @@ test_that("the default tool discovers once while explicit configs bypass files",
       r = RConfig(packages = character(), resolution = "disabled"),
       tool = ToolConfig(description = "Explicit report tool")
     )
-    send <- console_tool(path = binary, config = config)
+    send <- console_tools(path = binary, config = config)$send
     expect_identical(send@description, "Explicit report tool")
     expect_true(inspect_requirements(send)$prepared)
     expect_identical(send(r = "cat(6 * 7)")@text, "42")
