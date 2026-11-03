@@ -42,6 +42,134 @@ def options(binary: Path, execution: Execution) -> dict:
     }
 
 
+def test_clients_and_adapters_discover_multiple_tools_without_send(
+    binary: Path,
+) -> Transcript:
+    from agents.tool_context import ToolContext
+
+    async def exercise(console) -> dict:
+        definitions = console.tools
+        names = [tool.name for tool in definitions]
+        assert names == ["evaluate", "inspect"], names
+        responses = mcp_console.openai.responses_tools(console)
+        agents = mcp_console.openai.agents_tools(console)
+        anthropic = mcp_console.anthropic.callable_tools(console)
+        chatlas = mcp_console.chatlas.tools(console)
+        outputs = []
+        for definition, response, agent, claude, chat in zip(
+            definitions, responses, agents, anthropic, chatlas, strict=True
+        ):
+            assert [
+                response.definition["name"],
+                agent.name,
+                claude.to_dict()["name"],
+                chat.name,
+            ] == [definition.name] * 4
+            for description in (
+                response.definition["description"],
+                agent.description,
+                claude.to_dict()["description"],
+                chat.schema["function"]["description"],
+            ):
+                assert description == definition.description
+            for schema in (
+                response.definition["parameters"],
+                agent.params_json_schema,
+                claude.to_dict()["input_schema"],
+                chat.schema["function"]["parameters"],
+            ):
+                assert schema == definition.input_schema
+            arguments = {"value": None}
+            encoded = json.dumps(arguments)
+            context = ToolContext(
+                context=None,
+                tool_name=definition.name,
+                tool_call_id="call_1",
+                tool_arguments=encoded,
+            )
+            result = console.call_tool(definition.name, arguments)
+            if inspect.isawaitable(result):
+                result = await result
+            assert result.content[0].text == definition.name
+            values = {}
+            for adapter, invoke in (
+                ("responses", lambda: response.call(arguments)),
+                ("agents", lambda: agent.on_invoke_tool(context, encoded)),
+                ("anthropic", lambda: claude.call(arguments)),
+                ("chatlas", lambda: chat.func(**arguments)),
+            ):
+                value = invoke()
+                values[adapter] = await value if inspect.isawaitable(value) else value
+            assert values == dict.fromkeys(
+                ("responses", "agents", "anthropic", "chatlas"), definition.name
+            ), values
+            outputs.append({"name": definition.name, "outputs": values})
+        try:
+            console.send_tool
+        except RuntimeError as error:
+            assert str(error) == "MCP Console did not expose a tool named 'send'"
+        else:
+            raise AssertionError("missing send tool was accepted")
+        return {"client": type(console).__name__, "tools": outputs}
+
+    async def run() -> Transcript:
+        transcript = [
+            {
+                "fixture": "A paginated MCP peer exposes evaluate and inspect, with no send tool."
+            }
+        ]
+        for client_type in (AsyncMCPConsole, MCPConsole):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                console = client_type(
+                    command=sys.executable,
+                    args=[
+                        "-u",
+                        ROOT / "tests/fixtures/python_sync_server.py",
+                        "multiple-tools",
+                    ],
+                    server_parameters={
+                        "cwd": root,
+                        "env": dict(os.environ, MCP_CONSOLE_HOME=str(root)),
+                    },
+                )
+                if isinstance(console, AsyncMCPConsole):
+                    async with console:
+                        transcript.append(await exercise(console))
+                else:
+                    with console:
+                        transcript.append(await exercise(console))
+                assert (root / "closed").exists()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            async with mcp_console.anthropic.tools(
+                command=sys.executable,
+                args=[
+                    "-u",
+                    ROOT / "tests/fixtures/python_sync_server.py",
+                    "multiple-tools",
+                ],
+                server_parameters={
+                    "cwd": root,
+                    "env": dict(os.environ, MCP_CONSOLE_HOME=str(root)),
+                },
+            ) as native:
+                assert [tool.to_dict()["name"] for tool in native] == [
+                    "evaluate",
+                    "inspect",
+                ]
+                results = [await tool.call({"value": None}) for tool in native]
+                assert [[item["text"] for item in result] for result in results] == [
+                    ["evaluate"],
+                    ["inspect"],
+                ]
+            assert (root / "closed").exists()
+            transcript.append({"native_anthropic": ["evaluate", "inspect"]})
+        return transcript
+
+    return asyncio.run(run())
+
+
 def test_clients_record_notes_with_and_without_code(binary: Path) -> Transcript:
     notes = [
         "## Investigation\n\nCheck the observed **total**.",

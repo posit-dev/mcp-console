@@ -704,16 +704,16 @@ def test_failed_sync_connection_reaps_server(binary: Path) -> Transcript:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         try:
-            client(root, "empty-tools").connect()
-        except* RuntimeError as errors:
+            client(root, "failed-tools").connect()
+        except* MCPError as errors:
             _, unexpected = errors.split(
-                lambda error: str(error) == "MCP Console did not expose its send tool"
+                lambda error: str(error) == "fixture discovery failed"
             )
             assert unexpected is None, errors
         else:
-            raise AssertionError("connection without send tool succeeded")
+            raise AssertionError("connection with failed discovery succeeded")
         assert (root / "closed").exists()
-    return [{"error": "MCP Console did not expose its send tool", "closed": True}]
+    return [{"error": "fixture discovery failed", "closed": True}]
 
 
 def test_sync_negotiates_supported_protocol_versions(binary: Path) -> Transcript:

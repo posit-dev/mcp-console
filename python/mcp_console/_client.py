@@ -101,8 +101,8 @@ class AsyncMCPConsole:
         ```
 
         Framework adapters are created inside this context, after discovery.
-        See [Anthropic](anthropic.tool.html), [chatlas](chatlas.tool.html),
-        [Responses](openai.responses_tool.html), or [Agents](openai.agents_tool.html).
+        See [Anthropic](anthropic.callable_tools.html), [chatlas](chatlas.tools.html),
+        [Responses](openai.responses_tools.html), or [Agents](openai.agents_tools.html).
     """
 
     def __init__(
@@ -117,7 +117,7 @@ class AsyncMCPConsole:
         self._server_parameters = dict(server_parameters or {})
         self._stack: AsyncExitStack | None = None
         self._client: Client | None = None
-        self._send_tool: Tool | None = None
+        self._tools: list[Tool] | None = None
 
     async def connect(self) -> "Self":
         """Start MCP Console and initialize its MCP client session."""
@@ -134,21 +134,23 @@ class AsyncMCPConsole:
             client = await stack.enter_async_context(
                 Client(StdioServerParameters(**parameters), mode="legacy")
             )
-            tools = await client.list_tools()
-            send_tool = next(
-                (tool for tool in tools.tools if tool.name == "send"), None
-            )
-            if send_tool is None:
-                raise RuntimeError("MCP Console did not expose its send tool")
+            tools = []
+            cursor = None
+            while True:
+                page = await client.list_tools(cursor=cursor)
+                tools.extend(page.tools)
+                cursor = page.next_cursor
+                if cursor is None:
+                    break
             self._stack = stack.pop_all()
             self._client = client
-            self._send_tool = send_tool
+            self._tools = tools
         return self
 
     async def close(self) -> None:
         """Close the MCP client session and terminate its subprocess."""
         stack = self._stack
-        self._stack = self._client = self._send_tool = None
+        self._stack = self._client = self._tools = None
         if stack is not None:
             await stack.aclose()
 
@@ -158,13 +160,21 @@ class AsyncMCPConsole:
     async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> None:
         await self.close()
 
-    async def _call_send(self, arguments: Mapping[str, Any]) -> "CallToolResult":
+    async def call_tool(
+        self, name: str, arguments: Mapping[str, Any]
+    ) -> "CallToolResult":
+        """Call a discovered tool by name and return its complete MCP result.
+
+        Arguments are forwarded unchanged, including explicit null values.
+        The result preserves content blocks, structured content, and `is_error`.
+        This method does not require a tool named `send`.
+        """
         if self._client is None:
             raise RuntimeError(
                 "AsyncMCPConsole is not connected; use `async with AsyncMCPConsole() as console` "
                 "or call `await console.connect()` first"
             )
-        return await self._client.call_tool("send", dict(arguments))
+        return await self._client.call_tool(name, dict(arguments))
 
     async def send(
         self,
@@ -252,8 +262,9 @@ class AsyncMCPConsole:
             "timeout_ms": timeout_ms,
         }
         return result_text(
-            await self._call_send(
-                {name: value for name, value in arguments.items() if value is not None}
+            await self.call_tool(
+                "send",
+                {name: value for name, value in arguments.items() if value is not None},
             )
         )
 
@@ -261,16 +272,30 @@ class AsyncMCPConsole:
     __call__ = send
 
     @property
-    def send_tool(self) -> "Tool":
-        """The connected server's MCP tool definition, used by SDK adapters.
+    def tools(self) -> "list[Tool]":
+        """All MCP tool definitions discovered when this connection opened.
 
-        Available after connecting. Its input schema reflects the server's
-        configured capabilities. Use a framework adapter to register this
-        schema; automatic inference from `send()` annotations loses that detail.
-        Recreate adapters after reconnecting.
+        Discovery includes every page and does not require a `send` tool.
+        Use plural framework adapters to register every discovered schema.
+        Recreate adapters after reconnecting to pick up changed definitions.
         """
-        if self._send_tool is None:
+        if self._tools is None:
             raise RuntimeError(
                 "Connect the console before creating tools; enter its context or call connect()"
             )
-        return self._send_tool
+        return list(self._tools)
+
+    def get_tool(self, name: str) -> "Tool":
+        """Return a discovered definition, or raise if the name is absent."""
+        for tool in self.tools:
+            if tool.name == name:
+                return tool
+        raise RuntimeError(f"MCP Console did not expose a tool named {name!r}")
+
+    @property
+    def send_tool(self) -> "Tool":
+        """The discovered `send` definition; requires a server exposing `send`.
+
+        Use `tools` for integrations that should include every server tool.
+        """
+        return self.get_tool("send")

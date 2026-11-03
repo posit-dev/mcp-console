@@ -1,0 +1,36 @@
+---
+fixture: A paginated MCP peer exposes evaluate and inspect, with no send tool.
+---
+client: AsyncMCPConsole
+tools:
+  - name: evaluate
+    outputs:
+      responses: evaluate
+      agents: evaluate
+      anthropic: evaluate
+      chatlas: evaluate
+  - name: inspect
+    outputs:
+      responses: inspect
+      agents: inspect
+      anthropic: inspect
+      chatlas: inspect
+---
+client: MCPConsole
+tools:
+  - name: evaluate
+    outputs:
+      responses: evaluate
+      agents: evaluate
+      anthropic: evaluate
+      chatlas: evaluate
+  - name: inspect
+    outputs:
+      responses: inspect
+      agents: inspect
+      anthropic: inspect
+      chatlas: inspect
+---
+native_anthropic:
+  - evaluate
+  - inspect

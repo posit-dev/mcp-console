@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix="console-control-") as directory:
                 messages.flush()
                 response = json.loads(messages.readline())
                 print(response)
-        # Connect console.send to the agent while this MCPConsole remains open.
+        # Register Console tools with a framework adapter while this MCPConsole remains open.
 ```
 
 Keep the MCP connection open: it owns the server's lifetime.
