@@ -97,7 +97,7 @@ A supplied R object cannot reload its source files at launch or worker restart.
 The calling R executable is supplied through `--default-config`, below selected files and explicit settings.
 The loaded object retains a cleared executable preference through edits and launch so materialization does not turn a file's explicit R reset back into the calling R default.
 Its application-settings serializer emits an explicit `r.executable: null`, preserving that reset through JSON export/reload and direct reconstruction from `as.list()`.
-Launch uses the same serialized setting to clear the calling-R default.
+Launch consults the same serialized setting and evaluates the calling-R default only when the executable is omitted.
 The loader places a JSON null-reset layer before its override document so explicit permission and Python selections replace inherited nodes.
 Override documents apply after the selected files and before ordinary `-c` overrides.
 Configuration files keep long tool descriptions and startup programs out of process arguments and environment size limits.

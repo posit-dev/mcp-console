@@ -183,6 +183,29 @@ test_that("every explicit config bypasses file discovery", {
   })
 })
 
+test_that("loaded R resets launch without a calling-R default", {
+  with_console_config_probe(function(path, record) {
+    with_sandbox_directory({
+      writeLines("r: {executable: null}", "reset.yaml")
+      config <- load_console_config(
+        global_file = NULL,
+        project_file = "reset.yaml",
+        path = sandbox_test_binary()
+      )
+      tools <- console_tools(path = path, config = config)
+      expect_false("--default-config" %in% readLines(record, warn = FALSE))
+      document <- jsonlite::fromJSON(
+        paste0(record, ".config.json"),
+        simplifyVector = FALSE
+      )
+      expect_true("executable" %in% names(document$r))
+      expect_null(document$r$executable)
+      rm(tools)
+      invisible(gc())
+    })
+  })
+})
+
 test_that("constructed settings use a canonical configuration document", {
   with_console_config_probe(function(path, record) {
     config <- ConsoleConfig(

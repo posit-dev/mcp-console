@@ -372,6 +372,7 @@ console_cli_arguments <- function(
   required_files = character()
 ) {
   settings <- S7::props(config)
+  document <- as.list(config)
   resolver <- if (!is.null(settings$resolver)) S7::props(settings$resolver)
   disabled <- identical(settings$sandbox, FALSE)
   optional_files <- setdiff(files, required_files)
@@ -405,15 +406,16 @@ console_cli_arguments <- function(
   file <- file.path(directory, "config.json")
   writeLines(
     as.character(jsonlite::toJSON(
-      as.list(config),
+      document,
       auto_unbox = TRUE,
       null = "null"
     )),
     file,
     useBytes = TRUE
   )
+  # An explicit serialized reset must not inspect the calling R installation.
   c(
-    if (is.null(settings$r) || is.null(settings$r@executable)) {
+    if (is.null(document[["r"]][["executable"]])) {
       c("--default-config", config_override("r.executable", current_r()))
     },
     if (disabled) "--no-sandbox",
