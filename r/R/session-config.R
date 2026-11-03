@@ -223,6 +223,8 @@ SessionsConfig <- S7::new_class(
 #' `NULL` fields are omitted. Empty mappings and character vectors are retained.
 #' `as.list()` returns JSON-ready application settings; the launch-only choice
 #' `sandbox = FALSE` is not included in that document.
+#' A loaded R executable reset is retained as an explicit JSON `null`, so saving
+#' and reloading the settings preserves native R discovery.
 #'
 #' For worker or resolver `network` settings, `TRUE` enables direct networking
 #' and `FALSE` restricts it. The scalar strings `"enabled"` and `"restricted"`
@@ -299,11 +301,20 @@ ConsoleConfig <- S7::new_class(
     sessions = config_property(NULL | SessionsConfig)
   ),
   constructor = function(...) {
-    fields <- config_node_fields(
-      ConsoleConfig,
-      config_constructor_fields(list(...))
-    )
-    S7::new_object(S7::S7_object(), fields)
+    fields <- config_constructor_fields(list(...))
+    # as.list() uses an unboxed missing string for an explicit JSON null.
+    # Ordinary NULL fields remain omissions in pure construction.
+    r_reset <- is.list(fields[["r"]]) &&
+      identical(fields[["r"]][["executable"]], jsonlite::unbox(NA_character_))
+    if (r_reset) {
+      fields[["r"]][["executable"]] <- NULL
+    }
+    fields <- config_node_fields(ConsoleConfig, fields)
+    config <- S7::new_object(S7::S7_object(), fields)
+    if (r_reset) {
+      attr(config, "r_executable_reset") <- TRUE
+    }
+    config
   },
   validator = function(self) {
     if (
@@ -343,7 +354,15 @@ S7::method(as.list, ConsoleConfig) <- function(x, ...) {
   if (identical(x@sandbox, FALSE)) {
     fields$sandbox <- NULL
   }
-  config_mapping(fields)
+  fields <- config_mapping(fields)
+  if (
+    isTRUE(attr(x, "r_executable_reset")) &&
+      is.null(fields[["r"]][["executable"]])
+  ) {
+    # This remains JSON null with jsonlite's default null = "list" option.
+    fields[["r"]][["executable"]] <- jsonlite::unbox(NA_character_)
+  }
+  fields
 }
 
 console_cli_arguments <- function(
@@ -360,9 +379,6 @@ console_cli_arguments <- function(
   # before applying replacements. Launching a supplied config has no file layers.
   if (length(files)) {
     resets <- list()
-    if (isTRUE(attr(config, "r_executable_reset"))) {
-      resets$r <- list(executable = NULL)
-    }
     if (disabled || !is.null(settings$sandbox)) {
       resets["sandbox"] <- list(NULL)
     }
@@ -397,10 +413,7 @@ console_cli_arguments <- function(
     useBytes = TRUE
   )
   c(
-    if (
-      (is.null(settings$r) || is.null(settings$r@executable)) &&
-        !isTRUE(attr(config, "r_executable_reset"))
-    ) {
+    if (is.null(settings$r) || is.null(settings$r@executable)) {
       c("--default-config", config_override("r.executable", current_r()))
     },
     if (disabled) "--no-sandbox",

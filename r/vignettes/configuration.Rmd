@@ -101,6 +101,7 @@ load_console_config(global_file = NULL, project_file = "settings/report.yaml")
 
 Settings apply in this order: native defaults and the calling R preference, global file, project file, then `overrides`.
 In a selected file, `r: null` or `r.executable: null` clears the calling R preference and leaves R discovery to Console, including after edits and at launch.
+Exporting with `jsonlite::write_json(as.list(config), "config.json", auto_unbox = TRUE)` retains that reset as `r.executable: null`; reloading the file with `load_console_config()` preserves native discovery.
 `overrides` can be a named list or a `ConsoleConfig`:
 
 ```r

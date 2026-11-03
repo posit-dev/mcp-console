@@ -58,7 +58,8 @@ corresponding inherited nodes. Other mappings follow native layering rules.
 The calling R installation is a low-priority default; file settings and
 overrides can select another executable. A file's \code{r: null} or
 \code{r.executable: null} clears that preference and retains native R discovery
-when the loaded object is edited or launched.
+when the loaded object is edited, exported with \code{as.list()}, reloaded, or
+launched.
 
 File loading does not capture inherited environment variables or install a
 dependency lock. \code{inherit_environment} controls worker/resolver inheritance,

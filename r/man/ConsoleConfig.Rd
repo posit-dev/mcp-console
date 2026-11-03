@@ -31,6 +31,8 @@ at load or launch, below explicit configuration.
 \code{NULL} fields are omitted. Empty mappings and character vectors are retained.
 \code{as.list()} returns JSON-ready application settings; the launch-only choice
 \code{sandbox = FALSE} is not included in that document.
+A loaded R executable reset is retained as an explicit JSON \code{null}, so saving
+and reloading the settings preserves native R discovery.
 
 For worker or resolver \code{network} settings, \code{TRUE} enables direct networking
 and \code{FALSE} restricts it. The scalar strings \code{"enabled"} and \code{"restricted"}

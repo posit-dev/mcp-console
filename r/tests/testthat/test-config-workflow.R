@@ -95,6 +95,86 @@ test_that("loading one selected JSON or YAML file bypasses unselected files", {
   })
 })
 
+test_that("JSON export and reload retain explicit R executable resets", {
+  with_sandbox_directory({
+    binary <- sandbox_test_binary()
+    writeLines("r: {executable: /inherited/R}", "inherited.yaml")
+    for (reset in c("r: null", "r: {executable: null}")) {
+      writeLines(reset, "reset.yaml")
+      config <- load_console_config(
+        global_file = NULL,
+        project_file = "reset.yaml",
+        path = binary
+      )
+      expect_null(config@r@executable)
+      config@r@packages <- "cli"
+      jsonlite::write_json(as.list(config), "export.json", auto_unbox = TRUE)
+      reloaded <- load_console_config(
+        global_file = NULL,
+        project_file = "export.json",
+        path = binary
+      )
+      expect_null(reloaded@r@executable)
+      expect_identical(reloaded@r@packages, "cli")
+      expect_identical(as.list(reloaded), as.list(config))
+
+      for (reconstructed in list(
+        ConsoleConfig(as.list(config)),
+        do.call(ConsoleConfig, as.list(config))
+      )) {
+        reloaded <- load_console_config(
+          global_file = NULL,
+          project_file = "inherited.yaml",
+          overrides = reconstructed,
+          path = binary
+        )
+        expect_null(reloaded@r@executable)
+        expect_identical(as.list(reloaded), as.list(config))
+      }
+
+      config@r@executable <- sandbox_test_r()
+      jsonlite::write_json(as.list(config), "export.json", auto_unbox = TRUE)
+      reloaded <- load_console_config(
+        global_file = NULL,
+        project_file = "export.json",
+        path = binary
+      )
+      expect_identical(
+        normalizePath(reloaded@r@executable, mustWork = TRUE),
+        normalizePath(config@r@executable, mustWork = TRUE)
+      )
+
+      config@r <- NULL
+      jsonlite::write_json(as.list(config), "export.json", auto_unbox = TRUE)
+      reloaded <- load_console_config(
+        global_file = NULL,
+        project_file = "export.json",
+        path = binary
+      )
+      expect_null(reloaded@r@executable)
+    }
+
+    for (r in list(NULL, list(executable = NULL))) {
+      config <- ConsoleConfig(r = r)
+      expect_false("executable" %in% names(as.list(config)$r))
+      loaded <- load_console_config(
+        global_file = NULL,
+        project_file = NULL,
+        overrides = config,
+        path = binary
+      )
+      expect_identical(
+        normalizePath(loaded@r@executable, mustWork = TRUE),
+        normalizePath(sandbox_test_r(), mustWork = TRUE)
+      )
+    }
+    expect_error(
+      ConsoleConfig(r = list(executable = NA_character_)),
+      "executable"
+    )
+  })
+})
+
 test_that("default tool loading reads files while explicit configs bypass them", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()

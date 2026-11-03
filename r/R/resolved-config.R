@@ -20,7 +20,8 @@
 #' The calling R installation is a low-priority default; file settings and
 #' overrides can select another executable. A file's `r: null` or
 #' `r.executable: null` clears that preference and retains native R discovery
-#' when the loaded object is edited or launched.
+#' when the loaded object is edited, exported with `as.list()`, reloaded, or
+#' launched.
 #'
 #' File loading does not capture inherited environment variables or install a
 #' dependency lock. `inherit_environment` controls worker/resolver inheritance,
@@ -126,8 +127,8 @@ load_console_config <- function(
   config <- ConsoleConfig(settings)
   # Native capture already applied the calling-R preference. Its absence in
   # the materialized result therefore records an explicit reset, unlike NULL
-  # in pure construction. Keep that provenance private and separate from the
-  # editable fields; launch emits the reset before later explicit edits.
+  # in pure construction. The serializer carries this provenance as an explicit
+  # r.executable null unless the executable has since been selected.
   if (is.null(config@r@executable)) {
     attr(config, "r_executable_reset") <- TRUE
   }
