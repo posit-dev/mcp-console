@@ -177,18 +177,29 @@ See the [path rules above](#filesystem) for explicit exclusions and more specifi
 
 The value of `sandbox.network` or `resolver.sandbox.network` selects the network policy:
 
-| Value                   | Effect                                                 |
-| ----------------------- | ------------------------------------------------------ |
-| `network: restricted`   | Restricted native networking, without a managed proxy. |
-| `network: enabled`      | Host networking; filesystem enforcement remains.       |
-| `network: {proxy: {…}}` | Restricted native networking with a managed proxy.     |
+| Value                                         | Effect                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `network: false` or `network: restricted`     | Restricted native networking, without a managed proxy.                               |
+| `network: true` or `network: enabled`         | Host networking; filesystem enforcement remains.                                     |
+| `network: [api.example.com, "*.example.org"]` | Managed proxy with these allowed destinations.                                       |
+| `network: api.example.com`                    | Managed proxy with one allowed destination.                                          |
+| `network: {proxy: {…}}`                       | Restricted native networking with a managed proxy and explicit options.              |
+| `network: null`                               | Omit the field from this layer, preserving an earlier network policy or the default. |
 
 Worker networking defaults to restricted without a proxy.
 Resolver networking defaults to its [download proxy](PACKAGE_CONFIGURATION.md#expanded-public-default).
-Explicit scalar values also remove that generated resolver proxy.
+The `enabled` and `restricted` modes, including their boolean aliases, replace that generated resolver proxy.
 
 A managed mapping requires a non-null `proxy` mapping.
-There is no `network: full` shortcut or public proxy-enabled boolean.
+The strings `enabled` and `restricted` are reserved mode names; other strings are single allowed hostname patterns or IP literals.
+Use a sequence such as `[enabled]` to treat a reserved name as a destination.
+The R configuration object accepts the corresponding booleans, character vectors, unnamed lists, and named mappings; use `list("enabled")` for a literal reserved name because a one-element character vector is also a scalar string in R.
+
+Before merging each layer, a destination sequence or string expands to `proxy.domains.allow`.
+This replaces the allow list while retaining inherited deny rules, proxy options, and socket settings.
+An empty sequence explicitly selects an empty allow list; it keeps the managed proxy and does not restore the resolver's download destinations.
+`network: null` is omission, so it does not clear an inherited policy.
+Exports use the canonical mode strings and nested proxy mapping.
 
 Fields within a network mapping are:
 

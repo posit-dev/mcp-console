@@ -168,23 +168,23 @@ Runnable examples use child-specific environments in [shell](../examples/sandbox
 ## Merge rules
 
 Mappings merge recursively.
-Lists, scalars, and `null` replace the earlier value.
+Lists, scalars, and `null` replace the earlier value, after the shorthand normalization described below.
 Validation and defaults apply to the final merged settings.
 
-| Value         | Effect                                                                                                           |
-| ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Omitted field | Keep the earlier layer's value, or use the default when no layer supplies one.                                   |
-| `{}`          | Merge an empty mapping; do not clear earlier entries. Runtime shorthands are expanded first, as described below. |
-| `[]`          | Replace a list with an empty list, where allowed. `languages` and `python.first_available` must remain nonempty. |
-| `null`        | Replace the earlier value, where allowed. Clearing `sandbox` or `resolver.sandbox` restores the policy defaults. |
-| `""`          | Supply an empty string. This is valid for environment values and tool prose; it does not unset a variable.       |
+| Value         | Effect                                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Omitted field | Keep the earlier layer's value, or use the default when no layer supplies one.                                                                               |
+| `{}`          | Merge an empty mapping; do not clear earlier entries. Shorthands are expanded first, as described below.                                                     |
+| `[]`          | Replace a list with an empty list, where allowed. `languages` and `python.first_available` must remain nonempty.                                             |
+| `null`        | Replace the earlier value, where allowed. Clearing `sandbox` or `resolver.sandbox` restores the policy defaults. A `network: null` field is omitted instead. |
+| `""`          | Supply an empty string. This is valid for environment values and tool prose; it does not unset a variable.                                                   |
 
 For example, global `environment: {KEEP: global, CHANGE: global}` and project `environment: {CHANGE: project}` retain `KEEP` and replace `CHANGE`.
 
 To replace a whole mapping, clear it and then supply the replacement through ordered overrides:
 
 ```sh
-mcp-console serve -c sandbox.network=null -c 'sandbox.network={proxy: {mode: limited}}'
+mcp-console serve -c sandbox.network.proxy=null -c 'sandbox.network.proxy={mode: limited}'
 ```
 
 The final value must still be valid for that setting.
@@ -194,6 +194,13 @@ Changing one selector does not implicitly remove incompatible siblings.
 Before merging each layer, Console expands an R path to `r.executable` and direct managed Python fields to `python.managed`.
 An empty `python: {}` also selects the managed form.
 Flat and nested runtime settings therefore merge at the same paths; [Languages and startup](RUNTIME_CONFIGURATION.md) describes the selection rules.
+
+Network shorthands are also normalized before merging, for both worker and resolver policies.
+Booleans become `enabled` or `restricted`; destination sequences and non-mode strings become `proxy.domains.allow`.
+Thus a later proxy option does not discard an earlier shorthand allow list, and inherited deny rules remain in effect.
+`network: null` is removed from its layer, so it preserves an earlier value or leaves the default when none was supplied.
+These rules apply to files, environment configuration, defaults, and ordered command-line overrides.
+See [Network access](SANDBOX_CONFIGURATION.md#network-choices) for the accepted forms and empty-list semantics.
 
 ## Export a configuration
 

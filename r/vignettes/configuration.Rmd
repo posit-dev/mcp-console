@@ -116,6 +116,7 @@ config <- load_console_config(
 Mappings normally merge recursively; arrays and scalars replace earlier values.
 An explicitly supplied worker sandbox policy, resolver sandbox policy, or Python selection replaces that entire inherited node.
 For example, `overrides = list(sandbox = list(filesystem = list(read_write = "./reports")))` replaces an inherited worker policy, including its network grants.
+An override such as `sandbox = list(network = NULL)` omits the network field but still replaces the inherited policy, just like `sandbox = list()`.
 Omitted fields do not act as overrides.
 An empty package vector means no optional startup packages.
 
@@ -220,7 +221,24 @@ Filesystem `deny` wins at an identical path; more specific paths override broade
 Proxy domain `deny` wins over matching `allow`; unmatched destinations are denied.
 Use `network = TRUE` (or `"enabled"`) for direct networking and `network = FALSE` (or `"restricted"`) to deny ordinary direct network access.
 A character vector or unnamed list of allowed patterns, such as `network = c("api.example.com", "*.example.org")`, becomes `network.proxy.domains.allow`.
+The scalar strings `"enabled"` and `"restricted"` are reserved mode names; any other single string is one allowed pattern.
 An empty vector or `list()` selects an explicit empty allow list.
+YAML accepts the same booleans, scalar strings, and sequences:
+
+```yaml
+sandbox:
+  network: [api.example.com, "*.example.org"]
+resolver:
+  sandbox:
+    network: true
+```
+
+These settings have the same meaning whether passed through `ConsoleConfig(yaml12::read_yaml("config.yaml"))` or read by `load_console_config(global_file = NULL, project_file = "config.yaml")`.
+The YAML reader can simplify hostname sequences to character vectors or retain them as lists.
+To use a reserved mode word as a literal destination pattern, put it under `proxy.domains.allow` so simplification cannot turn a one-element sequence into a mode string.
+R `network = NULL` omits the field from constructed settings.
+A YAML `network: null` is omitted when files merge, preserving an earlier network field or using context defaults if none was supplied.
+
 A named network mapping keeps the canonical `config.yaml` structure shown above and enables a managed proxy.
 Proxy options stay under `proxy`; `sockets` and `allow_local_binding` control local networking.
 Omitting `proxy.domains` retains context defaults.

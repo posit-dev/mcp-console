@@ -1,0 +1,25 @@
+---
+network: true
+managed_proxy: false
+local_binding: ~
+---
+network: false
+managed_proxy: false
+local_binding: ~
+---
+network: api.example.com
+managed_proxy: true
+local_binding: "1"
+---
+network:
+  - api.example.com
+managed_proxy: true
+local_binding: "1"
+---
+network: []
+managed_proxy: true
+local_binding: "1"
+---
+network: ~
+managed_proxy: true
+local_binding: "1"

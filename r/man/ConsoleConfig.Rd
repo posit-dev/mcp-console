@@ -33,8 +33,14 @@ at load or launch, below explicit configuration.
 \code{sandbox = FALSE} is not included in that document.
 
 For worker or resolver \code{network} settings, \code{TRUE} enables direct networking
-and \code{FALSE} restricts it. A character vector or unnamed list supplies allowed
-proxy patterns. Named mappings use \code{proxy = list(domains = list(allow = ..., deny = ...))} for explicit destination rules.
+and \code{FALSE} restricts it. The scalar strings \code{"enabled"} and \code{"restricted"}
+select the same modes; other strings are allowed proxy patterns. Character
+vectors and unnamed lists supply allowed patterns, including an empty vector
+or list for an explicit empty allow list. Named mappings use
+\code{proxy = list(domains = list(allow = ..., deny = ...))} for explicit rules.
+YAML accepts the same boolean, string, and sequence forms. A YAML
+\code{network: null} is omitted when files merge, preserving an earlier network
+field. R \code{network = NULL} is omitted from the constructed settings.
 }
 \examples{
 ConsoleConfig()

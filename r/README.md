@@ -62,8 +62,12 @@ tools <- console_tools(config = config, project = "/path/to/project")
 Network permissions remain independent.
 Use `sandbox = list(filesystem = list(read_write = "./output"))` for a narrower write grant and create that directory before launching.
 Use `sandbox = list(network = "api.example.com")` to allow a hostname through the managed proxy.
-`network = TRUE` enables direct networking; `FALSE` restricts it.
+Use a character vector such as `network = c("api.example.com", "*.example.org")` for multiple allowed patterns.
+`network = TRUE` or `"enabled"` enables direct networking; `FALSE` or `"restricted"` restricts it.
+Those two scalar strings are reserved mode names; other strings select proxy destinations.
 For explicit allow and deny rules, use `network = list(proxy = list(domains = list(allow = "*.example.com", deny = "blocked.example.com")))`.
+YAML accepts the same boolean, string, and sequence forms.
+`network: null` omits that field when files merge, preserving an earlier network value; R `network = NULL` omits it from the constructed settings.
 See [sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/) for temporary storage, path rules, and platform limits.
 
 <span id="discover-configuration-once"></span> <span id="inspect-and-edit-configuration"></span> <span id="existing-callers"></span>

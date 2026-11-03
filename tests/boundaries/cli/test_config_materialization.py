@@ -38,6 +38,247 @@ def resolve(
     )
 
 
+def test_network_shorthands_match_canonical_policies(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        selected = root / "selected.json"
+        for scope in ("sandbox", "resolver.sandbox"):
+            for shorthand, canonical in (
+                (True, "enabled"),
+                (False, "restricted"),
+                ("enabled", "enabled"),
+                ("restricted", "restricted"),
+                (
+                    "api.example.com",
+                    {"proxy": {"domains": {"allow": ["api.example.com"]}}},
+                ),
+                ("full", {"proxy": {"domains": {"allow": ["full"]}}}),
+                (
+                    ["api.example.com", "*.example.org"],
+                    {
+                        "proxy": {
+                            "domains": {"allow": ["api.example.com", "*.example.org"]}
+                        }
+                    },
+                ),
+                (
+                    ["enabled", "restricted"],
+                    {"proxy": {"domains": {"allow": ["enabled", "restricted"]}}},
+                ),
+                ([], {"proxy": {"domains": {"allow": []}}}),
+            ):
+                expected = resolve(
+                    binary,
+                    root,
+                    "--no-config",
+                    "--full",
+                    "--format",
+                    "json",
+                    "-c",
+                    f"{scope}.network={json.dumps(canonical)}",
+                )
+                assert expected.returncode == 0 and expected.stderr == "", expected
+                for source in ("file", "default", "override"):
+                    policy = {"network": shorthand}
+                    document = (
+                        {"sandbox": policy}
+                        if scope == "sandbox"
+                        else {"resolver": {"sandbox": policy}}
+                    )
+                    selected.write_text(json.dumps(document), encoding="utf-8")
+                    arguments = (
+                        ("--config-file", str(selected))
+                        if source == "file"
+                        else (
+                            "--no-config",
+                            "--default-config" if source == "default" else "-c",
+                            f"{scope}.network={json.dumps(shorthand)}",
+                        )
+                    )
+                    result = resolve(
+                        binary, root, "--full", "--format", "json", *arguments
+                    )
+                    assert result.returncode == 0 and result.stderr == "", result
+                    assert json.loads(result.stdout) == json.loads(expected.stdout), (
+                        result
+                    )
+                records.append(
+                    {
+                        "scope": scope,
+                        "shorthand": shorthand,
+                        "canonical": canonical,
+                        "sources": ["file", "default", "override"],
+                    }
+                )
+    return records
+
+
+def test_network_shorthands_merge_before_null_omission(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        first = root / "first.json"
+        second = root / "second.json"
+        inherited = {
+            "proxy": {
+                "mode": "full",
+                "socks5": "disabled",
+                "allow_upstream_proxy": True,
+                "domains": {
+                    "allow": ["old.example.com"],
+                    "deny": ["blocked.example.com"],
+                },
+            },
+            "sockets": {"unix_sockets": []},
+            "allow_local_binding": True,
+        }
+        for scope in ("sandbox", "resolver.sandbox"):
+            for selection in (
+                None,
+                "new.example.com",
+                ["new.example.com", "blocked.example.com"],
+                [],
+                True,
+                False,
+            ):
+
+                def document(network):
+                    policy = {"network": network}
+                    return (
+                        {"sandbox": policy}
+                        if scope == "sandbox"
+                        else {"resolver": {"sandbox": policy}}
+                    )
+
+                first.write_text(json.dumps(document(selection)), encoding="utf-8")
+                second.write_text(json.dumps(document(None)), encoding="utf-8")
+                expected_network = json.loads(json.dumps(inherited))
+                if isinstance(selection, bool):
+                    expected_network = "enabled" if selection else "restricted"
+                elif selection is not None:
+                    expected_network["proxy"]["domains"]["allow"] = (
+                        [selection] if isinstance(selection, str) else selection
+                    )
+                expected = resolve(
+                    binary,
+                    root,
+                    "--no-config",
+                    "--full",
+                    "--format",
+                    "json",
+                    "-c",
+                    f"{scope}.network={json.dumps(expected_network)}",
+                )
+                assert expected.returncode == 0 and expected.stderr == "", expected
+                for final in (None, selection):
+                    result = resolve(
+                        binary,
+                        root,
+                        "--full",
+                        "--format",
+                        "json",
+                        "--default-config",
+                        f"{scope}.network={json.dumps(inherited)}",
+                        "--default-config",
+                        f"{scope}.network=null",
+                        "--config-file",
+                        str(first),
+                        "--config-file",
+                        str(second),
+                        "-c",
+                        f"{scope}.network={json.dumps(final)}",
+                        "-c",
+                        f"{scope}.network=null",
+                    )
+                    assert result.returncode == 0 and result.stderr == "", result
+                    assert json.loads(result.stdout) == json.loads(expected.stdout), (
+                        result
+                    )
+                records.append(
+                    {
+                        "scope": scope,
+                        "selection": selection,
+                        "inherited_options_preserved": not isinstance(selection, bool),
+                    }
+                )
+
+            baseline = resolve(
+                binary, root, "--no-config", "--full", "--format", "json"
+            )
+            omitted = resolve(
+                binary,
+                root,
+                "--no-config",
+                "--full",
+                "--format",
+                "json",
+                "-c",
+                f"{scope}.network=null",
+            )
+            assert baseline.returncode == omitted.returncode == 0, (baseline, omitted)
+            assert json.loads(omitted.stdout) == json.loads(baseline.stdout), omitted
+            canonical = resolve(
+                binary,
+                root,
+                "--no-config",
+                "--full",
+                "--format",
+                "json",
+                "-c",
+                f"{scope}.network={{proxy: {{domains: {{allow: [api.example.com]}}}}}}",
+            )
+            assert canonical.returncode == 0 and canonical.stderr == "", canonical
+            # Patterns replace a scalar mode; an invalid earlier list can be
+            # replaced too because validation belongs to the merged document.
+            for earlier in (True, [1, False]):
+                replaced = resolve(
+                    binary,
+                    root,
+                    "--no-config",
+                    "--full",
+                    "--format",
+                    "json",
+                    "--default-config",
+                    f"{scope}.network={json.dumps(earlier)}",
+                    "-c",
+                    f'{scope}.network=["api.example.com"]',
+                )
+                assert replaced.returncode == 0 and replaced.stderr == "", replaced
+                assert json.loads(replaced.stdout) == json.loads(canonical.stdout), (
+                    replaced
+                )
+
+        for default in (None, True):
+            result = resolve(
+                binary,
+                root,
+                "--no-config",
+                "--full",
+                "--format",
+                "json",
+                "--default-config",
+                f"sandbox.network={json.dumps(default)}",
+                "-c",
+                "sandbox.profile=inherit_codex",
+                "-c",
+                "sandbox.network=null",
+            )
+            assert result.returncode == 0 and result.stderr == "", result
+            policy = json.loads(result.stdout)["sandbox"]
+            if default is None:
+                assert "network" not in policy, policy
+            else:
+                assert policy["network"] == "enabled", policy
+        records.append(
+            {
+                "null_keeps_context_defaults": True,
+                "null_preserves_inherited_network_provenance": True,
+            }
+        )
+    return records
+
+
 def test_cache_directory_round_trips_without_creating_storage(
     binary: Path,
 ) -> Transcript:

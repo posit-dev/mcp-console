@@ -166,6 +166,142 @@ test_that("ConsoleConfig preserves omitted fields and empty JSON shapes", {
   )
 })
 
+test_that("YAML and R network shorthands agree for workers and resolvers", {
+  skip_if_not_installed("yaml12")
+  with_sandbox_directory({
+    binary <- sandbox_test_binary()
+    values <- list(
+      "true" = "enabled",
+      "false" = "restricted",
+      "enabled" = "enabled",
+      "restricted" = "restricted",
+      "api.example.org" = list(
+        proxy = list(domains = list(allow = list("api.example.org")))
+      ),
+      "[api.example.org]" = list(
+        proxy = list(domains = list(allow = list("api.example.org")))
+      ),
+      "[api.example.org, '*.example.com']" = list(
+        proxy = list(
+          domains = list(allow = list("api.example.org", "*.example.com"))
+        )
+      ),
+      "[]" = list(proxy = list(domains = list(allow = list()))),
+      "{proxy: {domains: {allow: [enabled]}}}" = list(
+        proxy = list(domains = list(allow = list("enabled")))
+      ),
+      "null" = NULL
+    )
+    for (source in names(values)) {
+      writeLines(
+        c(
+          "sandbox:",
+          paste0("  network: ", source),
+          "resolver:",
+          "  sandbox:",
+          paste0("    network: ", source)
+        ),
+        "network.yaml"
+      )
+      loaded <- load_console_config(
+        global_file = NULL,
+        project_file = "network.yaml",
+        path = binary
+      )
+      for (simplify in c(TRUE, FALSE)) {
+        constructed <- ConsoleConfig(yaml12::read_yaml(
+          "network.yaml",
+          simplify = simplify
+        ))
+        expect_identical(as.list(constructed)$sandbox$network, values[[source]])
+        expect_identical(
+          as.list(constructed)$resolver$sandbox$network,
+          values[[source]]
+        )
+        materialized <- load_console_config(
+          global_file = NULL,
+          project_file = NULL,
+          overrides = constructed,
+          path = binary
+        )
+        expect_identical(as.list(loaded), as.list(materialized))
+      }
+    }
+    loaded@sandbox@network <- c("edited.example.org", "*.example.com")
+    loaded@resolver@sandbox@network <- list("packages.example.org")
+    serialized <- as.list(loaded)
+    expect_identical(as.list(ConsoleConfig(serialized)), serialized)
+    jsonlite::write_json(serialized, "edited.json", auto_unbox = TRUE)
+    from_file <- load_console_config(
+      global_file = NULL,
+      project_file = "edited.json",
+      path = binary
+    )
+    from_object <- load_console_config(
+      global_file = NULL,
+      project_file = NULL,
+      overrides = loaded,
+      path = binary
+    )
+    expect_identical(as.list(from_file), as.list(from_object))
+  })
+})
+
+test_that("a null network field preserves an earlier YAML layer", {
+  skip_if_not_installed("yaml12")
+  with_sandbox_directory({
+    binary <- sandbox_test_binary()
+    writeLines(
+      c(
+        "sandbox: {network: enabled}",
+        "resolver: {sandbox: {network: restricted}}"
+      ),
+      "global.yaml"
+    )
+    writeLines(
+      c(
+        "sandbox: {network: null}",
+        "resolver: {sandbox: {network: null}}"
+      ),
+      "project.yaml"
+    )
+    for (simplify in c(TRUE, FALSE)) {
+      constructed <- ConsoleConfig(yaml12::read_yaml(
+        "project.yaml",
+        simplify = simplify
+      ))
+      expect_null(constructed@sandbox@network)
+      expect_null(constructed@resolver@sandbox@network)
+      expect_false("network" %in% names(as.list(constructed)$sandbox))
+      expect_false("network" %in% names(as.list(constructed)$resolver$sandbox))
+    }
+    config <- load_console_config(
+      global_file = "global.yaml",
+      project_file = "project.yaml",
+      path = binary
+    )
+    expect_identical(config@sandbox@network, "enabled")
+    expect_identical(config@resolver@sandbox@network, "restricted")
+    null_override <- load_console_config(
+      global_file = "global.yaml",
+      project_file = NULL,
+      overrides = list(
+        sandbox = list(network = NULL),
+        resolver = list(sandbox = list(network = NULL))
+      ),
+      path = binary
+    )
+    empty_override <- load_console_config(
+      global_file = "global.yaml",
+      project_file = NULL,
+      overrides = list(sandbox = list(), resolver = list(sandbox = list())),
+      path = binary
+    )
+    expect_identical(as.list(null_override), as.list(empty_override))
+    expect_identical(null_override@sandbox@network, "restricted")
+  })
+})
+
 test_that("runtime shorthands and fallback selections use the YAML schema", {
   expect_identical(
     as.list(ConsoleConfig(r = "/opt/R/bin/R", python = ".venv")),

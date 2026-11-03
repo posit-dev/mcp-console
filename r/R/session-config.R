@@ -225,9 +225,14 @@ SessionsConfig <- S7::new_class(
 #' `sandbox = FALSE` is not included in that document.
 #'
 #' For worker or resolver `network` settings, `TRUE` enables direct networking
-#' and `FALSE` restricts it. A character vector or unnamed list supplies allowed
-#' proxy patterns. Named mappings use `proxy = list(domains = list(allow = ...,
-#' deny = ...))` for explicit destination rules.
+#' and `FALSE` restricts it. The scalar strings `"enabled"` and `"restricted"`
+#' select the same modes; other strings are allowed proxy patterns. Character
+#' vectors and unnamed lists supply allowed patterns, including an empty vector
+#' or list for an explicit empty allow list. Named mappings use
+#' `proxy = list(domains = list(allow = ..., deny = ...))` for explicit rules.
+#' YAML accepts the same boolean, string, and sequence forms. A YAML
+#' `network: null` is omitted when files merge, preserving an earlier network
+#' field. R `network = NULL` is omitted from the constructed settings.
 #'
 #' @param ... Named configuration fields, or a single unnamed mapping. The two
 #'   forms cannot be combined. Supported fields are `r`, `python`, `resolver`,

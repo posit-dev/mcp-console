@@ -1,4 +1,4 @@
-//! Public configuration sources and command-line layering with runtime shorthands.
+//! Public configuration sources and command-line layering with shared shorthands.
 
 use std::path::{Path, PathBuf};
 
@@ -65,7 +65,7 @@ pub fn load(
                     .map_err(|error| format!("cannot read '{}': {error}", path.display()))?;
                 let mut overlay =
                     yaml::load(&source).map_err(|error| format!("{}: {error}", path.display()))?;
-                expand_runtime_shorthands(&mut overlay);
+                normalize_layer(&mut overlay);
                 merge(
                     value.get_or_insert_with(|| Value::Object(Map::new())),
                     overlay,
@@ -96,7 +96,7 @@ fn apply_values(value: &mut Option<Value>, arguments: &[String], kind: &str) -> 
         for key in keys.into_iter().rev() {
             overlay = Value::Object(Map::from_iter([(key.to_string(), overlay)]));
         }
-        expand_runtime_shorthands(&mut overlay);
+        normalize_layer(&mut overlay);
         merge(
             value.get_or_insert_with(|| Value::Object(Map::new())),
             overlay,
@@ -116,7 +116,7 @@ pub fn load_environment(
         .map_err(|error| format!("cannot read configuration environment '{name}': {error}"))?;
     let mut overlay = yaml::load(&source)
         .map_err(|error| format!("configuration environment '{name}': {error}"))?;
-    expand_runtime_shorthands(&mut overlay);
+    normalize_layer(&mut overlay);
     let mut value = None;
     apply_values(&mut value, defaults, "default")?;
     merge(
@@ -127,9 +127,9 @@ pub fn load_environment(
     Ok(value.expect("selected configuration document"))
 }
 
-// Normalize equivalent runtime forms before merging each input layer. Keep the
-// existing managed representation for typed capture and configuration exports.
-fn expand_runtime_shorthands(value: &mut Value) {
+// Normalize equivalent forms before merging each input layer. Keep canonical
+// mappings for typed capture and exports, so shorthands retain ordinary merging.
+fn normalize_layer(value: &mut Value) {
     if let Some(r) = value.get_mut("r")
         && r.is_string()
     {
@@ -146,6 +146,32 @@ fn expand_runtime_shorthands(value: &mut Value) {
             .find(|key| mapping.contains_key(*key));
         if selector.is_none() && (field.is_some() || mapping.is_empty()) {
             *python = serde_json::json!({"managed": python.take()});
+        }
+    }
+    for path in ["/sandbox", "/resolver/sandbox"] {
+        let Some(policy) = value.pointer_mut(path).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        match policy.get_mut("network") {
+            // Network null is omission in this layer, including when an earlier
+            // layer selected a policy. Keep its containing permission node.
+            Some(Value::Null) => {
+                policy.remove("network");
+            }
+            Some(network) => match network {
+                Value::Bool(enabled) => {
+                    *network = if *enabled { "enabled" } else { "restricted" }.into();
+                }
+                Value::String(mode) if !matches!(mode.as_str(), "enabled" | "restricted") => {
+                    *network =
+                        serde_json::json!({"proxy": {"domains": {"allow": [network.take()]}}});
+                }
+                Value::Array(_) => {
+                    *network = serde_json::json!({"proxy": {"domains": {"allow": network.take()}}});
+                }
+                _ => {}
+            },
+            None => {}
         }
     }
 }
