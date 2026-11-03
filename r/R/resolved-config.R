@@ -76,7 +76,7 @@ resolve_console_config <- function(
 #' @param project_file Optional project configuration path. Defaults to
 #'   `.agents/console/config.yaml` in `project`.
 #' @param file A required JSON or YAML configuration path.
-#' @inheritParams console_tool
+#' @inheritParams console_tools
 #' @return A [ConsoleConfig()] with file discovery disabled. Nested settings use
 #'   the same typed constructors as manually written configurations.
 #' @examples
@@ -84,7 +84,7 @@ resolve_console_config <- function(
 #' # Read once, inspect, then launch exactly this configuration.
 #' config <- discover_console_config(global_file = NULL)
 #' print(prune_console_config(config))
-#' send <- console_tool(config = config)
+#' tools <- console_tools(config = config)
 #'
 #' # Built-in defaults, without configuration-file discovery.
 #' config <- materialize_console_config(ConsoleConfig(languages = "r"))

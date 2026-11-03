@@ -50,7 +50,7 @@ articles:
 reference:
   - title: Use Console with ellmer
     contents:
-    - console_tool
+    - console_tools
   - title: Configure sessions
     contents:
     - config-workflow

@@ -51,21 +51,64 @@ def main() -> None:
             )
         elif method == "notifications/initialized":
             continue
-        elif method == "tools/list":
-            tools = (
-                []
-                if mode == "empty-tools"
-                else [
+        elif method == "server/discover":
+            print(
+                json.dumps(
                     {
-                        "name": "send",
-                        "description": "Fixture send",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {"python": {"type": "string"}},
-                        },
+                        "jsonrpc": "2.0",
+                        "id": request["id"],
+                        "error": {"code": -32601, "message": "Method not found"},
                     }
-                ]
+                ),
+                flush=True,
             )
+        elif method == "tools/list":
+            if mode == "failed-tools":
+                print(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": request["id"],
+                            "error": {
+                                "code": -32603,
+                                "message": "fixture discovery failed",
+                            },
+                        }
+                    ),
+                    flush=True,
+                )
+                continue
+            if mode == "multiple-tools":
+                cursor = request.get("params", {}).get("cursor")
+                assert cursor in (None, "second")
+                name = "evaluate" if cursor is None else "inspect"
+                result = {
+                    "tools": [
+                        {
+                            "name": name,
+                            "description": f"Fixture {name}",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {"value": {"type": ["string", "null"]}},
+                                "required": ["value"],
+                            },
+                        }
+                    ],
+                }
+                if cursor is None:
+                    result["nextCursor"] = "second"
+                reply(request, result)
+                continue
+            tools = [
+                {
+                    "name": "send",
+                    "description": "Fixture send",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"python": {"type": "string"}},
+                    },
+                }
+            ]
             reply(request, {"tools": tools})
         elif method == "notifications/cancelled":
             assert request["params"]["requestId"] == abandoned
@@ -73,6 +116,12 @@ def main() -> None:
             sys.stdout.flush()
             abandoned = None
         elif method == "tools/call":
+            if mode == "multiple-tools":
+                params = request["params"]
+                assert params["name"] in ("evaluate", "inspect")
+                assert params["arguments"] == {"value": None}
+                reply(request, output(params["name"]))
+                continue
             if abandoned is not None:
                 sys.stdout.write(tail)
                 sys.stdout.flush()

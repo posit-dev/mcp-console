@@ -46,7 +46,7 @@ config_flag <- function() {
 #' A `SandboxPolicy()` describes which files sandboxed code can read or change
 #' and which network connections it can make. Build a policy from the
 #' `SandboxFilesystem()` and `SandboxNetwork()` constructors, then pass it to
-#' `console_tool(config = ConsoleConfig(sandbox = policy))`. The same object
+#' `console_tools(config = ConsoleConfig(sandbox = policy))`. The same object
 #' can also be supplied as
 #' `ConsoleConfig(resolver = ResolverConfig(sandbox = policy))` to configure
 #' dependency preparation separately.
@@ -76,7 +76,7 @@ config_flag <- function() {
 #' Adding a `read_only` path does not make all other host files unreadable.
 #' Workers retain their host-read baseline.
 #'
-#' Relative paths use `console_tool(project = ...)`. A leading `~` uses the
+#' Relative paths use `console_tools(project = ...)`. A leading `~` uses the
 #' launch environment's absolute `HOME`; on Windows, an absent or empty `HOME`
 #' uses the user profile. This follows Console's convention independently of
 #' R's `path.expand()` and `R_USER`. Changing the worker's directory later does
@@ -286,13 +286,14 @@ config_flag <- function() {
 #'   network = SandboxNetwork(allow_local_binding = TRUE)
 #' )
 #' \dontrun{
-#' send <- console_tool(
+#' tools <- console_tools(
 #'   project = "/path/to/app",
 #'   config = ConsoleConfig(
 #'     r = RConfig(packages = "shiny"),
 #'     sandbox = shiny_policy
 #'   )
 #' )
+#' send <- tools$send
 #' send(
 #'   r = "shiny::runApp('.', host = '127.0.0.1', port = 3838, launch.browser = FALSE)",
 #'   timeout_ms = 1000L

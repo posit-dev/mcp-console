@@ -305,6 +305,111 @@ def test_pinned_serve_only_release_warms_runtimes(binary: Path) -> Transcript:
         return [{"arguments": arguments, "log": log.read_text()}]
 
 
+@requires(POSIX)
+def test_pinned_release_without_send_checks_discovery_and_skips_runtime_warmup(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        requests = root / "requests.jsonl"
+        script = root / "uvx.py"
+        script.write_text(
+            # fmt: python
+            code(r"""
+                import json
+                import os
+                import sys
+                from pathlib import Path
+
+                assert sys.argv[1:] == ["mcp-console@9.8.7", "serve"]
+                for line in sys.stdin:
+                    request = json.loads(line)
+                    with Path(os.environ["TEST_WARMUP_REQUESTS"]).open("a") as record:
+                        record.write(json.dumps(request) + "\n")
+                    method = request["method"]
+                    if method == "initialize":
+                        result = {
+                            "protocolVersion": request["params"]["protocolVersion"],
+                            "capabilities": {"tools": {}},
+                            "serverInfo": {"name": "future-console", "version": "9.8.7"},
+                        }
+                    elif method == "notifications/initialized":
+                        continue
+                    elif method == "tools/list":
+                        cursor = request.get("params", {}).get("cursor")
+                        assert cursor in (None, "second-page"), cursor
+                        result = {
+                            "tools": [
+                                {
+                                    "name": "execute" if cursor is None else "inspect",
+                                    "inputSchema": {"type": "object", "properties": {}},
+                                }
+                            ]
+                        }
+                        if cursor is None:
+                            result["nextCursor"] = "second-page"
+                    else:
+                        raise AssertionError(f"unexpected request: {request}")
+                    print(
+                        json.dumps({"jsonrpc": "2.0", "id": request["id"], "result": result}),
+                        flush=True,
+                    )
+                """),
+            encoding="utf-8",
+        )
+        commands = root / "commands"
+        commands.mkdir()
+        wrapper = commands / "uvx"
+        wrapper.write_text(
+            "#!/bin/sh\nexec " + shlex.join([sys.executable, str(script)]) + ' "$@"\n',
+            encoding="utf-8",
+        )
+        wrapper.chmod(0o755)
+        result = configure(
+            binary,
+            root,
+            "claude",
+            "--pin-version",
+            "9.8.7",
+            extra_environment={
+                "PATH": str(commands) + os.pathsep + os.environ["PATH"],
+                "TEST_WARMUP_REQUESTS": str(requests),
+            },
+        )
+        assert result.returncode == 0 and not result.stderr, result
+        match = re.search(
+            r"^Background warmup started \(PID (\d+)\)\. Log: (.+)$",
+            result.stdout,
+            re.MULTILINE,
+        )
+        assert match is not None, result
+        pid = int(match[1])
+        log = Path(match[2])
+        with Events() as events:
+            try:
+                events.watch_process(pid)
+            except ProcessLookupError:
+                pass
+            else:
+                assert pid in events.wait(10), log.read_text()
+        assert log.read_text() == (
+            "MCP Console warmup\n"
+            "Server: OK\n"
+            "Runtime warmup: SKIP (send tool is not available)\n"
+            "Shutdown: OK\n"
+            "All available checks passed.\n"
+        ), log.read_text()
+        observed = [json.loads(line) for line in requests.read_text().splitlines()]
+        assert [request["method"] for request in observed] == [
+            "initialize",
+            "notifications/initialized",
+            "tools/list",
+            "tools/list",
+        ], observed
+        assert observed[-1]["params"]["cursor"] == "second-page", observed
+        return [{"tools": ["execute", "inspect"], "log": log.read_text()}]
+
+
 @requires(POSIX, R, SQL)
 def test_direct_launch_warms_real_runtimes(binary: Path) -> Transcript:
     with TemporaryDirectory() as temporary:

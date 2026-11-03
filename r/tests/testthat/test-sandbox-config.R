@@ -207,7 +207,7 @@ test_that("exported class objects have value semantics and retain context defaul
 
 test_that("invalid public launch options fail before executable resolution", {
   expect_error(
-    console_tool(config = list(), path = "missing"),
+    console_tools(config = list(), path = "missing"),
     "ConsoleConfig"
   )
 })

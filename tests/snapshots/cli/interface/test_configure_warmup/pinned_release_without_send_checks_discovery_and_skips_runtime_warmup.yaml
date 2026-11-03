@@ -1,0 +1,10 @@
+---
+tools:
+  - execute
+  - inspect
+log: |
+  MCP Console warmup
+  Server: OK
+  Runtime warmup: SKIP (send tool is not available)
+  Shutdown: OK
+  All available checks passed.

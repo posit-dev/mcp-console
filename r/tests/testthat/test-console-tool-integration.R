@@ -180,28 +180,9 @@ with_temp_working_directory <- function(code) {
   force(code)
 }
 
-mock_completion <- function(message, finish_reason) {
-  list(
-    id = "chatcmpl-test",
-    object = "chat.completion",
-    created = 0L,
-    model = "mock",
-    choices = list(list(
-      index = 0L,
-      message = message,
-      finish_reason = finish_reason
-    )),
-    usage = list(
-      prompt_tokens = 0L,
-      completion_tokens = 0L,
-      total_tokens = 0L
-    )
-  )
-}
-
-test_that("console_tool exposes configured descriptions and omits hidden parameters", {
+test_that("console_tools expose configured descriptions and omit hidden parameters", {
   with_temp_working_directory({
-    send <- console_tool(
+    send <- console_tools(
       path = real_mcp_console(),
       config = ConsoleConfig(
         r = RConfig(resolution = "disabled"),
@@ -221,7 +202,7 @@ test_that("console_tool exposes configured descriptions and omits hidden paramet
           )
         )
       )
-    )
+    )$send
     expect_identical(send@description, "Evaluation tool.")
     arguments <- send@arguments@properties
     expect_setequal(
@@ -245,7 +226,7 @@ test_that("console_tool exposes configured descriptions and omits hidden paramet
   })
 })
 
-test_that("console_tool works when registered with an ellmer chat", {
+test_that("console_tools work when registered with an ellmer chat", {
   # fmt: r
   source <- r"(
     x <- 41L
@@ -297,11 +278,11 @@ test_that("console_tool works when registered with an ellmer chat", {
         )
         tryCatch(
           {
-            chat$register_tool(with_mcp_console_environment(
+            chat$register_tools(with_mcp_console_environment(
               fixture,
               # Tool registration and output retention are independent of
               # native enforcement, covered by the sandbox acceptance cases.
-              console_tool(config = ConsoleConfig(sandbox = FALSE))
+              console_tools(config = ConsoleConfig(sandbox = FALSE))
             ))
             text <- NULL
             chat$on_tool_result(function(result) text <<- result@value@text)
@@ -372,7 +353,10 @@ test_that("requirements actions preserve scalar fields and empty lists", {
     fixture <- managed_python_mcp_console()
     send <- with_mcp_console_environment(
       fixture,
-      console_tool(path = fixture$path, config = ConsoleConfig(sandbox = FALSE))
+      console_tools(
+        path = fixture$path,
+        config = ConsoleConfig(sandbox = FALSE)
+      )$send
     )
     startup <- inspect_requirements(send)
     # Inspect the committed default environment after worker readiness.
@@ -399,6 +383,136 @@ test_that("requirements actions preserve scalar fields and empty lists", {
       inspect_requirements(send),
       selected
     )
+  })
+})
+
+test_that("ellmer chat distinguishes requirements placeholders from explicit null", {
+  with_temp_working_directory({
+    fixture <- managed_python_mcp_console()
+    tools <- with_mcp_console_environment(
+      fixture,
+      console_tools(
+        path = fixture$path,
+        config = ConsoleConfig(sandbox = FALSE)
+      )
+    )
+    startup <- inspect_requirements(tools$send)
+    expect_true(startup$prepared)
+    declaration <- list(
+      action = "set",
+      r = character(),
+      python = character(),
+      duckdb = character(),
+      python_version = ">=3.11",
+      exclude_newer = "2026-01-01"
+    )
+    cleared <- declaration
+    cleared["exclude_newer"] <- list(NULL)
+    placeholders <- list(
+      r = NULL,
+      python = NULL,
+      duckdb = NULL,
+      python_version = NULL,
+      exclude_newer = NULL
+    )
+    get <- c(list(action = "get"), placeholders)
+    add <- c(list(action = "add"), placeholders)
+    add$python_version <- list(">=3.11")
+    default_add <- c(list(action = NULL), placeholders)
+    default_add$python_version <- list(">=3.11")
+    reset <- c(list(action = "reset"), placeholders)
+    get_packages <- get
+    get_packages["python"] <- list(character())
+    reset_packages <- reset
+    reset_packages["python"] <- list(character())
+    get_constraint <- get
+    get_constraint$exclude_newer <- "2026-01-01"
+    reset_constraint <- reset
+    reset_constraint$exclude_newer <- "2026-01-01"
+    calls <- lapply(
+      list(
+        set = declaration,
+        get_set = get,
+        add = add,
+        get_add = get,
+        default_add = default_add,
+        get_default_add = get,
+        clear = cleared,
+        get_cleared = get,
+        reset = reset,
+        get_reset = get,
+        get_packages = get_packages,
+        reset_packages = reset_packages,
+        get_constraint = get_constraint,
+        reset_constraint = reset_constraint
+      ),
+      function(requirements) {
+        # Strict tool schemas include every optional top-level field as null.
+        fields <- names(tools$send@arguments@properties)
+        arguments <- stats::setNames(rep(list(NULL), length(fields)), fields)
+        arguments["requirements"] <- list(requirements)
+        list(name = "send", arguments = arguments)
+      }
+    )
+    results <- mock_console_chat(tools, calls)
+    expect_identical(
+      lapply(results, function(result) result@error),
+      rep(list(NULL), length(calls))
+    )
+    names(results) <- names(calls)
+    expect_identical(
+      unname(lapply(
+        results[c("set", "add", "default_add", "clear", "reset")],
+        function(result) result@value@text
+      )),
+      rep(list("[prepared]"), 5L)
+    )
+    inspected <- lapply(
+      results[c(
+        "get_set",
+        "get_add",
+        "get_default_add",
+        "get_cleared",
+        "get_reset"
+      )],
+      function(result) jsonlite::fromJSON(result@value@text)
+    )
+    expect_identical(
+      inspected$get_set$requirements$exclude_newer,
+      "2026-01-01"
+    )
+    expect_identical(
+      inspected$get_add$requirements,
+      inspected$get_set$requirements
+    )
+    expect_identical(
+      inspected$get_default_add$requirements,
+      inspected$get_set$requirements
+    )
+    expect_identical(
+      inspected$get_cleared$requirements["exclude_newer"],
+      list(exclude_newer = NULL)
+    )
+    expect_identical(inspected$get_reset$requirements, startup$requirements)
+    expect_identical(
+      unname(lapply(
+        results[c(
+          "get_packages",
+          "reset_packages",
+          "get_constraint",
+          "reset_constraint"
+        )],
+        function(result) result@value@text
+      )),
+      rep(
+        list(
+          "requirements.action=get/reset takes no package lists or constraint fields"
+        ),
+        4L
+      )
+    )
+    rm(tools, results)
+    invisible(gc())
   })
 })
 
@@ -437,11 +551,11 @@ test_that("resolved configurations can be inspected, edited, and launched", {
     dir.create("another-directory")
     project <- getwd()
     setwd("another-directory")
-    tool <- console_tool(
+    tool <- console_tools(
       path = binary,
       config = reconstructed,
       project = project
-    )
+    )$send
     setwd(project)
     expect_identical(tool@description, "Run an evaluation cell.")
     expect_false("timeout_ms" %in% names(tool@arguments@properties))
@@ -491,7 +605,7 @@ test_that("materialization preserves typed policies and startup source", {
       expect_identical(config@sandbox, FALSE)
       expect_identical(config@python@first_available[[4]]@packages, character())
       config <- resolve_console_config(config, path = binary)
-      tool <- console_tool(config = config, path = binary)
+      tool <- console_tools(config = config, path = binary)$send
       expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
       rm(tool)
       invisible(gc())
@@ -576,7 +690,7 @@ test_that("large constructed and materialized settings use bounded launch argume
     expect_identical(resolved@tool@description, description)
     expect_identical(resolved@startup@code, startup@code)
     for (config in list(source, resolved)) {
-      tool <- console_tool(config = config, path = binary)
+      tool <- console_tools(config = config, path = binary)$send
       expect_identical(tool@description, description)
       expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
       expect_identical(

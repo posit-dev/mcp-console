@@ -13,10 +13,12 @@ from boundaries.client_server.integrations.test_control import (
     result_text,
 )
 from boundaries.client_server.python.test_without_r import selected_environment
+from support.assertions import tool_text
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.execution import DIRECT, Execution, executions
 from support.normalization import code, normalize_recording
+from support.progress import without_elapsed
 from support.records import TranscriptWithCompanions
 from support.requirements import POSIX, requires
 from support.suites import run_this_suite
@@ -34,6 +36,7 @@ def test_discovers_current_projections_without_consuming_output(
         project_recordings.mkdir(parents=True)
         endpoint = root / "control.sock"
         with (
+            closing(FifoCheckpoint.create(root / "emit")) as emit,
             closing(FifoCheckpoint.create(root / "release")) as release,
             McpClient(
                 binary,
@@ -73,11 +76,19 @@ def test_discovers_current_projections_without_consuming_output(
                 json.loads(observer.reader.readline(timeout=30))
                 # fmt: python
                 source = code(f"""
+                    with open({str(emit.path)!r}, "rb", buffering=0) as gate:
+                        gate.read(1)
                     print("pending export output", flush=True)
                     with open({str(release.path)!r}, "rb", buffering=0) as gate:
                         gate.read(1)
                     """)
-                client.send(python=source, timeout_ms=0)
+                initial = client.send(python=source, timeout_ms=0)
+                assert without_elapsed(tool_text(initial)) == (
+                    "\n[running; poll with an empty send]"
+                ), initial
+                # The first send must finish before output exists, so recording
+                # discovery is checked against bytes still pending for a poll.
+                emit.release()
                 while True:
                     snapshot = json.loads(observer.reader.readline(timeout=30))[
                         "result"

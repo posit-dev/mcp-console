@@ -96,15 +96,19 @@ fn check(mut command: Command, timeout: Duration) -> Result<bool, Box<dyn std::e
         let stdout = child.stdout.take().expect("piped server stdout");
         let stdin = child.stdin.take().expect("piped server stdin");
         let mut failures = 0;
+        let mut checked_runtimes = false;
         match tokio::time::timeout(timeout, ().serve((stdout, stdin))).await {
             Ok(Ok(mut client)) => {
                 match tokio::time::timeout(timeout, client.list_all_tools()).await {
                     Ok(Ok(tools)) => {
+                        failures += report("Server", Ok(()));
                         if let Some(tool) = tools.iter().find(|tool| tool.name == "send") {
-                            failures += report("Server", Ok(()));
                             failures += check_languages(&client, tool, timeout).await;
+                            checked_runtimes = true;
                         } else {
-                            failures += report("Server", Err("send tool is missing".into()));
+                            // Discovery works with future tool surfaces. Runtime probes
+                            // require send's execution and polling contract.
+                            println!("Runtime warmup: SKIP (send tool is not available)");
                         }
                     }
                     Ok(Err(error)) => failures += report("Server", Err(error.to_string())),
@@ -168,7 +172,11 @@ fn check(mut command: Command, timeout: Duration) -> Result<bool, Box<dyn std::e
         };
         failures += report("Shutdown", shutdown);
         if failures == 0 {
-            println!("All checks passed. Runtime caches are warm.");
+            if checked_runtimes {
+                println!("All checks passed. Runtime caches are warm.");
+            } else {
+                println!("All available checks passed.");
+            }
         } else {
             let suffix = if failures == 1 { "" } else { "s" };
             println!("Warmup found {failures} failed check{suffix}.");

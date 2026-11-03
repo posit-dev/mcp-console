@@ -879,7 +879,7 @@ def make_app(binary: Path, workspace: Path) -> App:
                             },
                             "required": True,
                             "tool_timeout_sec": 300,
-                            "tools": {"send": {"approval_mode": "approve"}},
+                            "default_tools_approval_mode": "approve",
                         },
                     },
                 }

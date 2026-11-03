@@ -11,6 +11,8 @@ result:
 ---
 send:
   python: |
+    with open('<workspace>/emit', "rb", buffering=0) as gate:
+        gate.read(1)
     print("pending export output", flush=True)
     with open('<workspace>/release', "rb", buffering=0) as gate:
         gate.read(1)

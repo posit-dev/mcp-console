@@ -1,10 +1,13 @@
-test_that("console_tool transmits the same application policy object", {
+test_that("console_tools transmit the same application policy object", {
   with_console_config_probe(function(path, record) {
     policy <- SandboxPolicy(
       filesystem = SandboxFilesystem(read_write = "./space here"),
       network = "restricted"
     )
-    tool <- console_tool(path = path, config = ConsoleConfig(sandbox = policy))
+    tools <- console_tools(
+      path = path,
+      config = ConsoleConfig(sandbox = policy)
+    )
     overrides <- readLines(paste0(record, ".overrides"))
     expect_identical(
       overrides[[1]],
@@ -17,7 +20,7 @@ test_that("console_tool transmits the same application policy object", {
       ),
       as.list(policy)
     )
-    rm(tool)
+    rm(tools)
     invisible(gc())
   })
 })
@@ -33,13 +36,13 @@ test_that("no discovery ignores malformed files and retains restrictive defaults
       file.path(Sys.getenv("MCP_CONSOLE_HOME"), "config.yaml")
     )
     writeLines("invalid: [", ".agents/console/config.yaml")
-    send <- console_tool(
+    send <- console_tools(
       path = binary,
       config = ConsoleConfig(
         r = RConfig(resolution = "disabled"),
         languages = "r"
       )
-    )
+    )$send
     result <- send(
       r = 'suppressWarnings(tryCatch(writeLines("bad", "blocked"), error = function(e) cat("denied\\n")))',
       timeout_ms = 60000L
@@ -71,14 +74,14 @@ test_that("project discovery layers runtime settings and can disable enforcement
       ),
       file.path(project, ".agents/console/config.yaml")
     )
-    send <- console_tool(
+    send <- console_tools(
       path = binary,
       project = project,
       config = ConsoleConfig(
         discovery = ConfigDiscovery(global = FALSE),
         sandbox = FALSE
       )
-    )
+    )$send
     result <- send(
       r = 'writeLines(Sys.getenv("MCP_CONSOLE_TEST_SETTING"), "result"); cat(getwd(), "\\n", sep = "")',
       timeout_ms = 60000L
@@ -113,7 +116,7 @@ test_that("explicit runtime selections reach native configuration", {
         environment = c(MCP_CONSOLE_TEST_SETTING = "resolver")
       )
     )
-    send <- console_tool(path = binary, config = config)
+    send <- console_tools(path = binary, config = config)$send
     result <- send(
       r = 'cat(R.home(), "\\n", Sys.getenv("MCP_CONSOLE_TEST_SETTING"), "\\n", sep = "")',
       timeout_ms = 60000L
@@ -135,7 +138,7 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     skip_if(!nzchar(Sys.which("uv")), "Managed Python requires uv")
-    send <- console_tool(
+    send <- console_tools(
       path = binary,
       config = ConsoleConfig(
         r = RConfig(resolution = "disabled"),
@@ -147,7 +150,7 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
         ),
         sandbox = FALSE
       )
-    )
+    )$send
     declaration <- jsonlite::fromJSON(
       send(requirements = list(action = "get"), timeout_ms = 60000L)@text
     )
@@ -169,7 +172,7 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
   })
 })
 
-test_that("console_tool replaces ambient grants and retains other settings", {
+test_that("console_tools replace ambient grants and retain other settings", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     require_sandbox_execution(binary)
@@ -189,7 +192,7 @@ test_that("console_tool replaces ambient grants and retains other settings", {
       ),
       file.path(Sys.getenv("MCP_CONSOLE_HOME"), "config.yaml")
     )
-    send <- console_tool(
+    send <- console_tools(
       path = binary,
       config = ConsoleConfig(
         discovery = ConfigDiscovery(),
@@ -197,7 +200,7 @@ test_that("console_tool replaces ambient grants and retains other settings", {
           filesystem = SandboxFilesystem(read_write = "./allowed")
         )
       )
-    )
+    )$send
     expect_false("python" %in% names(formals(send)))
     # fmt: r
     source <- r"(

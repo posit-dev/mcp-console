@@ -940,18 +940,23 @@ def test_send_approval_preserves_other_tool_settings(binary: Path) -> Transcript
             assert result.returncode == 0 and not result.stderr, result
             entry = read_config(path, "codex")["mcp_servers"][name]
             assert entry["tools"] == {
-                "send": {"approval_mode": "approve", "output_token_limit": 5000},
+                "send": {"approval_mode": "prompt", "output_token_limit": 5000},
                 "other": {"approval_mode": "prompt"},
             }, entry
+            assert entry["default_tools_approval_mode"] == "approve", entry
             if not project:
-                assert entry["default_tools_approval_mode"] == "prompt"
                 assert "# Keep this comment." in path.read_text(encoding="utf-8")
             written = path.read_bytes()
             again = configure(binary, root, root, *arguments)
             assert again.returncode == 0 and not again.stderr, again
             assert path.read_bytes() == written
             records.append(
-                {"project": project, "server": name, "tools": entry["tools"]}
+                {
+                    "project": project,
+                    "server": name,
+                    "default_tools_approval_mode": entry["default_tools_approval_mode"],
+                    "tools": entry["tools"],
+                }
             )
     return records
 
@@ -969,9 +974,9 @@ def test_claude_send_permission_paths_names_and_preservation(
         for project in (False, True):
             name = "console.test_custom-1:@/local" if project else "console"
             rule = (
-                "mcp__console_test_custom-1___local__send"
+                "mcp__console_test_custom-1___local__*"
                 if project
-                else "mcp__console__send"
+                else "mcp__console__*"
             )
             settings = (
                 target / ".claude/settings.json"
@@ -985,9 +990,9 @@ def test_claude_send_permission_paths_names_and_preservation(
             original = {
                 "model": "example",
                 "permissions": {
-                    "allow": ["Read", "mcp__other__send"],
-                    "ask": ["Bash"],
-                    "deny": ["Read(./.env)"],
+                    "allow": ["Read", "mcp__other__send", rule[:-1] + "send"],
+                    "ask": ["Bash", rule[:-1] + "inspect"],
+                    "deny": ["Read(./.env)", rule[:-1] + "remove"],
                 },
             }
             settings.write_text(json.dumps(original), encoding="utf-8")
@@ -1101,6 +1106,8 @@ def test_global_install_preserves_configuration_and_is_repeatable(
             assert entry["env"] == {"KEEP": "value"}
             if client == "codex":
                 assert "[mcp_servers.console]\n" in result.stdout, result
+                assert entry["default_tools_approval_mode"] == "approve", entry
+                assert "tools" not in entry, entry
                 assert (
                     entry["omit_tools_from"] == ["deferred"]
                     and entry["enabled"] is True
@@ -1115,7 +1122,7 @@ def test_global_install_preserves_configuration_and_is_repeatable(
             else:
                 assert entry["type"] == "stdio" and entry["alwaysLoad"] is True
                 assert read_config(home / "settings.json", client) == {
-                    "permissions": {"allow": ["mcp__console__send"]}
+                    "permissions": {"allow": ["mcp__console__*"]}
                 }
                 before["mcpServers"]["console"] = entry
             assert config == before
@@ -1227,7 +1234,7 @@ def test_project_directory_destinations(binary: Path) -> Transcript:
                 assert server(read_config(path, client), client)["command"] == "uvx"
                 if client == "claude":
                     assert read_config(target / ".claude/settings.json", client) == {
-                        "permissions": {"allow": ["mcp__console__send"]}
+                        "permissions": {"allow": ["mcp__console__*"]}
                     }
                 assert not (workspace / relative).exists()
                 assert not (root / relative).exists()
@@ -1787,8 +1794,6 @@ def test_invalid_configuration_is_not_overwritten(binary: Path) -> Transcript:
                     'mcp_servers = "wrong"',
                     '[mcp_servers]\nconsole = "wrong"',
                     '[mcp_servers.console]\nurl = "https://example.com/mcp"',
-                    "[mcp_servers.console]\ntools = []",
-                    '[mcp_servers.console.tools]\nsend = "wrong"',
                 ),
             ),
             (

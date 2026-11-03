@@ -3,21 +3,23 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING, Any
 
-from ._common import Command, stdio_command
+from ._common import Command, result_text, stdio_command
 
 if TYPE_CHECKING:
     from chatlas import Tool
+    from mcp.types import Tool as MCPTool
 
     from ._client import AsyncMCPConsole
     from ._sync import MCPConsole
 
 
-def tool(console: MCPConsole | AsyncMCPConsole) -> Tool:
+def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
     """Give a chatlas chat access to an existing Console session.
 
-    Pass the returned tool to `chat.set_tools()` after entering the Console
+    Pass the returned list to `chat.set_tools()` after entering the Console
     context. Chatlas runs the tool-calling loop; Console keeps cell state between
     calls. Keep both the chat and connection for follow-up messages.
 
@@ -27,12 +29,14 @@ def tool(console: MCPConsole | AsyncMCPConsole) -> Tool:
     returns text, with placeholders for images; [register()](chatlas.register.html)
     uses chatlas's native MCP support to preserve image content.
 
+    Discovery includes every tool, even when the server has no `send` tool.
+
     Args:
         console: A connected `MCPConsole` or `AsyncMCPConsole`. An async client's
             tool must be used with `chat.chat_async()`.
 
     Returns:
-        A `chatlas.Tool` with the server's live `send` definition.
+        A list of `chatlas.Tool` objects with the server's live definitions.
 
     Examples:
         Install with `pip install 'mcp-console[chatlas]'`. For this OpenAI-backed
@@ -47,7 +51,7 @@ def tool(console: MCPConsole | AsyncMCPConsole) -> Tool:
 
         chat = ChatOpenAI(model=os.environ["OPENAI_MODEL"])
         with MCPConsole() as console:
-            chat.set_tools([mcp_console.chatlas.tool(console)])
+            chat.set_tools(mcp_console.chatlas.tools(console))
             chat.chat(
                 "Use Python in Console to calculate the mean of [12, 15, 18, 20, 25]."
             )
@@ -57,13 +61,26 @@ def tool(console: MCPConsole | AsyncMCPConsole) -> Tool:
         ```
 
         `set_tools()` replaces the chat's tools. If the chat already has tools,
-        use `chat.set_tools([*chat.get_tools(), mcp_console.chatlas.tool(console)])`.
+        use `chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])`.
     """
+    return [_tool(console, definition) for definition in console.tools]
+
+
+def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
     from chatlas import Tool
 
-    definition = console.send_tool
+    name = definition.name
+    if iscoroutinefunction(console.call_tool):
+
+        async def invoke(**arguments: Any) -> str:
+            return result_text(await console.call_tool(name, arguments))
+    else:
+
+        def invoke(**arguments: Any) -> str:
+            return result_text(console.call_tool(name, arguments))
+
     return Tool(
-        func=console.send,
+        func=invoke,
         name=definition.name,
         description=definition.description or "",
         parameters=definition.input_schema,
@@ -84,7 +101,7 @@ async def register(
     Register once, use `chat.chat_async()` for model requests, and call
     `await chat.cleanup_mcp_tools()` in `finally` to close the server even if
     a request fails. For a connection you also call directly from Python, use
-    [tool()](chatlas.tool.html).
+    [tools()](chatlas.tools.html).
 
     Args:
         chat: An existing chatlas `Chat`.
@@ -93,7 +110,7 @@ async def register(
         **kwargs: Options passed to `chat.register_mcp_tools_stdio_async()`.
             Supply `cwd` and `env` inside `transport_kwargs`. Use the default
             tool names: a namespace can also change the name used to call
-            the server's `send` tool.
+            the server's tools.
 
     Returns:
         The result of chatlas's MCP registration.

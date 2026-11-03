@@ -118,7 +118,7 @@ scheduled-report workflow using these operations.
 # Read once, inspect, then launch exactly this configuration.
 config <- discover_console_config(global_file = NULL)
 print(prune_console_config(config))
-send <- console_tool(config = config)
+tools <- console_tools(config = config)
 
 # Built-in defaults, without configuration-file discovery.
 config <- materialize_console_config(ConsoleConfig(languages = "r"))

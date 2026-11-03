@@ -32,23 +32,37 @@ The [API reference](https://posit-dev.github.io/mcp-console/python/reference/) d
 ## Choose a model integration
 
 Install the extra for your framework.
-Each reference page provides a complete example, including setup and cleanup.
+The API reference includes examples with setup and cleanup.
 
-| Framework                    | Extra           | Existing Console connection                                                                       | Framework-managed connection                                                                                                            |
-| ---------------------------- | --------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| chatlas                      | `chatlas`       | [tool](https://posit-dev.github.io/mcp-console/python/reference/chatlas.tool/)                    | [register](https://posit-dev.github.io/mcp-console/python/reference/chatlas.register/)                                                  |
-| `openai` — Responses API     | `openai`        | [responses_tool](https://posit-dev.github.io/mcp-console/python/reference/openai.responses_tool/) | Application-owned loop.                                                                                                                 |
-| `openai-agents` — Agents SDK | `openai-agents` | [agents_tool](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_tool/)       | [agents_server](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_server/)                                         |
-| `openai-codex` — Codex SDK   | `codex`         | —                                                                                                 | [server](https://posit-dev.github.io/mcp-console/python/reference/codex.server/) supplies configuration; it does not open a connection. |
-| Anthropic                    | `anthropic`     | [tool](https://posit-dev.github.io/mcp-console/python/reference/anthropic.tool/)                  | [tools](https://posit-dev.github.io/mcp-console/python/reference/anthropic.tools/)                                                      |
+| Framework                    | Extra           | Existing Console connection                                                                          | Framework-managed connection                                                                                                            |
+| ---------------------------- | --------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| chatlas                      | `chatlas`       | [tools](https://posit-dev.github.io/mcp-console/python/reference/chatlas.tools/)                     | [register](https://posit-dev.github.io/mcp-console/python/reference/chatlas.register/)                                                  |
+| `openai` — Responses API     | `openai`        | [responses_tools](https://posit-dev.github.io/mcp-console/python/reference/openai.responses_tools/)  | Application-owned loop.                                                                                                                 |
+| `openai-agents` — Agents SDK | `openai-agents` | [agents_tools](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_tools/)        | [agents_server](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_server/)                                         |
+| `openai-codex` — Codex SDK   | `codex`         | —                                                                                                    | [server](https://posit-dev.github.io/mcp-console/python/reference/codex.server/) supplies configuration; it does not open a connection. |
+| Anthropic                    | `anthropic`     | [callable_tools](https://posit-dev.github.io/mcp-console/python/reference/anthropic.callable_tools/) | [tools](https://posit-dev.github.io/mcp-console/python/reference/anthropic.tools/)                                                      |
 
 Your application still owns its model client, chat or agent, and any function-calling loop.
-Creating a Console tool does not choose a model.
+Registering Console tools does not choose a model.
 
-Use the supplied adapters so the model receives the connected server's actual schema.
+Use the plural adapters so the model receives every discovered tool and its actual schema, including tools added or renamed by future servers.
 Inferring a schema from `console.send` annotations loses configured fields.
 Recreate adapters after reconnecting.
-For chatlas, use `set_tools()` on a new chat to retain the adapter's explicit schema.
+For chatlas, use `chat.set_tools(mcp_console.chatlas.tools(console))` on a new chat.
+For a Responses loop, route function calls by name:
+
+```python
+tools = mcp_console.openai.responses_tools(console)
+definitions = [tool.definition for tool in tools]
+by_name = {tool.definition["name"]: tool for tool in tools}
+# Pass definitions to responses.create(tools=definitions).
+# For each returned function call: by_name[call.name](call).
+```
+
+The clients expose all definitions through `console.tools` and preserve complete MCP results through `console.call_tool(name, arguments)`.
+Discovery follows pagination and does not require a tool named `send`.
+Use `console.get_tool(name)` to inspect a particular definition, or `send()` to call the server's `send` tool directly.
+Tool definitions are captured when the connection opens.
 
 ## Work with the session
 

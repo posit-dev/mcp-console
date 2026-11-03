@@ -284,13 +284,19 @@ test_that("configuration rejects unsupported choices before launching", {
   expect_error(ManagedPython(version = c("3.12", "3.13")), "version")
   expect_error(ExistingPython(".venv", packages = "pandas"), "unused argument")
   expect_error(ResolverConfig(environment = c("unnamed")), "environment")
-  expect_error(console_tool(config = list(), path = "missing"), "ConsoleConfig")
-  expect_error(console_tool(sandbox = FALSE, path = "missing"), "must be empty")
   expect_error(
-    console_tool(no_sandbox = TRUE, path = "missing"),
+    console_tools(config = list(), path = "missing"),
+    "ConsoleConfig"
+  )
+  expect_error(
+    console_tools(sandbox = FALSE, path = "missing"),
     "must be empty"
   )
-  expect_error(console_tool(project = "missing", path = "missing"), "project")
+  expect_error(
+    console_tools(no_sandbox = TRUE, path = "missing"),
+    "must be empty"
+  )
+  expect_error(console_tools(project = "missing", path = "missing"), "project")
 })
 
 test_that("explicit configs preserve legacy source choices", {
@@ -320,7 +326,7 @@ test_that("explicit configs preserve legacy source choices", {
       )
     )
     for (i in seq_along(choices)) {
-      tool <- console_tool(path = path, config = choices[[i]])
+      tools <- console_tools(path = path, config = choices[[i]])
       argv <- readLines(record, warn = FALSE)
       file <- match("--config-overrides-file", argv)
       expect_false(is.na(file))
@@ -330,7 +336,7 @@ test_that("explicit configs preserve legacy source choices", {
         readLines(paste0(record, ".overrides")),
         if (i == 7L) c("sandbox=null", "resolver.sandbox=null") else character()
       )
-      rm(tool)
+      rm(tools)
       invisible(gc())
     }
   })
@@ -345,7 +351,7 @@ test_that("runtime options layer while explicit permission nodes replace", {
       sandbox = SandboxPolicy(),
       resolver = ResolverConfig(sandbox = SandboxPolicy())
     )
-    tool <- console_tool(path = path, config = config)
+    tools <- console_tools(path = path, config = config)
     expect_identical(
       readLines(paste0(record, ".overrides")),
       c(
@@ -358,7 +364,7 @@ test_that("runtime options layer while explicit permission nodes replace", {
         "sandbox={}"
       )
     )
-    rm(tool)
+    rm(tools)
     invisible(gc())
   })
 })
@@ -369,7 +375,7 @@ test_that("project selection changes only the child's launch directory", {
       project <- file.path(getwd(), "project with spaces")
       dir.create(project)
       old <- getwd()
-      tool <- console_tool(
+      tools <- console_tools(
         path = path,
         project = project,
         config = ConsoleConfig()
@@ -379,7 +385,7 @@ test_that("project selection changes only the child's launch directory", {
         normalizePath(project)
       )
       expect_identical(getwd(), old)
-      rm(tool)
+      rm(tools)
       invisible(gc())
     })
   })

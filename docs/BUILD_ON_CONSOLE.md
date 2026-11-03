@@ -156,7 +156,7 @@ from chatlas import Tool
 from mcp_console import MCPConsole
 
 with MCPConsole(args=["serve", "--config-file", "application.yaml"]) as console:
-    definition = console.send_tool
+    definition = console.get_tool("send")
     query_sales = Tool(
         func=console.send,
         name="query_sales",
@@ -169,7 +169,7 @@ with MCPConsole(args=["serve", "--config-file", "application.yaml"]) as console:
 ```
 
 `set_tools()` replaces the chat's tool list.
-Using `console.send_tool.input_schema` preserves configured languages and hidden arguments; inferring a schema from the Python method's signature would lose those settings.
+Using `console.get_tool("send").input_schema` preserves configured languages and hidden arguments; inferring a schema from the Python method's signature would lose those settings.
 
 [Get started](getting-started.qmd) links to MCP, Python, and R connection guides.
 The [Python](PYTHON.md#choose-a-model-integration) and [R](R.md) guides cover adding Console to a chat or model framework.

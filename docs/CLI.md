@@ -35,6 +35,7 @@ The client itself does not need to be installed when writing its configuration.
 
 After registration, setup starts one background `warmup` and prints its PID and log path.
 It returns without waiting for runtime checks or package preparation.
+If the selected release does not expose `send`, setup checks discovery and shutdown, and reports runtime warmup as skipped.
 Use `--no-warmup` to skip this step; `--dry-run` previews it without starting a job.
 Logs remain in `logs/warmup-*.log` under [Console home](ENVIRONMENT.md#server-paths-and-executable-discovery), normally `~/.agents/console` or the directory selected by `MCP_CONSOLE_HOME`.
 
@@ -132,14 +133,16 @@ Use a current client version that supports the respective setting.
 For Codex, setup also sets `tool_input_schema_max_bytes = 12000` on the selected server.
 This raises its input-schema compaction threshold from 5,000 to 12,000 bytes so Console's argument descriptions are retained, including with `--no-auto-load`.
 
-Configuration also allows Console's `send` tool to run without a per-call approval prompt:
+Configuration also allows Console tools to run without a per-call approval prompt, including tools added or renamed in later releases:
 
-- Codex: [`approval_mode = "approve"`](https://learn.chatgpt.com/docs/config-file/config-reference) in `[mcp_servers.console.tools.send]`.
-- Claude Code: [`"mcp__console__send"`](https://code.claude.com/docs/en/permissions#mcp) in `permissions.allow` in its settings file.
+- Codex: [`default_tools_approval_mode = "approve"`](https://learn.chatgpt.com/docs/config-file/config-reference) in `[mcp_servers.console]`.
+- Claude Code: [`"mcp__console__*"`](https://code.claude.com/docs/en/permissions#mcp) in `permissions.allow` in its settings file.
 
 `--name` selects the server for both settings; Claude Code's permission rule uses the server's normalized tool-name spelling.
 Existing Claude Code allow rules are retained without adding duplicate entries.
-`--no-auto-load` affects discovery only; it still configures approval for `send`.
+Existing Codex per-tool settings are retained and take precedence over the server default.
+Run `configure-client` again to update a registration created by an older release.
+`--no-auto-load` affects discovery only; it still configures tool approvals.
 Console's sandbox permissions are unchanged by the tool allowlist.
 Explicit Claude Code `ask` or `deny` rules and managed client restrictions can still require approval or block a call.
 

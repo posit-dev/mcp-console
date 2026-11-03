@@ -39,7 +39,7 @@ With deferred loading, a server summary can help the model decide where to searc
 [Claude Code's server-author guidance](https://code.claude.com/docs/en/mcp#tool-search-for-mcp-server-authors) describes using initialization instructions for that decision.
 Other integrations can use a separately supplied server description, as in the [Responses API tool-search workflow](https://developers.openai.com/api/docs/guides/tools-tool-search#use-namespaces-where-possible).
 Instructions are therefore relevant beyond the connection handshake, but their visibility is client-dependent.
-The R `console_tool()` adapter uses the tool description and schema to construct its ellmer tool; it does not automatically add initialization instructions to the chat prompt.
+The R `console_tools()` adapter uses each advertised tool's name, description, and schema to construct a list of ellmer tools; it does not automatically add initialization instructions to the chat prompt.
 
 The implementation review recorded on October 9, 2026 found a 250-character first-line preview in the examined Codex deferred-discovery implementation and a documented default 2,048-character cap in Claude Code.
 These are dated client behaviors, not MCP limits.
