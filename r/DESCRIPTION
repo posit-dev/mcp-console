@@ -24,7 +24,8 @@ Suggests:
     httr2,
     knitr,
     rmarkdown,
-    testthat (>= 3.3.2)
+    testthat (>= 3.3.2),
+    yaml12
 Remotes:
     tidyverse/ellmer,
     RConsortium/S7

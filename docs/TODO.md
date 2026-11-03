@@ -91,6 +91,12 @@ Keep context handoff deliberate: opening a viewer or changing its filters must n
 Interactive chart specifications and redraw-at-size support would need an output contract beyond captured images.
 These are interaction design proposals, not requirements for the current control channel.
 
+## R configuration API validation
+
+**RC-2 — Generate the Windows adapter missing-file snapshot.** Run `scripts/test.cmd --update cli/test_adapter_configuration` on native Windows, inspect the generated `adapter_requires_only_selected_sources.win32.yaml`, and rerun without update mode.
+The case retains native filesystem error text, so its Windows snapshot cannot be generated on macOS.
+The shared and macOS snapshots, R package checks, website checks, and ordinary local gate have passed; Linux and Windows execution remain for supported-platform validation.
+
 ## Unselected proposals, not release blockers
 
 An opt-in Git-aware write policy and a separate project-configuration trust mechanism remain future design questions.

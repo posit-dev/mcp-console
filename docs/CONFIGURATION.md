@@ -231,12 +231,20 @@ Changing `languages` may make saved parameter entries unavailable; resolve the d
 
 ### Inspect and edit settings from R
 
-R exposes these operations through [`discover_console_config()`, `materialize_console_config()`, and `prune_console_config()`](https://posit-dev.github.io/mcp-console/r/articles/configuration/#inspect-and-edit-configuration).
-They return ordinary S7 `ConsoleConfig` objects with file discovery disabled.
-`read_console_config()` imports one required JSON or YAML file; `ConsoleConfig(...)` builds settings directly in R.
-Edit properties with `@`; use `$` to select named parameter entries.
-The sandbox choice remains in the configuration, while executable and launch-directory choices remain explicit arguments to each call.
-`console_tools()` discovers optional files by default; pass `config = ConsoleConfig(...)` to skip them.
+R has two configuration constructors: [`ConsoleConfig()` and `load_console_config()`](https://posit-dev.github.io/mcp-console/r/articles/configuration/).
+`ConsoleConfig()` accepts named R fields or one mapping, including `ConsoleConfig(yaml12::read_yaml("config.yaml"))`, without discovery or resolution.
+`load_console_config()` combines selected global/project files with optional R `overrides` and returns the same editable S7 class.
+Missing conventional files are skipped; explicitly supplied paths must exist.
+Set `global_file = NULL` or `project_file = NULL` to skip that source.
+`MCP_CONSOLE_HOME` affects the default global path only.
+
+Edit properties with `@`; nested sections accept replacement lists.
+The loader retains authored tool metadata and leaves generated descriptions to the server, so later permission or visibility edits do not freeze stale generated text.
+The calling R installation is a low-priority launch default; file settings and explicit `r.executable` values win.
+A selected file's `r: null` or `r.executable: null` clears that preference through subsequent edits and launch, leaving R discovery to Console.
+`console_tools()` loads conventional files when `config` is omitted.
+A supplied `ConsoleConfig` never discovers additional files, including on worker restart.
+Executable and launch-directory choices remain explicit arguments; inherited environment variables are not snapshotted.
 
 ## Paths
 

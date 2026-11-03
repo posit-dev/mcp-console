@@ -1,7 +1,7 @@
 test_that("console_tools transmit the same application policy object", {
   with_console_config_probe(function(path, record) {
-    policy <- SandboxPolicy(
-      filesystem = SandboxFilesystem(read_write = "./space here"),
+    policy <- list(
+      filesystem = list(read_write = list("./space here")),
       network = "restricted"
     )
     tools <- console_tools(
@@ -18,7 +18,7 @@ test_that("console_tools transmit the same application policy object", {
         substring(overrides[[2]], nchar("sandbox=") + 1L),
         simplifyVector = FALSE
       ),
-      as.list(policy)
+      policy
     )
     rm(tools)
     invisible(gc())
@@ -39,7 +39,7 @@ test_that("no discovery ignores malformed files and retains restrictive defaults
     send <- console_tools(
       path = binary,
       config = ConsoleConfig(
-        r = RConfig(resolution = "disabled"),
+        r = list(resolution = "disabled"),
         languages = "r"
       )
     )$send
@@ -77,9 +77,11 @@ test_that("project discovery layers runtime settings and can disable enforcement
     send <- console_tools(
       path = binary,
       project = project,
-      config = ConsoleConfig(
-        discovery = ConfigDiscovery(global = FALSE),
-        sandbox = FALSE
+      config = load_console_config(
+        global_file = NULL,
+        overrides = list(sandbox = FALSE),
+        project = project,
+        path = binary
       )
     )$send
     result <- send(
@@ -105,14 +107,14 @@ test_that("explicit runtime selections reach native configuration", {
     require_sandbox_execution(binary)
     python <- sandbox_test_python()
     config <- ConsoleConfig(
-      r = RConfig(
-        executable = mcp.console::current_r(),
+      r = list(
+        executable = sandbox_test_r(),
         resolution = "disabled"
       ),
-      python = ExistingPython(python),
+      python = python,
       languages = c("r", "python"),
       environment = c(MCP_CONSOLE_TEST_SETTING = "worker"),
-      resolver = ResolverConfig(
+      resolver = list(
         environment = c(MCP_CONSOLE_TEST_SETTING = "resolver")
       )
     )
@@ -141,9 +143,9 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
     send <- console_tools(
       path = binary,
       config = ConsoleConfig(
-        r = RConfig(resolution = "disabled"),
+        r = list(resolution = "disabled"),
         languages = "python",
-        python = ManagedPython(
+        python = list(
           version = "3.13",
           packages = character(),
           resolution = "fixed"
@@ -194,11 +196,11 @@ test_that("console_tools replace ambient grants and retain other settings", {
     )
     send <- console_tools(
       path = binary,
-      config = ConsoleConfig(
-        discovery = ConfigDiscovery(),
-        sandbox = SandboxPolicy(
-          filesystem = SandboxFilesystem(read_write = "./allowed")
-        )
+      config = load_console_config(
+        overrides = list(
+          sandbox = list(filesystem = list(read_write = "./allowed"))
+        ),
+        path = binary
       )
     )$send
     expect_false("python" %in% names(formals(send)))

@@ -2,117 +2,41 @@
 % Please edit documentation in R/session-config.R
 \name{ConsoleConfig}
 \alias{ConsoleConfig}
-\alias{ConfigDiscovery}
 \title{Configure a Console session}
 \usage{
-ConfigDiscovery(global = TRUE, project = TRUE)
-
-ConsoleConfig(
-  discovery = NULL,
-  r = NULL,
-  python = NULL,
-  resolver = NULL,
-  sandbox = NULL,
-  languages = NULL,
-  cache = NULL,
-  environment = NULL,
-  inherit_environment = NULL,
-  tool = NULL,
-  startup = NULL,
-  sessions = NULL
-)
+ConsoleConfig(...)
 }
 \arguments{
-\item{global, project}{Whether to discover each configuration source.
-Both default to \code{TRUE} when \code{ConfigDiscovery()} is explicitly constructed.}
-
-\item{discovery}{\code{NULL} (no file discovery), or a \code{\link[=ConfigDiscovery]{ConfigDiscovery()}}.}
-
-\item{r}{\code{NULL} or an \code{\link[=RConfig]{RConfig()}}.}
-
-\item{python}{\code{NULL}, an \code{\link[=ExistingPython]{ExistingPython()}}, a \code{\link[=ManagedPython]{ManagedPython()}}, or a
-\code{\link[=FirstAvailablePython]{FirstAvailablePython()}}.}
-
-\item{resolver}{\code{NULL} or a \code{\link[=ResolverConfig]{ResolverConfig()}}.}
-
-\item{sandbox}{\code{NULL}, a \code{\link[=SandboxPolicy]{SandboxPolicy()}}, or \code{FALSE} for host execution.}
-
-\item{languages}{\code{NULL} or a character vector selecting \code{"r"}, \code{"python"},
-and/or \code{"sql"} tool inputs. This does not select the installed runtimes.}
-
-\item{cache}{\code{NULL}, \code{"managed"}, \code{"host"}, or \code{list(directory = "path")}.
-\code{"console"} is an alias for \code{"managed"}. A directory uses managed
-caches under \verb{<directory>/dependencies} for preparation and workers.
-Relative paths use the project directory; a leading \code{~} uses Console's
-launch-home convention. Managed caches require sandboxing.}
-
-\item{environment}{\code{NULL} or a named character vector of child environment
-assignments. Empty string values are allowed; \code{character()} is an empty
-mapping. Resolver assignments override worker assignments for preparation.}
-
-\item{inherit_environment}{\code{NULL}, \code{TRUE}, or \code{FALSE}; controls inheritance
-of the trusted launch environment. Console retains its owned assignments.}
-
-\item{tool}{\code{NULL} or a \code{\link[=ToolConfig]{ToolConfig()}} customizing descriptions and parameter
-visibility.}
-
-\item{startup}{\code{NULL} or a \code{\link[=StartupConfig]{StartupConfig()}} selecting a SQL connection.}
-
-\item{sessions}{\code{NULL} or a \code{\link[=SessionsConfig]{SessionsConfig()}} limiting live sessions.}
+\item{...}{Named configuration fields, or a single unnamed mapping. The two
+forms cannot be combined. Supported fields are \code{r}, \code{python}, \code{resolver},
+\code{sandbox}, \code{languages}, \code{cache}, \code{environment}, \code{inherit_environment}, \code{tool},
+\code{startup}, and \code{sessions}.}
 }
 \value{
-An S7 configuration object. The constructor is also its S7 class.
+An S7 configuration object.
 }
 \description{
-\code{ConsoleConfig()} combines runtime selection, package preparation, worker
-permissions, resolver settings, and tool presentation for \code{\link[=console_tools]{console_tools()}}.
-Constructors have the same field names as Console's application configuration.
+Construct configuration from named fields or one named list using the same
+field names and nesting as \code{config.yaml}. Construction validates the supplied
+values without reading files, finding executables, or starting a process.
+Nested lists are converted to typed configuration objects; edit properties
+with \code{@}, including replacing a nested object with another named list.
 }
 \details{
-An empty \code{ConsoleConfig()} uses built-in defaults without reading
-global or project configuration files. Workers can read host files, write
-private temporary storage, and cannot use the network. Dependency preparation
-retains its independent built-in permissions and may download packages.
+Use \code{\link[=load_console_config]{load_console_config()}} to read configuration files once. Both constructors
+return the same class, and passing either result to \code{\link[=console_tools]{console_tools()}} disables
+further file discovery. Unspecified R selection uses the calling R installation
+at load or launch, below explicit configuration.
+
+\code{NULL} fields are omitted. Empty mappings and character vectors are retained.
+\code{as.list()} returns JSON-ready application settings; the launch-only choice
+\code{sandbox = FALSE} is not included in that document.
 }
-\section{Discovery and layering}{
-
-Prefer \code{\link[=discover_console_config]{discover_console_config()}} to read files once into an inspectable
-object, or \code{\link[=materialize_console_config]{materialize_console_config()}} to fill defaults without file reads.
-\code{\link[=prune_console_config]{prune_console_config()}} produces a compact view of nondefault settings.
-\code{\link[=console_tools]{console_tools()}} discovers files when \code{config} is omitted.
-
-\code{ConfigDiscovery()} explicitly enables global and project file discovery at launch.
-Disable either source with \code{global = FALSE} or \code{project = FALSE}. Project
-discovery reads \code{.agents/console/config.yaml} in \code{console_tools()}'s launch
-directory; no ancestor directories are searched. Files can select runtimes,
-child environments, and permissions, so discovery trusts the whole file.
-
-\code{NULL} fields are omitted: selected files supply their values before native
-defaults apply. Runtime and environment mappings follow Console's recursive
-layering rules; supplied package lists replace inherited lists, including
-\code{character()} for no optional startup packages. Python selections replace
-the whole \code{python} node to avoid mixing existing and managed environments.
-Explicit worker and resolver \code{\link[=SandboxPolicy]{SandboxPolicy()}} objects replace their entire
-permission nodes; they do not inherit grants from discovered files.
-
-\code{sandbox = FALSE} disables enforcement for workers and dependency preparation,
-clearing any discovered permission nodes. An explicit resolver policy cannot
-be combined with this choice. Host execution has no native runner guarantee
-of descendant cleanup.
-
-\code{as.list()} returns JSON-ready application settings. It excludes the launch
-controls \code{discovery} and \code{sandbox = FALSE}; inspect those S7 properties with
-\code{@}. Empty mappings, empty arrays, and omissions stay distinct.
-}
-
 \examples{
 ConsoleConfig()
-ConsoleConfig(sandbox = FALSE)
-ConsoleConfig(discovery = ConfigDiscovery(global = FALSE))
-config <- ConsoleConfig(
-  r = RConfig(packages = c("dplyr", "ggplot2"), resolution = "fixed"),
-  python = ManagedPython(version = "3.13", packages = "pandas"),
-  sandbox = SandboxPolicy(filesystem = SandboxFilesystem(read_write = "./output"))
-)
-as.list(config)
+ConsoleConfig(r = list(packages = c("dplyr", "ggplot2")))
+ConsoleConfig(list(
+  python = ".venv",
+  sandbox = list(filesystem = list(read_write = "./output"))
+))
 }

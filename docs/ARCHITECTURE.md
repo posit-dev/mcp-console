@@ -86,9 +86,16 @@ Its request and result are journaled without creating a nested numbered cell int
 ## Startup and runtime ownership
 
 The server captures configuration once and constructs tool presentation from it.
-The R adapter sends optional configuration source paths and ordered overrides through a private JSON file using `--config-overrides-file`.
-Native capture owns file parsing, layering, full materialization, and pruning; the adapter converts those results through ordinary S7 constructors.
-Optional source paths require automatic discovery to be disabled and retain the same missing-file, regular-file, and deduplication rules as native discovery.
+The R adapter sends selected configuration source paths and ordered overrides through a private JSON file using `--config-overrides-file`.
+Its `files` preserve layer order; `required_files` identifies explicitly selected paths that must exist.
+The conventional default paths remain optional, while all sources retain native regular-file checks, home expansion, and canonical deduplication.
+Native capture owns file parsing and layering; the adapter converts the result through the same S7 constructor used for pure R values.
+For the adapter's editable full configuration, `preserve_tool_overrides` retains authored tool metadata and omits generated prose/schema rather than turning those defaults into persistent overrides.
+Public CLI exports retain their ordinary materialization and pruning behavior.
+Both loader and launch disable automatic native discovery; only the loader supplies source paths.
+A supplied R object cannot trigger another file read at launch or worker restart.
+The calling R executable is supplied through `--default-config`, below selected files and explicit settings.
+The loaded object retains a cleared executable preference through edits and launch so materialization does not turn a file's explicit R reset back into the calling R default.
 Overrides apply after the selected files and before ordinary `-c` overrides; explicit permission nodes retain replacement semantics.
 The adapter removes the file after synchronous materialization or the server's initialization handshake, when native capture has finished reading it.
 The connection owns a registry of logical sessions; each session owns startup, preparation, accepted requirements, and worker generations.

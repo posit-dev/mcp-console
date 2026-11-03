@@ -114,7 +114,7 @@ managed_python_mcp_console <- function() {
   } else {
     directory
   }
-  mcp_console_fixture(
+  fixture <- mcp_console_fixture(
     binary,
     c(PATH = path),
     unset = c(
@@ -125,6 +125,15 @@ managed_python_mcp_console <- function() {
       "RETICULATE_PYTHON"
     )
   )
+  reset <- file.path(directory, "python-only.yaml")
+  writeLines("r: null", reset)
+  fixture$config <- load_console_config(
+    global_file = NULL,
+    project_file = reset,
+    overrides = list(sandbox = FALSE),
+    path = binary
+  )
+  fixture
 }
 
 with_path <- function(path, code) {
@@ -185,18 +194,18 @@ test_that("console_tools expose configured descriptions and omit hidden paramete
     send <- console_tools(
       path = real_mcp_console(),
       config = ConsoleConfig(
-        r = RConfig(resolution = "disabled"),
+        r = list(resolution = "disabled"),
         languages = "r",
         sandbox = FALSE,
-        tool = ToolConfig(
+        tool = list(
           description = "Evaluation tool.",
           instructions = "Evaluation server.",
           parameters = list(
-            r = ToolParameterConfig(description = "Run one R cell."),
-            timeout_ms = ToolParameterConfig(enabled = FALSE),
-            requirements = ToolParameterConfig(
+            r = list(description = "Run one R cell."),
+            timeout_ms = list(enabled = FALSE),
+            requirements = list(
               parameters = list(
-                r = ToolParameterConfig(description = "R packages.")
+                r = list(description = "R packages.")
               )
             )
           )
@@ -355,7 +364,7 @@ test_that("requirements actions preserve scalar fields and empty lists", {
       fixture,
       console_tools(
         path = fixture$path,
-        config = ConsoleConfig(sandbox = FALSE)
+        config = fixture$config
       )$send
     )
     startup <- inspect_requirements(send)
@@ -393,7 +402,7 @@ test_that("ellmer chat distinguishes requirements placeholders from explicit nul
       fixture,
       console_tools(
         path = fixture$path,
-        config = ConsoleConfig(sandbox = FALSE)
+        config = fixture$config
       )
     )
     startup <- inspect_requirements(tools$send)
@@ -524,30 +533,32 @@ test_that("resolved configurations can be inspected, edited, and launched", {
       '{"languages":["r"],"tool":{"instructions":"Discover this workbench."}}',
       ".agents/console/config.yaml"
     )
-    config <- resolve_console_config(
-      ConsoleConfig(
-        discovery = ConfigDiscovery(global = FALSE),
+    config <- load_console_config(
+      global_file = NULL,
+      overrides = list(
         sandbox = FALSE,
-        r = RConfig(packages = character(), resolution = "disabled")
+        r = list(packages = character(), resolution = "disabled")
       ),
       path = binary
     )
     expect_identical(S7::S7_class(config), ConsoleConfig)
-    expect_null(config@discovery)
     expect_identical(config@languages, "r")
-    expect_true(config@tool@parameters$timeout_ms@enabled)
-    expect_true(
-      "integer" %in% unlist(config@tool@parameters$timeout_ms@schema$type)
-    )
+    # Generated metadata is not copied into the editable configuration.
+    expect_null(config@tool@description)
+    expect_null(config@tool@parameters)
     printed <- paste(capture.output(print(config)), collapse = "\n")
     expect_match(printed, "Discover this workbench.", fixed = TRUE)
-    expect_match(printed, "timeout_ms", fixed = TRUE)
     config@tool@description <- "Run an evaluation cell."
-    config@tool@parameters$timeout_ms@enabled <- FALSE
-    config@tool@parameters$r@description <- ""
+    config@tool@parameters <- list(
+      timeout_ms = list(enabled = FALSE),
+      r = list(description = "")
+    )
     reconstructed <- do.call(ConsoleConfig, S7::props(config))
     expect_identical(as.list(reconstructed), as.list(config))
     writeLines("unknown: must-not-rediscover", ".agents/console/config.yaml")
+    dir.create("changed-console-home")
+    writeLines("invalid: [", "changed-console-home/config.yaml")
+    Sys.setenv(MCP_CONSOLE_HOME = file.path(getwd(), "changed-console-home"))
     dir.create("another-directory")
     project <- getwd()
     setwd("another-directory")
@@ -561,9 +572,80 @@ test_that("resolved configurations can be inspected, edited, and launched", {
     expect_false("timeout_ms" %in% names(tool@arguments@properties))
     expect_identical(tool@arguments@properties$r@json$description, "")
     expect_match(tool(r = "cat(6 * 7)")@text, "42", fixed = TRUE)
+    tool(control = "restart")
     expect_identical(tool(r = "cat(basename(getwd()))")@text, basename(project))
     rm(tool)
     invisible(gc())
+  })
+})
+
+test_that("loaded R resets survive edits and launch without the calling-R preference", {
+  binary <- real_mcp_console()
+  with_temp_working_directory({
+    fixture <- mcp_console_fixture(
+      binary,
+      c(R_HOME = file.path(getwd(), "missing-r-reset-home")),
+      unset = c("R_TESTS", "RHOME")
+    )
+    launch <- function(config) {
+      with_mcp_console_environment(
+        fixture,
+        console_tools(config = config, path = fixture$path)$send
+      )
+    }
+    overrides <- list(
+      sandbox = FALSE,
+      languages = "r",
+      r = list(packages = character(), resolution = "disabled")
+    )
+    config <- load_console_config(
+      global_file = NULL,
+      project_file = NULL,
+      overrides = overrides,
+      path = binary
+    )
+    expect_identical(config@r@executable, sandbox_test_r())
+    send <- launch(config)
+    expect_identical(send(r = "cat(42)")@text, "42")
+    rm(send)
+    invisible(gc())
+
+    for (reset in c("r: null", "r: {executable: null}")) {
+      writeLines(reset, "reset.yaml")
+      config <- load_console_config(
+        global_file = NULL,
+        project_file = "reset.yaml",
+        overrides = overrides,
+        path = binary
+      )
+      expect_null(config@r@executable)
+      config@tool <- list(description = "Edited after loading")
+      writeLines("invalid: [", "reset.yaml")
+      send <- launch(config)
+      expect_identical(send@description, "Edited after loading")
+      expect_match(
+        send(r = "cat(42)")@text,
+        "missing-r-reset-home",
+        fixed = TRUE
+      )
+      rm(send)
+      invisible(gc())
+
+      # The captured reset also clears selections inherited by a later load.
+      writeLines("r: {executable: /inherited/R}", "reset.yaml")
+      config <- load_console_config(
+        global_file = NULL,
+        project_file = "reset.yaml",
+        overrides = config,
+        path = binary
+      )
+      expect_null(config@r@executable)
+      config@r@executable <- sandbox_test_r()
+      send <- launch(config)
+      expect_identical(send(r = "cat(42)")@text, "42")
+      rm(send)
+      invisible(gc())
+    }
   })
 })
 
@@ -575,13 +657,15 @@ test_that("materialization preserves typed policies and startup source", {
       python <- sandbox_test_python()
       source <- ConsoleConfig(
         sandbox = FALSE,
-        python = FirstAvailablePython(list(
-          ExistingPython("absent-python"),
-          "active_venv",
-          ExistingPython(python),
-          ManagedPython(packages = character(), resolution = "fixed")
-        )),
-        startup = StartupConfig(
+        python = list(
+          first_available = list(
+            list(existing = "absent-python"),
+            "active_venv",
+            list(existing = python),
+            list(managed = list(packages = character(), resolution = "fixed"))
+          )
+        ),
+        startup = list(
           language = "python",
           code = paste(
             "import sqlite3",
@@ -589,12 +673,17 @@ test_that("materialization preserves typed policies and startup source", {
             sep = "\n"
           )
         ),
-        r = RConfig(packages = character(), resolution = "disabled"),
+        r = list(packages = character(), resolution = "disabled"),
         languages = c("python", "sql"),
         environment = c(EMPTY = ""),
-        resolver = ResolverConfig(environment = c(LAYER = "resolver"))
+        resolver = list(environment = c(LAYER = "resolver"))
       )
-      config <- resolve_console_config(source, path = binary)
+      config <- load_console_config(
+        global_file = NULL,
+        project_file = NULL,
+        overrides = source,
+        path = binary
+      )
       expect_identical(as.list(config@python), as.list(source@python))
       expect_identical(as.list(config@startup), as.list(source@startup))
       expect_identical(config@environment, c(EMPTY = ""))
@@ -604,14 +693,31 @@ test_that("materialization preserves typed policies and startup source", {
       )
       expect_identical(config@sandbox, FALSE)
       expect_identical(config@python@first_available[[4]]@packages, character())
-      config <- resolve_console_config(config, path = binary)
+      config <- load_console_config(
+        global_file = NULL,
+        project_file = NULL,
+        overrides = config,
+        path = binary
+      )
       tool <- console_tools(config = config, path = binary)$send
       expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
       rm(tool)
       invisible(gc())
 
-      config@tool@parameters$timeout_ms@schema$type <- list("string")
-      expect_error(resolve_console_config(config, path = binary), "read-only")
+      config@tool <- list(
+        parameters = list(
+          timeout_ms = list(schema = list(type = list("string")))
+        )
+      )
+      expect_error(
+        load_console_config(
+          global_file = NULL,
+          project_file = NULL,
+          overrides = config,
+          path = binary
+        ),
+        "read-only"
+      )
     })
   )
 })
@@ -620,34 +726,39 @@ test_that("sandbox materialization round trips through typed configuration", {
   binary <- real_mcp_console()
   with_temp_working_directory({
     policies <- list(
-      SandboxPolicy(profile = "workspace", tempdir = "read_write"),
-      SandboxPolicy(tempdir = "read_only"),
-      SandboxPolicy(),
-      SandboxPolicy(
-        filesystem = SandboxFilesystem(
+      list(profile = "workspace", tempdir = "read_write"),
+      list(tempdir = "read_only"),
+      list(),
+      list(
+        filesystem = list(
           read_write = character(),
           deny = "./secrets"
         ),
         network = "enabled"
       ),
-      SandboxPolicy(
-        network = SandboxNetwork(
-          proxy = SandboxProxy(
-            mode = "limited",
-            domains = SandboxDomains(allow = "example.com", deny = character())
-          )
+      list(
+        network = list(
+          allow = "example.com",
+          deny = character(),
+          proxy = list(mode = "limited")
         )
       )
     )
     for (policy in policies) {
-      config <- resolve_console_config(
-        ConsoleConfig(sandbox = policy),
+      config <- load_console_config(
+        global_file = NULL,
+        project_file = NULL,
+        overrides = list(sandbox = policy),
         path = binary
       )
-      again <- resolve_console_config(config, path = binary)
+      again <- load_console_config(
+        global_file = NULL,
+        project_file = NULL,
+        overrides = config,
+        path = binary
+      )
       expect_identical(as.list(again), as.list(config))
-      expect_true(S7::S7_inherits(config@sandbox, SandboxPolicy))
-      expect_identical(config@discovery, NULL)
+      expect_identical(S7::S7_class(config), ConsoleConfig)
     }
   })
 })
@@ -656,7 +767,7 @@ test_that("large constructed and materialized settings use bounded launch argume
   binary <- real_mcp_console()
   with_temp_working_directory({
     description <- paste(rep("Evaluation cell.", 80000), collapse = "\n")
-    startup <- StartupConfig(
+    startup <- list(
       language = "python",
       code = paste0(
         "#",
@@ -667,35 +778,39 @@ test_that("large constructed and materialized settings use bounded launch argume
       )
     )
     size <- nchar(
-      jsonlite::toJSON(as.list(startup), auto_unbox = TRUE),
+      jsonlite::toJSON(startup, auto_unbox = TRUE),
       type = "bytes"
     )
     expect_gt(size, 30000)
     expect_lt(size, 32 * 1024)
     source <- ConsoleConfig(
-      discovery = ConfigDiscovery(global = FALSE),
       sandbox = FALSE,
-      r = RConfig(packages = character(), resolution = "disabled"),
-      python = ExistingPython(sandbox_test_python()),
+      r = list(packages = character(), resolution = "disabled"),
+      python = list(existing = sandbox_test_python()),
       languages = c("python", "sql"),
       startup = startup,
-      tool = ToolConfig(description = description)
+      tool = list(description = description),
+      environment = c(LARGE_CONFIG = "explicit")
     )
     dir.create(".agents/console", recursive = TRUE)
     writeLines(
       "environment: {LARGE_CONFIG: discovered}",
       ".agents/console/config.yaml"
     )
-    resolved <- resolve_console_config(source, path = binary)
+    resolved <- load_console_config(
+      global_file = NULL,
+      overrides = source,
+      path = binary
+    )
     expect_identical(resolved@tool@description, description)
-    expect_identical(resolved@startup@code, startup@code)
+    expect_identical(resolved@startup@code, startup$code)
     for (config in list(source, resolved)) {
       tool <- console_tools(config = config, path = binary)$send
       expect_identical(tool@description, description)
       expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
       expect_identical(
         tool(python = "import os; print(os.environ['LARGE_CONFIG'])")@text,
-        "discovered\n"
+        "explicit\n"
       )
       rm(tool)
       invisible(gc())
