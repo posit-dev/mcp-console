@@ -213,10 +213,9 @@ S7::method(
   ellmer_as_json,
   list(ellmer::Provider, ConsoleToolArgument)
 ) <- function(provider, x, ...) {
-  # Older ellmer versions always use strict schemas for OpenAI-compatible APIs.
   if (
     inherits(provider, "ellmer::ProviderOpenAICompatible") &&
-      (!S7::prop_exists(provider, "strict") || provider@strict)
+      provider@strict
   ) {
     return(ellmer_argument_schema(x@json, x@required))
   }

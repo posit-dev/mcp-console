@@ -17,13 +17,9 @@ The selected ellmer provider's credentials belong in the calling R process.
 The returned tools share one server connection; state persists while any tool remains reachable.
 For dependent calls through `chat$chat_async()`, select `tool_mode = "sequential"`.
 
-The development interface requires the S7 version pinned in `DESCRIPTION`.
-Install its declared GitHub dependency with pak/remotes; `R CMD INSTALL` alone does not process `Remotes`.
+The development interface requires the ellmer and S7 development versions declared in `DESCRIPTION`.
+Install the declared GitHub dependencies with pak/remotes; `R CMD INSTALL` alone does not process `Remotes`.
 Use a matching Console executable for development configuration features.
-
-With ellmer 0.5.0 and the pinned development S7, loading ellmer can warn that it is replacing the import `S7:::=` with `rlang:::=`.
-This is an upstream namespace collision, reproducible with `loadNamespace("ellmer")` alone; it does not indicate a Console startup failure.
-The dependency follow-up is tracked in [Open work](https://posit-dev.github.io/mcp-console/todo/#r-client-dependencies).
 
 ## Select Console
 

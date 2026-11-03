@@ -17,8 +17,8 @@ For a complete analysis task, see [Giving an agent an R session](autonomous-repo
 
 ## Session configuration
 
-The development interface uses S7 from `RConsortium/S7`, pinned in `DESCRIPTION`.
-Install the declared GitHub dependency with pak/remotes before building the package; `R CMD INSTALL` alone does not process `Remotes`.
+The development interface uses the ellmer and S7 development versions declared in `DESCRIPTION`.
+Install the declared GitHub dependencies with pak/remotes before building the package; `R CMD INSTALL` alone does not process `Remotes`.
 During development, use `path=` to select the current checkout's Console binary.
 Use a matching Console executable for these configuration operations.
 

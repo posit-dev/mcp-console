@@ -42,17 +42,13 @@ mock_openai_response <- function(output) {
 }
 
 mock_compatible_chat <- function(strict = TRUE) {
-  arguments <- list(
+  ellmer::chat_openai_compatible(
     base_url = "https://example.test/v1",
     model = "mock",
     credentials = function() "unused",
+    strict = strict,
     echo = "none"
   )
-  # ellmer 0.5.0 always uses strict schemas; newer versions make it optional.
-  if ("strict" %in% names(formals(ellmer::chat_openai_compatible))) {
-    arguments$strict <- strict
-  }
-  do.call(ellmer::chat_openai_compatible, arguments)
 }
 
 mock_console_chat <- function(tools, calls) {

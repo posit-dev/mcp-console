@@ -5,7 +5,7 @@ The client runs in your R session; the agent's analysis runs in Console.
 
 ## Add Console to a chat
 
-Install the package and its dependencies:
+Install the package, including its declared development dependencies on ellmer and S7:
 
 ```r
 pak::pak("github::posit-dev/mcp-console/r")

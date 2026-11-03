@@ -123,10 +123,12 @@ test_that("provider requests preserve nullable schemas and provider optionality"
   with_console_config_probe(
     function(path, record) {
       tools <- console_tools(path = path, config = ConsoleConfig())
-      providers <- c(anthropic = FALSE, openai = TRUE, compatible = TRUE)
-      if ("strict" %in% names(formals(ellmer::chat_openai_compatible))) {
-        providers <- c(providers, compatible_nonstrict = FALSE)
-      }
+      providers <- c(
+        anthropic = FALSE,
+        openai = TRUE,
+        compatible = TRUE,
+        compatible_nonstrict = FALSE
+      )
       for (provider in names(providers)) {
         strict <- providers[[provider]]
         protocol <- if (startsWith(provider, "compatible")) {

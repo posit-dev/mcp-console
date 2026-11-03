@@ -165,7 +165,6 @@ jobs:
             deps::.
             any::reticulate
             any::jsonlite
-            any::ellmer
             any::processx
             any::ps
             any::httr2
