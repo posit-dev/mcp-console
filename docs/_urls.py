@@ -5,10 +5,10 @@ import json
 import os
 from pathlib import Path
 import posixpath
-import re
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
+from _markdown import rewrite_links
 from bs4 import BeautifulSoup
 from yaml12 import read_yaml
 
@@ -186,9 +186,8 @@ write_changed(inventory_file, json.dumps(inventory, ensure_ascii=False) + "\n")
 # Keep the downloadable Python documentation's links aligned with the website.
 for path in [*(site / "python").rglob("*.md"), *(site / "python").glob("llms*.txt")]:
     source = path.relative_to(site).as_posix()
-    text = re.sub(
-        r"(?<=\]\()([^)\s]+)(?=\))",
-        lambda match: rewrite_url(match[0], source, source),
+    text = rewrite_links(
         path.read_text(),
+        lambda destination: rewrite_url(destination, source, source),
     )
     write_changed(path, text)
