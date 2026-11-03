@@ -8,10 +8,13 @@ settings:
       - Read
       - mcp__other__send
       - mcp__console__send
+      - mcp__console__*
     ask:
       - Bash
+      - mcp__console__inspect
     deny:
       - Read(./.env)
+      - mcp__console__remove
 ---
 project: true
 server: console.test_custom-1:@/local
@@ -22,7 +25,10 @@ settings:
       - Read
       - mcp__other__send
       - mcp__console_test_custom-1___local__send
+      - mcp__console_test_custom-1___local__*
     ask:
       - Bash
+      - mcp__console_test_custom-1___local__inspect
     deny:
       - Read(./.env)
+      - mcp__console_test_custom-1___local__remove

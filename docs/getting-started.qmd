@@ -28,9 +28,9 @@ uvx mcp-console configure-client codex
 uvx mcp-console configure-client claude
 ```
 
-This makes Console available across projects and allows the agent to call its `send` tool, subject to explicit client restrictions.
+This makes Console available across projects and allows the agent to call its tools, subject to explicit client restrictions.
 Setup checks the runtimes and prepares caches in the background, printing a log path for progress and errors.
-Restart your client after setup so it loads the new tool.
+Restart your client after setup so it loads the tools.
 [MCP clients](CLIENTS.md) covers project registration and other setup options.
 
 ### Other MCP clients

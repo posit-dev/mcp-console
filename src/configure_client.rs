@@ -1,4 +1,4 @@
-//! Client registration and send-tool approval settings. Project trust remains client-owned.
+//! Client registration and server-wide tool approvals. Project trust remains client-owned.
 
 mod launch;
 mod warmup;
@@ -336,7 +336,7 @@ fn report(client: ConfigureClient, options: &ConfigureClientOptions, scope: &str
     } else {
         output.push_str("Console tools use the client's default tool discovery.\n");
     }
-    output.push_str("Console's send tool is allowlisted for calls without individual approval; explicit client restrictions still apply.\n");
+    output.push_str("Console tools are allowlisted for calls without individual approval; explicit client restrictions still apply.\n");
     if options.dry_run {
         output.push_str("Dry run; no files changed. You can apply the settings above manually.\n");
     } else {
@@ -431,13 +431,10 @@ fn edit_codex(
             Array::new()
         }),
     );
-    let mut tools = Table::new();
-    tools.set_implicit(true);
-    let mut send = Table::new();
-    send.insert("approval_mode", value("approve"));
-    tools.insert("send", Item::Table(send));
-    desired.insert("tools", Item::Table(tools));
-    merge_toml(console, &desired)?;
+    // Tool keys are literal names, not wildcard patterns. Set the server default
+    // so new tools inherit it while explicit per-tool restrictions still win.
+    desired.insert("default_tools_approval_mode", value("approve"));
+    merge_toml_leaves(console, &desired);
     let mut snippet = DocumentMut::new();
     let mut parent = Table::new();
     parent.set_implicit(true);
@@ -475,17 +472,9 @@ fn comment_toml_setting(table: &mut Table, path: &[&str], comment: &str) {
 }
 
 // Merge managed leaves without replacing other tool settings or TOML decoration.
-fn merge_toml(target: &mut dyn TableLike, desired: &Table) -> Result<(), String> {
+fn merge_toml_leaves(target: &mut dyn TableLike, desired: &Table) {
     for (key, item) in desired.iter() {
-        if let Some(table) = item.as_table() {
-            let existing = target.entry(key).or_insert(item.clone());
-            merge_toml(
-                existing
-                    .as_table_like_mut()
-                    .ok_or_else(|| format!("{key} must be a table"))?,
-                table,
-            )?;
-        } else if let Some(existing) = target.get_mut(key) {
+        if let Some(existing) = target.get_mut(key) {
             let mut replacement = item.clone();
             if let (Some(old), Some(new)) = (existing.as_value(), replacement.as_value_mut()) {
                 // Managed arrays are replaced in full. Keep outer decoration,
@@ -498,7 +487,6 @@ fn merge_toml(target: &mut dyn TableLike, desired: &Table) -> Result<(), String>
             target.insert(key, item.clone());
         }
     }
-    Ok(())
 }
 
 fn edit_claude(
@@ -573,7 +561,7 @@ fn edit_claude_permissions(source: Option<&str>, name: &str) -> Result<(String, 
             }
         })
         .collect();
-    let rule = json!(format!("mcp__{name}__send"));
+    let rule = json!(format!("mcp__{name}__*"));
     if !allow.contains(&rule) {
         allow.push(rule);
     }
