@@ -372,8 +372,12 @@ console_cli_arguments <- function(
   )
   c(
     "--no-config",
-    "--default-config",
-    config_override("r.executable", current_r()),
+    if (
+      (is.null(settings$r) || is.null(settings$r@executable)) &&
+        !isTRUE(attr(config, "r_executable_reset"))
+    ) {
+      c("--default-config", config_override("r.executable", current_r()))
+    },
     if (disabled) "--no-sandbox",
     "--config-overrides-file",
     file

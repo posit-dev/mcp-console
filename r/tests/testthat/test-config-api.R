@@ -220,7 +220,10 @@ test_that("load_console_config reads sources once and honors explicit overrides"
     )
     expect_false("existing" %in% names(as.list(config)$python))
     expect_false(identical(config@sandbox@network, "enabled"))
-    expect_identical(config@r@executable, sandbox_test_r())
+    expect_identical(
+      normalizePath(config@r@executable, mustWork = TRUE),
+      normalizePath(sandbox_test_r(), mustWork = TRUE)
+    )
     writeLines("invalid: [", global)
     writeLines("invalid: [", project)
     tools <- console_tools(config = config, path = binary)
@@ -243,12 +246,24 @@ test_that("loader skips omitted defaults but requires explicitly selected paths"
       load_console_config(global_file = "missing.yaml", path = binary),
       "missing.yaml"
     )
-    writeLines("r: {executable: /selected/R}", "job.yaml")
+    selected <- file.path(getwd(), "selected R.exe")
+    writeLines("This is not an R executable.", selected)
+    writeLines(
+      paste0(
+        "r: {executable: ",
+        jsonlite::toJSON(selected, auto_unbox = TRUE),
+        "}"
+      ),
+      "job.yaml"
+    )
     config <- load_console_config(
       global_file = NULL,
       project_file = "job.yaml",
       path = binary
     )
-    expect_identical(config@r@executable, "/selected/R")
+    expect_identical(
+      normalizePath(config@r@executable, mustWork = TRUE),
+      normalizePath(selected, mustWork = TRUE)
+    )
   })
 })

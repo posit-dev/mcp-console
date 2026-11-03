@@ -1,0 +1,12 @@
+---
+required: global.yaml
+exit_code: 1
+stderr: >
+  cannot inspect 'global.yaml': The system cannot find the file specified.
+  (os error 2)
+---
+required: project.yaml
+exit_code: 1
+stderr: >
+  cannot inspect 'project.yaml': The system cannot find the file
+  specified. (os error 2)

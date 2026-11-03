@@ -604,7 +604,10 @@ test_that("loaded R resets survive edits and launch without the calling-R prefer
       overrides = overrides,
       path = binary
     )
-    expect_identical(config@r@executable, sandbox_test_r())
+    expect_identical(
+      normalizePath(config@r@executable, mustWork = TRUE),
+      normalizePath(sandbox_test_r(), mustWork = TRUE)
+    )
     send <- launch(config)
     expect_identical(send(r = "cat(42)")@text, "42")
     rm(send)
