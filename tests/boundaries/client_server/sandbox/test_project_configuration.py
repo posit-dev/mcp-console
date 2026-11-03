@@ -80,7 +80,7 @@ def _snapshot_survives_replacement(
                 json.dumps(
                     {
                         "sandbox": {
-                            "network": {"allow": ["127.0.0.1"]},
+                            "network": {"proxy": {"domains": {"allow": ["127.0.0.1"]}}},
                         }
                     }
                 ),

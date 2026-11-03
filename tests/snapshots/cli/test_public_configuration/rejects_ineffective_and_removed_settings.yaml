@@ -49,8 +49,13 @@ stderr: >
 path: sandbox.network
 stderr: >
   configuration with CLI overrides: sandbox: network: expected restricted,
-  enabled, or a network mapping; see docs/CONFIGURATION.md for the public
-  format
+  enabled, or a mapping containing proxy; see docs/CONFIGURATION.md for
+  the public format
+---
+path: sandbox.network
+stderr: >
+  configuration with CLI overrides: sandbox: network: missing field
+  `proxy`; see docs/CONFIGURATION.md for the public format
 ---
 path: sandbox
 stderr: >
@@ -80,8 +85,7 @@ stderr: >
 path: sandbox.network.proxy.domains
 stderr: >
   configuration with CLI overrides: sandbox: network: proxy: domains:
-  unknown field `domains`, expected one of `mode`, `allow_upstream_proxy`,
-  `socks5`; see docs/CONFIGURATION.md for the public format
+  expected a mapping; see docs/CONFIGURATION.md for the public format
 ---
 path: sandbox.network.proxy
 stderr: >
@@ -91,13 +95,14 @@ stderr: >
 path: sandbox.network.proxy.enabled
 stderr: >
   configuration with CLI overrides: sandbox: network: proxy: enabled:
-  unknown field `enabled`, expected one of `mode`, `allow_upstream_proxy`,
-  `socks5`; see docs/CONFIGURATION.md for the public format
+  unknown field `enabled`, expected one of `mode`, `domains`,
+  `allow_upstream_proxy`, `socks5`; see docs/CONFIGURATION.md for the
+  public format
 ---
 path: sandbox.network.proxy.enableSocks5
 stderr: >
   configuration with CLI overrides: sandbox: network: proxy: enableSocks5:
-  unknown field `enableSocks5`, expected one of `mode`,
+  unknown field `enableSocks5`, expected one of `mode`, `domains`,
   `allow_upstream_proxy`, `socks5`; see docs/CONFIGURATION.md for the
   public format
 ---
@@ -105,98 +110,84 @@ path: sandbox.network.proxy.enable_socks5
 stderr: >
   configuration with CLI overrides: sandbox: network: proxy:
   enable_socks5: unknown field `enable_socks5`, expected one of `mode`,
-  `allow_upstream_proxy`, `socks5`; see docs/CONFIGURATION.md for the
-  public format
+  `domains`, `allow_upstream_proxy`, `socks5`; see docs/CONFIGURATION.md
+  for the public format
 ---
 path: sandbox.network.proxy.domains
 stderr: >
   configuration with CLI overrides: sandbox: network: proxy: domains:
-  unknown field `domains`, expected one of `mode`, `allow_upstream_proxy`,
-  `socks5`; see docs/CONFIGURATION.md for the public format
+  example.org: unknown field `example.org`, expected `allow` or `deny`;
+  see docs/CONFIGURATION.md for the public format
 ---
-path: sandbox.network.allow
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox: network: allow: invalid type:
-  string "example.org", expected a sequence; see docs/CONFIGURATION.md for
-  the public format
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.allow
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox: network: allow: invalid type:
-  null, expected a sequence; see docs/CONFIGURATION.md for the public
-  format
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.deny
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox: network: deny: invalid type:
-  map, expected a sequence; see docs/CONFIGURATION.md for the public
-  format
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.deny
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox: network: deny: invalid type:
-  null, expected a sequence; see docs/CONFIGURATION.md for the public
-  format
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.allow
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.allow
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.allow
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.allow
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.allow
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
-path: sandbox.network.allow
+path: sandbox.network.proxy.domains.allow
 stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
----
-path: sandbox.network.allow
-stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
----
-path: sandbox.network.allow
-stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
----
-path: sandbox.network.allow
-stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
----
-path: sandbox.network.allow
-stderr: >
-  configuration with CLI overrides: sandbox.network.allow[0]: expected a
-  hostname pattern or IP literal without a port; native rules do not
-  restrict destination ports or URL paths
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
 ---
 path: sandbox.network.sockets.unix_sockets
 stderr: >

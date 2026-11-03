@@ -63,7 +63,7 @@ config <- ConsoleConfig(
       read_write = "./reports",
       deny = "~/.ssh"
     ),
-    network = list(allow = "api.example.com")
+    network = "api.example.com"
   )
 )
 ```
@@ -101,7 +101,7 @@ We can add its domain to the existing allow list in the same way.
 Replace `data.example.com` with that service's hostname:
 
 ```{r domain}
-append(config@sandbox@network@allow) <- "data.example.com"
+append(config@sandbox@network@proxy@domains@allow) <- "data.example.com"
 ```
 
 This grants access to the hostname; it doesn't restrict individual URL paths or email recipients.

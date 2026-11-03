@@ -4,8 +4,10 @@ sandbox:
     read_write:
       - .
   network:
-    allow:
-      - api.example.com
+    proxy:
+      domains:
+        allow:
+          - api.example.com
 ---
 filesystem:
   kind: restricted

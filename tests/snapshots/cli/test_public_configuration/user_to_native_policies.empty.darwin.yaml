@@ -2,6 +2,7 @@
 sandbox:
   filesystem: {}
   network:
+    proxy: {}
     sockets:
       unix_sockets: []
 ---

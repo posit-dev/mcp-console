@@ -164,20 +164,6 @@ pub(crate) fn render(
         // The resolver inherits the shared setting when omitted. Keep an
         // explicit override when it differs from that conditional default.
         defaults["resolver"]["inherit_environment"] = value["inherit_environment"].clone();
-        if let (Some(network), Some(network_defaults)) = (
-            value["resolver"]["sandbox"]["network"].as_object(),
-            defaults
-                .get_mut("resolver")
-                .and_then(|resolver| resolver.get_mut("sandbox"))
-                .and_then(|sandbox| sandbox.get_mut("network"))
-                .and_then(Value::as_object_mut),
-        ) {
-            // A deny list selects explicit destination rules, so an omitted
-            // allow list would no longer inherit the generated resolver hosts.
-            if network.get("deny") != network_defaults.get("deny") {
-                network_defaults.remove("allow");
-            }
-        }
         prune(&mut value, &defaults);
     }
     let serialized = serde_json::to_string_pretty(&value).map_err(|error| error.to_string())?;
@@ -251,9 +237,7 @@ fn permissions(settings: &SandboxSettings) -> Value {
                 .push(json!(domain));
         }
         let mut network = json!({
-            "allow": domains["allow"],
-            "deny": domains["deny"],
-            "proxy": { "mode": proxy["mode"], "allow_upstream_proxy": proxy["allowUpstreamProxy"] },
+            "proxy": { "mode": proxy["mode"], "domains": domains, "allow_upstream_proxy": proxy["allowUpstreamProxy"] },
             "allow_local_binding": proxy["allowLocalBinding"],
             "sockets": { "unix_sockets": if proxy["dangerouslyAllowAllUnixSockets"] == true { json!("dangerously_allow_all") } else {
                 json!(proxy["unixSockets"].as_object().expect("captured sockets").keys().collect::<Vec<_>>())

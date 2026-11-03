@@ -341,14 +341,14 @@ def test_settings_override_the_starter_permissions(binary: Path) -> Transcript:
             (
                 "configured proxy and local binding",
                 (
-                    "sandbox.network.allow=[api.example.com]",
+                    "sandbox.network.proxy.domains.allow=[api.example.com]",
                     "sandbox.network.allow_local_binding=true",
                 ),
                 {
                     "sandbox": WORKSPACE_CONFIGURATION["sandbox"]
                     | {
                         "network": {
-                            "allow": ["api.example.com"],
+                            "proxy": {"domains": {"allow": ["api.example.com"]}},
                             "allow_local_binding": True,
                         }
                     }
@@ -522,12 +522,11 @@ def test_invalid_settings_and_destinations_do_not_create_files(
             assert result.returncode == 1 and not result.stdout, result
             assert flag in result.stderr, result
             assert not (root / ".agents").exists()
-        result = invoke(
-            binary, root, root, "--config-file", str(file), "config", "init"
-        )
-        assert result.returncode == 1 and not result.stdout, result
-        assert "--config-file" in result.stderr, result
-        assert not (root / ".agents").exists()
+        for flag in ("--config-file", "--optional-config-file"):
+            result = invoke(binary, root, root, flag, str(file), "config", "init")
+            assert result.returncode == 1 and not result.stdout, result
+            assert flag in result.stderr, result
+            assert not (root / ".agents").exists()
         result = invoke(
             binary,
             root,

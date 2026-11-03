@@ -248,7 +248,8 @@ config_coerce_value <- function(class, name, value, path) {
       name,
       proxy = SandboxProxy,
       sockets = SandboxSockets
-    )
+    ),
+    SandboxProxy = switch(name, domains = SandboxDomains)
   )
   if (class == "ConsoleConfig" && name == "python") {
     return(config_python(value, path))
@@ -259,8 +260,19 @@ config_coerce_value <- function(class, name, value, path) {
   if (name == "sandbox" && identical(value, FALSE)) {
     return(FALSE)
   }
-  if (class == "SandboxPolicy" && name == "network" && is.character(value)) {
-    return(value)
+  if (class == "SandboxPolicy" && name == "network") {
+    if (identical(value, TRUE)) {
+      return("enabled")
+    }
+    if (identical(value, FALSE)) {
+      return("restricted")
+    }
+    if (identical(value, "restricted") || identical(value, "enabled")) {
+      return(value)
+    }
+    if (is.character(value) || (is.list(value) && is.null(names(value)))) {
+      value <- list(proxy = list(domains = list(allow = value)))
+    }
   }
   if (
     class == "SandboxPolicy" &&

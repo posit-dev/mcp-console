@@ -218,16 +218,19 @@ Run an installed program with Console's filesystem and network permissions.
 
 These options work before or after `serve`, `warmup`, and ordinary `sandbox`, and with [`config resolve`](#inspect-configuration):
 
-| Option                               | Effect                                                      |
-| ------------------------------------ | ----------------------------------------------------------- |
-| `--no-project-config`                | Skip the automatic project file.                            |
-| `--no-global-config`                 | Skip the automatic global file.                             |
-| `--no-config`                        | Skip both automatic files.                                  |
-| `--config-file PATH`                 | Read one required YAML or JSON file instead of those files. |
-| `--default-config KEY=VALUE`         | Set a launch default that configuration files can override. |
-| `-c KEY=VALUE`, `--config KEY=VALUE` | Override settings from configuration files.                 |
+| Option                               | Effect                                                            |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `--no-project-config`                | Skip the automatic project file.                                  |
+| `--no-global-config`                 | Skip the automatic global file.                                   |
+| `--no-config`                        | Skip both automatic files.                                        |
+| `--config-file PATH`                 | Read selected YAML or JSON files in order instead of those files. |
+| `--optional-config-file PATH`        | Allow a selected configuration file to be absent.                 |
+| `--default-config KEY=VALUE`         | Set a launch default that configuration files can override.       |
+| `-c KEY=VALUE`, `--config KEY=VALUE` | Override settings from configuration files.                       |
 
-`--config-file` may occur once and cannot be combined with discovery-exclusion flags.
+Repeat `--config-file` for ordered layers; it cannot be combined with discovery-exclusion flags.
+Each selected file is required unless marked with `--optional-config-file` using the same path before expansion.
+Optional files that exist must still be readable, regular configuration files.
 Both assignment options accept dotted keys and YAML values; repeat them to apply several in order.
 
 ```sh
@@ -299,6 +302,7 @@ mcp-console serve --config-file session.yaml
 `config resolve` prints settings without starting runtimes or preparing packages.
 The default output is YAML with built-in defaults omitted.
 Use `--full` to include defaults or `--format json` for JSON; `--full` and `--prune` are mutually exclusive.
+Add `--editable` to preserve authored tool settings while omitting generated descriptions and schema, including when using `--full`.
 The [configuration options](#configuration-options) apply before `config` or after `resolve`.
 
 See [Export a configuration](CONFIGURATION.md#export-a-configuration) for pruning rules, relative paths, editable fields, and what an export retains.

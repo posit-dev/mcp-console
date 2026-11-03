@@ -93,18 +93,26 @@ load_console_config <- function(
   }
   project <- normalizePath(project, mustWork = TRUE)
   binary <- resolve_mcp_console(path, version)
-  transport <- tempfile("mcp-console-overrides-", fileext = ".json")
-  on.exit(unlink(transport), add = TRUE)
+  directory <- tempfile("mcp-console-config-")
+  stopifnot(dir.create(directory))
+  on.exit(unlink(directory, recursive = TRUE), add = TRUE)
   arguments <- console_cli_arguments(
     overrides,
-    transport,
+    directory,
     files = c(global_file, project_file),
-    required_files = required_files,
-    preserve_tool_overrides = TRUE
+    required_files = required_files
   )
   result <- processx::run(
     binary,
-    c("config", "resolve", "--full", "--format", "json", arguments),
+    c(
+      "config",
+      "resolve",
+      "--full",
+      "--editable",
+      "--format",
+      "json",
+      arguments
+    ),
     wd = project,
     error_on_status = FALSE
   )

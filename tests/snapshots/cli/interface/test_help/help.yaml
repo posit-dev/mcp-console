@@ -28,7 +28,11 @@ stderr: |
             Skip global and project configuration; still apply --default-config
             and -c settings
         --config-file <PATH>
-            Use only this YAML or JSON configuration file, then apply -c overrides
+            Use only the selected YAML or JSON files; repeat for ordered layers
+            before -c overrides
+        --optional-config-file <PATH>
+            Allow a selected --config-file path to be absent; paths match before
+            expansion
         --default-config <KEY=VALUE>
             Supply defaults below configuration files; repeat for ordered dotted
             KEY=VALUE assignments
@@ -83,7 +87,12 @@ stdout: |
             and -c settings
 
         --config-file <PATH>
-            Use only this YAML or JSON configuration file, then apply -c overrides
+            Use only the selected YAML or JSON files; repeat for ordered layers
+            before -c overrides
+
+        --optional-config-file <PATH>
+            Allow a selected --config-file path to be absent; paths match before
+            expansion
 
         --default-config <KEY=VALUE>
             Supply defaults below configuration files; repeat for ordered dotted
@@ -175,7 +184,12 @@ stdout: |
             and -c settings
 
         --config-file <PATH>
-            Use only this YAML or JSON configuration file, then apply -c overrides
+            Use only the selected YAML or JSON files; repeat for ordered layers
+            before -c overrides
+
+        --optional-config-file <PATH>
+            Allow a selected --config-file path to be absent; paths match before
+            expansion
 
         --default-config <KEY=VALUE>
             Supply defaults below configuration files; repeat for ordered dotted
@@ -189,8 +203,11 @@ stdout: |
             Resolve defaults for a subsequent serve --no-sandbox launch
 
         --full
-            Include all configuration defaults and the complete editable tool
-            presentation
+            Include all configuration defaults
+
+        --editable
+            Preserve authored tool settings and omit generated tool descriptions
+            and schema
 
         --prune
             Include only settings that differ from built-in defaults (the default)
@@ -276,7 +293,12 @@ stdout: |
             and -c settings
 
         --config-file <PATH>
-            Use only this YAML or JSON configuration file, then apply -c overrides
+            Use only the selected YAML or JSON files; repeat for ordered layers
+            before -c overrides
+
+        --optional-config-file <PATH>
+            Allow a selected --config-file path to be absent; paths match before
+            expansion
 
         --default-config <KEY=VALUE>
             Supply defaults below configuration files; repeat for ordered dotted
@@ -326,7 +348,12 @@ stdout: |
             and -c settings
 
         --config-file <PATH>
-            Use only this YAML or JSON configuration file, then apply -c overrides
+            Use only the selected YAML or JSON files; repeat for ordered layers
+            before -c overrides
+
+        --optional-config-file <PATH>
+            Allow a selected --config-file path to be absent; paths match before
+            expansion
 
         --default-config <KEY=VALUE>
             Supply defaults below configuration files; repeat for ordered dotted
@@ -401,7 +428,12 @@ stdout: |
             and -c settings
 
         --config-file <PATH>
-            Use only this YAML or JSON configuration file, then apply -c overrides
+            Use only the selected YAML or JSON files; repeat for ordered layers
+            before -c overrides
+
+        --optional-config-file <PATH>
+            Allow a selected --config-file path to be absent; paths match before
+            expansion
 
         --default-config <KEY=VALUE>
             Supply defaults below configuration files; repeat for ordered dotted

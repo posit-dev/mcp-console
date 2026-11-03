@@ -268,60 +268,32 @@ pub fn discover(
     read(directory, overrides).map(|(captured, _)| captured)
 }
 
-#[derive(Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AdapterOverrides {
-    files: Vec<PathBuf>,
-    values: Vec<String>,
-    // A subset of files, using the same selected paths before native expansion.
-    #[serde(default)]
-    required_files: Vec<PathBuf>,
-    // Editable adapter configuration keeps authored tool settings distinct from
-    // presentation generated for the current configuration.
-    #[serde(default)]
-    preserve_tool_overrides: bool,
-}
-
 pub(crate) fn read(
     directory: &Path,
     overrides: &crate::cli::ConfigOverrides,
 ) -> Result<(Captured, Value), String> {
-    // The R adapter transports the same ordered overrides in a file so tool
-    // prose and valid startup programs are not bounded by process argv limits.
-    let adapter: AdapterOverrides = if let Some(path) = &overrides.values_file {
-        let source = std::fs::read(directory.join(path)).map_err(|error| {
-            format!("cannot read config overrides '{}': {error}", path.display())
-        })?;
-        serde_json::from_slice(&source)
-            .map_err(|error| format!("invalid config overrides '{}': {error}", path.display()))?
-    } else {
-        AdapterOverrides::default()
-    };
-    if let Some(path) = adapter
-        .required_files
+    if let Some(path) = overrides
+        .optional_config_file
         .iter()
-        .find(|path| !adapter.files.contains(path))
+        .find(|path| !overrides.config_file.contains(path))
     {
         return Err(format!(
-            "required adapter configuration '{}' must be included in files",
+            "--optional-config-file '{}' must also be selected with --config-file",
             path.display()
         ));
     }
-    let mut values = adapter.values;
-    values.extend(overrides.values.iter().cloned());
-    let mut paths = adapter.files;
-    let mut required_files = adapter.required_files;
-    if !paths.is_empty() && (!overrides.no_config || overrides.config_file.is_some()) {
-        return Err("adapter configuration files require --no-config".into());
-    }
+    let mut paths = overrides.config_file.clone();
+    let required_files: Vec<_> = paths
+        .iter()
+        .filter(|path| !overrides.optional_config_file.contains(path))
+        .cloned()
+        .collect();
     // Select sources before resolving or inspecting them. Explicit selection and
     // global exclusions must not resolve Console home for configuration discovery.
-    if let Some(path) = &overrides.config_file {
+    if !paths.is_empty() {
         if overrides.no_config || overrides.no_global_config || overrides.no_project_config {
             return Err("--config-file cannot be combined with --no-config, --no-global-config, or --no-project-config".into());
         }
-        paths.push(path.clone());
-        required_files.push(path.clone());
     } else if !overrides.no_config {
         if !overrides.no_global_config
             && let Some(home) = crate::console_paths::home_console_directory()?
@@ -336,7 +308,7 @@ pub(crate) fn read(
         directory,
         &paths,
         &overrides.default_values,
-        &values,
+        &overrides.values,
         &required_files,
     )?;
     let files = paths
@@ -344,16 +316,14 @@ pub(crate) fn read(
         .map(|path| path.display().to_string())
         .collect::<Vec<_>>()
         .join(", ");
-    let name = match (paths.len(), values.is_empty()) {
+    let name = match (paths.len(), overrides.values.is_empty()) {
         (0, true) => "configuration".into(),
         (0, false) => "configuration with CLI overrides".into(),
         (1, true) => files,
         (_, true) => format!("configuration from {files}"),
         (_, false) => format!("configuration from {files} with CLI overrides"),
     };
-    let (mut captured, value) = capture(directory, value, name)?;
-    captured.preserve_tool_overrides = adapter.preserve_tool_overrides;
-    Ok((captured, value))
+    capture(directory, value, name)
 }
 
 pub fn from_configuration_environment(

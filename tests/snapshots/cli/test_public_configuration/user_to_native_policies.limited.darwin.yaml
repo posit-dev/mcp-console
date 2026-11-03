@@ -1,13 +1,14 @@
 ---
 sandbox:
   network:
-    allow:
-      - "*.example.org"
-      - "**.example.net"
-    deny:
-      - blocked.example.org
     proxy:
       mode: limited
+      domains:
+        allow:
+          - "*.example.org"
+          - "**.example.net"
+        deny:
+          - blocked.example.org
 ---
 network: restricted
 proxy:

@@ -51,11 +51,21 @@ SandboxFilesystem <- S7::new_class(
   )
 )
 
+SandboxDomains <- S7::new_class(
+  "SandboxDomains",
+  parent = ConfigNode,
+  properties = list(
+    allow = config_string_list(),
+    deny = config_string_list()
+  )
+)
+
 SandboxProxy <- S7::new_class(
   "SandboxProxy",
   parent = ConfigNode,
   properties = list(
     mode = config_choice(c("full", "limited")),
+    domains = config_property(NULL | SandboxDomains),
     socks5 = config_choice(c("disabled", "tcp", "tcp_udp")),
     allow_upstream_proxy = config_flag()
   ),
@@ -76,8 +86,6 @@ SandboxNetwork <- S7::new_class(
   "SandboxNetwork",
   parent = ConfigNode,
   properties = list(
-    allow = config_string_list(),
-    deny = config_string_list(),
     proxy = config_property(NULL | SandboxProxy),
     sockets = config_property(NULL | SandboxSockets),
     allow_local_binding = config_property(

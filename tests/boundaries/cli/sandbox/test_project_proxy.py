@@ -74,47 +74,47 @@ def _enforces_native_proxy_settings(binary: Path) -> Transcript:
         print(f"native proxy returned {response.status}")
         """)
     cases = (
-        ("omitted domains", {}, "GET", 403),
-        ("empty domains", {"allow": []}, "GET", 403),
+        ("omitted domains", {"proxy": {}}, "GET", 403),
+        ("empty domains", {"proxy": {"domains": {}}}, "GET", 403),
         (
             "allow literal",
-            {"allow": ["127.0.0.1"]},
+            {"proxy": {"domains": {"allow": ["127.0.0.1"]}}},
             "POST",
             200,
         ),
         (
             "deny overrides allow",
-            {"allow": ["127.0.0.1"], "deny": ["127.0.0.1"]},
+            {"proxy": {"domains": {"allow": ["127.0.0.1"], "deny": ["127.0.0.1"]}}},
             "GET",
             403,
         ),
         (
             "native deny pattern overrides exact allow",
-            {"allow": ["127.0.0.1"], "deny": ["127.*"]},
+            {"proxy": {"domains": {"allow": ["127.0.0.1"], "deny": ["127.*"]}}},
             "GET",
             403,
         ),
         (
             "limited GET",
-            {"allow": ["127.0.0.1"], "proxy": {"mode": "limited"}},
+            {"proxy": {"mode": "limited", "domains": {"allow": ["127.0.0.1"]}}},
             "GET",
             200,
         ),
         (
             "limited POST",
-            {"allow": ["127.0.0.1"], "proxy": {"mode": "limited"}},
+            {"proxy": {"mode": "limited", "domains": {"allow": ["127.0.0.1"]}}},
             "POST",
             403,
         ),
         (
             "limited CONNECT",
-            {"allow": ["127.0.0.1"], "proxy": {"mode": "limited"}},
+            {"proxy": {"mode": "limited", "domains": {"allow": ["127.0.0.1"]}}},
             "CONNECT",
             403,
         ),
         (
             "HTTP transport",
-            {"allow": ["127.0.0.1"], "proxy": {"socks5": "disabled"}},
+            {"proxy": {"socks5": "disabled", "domains": {"allow": ["127.0.0.1"]}}},
             "GET",
             200,
         ),
@@ -165,8 +165,8 @@ def _enforces_native_proxy_settings(binary: Path) -> Transcript:
                         method,
                         str(status),
                         "http:"
-                        if options.get("proxy", {}).get("socks5") == "disabled"
-                        or options.get("proxy", {}).get("mode") == "limited"
+                        if options["proxy"].get("socks5") == "disabled"
+                        or options["proxy"].get("mode") == "limited"
                         else "socks5h:",
                         json.dumps(ports),
                     ],

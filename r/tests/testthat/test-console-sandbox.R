@@ -8,16 +8,11 @@ test_that("console_tools transmit the same application policy object", {
       path = path,
       config = ConsoleConfig(sandbox = policy)
     )
-    overrides <- readLines(paste0(record, ".overrides"))
-    expect_identical(
-      overrides[[1]],
-      "sandbox=null"
-    )
     expect_identical(
       jsonlite::fromJSON(
-        substring(overrides[[2]], nchar("sandbox=") + 1L),
+        paste0(record, ".config.json"),
         simplifyVector = FALSE
-      ),
+      )$sandbox,
       policy
     )
     rm(tools)

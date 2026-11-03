@@ -792,30 +792,6 @@ def test_explicit_file_rejects_conflicting_selectors(binary: Path) -> Transcript
                             "stderr": result.stderr,
                         }
                     )
-            result = subprocess.run(
-                [
-                    binary,
-                    "--config-file",
-                    "first.yaml",
-                    command,
-                    "--config-file",
-                    "second.yaml",
-                    *tail,
-                ],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            assert result.returncode == 1 and result.stdout == "", result
-            assert result.stderr == "--config-file may be supplied only once\n", result
-            records.append(
-                {
-                    "command": command,
-                    "duplicate_file_rejected": True,
-                    "stderr": result.stderr,
-                }
-            )
     return records
 
 

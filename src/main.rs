@@ -72,9 +72,7 @@ fn main() -> ExitCode {
             worker,
             relay,
         } => {
-            if let Err(error) = overrides.extend(command_overrides) {
-                return exit_with_error(error);
-            }
+            overrides.extend(command_overrides);
             match warmup::run(
                 &overrides,
                 worker,
@@ -109,14 +107,13 @@ fn main() -> ExitCode {
                     overrides: command_overrides,
                     no_sandbox,
                     full,
+                    editable,
                     prune: _,
                     format,
                 },
         } => {
-            if let Err(error) = overrides.extend(command_overrides) {
-                return exit_with_error(error);
-            }
-            match resolve_configuration(&overrides, no_sandbox, full, format) {
+            overrides.extend(command_overrides);
+            match resolve_configuration(&overrides, no_sandbox, full, editable, format) {
                 Ok(output) => {
                     println!("{output}");
                     ExitCode::SUCCESS
@@ -132,9 +129,7 @@ fn main() -> ExitCode {
             writable_root,
             overrides: command_overrides,
         } => {
-            if let Err(error) = overrides.extend(command_overrides) {
-                return exit_with_error(error);
-            }
+            overrides.extend(command_overrides);
             match run_server(
                 worker,
                 relay,
@@ -173,9 +168,7 @@ fn main() -> ExitCode {
             writable_root,
             overrides: command_overrides,
         } => {
-            if let Err(error) = overrides.extend(command_overrides) {
-                return exit_with_error(error);
-            }
+            overrides.extend(command_overrides);
             match sandbox::run(
                 &command,
                 exit_with_parent,
@@ -196,10 +189,12 @@ fn resolve_configuration(
     overrides: &cli::ConfigOverrides,
     no_sandbox: bool,
     full: bool,
+    editable: bool,
     format: cli::ConfigFormat,
 ) -> Result<String, String> {
     let directory = std::env::current_dir().map_err(|error| error.to_string())?;
-    let (captured, value) = settings::read(&directory, overrides)?;
+    let (mut captured, value) = settings::read(&directory, overrides)?;
+    captured.preserve_tool_overrides = editable;
     let policy = if no_sandbox {
         captured.policy.clone()
     } else {
@@ -217,12 +212,7 @@ fn resolve_configuration(
             &directory,
             &cli::ConfigOverrides {
                 no_config: true,
-                no_global_config: false,
-                no_project_config: false,
-                config_file: None,
-                default_values: Vec::new(),
-                values: Vec::new(),
-                values_file: None,
+                ..Default::default()
             },
         )?;
         // Compare with the binary's defaults, including when the internal

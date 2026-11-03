@@ -61,7 +61,9 @@ tools <- console_tools(config = config, project = "/path/to/project")
 
 Network permissions remain independent.
 Use `sandbox = list(filesystem = list(read_write = "./output"))` for a narrower write grant and create that directory before launching.
-Network permissions use `sandbox = list(network = list(allow = "api.example.com"))`.
+Use `sandbox = list(network = "api.example.com")` to allow a hostname through the managed proxy.
+`network = TRUE` enables direct networking; `FALSE` restricts it.
+For explicit allow and deny rules, use `network = list(proxy = list(domains = list(allow = "*.example.com", deny = "blocked.example.com")))`.
 See [sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/) for temporary storage, path rules, and platform limits.
 
 <span id="discover-configuration-once"></span> <span id="inspect-and-edit-configuration"></span> <span id="existing-callers"></span>

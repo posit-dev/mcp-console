@@ -732,6 +732,10 @@ test_that("sandbox materialization round trips through typed configuration", {
       list(profile = "workspace", tempdir = "read_write"),
       list(tempdir = "read_only"),
       list(),
+      list(network = TRUE),
+      list(network = FALSE),
+      list(network = c("example.com", "*.example.org")),
+      list(network = list()),
       list(
         filesystem = list(
           read_write = character(),
@@ -741,9 +745,10 @@ test_that("sandbox materialization round trips through typed configuration", {
       ),
       list(
         network = list(
-          allow = "example.com",
-          deny = character(),
-          proxy = list(mode = "limited")
+          proxy = list(
+            mode = "limited",
+            domains = list(allow = "example.com", deny = character())
+          )
         )
       )
     )

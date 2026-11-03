@@ -51,11 +51,11 @@ pub(crate) fn run(
             command.arg(flag);
         }
     }
-    if let Some(path) = &overrides.config_file {
+    for path in &overrides.config_file {
         command.arg("--config-file").arg(path);
     }
-    if let Some(path) = &overrides.values_file {
-        command.arg("--config-overrides-file").arg(path);
+    for path in &overrides.optional_config_file {
+        command.arg("--optional-config-file").arg(path);
     }
     for value in &overrides.default_values {
         command.arg("--default-config").arg(value);

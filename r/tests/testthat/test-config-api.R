@@ -54,9 +54,13 @@ test_that("ConsoleConfig rejects ambiguous or misspelled mappings", {
   )
   expect_error(
     ConsoleConfig(
-      sandbox = list(network = list(allow = list(api = "example.com")))
+      sandbox = list(
+        network = list(
+          proxy = list(domains = list(allow = list(api = "example.com")))
+        )
+      )
     ),
-    "sandbox.network.allow.*array"
+    "sandbox.network.proxy.domains.allow.*array"
   )
   expect_error(
     ConsoleConfig(r = list(packages = structure(list(), names = character()))),
@@ -108,7 +112,7 @@ test_that("ConsoleConfig accepts a yaml12 file read without constructor-specific
       "  managed: {version: '3.13', packages: [pandas]}",
       "sandbox:",
       "  filesystem: {read_write: [./reports]}",
-      "  network: {allow: [api.example.com]}",
+      "  network: {proxy: {domains: {allow: [api.example.com]}}}",
       "environment: {MODE: on, EMPTY: ''}",
       "inherit_environment: false"
     ),
@@ -118,7 +122,10 @@ test_that("ConsoleConfig accepts a yaml12 file read without constructor-specific
     config <- ConsoleConfig(yaml12::read_yaml(file, simplify = simplify))
     expect_identical(config@r@packages, character())
     expect_identical(config@python@packages, "pandas")
-    expect_identical(config@sandbox@network@allow, "api.example.com")
+    expect_identical(
+      config@sandbox@network@proxy@domains@allow,
+      "api.example.com"
+    )
     expect_identical(config@environment, c(MODE = "on", EMPTY = ""))
     expect_false(config@inherit_environment)
   }

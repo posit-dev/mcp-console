@@ -54,6 +54,9 @@ mcp-console config resolve
 This uses the same files and command-line overrides as starting a session, without starting interpreters or preparing packages.
 Built-in defaults are omitted; add `--full` to include them.
 You can [save the resolved configuration](#export-a-configuration) for a later session or [edit its generated tool descriptions and parameter settings](#edit-exported-tool-settings).
+Add `--editable` to retain authored tool settings and omit generated tool descriptions and schema.
+This keeps generated presentation responsive to later configuration edits while preserving explicit text, including empty strings and text equal to a generated default.
+Combine it with `--full` to include configuration defaults in the editable document.
 
 <span id="settings-by-task"></span> <span id="top-level-settings"></span> <span id="r-executable-selection"></span> <span id="native-r-startup"></span> <span id="python-environment-selection"></span> <span id="startup-package-declarations"></span> <span id="dependency-resolution-policies"></span> <span id="session-startup-source"></span> <span id="cache-selection"></span> <span id="shared-environment"></span> <span id="model-visible-languages"></span> <span id="tool-descriptions-and-parameters"></span>
 
@@ -63,13 +66,14 @@ Use the [Reference index](REFERENCE.md#configuration) to look up a configuration
 
 Use these options to select or skip configuration files:
 
-| Option                | Files read           |
-| --------------------- | -------------------- |
-| No option             | Global, then project |
-| `--config-file PATH`  | Only the named file  |
-| `--no-project-config` | Global only          |
-| `--no-global-config`  | Project only         |
-| `--no-config`         | None                 |
+| Option                        | Files read                             |
+| ----------------------------- | -------------------------------------- |
+| No option                     | Global, then project                   |
+| `--config-file PATH`          | Only selected files, in argument order |
+| `--optional-config-file PATH` | Mark a selected file as optional       |
+| `--no-project-config`         | Global only                            |
+| `--no-global-config`          | Project only                           |
+| `--no-config`                 | None                                   |
 
 Launch defaults still apply before these files, and command-line overrides apply afterward.
 The options for skipping files cannot be combined with `--config-file`.
@@ -77,8 +81,17 @@ Options may appear before or after the subcommand.
 They do not edit files or change recording-location selection.
 
 Console looks for the project file only in the directory where it starts; it does not search parent directories.
-Missing automatic files are skipped, but an explicitly selected file must exist.
+Missing automatic files are skipped, but an explicitly selected file must exist unless marked optional.
+Repeat `--config-file` to layer selected files in order; a later file overrides matching settings from earlier files.
+Repeat `--optional-config-file` for selected paths that may be absent.
+This option does not select a file: each path must also appear in `--config-file`, matched before home expansion or canonicalization.
+An optional file that exists must still be readable, regular, and valid.
+The same underlying file is read only once, at its first selected position.
 Configuration must be a readable YAML or JSON mapping; invalid files and unknown fields are errors.
+
+```sh
+mcp-console serve --config-file defaults.yaml --optional-config-file defaults.yaml --config-file session.json
+```
 
 Configuration files can choose which programs Console runs, provide credentials, and change permissions.
 Console loads project files automatically, including when the client was registered globally.
@@ -96,6 +109,8 @@ For `serve` and ordinary `sandbox` launches, settings are applied in this order:
 2. Global `$MCP_CONSOLE_HOME/config.yaml`, or `~/.agents/console/config.yaml` when the variable is unset.
 3. Project `.agents/console/config.yaml` in the launch directory.
 4. Each `-c KEY=VALUE` override, in argument order.
+
+When `--config-file` is supplied, its ordered file list replaces the global and project sources.
 
 ```sh
 mcp-console serve -c 'sandbox.filesystem.read_write=[.]'
@@ -140,7 +155,7 @@ CONSOLE_CONFIG='sandbox: {profile: workspace, network: restricted}' \
 This replaces global and project file discovery.
 `--default-config` settings apply before the environment document, and ordered `-c` overrides apply after it.
 `--writable-root` adds launch-specific write access as usual.
-The selector cannot be combined with `--config-file`, `--no-config`, `--no-global-config`, or `--no-project-config`.
+The selector cannot be combined with `--config-file`, `--optional-config-file`, `--no-config`, `--no-global-config`, or `--no-project-config`.
 
 The variable must contain one configuration mapping; an unset variable, empty text, or invalid configuration fails before the command starts.
 Use `{}` to select Console's defaults.

@@ -29,7 +29,7 @@ config <- ConsoleConfig(
   python = list(managed = list(version = "3.13", packages = "pandas")),
   sandbox = list(
     filesystem = list(read_write = "./output", deny = "./secrets"),
-    network = list(allow = "api.example.com")
+    network = "api.example.com"
   ),
   resolver = list(environment = list(UV_INDEX_URL = "https://pypi.org/simple"))
 )
@@ -162,7 +162,7 @@ Nested properties also accept lists when replacing a section:
 ```r
 config@sandbox <- list(
   filesystem = list(read_write = "./reports"),
-  network = list(allow = "api.example.com")
+  network = "api.example.com"
 )
 config@tool <- list(parameters = list(timeout_ms = list(enabled = FALSE)))
 ```
@@ -172,7 +172,7 @@ For appending to an existing vector, a small local replacement function avoids r
 ```r
 `append<-` <- function(x, value) c(x, value)
 append(config@sandbox@filesystem@read_write) <- "./figures"
-append(config@sandbox@network@allow) <- "data.example.com"
+append(config@sandbox@network@proxy@domains@allow) <- "data.example.com"
 ```
 
 Create the parent sections first, as above.
@@ -205,7 +205,11 @@ config <- ConsoleConfig(
       read_write = "./output",
       deny = "~/.ssh"
     ),
-    network = list(allow = "*.example.com", deny = "blocked.example.com")
+    network = list(
+      proxy = list(
+        domains = list(allow = "*.example.com", deny = "blocked.example.com")
+      )
+    )
   )
 )
 ```
@@ -213,10 +217,14 @@ config <- ConsoleConfig(
 Workers have a host-read baseline, so `read_only = "./data"` does not hide other host files.
 Create output directories before launch.
 Filesystem `deny` wins at an identical path; more specific paths override broader grants, subject to platform limits.
-Network `deny` wins over matching `allow`; unmatched destinations are denied.
-A network mapping enables a managed proxy; `"restricted"` and `"enabled"` select proxy-free modes.
-Within the network mapping, advanced options stay under `proxy`; `sockets` and `allow_local_binding` control local networking.
-Omitting both destination lists retains context defaults; supplying either `allow` or `deny`, including an empty vector, selects explicit destination rules, which can remove the resolver's generated repository allowlist.
+Proxy domain `deny` wins over matching `allow`; unmatched destinations are denied.
+Use `network = TRUE` (or `"enabled"`) for direct networking and `network = FALSE` (or `"restricted"`) to deny ordinary direct network access.
+A character vector or unnamed list of allowed patterns, such as `network = c("api.example.com", "*.example.org")`, becomes `network.proxy.domains.allow`.
+An empty vector or `list()` selects an explicit empty allow list.
+A named network mapping keeps the canonical `config.yaml` structure shown above and enables a managed proxy.
+Proxy options stay under `proxy`; `sockets` and `allow_local_binding` control local networking.
+Omitting `proxy.domains` retains context defaults.
+Supplying it selects explicit destination rules; an empty domains mapping or allow list can remove the resolver's generated repository allowlist.
 
 Use `sandbox = list(profile = "workspace")` for ordinary project writes with metadata protections.
 For a client-derived profile with workspace fallback, use `profile = list(inherit_codex = list(fallback = "workspace"))`.

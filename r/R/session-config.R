@@ -224,6 +224,11 @@ SessionsConfig <- S7::new_class(
 #' `as.list()` returns JSON-ready application settings; the launch-only choice
 #' `sandbox = FALSE` is not included in that document.
 #'
+#' For worker or resolver `network` settings, `TRUE` enables direct networking
+#' and `FALSE` restricts it. A character vector or unnamed list supplies allowed
+#' proxy patterns. Named mappings use `proxy = list(domains = list(allow = ...,
+#' deny = ...))` for explicit destination rules.
+#'
 #' @param ... Named configuration fields, or a single unnamed mapping. The two
 #'   forms cannot be combined. Supported fields are `r`, `python`, `resolver`,
 #'   `sandbox`, `languages`, `cache`, `environment`, `inherit_environment`, `tool`,
@@ -232,6 +237,7 @@ SessionsConfig <- S7::new_class(
 #' @examples
 #' ConsoleConfig()
 #' ConsoleConfig(r = list(packages = c("dplyr", "ggplot2")))
+#' ConsoleConfig(sandbox = list(network = c("api.example.com", "*.example.org")))
 #' ConsoleConfig(list(
 #'   python = ".venv",
 #'   sandbox = list(filesystem = list(read_write = "./output"))
@@ -337,41 +343,55 @@ S7::method(as.list, ConsoleConfig) <- function(x, ...) {
 
 console_cli_arguments <- function(
   config,
-  file,
+  directory,
   files = character(),
-  required_files = character(),
-  preserve_tool_overrides = FALSE
+  required_files = character()
 ) {
   settings <- S7::props(config)
   resolver <- if (!is.null(settings$resolver)) S7::props(settings$resolver)
   disabled <- identical(settings$sandbox, FALSE)
-  # Permission and Python selections replace complete inherited nodes.
-  clears <- c(
-    if (disabled || !is.null(settings$sandbox)) "sandbox",
-    if (disabled || !is.null(resolver$sandbox)) "resolver.sandbox",
-    if (!is.null(settings$python)) "python"
-  )
-  values <- as.list(config)
-  overrides <- c(
-    if (isTRUE(attr(config, "r_executable_reset"))) "r.executable=null",
-    vapply(clears, function(key) paste0(key, "=null"), character(1)),
-    unlist(Map(config_override, names(values), values), use.names = FALSE)
-  )
+  optional_files <- setdiff(files, required_files)
+  # A separate ordinary configuration layer clears complete inherited nodes
+  # before applying replacements. Launching a supplied config has no file layers.
+  if (length(files)) {
+    resets <- list()
+    if (isTRUE(attr(config, "r_executable_reset"))) {
+      resets$r <- list(executable = NULL)
+    }
+    if (disabled || !is.null(settings$sandbox)) {
+      resets["sandbox"] <- list(NULL)
+    }
+    if (disabled || !is.null(resolver$sandbox)) {
+      resets$resolver <- list(sandbox = NULL)
+    }
+    if (!is.null(settings$python)) {
+      resets["python"] <- list(NULL)
+    }
+    if (length(resets)) {
+      file <- file.path(directory, "replace.json")
+      writeLines(
+        as.character(jsonlite::toJSON(
+          resets,
+          auto_unbox = TRUE,
+          null = "null"
+        )),
+        file,
+        useBytes = TRUE
+      )
+      files <- c(files, file)
+    }
+  }
+  file <- file.path(directory, "config.json")
   writeLines(
     as.character(jsonlite::toJSON(
-      list(
-        files = unname(as.list(files)),
-        required_files = unname(as.list(required_files)),
-        values = unname(as.list(overrides)),
-        preserve_tool_overrides = preserve_tool_overrides
-      ),
-      auto_unbox = TRUE
+      as.list(config),
+      auto_unbox = TRUE,
+      null = "null"
     )),
     file,
     useBytes = TRUE
   )
   c(
-    "--no-config",
     if (
       (is.null(settings$r) || is.null(settings$r@executable)) &&
         !isTRUE(attr(config, "r_executable_reset"))
@@ -379,7 +399,9 @@ console_cli_arguments <- function(
       c("--default-config", config_override("r.executable", current_r()))
     },
     if (disabled) "--no-sandbox",
-    "--config-overrides-file",
-    file
+    unlist(lapply(c(files, file), function(path) c("--config-file", path))),
+    unlist(lapply(optional_files, function(path) {
+      c("--optional-config-file", path)
+    }))
   )
 }

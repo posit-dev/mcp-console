@@ -10,9 +10,12 @@ test_that("sandbox mappings use the same shape as config.yaml", {
       deny = "./secrets"
     ),
     network = list(
-      allow = "*.example.org",
-      deny = "bad.example.org",
-      proxy = list(mode = "full", socks5 = "tcp", allow_upstream_proxy = FALSE),
+      proxy = list(
+        mode = "full",
+        domains = list(allow = "*.example.org", deny = "bad.example.org"),
+        socks5 = "tcp",
+        allow_upstream_proxy = FALSE
+      ),
       sockets = list(unix_sockets = "/tmp/a.sock"),
       allow_local_binding = FALSE
     )
@@ -25,9 +28,15 @@ test_that("sandbox mappings use the same shape as config.yaml", {
       deny = list("./secrets")
     ),
     network = list(
-      allow = list("*.example.org"),
-      deny = list("bad.example.org"),
-      proxy = list(mode = "full", socks5 = "tcp", allow_upstream_proxy = FALSE),
+      proxy = list(
+        mode = "full",
+        domains = list(
+          allow = list("*.example.org"),
+          deny = list("bad.example.org")
+        ),
+        socks5 = "tcp",
+        allow_upstream_proxy = FALSE
+      ),
       sockets = list(unix_sockets = list("/tmp/a.sock")),
       allow_local_binding = FALSE
     )
@@ -39,9 +48,55 @@ test_that("sandbox mappings use the same shape as config.yaml", {
   )
   expect_error(
     ConsoleConfig(
-      sandbox = list(network = list(proxy = list(domains = list())))
+      sandbox = list(network = list(allow = "api.example.org"))
     ),
-    "sandbox.network.proxy.domains"
+    "sandbox.network.allow"
+  )
+})
+
+test_that("network shorthands retain canonical modes and proxy domain rules", {
+  for (network in list(TRUE, "enabled", FALSE, "restricted")) {
+    expected <- if (isTRUE(network) || identical(network, "enabled")) {
+      "enabled"
+    } else {
+      "restricted"
+    }
+    config <- ConsoleConfig(sandbox = list(network = network))
+    expect_identical(config@sandbox@network, expected)
+    expect_identical(as.list(config)$sandbox$network, expected)
+    config@sandbox@network <- "api.example.org"
+    config@sandbox@network <- network
+    expect_identical(as.list(config)$sandbox$network, expected)
+  }
+  for (network in list(
+    "api.example.org",
+    c("api.example.org", "*.example.com"),
+    list("api.example.org", "*.example.com"),
+    character(),
+    list()
+  )) {
+    expected <- list(proxy = list(domains = list(allow = as.list(network))))
+    config <- ConsoleConfig(sandbox = list(network = network))
+    expect_identical(as.list(config)$sandbox$network, expected)
+    config@sandbox@network <- FALSE
+    config@sandbox@network <- network
+    expect_identical(as.list(config)$sandbox$network, expected)
+  }
+  for (network in list(NA, c(TRUE, FALSE))) {
+    expect_error(
+      ConsoleConfig(sandbox = list(network = network)),
+      "sandbox.network.*named mapping"
+    )
+  }
+  for (network in list(NA_character_, "")) {
+    expect_error(
+      ConsoleConfig(sandbox = list(network = network)),
+      "@allow must contain non-empty strings"
+    )
+  }
+  expect_error(
+    ConsoleConfig(sandbox = list(network = list(1))),
+    "sandbox.network.proxy.domains.allow.*contain strings"
   )
 })
 
@@ -59,13 +114,27 @@ test_that("omitted mappings and explicit empty arrays stay distinct", {
   )
   expect_identical(
     policy_json(ConsoleConfig(sandbox = list(network = list()))),
+    '{"sandbox":{"network":{"proxy":{"domains":{"allow":[]}}}}}'
+  )
+  expect_identical(
+    policy_json(ConsoleConfig(
+      sandbox = list(network = structure(list(), names = character()))
+    )),
     '{"sandbox":{"network":{}}}'
   )
   expect_identical(
     policy_json(ConsoleConfig(
-      sandbox = list(network = list(allow = character()))
+      sandbox = list(
+        network = list(proxy = list(domains = list(deny = character())))
+      )
     )),
-    '{"sandbox":{"network":{"allow":[]}}}'
+    '{"sandbox":{"network":{"proxy":{"domains":{"deny":[]}}}}}'
+  )
+  expect_identical(
+    policy_json(ConsoleConfig(
+      sandbox = list(network = list(proxy = list(domains = list())))
+    )),
+    '{"sandbox":{"network":{"proxy":{"domains":{}}}}}'
   )
 })
 
@@ -163,9 +232,6 @@ test_that("typed nodes validate construction and concise replacement edits", {
       "read_write"
     )
   }
-  for (value in list(FALSE, character(), "enable")) {
-    expect_error(ConsoleConfig(sandbox = list(network = value)), "network")
-  }
   expect_error(
     ConsoleConfig(
       sandbox = list(
@@ -175,10 +241,10 @@ test_that("typed nodes validate construction and concise replacement edits", {
     "socks5"
   )
   config <- ConsoleConfig(
-    sandbox = list(network = list(allow = "api.example.org"))
+    sandbox = list(network = "api.example.org")
   )
   config@sandbox@filesystem <- list(read_write = "./reports")
-  config@sandbox@network@proxy <- list(mode = "limited")
+  config@sandbox@network@proxy@mode <- "limited"
   expect_identical(config@sandbox@filesystem@read_write, "./reports")
   expect_identical(config@sandbox@network@proxy@mode, "limited")
   expect_error(
@@ -187,10 +253,23 @@ test_that("typed nodes validate construction and concise replacement edits", {
   )
   expect_error(config@sandbox@network@proxy@socks5 <- "tcp", "socks5")
   `append<-` <- function(x, value) c(x, value)
-  append(config@sandbox@network@allow) <- "data.example.org"
+  append(config@sandbox@network@proxy@domains@allow) <- "data.example.org"
   expect_identical(
-    config@sandbox@network@allow,
+    config@sandbox@network@proxy@domains@allow,
     c("api.example.org", "data.example.org")
+  )
+  config@sandbox@network@proxy <- list(
+    mode = "full",
+    domains = list(allow = "replacement.example.org")
+  )
+  expect_identical(
+    config@sandbox@network@proxy@domains@allow,
+    "replacement.example.org"
+  )
+  config@sandbox@network@proxy@domains <- list(deny = "blocked.example.org")
+  expect_identical(
+    as.list(config)$sandbox$network$proxy$domains,
+    list(deny = list("blocked.example.org"))
   )
 })
 
@@ -206,6 +285,12 @@ test_that("configurations retain value semantics and separate resolver policy", 
   expect_identical(
     as.list(config)$resolver,
     list(sandbox = structure(list(), names = character()))
+  )
+  config@resolver@sandbox@network <- list("packages.example.org")
+  expect_identical(config@sandbox@network, "restricted")
+  expect_identical(
+    as.list(config)$resolver$sandbox$network,
+    list(proxy = list(domains = list(allow = list("packages.example.org"))))
   )
 })
 

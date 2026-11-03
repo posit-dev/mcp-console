@@ -31,10 +31,15 @@ at load or launch, below explicit configuration.
 \code{NULL} fields are omitted. Empty mappings and character vectors are retained.
 \code{as.list()} returns JSON-ready application settings; the launch-only choice
 \code{sandbox = FALSE} is not included in that document.
+
+For worker or resolver \code{network} settings, \code{TRUE} enables direct networking
+and \code{FALSE} restricts it. A character vector or unnamed list supplies allowed
+proxy patterns. Named mappings use \code{proxy = list(domains = list(allow = ..., deny = ...))} for explicit destination rules.
 }
 \examples{
 ConsoleConfig()
 ConsoleConfig(r = list(packages = c("dplyr", "ggplot2")))
+ConsoleConfig(sandbox = list(network = c("api.example.com", "*.example.org")))
 ConsoleConfig(list(
   python = ".venv",
   sandbox = list(filesystem = list(read_write = "./output"))

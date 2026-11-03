@@ -155,13 +155,12 @@ test_that("every explicit config bypasses file discovery", {
     for (i in seq_along(choices)) {
       tools <- console_tools(path = path, config = choices[[i]])
       argv <- readLines(record, warn = FALSE)
-      file <- match("--config-overrides-file", argv)
+      file <- match("--config-file", argv)
       expect_false(is.na(file))
       expect_identical(
         argv[-c(file, file + 1L)],
         c(
           "serve",
-          "--no-config",
           "--default-config",
           paste0(
             "r.executable=",
@@ -172,8 +171,11 @@ test_that("every explicit config bypasses file discovery", {
       )
       expect_false(file.exists(argv[[file + 1L]]))
       expect_identical(
-        readLines(paste0(record, ".overrides")),
-        if (i == 3L) c("sandbox=null", "resolver.sandbox=null") else character()
+        jsonlite::fromJSON(
+          paste0(record, ".config.json"),
+          simplifyVector = FALSE
+        ),
+        as.list(ConsoleConfig())
       )
       rm(tools)
       invisible(gc())
@@ -181,7 +183,7 @@ test_that("every explicit config bypasses file discovery", {
   })
 })
 
-test_that("permission and Python nodes replace inherited settings", {
+test_that("constructed settings use a canonical configuration document", {
   with_console_config_probe(function(path, record) {
     config <- ConsoleConfig(
       r = list(packages = character()),
@@ -191,16 +193,11 @@ test_that("permission and Python nodes replace inherited settings", {
     )
     tools <- console_tools(path = path, config = config)
     expect_identical(
-      readLines(paste0(record, ".overrides")),
-      c(
-        "sandbox=null",
-        "resolver.sandbox=null",
-        "python=null",
-        "r={\"packages\":[]}",
-        "python={\"managed\":{\"packages\":[]}}",
-        "resolver={\"sandbox\":{}}",
-        "sandbox={}"
-      )
+      jsonlite::fromJSON(
+        paste0(record, ".config.json"),
+        simplifyVector = FALSE
+      ),
+      as.list(config)
     )
     rm(tools)
     invisible(gc())

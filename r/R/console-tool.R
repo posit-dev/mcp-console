@@ -92,11 +92,12 @@ console_tools <- function(
     stop("`project` must identify an existing directory.", call. = FALSE)
   }
   project <- normalizePath(project, mustWork = TRUE)
-  file <- tempfile("mcp-console-overrides-", fileext = ".json")
-  on.exit(unlink(file), add = TRUE)
+  directory <- tempfile("mcp-console-config-")
+  stopifnot(dir.create(directory))
+  on.exit(unlink(directory, recursive = TRUE), add = TRUE)
   client <- new_mcp_client(
     resolve_mcp_console(path, version),
-    console_cli_arguments(config, file),
+    console_cli_arguments(config, directory),
     project
   )
   ready <- FALSE

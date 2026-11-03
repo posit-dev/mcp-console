@@ -83,7 +83,7 @@ def test_duplicate_keys_use_last_value(binary: Path) -> Transcript:
     cases = (
         "sandbox: invalid\nsandbox: {}",
         "sandbox: {network: invalid, network: restricted}",
-        "sandbox: {network: {allow: [example.com], allow: []}}",
+        "sandbox: {network: {proxy: {domains: {allow: [example.com], allow: []}}}}",
     )
     with TemporaryDirectory() as directory:
         host = Path(directory)
@@ -284,7 +284,7 @@ def test_accepts_supported_project_settings(binary: Path) -> Transcript:
         "sandbox: {network: {proxy: {}}}",
         "sandbox: {filesystem: {read_write: [./out]}}",
         "sandbox: {filesystem: {read_write: ['./future café 雪']}}",
-        "sandbox: {network: {allow: ['*.example.com'], deny: [blocked.example.com], proxy: {mode: limited, allow_upstream_proxy: true}, allow_local_binding: true}}",
+        "sandbox: {network: {proxy: {mode: limited, allow_upstream_proxy: true, domains: {allow: ['*.example.com'], deny: [blocked.example.com]}}, allow_local_binding: true}}",
     )
     transcript = []
     with TemporaryDirectory() as directory:

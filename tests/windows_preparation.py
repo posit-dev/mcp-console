@@ -158,7 +158,9 @@ class WindowsPreparation(unittest.TestCase):
                     )
                 else:
                     self.assertTrue(policy["network"]["allow_local_binding"])
-                    self.assertIn("pypi.org", policy["network"]["allow"])
+                    self.assertIn(
+                        "pypi.org", policy["network"]["proxy"]["domains"]["allow"]
+                    )
 
     @requires_mxc(BINARY)
     def test_default_preparation_contains_descendants_and_preserves_late_state(self):
@@ -616,7 +618,7 @@ class WindowsPreparation(unittest.TestCase):
                 session = self.session(
                     overrides=(
                         'python.managed.packages=["mcp-console-build-probe==1.0.0"]',
-                        "resolver.sandbox.network.allow=[pypi.org,files.pythonhosted.org,astral.sh,releases.astral.sh,github.com,objects.githubusercontent.com,release-assets.githubusercontent.com,127.0.0.1]",
+                        "resolver.sandbox.network.proxy.domains.allow=[pypi.org,files.pythonhosted.org,astral.sh,releases.astral.sh,github.com,objects.githubusercontent.com,release-assets.githubusercontent.com,127.0.0.1]",
                     )
                 )
                 result = session.send(

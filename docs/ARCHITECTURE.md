@@ -86,18 +86,20 @@ Its request and result are journaled without creating a nested numbered cell int
 ## Startup and runtime ownership
 
 The server captures configuration once and constructs tool presentation from it.
-The R adapter sends selected configuration source paths and ordered overrides through a private JSON file using `--config-overrides-file`.
-Its `files` preserve layer order; `required_files` identifies explicitly selected paths that must exist.
+The R adapter writes ordinary JSON configuration and uses the public `--config-file` option for loading and launch.
+Repeated file selectors preserve layer order; `--optional-config-file` marks conventional paths that may be absent.
 The conventional default paths remain optional, while all sources retain native regular-file checks, home expansion, and canonical deduplication.
 Native capture owns file parsing and layering; the adapter converts the result through the same S7 constructor used for pure R values.
-For the adapter's editable full configuration, `preserve_tool_overrides` retains authored tool metadata and omits generated prose/schema rather than turning those defaults into persistent overrides.
-Public CLI exports retain their ordinary materialization and pruning behavior.
-Both loader and launch disable automatic native discovery; only the loader supplies source paths.
-A supplied R object cannot trigger another file read at launch or worker restart.
+The loader uses `config resolve --full --editable` to retain authored tool metadata and omit generated prose/schema rather than turning those defaults into persistent overrides.
+Exports without `--editable` retain their ordinary materialization and pruning behavior.
+Both loader and launch select their complete source list; only the loader includes global or project paths.
+A supplied R object cannot reload its source files at launch or worker restart.
 The calling R executable is supplied through `--default-config`, below selected files and explicit settings.
 The loaded object retains a cleared executable preference through edits and launch so materialization does not turn a file's explicit R reset back into the calling R default.
-Overrides apply after the selected files and before ordinary `-c` overrides; explicit permission nodes retain replacement semantics.
-The adapter removes the file after synchronous materialization or the server's initialization handshake, when native capture has finished reading it.
+The loader places a JSON null-reset layer before its override document so explicit permission and Python selections replace inherited nodes.
+Override documents apply after the selected files and before ordinary `-c` overrides.
+Configuration files keep long tool descriptions and startup programs out of process arguments and environment size limits.
+The adapter removes its temporary files after synchronous materialization or the server's initialization handshake, when native capture has finished reading them.
 The connection owns a registry of logical sessions; each session owns startup, preparation, accepted requirements, and worker generations.
 The default session discovers runtimes, prepares defaults, and prelaunches the built-in worker in a background task.
 New names enter the registry on their first code call or an explicit integrator `create` request and use the same captured configuration and client authority, with independent startup and execution owners.

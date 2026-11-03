@@ -1,23 +1,23 @@
 ---
-payload:
-  required_files:
-    - unselected.yaml
+files: []
+optional_files:
+  - unselected.yaml
 exit_code: 1
-stderr: |
-  required adapter configuration 'unselected.yaml' must be included in files
+stderr: >
+  --optional-config-file 'unselected.yaml' must also be selected with
+  --config-file
 ---
-payload:
-  files:
-    - directory.yaml
+files:
+  - directory.yaml
+optional_files: []
 exit_code: 1
 stderr: |
   configuration 'directory.yaml' must be a regular file
 ---
-payload:
-  files:
-    - directory.yaml
-  required_files:
-    - directory.yaml
+files:
+  - directory.yaml
+optional_files:
+  - directory.yaml
 exit_code: 1
 stderr: |
   configuration 'directory.yaml' must be a regular file

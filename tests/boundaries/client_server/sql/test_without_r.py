@@ -310,7 +310,9 @@ def test_prepares_builtin_extensions_without_downloads(
         config = root / ".agents/console/config.yaml"
         config.parent.mkdir(parents=True, exist_ok=True)
         config.write_text(
-            json.dumps({"resolver": {"sandbox": {"network": {"allow": []}}}})
+            json.dumps(
+                {"resolver": {"sandbox": {"network": {"proxy": {"domains": {}}}}}}
+            )
         )
         with sql_client(binary, execution, env, root, arguments=arguments) as client:
             client.expect(
