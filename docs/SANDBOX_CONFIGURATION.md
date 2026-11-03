@@ -181,45 +181,44 @@ The value of `sandbox.network` or `resolver.sandbox.network` selects the network
 | ----------------------- | ------------------------------------------------------ |
 | `network: restricted`   | Restricted native networking, without a managed proxy. |
 | `network: enabled`      | Host networking; filesystem enforcement remains.       |
-| `network: {proxy: {…}}` | Restricted native networking with a managed proxy.     |
+| `network: {allow: […]}` | Restricted native networking with a managed proxy.     |
 
 Worker networking defaults to restricted without a proxy.
 Resolver networking defaults to its [download proxy](PACKAGE_CONFIGURATION.md#expanded-public-default).
 Explicit scalar values also remove that generated resolver proxy.
 
-A managed mapping requires a non-null `proxy` mapping.
+A network mapping enables a managed proxy; its `proxy` settings are optional.
 There is no `network: full` shortcut or public proxy-enabled boolean.
 
 Fields within a network mapping are:
 
-| Field                 | Accepted values                 | Meaning and default                                                                                                             |
-| --------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `proxy`               | Required mapping                | Managed HTTP/HTTPS and optional SOCKS proxy. See [Proxy settings](#proxy-modes-and-destinations).                               |
-| `sockets`             | Mapping                         | Direct Unix-socket permissions. Omission grants no Unix sockets.                                                                |
-| `allow_local_binding` | `auto`, `null`, `true`, `false` | Local binding and related native socket access. Omission selects `auto`; see [Local services](#unix-sockets-and-local-binding). |
+| Field                 | Accepted values                   | Meaning and default                                                                                                                                 |
+| --------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow`, `deny`       | Lists of hostnames or IP literals | Destination rules. See [Allow or block destinations](#destination-rules).                                                                           |
+| `proxy`               | Mapping                           | Managed HTTP/HTTPS and optional SOCKS proxy settings. Omission uses full mode with SOCKS5 TCP. See [Proxy settings](#proxy-modes-and-destinations). |
+| `sockets`             | Mapping                           | Direct Unix-socket permissions. Omission grants no Unix sockets.                                                                                    |
+| `allow_local_binding` | `auto`, `null`, `true`, `false`   | Local binding and related native socket access. Omission selects `auto`; see [Local services](#unix-sockets-and-local-binding).                     |
 
 ### Proxy settings {#proxy-modes-and-destinations}
 
 ```yaml
 sandbox:
   network:
+    allow: [api.example.com, "*.example.org"]
+    deny: [blocked.example.org]
     proxy:
       mode: full
       socks5: tcp
       allow_upstream_proxy: false
-      domains:
-        allow: [api.example.com, "*.example.org"]
-        deny: [blocked.example.org]
 ```
 
 Fields under `sandbox.network.proxy` or `resolver.sandbox.network.proxy`:
 
-| Field                  | Accepted values                                    | Meaning and default                                                                                                        |
-| ---------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `mode`                 | `full`, `limited`                                  | Proxy methods and protocols. Default: `full`.                                                                              |
-| `socks5`               | `disabled`, `tcp`; `tcp_udp` is currently rejected | SOCKS support in full mode. Default: `tcp`. Omit this field in limited mode.                                               |
-| `allow_upstream_proxy` | `true`, `false`                                    | Permit onward routing through the trusted launch environment's proxy. Default: `false`.                                    |
-| `domains`              | Mapping                                            | Destination allow/deny rules. Omission permits no worker destinations or uses the resolver's generated download allowlist. |
+| Field                  | Accepted values                                    | Meaning and default                                                                     |
+| ---------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `mode`                 | `full`, `limited`                                  | Proxy methods and protocols. Default: `full`.                                           |
+| `socks5`               | `disabled`, `tcp`; `tcp_udp` is currently rejected | SOCKS support in full mode. Default: `tcp`. Omit this field in limited mode.            |
+| `allow_upstream_proxy` | `true`, `false`                                    | Permit onward routing through the trusted launch environment's proxy. Default: `false`. |
 
 Full mode supports HTTP/HTTPS proxying and the selected SOCKS mode.
 `socks5: disabled` disables SOCKS; `tcp` enables SOCKS5 TCP.
@@ -231,12 +230,12 @@ It is not read-only HTTPS, does not intercept TLS, and does not guarantee side-e
 
 ### Allow or block destinations {#destination-rules}
 
-Fields under `sandbox.network.proxy.domains` or `resolver.sandbox.network.proxy.domains`:
+Fields under `sandbox.network` or `resolver.sandbox.network`:
 
-| Field   | Accepted values                          | Meaning and default                                               |
-| ------- | ---------------------------------------- | ----------------------------------------------------------------- |
-| `allow` | List of hostname patterns or IP literals | Permitted destinations. Default within an explicit mapping: `[]`. |
-| `deny`  | List of hostname patterns or IP literals | Blocked destinations; matching deny rules win. Default: `[]`.     |
+| Field   | Accepted values                          | Meaning and default                                                              |
+| ------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `allow` | List of hostname patterns or IP literals | Permitted destinations. Default when either destination field is supplied: `[]`. |
+| `deny`  | List of hostname patterns or IP literals | Blocked destinations; matching deny rules win. Default: `[]`.                    |
 
 Domain rules use hostnames, not URLs, paths, or host-and-port restrictions.
 Exact names match that host only; `*.example.org` matches subdomains but not the apex, and `**.example.org` matches both.
@@ -244,10 +243,11 @@ Patterns support `*` and `?` wildcards; character classes such as `[0-9]` are re
 Matching deny rules win.
 Native IP-literal forms are also accepted.
 
-An explicit `domains` mapping replaces the generated destination default; omitted allow/deny lists are empty.
-Worker defaults allow no destinations; resolver defaults allow its package sources.
+Supplying either `allow` or `deny` replaces the generated destination default; the other list is empty when omitted.
+In particular, `allow: []` permits no proxy destinations, including during preparation.
+Omitting both fields allows no worker destinations and retains the resolver's generated package-source allowlist.
 This does not override ordinary deep merging between configuration layers.
-To remove an explicitly inherited field, clear and rebuild its containing mapping.
+Use an empty list to clear an inherited `allow` or `deny` list, or clear and rebuild the network mapping.
 
 ### Use an upstream proxy
 
@@ -391,7 +391,8 @@ The standalone `sandbox` command has no client metadata, so it silently uses the
 `config resolve` preserves the selection policy and automatic cache choice without selecting a runtime profile or preparing interpreters.
 Broad-root checks and their warnings apply at launch, so resolving configuration from a broad root does not replace the configured workspace permissions.
 
-In R, use `SandboxPolicy(profile = "inherit_codex")` or `SandboxPolicy(profile = InheritCodexSandboxProfile(fallback = "workspace"))`.
+In R, use `ConsoleConfig(sandbox = list(profile = "inherit_codex"))`.
+For a workspace fallback, set `sandbox = list(profile = list(inherit_codex = list(fallback = "workspace")))`.
 
 ### Metadata and permission translation
 

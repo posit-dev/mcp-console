@@ -174,7 +174,7 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
             Field::new(
                 "network",
                 "\
-## Network options: restricted (default), enabled, or a proxy mapping.
+## Network options: restricted (default), enabled, or a mapping of destination rules.
 ## enabled allows network access.
 ## Use a proxy to allow selected hosts.
 ## Use hostnames, not URLs; quote wildcard patterns.
@@ -183,9 +183,7 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
                 format!(
                     "\
 # network:
-#   proxy:
-#     domains:
-#       allow: [api.example.com, \"*.example.org\"]
+#   allow: [api.example.com, \"*.example.org\"]
 
 {LOCAL_BINDING}\
 #   allow_local_binding: true
@@ -193,6 +191,8 @@ pub(super) fn render(value: Value, profile: Option<&ProfileSelection>) -> Result
                 ),
             )
             .children(vec![
+                Field::new("allow", "", "# allow: [api.example.com]\n"),
+                Field::new("deny", "", "# deny: []\n"),
                 Field::new("proxy", "", "# proxy: {}\n"),
                 Field::new(
                     "allow_local_binding",

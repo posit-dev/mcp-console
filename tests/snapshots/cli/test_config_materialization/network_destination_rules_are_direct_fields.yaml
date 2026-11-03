@@ -1,0 +1,46 @@
+---
+scope: sandbox
+network: {}
+---
+scope: sandbox
+network:
+  allow: []
+---
+scope: sandbox
+network:
+  deny:
+    - pypi.org
+---
+scope: sandbox
+network:
+  allow:
+    - api.example.com
+    - blocked.example.com
+  deny:
+    - blocked.example.com
+  proxy:
+    socks5: disabled
+    allow_upstream_proxy: true
+---
+scope: resolver.sandbox
+network: {}
+---
+scope: resolver.sandbox
+network:
+  allow: []
+---
+scope: resolver.sandbox
+network:
+  deny:
+    - pypi.org
+---
+scope: resolver.sandbox
+network:
+  allow:
+    - api.example.com
+    - blocked.example.com
+  deny:
+    - blocked.example.com
+  proxy:
+    socks5: disabled
+    allow_upstream_proxy: true

@@ -7,7 +7,5 @@ initialized: true
 yaml: "sandbox: {network: invalid, network: restricted}"
 initialized: true
 ---
-yaml: >-
-  sandbox: {network: {proxy: {domains: {allow: [example.com], allow:
-  []}}}}
+yaml: "sandbox: {network: {allow: [example.com], allow: []}}"
 initialized: true

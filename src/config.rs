@@ -17,13 +17,13 @@ pub struct Loaded {
 /// Assignments within each CLI layer retain their argument order.
 /// Absence is distinct from an explicitly supplied empty configuration.
 /// Relative source paths use the captured launch directory.
-/// Explicitly selected files are required; discovered files may be absent.
+/// Explicitly selected files in `required` must exist; other files may be absent.
 pub fn load(
     directory: &Path,
     paths: &[PathBuf],
     defaults: &[String],
     overrides: &[String],
-    required: bool,
+    required: &[PathBuf],
 ) -> Result<Loaded, String> {
     let mut value = None;
     apply_values(&mut value, defaults, "default")?;
@@ -36,7 +36,7 @@ pub fn load(
         let absolute = directory.join(expanded);
         match std::fs::symlink_metadata(&absolute) {
             Err(error)
-                if !required
+                if !required.contains(path)
                     && matches!(
                         error.kind(),
                         std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
@@ -173,11 +173,11 @@ mod tests {
     fn absent_and_empty_sources_remain_distinct() {
         let directory = tempfile::tempdir().unwrap();
         let paths = [PathBuf::from("global.yaml"), PathBuf::from("project.yaml")];
-        let absent = load(directory.path(), &paths, &[], &[], false).unwrap();
+        let absent = load(directory.path(), &paths, &[], &[], &[]).unwrap();
         assert_eq!(absent.value, None);
         assert!(absent.paths.is_empty());
         std::fs::write(directory.path().join(&paths[0]), "{}").unwrap();
-        let empty = load(directory.path(), &paths, &[], &[], false).unwrap();
+        let empty = load(directory.path(), &paths, &[], &[], &[]).unwrap();
         assert_eq!(empty.value, Some(json!({})));
         assert_eq!(empty.paths, paths[..1]);
     }
@@ -204,7 +204,7 @@ reset: null
 "#,
         )
         .unwrap();
-        let layered = load(directory.path(), &paths, &[], &[], false).unwrap();
+        let layered = load(directory.path(), &paths, &[], &[], &[]).unwrap();
         assert_eq!(layered.paths, paths);
         assert_eq!(
             layered.value,
@@ -220,14 +220,14 @@ reset: null
             "environment.CHANGE=last",
         ]
         .map(String::from);
-        let overridden = load(directory.path(), &paths, &[], &arguments, false).unwrap();
+        let overridden = load(directory.path(), &paths, &[], &arguments, &[]).unwrap();
         let mut expected = layered.value.unwrap();
         expected["environment"]["CHANGE"] = json!("last");
         expected["reset"] = json!({"new": true});
         assert_eq!(overridden.value, Some(expected));
         std::fs::write(directory.path().join(&paths[1]), "{}").unwrap();
-        let empty_project = load(directory.path(), &paths, &[], &[], false).unwrap();
-        let global_only = load(directory.path(), &paths[..1], &[], &[], false).unwrap();
+        let empty_project = load(directory.path(), &paths, &[], &[], &[]).unwrap();
+        let global_only = load(directory.path(), &paths[..1], &[], &[], &[]).unwrap();
         assert_eq!(empty_project.value, global_only.value);
     }
 
@@ -238,7 +238,7 @@ reset: null
         std::fs::write(directory.path().join(&paths[1]), "{}").unwrap();
         for source in ["sandbox: [", "[]", "null", "---\n{}\n---\n{}", ""] {
             std::fs::write(directory.path().join(&paths[0]), source).unwrap();
-            let error = load(directory.path(), &paths, &[], &["sandbox={}".into()], false)
+            let error = load(directory.path(), &paths, &[], &["sandbox={}".into()], &[])
                 .err()
                 .unwrap();
             assert!(error.contains("global.yaml"), "{error}");
@@ -251,16 +251,10 @@ reset: null
         let path = PathBuf::from("config.yaml");
         std::fs::create_dir(directory.path().join(&path)).unwrap();
         assert!(
-            load(
-                directory.path(),
-                std::slice::from_ref(&path),
-                &[],
-                &[],
-                false
-            )
-            .err()
-            .unwrap()
-            .contains("must be a regular file")
+            load(directory.path(), std::slice::from_ref(&path), &[], &[], &[])
+                .err()
+                .unwrap()
+                .contains("must be a regular file")
         );
         std::fs::remove_dir(directory.path().join(&path)).unwrap();
         std::fs::write(directory.path().join(&path), "{}").unwrap();
@@ -269,7 +263,7 @@ reset: null
             &[directory.path().join(&path), path],
             &[],
             &[],
-            false,
+            &[],
         )
         .unwrap();
         assert_eq!(loaded.paths.len(), 1);
@@ -290,12 +284,12 @@ reset: null
             &[global.clone(), project.clone()],
             &[],
             &[],
-            false,
+            &[],
         )
         .unwrap();
         assert_eq!(loaded.paths.as_slice(), std::slice::from_ref(&global));
         std::fs::remove_file(&target).unwrap();
-        let error = load(directory.path(), &[project], &[], &[], false)
+        let error = load(directory.path(), &[project], &[], &[], &[])
             .err()
             .unwrap();
         assert!(
@@ -305,7 +299,7 @@ reset: null
         let target_c = std::ffi::CString::new(target.as_os_str().as_encoded_bytes()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(target_c.as_ptr(), 0o600) }, 0);
         for path in [global, PathBuf::from("/dev/null")] {
-            let error = load(directory.path(), &[path], &[], &[], false)
+            let error = load(directory.path(), &[path], &[], &[], &[])
                 .err()
                 .unwrap();
             assert!(error.contains("must be a regular file"), "{error}");

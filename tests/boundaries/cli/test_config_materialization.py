@@ -38,6 +38,113 @@ def resolve(
     )
 
 
+def test_network_destination_rules_are_direct_fields(binary: Path) -> Transcript:
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        selected = root / "selected.json"
+        for scope in ("sandbox", "resolver.sandbox"):
+            for network in (
+                {},
+                {"allow": []},
+                {"deny": ["pypi.org"]},
+                {
+                    "allow": ["api.example.com", "blocked.example.com"],
+                    "deny": ["blocked.example.com"],
+                    "proxy": {"socks5": "disabled", "allow_upstream_proxy": True},
+                },
+            ):
+                result = resolve(
+                    binary,
+                    root,
+                    "--no-config",
+                    "--full",
+                    "--format",
+                    "json",
+                    "-c",
+                    f"{scope}.network=" + json.dumps(network),
+                )
+                assert result.returncode == 0 and not result.stderr, result
+                settings = json.loads(result.stdout)
+                policy = (
+                    settings["sandbox"]
+                    if scope == "sandbox"
+                    else settings["resolver"]["sandbox"]
+                )
+                actual = policy["network"]
+                assert "domains" not in actual["proxy"], actual
+                if "allow" in network or "deny" in network:
+                    denied = network.get("deny", [])
+                    allowed = sorted(set(network.get("allow", [])) - set(denied))
+                    assert actual["allow"] == allowed, actual
+                    assert actual["deny"] == denied, actual
+                elif scope == "resolver.sandbox":
+                    assert "pypi.org" in actual["allow"] and not actual["deny"], actual
+                else:
+                    assert actual["allow"] == actual["deny"] == [], actual
+                if "proxy" in network:
+                    assert actual["proxy"] == {"mode": "full", **network["proxy"]}, (
+                        actual
+                    )
+                compact = resolve(
+                    binary,
+                    root,
+                    "--no-config",
+                    "--format",
+                    "json",
+                    "-c",
+                    f"{scope}.network=" + json.dumps(network),
+                )
+                assert compact.returncode == 0 and not compact.stderr, compact
+                for exported in (result, compact):
+                    selected.write_text(exported.stdout, encoding="utf-8")
+                    again = resolve(
+                        binary,
+                        root,
+                        "--config-file",
+                        str(selected),
+                        "--full",
+                        "--format",
+                        "json",
+                    )
+                    assert again.returncode == 0 and not again.stderr, again
+                    assert json.loads(again.stdout) == settings, again
+                records.append({"scope": scope, "network": network})
+    return records
+
+
+def test_compact_resolver_rules_preserve_default_allowed_destinations(
+    binary: Path,
+) -> Transcript:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        defaults = resolve(binary, root, "--no-config", "--full", "--format", "json")
+        assert defaults.returncode == 0 and not defaults.stderr, defaults
+        allowed = json.loads(defaults.stdout)["resolver"]["sandbox"]["network"]["allow"]
+        network = {"allow": allowed, "deny": ["blocked.example.com"]}
+        selected = root / "selected.json"
+        selected.write_text(
+            json.dumps({"resolver": {"sandbox": {"network": network}}}),
+            encoding="utf-8",
+        )
+        full = resolve(
+            binary, root, "--config-file", str(selected), "--full", "--format", "json"
+        )
+        compact = resolve(
+            binary, root, "--config-file", str(selected), "--format", "json"
+        )
+        assert full.returncode == compact.returncode == 0, (full, compact)
+        assert not full.stderr and not compact.stderr, (full, compact)
+        actual = json.loads(compact.stdout)["resolver"]["sandbox"]["network"]
+        assert actual == network, actual
+        selected.write_text(compact.stdout, encoding="utf-8")
+        again = resolve(
+            binary, root, "--config-file", str(selected), "--full", "--format", "json"
+        )
+        assert again.returncode == 0 and again.stdout == full.stdout, again
+    return [{"network": network}]
+
+
 def test_cache_directory_round_trips_without_creating_storage(
     binary: Path,
 ) -> Transcript:

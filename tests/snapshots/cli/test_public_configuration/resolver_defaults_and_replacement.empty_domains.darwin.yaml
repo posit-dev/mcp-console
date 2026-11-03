@@ -6,9 +6,7 @@ languages:
 resolver:
   sandbox:
     network:
-      proxy:
-        domains:
-          allow: []
+      allow: []
 ---
 network: restricted
 proxy:

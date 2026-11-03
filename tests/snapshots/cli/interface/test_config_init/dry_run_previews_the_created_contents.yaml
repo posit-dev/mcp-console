@@ -37,15 +37,13 @@ preview: |
     ##   Note: R will not work without a writeable temporary directory.
     # tempdir: managed
 
-    ## Network options: restricted (default), enabled, or a proxy mapping.
+    ## Network options: restricted (default), enabled, or a mapping of destination rules.
     ## enabled allows network access.
     ## Use a proxy to allow selected hosts.
     ## Use hostnames, not URLs; quote wildcard patterns.
     ## Package downloads use separate permissions.
     # network:
-    #   proxy:
-    #     domains:
-    #       allow: [api.example.com, "*.example.org"]
+    #   allow: [api.example.com, "*.example.org"]
 
     ## Allow code to start local servers, e.g. http://localhost:8000,
     ## and use loopback network connections.
@@ -142,15 +140,13 @@ created: |
     ##   Note: R will not work without a writeable temporary directory.
     # tempdir: managed
 
-    ## Network options: restricted (default), enabled, or a proxy mapping.
+    ## Network options: restricted (default), enabled, or a mapping of destination rules.
     ## enabled allows network access.
     ## Use a proxy to allow selected hosts.
     ## Use hostnames, not URLs; quote wildcard patterns.
     ## Package downloads use separate permissions.
     # network:
-    #   proxy:
-    #     domains:
-    #       allow: [api.example.com, "*.example.org"]
+    #   allow: [api.example.com, "*.example.org"]
 
     ## Allow code to start local servers, e.g. http://localhost:8000,
     ## and use loopback network connections.

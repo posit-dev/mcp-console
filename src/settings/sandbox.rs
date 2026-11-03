@@ -209,7 +209,7 @@ impl<'de> Deserialize<'de> for Network {
         } else {
             if !value.is_object() {
                 return Err(D::Error::custom(
-                    "expected restricted, enabled, or a mapping containing proxy",
+                    "expected restricted, enabled, or a network mapping",
                 ));
             }
             serde_path_to_error::deserialize(value)
@@ -219,14 +219,17 @@ impl<'de> Deserialize<'de> for Network {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 struct ManagedNetwork {
+    #[serde(deserialize_with = "supplied")]
+    allow: Option<Vec<String>>,
+    #[serde(deserialize_with = "supplied")]
+    deny: Option<Vec<String>>,
     #[serde(deserialize_with = "mapping")]
     proxy: Proxy,
-    #[serde(default, deserialize_with = "mapping")]
+    #[serde(deserialize_with = "mapping")]
     sockets: Sockets,
-    #[serde(default)]
     allow_local_binding: LocalBinding,
 }
 
@@ -268,15 +271,17 @@ enum Socks {
 }
 
 enum Proxy {
-    Full {
-        domains: Option<Domains>,
-        upstream: bool,
-        socks: Socks,
-    },
-    Limited {
-        domains: Option<Domains>,
-        upstream: bool,
-    },
+    Full { upstream: bool, socks: Socks },
+    Limited { upstream: bool },
+}
+
+impl Default for Proxy {
+    fn default() -> Self {
+        Self::Full {
+            upstream: false,
+            socks: Socks::default(),
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for Proxy {
@@ -285,8 +290,6 @@ impl<'de> Deserialize<'de> for Proxy {
         #[serde(default, deny_unknown_fields)]
         struct Input {
             mode: Mode,
-            #[serde(deserialize_with = "supplied_mapping")]
-            domains: Option<Domains>,
             allow_upstream_proxy: bool,
             #[serde(deserialize_with = "supplied")]
             socks5: Option<Socks>,
@@ -294,7 +297,6 @@ impl<'de> Deserialize<'de> for Proxy {
         let input = Input::deserialize(deserializer)?;
         match input.mode {
             Mode::Full => Ok(Self::Full {
-                domains: input.domains,
                 upstream: input.allow_upstream_proxy,
                 socks: input.socks5.unwrap_or_default(),
             }),
@@ -305,19 +307,11 @@ impl<'de> Deserialize<'de> for Proxy {
                     ));
                 }
                 Ok(Self::Limited {
-                    domains: input.domains,
                     upstream: input.allow_upstream_proxy,
                 })
             }
         }
     }
-}
-
-#[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct Domains {
-    allow: Vec<String>,
-    deny: Vec<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -396,17 +390,8 @@ impl Sandbox {
             );
         }
         let network = self.network.or_else(|| {
-            (resolver && cfg!(any(unix, windows))).then(|| {
-                Network::Managed(ManagedNetwork {
-                    proxy: Proxy::Full {
-                        domains: None,
-                        upstream: false,
-                        socks: Socks::Tcp,
-                    },
-                    sockets: Sockets::default(),
-                    allow_local_binding: LocalBinding::Auto,
-                })
-            })
+            (resolver && cfg!(any(unix, windows)))
+                .then(|| Network::Managed(ManagedNetwork::default()))
         });
         match network {
             None | Some(Network::Direct(DirectNetwork::Restricted)) => {
@@ -429,15 +414,9 @@ impl Sandbox {
                         "{prefix}.network.allow_local_binding: false cannot be enforced with a Windows MXC managed proxy; use auto or true, or remove the proxy"
                     ));
                 }
-                let (mode, socks, domains, upstream) = match network.proxy {
-                    Proxy::Full {
-                        domains,
-                        upstream,
-                        socks,
-                    } => ("full", socks, domains, upstream),
-                    Proxy::Limited { domains, upstream } => {
-                        ("limited", Socks::Disabled, domains, upstream)
-                    }
+                let (mode, socks, upstream) = match network.proxy {
+                    Proxy::Full { upstream, socks } => ("full", socks, upstream),
+                    Proxy::Limited { upstream } => ("limited", Socks::Disabled, upstream),
                 };
                 if matches!(socks, Socks::TcpUdp) {
                     if cfg!(windows) {
@@ -453,11 +432,17 @@ impl Sandbox {
                     ));
                 }
                 let mut permissions = SandboxSettings::new();
-                if let Some(domains) = domains {
-                    for (hosts, access) in [(domains.allow, "allow"), (domains.deny, "deny")] {
+                // Either destination field selects an explicit ruleset. In
+                // particular, an empty list clears the resolver's generated
+                // download grants; omitting both retains that context default.
+                if network.allow.is_some() || network.deny.is_some() {
+                    for (hosts, access) in [
+                        (network.allow.unwrap_or_default(), "allow"),
+                        (network.deny.unwrap_or_default(), "deny"),
+                    ] {
                         for (index, host) in hosts.into_iter().enumerate() {
                             validate_domain(&host).map_err(|error| {
-                                format!("{prefix}.network.proxy.domains.{access}[{index}]: {error}")
+                                format!("{prefix}.network.{access}[{index}]: {error}")
                             })?;
                             // Native matching still owns normalization and deny precedence.
                             permissions.insert(host, access.into());

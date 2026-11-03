@@ -765,15 +765,11 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
                                     "read_write": ["uv-cache", "approved"],
                                 },
                                 "network": {
-                                    "proxy": {
-                                        "domains": {
-                                            "allow": [
-                                                "pypi.org",
-                                                "files.pythonhosted.org",
-                                                "127.0.0.1",
-                                            ]
-                                        }
-                                    }
+                                    "allow": [
+                                        "pypi.org",
+                                        "files.pythonhosted.org",
+                                        "127.0.0.1",
+                                    ]
                                 },
                             },
                         }

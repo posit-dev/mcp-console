@@ -341,14 +341,14 @@ def test_settings_override_the_starter_permissions(binary: Path) -> Transcript:
             (
                 "configured proxy and local binding",
                 (
-                    "sandbox.network.proxy.domains.allow=[api.example.com]",
+                    "sandbox.network.allow=[api.example.com]",
                     "sandbox.network.allow_local_binding=true",
                 ),
                 {
                     "sandbox": WORKSPACE_CONFIGURATION["sandbox"]
                     | {
                         "network": {
-                            "proxy": {"domains": {"allow": ["api.example.com"]}},
+                            "allow": ["api.example.com"],
                             "allow_local_binding": True,
                         }
                     }

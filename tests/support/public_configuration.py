@@ -12,26 +12,22 @@ CONFIGURATION_EXAMPLES = {
     "common": {
         "sandbox": {
             "filesystem": {"read_write": ["."]},
-            "network": {"proxy": {"domains": {"allow": ["api.example.com"]}}},
+            "network": {"allow": ["api.example.com"]},
         }
     },
     "limited": {
         "sandbox": {
             "network": {
-                "proxy": {
-                    "mode": "limited",
-                    "domains": {
-                        "allow": ["*.example.org", "**.example.net"],
-                        "deny": ["blocked.example.org"],
-                    },
-                }
+                "allow": ["*.example.org", "**.example.net"],
+                "deny": ["blocked.example.org"],
+                "proxy": {"mode": "limited"},
             }
         }
     },
     "empty": {
         "sandbox": {
             "filesystem": {},
-            "network": {"proxy": {}, "sockets": {"unix_sockets": []}},
+            "network": {"sockets": {"unix_sockets": []}},
         }
     },
     "enabled": {"sandbox": {"network": "enabled"}},
@@ -72,7 +68,6 @@ INVALID_CONFIGURATIONS = [
     ("sandbox.tempdir", "unmanaged"),
     ("sandbox.network", "full"),
     ("sandbox.network", True),
-    ("sandbox.network", {}),
     ("sandbox", []),
     ("sandbox.filesystem", []),
     ("resolver", []),
@@ -84,16 +79,20 @@ INVALID_CONFIGURATIONS = [
     ("sandbox.network.proxy.enableSocks5", True),
     ("sandbox.network.proxy.enable_socks5", True),
     ("sandbox.network.proxy.domains", {"example.org": "allow"}),
-    ("sandbox.network.proxy.domains.allow", ["example.org:443"]),
-    ("sandbox.network.proxy.domains.allow", ["[::1]:443"]),
-    ("sandbox.network.proxy.domains.allow", ["fe80::1%eth0:443"]),
-    ("sandbox.network.proxy.domains.allow", ["[fe80::1%eth0:443]"]),
-    ("sandbox.network.proxy.domains.allow", ["127.0.0.1%x:443"]),
-    ("sandbox.network.proxy.domains.allow", ["127.0.0.1%eth0"]),
-    ("sandbox.network.proxy.domains.allow", ["fe80::1%"]),
-    ("sandbox.network.proxy.domains.allow", ["fe80::1%eth0%other"]),
-    ("sandbox.network.proxy.domains.allow", ["fe80::1%eth 0"]),
-    ("sandbox.network.proxy.domains.allow", ["[example.org]suffix"]),
+    ("sandbox.network.allow", "example.org"),
+    ("sandbox.network.allow", None),
+    ("sandbox.network.deny", {"example.org": True}),
+    ("sandbox.network.deny", None),
+    ("sandbox.network.allow", ["example.org:443"]),
+    ("sandbox.network.allow", ["[::1]:443"]),
+    ("sandbox.network.allow", ["fe80::1%eth0:443"]),
+    ("sandbox.network.allow", ["[fe80::1%eth0:443]"]),
+    ("sandbox.network.allow", ["127.0.0.1%x:443"]),
+    ("sandbox.network.allow", ["127.0.0.1%eth0"]),
+    ("sandbox.network.allow", ["fe80::1%"]),
+    ("sandbox.network.allow", ["fe80::1%eth0%other"]),
+    ("sandbox.network.allow", ["fe80::1%eth 0"]),
+    ("sandbox.network.allow", ["[example.org]suffix"]),
     ("sandbox.network.sockets.unix_sockets", True),
     ("sandbox.network.sockets.unix_sockets", "all"),
     ("sandbox.network.sockets.unix_sockets", "*"),

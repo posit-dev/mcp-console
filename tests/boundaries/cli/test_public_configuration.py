@@ -233,9 +233,7 @@ def test_resolver_defaults_and_replacement(binary: Path) -> TranscriptWithCompan
         "mapping_to_enabled": {"sandbox": {"network": {"proxy": {}}}},
         "mapping_to_restricted": {"sandbox": {"network": {"proxy": {}}}},
         "scalar_to_limited": {"sandbox": {"network": "enabled"}},
-        "empty_domains": {
-            "sandbox": {"network": {"proxy": {"domains": {"allow": []}}}}
-        },
+        "empty_domains": {"sandbox": {"network": {"allow": []}}},
         "read_only_filesystem": {"sandbox": {"filesystem": {"read_only": ["/"]}}},
         "empty_filesystem": {"sandbox": {"filesystem": {}}},
     }
@@ -504,7 +502,7 @@ def test_native_domain_literals(binary: Path) -> Transcript:
                 binary,
                 "sandbox",
                 "-c",
-                "sandbox.network.proxy.domains.allow=" + json.dumps(hosts),
+                "sandbox.network.allow=" + json.dumps(hosts),
                 "--",
                 sys.executable,
                 "-c",
@@ -526,7 +524,7 @@ def test_native_domain_character_classes_are_rejected(binary: Path) -> Transcrip
                 binary,
                 "sandbox",
                 "-c",
-                'sandbox.network.proxy.domains.allow=["api[0-9].example.org"]',
+                'sandbox.network.allow=["api[0-9].example.org"]',
                 "--",
                 sys.executable,
                 "-c",

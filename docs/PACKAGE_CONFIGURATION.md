@@ -237,13 +237,11 @@ resolver:
     PKG_CRAN_MIRROR: https://packages.example.org/cran/latest
   sandbox:
     network:
-      proxy:
-        domains:
-          allow: [packages.example.org, artifacts.example.org]
+      allow: [packages.example.org, artifacts.example.org]
 ```
 
 Include every host serving artifacts and redirects, plus other package sources needed by the session.
-An explicit `domains` mapping replaces the **generated** default allowlist; `{}` allows no destinations.
+An explicit `allow` or `deny` list replaces the **generated** default destination rules; `allow: []` allows no destinations.
 Ordinary file/CLI mapping merges still apply before defaults are generated.
 
 `resolver.sandbox` uses the [public sandbox schema](SANDBOX_CONFIGURATION.md).
@@ -333,31 +331,30 @@ Omit the filesystem mapping to retain generated cache and temporary-storage perm
 resolver:
   sandbox:
     network:
+      allow:
+        - pypi.org
+        - files.pythonhosted.org
+        - astral.sh
+        - releases.astral.sh
+        - github.com
+        - api.github.com
+        - codeload.github.com
+        - raw.githubusercontent.com
+        - objects.githubusercontent.com
+        - release-assets.githubusercontent.com
+        - r-lib.github.io
+        - packagemanager.posit.co
+        - rspm-sync.rstudio.com
+        - bioconductor.posit.co
+        - bioconductor.org
+        - cran.r-project.org
+        - cloud.r-project.org
+        - cran.rstudio.com
+        - extensions.duckdb.org
       proxy:
         mode: full
         socks5: tcp
         allow_upstream_proxy: false
-        domains:
-          allow:
-            - pypi.org
-            - files.pythonhosted.org
-            - astral.sh
-            - releases.astral.sh
-            - github.com
-            - api.github.com
-            - codeload.github.com
-            - raw.githubusercontent.com
-            - objects.githubusercontent.com
-            - release-assets.githubusercontent.com
-            - r-lib.github.io
-            - packagemanager.posit.co
-            - rspm-sync.rstudio.com
-            - bioconductor.posit.co
-            - bioconductor.org
-            - cran.r-project.org
-            - cloud.r-project.org
-            - cran.rstudio.com
-            - extensions.duckdb.org
       sockets:
         unix_sockets: []
       allow_local_binding: true

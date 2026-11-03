@@ -29,8 +29,6 @@ configuration:
   sandbox:
     profile: workspace
     network:
-      proxy:
-        domains:
-          allow:
-            - api.example.com
+      allow:
+        - api.example.com
       allow_local_binding: true

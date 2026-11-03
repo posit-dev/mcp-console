@@ -192,7 +192,7 @@ pub(crate) struct Sessions {
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct R {
     // Workers receive the accepted installation; only the controller selects a launcher.
-    #[serde(deserialize_with = "sandbox::supplied", skip_serializing)]
+    #[serde(skip_serializing)]
     pub executable: Option<PathBuf>,
     #[serde(deserialize_with = "sandbox::supplied", skip_serializing)]
     pub packages: Option<Vec<String>>,
@@ -246,6 +246,7 @@ fn environment<'de, D: serde::Deserializer<'de>>(
 pub(crate) struct Captured {
     pub profile: Option<ProfileSelection>,
     pub network_explicit: bool,
+    pub preserve_tool_overrides: bool,
     pub tool: Tool,
     pub sessions: Sessions,
     pub startup: Option<startup::Startup>,
@@ -272,6 +273,13 @@ pub fn discover(
 struct AdapterOverrides {
     files: Vec<PathBuf>,
     values: Vec<String>,
+    // A subset of files, using the same selected paths before native expansion.
+    #[serde(default)]
+    required_files: Vec<PathBuf>,
+    // Editable adapter configuration keeps authored tool settings distinct from
+    // presentation generated for the current configuration.
+    #[serde(default)]
+    preserve_tool_overrides: bool,
 }
 
 pub(crate) fn read(
@@ -289,9 +297,20 @@ pub(crate) fn read(
     } else {
         AdapterOverrides::default()
     };
+    if let Some(path) = adapter
+        .required_files
+        .iter()
+        .find(|path| !adapter.files.contains(path))
+    {
+        return Err(format!(
+            "required adapter configuration '{}' must be included in files",
+            path.display()
+        ));
+    }
     let mut values = adapter.values;
     values.extend(overrides.values.iter().cloned());
     let mut paths = adapter.files;
+    let mut required_files = adapter.required_files;
     if !paths.is_empty() && (!overrides.no_config || overrides.config_file.is_some()) {
         return Err("adapter configuration files require --no-config".into());
     }
@@ -302,6 +321,7 @@ pub(crate) fn read(
             return Err("--config-file cannot be combined with --no-config, --no-global-config, or --no-project-config".into());
         }
         paths.push(path.clone());
+        required_files.push(path.clone());
     } else if !overrides.no_config {
         if !overrides.no_global_config
             && let Some(home) = crate::console_paths::home_console_directory()?
@@ -317,7 +337,7 @@ pub(crate) fn read(
         &paths,
         &overrides.default_values,
         &values,
-        overrides.config_file.is_some(),
+        &required_files,
     )?;
     let files = paths
         .iter()
@@ -331,7 +351,9 @@ pub(crate) fn read(
         (_, true) => format!("configuration from {files}"),
         (_, false) => format!("configuration from {files} with CLI overrides"),
     };
-    capture(directory, value, name)
+    let (mut captured, value) = capture(directory, value, name)?;
+    captured.preserve_tool_overrides = adapter.preserve_tool_overrides;
+    Ok((captured, value))
 }
 
 pub fn from_configuration_environment(
@@ -490,6 +512,7 @@ fn capture(
         Captured {
             profile,
             network_explicit,
+            preserve_tool_overrides: false,
             tool: project.tool,
             sessions: project.sessions,
             r: project.r,

@@ -224,7 +224,7 @@ class WindowsMxc(unittest.TestCase):
                         "sandbox",
                         "--no-config",
                         "-c",
-                        "sandbox.network={proxy: {domains: {allow: [127.0.0.1,permitted.invalid], deny: [localhost]}}}",
+                        "sandbox.network={allow: [127.0.0.1,permitted.invalid], deny: [localhost]}",
                         "--",
                         sys.executable,
                         "-c",

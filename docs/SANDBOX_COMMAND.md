@@ -66,7 +66,7 @@ Create writable directories before launch, and repeat `--writable-root` to grant
 To let a program contact selected destinations through Console's proxy:
 
 ```sh
-mcp-console sandbox -c 'sandbox.network.proxy.domains.allow=[example.com]' -- curl https://example.com
+mcp-console sandbox -c 'sandbox.network.allow=[example.com]' -- curl https://example.com
 ```
 
 The program must use the proxy settings Console supplies; `curl` supports them.

@@ -74,14 +74,13 @@ stderr: ""
 configuration:
   sandbox:
     network:
+      allow:
+        - "*.example.com"
+      deny:
+        - blocked.example.com
       proxy:
         mode: limited
         allow_upstream_proxy: true
-        domains:
-          allow:
-            - "*.example.com"
-          deny:
-            - blocked.example.com
       allow_local_binding: true
 command:
   - mcp-console

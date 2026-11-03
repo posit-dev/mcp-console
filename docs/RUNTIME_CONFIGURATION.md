@@ -137,11 +137,11 @@ r:
   vanilla: true
 ```
 
-| Setting        | Accepted values                     | Meaning and default                                                                                                                |
-| -------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `r`            | Executable path, mapping, or `null` | Select an installation and its package/startup settings. Omission or `null` uses normal R discovery and defaults.                  |
-| `r.executable` | Nonempty path string                | Installed R executable or ordinary launcher. Omission uses installation hints and `PATH` discovery.                                |
-| `r.vanilla`    | `true` or `false`                   | Request R's native `--vanilla` startup. Default: `false`, retaining normal environment files, profiles, and workspace restoration. |
+| Setting        | Accepted values                     | Meaning and default                                                                                                                     |
+| -------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `r`            | Executable path, mapping, or `null` | Select an installation and its package/startup settings. Omission or `null` uses normal R discovery and defaults.                       |
+| `r.executable` | Nonempty path string or `null`      | Installed R executable or ordinary launcher. Omission uses installation hints and `PATH` discovery; `null` clears an earlier selection. |
+| `r.vanilla`    | `true` or `false`                   | Request R's native `--vanilla` startup. Default: `false`, retaining normal environment files, profiles, and workspace restoration.      |
 
 For `r.packages` and `r.resolution`, see [Package settings](PACKAGE_CONFIGURATION.md).
 

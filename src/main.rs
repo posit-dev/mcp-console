@@ -259,6 +259,7 @@ fn run_server(
     let settings::Captured {
         profile,
         network_explicit,
+        preserve_tool_overrides: _,
         tool,
         sessions,
         startup,

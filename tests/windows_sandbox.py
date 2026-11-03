@@ -1049,7 +1049,7 @@ class WindowsSandbox(unittest.TestCase):
                     resolver = settings["resolver"]["sandbox"]["network"]
                     self.assertTrue(resolver["allow_local_binding"])
                     self.assertEqual(resolver["proxy"]["mode"], "full")
-                    self.assertIn("pypi.org", resolver["proxy"]["domains"]["allow"])
+                    self.assertIn("pypi.org", resolver["allow"])
                     config = root / "resolved.json"
                     config.write_text(result.stdout, encoding="utf-8")
                     again = subprocess.run(

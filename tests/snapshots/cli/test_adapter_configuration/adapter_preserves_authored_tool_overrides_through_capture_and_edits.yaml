@@ -1,0 +1,20 @@
+---
+tool: absent
+authorship_preserved: true
+language_edit: r
+---
+tool: empty
+authorship_preserved: true
+language_edit: r
+---
+tool: deferred
+authorship_preserved: true
+language_edit: r
+---
+tool: blank
+authorship_preserved: true
+language_edit: r
+---
+tool: authored
+authorship_preserved: true
+language_edit: r
