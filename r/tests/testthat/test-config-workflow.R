@@ -1,80 +1,4 @@
-test_that("discovery exposes source paths, layers once, and returns an ordinary config", {
-  with_sandbox_directory({
-    binary <- sandbox_test_binary()
-    project <- file.path(getwd(), "job")
-    dir.create(file.path(project, ".agents/console"), recursive = TRUE)
-    dir.create(Sys.getenv("MCP_CONSOLE_HOME"))
-    global <- file.path(Sys.getenv("MCP_CONSOLE_HOME"), "config.yaml")
-    writeLines("environment: {GLOBAL: global, LAYER: global}", global)
-    writeLines(
-      c("languages: [r]", "environment: {LAYER: project}"),
-      file.path(project, ".agents/console/config.yaml")
-    )
-
-    config <- discover_console_config(path = binary, project = project)
-    expect_identical(S7::S7_class(config), ConsoleConfig)
-    expect_null(config@discovery)
-    expect_identical(
-      config@environment,
-      c(GLOBAL = "global", LAYER = "project")
-    )
-    expect_identical(config@languages, "r")
-    expect_true(nzchar(config@tool@description))
-
-    writeLines("invalid: [", global)
-    writeLines("invalid: [", file.path(project, ".agents/console/config.yaml"))
-    expect_identical(
-      as.list(materialize_console_config(
-        config,
-        path = binary,
-        project = project
-      )),
-      as.list(config)
-    )
-    expect_error(
-      discover_console_config(path = binary, project = project),
-      "config.yaml"
-    )
-
-    writeLines(
-      '{"environment":{"LAYER":"selected"}}',
-      file.path(project, "global.json")
-    )
-    selected <- discover_console_config(
-      global_file = "global.json",
-      project_file = "absent.yaml",
-      path = binary,
-      project = project
-    )
-    expect_identical(selected@environment, c(LAYER = "selected"))
-    defaults <- discover_console_config(
-      global_file = NULL,
-      project_file = NULL,
-      path = binary,
-      project = project
-    )
-    expect_identical(defaults@environment, setNames(character(), character()))
-    expect_identical(
-      defaults@tool@description,
-      materialize_console_config(
-        path = binary,
-        project = project
-      )@tool@description
-    )
-    dir.create(file.path(project, "directory.yaml"))
-    expect_error(
-      discover_console_config(
-        global_file = NULL,
-        project_file = "directory.yaml",
-        path = binary,
-        project = project
-      ),
-      "regular file"
-    )
-  })
-})
-
-test_that("home-relative filenames and permissions share native expansion", {
+test_that("loading expands home paths with the native home convention", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     home <- file.path(getwd(), "home")
@@ -96,7 +20,7 @@ test_that("home-relative filenames and permissions share native expansion", {
       "sandbox: {filesystem: {deny: [~/private]}}",
       file.path(home, "project.yaml")
     )
-    config <- discover_console_config(
+    config <- load_console_config(
       global_file = "~/global.yaml",
       project_file = "~/project.yaml",
       path = binary
@@ -106,96 +30,14 @@ test_that("home-relative filenames and permissions share native expansion", {
       gsub("\\\\", "/", config@sandbox@filesystem@deny),
       gsub("\\\\", "/", file.path(home, "private"))
     )
-    selected <- read_console_config("~/project.yaml", path = binary)
-    expect_identical(
-      selected@sandbox@filesystem@deny,
-      config@sandbox@filesystem@deny
-    )
     Sys.setenv(MCP_CONSOLE_HOME = "~/console")
     dir.create(file.path(home, "console"))
     writeLines("languages: [python]", file.path(home, "console/config.yaml"))
-    expect_identical(discover_console_config(path = binary)@languages, "python")
+    expect_identical(load_console_config(path = binary)@languages, "python")
   })
 })
 
-test_that("materializing and pruning retain edits and explicit empty values", {
-  with_sandbox_directory({
-    binary <- sandbox_test_binary()
-    config <- ConsoleConfig(
-      languages = "r",
-      inherit_environment = FALSE,
-      r = RConfig(packages = character(), resolution = "disabled"),
-      tool = ToolConfig(
-        description = "",
-        parameters = list(
-          timeout_ms = ToolParameterConfig(enabled = FALSE)
-        )
-      )
-    )
-    full <- materialize_console_config(config, path = binary)
-    compact <- prune_console_config(full, path = binary)
-    expect_identical(S7::S7_class(compact), ConsoleConfig)
-    expect_identical(compact@tool@description, "")
-    expect_false(compact@tool@parameters$timeout_ms@enabled)
-    expect_identical(compact@r@packages, character())
-    expect_false(compact@inherit_environment)
-    expect_null(compact@r@vanilla)
-    expect_identical(
-      as.list(materialize_console_config(compact, path = binary)),
-      as.list(full)
-    )
-    expect_identical(
-      as.list(prune_console_config(path = binary)),
-      jsonlite::fromJSON("{}")
-    )
-
-    full@sandbox@filesystem <- SandboxFilesystem(read_write = "./output")
-    full@sandbox@filesystem@read_write <- c(
-      full@sandbox@filesystem@read_write,
-      "./reports"
-    )
-    full@sandbox@network <- "enabled"
-    compact <- prune_console_config(full, path = binary)
-    expect_identical(
-      compact@sandbox@filesystem@read_write,
-      c("./output", "./reports")
-    )
-    expect_identical(compact@sandbox@network, "enabled")
-    expect_match(
-      paste(capture.output(print(compact)), collapse = "\n"),
-      "./reports",
-      fixed = TRUE
-    )
-  })
-})
-
-test_that("materializing and pruning retain managed proxy edits", {
-  with_sandbox_directory({
-    binary <- sandbox_test_binary()
-    full <- materialize_console_config(path = binary)
-    full@sandbox@network <- SandboxNetwork(
-      proxy = SandboxProxy(
-        domains = SandboxDomains(allow = "api.example.com")
-      )
-    )
-    full@sandbox@network@proxy@domains@allow <- c(
-      full@sandbox@network@proxy@domains@allow,
-      "mail.example.com"
-    )
-    compact <- prune_console_config(full, path = binary)
-    expect_identical(
-      compact@sandbox@network@proxy@domains@allow,
-      c("api.example.com", "mail.example.com")
-    )
-    expect_match(
-      paste(capture.output(print(compact)), collapse = "\n"),
-      "mail.example.com",
-      fixed = TRUE
-    )
-  })
-})
-
-test_that("selected JSON and YAML files are required and bypass discovery", {
+test_that("loading one selected JSON or YAML file bypasses unselected files", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     dir.create(".agents/console", recursive = TRUE)
@@ -204,34 +46,136 @@ test_that("selected JSON and YAML files are required and bypass discovery", {
       '{"languages":["r"],"tool":{"description":"Report tool"}}',
       "job.json"
     )
-    config <- read_console_config("job.json", path = binary)
+    config <- load_console_config(
+      global_file = NULL,
+      project_file = "job.json",
+      path = binary
+    )
     expect_identical(config@languages, "r")
     expect_identical(config@tool@description, "Report tool")
-    expect_null(config@discovery)
-    compact <- prune_console_config(config, path = binary)
     writeLines(
-      as.character(jsonlite::toJSON(as.list(compact), auto_unbox = TRUE)),
+      as.character(jsonlite::toJSON(as.list(config), auto_unbox = TRUE)),
       "roundtrip.json"
     )
     expect_identical(
-      as.list(read_console_config("roundtrip.json", path = binary)),
+      as.list(load_console_config(
+        global_file = NULL,
+        project_file = "roundtrip.json",
+        path = binary
+      )),
       as.list(config)
     )
     writeLines("tool: {description: Report tool}\nlanguages: [r]", "job.yaml")
     expect_identical(
-      as.list(read_console_config("job.yaml", path = binary)),
+      as.list(load_console_config(
+        global_file = NULL,
+        project_file = "job.yaml",
+        path = binary
+      )),
       as.list(config)
     )
-    expect_error(
-      read_console_config("absent.json", path = binary),
-      "absent.json"
-    )
     writeLines('{"typo":true}', "invalid.json")
-    expect_error(read_console_config("invalid.json", path = binary), "typo")
+    expect_error(
+      load_console_config(
+        global_file = NULL,
+        project_file = "invalid.json",
+        path = binary
+      ),
+      "typo"
+    )
+    dir.create("directory.yaml")
+    expect_error(
+      load_console_config(
+        global_file = NULL,
+        project_file = "directory.yaml",
+        path = binary
+      ),
+      "regular file"
+    )
   })
 })
 
-test_that("tool discovery reads files once while explicit configs bypass them", {
+test_that("JSON export and reload retain explicit R executable resets", {
+  with_sandbox_directory({
+    binary <- sandbox_test_binary()
+    writeLines("r: {executable: /inherited/R}", "inherited.yaml")
+    for (reset in c("r: null", "r: {executable: null}")) {
+      writeLines(reset, "reset.yaml")
+      config <- load_console_config(
+        global_file = NULL,
+        project_file = "reset.yaml",
+        path = binary
+      )
+      expect_null(config@r@executable)
+      config@r@packages <- "cli"
+      jsonlite::write_json(as.list(config), "export.json", auto_unbox = TRUE)
+      reloaded <- load_console_config(
+        global_file = NULL,
+        project_file = "export.json",
+        path = binary
+      )
+      expect_null(reloaded@r@executable)
+      expect_identical(reloaded@r@packages, "cli")
+      expect_identical(as.list(reloaded), as.list(config))
+
+      for (reconstructed in list(
+        ConsoleConfig(as.list(config)),
+        do.call(ConsoleConfig, as.list(config))
+      )) {
+        reloaded <- load_console_config(
+          global_file = NULL,
+          project_file = "inherited.yaml",
+          overrides = reconstructed,
+          path = binary
+        )
+        expect_null(reloaded@r@executable)
+        expect_identical(as.list(reloaded), as.list(config))
+      }
+
+      config@r@executable <- sandbox_test_r()
+      jsonlite::write_json(as.list(config), "export.json", auto_unbox = TRUE)
+      reloaded <- load_console_config(
+        global_file = NULL,
+        project_file = "export.json",
+        path = binary
+      )
+      expect_identical(
+        normalizePath(reloaded@r@executable, mustWork = TRUE),
+        normalizePath(config@r@executable, mustWork = TRUE)
+      )
+
+      config@r <- NULL
+      jsonlite::write_json(as.list(config), "export.json", auto_unbox = TRUE)
+      reloaded <- load_console_config(
+        global_file = NULL,
+        project_file = "export.json",
+        path = binary
+      )
+      expect_null(reloaded@r@executable)
+    }
+
+    for (r in list(NULL, list(executable = NULL))) {
+      config <- ConsoleConfig(r = r)
+      expect_false("executable" %in% names(as.list(config)$r))
+      loaded <- load_console_config(
+        global_file = NULL,
+        project_file = NULL,
+        overrides = config,
+        path = binary
+      )
+      expect_identical(
+        normalizePath(loaded@r@executable, mustWork = TRUE),
+        normalizePath(sandbox_test_r(), mustWork = TRUE)
+      )
+    }
+    expect_error(
+      ConsoleConfig(r = list(executable = NA_character_)),
+      "executable"
+    )
+  })
+})
+
+test_that("default tool loading reads files while explicit configs bypass them", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     dir.create(".agents/console", recursive = TRUE)
@@ -251,8 +195,8 @@ test_that("tool discovery reads files once while explicit configs bypass them", 
     config <- ConsoleConfig(
       sandbox = FALSE,
       languages = "r",
-      r = RConfig(packages = character(), resolution = "disabled"),
-      tool = ToolConfig(description = "Explicit report tool")
+      r = list(packages = character(), resolution = "disabled"),
+      tool = list(description = "Explicit report tool")
     )
     send <- console_tools(path = binary, config = config)$send
     expect_identical(send@description, "Explicit report tool")

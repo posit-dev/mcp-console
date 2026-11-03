@@ -1,12 +1,13 @@
-# Minimal MCP transport fixture. Records launch flags and ordered override payloads.
+# Minimal MCP transport fixture. Records launch flags and public configuration.
 args <- commandArgs(TRUE)
 writeLines(args[-1L], args[[1L]])
-file <- match("--config-overrides-file", args)
+file <- match("--config-file", args)
 if (!is.na(file)) {
-  writeLines(
-    as.character(jsonlite::fromJSON(args[[file + 1L]])$values),
-    paste0(args[[1L]], ".overrides")
-  )
+  invisible(file.copy(
+    args[[file + 1L]],
+    paste0(args[[1L]], ".config.json"),
+    overwrite = TRUE
+  ))
 }
 writeLines(getwd(), paste0(args[[1L]], ".cwd"))
 input <- file("stdin", open = "r")

@@ -1,0 +1,10 @@
+---
+required: global.yaml
+exit_code: 1
+stderr: |
+  cannot inspect 'global.yaml': No such file or directory (os error 2)
+---
+required: project.yaml
+exit_code: 1
+stderr: |
+  cannot inspect 'project.yaml': No such file or directory (os error 2)

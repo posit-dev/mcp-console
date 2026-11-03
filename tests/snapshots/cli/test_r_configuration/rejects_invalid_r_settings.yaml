@@ -20,11 +20,6 @@ stderr: >
   configuration with CLI overrides: r: expected a mapping; see
   docs/CONFIGURATION.md for the public format
 ---
-setting: r.executable=null
-stderr: >
-  configuration with CLI overrides: r: executable: invalid type: null,
-  expected path string; see docs/CONFIGURATION.md for the public format
----
 setting: r.executable=1
 stderr: >
   configuration with CLI overrides: r: executable: invalid type: integer

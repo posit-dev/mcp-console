@@ -209,7 +209,7 @@ impl<'de> Deserialize<'de> for Network {
         } else {
             if !value.is_object() {
                 return Err(D::Error::custom(
-                    "expected restricted, enabled, or a mapping containing proxy",
+                    "expected enabled, restricted, a boolean, a destination pattern or list, a mapping containing proxy, or null",
                 ));
             }
             serde_path_to_error::deserialize(value)

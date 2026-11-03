@@ -48,11 +48,16 @@ Relative paths in Console use this directory without changing the calling R sess
 To supply settings directly, pass a `ConsoleConfig` object:
 
 ```r
-config <- ConsoleConfig(sandbox = SandboxPolicy(profile = "workspace"))
+config <- ConsoleConfig(sandbox = list(profile = "workspace"))
 tools <- console_tools(config = config, project = "/path/to/project")
 ```
 
 An explicit configuration skips file discovery.
+`ConsoleConfig()` accepts named fields or a parsed mapping, such as `ConsoleConfig(yaml12::read_yaml("config.yaml"))`.
+Use `load_console_config(global_file = ..., project_file = ..., overrides = ...)` to combine selected sources once before launch.
+The loader defaults to the global Console home and `project/.agents/console/config.yaml`; setting either file to `NULL` skips it.
+`MCP_CONSOLE_HOME` changes only the default global source.
+The calling R installation supplies the default executable, below file settings and explicit R overrides.
 Here the `workspace` profile allows ordinary project writes; network access is configured separately.
 [Configure a Console session](https://posit-dev.github.io/mcp-console/r/articles/configuration/) covers inspecting, editing, saving, and reusing settings.
 The [R API](https://posit-dev.github.io/mcp-console/r/reference/) documents the complete configuration interface.

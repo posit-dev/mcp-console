@@ -254,17 +254,21 @@ class WebsiteTests(unittest.TestCase):
                 )
                 self.assertIsNotNone(soup.select_one('[data-bs-theme-value="auto"]'))
 
-    def test_r_reference_aliases_use_local_directory_urls(self) -> None:
-        for alias, target in (
-            ("sandboxsockets", "sandboxpolicy"),
-            ("existingpython", "pythonconfig"),
-        ):
-            with self.subTest(alias=alias):
-                page = self.site / f"r/reference/{alias}/index.html"
-                soup = BeautifulSoup(page.read_text(), "html.parser")
-                redirect = soup.find("meta", attrs={"http-equiv": "refresh"})
-                self.assertEqual(redirect["content"], f"0;URL=../{target}/")
-                self.assertTrue(linked_file(page, f"../{target}/").is_file())
+    def test_r_reference_has_three_public_entry_points(self) -> None:
+        reference = self.site / "r/reference"
+        self.assertEqual(
+            {path.parent.name for path in reference.glob("*/index.html")},
+            {"consoleconfig", "load_console_config", "console_tools"},
+        )
+        page = reference / "index.html"
+        soup = BeautifulSoup(page.read_text(), "html.parser")
+        destinations = {
+            linked_file(page, link["href"])
+            for link in soup.select("main a[href]")
+            if not urlsplit(link["href"]).scheme
+        }
+        for name in ("consoleconfig", "load_console_config", "console_tools"):
+            self.assertIn(reference / name / "index.html", destinations)
 
     def test_r_report_vignette_is_discoverable(self) -> None:
         article = self.site / "r/articles/autonomous-report/index.html"

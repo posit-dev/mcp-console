@@ -1,0 +1,14 @@
+---
+selected_r: ~
+materialized_r:
+  vanilla: false
+  resolution: implicit
+---
+selected_r:
+  executable: ~
+  packages: []
+  resolution: disabled
+materialized_r:
+  vanilla: true
+  resolution: disabled
+  packages: []

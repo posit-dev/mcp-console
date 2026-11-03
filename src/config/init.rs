@@ -11,11 +11,11 @@ pub(crate) fn run(options: &ConfigInitOptions, overrides: &ConfigOverrides) -> R
     if overrides.no_config
         || overrides.no_global_config
         || overrides.no_project_config
-        || overrides.config_file.is_some()
-        || overrides.values_file.is_some()
+        || !overrides.config_file.is_empty()
+        || !overrides.optional_config_file.is_empty()
         || !overrides.default_values.is_empty()
     {
-        return Err("config init accepts -c/--config settings, not --default-config, --config-file, --no-config, --no-global-config, --no-project-config, or --config-overrides-file".into());
+        return Err("config init accepts -c/--config settings, not --default-config, --config-file, --optional-config-file, --no-config, --no-global-config, or --no-project-config".into());
     }
     if let Some(directory) = &options.directory {
         // No runtimes or background threads have started. Relative selectors

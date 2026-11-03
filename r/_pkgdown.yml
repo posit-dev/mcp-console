@@ -51,34 +51,7 @@ reference:
   - title: Use Console with ellmer
     contents:
     - console_tools
-  - title: Configure sessions
+  - title: Configure a session
     contents:
-    - config-workflow
     - ConsoleConfig
-    - SessionsConfig
-  - title: Runtime selection and dependency preparation
-    contents:
-    - RConfig
-    - current_r
-    - ExistingPython
-    - ManagedPython
-    - FirstAvailablePython
-    - StartupConfig
-    - ResolverConfig
-  - title: Permissions
-    contents:
-    - SandboxPolicy
-    - InheritCodexSandboxProfile
-    - SandboxFilesystem
-    - SandboxDomains
-    - SandboxProxy
-    - SandboxSockets
-    - SandboxNetwork
-  - title: Tool presentation
-    contents:
-    - ToolConfig
-    - ToolParameterConfig
-  - title: Configuration helpers
-    contents:
-    - resolve_console_config
-    - ConfigDiscovery
+    - load_console_config

@@ -39,7 +39,7 @@ See [installation requirements](https://posit-dev.github.io/mcp-console/clients/
 Pass an explicit configuration to select a project's existing Python environment:
 
 ```r
-config <- ConsoleConfig(python = ExistingPython(".venv"))
+config <- ConsoleConfig(python = ".venv")
 tools <- console_tools(config = config, project = "/path/to/project")
 ```
 
@@ -55,18 +55,38 @@ An explicitly supplied `ConsoleConfig()` skips file discovery; omitting `config`
 To allow project writes while protecting metadata paths:
 
 ```r
-config <- ConsoleConfig(sandbox = SandboxPolicy(profile = "workspace"))
+config <- ConsoleConfig(sandbox = list(profile = "workspace"))
 tools <- console_tools(config = config, project = "/path/to/project")
 ```
 
 Network permissions remain independent.
-Use `SandboxFilesystem(read_write = "./output")` for a narrower write grant and create that directory before launching.
-See [SandboxPolicy](https://posit-dev.github.io/mcp-console/r/reference/sandboxpolicy/) for temporary storage, path rules, and platform limits.
+Use `sandbox = list(filesystem = list(read_write = "./output"))` for a narrower write grant and create that directory before launching.
+Use `sandbox = list(network = "api.example.com")` to allow a hostname through the managed proxy.
+Use a character vector such as `network = c("api.example.com", "*.example.org")` for multiple allowed patterns.
+`network = TRUE` or `"enabled"` enables direct networking; `FALSE` or `"restricted"` restricts it.
+Those two scalar strings are reserved mode names; other strings select proxy destinations.
+For explicit allow and deny rules, use `network = list(proxy = list(domains = list(allow = "*.example.com", deny = "blocked.example.com")))`.
+YAML accepts the same boolean, string, and sequence forms.
+`network: null` omits that field when files merge, preserving an earlier network value; R `network = NULL` omits it from the constructed settings.
+See [sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/) for temporary storage, path rules, and platform limits.
 
 <span id="discover-configuration-once"></span> <span id="inspect-and-edit-configuration"></span> <span id="existing-callers"></span>
 
 [Configure a Console session](https://posit-dev.github.io/mcp-console/r/articles/configuration/) covers discovery, inspection, editing tool descriptions, saved settings, and launching a configured session.
-The [configuration workflow reference](https://posit-dev.github.io/mcp-console/r/reference/config-workflow/) documents exact signatures.
+The public configuration API has two constructors:
+
+```r
+config <- ConsoleConfig(r = list(packages = "dplyr"))
+config <- ConsoleConfig(yaml12::read_yaml("config.yaml"))
+config <- load_console_config(overrides = list(r = list(packages = "dplyr")))
+```
+
+`ConsoleConfig()` uses only the supplied R values.
+`load_console_config()` reads global and project settings once; set `global_file = NULL` or `project_file = NULL` to skip a source.
+Missing conventional files are skipped, while explicitly supplied filenames must exist.
+`MCP_CONSOLE_HOME` affects the default global path, not the project path.
+A supplied object never triggers further configuration discovery.
+The [loader reference](https://posit-dev.github.io/mcp-console/r/reference/load_console_config/) documents its arguments.
 
 ## Behavior and safety
 
@@ -96,7 +116,7 @@ The package reference documents the exact R signature.
 ## Give an agent an R session
 
 [Giving an agent an R session](https://posit-dev.github.io/mcp-console/r/articles/autonomous-report/) uses a scheduled report to walk through explicit settings, sandbox permissions, configuration inspection, and launching an ellmer chat.
-It uses `RConfig(executable = current_r())` to select the R installation running the script on every platform.
+Console uses the calling R installation by default; an explicit `r.executable` selects another installation.
 Open it from an installed package with:
 
 ```r

@@ -522,12 +522,11 @@ def test_invalid_settings_and_destinations_do_not_create_files(
             assert result.returncode == 1 and not result.stdout, result
             assert flag in result.stderr, result
             assert not (root / ".agents").exists()
-        result = invoke(
-            binary, root, root, "--config-file", str(file), "config", "init"
-        )
-        assert result.returncode == 1 and not result.stdout, result
-        assert "--config-file" in result.stderr, result
-        assert not (root / ".agents").exists()
+        for flag in ("--config-file", "--optional-config-file"):
+            result = invoke(binary, root, root, flag, str(file), "config", "init")
+            assert result.returncode == 1 and not result.stdout, result
+            assert flag in result.stderr, result
+            assert not (root / ".agents").exists()
         result = invoke(
             binary,
             root,

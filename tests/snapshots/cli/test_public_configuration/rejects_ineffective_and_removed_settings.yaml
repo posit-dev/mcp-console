@@ -42,15 +42,47 @@ stderr: >
 ---
 path: sandbox.network
 stderr: >
-  configuration with CLI overrides: sandbox: network: unknown variant
-  `full`, expected `restricted` or `enabled`; see docs/CONFIGURATION.md
-  for the public format
+  configuration with CLI overrides: sandbox: network: expected enabled,
+  restricted, a boolean, a destination pattern or list, a mapping
+  containing proxy, or null; see docs/CONFIGURATION.md for the public
+  format
 ---
 path: sandbox.network
 stderr: >
-  configuration with CLI overrides: sandbox: network: expected restricted,
-  enabled, or a mapping containing proxy; see docs/CONFIGURATION.md for
-  the public format
+  configuration with CLI overrides: sandbox: network: proxy: domains:
+  allow[0]: invalid type: boolean `true`, expected a string; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: domains:
+  allow[0]: invalid type: null, expected a string; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network
+stderr: >
+  configuration with CLI overrides: sandbox: network: proxy: domains:
+  allow[0]: invalid type: map, expected a string; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network
+stderr: >
+  configuration with CLI overrides:
+  sandbox.network.proxy.domains.allow[0]: expected a hostname pattern or
+  IP literal without a port; native rules do not restrict destination
+  ports or URL paths
+---
+path: sandbox.network.allow
+stderr: >
+  configuration with CLI overrides: sandbox: network: allow: unknown field
+  `allow`, expected one of `proxy`, `sockets`, `allow_local_binding`; see
+  docs/CONFIGURATION.md for the public format
+---
+path: sandbox.network.deny
+stderr: >
+  configuration with CLI overrides: sandbox: network: deny: unknown field
+  `deny`, expected one of `proxy`, `sockets`, `allow_local_binding`; see
+  docs/CONFIGURATION.md for the public format
 ---
 path: sandbox.network
 stderr: >

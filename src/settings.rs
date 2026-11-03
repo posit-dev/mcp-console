@@ -192,7 +192,7 @@ pub(crate) struct Sessions {
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct R {
     // Workers receive the accepted installation; only the controller selects a launcher.
-    #[serde(deserialize_with = "sandbox::supplied", skip_serializing)]
+    #[serde(skip_serializing)]
     pub executable: Option<PathBuf>,
     #[serde(deserialize_with = "sandbox::supplied", skip_serializing)]
     pub packages: Option<Vec<String>>,
@@ -246,6 +246,7 @@ fn environment<'de, D: serde::Deserializer<'de>>(
 pub(crate) struct Captured {
     pub profile: Option<ProfileSelection>,
     pub network_explicit: bool,
+    pub preserve_tool_overrides: bool,
     pub tool: Tool,
     pub sessions: Sessions,
     pub startup: Option<startup::Startup>,
@@ -267,41 +268,32 @@ pub fn discover(
     read(directory, overrides).map(|(captured, _)| captured)
 }
 
-#[derive(Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AdapterOverrides {
-    files: Vec<PathBuf>,
-    values: Vec<String>,
-}
-
 pub(crate) fn read(
     directory: &Path,
     overrides: &crate::cli::ConfigOverrides,
 ) -> Result<(Captured, Value), String> {
-    // The R adapter transports the same ordered overrides in a file so tool
-    // prose and valid startup programs are not bounded by process argv limits.
-    let adapter: AdapterOverrides = if let Some(path) = &overrides.values_file {
-        let source = std::fs::read(directory.join(path)).map_err(|error| {
-            format!("cannot read config overrides '{}': {error}", path.display())
-        })?;
-        serde_json::from_slice(&source)
-            .map_err(|error| format!("invalid config overrides '{}': {error}", path.display()))?
-    } else {
-        AdapterOverrides::default()
-    };
-    let mut values = adapter.values;
-    values.extend(overrides.values.iter().cloned());
-    let mut paths = adapter.files;
-    if !paths.is_empty() && (!overrides.no_config || overrides.config_file.is_some()) {
-        return Err("adapter configuration files require --no-config".into());
+    if let Some(path) = overrides
+        .optional_config_file
+        .iter()
+        .find(|path| !overrides.config_file.contains(path))
+    {
+        return Err(format!(
+            "--optional-config-file '{}' must also be selected with --config-file",
+            path.display()
+        ));
     }
+    let mut paths = overrides.config_file.clone();
+    let required_files: Vec<_> = paths
+        .iter()
+        .filter(|path| !overrides.optional_config_file.contains(path))
+        .cloned()
+        .collect();
     // Select sources before resolving or inspecting them. Explicit selection and
     // global exclusions must not resolve Console home for configuration discovery.
-    if let Some(path) = &overrides.config_file {
+    if !paths.is_empty() {
         if overrides.no_config || overrides.no_global_config || overrides.no_project_config {
             return Err("--config-file cannot be combined with --no-config, --no-global-config, or --no-project-config".into());
         }
-        paths.push(path.clone());
     } else if !overrides.no_config {
         if !overrides.no_global_config
             && let Some(home) = crate::console_paths::home_console_directory()?
@@ -316,15 +308,15 @@ pub(crate) fn read(
         directory,
         &paths,
         &overrides.default_values,
-        &values,
-        overrides.config_file.is_some(),
+        &overrides.values,
+        &required_files,
     )?;
     let files = paths
         .iter()
         .map(|path| path.display().to_string())
         .collect::<Vec<_>>()
         .join(", ");
-    let name = match (paths.len(), values.is_empty()) {
+    let name = match (paths.len(), overrides.values.is_empty()) {
         (0, true) => "configuration".into(),
         (0, false) => "configuration with CLI overrides".into(),
         (1, true) => files,
@@ -490,6 +482,7 @@ fn capture(
         Captured {
             profile,
             network_explicit,
+            preserve_tool_overrides: false,
             tool: project.tool,
             sessions: project.sessions,
             r: project.r,

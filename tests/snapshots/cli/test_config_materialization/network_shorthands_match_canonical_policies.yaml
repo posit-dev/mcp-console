@@ -1,0 +1,194 @@
+---
+scope: sandbox
+shorthand: true
+canonical: enabled
+sources:
+  - file
+  - default
+  - override
+---
+scope: sandbox
+shorthand: false
+canonical: restricted
+sources:
+  - file
+  - default
+  - override
+---
+scope: sandbox
+shorthand: enabled
+canonical: enabled
+sources:
+  - file
+  - default
+  - override
+---
+scope: sandbox
+shorthand: restricted
+canonical: restricted
+sources:
+  - file
+  - default
+  - override
+---
+scope: sandbox
+shorthand: api.example.com
+canonical:
+  proxy:
+    domains:
+      allow:
+        - api.example.com
+sources:
+  - file
+  - default
+  - override
+---
+scope: sandbox
+shorthand: full
+canonical:
+  proxy:
+    domains:
+      allow:
+        - full
+sources:
+  - file
+  - default
+  - override
+---
+scope: sandbox
+shorthand:
+  - api.example.com
+  - "*.example.org"
+canonical:
+  proxy:
+    domains:
+      allow:
+        - api.example.com
+        - "*.example.org"
+sources:
+  - file
+  - default
+  - override
+---
+scope: sandbox
+shorthand:
+  - enabled
+  - restricted
+canonical:
+  proxy:
+    domains:
+      allow:
+        - enabled
+        - restricted
+sources:
+  - file
+  - default
+  - override
+---
+scope: sandbox
+shorthand: []
+canonical:
+  proxy:
+    domains:
+      allow: []
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand: true
+canonical: enabled
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand: false
+canonical: restricted
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand: enabled
+canonical: enabled
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand: restricted
+canonical: restricted
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand: api.example.com
+canonical:
+  proxy:
+    domains:
+      allow:
+        - api.example.com
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand: full
+canonical:
+  proxy:
+    domains:
+      allow:
+        - full
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand:
+  - api.example.com
+  - "*.example.org"
+canonical:
+  proxy:
+    domains:
+      allow:
+        - api.example.com
+        - "*.example.org"
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand:
+  - enabled
+  - restricted
+canonical:
+  proxy:
+    domains:
+      allow:
+        - enabled
+        - restricted
+sources:
+  - file
+  - default
+  - override
+---
+scope: resolver.sandbox
+shorthand: []
+canonical:
+  proxy:
+    domains:
+      allow: []
+sources:
+  - file
+  - default
+  - override

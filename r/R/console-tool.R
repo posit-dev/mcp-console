@@ -34,12 +34,13 @@
 #' @param path `NULL`, or a path to an `mcp-console` executable.
 #' @param version `NULL`, or one published `mcp-console` version, such as
 #'   `"0.0.2"`.
-#' @param config A [ConsoleConfig()]. By default, [discover_console_config()]
-#'   reads optional global/project files once and materializes their settings.
+#' @param config A [ConsoleConfig()]. By default, [load_console_config()]
+#'   reads optional global/project files once and combines their settings.
 #'   Pass `ConsoleConfig()` to skip files and use built-in defaults: host reads,
 #'   private temporary writes, and no worker networking. Resolver defaults are
-#'   independent. A supplied config reads no files unless its `discovery`
-#'   property explicitly requests it. Explicit `NULL` is equivalent to
+#'   independent. A supplied config never reads additional configuration files.
+#'   The calling R installation is the default unless `r.executable` selects
+#'   another installation. Explicit `NULL` is equivalent to
 #'   `ConsoleConfig()`. Use the same `path`, `version`, and `project` when
 #'   inspecting and launching a config.
 #' @param project Existing directory to use as the child process's working
@@ -64,7 +65,7 @@ console_tools <- function(
   ...,
   path = NULL,
   version = NULL,
-  config = discover_console_config(
+  config = load_console_config(
     path = path,
     version = version,
     project = project
@@ -91,11 +92,12 @@ console_tools <- function(
     stop("`project` must identify an existing directory.", call. = FALSE)
   }
   project <- normalizePath(project, mustWork = TRUE)
-  file <- tempfile("mcp-console-overrides-", fileext = ".json")
-  on.exit(unlink(file), add = TRUE)
+  directory <- tempfile("mcp-console-config-")
+  stopifnot(dir.create(directory))
+  on.exit(unlink(directory, recursive = TRUE), add = TRUE)
   client <- new_mcp_client(
     resolve_mcp_console(path, version),
-    console_cli_arguments(config, file),
+    console_cli_arguments(config, directory),
     project
   )
   ready <- FALSE

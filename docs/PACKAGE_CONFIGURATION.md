@@ -248,7 +248,8 @@ Ordinary file/CLI mapping merges still apply before defaults are generated.
 
 `resolver.sandbox` uses the [public sandbox schema](SANDBOX_CONFIGURATION.md).
 Omitted networking retains the download proxy.
-Explicit `network: restricted` or `network: enabled` removes it.
+Explicit `network: restricted` or `network: enabled` (also `false` or `true`) removes it.
+Destination sequences and strings replace its generated allow list; `network: null` leaves the preceding layer or default unchanged.
 Limited proxy mode does not support HTTPS CONNECT and therefore cannot perform ordinary HTTPS downloads.
 
 Top-level `environment` values also reach preparation.

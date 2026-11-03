@@ -54,6 +54,9 @@ mcp-console config resolve
 This uses the same files and command-line overrides as starting a session, without starting interpreters or preparing packages.
 Built-in defaults are omitted; add `--full` to include them.
 You can [save the resolved configuration](#export-a-configuration) for a later session or [edit its generated tool descriptions and parameter settings](#edit-exported-tool-settings).
+Add `--editable` to retain authored tool settings and omit generated tool descriptions and schema.
+This keeps generated presentation responsive to later configuration edits while preserving explicit text, including empty strings and text equal to a generated default.
+Combine it with `--full` to include configuration defaults in the editable document.
 
 <span id="settings-by-task"></span> <span id="top-level-settings"></span> <span id="r-executable-selection"></span> <span id="native-r-startup"></span> <span id="python-environment-selection"></span> <span id="startup-package-declarations"></span> <span id="dependency-resolution-policies"></span> <span id="session-startup-source"></span> <span id="cache-selection"></span> <span id="shared-environment"></span> <span id="model-visible-languages"></span> <span id="tool-descriptions-and-parameters"></span>
 
@@ -63,13 +66,14 @@ Use the [Reference index](REFERENCE.md#configuration) to look up a configuration
 
 Use these options to select or skip configuration files:
 
-| Option                | Files read           |
-| --------------------- | -------------------- |
-| No option             | Global, then project |
-| `--config-file PATH`  | Only the named file  |
-| `--no-project-config` | Global only          |
-| `--no-global-config`  | Project only         |
-| `--no-config`         | None                 |
+| Option                        | Files read                             |
+| ----------------------------- | -------------------------------------- |
+| No option                     | Global, then project                   |
+| `--config-file PATH`          | Only selected files, in argument order |
+| `--optional-config-file PATH` | Mark a selected file as optional       |
+| `--no-project-config`         | Global only                            |
+| `--no-global-config`          | Project only                           |
+| `--no-config`                 | None                                   |
 
 Launch defaults still apply before these files, and command-line overrides apply afterward.
 The options for skipping files cannot be combined with `--config-file`.
@@ -77,8 +81,17 @@ Options may appear before or after the subcommand.
 They do not edit files or change recording-location selection.
 
 Console looks for the project file only in the directory where it starts; it does not search parent directories.
-Missing automatic files are skipped, but an explicitly selected file must exist.
+Missing automatic files are skipped, but an explicitly selected file must exist unless marked optional.
+Repeat `--config-file` to layer selected files in order; a later file overrides matching settings from earlier files.
+Repeat `--optional-config-file` for selected paths that may be absent.
+This option does not select a file: each path must also appear in `--config-file`, matched before home expansion or canonicalization.
+An optional file that exists must still be readable, regular, and valid.
+The same underlying file is read only once, at its first selected position.
 Configuration must be a readable YAML or JSON mapping; invalid files and unknown fields are errors.
+
+```sh
+mcp-console serve --config-file defaults.yaml --optional-config-file defaults.yaml --config-file session.json
+```
 
 Configuration files can choose which programs Console runs, provide credentials, and change permissions.
 Console loads project files automatically, including when the client was registered globally.
@@ -96,6 +109,8 @@ For `serve` and ordinary `sandbox` launches, settings are applied in this order:
 2. Global `$MCP_CONSOLE_HOME/config.yaml`, or `~/.agents/console/config.yaml` when the variable is unset.
 3. Project `.agents/console/config.yaml` in the launch directory.
 4. Each `-c KEY=VALUE` override, in argument order.
+
+When `--config-file` is supplied, its ordered file list replaces the global and project sources.
 
 ```sh
 mcp-console serve -c 'sandbox.filesystem.read_write=[.]'
@@ -140,7 +155,7 @@ CONSOLE_CONFIG='sandbox: {profile: workspace, network: restricted}' \
 This replaces global and project file discovery.
 `--default-config` settings apply before the environment document, and ordered `-c` overrides apply after it.
 `--writable-root` adds launch-specific write access as usual.
-The selector cannot be combined with `--config-file`, `--no-config`, `--no-global-config`, or `--no-project-config`.
+The selector cannot be combined with `--config-file`, `--optional-config-file`, `--no-config`, `--no-global-config`, or `--no-project-config`.
 
 The variable must contain one configuration mapping; an unset variable, empty text, or invalid configuration fails before the command starts.
 Use `{}` to select Console's defaults.
@@ -153,23 +168,23 @@ Runnable examples use child-specific environments in [shell](../examples/sandbox
 ## Merge rules
 
 Mappings merge recursively.
-Lists, scalars, and `null` replace the earlier value.
+Lists, scalars, and `null` replace the earlier value, after the shorthand normalization described below.
 Validation and defaults apply to the final merged settings.
 
-| Value         | Effect                                                                                                           |
-| ------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Omitted field | Keep the earlier layer's value, or use the default when no layer supplies one.                                   |
-| `{}`          | Merge an empty mapping; do not clear earlier entries. Runtime shorthands are expanded first, as described below. |
-| `[]`          | Replace a list with an empty list, where allowed. `languages` and `python.first_available` must remain nonempty. |
-| `null`        | Replace the earlier value, where allowed. Clearing `sandbox` or `resolver.sandbox` restores the policy defaults. |
-| `""`          | Supply an empty string. This is valid for environment values and tool prose; it does not unset a variable.       |
+| Value         | Effect                                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Omitted field | Keep the earlier layer's value, or use the default when no layer supplies one.                                                                               |
+| `{}`          | Merge an empty mapping; do not clear earlier entries. Shorthands are expanded first, as described below.                                                     |
+| `[]`          | Replace a list with an empty list, where allowed. `languages` and `python.first_available` must remain nonempty.                                             |
+| `null`        | Replace the earlier value, where allowed. Clearing `sandbox` or `resolver.sandbox` restores the policy defaults. A `network: null` field is omitted instead. |
+| `""`          | Supply an empty string. This is valid for environment values and tool prose; it does not unset a variable.                                                   |
 
 For example, global `environment: {KEEP: global, CHANGE: global}` and project `environment: {CHANGE: project}` retain `KEEP` and replace `CHANGE`.
 
 To replace a whole mapping, clear it and then supply the replacement through ordered overrides:
 
 ```sh
-mcp-console serve -c sandbox.network=null -c 'sandbox.network={proxy: {mode: limited}}'
+mcp-console serve -c sandbox.network.proxy=null -c 'sandbox.network.proxy={mode: limited}'
 ```
 
 The final value must still be valid for that setting.
@@ -179,6 +194,13 @@ Changing one selector does not implicitly remove incompatible siblings.
 Before merging each layer, Console expands an R path to `r.executable` and direct managed Python fields to `python.managed`.
 An empty `python: {}` also selects the managed form.
 Flat and nested runtime settings therefore merge at the same paths; [Languages and startup](RUNTIME_CONFIGURATION.md) describes the selection rules.
+
+Network shorthands are also normalized before merging, for both worker and resolver policies.
+Booleans become `enabled` or `restricted`; destination sequences and non-mode strings become `proxy.domains.allow`.
+Thus a later proxy option does not discard an earlier shorthand allow list, and inherited deny rules remain in effect.
+`network: null` is removed from its layer, so it preserves an earlier value or leaves the default when none was supplied.
+These rules apply to files, environment configuration, defaults, and ordered command-line overrides.
+See [Network access](SANDBOX_CONFIGURATION.md#network-choices) for the accepted forms and empty-list semantics.
 
 ## Export a configuration
 
@@ -231,12 +253,20 @@ Changing `languages` may make saved parameter entries unavailable; resolve the d
 
 ### Inspect and edit settings from R
 
-R exposes these operations through [`discover_console_config()`, `materialize_console_config()`, and `prune_console_config()`](https://posit-dev.github.io/mcp-console/r/articles/configuration/#inspect-and-edit-configuration).
-They return ordinary S7 `ConsoleConfig` objects with file discovery disabled.
-`read_console_config()` imports one required JSON or YAML file; `ConsoleConfig(...)` builds settings directly in R.
-Edit properties with `@`; use `$` to select named parameter entries.
-The sandbox choice remains in the configuration, while executable and launch-directory choices remain explicit arguments to each call.
-`console_tools()` discovers optional files by default; pass `config = ConsoleConfig(...)` to skip them.
+R has two configuration constructors: [`ConsoleConfig()` and `load_console_config()`](https://posit-dev.github.io/mcp-console/r/articles/configuration/).
+`ConsoleConfig()` accepts named R fields or one mapping, including `ConsoleConfig(yaml12::read_yaml("config.yaml"))`, without discovery or resolution.
+`load_console_config()` combines selected global/project files with optional R `overrides` and returns the same editable S7 class.
+Missing conventional files are skipped; explicitly supplied paths must exist.
+Set `global_file = NULL` or `project_file = NULL` to skip that source.
+`MCP_CONSOLE_HOME` affects the default global path only.
+
+Edit properties with `@`; nested sections accept replacement lists.
+The loader retains authored tool metadata and leaves generated descriptions to the server, so later permission or visibility edits do not freeze stale generated text.
+The calling R installation is a low-priority launch default; file settings and explicit `r.executable` values win.
+A selected file's `r: null` or `r.executable: null` clears that preference through subsequent edits and launch, leaving R discovery to Console.
+`console_tools()` loads conventional files when `config` is omitted.
+A supplied `ConsoleConfig` never discovers additional files, including on worker restart.
+Executable and launch-directory choices remain explicit arguments; inherited environment variables are not snapshotted.
 
 ## Paths
 

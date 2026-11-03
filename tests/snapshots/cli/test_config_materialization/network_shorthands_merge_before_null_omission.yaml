@@ -1,0 +1,55 @@
+---
+scope: sandbox
+selection: ~
+inherited_options_preserved: true
+---
+scope: sandbox
+selection: new.example.com
+inherited_options_preserved: true
+---
+scope: sandbox
+selection:
+  - new.example.com
+  - blocked.example.com
+inherited_options_preserved: true
+---
+scope: sandbox
+selection: []
+inherited_options_preserved: true
+---
+scope: sandbox
+selection: true
+inherited_options_preserved: false
+---
+scope: sandbox
+selection: false
+inherited_options_preserved: false
+---
+scope: resolver.sandbox
+selection: ~
+inherited_options_preserved: true
+---
+scope: resolver.sandbox
+selection: new.example.com
+inherited_options_preserved: true
+---
+scope: resolver.sandbox
+selection:
+  - new.example.com
+  - blocked.example.com
+inherited_options_preserved: true
+---
+scope: resolver.sandbox
+selection: []
+inherited_options_preserved: true
+---
+scope: resolver.sandbox
+selection: true
+inherited_options_preserved: false
+---
+scope: resolver.sandbox
+selection: false
+inherited_options_preserved: false
+---
+null_keeps_context_defaults: true
+null_preserves_inherited_network_provenance: true
