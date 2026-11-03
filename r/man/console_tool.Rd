@@ -2,7 +2,7 @@
 % Please edit documentation in R/console-tool.R
 \name{console_tool}
 \alias{console_tool}
-\title{Use MCP Console as an ellmer tool}
+\title{Use the Console send tool}
 \usage{
 console_tool(
   ...,
@@ -34,47 +34,10 @@ directory, defaulting to \code{getwd()}. Relative config and runtime paths use
 this directory; the caller's working directory is unchanged.}
 }
 \value{
-An \link[ellmer:ToolDef]{ellmer::ToolDef} to pass to an ellmer chat's
-\verb{$register_tool()} method.
+The \code{send} \link[ellmer:ToolDef]{ellmer::ToolDef}.
 }
 \description{
-\code{console_tool()} starts \verb{mcp-console serve} and returns its \code{send} tool as
-an \link[ellmer:ToolDef]{ellmer::ToolDef}. The server process and its persistent R, Python, and
-DuckDB state live as long as the returned tool remains reachable.
-}
-\details{
-When the tool is garbage collected, it closes the server's input to request
-shutdown and waits up to 15 seconds before forcibly stopping the server.
-With sandboxing enabled, the sandbox manager owns cleanup of worker
-descendants; the R wrapper's fallback targets only the server process.
-With \code{ConsoleConfig(sandbox = FALSE)}, worker descendants may survive
-server shutdown.
-
-See \code{vignette("autonomous-report", package = "mcp.console")} for an explicit
-configuration, permission edits, inspection, and an ellmer launch.
-}
-\section{Executable resolution}{
-
-\itemize{
-\item If \code{path} is supplied, \code{console_tool()} uses that executable directly.
-\item Otherwise, if \code{version} is supplied, it resolves that published version
-with \code{\link[reticulate:uv_run_tool]{reticulate::uv_run_tool()}} without consulting \code{PATH}.
-\item Otherwise, it uses \code{mcp-console} from \code{PATH} when available and falls back
-to the latest published version through \code{\link[reticulate:uv_run_tool]{reticulate::uv_run_tool()}}.
-}
-
-\code{path} and \code{version} are mutually exclusive.
-}
-
-\examples{
-\dontrun{
-chat <- ellmer::chat_openai()
-chat$register_tool(console_tool())
-chat$chat(
-  "Tell me something interesting about mtcars. Use the console as a workbench."
-)
-
-console_tool(path = Sys.which("mcp-console"))
-console_tool(version = "0.0.2")
-}
+\code{console_tool()} returns only the \code{send} tool for existing callers and
+direct evaluation. It errors if the server does not advertise \code{send}.
+Use \code{\link[=console_tools]{console_tools()}} to register every available Console tool with a chat.
 }

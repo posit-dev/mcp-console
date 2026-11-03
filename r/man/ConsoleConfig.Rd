@@ -65,7 +65,7 @@ An S7 configuration object. The constructor is also its S7 class.
 }
 \description{
 \code{ConsoleConfig()} combines runtime selection, package preparation, worker
-permissions, resolver settings, and tool presentation for \code{\link[=console_tool]{console_tool()}}.
+permissions, resolver settings, and tool presentation for \code{\link[=console_tools]{console_tools()}}.
 Constructors have the same field names as Console's application configuration.
 }
 \details{
@@ -79,11 +79,11 @@ retains its independent built-in permissions and may download packages.
 Prefer \code{\link[=discover_console_config]{discover_console_config()}} to read files once into an inspectable
 object, or \code{\link[=materialize_console_config]{materialize_console_config()}} to fill defaults without file reads.
 \code{\link[=prune_console_config]{prune_console_config()}} produces a compact view of nondefault settings.
-\code{\link[=console_tool]{console_tool()}} discovers files when \code{config} is omitted.
+\code{\link[=console_tools]{console_tools()}} discovers files when \code{config} is omitted.
 
 \code{ConfigDiscovery()} explicitly enables global and project file discovery at launch.
 Disable either source with \code{global = FALSE} or \code{project = FALSE}. Project
-discovery reads \code{.agents/console/config.yaml} in \code{console_tool()}'s launch
+discovery reads \code{.agents/console/config.yaml} in \code{console_tools()}'s launch
 directory; no ancestor directories are searched. Files can select runtimes,
 child environments, and permissions, so discovery trusts the whole file.
 

@@ -9,12 +9,12 @@ library(ellmer)
 library(mcp.console)
 
 chat <- chat_openai()
-chat$register_tool(console_tool())
+chat$register_tools(console_tools())
 chat$chat("Explore mtcars with the console. Keep the data for follow-up.")
 ```
 
 The selected ellmer provider's credentials belong in the calling R process.
-State persists while the tool's server connection remains alive.
+The returned tools share one server connection; state persists while any tool remains reachable.
 For dependent calls through `chat$chat_async()`, select `tool_mode = "sequential"`.
 
 The development interface requires the S7 version pinned in `DESCRIPTION`.
@@ -27,15 +27,15 @@ The dependency follow-up is tracked in [Open work](https://posit-dev.github.io/m
 
 ## Select Console
 
-`console_tool()` uses Console on PATH, falling back to the latest published release through `reticulate::uv_run_tool()`.
+`console_tools()` uses Console on PATH, falling back to the latest published release through `reticulate::uv_run_tool()`.
 Named `path` selects an executable; named `version` selects a published release regardless of PATH.
 They are mutually exclusive, and `...` must be empty.
 
 ```r
-console_tool(path = Sys.which("mcp-console"))
+console_tools(path = Sys.which("mcp-console"))
 ```
 
-On Windows, `console_tool()` can resolve the Console x64 wheel through `reticulate::uv_run_tool()`.
+On Windows, `console_tools()` can resolve the Console x64 wheel through `reticulate::uv_run_tool()`.
 See [installation requirements](https://posit-dev.github.io/mcp-console/clients/#supported-platforms).
 
 ## Session configuration
@@ -44,7 +44,7 @@ Pass an explicit configuration to select a project's existing Python environment
 
 ```r
 config <- ConsoleConfig(python = ExistingPython(".venv"))
-tool <- console_tool(config = config, project = "/path/to/project")
+tools <- console_tools(config = config, project = "/path/to/project")
 ```
 
 The environment and project directory must already exist.
@@ -60,7 +60,7 @@ To allow project writes while protecting metadata paths:
 
 ```r
 config <- ConsoleConfig(sandbox = SandboxPolicy(profile = "workspace"))
-tool <- console_tool(config = config, project = "/path/to/project")
+tools <- console_tools(config = config, project = "/path/to/project")
 ```
 
 Network permissions remain independent.
@@ -74,12 +74,15 @@ The [configuration workflow reference](https://posit-dev.github.io/mcp-console/r
 
 ## Behavior and safety
 
-The tool uses the connected server's public `send` schema.
-Requirement actions are `get`, `add`, `set`, and `reset`; use `character()` for an explicitly empty list.
+Each tool uses the name, description, and argument schema advertised by the connected server.
+`console_tools()` discovers every advertised tool, including tools introduced by future server versions.
+`console_tool()` remains available for direct `send` calls and requires that tool to exist.
+
+For `send`, requirement actions are `get`, `add`, `set`, and `reset`; use `character()` for an explicitly empty list.
 Changed live replacements normally require restart.
 Read [Requirements](https://posit-dev.github.io/mcp-console/api/#requirements) before replacing a declaration.
 
-By default, `console_tool()` discovers global and project configuration files.
+By default, `console_tools()` discovers global and project configuration files.
 Pass `config = ConsoleConfig()` to skip them and use built-in defaults: workers can read host files, write private temporary storage, and cannot use the network.
 Dependency preparation uses its independent built-in permissions and may download packages.
 `ConsoleConfig(sandbox = FALSE)` runs workers and preparation with host permissions, without the native runner's descendant-cleanup guarantee.
@@ -87,7 +90,8 @@ Read [Sandbox and trust](https://posit-dev.github.io/mcp-console/sandbox/) for d
 
 Garbage collection requests shutdown by closing server input, waits up to 15 seconds, then may forcibly stop the server process.
 That fallback does not prove descendant cleanup.
-Keep the tool reachable while the chat is using it.
+Keep the tools reachable while the chat is using them.
+Shutdown begins after the last tool becomes unreachable.
 
 [Console documentation](https://posit-dev.github.io/mcp-console/readme/) covers the shared workbench, language behavior, and configuration.
 [API reference](https://posit-dev.github.io/mcp-console/reference/) links the MCP interface and client package references.

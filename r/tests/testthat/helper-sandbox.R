@@ -114,14 +114,17 @@ with_sandbox_directory <- function(code) {
   force(code)
 }
 
-with_console_config_probe <- function(code) {
+with_console_config_probe <- function(
+  code,
+  fixture = "console-config-probe.R"
+) {
   skip_on_os("windows")
   directory <- tempfile("mcp-console-mcp-probe-")
   stopifnot(dir.create(directory))
   on.exit(unlink(directory, recursive = TRUE), add = TRUE)
   path <- file.path(directory, "console probe")
   record <- file.path(directory, "argv")
-  fixture <- normalizePath(test_path("fixtures", "console-config-probe.R"))
+  fixture <- normalizePath(test_path("fixtures", fixture))
   writeLines(
     c(
       "#!/bin/sh",

@@ -379,7 +379,7 @@ SessionsConfig <- S7::new_class(
 #' Configure a Console session
 #'
 #' `ConsoleConfig()` combines runtime selection, package preparation, worker
-#' permissions, resolver settings, and tool presentation for [console_tool()].
+#' permissions, resolver settings, and tool presentation for [console_tools()].
 #' Constructors have the same field names as Console's application configuration.
 #'
 #' An empty `ConsoleConfig()` uses built-in defaults without reading
@@ -391,11 +391,11 @@ SessionsConfig <- S7::new_class(
 #' Prefer [discover_console_config()] to read files once into an inspectable
 #' object, or [materialize_console_config()] to fill defaults without file reads.
 #' [prune_console_config()] produces a compact view of nondefault settings.
-#' [console_tool()] discovers files when `config` is omitted.
+#' [console_tools()] discovers files when `config` is omitted.
 #'
 #' `ConfigDiscovery()` explicitly enables global and project file discovery at launch.
 #' Disable either source with `global = FALSE` or `project = FALSE`. Project
-#' discovery reads `.agents/console/config.yaml` in `console_tool()`'s launch
+#' discovery reads `.agents/console/config.yaml` in `console_tools()`'s launch
 #' directory; no ancestor directories are searched. Files can select runtimes,
 #' child environments, and permissions, so discovery trusts the whole file.
 #'

@@ -50,6 +50,7 @@ articles:
 reference:
   - title: Use Console with ellmer
     contents:
+    - console_tools
     - console_tool
   - title: Configure sessions
     contents:

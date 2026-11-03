@@ -120,7 +120,7 @@ An S7 configuration object. The constructor is also its S7 class.
 A \code{SandboxPolicy()} describes which files sandboxed code can read or change
 and which network connections it can make. Build a policy from the
 \code{SandboxFilesystem()} and \code{SandboxNetwork()} constructors, then pass it to
-\code{console_tool(config = ConsoleConfig(sandbox = policy))}. The same object
+\code{console_tools(config = ConsoleConfig(sandbox = policy))}. The same object
 can also be supplied as
 \code{ConsoleConfig(resolver = ResolverConfig(sandbox = policy))} to configure
 dependency preparation separately.
@@ -153,7 +153,7 @@ More specific paths take precedence over broader paths. At the same path,
 Adding a \code{read_only} path does not make all other host files unreadable.
 Workers retain their host-read baseline.
 
-Relative paths use \code{console_tool(project = ...)}. A leading \code{~} uses the
+Relative paths use \code{console_tools(project = ...)}. A leading \code{~} uses the
 launch environment's absolute \code{HOME}; on Windows, an absent or empty \code{HOME}
 uses the user profile. This follows Console's convention independently of
 R's \code{path.expand()} and \code{R_USER}. Changing the worker's directory later does

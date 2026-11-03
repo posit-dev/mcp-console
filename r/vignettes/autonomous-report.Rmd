@@ -39,7 +39,7 @@ All relative configuration paths below are relative to `project`.
 For example, `./reports` means a directory inside the report project.
 
 For an unattended job, it's useful to state the configuration in the script so you can review it alongside the task.
-`ConsoleConfig()` reads no configuration files, and passing it to `console_tool()` skips global and project configuration discovery.
+`ConsoleConfig()` reads no configuration files, and passing it to `console_tools()` skips global and project configuration discovery.
 
 Let's use the R installation running this script, selected by `current_r()`, and prepare `rmarkdown` and `httr2` for the agent.
 The initial sandbox policy lets it write reports and contact an API.
@@ -157,17 +157,17 @@ Neither form locks package versions or snapshots the host environment.
 If you later edit permissions or parameter visibility in `full`, set the affected tool descriptions to `NULL` before materializing again so Console can regenerate them.
 For comparisons between configurations, use `as.list()` and `all.equal()`.
 
-## Give the agent its tool
+## Give the agent its tools
 
-With the configuration reviewed, we can start Console and get a tool to register with an [ellmer](https://ellmer.tidyverse.org/) chat:
+With the configuration reviewed, we can start Console and get its tools to register with an [ellmer](https://ellmer.tidyverse.org/) chat:
 
 ```{r launch}
-send <- console_tool(config = full, project = project)
+tools <- console_tools(config = full, project = project)
 ```
 
 The sandbox describes what the agent is allowed to do.
 The chat prompt describes the work we'd like it to do within those limits.
-Let's give it the report task and register the tool so it can use R to investigate the data.
+Let's give it the report task and register the tools so it can use R to investigate the data.
 This step requires an ellmer provider and its credentials in the calling R process; this example uses OpenAI.
 Those credentials are not forwarded to Console's workers unless you include them in the configuration.
 
@@ -179,7 +179,7 @@ chat <- ellmer::chat_openai(
     "Write figures to figures/ and explain any missing inputs."
   )
 )
-chat$register_tool(send)
+chat$register_tools(tools)
 ```
 
 Now ask for the report.
@@ -196,7 +196,7 @@ summary <- chat$chat(
 cat(summary)
 ```
 
-Keep `send` and `chat` reachable until the job finishes.
+Keep `tools` and `chat` reachable until the job finishes.
 The agent can use R to inspect the data and save its report and figures, then return a summary to the calling script.
 That script can send the summary or report through your existing email workflow, with the recipient specified in your code.
 
@@ -207,4 +207,4 @@ You can save an inspected configuration with `saveRDS(full, "report-config.rds")
 If you already keep configuration in files, you can use that as your starting point too.
 `discover_console_config()` reads optional global/project files explicitly, while `read_console_config()` reads one required JSON or YAML file.
 Both return a configuration you can inspect, edit, and launch using the same steps above.
-See `?config-workflow` for those operations and `?console_tool` for launch options.
+See `?config-workflow` for those operations and `?console_tools` for launch options.

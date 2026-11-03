@@ -245,7 +245,7 @@ test_that("console_tool exposes configured descriptions and omits hidden paramet
   })
 })
 
-test_that("console_tool works when registered with an ellmer chat", {
+test_that("console_tools work when registered with an ellmer chat", {
   # fmt: r
   source <- r"(
     x <- 41L
@@ -297,11 +297,11 @@ test_that("console_tool works when registered with an ellmer chat", {
         )
         tryCatch(
           {
-            chat$register_tool(with_mcp_console_environment(
+            chat$register_tools(with_mcp_console_environment(
               fixture,
               # Tool registration and output retention are independent of
               # native enforcement, covered by the sandbox acceptance cases.
-              console_tool(config = ConsoleConfig(sandbox = FALSE))
+              console_tools(config = ConsoleConfig(sandbox = FALSE))
             ))
             text <- NULL
             chat$on_tool_result(function(result) text <<- result@value@text)

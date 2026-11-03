@@ -236,7 +236,7 @@ They return ordinary S7 `ConsoleConfig` objects with file discovery disabled.
 `read_console_config()` imports one required JSON or YAML file; `ConsoleConfig(...)` builds settings directly in R.
 Edit properties with `@`; use `$` to select named parameter entries.
 The sandbox choice remains in the configuration, while executable and launch-directory choices remain explicit arguments to each call.
-`console_tool()` discovers optional files by default; pass `config = ConsoleConfig(...)` to skip them.
+`console_tools()` discovers optional files by default; pass `config = ConsoleConfig(...)` to skip them.
 
 ## Paths
 
