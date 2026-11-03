@@ -5,6 +5,11 @@
 #' does not require a tool named `send`. The tools share one server process and
 #' its persistent R, Python, and DuckDB state.
 #'
+#' Explicit `NULL` values are preserved where the server schema permits null.
+#' For `send` requirements, `NULL` package and constraint fields mean omission
+#' unless `action = "set"`. Replacement declarations retain nullable values
+#' so explicit clears reach the server.
+#'
 #' When the last tool is garbage collected, it closes the server's input to request
 #' shutdown and waits up to 15 seconds before forcibly stopping the server.
 #' With sandboxing enabled, the sandbox manager owns cleanup of worker
@@ -137,6 +142,18 @@ mcp_ellmer_tool <- function(metadata, client) {
   invoke <- function(...) {
     arguments <- list(...)
     arguments <- arguments[!vapply(arguments, identical, logical(1), omitted)]
+    requirements <- arguments$requirements
+    if (
+      identical(metadata$name, "send") &&
+        is.list(requirements) &&
+        !identical(requirements$action, "set")
+    ) {
+      # Strict-mode NULL placeholders mean omission for requirements operations.
+      # Only set can clear nullable constraints; other values reach validation.
+      arguments$requirements <- requirements[
+        !vapply(requirements, is.null, logical(1))
+      ]
+    }
     result <- mcp_request(
       client,
       "tools/call",
@@ -160,6 +177,8 @@ mcp_ellmer_tool <- function(metadata, client) {
   ellmer::tool(
     call,
     name = metadata$name,
+    # The adapter owns schema conversion, including explicit nullable arguments.
+    convert = FALSE,
     description = if (is.null(metadata$description)) {
       ""
     } else {

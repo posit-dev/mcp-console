@@ -86,3 +86,35 @@ test_that("tool discovery reserves all unused arguments", {
     "must be empty"
   )
 })
+
+test_that("ellmer chat preserves required and optional nullable arguments", {
+  with_console_config_probe(
+    function(path, record) {
+      tools <- console_tools(path = path, config = ConsoleConfig())
+      fields <- names(tools$evaluate@arguments@properties)
+      nullable <- stats::setNames(rep(list(NULL), length(fields)), fields)
+      non_null <- nullable
+      non_null["values"] <- list(list("one"))
+      results <- mock_console_chat(
+        tools,
+        list(
+          list(name = "evaluate", arguments = non_null),
+          list(name = "evaluate", arguments = nullable)
+        )
+      )
+      expect_null(results[[1L]]@error)
+      expect_identical(
+        results[[1L]]@value@text,
+        '{"name":"evaluate","arguments":{"values":["one"],"client":null}}'
+      )
+      expect_null(results[[2L]]@error)
+      expect_identical(
+        results[[2L]]@value@text,
+        '{"name":"evaluate","arguments":{"values":null,"client":null}}'
+      )
+      rm(tools, results)
+      invisible(gc())
+    },
+    fixture = "console-tools-probe.R"
+  )
+})

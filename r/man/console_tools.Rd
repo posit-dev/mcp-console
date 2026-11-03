@@ -45,6 +45,11 @@ does not require a tool named \code{send}. The tools share one server process an
 its persistent R, Python, and DuckDB state.
 }
 \details{
+Explicit \code{NULL} values are preserved where the server schema permits null.
+For \code{send} requirements, \code{NULL} package and constraint fields mean omission
+unless \code{action = "set"}. Replacement declarations retain nullable values
+so explicit clears reach the server.
+
 When the last tool is garbage collected, it closes the server's input to request
 shutdown and waits up to 15 seconds before forcibly stopping the server.
 With sandboxing enabled, the sandbox manager owns cleanup of worker
