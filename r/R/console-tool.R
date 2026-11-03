@@ -186,8 +186,8 @@ mcp_ellmer_tool <- function(metadata, client) {
     },
     arguments = Map(
       \(schema, required) {
-        ellmer::TypeJsonSchema(
-          json = ellmer_argument_schema(schema, required),
+        ConsoleToolArgument(
+          json = schema,
           required = required
         )
       },
@@ -195,6 +195,32 @@ mcp_ellmer_tool <- function(metadata, client) {
       required
     )
   )
+}
+
+ConsoleToolArgument <- S7::new_class(
+  "ConsoleToolArgument",
+  parent = ellmer::TypeJsonSchema
+)
+
+# ellmer's serializer and OpenAI provider family are internal. Extend only our
+# schema type so strict-mode adjustments leave other providers' schemas intact.
+ellmer_as_json <- S7::new_external_generic(
+  "ellmer",
+  "as_json",
+  c("provider", "x")
+)
+S7::method(
+  ellmer_as_json,
+  list(ellmer::Provider, ConsoleToolArgument)
+) <- function(provider, x, ...) {
+  # Older ellmer versions always use strict schemas for OpenAI-compatible APIs.
+  if (
+    inherits(provider, "ellmer::ProviderOpenAICompatible") &&
+      (!S7::prop_exists(provider, "strict") || provider@strict)
+  ) {
+    return(ellmer_argument_schema(x@json, x@required))
+  }
+  x@json
 }
 
 mcp_argument_value <- function(value, schema) {

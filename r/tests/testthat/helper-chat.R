@@ -17,6 +17,44 @@ mock_completion <- function(message, finish_reason) {
   )
 }
 
+mock_anthropic_message <- function(content, stop_reason) {
+  list(
+    id = "msg_test",
+    type = "message",
+    role = "assistant",
+    model = "mock",
+    content = content,
+    stop_reason = stop_reason,
+    stop_sequence = NULL,
+    usage = list(input_tokens = 0L, output_tokens = 0L)
+  )
+}
+
+mock_openai_response <- function(output) {
+  list(
+    id = "resp_test",
+    object = "response",
+    model = "mock",
+    status = "completed",
+    output = output,
+    usage = list(input_tokens = 0L, output_tokens = 0L)
+  )
+}
+
+mock_compatible_chat <- function(strict = TRUE) {
+  arguments <- list(
+    base_url = "https://example.test/v1",
+    model = "mock",
+    credentials = function() "unused",
+    echo = "none"
+  )
+  # ellmer 0.5.0 always uses strict schemas; newer versions make it optional.
+  if ("strict" %in% names(formals(ellmer::chat_openai_compatible))) {
+    arguments$strict <- strict
+  }
+  do.call(ellmer::chat_openai_compatible, arguments)
+}
+
 mock_console_chat <- function(tools, calls) {
   responses <- lapply(seq_along(calls), function(index) {
     call <- calls[[index]]
@@ -49,12 +87,7 @@ mock_console_chat <- function(tools, calls) {
     index <<- index + 1L
     httr2::response_json(body = responses[[index]])
   })
-  chat <- ellmer::chat_openai_compatible(
-    base_url = "https://example.test/v1",
-    model = "mock",
-    credentials = function() "unused",
-    echo = "none"
-  )
+  chat <- mock_compatible_chat()
   chat$register_tools(tools)
   results <- list()
   chat$on_tool_result(function(result) {
