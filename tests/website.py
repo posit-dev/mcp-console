@@ -859,8 +859,10 @@ class WebsiteTests(unittest.TestCase):
                         return line
 
             try:
-                ready = wait_for("Browse at ")
-                address = urlsplit(ready.split("Browse at ", 1)[1].strip())
+                # Quarto prints Browse at before starting its HTTP server.
+                # Deno reports Listening on only after binding the socket.
+                ready = wait_for("Listening on ")
+                address = urlsplit(ready.split("Listening on ", 1)[1].strip())
                 self.assertIsNotNone(address.port, ready)
                 base = f"http://127.0.0.1:{address.port}"
                 for route in routes:
