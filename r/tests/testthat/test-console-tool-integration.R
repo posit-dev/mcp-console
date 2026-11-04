@@ -356,6 +356,111 @@ test_that("console_tools work when registered with an ellmer chat", {
 })
 
 
+test_that("ellmer receives native images with their original bytes and order", {
+  # fmt: r
+  source <- r"(
+    options(
+      console.plot.width_in = 4,
+      console.plot.height_in = 3,
+      console.plot.dpi = 100
+    )
+    cat("before image\n")
+    plot(1:3)
+    invisible(dev.off())
+    cat("after image\n")
+  )"
+  responses <- list(
+    mock_completion(
+      list(
+        role = "assistant",
+        content = NULL,
+        tool_calls = list(list(
+          id = "call_image",
+          type = "function",
+          `function` = list(
+            name = "send",
+            arguments = jsonlite::toJSON(
+              list(r = source, timeout_ms = 300000L),
+              auto_unbox = TRUE
+            )
+          )
+        ))
+      ),
+      "tool_calls"
+    ),
+    mock_completion(list(role = "assistant", content = "done"), "stop")
+  )
+  requests <- list()
+  httr2::local_mocked_responses(function(req) {
+    requests[[length(requests) + 1L]] <<- httr2::req_get_body(req)
+    httr2::response_json(body = responses[[length(requests)]])
+  })
+
+  with_temp_working_directory({
+    tools <- console_tools(
+      path = real_mcp_console(),
+      config = ConsoleConfig(
+        r = list(resolution = "disabled"),
+        languages = "r",
+        sandbox = FALSE
+      )
+    )
+    chat <- mock_compatible_chat()
+    chat$register_tools(tools)
+    tool_result <- NULL
+    chat$on_tool_result(function(result) tool_result <<- result)
+    expect_identical(as.character(chat$chat("Use the console.")), "done")
+    expect_null(tool_result@error)
+    contents <- tool_result@value
+    expect_length(contents, 3L)
+    expect_true(S7::S7_inherits(contents[[1L]], ellmer::ContentText))
+    expect_true(S7::S7_inherits(contents[[2L]], ellmer::ContentImageInline))
+    expect_true(S7::S7_inherits(contents[[3L]], ellmer::ContentText))
+    expect_identical(contents[[1L]]@text, "before image\n")
+    expect_identical(contents[[3L]]@text, "after image\n")
+    expect_identical(contents[[2L]]@type, "image/png")
+    captured <- list.files(
+      "console/sessions",
+      pattern = "\\.png$",
+      recursive = TRUE,
+      full.names = TRUE
+    )
+    expect_length(captured, 1L)
+    expected <- readBin(captured, "raw", n = file.info(captured)$size)
+    expect_identical(jsonlite::base64_dec(contents[[2L]]@data), expected)
+
+    expect_length(requests, 2L)
+    sent <- unlist(
+      lapply(requests[[2L]]$messages, function(message) {
+        if (is.list(message$content)) message$content
+      }),
+      recursive = FALSE
+    )
+    images <- Filter(
+      function(content) identical(content$type, "image_url"),
+      sent
+    )
+    expect_length(images, 1L)
+    expect_identical(
+      images[[1L]]$image_url$url,
+      paste0("data:image/png;base64,", contents[[2L]]@data)
+    )
+
+    # A language error is console output and must retain the preceding plot.
+    failed <- tools$send(r = paste0(source, '\nstop("after plot")'))
+    expect_length(failed, 3L)
+    expect_identical(failed[[1L]], contents[[1L]])
+    expect_identical(failed[[2L]], contents[[2L]])
+    expect_match(
+      failed[[3L]]@text,
+      "after image\nError: after plot\n",
+      fixed = TRUE
+    )
+    rm(tools, chat)
+    invisible(gc())
+  })
+})
+
 test_that("requirements actions preserve scalar fields and empty lists", {
   with_temp_working_directory({
     # Exercise declaration serialization without rebuilding unrelated R packages.
