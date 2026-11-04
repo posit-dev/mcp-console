@@ -3,6 +3,7 @@
 import json
 import sys
 import tempfile
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
+from support.progress import RUNNING, without_elapsed_result
 from support.records import Transcript
 from support.requirements import POSIX, requires
 from support.suites import run_this_suite
@@ -247,6 +249,97 @@ def test_restarting_named_session_defers_replacement_until_code(
                     """),
                 session="alpha",
             )
+            return client.finish()
+
+
+@requires(POSIX)
+@executions(RUNTIME)
+def test_cancelled_aggregate_poll_omits_empty_stopped_session(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        with (
+            closing(FifoCheckpoint.create(root / "default-ready")) as ready,
+            closing(FifoCheckpoint.create(root / "default-release")) as release,
+            McpClient(
+                binary,
+                execution.serve(
+                    *(("--writable-root", str(root)) if execution == SANDBOXED else ())
+                ),
+                selected_python(root, Path(sys.executable)),
+                root,
+            ) as client,
+        ):
+            client.transcript.append(
+                {
+                    "scenario": "Cancelling an aggregate poll while one session is running must not restore an empty stopped session's notice.",
+                    "fixture": "The default Python cell waits at a FIFO. A competing targeted poll proves the aggregate owns its wait before cancellation; alpha has already stopped with all output delivered.",
+                }
+            )
+            client.initialize_and_list_tools()
+            client.expect(python="pass")
+            client.expect(python="pass", session="alpha")
+            client.expect(
+                "[worker stopped: in-memory state lost]\n[stopped]",
+                control="restart",
+                session="alpha",
+            )
+            try:
+                started = client.send(
+                    timeout_ms=0,
+                    # fmt: python
+                    python=code("""
+                        with open("default-ready", "wb", buffering=0) as ready:
+                            _ = ready.write(b"1")
+                        with open("default-release", "rb", buffering=0) as release:
+                            assert release.read(1) == b"1"
+                        print("default returned")
+                        """),
+                )
+                running = {
+                    "content": [{"type": "text", "text": RUNNING}],
+                    "isError": False,
+                }
+                assert without_elapsed_result(started) == running, started
+                ready.wait("default is blocked before completion", client=client)
+                pending = client.start_send(timeout_ms=60_000)
+                deadline = client.response_deadline()
+                first_probe = len(client.transcript)
+                while True:
+                    observed = client.send(session="default", timeout_ms=0)
+                    if observed.get("isError"):
+                        assert observed == {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "[worker evaluation is already being polled]",
+                                }
+                            ],
+                            "isError": True,
+                        }, observed
+                        break
+                    assert without_elapsed_result(observed) == running, observed
+                    assert time.monotonic() < deadline, (
+                        "aggregate did not claim default"
+                    )
+                # Keep the ownership receipt; earlier successful probes only
+                # reflect scheduling before the aggregate claimed the wait.
+                client.transcript[first_probe:] = [client.transcript[-1]]
+                client.notify("notifications/cancelled", requestId=pending["id"])
+                assert client.request("ping")["result"] == {}
+                assert "result" not in pending, pending
+            finally:
+                release.release()
+            result = client.send(timeout_ms=60_000)
+            assert result == {
+                "content": [{"type": "text", "text": "default returned\n"}],
+                "isError": False,
+            }, result
+            assert client.send(timeout_ms=0) == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
+            }
             return client.finish()
 
 

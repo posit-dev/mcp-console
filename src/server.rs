@@ -410,7 +410,16 @@ impl ConsoleServer {
             });
         }
         let mut observed = std::collections::BTreeMap::new();
-        while let Some((name, runtime, response)) = polls.next().await {
+        while let Some((name, runtime, mut response)) = polls.next().await {
+            if response.is_empty_stopped() {
+                // Settle this omitted notice before awaiting another session.
+                // Cancellation must not restore it as pending stopped output.
+                let (_, _, acknowledgment, _) = response.into_parts();
+                if let Some(acknowledgment) = acknowledgment {
+                    acknowledgment.delivered();
+                }
+                continue;
+            }
             observed.insert(name, (runtime, response));
         }
         let responses = observed
@@ -473,29 +482,12 @@ fn response_to_tool_result(
 }
 
 fn responses_to_tool_result(
-    responses: Vec<(String, &'static str, crate::worker_client::Response)>,
+    mut responses: Vec<(String, &'static str, crate::worker_client::Response)>,
     call: &crate::transcript::Call,
     transcript: &crate::transcript::Transcript,
     deliveries: &crate::server_transport::ResponseDeliveries,
     delivery: &crate::server_transport::ResponseDeliveryCall,
 ) -> CallToolResult {
-    let mut responses = responses
-        .into_iter()
-        .filter_map(|(name, status, mut response)| {
-            if response.is_empty_stopped() {
-                // This omitted status contains no output to deliver or recover.
-                // Restoring it after cancellation would make an otherwise empty
-                // stopped session visible on the next poll.
-                let (_, _, acknowledgment, _) = response.into_parts();
-                if let Some(acknowledgment) = acknowledgment {
-                    acknowledgment.delivered();
-                }
-                None
-            } else {
-                Some((name, status, response))
-            }
-        })
-        .collect::<Vec<_>>();
     if responses.len() == 1 {
         let (_, _, response) = responses.pop().expect("one visible session");
         return response_to_tool_result(response, call, transcript, deliveries, delivery);
