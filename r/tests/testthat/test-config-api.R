@@ -1,3 +1,67 @@
+test_that("ConsoleConfig exposes named configuration fields in its signature", {
+  expect_named(
+    formals(ConsoleConfig),
+    c(
+      "...",
+      "r",
+      "python",
+      "resolver",
+      "sandbox",
+      "languages",
+      "cache",
+      "environment",
+      "inherit_environment",
+      "tool",
+      "startup",
+      "sessions"
+    )
+  )
+  expect_error(ConsoleConfig(lang = "r"), "lang")
+  expect_error(ConsoleConfig("r", "python"), "single")
+  expect_error(ConsoleConfig(list(languages = "r"), r = NULL), "single")
+})
+
+test_that("console_tools accepts config as its first argument", {
+  with_console_config_probe(function(path, record) {
+    config <- ConsoleConfig(languages = "r")
+    tools <- console_tools(config, path = path)
+    expect_named(tools, "send")
+    settings <- jsonlite::fromJSON(paste0(record, ".config.json"))
+    expect_identical(settings$languages, "r")
+    expect_error(console_tools(config, path, path = path), "must be empty")
+    rm(tools)
+    invisible(gc())
+  })
+})
+
+test_that("the default project file is constructed from project", {
+  default <- formals(load_console_config)$project_file
+  expect_identical(
+    eval(default, list(project = "analysis")),
+    file.path("analysis", ".agents", "console", "config.yaml")
+  )
+  with_sandbox_directory({
+    binary <- sandbox_test_binary()
+    dir.create("analysis/.agents/console", recursive = TRUE)
+    writeLines("languages: [r]", "analysis/.agents/console/config.yaml")
+    caller <- getwd()
+    for (project in c("analysis", file.path(caller, "analysis"))) {
+      config <- load_console_config(project = project, path = binary)
+      expect_identical(config@languages, "r")
+      expect_identical(getwd(), caller)
+      writeLines("languages: [python]", "analysis/custom.yaml")
+      expect_identical(
+        load_console_config(
+          project = project,
+          project_file = "custom.yaml",
+          path = binary
+        )@languages,
+        "python"
+      )
+    }
+  })
+})
+
 test_that("ConsoleConfig accepts YAML-shaped mappings without reading files", {
   with_sandbox_directory({
     dir.create(".agents/console", recursive = TRUE)

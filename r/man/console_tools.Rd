@@ -5,21 +5,14 @@
 \title{Use MCP Console as ellmer tools}
 \usage{
 console_tools(
+  config = load_console_config(project = project, path = path, version = version),
   ...,
+  project = getwd(),
   path = NULL,
-  version = NULL,
-  config = load_console_config(path = path, version = version, project = project),
-  project = getwd()
+  version = NULL
 )
 }
 \arguments{
-\item{...}{Must be empty. Reserved for future use.}
-
-\item{path}{\code{NULL}, or a path to an \code{mcp-console} executable.}
-
-\item{version}{\code{NULL}, or one published \code{mcp-console} version, such as
-\code{"0.0.2"}.}
-
 \item{config}{A \code{\link[=ConsoleConfig]{ConsoleConfig()}}. By default, \code{\link[=load_console_config]{load_console_config()}}
 reads optional global/project files once and combines their settings.
 Pass \code{ConsoleConfig()} to skip files and use built-in defaults: host reads,
@@ -30,9 +23,16 @@ another installation. Explicit \code{NULL} is equivalent to
 \code{ConsoleConfig()}. Use the same \code{path}, \code{version}, and \code{project} when
 inspecting and launching a config.}
 
+\item{...}{Must be empty. Reserved for future use.}
+
 \item{project}{Existing directory to use as the child process's working
 directory, defaulting to \code{getwd()}. Relative config and runtime paths use
 this directory; the caller's working directory is unchanged.}
+
+\item{path}{\code{NULL}, or a path to an \code{mcp-console} executable.}
+
+\item{version}{\code{NULL}, or one published \code{mcp-console} version, such as
+\code{"0.0.2"}.}
 }
 \value{
 \code{console_tools()} returns a named list of \link[ellmer:ToolDef]{ellmer::ToolDef} objects

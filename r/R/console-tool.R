@@ -31,9 +31,6 @@
 #' `path` and `version` are mutually exclusive.
 #'
 #' @param ... Must be empty. Reserved for future use.
-#' @param path `NULL`, or a path to an `mcp-console` executable.
-#' @param version `NULL`, or one published `mcp-console` version, such as
-#'   `"0.0.2"`.
 #' @param config A [ConsoleConfig()]. By default, [load_console_config()]
 #'   reads optional global/project files once and combines their settings.
 #'   Pass `ConsoleConfig()` to skip files and use built-in defaults: host reads,
@@ -46,6 +43,9 @@
 #' @param project Existing directory to use as the child process's working
 #'   directory, defaulting to `getwd()`. Relative config and runtime paths use
 #'   this directory; the caller's working directory is unchanged.
+#' @param path `NULL`, or a path to an `mcp-console` executable.
+#' @param version `NULL`, or one published `mcp-console` version, such as
+#'   `"0.0.2"`.
 #' @return `console_tools()` returns a named list of [ellmer::ToolDef] objects
 #'   to pass to an ellmer chat's `$register_tools()` method. Select a tool by
 #'   name from the list for direct calls.
@@ -62,15 +62,15 @@
 #' }
 #' @export
 console_tools <- function(
-  ...,
-  path = NULL,
-  version = NULL,
   config = load_console_config(
+    project = project,
     path = path,
-    version = version,
-    project = project
+    version = version
   ),
-  project = getwd()
+  ...,
+  project = getwd(),
+  path = NULL,
+  version = NULL
 ) {
   if (...length() != 0L) {
     stop("`...` must be empty.", call. = FALSE)
