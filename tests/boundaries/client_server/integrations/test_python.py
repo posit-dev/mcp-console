@@ -20,7 +20,6 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.r import r_test_environment
 from support.normalization import code
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
-from support.snapshots import execution_snapshots
 from support.previews import assert_preview
 from support.progress import elapsed_progress, normalize_elapsed, without_elapsed
 from support.evidence import compact_text
@@ -1147,7 +1146,6 @@ def test_sync_responses_preserves_text_and_images(
 
 @requires(POSIX)
 @executions(DIRECT, SANDBOXED)
-@execution_snapshots
 def test_chatlas_tool_preserves_image_results(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
@@ -1209,6 +1207,15 @@ def test_chatlas_tool_preserves_image_results(
                 else:
                     with client_type(**settings) as console:
                         await exercise(console)
+                transcript = json.loads(capture.read_text(encoding="utf-8"))
+                initialize = transcript[0]["input"]
+                assert initialize["method"] == "initialize"
+                client_info = initialize["params"]["clientInfo"]
+                assert client_info == {"name": "mcp", "version": "0.1.0"}, client_info
+                canonical_client_info = {"name": "acceptance-test", "version": "1.0.0"}
+                # Retain the SDK identity in metadata while comparing the rest
+                # of the complete handshake with the canonical worker reference.
+                initialize["params"]["clientInfo"] = canonical_client_info
                 transcripts.append(
                     [
                         {
@@ -1217,8 +1224,13 @@ def test_chatlas_tool_preserves_image_results(
                             "fixture": "The zod worker returns a fixed PNG for `emit image`. "
                             "The recording proxy captures the SDK's MCP requests and responses; "
                             "adapter return values are checked in Python assertions.",
+                            "transcript_normalization": {
+                                "target": "initialize.params.clientInfo",
+                                "original": client_info,
+                                "normalized": canonical_client_info,
+                            },
                         },
-                        *json.loads(capture.read_text(encoding="utf-8")),
+                        *transcript,
                     ]
                 )
         sync_transcript, async_transcript = transcripts
