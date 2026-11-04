@@ -6,10 +6,11 @@ from collections.abc import Sequence
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING, Any
 
-from ._common import Command, result_text, stdio_command
+from ._common import Command, content_text, result_text, stdio_command
 
 if TYPE_CHECKING:
     from chatlas import Tool
+    from mcp.types import CallToolResult
     from mcp.types import Tool as MCPTool
 
     from ._client import AsyncMCPConsole
@@ -25,9 +26,13 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
 
     This uses the connected server's schema, including its configured languages
     and requirements fields. `register_tool(console.send)` infers a schema from
-    Python annotations and cannot describe those server settings. The adapter
-    returns text, with placeholders for images; [register()](chatlas.register.html)
-    uses chatlas's native MCP support to preserve image content.
+    Python annotations and cannot describe those server settings.
+
+    Text results return text, and tool errors raise. A successful result
+    containing an image returns a `chatlas.ContentToolResult` carrying the
+    ordered text and image content, so providers receive the image content
+    and chat UIs can render it. [register()](chatlas.register.html) uses
+    chatlas's native MCP support instead, which also preserves image content.
 
     Discovery includes every tool, even when the server has no `send` tool.
 
@@ -66,18 +71,41 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
     return [_tool(console, definition) for definition in console.tools]
 
 
+def _tool_result(result: CallToolResult) -> Any:
+    """Convert a Console tool result into the chatlas tool's return value.
+
+    Text-only results stay plain text and errors raise, matching
+    `MCPConsole.send()`. A successful result containing an image becomes a
+    `ContentToolResult` whose value holds the ordered content, which chatlas
+    expands so providers receive text and image blocks.
+    """
+    if result.is_error or not any(item.type == "image" for item in result.content):
+        return result_text(result)
+
+    from chatlas import ContentToolResult
+    from chatlas.types import ContentImageInline, ContentText
+
+    value = [
+        ContentImageInline(data=item.data, image_content_type=item.mime_type)
+        if item.type == "image"
+        else ContentText(text=content_text(item))
+        for item in result.content
+    ]
+    return ContentToolResult(value=value, model_format="as_is")
+
+
 def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
     from chatlas import Tool
 
     name = definition.name
     if iscoroutinefunction(console.call_tool):
 
-        async def invoke(**arguments: Any) -> str:
-            return result_text(await console.call_tool(name, arguments))
+        async def invoke(**arguments: Any) -> Any:
+            return _tool_result(await console.call_tool(name, arguments))
     else:
 
-        def invoke(**arguments: Any) -> str:
-            return result_text(console.call_tool(name, arguments))
+        def invoke(**arguments: Any) -> Any:
+            return _tool_result(console.call_tool(name, arguments))
 
     return Tool(
         func=invoke,
