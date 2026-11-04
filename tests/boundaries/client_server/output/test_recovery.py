@@ -429,6 +429,42 @@ def test_cancelled_aggregate_poll_returns_each_sessions_output(
 
 
 @requires(NATIVE_FIXTURES)
+def test_empty_poll_retains_stopped_session_output(
+    binary: Path,
+) -> Transcript:
+    with recovery_client(binary) as (client, profile, reached, release):
+        pending = client.start_send(r="echo alpha output", session="alpha")
+        cancel_result(client, pending, reached, release)
+        pending = client.start_send(control="restart", session="alpha")
+        cancel_result(client, pending, reached, release)
+
+        # A stopped session still contributes its undelivered cell and stop
+        # notices to the next empty poll; only an empty stopped reply is omitted.
+        profile.pause_results(False)
+        result = client.send(timeout_ms=0)
+        assert result == {
+            "content": [
+                {
+                    "type": "text",
+                    "text": (
+                        '[session: "alpha"; status: stopped]\n'
+                        "zod: alpha output\n"
+                        "[worker stopped: in-memory state lost]\n"
+                        "[stopped]\n[stopped]\n"
+                        '[session: "default"; status: idle]\n\n[idle]'
+                    ),
+                }
+            ],
+            "isError": False,
+        }, result
+        assert client.send(timeout_ms=0) == {
+            "content": [{"type": "text", "text": "\n[idle]"}],
+            "isError": False,
+        }
+        return client.finish()
+
+
+@requires(NATIVE_FIXTURES)
 def test_aggregate_poll_keeps_one_text_budget(binary: Path) -> Transcript:
     with recovery_client(binary) as (client, profile, reached, release):
         for number, session in enumerate(("alpha", "beta")):

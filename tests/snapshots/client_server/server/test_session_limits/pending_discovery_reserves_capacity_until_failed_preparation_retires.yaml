@@ -77,12 +77,6 @@ result:
         [session: "default"; status: idle]
 
         [idle]
-  structuredContent:
-    sessions:
-      - session: alpha
-        status: starting
-      - session: default
-        status: idle
   isError: false
 ---
 send:

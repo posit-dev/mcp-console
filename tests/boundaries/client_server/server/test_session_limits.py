@@ -19,6 +19,7 @@ from support.client import McpClient
 from support.discovery import discovery_environment
 from support.execution import DIRECT, RUNTIME, Execution, executions
 from support.normalization import normalize_process_diagnostic
+from support.progress import without_elapsed_result
 from support.previews import recording_events
 from support.processes import (
     ProcessIdentity,
@@ -64,8 +65,9 @@ def test_default_reserves_capacity_and_remains_usable(
             absent = client.send(session="alpha", timeout_ms=0)
             assert absent["isError"] is True, absent
             assert 'unknown session "alpha"' in last_result_text(client)
-            assert client.send(timeout_ms=0)["structuredContent"] == {
-                "sessions": [{"session": "default", "status": "idle"}]
+            assert client.send(timeout_ms=0) == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
             }
             client.expect("42\n", python="retained += 2; print(retained)")
             client.expect(
@@ -120,11 +122,15 @@ def test_stopping_named_session_releases_capacity_for_creation_and_relaunch(
                 client, 2, session="alpha", control="restart", python=rejected_source
             )
             client.expect("\n[stopped]", session="alpha")
-            assert client.send(timeout_ms=0)["structuredContent"] == {
-                "sessions": [
-                    {"session": "beta", "status": "idle"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert client.send(timeout_ms=0) == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: "beta"; status: idle]\n\n[idle]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }
             stopped = client.send(session="beta", control="restart")
             assert stopped["isError"] is False, stopped
@@ -232,11 +238,15 @@ def test_pending_discovery_reserves_capacity_until_failed_preparation_retires(
                 missing = client.send(session=name, timeout_ms=0)
                 assert missing["isError"] is True, missing
                 assert f'unknown session "{name}"' in last_result_text(client)
-            assert client.send(timeout_ms=0)["structuredContent"] == {
-                "sessions": [
-                    {"session": "alpha", "status": "starting"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert without_elapsed_result(client.send(timeout_ms=0)) == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: "alpha"; status: starting]\n\n[running; poll with an empty send]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }
             discovery.release()
             failed = client.send(session="alpha", timeout_ms=60000)
@@ -395,11 +405,15 @@ def test_named_worker_crash_releases_capacity_after_retirement(
             assert "[starting new worker]" not in last_result_text(client)
             client.expect("\n[stopped]", session="alpha")
             client.expect("42\n", python="print(42)", session="beta")
-            assert client.send(timeout_ms=0)["structuredContent"] == {
-                "sessions": [
-                    {"session": "beta", "status": "idle"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert client.send(timeout_ms=0) == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: "beta"; status: idle]\n\n[idle]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }
             client.expect("default\n", python="print(retained)")
             return client.finish()

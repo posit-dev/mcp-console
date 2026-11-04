@@ -425,20 +425,13 @@ impl ConsoleServer {
                 (name, status, response)
             })
             .collect::<Vec<_>>();
-        let statuses = responses
-            .iter()
-            .filter(|(_, status, _)| *status != "stopped")
-            .map(|(name, status, _)| serde_json::json!({"session": name, "status": status}))
-            .collect::<Vec<_>>();
-        let mut result = responses_to_tool_result(
+        Ok(responses_to_tool_result(
             responses,
             call,
             &self.startup.runtime().transcript,
             &self.deliveries,
             delivery,
-        );
-        result.structured_content = Some(serde_json::json!({"sessions": statuses}));
-        Ok(result)
+        ))
     }
 }
 
@@ -486,6 +479,28 @@ fn responses_to_tool_result(
     deliveries: &crate::server_transport::ResponseDeliveries,
     delivery: &crate::server_transport::ResponseDeliveryCall,
 ) -> CallToolResult {
+    let mut responses = responses
+        .into_iter()
+        .filter_map(|(name, status, mut response)| {
+            if response.is_empty_stopped() {
+                // Stopped registry entries do not contribute display content,
+                // but their output claims still settle with this response.
+                let (_, _, acknowledgment, _) = response.into_parts();
+                if let Some(acknowledgment) = acknowledgment {
+                    deliveries.register(delivery, acknowledgment);
+                }
+                None
+            } else {
+                Some((name, status, response))
+            }
+        })
+        .collect::<Vec<_>>();
+    if responses.len() == 1 {
+        let (_, _, response) = responses.pop().expect("one visible session");
+        return response_to_tool_result(response, call, transcript, deliveries, delivery);
+    }
+    // Poll output belongs in content. Status-only structured content can hide
+    // text, language errors, and images in hosts that prefer structured results.
     let mut combined = crate::worker_client::Response::default();
     for (name, status, response) in responses {
         if let Some(acknowledgment) = combined.append_session(&name, status, response) {

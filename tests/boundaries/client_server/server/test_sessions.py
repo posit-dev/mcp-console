@@ -61,11 +61,11 @@ def test_session_arguments_have_no_effect_until_valid_code(
         ) as client:
             client.initialize_and_list_tools()
             client.expect(python="retained = 'default state'")
-            baseline = {"sessions": [{"session": "default", "status": "idle"}]}
-            assert client.send(timeout_ms=0)["structuredContent"] == baseline
-            assert last_result_text(client) == (
-                '[session: "default"; status: idle]\n\n[idle]'
-            )
+            baseline = {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
+            }
+            assert client.send(timeout_ms=0) == baseline
             for arguments in (
                 {"session": "unknown", "timeout_ms": 0},
                 {"session": None, "python": "retained = 'invalid null'"},
@@ -78,15 +78,19 @@ def test_session_arguments_have_no_effect_until_valid_code(
             ):
                 rejected = client.send(**arguments)
                 assert rejected["isError"] is True, rejected
-                assert client.send(timeout_ms=0)["structuredContent"] == baseline
+                assert client.send(timeout_ms=0) == baseline
             client.expect("'default state'\n", python="retained")
             client.expect(python="retained = 'empty session name'", session="")
             client.expect("'empty session name'\n", python="retained", session="")
-            assert client.send(timeout_ms=0)["structuredContent"] == {
-                "sessions": [
-                    {"session": "", "status": "idle"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert client.send(timeout_ms=0) == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: ""; status: idle]\n\n[idle]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }
             return client.finish()
 
@@ -116,24 +120,19 @@ def test_named_sessions_can_wait_for_input_concurrently(
                 session="beta",
             )
             active = client.send(timeout_ms=0)
-            assert active["structuredContent"] == {
-                "sessions": [
-                    {"session": "alpha", "status": "waiting_for_stdin"},
-                    {"session": "beta", "status": "waiting_for_stdin"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert active == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: "alpha"; status: waiting_for_stdin]\n\n[waiting for stdin]\n'
+                        '[session: "beta"; status: waiting_for_stdin]\n\n[waiting for stdin]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }, active
             null_note = client.send(note=None, timeout_ms=0)
-            assert null_note.get("structuredContent") == active["structuredContent"], (
-                null_note
-            )
-            output = "".join(part["text"] for part in active["content"])
-            for session, status in (
-                ("alpha", "waiting_for_stdin"),
-                ("beta", "waiting_for_stdin"),
-                ("default", "idle"),
-            ):
-                assert f'[session: "{session}"; status: {status}]' in output, active
+            assert null_note == active, null_note
             client.send(session="alpha", timeout_ms=0)
             assert last_result_text(client) == "\n[waiting for stdin]"
             client.expect(stdin="beta answer\n", session="beta")
@@ -143,12 +142,16 @@ def test_named_sessions_can_wait_for_input_concurrently(
             client.expect(stdin="alpha answer\n", session="alpha")
             client.expect("'alpha answer'\n", python="answer", session="alpha")
             active = client.send(timeout_ms=0)
-            assert active["structuredContent"] == {
-                "sessions": [
-                    {"session": "alpha", "status": "idle"},
-                    {"session": "beta", "status": "idle"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert active == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: "alpha"; status: idle]\n\n[idle]\n'
+                        '[session: "beta"; status: idle]\n\n[idle]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }, active
             return client.finish()
 
@@ -227,8 +230,9 @@ def test_restarting_named_session_defers_replacement_until_code(
             assert "[worker stopped: in-memory state lost]" in last_result_text(client)
             assert "[starting new worker]" not in last_result_text(client)
             active = client.send(timeout_ms=0)
-            assert active["structuredContent"] == {
-                "sessions": [{"session": "default", "status": "idle"}]
+            assert active == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
             }, active
             client.send(session="alpha", timeout_ms=0)
             assert last_result_text(client) == "\n[stopped]"
@@ -307,8 +311,9 @@ def test_failed_named_session_waits_for_new_code(
             assert "[worker stopped: in-memory state lost]" in last_result_text(client)
             assert "[starting new worker]" not in last_result_text(client)
             active = client.send(timeout_ms=0)
-            assert active["structuredContent"] == {
-                "sessions": [{"session": "default", "status": "idle"}]
+            assert active == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
             }, active
             client.expect("'default state'\n", python="value")
             client.expect(
@@ -338,15 +343,7 @@ def test_aggregate_poll_omits_delivered_named_discovery_failure(
             assert failure.get("isError"), failure
             assert "selected Python executable is not an absolute file" in str(failure)
             active = {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": '[session: "default"; status: idle]\n\n[idle]',
-                    }
-                ],
-                "structuredContent": {
-                    "sessions": [{"session": "default", "status": "idle"}]
-                },
+                "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }
             assert client.send(timeout_ms=0) == active

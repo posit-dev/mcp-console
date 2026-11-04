@@ -111,10 +111,4 @@ result:
         [session: "default"; status: idle]
 
         [idle]
-  structuredContent:
-    sessions:
-      - session: alpha
-        status: idle
-      - session: default
-        status: idle
   isError: false

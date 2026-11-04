@@ -152,6 +152,13 @@ impl SendFailure {
 }
 
 impl Response {
+    pub(crate) fn is_empty_stopped(&mut self) -> bool {
+        !self.is_error
+            && matches!(self.terminal, Some(TerminalState::Stopped))
+            && matches!(self.preview.render_recorded().0.as_slice(),
+                [Content::Text(text)] if text == "\n[stopped]")
+    }
+
     /// Combine session previews under the ordinary complete-result bounds while
     /// keeping each session's original response available for delivery recovery.
     pub(crate) fn append_session(
@@ -181,24 +188,18 @@ impl Response {
                 execution_error: response.execution_error.clone(),
             }),
         });
-        let empty_stopped = !response.is_error
-            && matches!(response.terminal, Some(TerminalState::Stopped))
-            && matches!(response.preview.render_recorded().0.as_slice(),
-                [Content::Text(text)] if text == "\n[stopped]");
-        if !empty_stopped {
-            self.push_notice_line(format!(
-                "session: {}; status: {status}",
-                serde_json::json!(name)
-            ));
-            if let Some(phase) = phase {
-                response.preview.bound();
-                response.preview.phase_before_terminal(
-                    phase,
-                    matches!(response.terminal, Some(TerminalState::Running)),
-                );
-            }
-            self.extend(response);
+        self.push_notice_line(format!(
+            "session: {}; status: {status}",
+            serde_json::json!(name)
+        ));
+        if let Some(phase) = phase {
+            response.preview.bound();
+            response.preview.phase_before_terminal(
+                phase,
+                matches!(response.terminal, Some(TerminalState::Running)),
+            );
         }
+        self.extend(response);
         delivery
     }
 

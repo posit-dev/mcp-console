@@ -40,7 +40,7 @@ Examples below are **tool argument objects**, not complete JSON-RPC messages:
 { "timeout_ms": 300000 }
 ```
 
-The last object polls all active sessions without submitting code and lists their statuses.
+The last object polls all active sessions without submitting code.
 `{}` uses the default observation budget; it is not a new evaluation.
 Pass `{"session":"default"}` to poll only the default session.
 
@@ -76,10 +76,12 @@ An unknown name on a poll does not start a worker.
 The optional [`sessions.max` configuration](RUNTIME_CONFIGURATION.md#session-limits) limits live sessions, including `default`; the default is unlimited.
 Starting a new or stopped session at capacity returns an error without running its code.
 
-An empty call, optionally with `timeout_ms`, collects output from all active sessions and lists their names and statuses.
-Each output section starts with a session name and status, including when only the default session is active.
-The list is also available as `structuredContent.sessions`, sorted by name, with `session` and `status` fields on each entry.
-Status is `starting`, `running`, `waiting_for_stdin`, or `idle`; stopped sessions are omitted.
+An empty call, optionally with `timeout_ms`, collects output from all active sessions.
+Stopped sessions are omitted unless they have undelivered output or an error.
+When only one session is included, the result uses the ordinary single-session format.
+Otherwise, output sections are sorted by session name, and each starts with the session name and status.
+Status is `starting`, `running`, `waiting_for_stdin`, `idle`, or `stopped`.
+Poll results carry text and images in `content` and omit `structuredContent`.
 A targeted poll of a stopped session returns `[stopped]`.
 Supplying `session` polls only that session and preserves the ordinary single-session result format.
 

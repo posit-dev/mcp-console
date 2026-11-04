@@ -44,6 +44,12 @@ In [DuckDB 2.0.0's execution path](https://github.com/duckdb/duckdb-r/blob/v2.0.
 Reproduce through Console's SQL API and verify interrupt completion and retained connection state before changing the adapter or advancing the [dated SQL fixtures](DEVELOPMENT.md#selecting-and-sizing-test-runs).
 Production package selection remains unchanged; the fixture date does not establish DuckDB 2.0.0 cancellation support.
 
+## Output and delivery
+
+**OD-1 — Recover idle and stopped output after cancelled polls.** In [`Client::take_idle_response()`](../src/worker_client/send.rs), drained output has no delivery receipt to restore it after cancellation.
+Reproduced on `a6ae0127` by cancelling a named cell's completed response, cancelling its stop response, then cancelling the empty poll that collects the retained output; the next poll loses that output.
+Preserve the drained output's delivery ownership and cover idle and stopped sessions through public cancellation tests.
+
 ## Sandbox and platforms
 
 **SP-1 — Review evidence for macOS policy exceptions.** Check each application extension against the actual sandboxed workflow and selected native pin.
