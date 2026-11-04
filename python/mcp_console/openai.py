@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, overload
 from ._common import Command, content_text, result_text, stdio_command
 
 if TYPE_CHECKING:
-    from agents import FunctionTool
+    from agents import FunctionTool, ToolOutputImage, ToolOutputText
     from mcp.types import CallToolResult, Tool
 
     from ._client import AsyncMCPConsole
@@ -26,8 +26,12 @@ def agents_tools(console: MCPConsole | AsyncMCPConsole) -> list[FunctionTool]:
     `await Runner.run()`. Later tool calls in that run share the same cell state.
     Both sync and async clients are supported.
 
-    These function tools return text, with placeholders for images. Use
-    [agents_server()](openai.agents_server.html) for native MCP image results.
+    Text-only results return text, and tool errors raise. Successful results
+    containing images return ordered `ToolOutputText` and `ToolOutputImage`
+    objects, preserving Console's image bytes and MIME types.
+    [agents_server()](openai.agents_server.html) opens a separate native MCP
+    connection and also preserves image content in MCP error results. These
+    function tools raise `RuntimeError` for MCP errors, including image results.
     The live server schema is retained with `strict_json_schema=False` so
     optional tool arguments remain optional.
 
@@ -75,13 +79,15 @@ def _agents_tool(
 
     name = definition.name
 
-    async def invoke(context: Any, arguments: str) -> str:
+    async def invoke(
+        context: Any, arguments: str
+    ) -> str | list[ToolOutputText | ToolOutputImage]:
         parsed = json.loads(arguments)
         if iscoroutinefunction(console.call_tool):
-            return result_text(await console.call_tool(name, parsed))
-        return result_text(
-            await to_thread.run_sync(partial(console.call_tool, name, parsed))
-        )
+            result = await console.call_tool(name, parsed)
+        else:
+            result = await to_thread.run_sync(partial(console.call_tool, name, parsed))
+        return _agents_content(result)
 
     return FunctionTool(
         name=name,
@@ -90,6 +96,24 @@ def _agents_tool(
         on_invoke_tool=invoke,
         strict_json_schema=False,
     )
+
+
+def _agents_content(
+    result: CallToolResult,
+) -> str | list[ToolOutputText | ToolOutputImage]:
+    if result.is_error or not any(item.type == "image" for item in result.content):
+        return result_text(result)
+
+    from agents import ToolOutputImage, ToolOutputText
+
+    return [
+        ToolOutputImage(
+            image_url=f"data:{item.mime_type};base64,{item.data}", detail="auto"
+        )
+        if item.type == "image"
+        else ToolOutputText(text=content_text(item))
+        for item in result.content
+    ]
 
 
 @overload
@@ -107,8 +131,10 @@ def responses_tools(
 
     Pass every `tool.definition` to `responses.create(tools=...)`. Route model
     function calls by name; `tool(call)` executes the selected tool and returns the
-    `function_call_output` item for the next API request. Text and images are
-    preserved. The application runs this loop and routes any other tools.
+    `function_call_output` item for the next API request. Text and images in
+    successful results are preserved. MCP tool errors raise `RuntimeError`,
+    including image results. The application runs this loop and routes any other
+    tools.
 
     Create the adapters after connecting Console, and keep that connection open
     for the entire loop. With `AsyncMCPConsole`, the factory returns

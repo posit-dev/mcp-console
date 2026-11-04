@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from ._common import Command, result_text, stdio_command
 
 if TYPE_CHECKING:
-    from mcp.types import Tool
+    from mcp.types import CallToolResult, Tool
 
     from ._client import AsyncMCPConsole
     from ._sync import MCPConsole
@@ -25,9 +25,11 @@ def callable_tools(console: MCPConsole | AsyncMCPConsole, **kwargs: Any) -> list
     A synchronous client produces synchronous tools; an async client produces
     async tools for `AsyncAnthropic`.
 
-    This adapter returns text, with placeholders for images. For plots and other
-    image output, use [tools()](anthropic.tools.html), which opens its own
-    connection and preserves MCP content blocks.
+    Text results return text, and text-only tool errors raise `RuntimeError`.
+    Results containing images use Anthropic content blocks with the server's
+    image data and MIME types, preserving the order of text and images. An image
+    result marked as an error raises `anthropic.lib.tools.ToolError` carrying
+    those blocks, so the tool runner retains the images and error status.
 
     Discovery includes every tool, even when the server has no `send` tool.
 
@@ -72,6 +74,19 @@ def callable_tools(console: MCPConsole | AsyncMCPConsole, **kwargs: Any) -> list
     return [_callable_tool(console, definition, kwargs) for definition in console.tools]
 
 
+def _tool_result(result: CallToolResult) -> str | list[Any]:
+    if not any(item.type == "image" for item in result.content):
+        return result_text(result)
+
+    from anthropic.lib.tools import ToolError
+    from anthropic.lib.tools.mcp import mcp_content
+
+    content = [mcp_content(item) for item in result.content]
+    if result.is_error:
+        raise ToolError(content)
+    return content
+
+
 def _callable_tool(
     console: MCPConsole | AsyncMCPConsole,
     definition: Tool,
@@ -82,14 +97,14 @@ def _callable_tool(
     name = definition.name
     if iscoroutinefunction(console.call_tool):
 
-        async def invoke(**arguments: Any) -> str:
-            return result_text(await console.call_tool(name, arguments))
+        async def invoke(**arguments: Any) -> str | list[Any]:
+            return _tool_result(await console.call_tool(name, arguments))
 
         decorate = beta_async_tool
     else:
 
-        def invoke(**arguments: Any) -> str:
-            return result_text(console.call_tool(name, arguments))
+        def invoke(**arguments: Any) -> str | list[Any]:
+            return _tool_result(console.call_tool(name, arguments))
 
         decorate = beta_tool
 

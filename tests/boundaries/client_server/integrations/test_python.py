@@ -1147,11 +1147,18 @@ def test_sync_responses_preserves_text_and_images(
 
 @requires(R)
 @executions(DIRECT, SANDBOXED)
-def test_chatlas_tool_preserves_image_results(
+def test_callable_tools_preserve_image_results(
     binary: Path, execution: Execution
 ) -> TranscriptWithCompanions:
+    from agents import ItemHelpers, ToolOutputImage, ToolOutputText
+    from agents.tool_context import ToolContext
+    from anthropic.lib.tools import ToolError
+    from anthropic.types.beta import BetaToolResultBlockParam
     from chatlas import ContentToolResult
     from chatlas.types import ContentImageInline, ContentText
+    from openai.types.responses import ResponseFunctionToolCall
+    from openai.types.responses.response_input_item_param import FunctionCallOutput
+    from pydantic import TypeAdapter
 
     environment, rscript = r_test_environment()
     # fmt: r
@@ -1171,6 +1178,14 @@ def test_chatlas_tool_preserves_image_results(
     )
     expected_image = base64.b64encode(expected_plot).decode("ascii")
     image_arguments = {"r": plot_code, "timeout_ms": 300_000}
+    # fmt: r
+    exit_code = code(r"""
+        quit(save = "no", status = 33L, runLast = FALSE)
+        """)
+    image_error_arguments = {
+        "r": plot_code + "\n" + exit_code,
+        "timeout_ms": 300_000,
+    }
 
     def check_image(result) -> None:
         assert isinstance(result, ContentToolResult), type(result)
@@ -1183,26 +1198,144 @@ def test_chatlas_tool_preserves_image_results(
         assert image.image_content_type == "image/png"
         assert image.data == expected_image
 
-    async def exercise(console) -> None:
-        tool = next(
+    expected_responses_content = [
+        {"type": "input_text", "text": "before image\n"},
+        {
+            "type": "input_image",
+            "image_url": f"data:image/png;base64,{expected_image}",
+            "detail": "auto",
+        },
+        {"type": "input_text", "text": "after image\n"},
+    ]
+
+    async def exercise(console) -> list:
+        chatlas = next(
             tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
         )
+        agents = next(
+            tool
+            for tool in mcp_console.openai.agents_tools(console)
+            if tool.name == "send"
+        )
+        anthropic = next(
+            tool
+            for tool in mcp_console.anthropic.callable_tools(console)
+            if tool.to_dict()["name"] == "send"
+        )
+        responses = next(
+            tool
+            for tool in mcp_console.openai.responses_tools(console)
+            if tool.definition["name"] == "send"
+        )
 
-        async def invoke(arguments):
-            result = tool.func(**arguments)
-            return await result if inspect.isawaitable(result) else result
-
-        check_image(await invoke(image_arguments))
-        text = await invoke({"r": 'cat("text\\n")'})
-        assert text == "text\n", (type(text), text)
-        try:
-            await invoke({"r": 'cat("r\\n")', "python": 'print("python")'})
-        except RuntimeError as rejected:
-            assert (
-                str(rejected) == "only one of `r`, `python`, or `sql` may be supplied"
+        def invoke_agents(arguments):
+            encoded = json.dumps(arguments)
+            context = ToolContext(
+                context=None,
+                tool_name="send",
+                tool_call_id="call_1",
+                tool_arguments=encoded,
             )
+            return agents.on_invoke_tool(context, encoded)
+
+        for adapter, call in (
+            ("chatlas", lambda arguments: chatlas.func(**arguments)),
+            ("agents", invoke_agents),
+            ("anthropic", anthropic.call),
+            ("responses", responses.call),
+        ):
+
+            async def invoke(arguments):
+                result = call(arguments)
+                return await result if inspect.isawaitable(result) else result
+
+            result = await invoke(image_arguments)
+            if adapter == "chatlas":
+                check_image(result)
+            elif adapter == "agents":
+                assert isinstance(result, list), type(result)
+                assert [type(item) for item in result] == [
+                    ToolOutputText,
+                    ToolOutputImage,
+                    ToolOutputText,
+                ]
+                assert result == [
+                    ToolOutputText(text="before image\n"),
+                    ToolOutputImage(
+                        image_url=f"data:image/png;base64,{expected_image}",
+                        detail="auto",
+                    ),
+                    ToolOutputText(text="after image\n"),
+                ]
+                function_call = ResponseFunctionToolCall(
+                    type="function_call",
+                    name="send",
+                    call_id="call_1",
+                    arguments=json.dumps(image_arguments),
+                )
+                provider_result = ItemHelpers.tool_call_output_item(
+                    function_call, result
+                )
+                TypeAdapter(FunctionCallOutput).validate_python(provider_result)
+                assert provider_result == {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": expected_responses_content,
+                }
+            elif adapter == "anthropic":
+                assert result == [
+                    {"type": "text", "text": "before image\n"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": expected_image,
+                        },
+                    },
+                    {"type": "text", "text": "after image\n"},
+                ], type(result)
+                TypeAdapter(BetaToolResultBlockParam).validate_python(
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": result}
+                )
+            else:
+                assert result == expected_responses_content, result
+                TypeAdapter(FunctionCallOutput).validate_python(
+                    {
+                        "type": "function_call_output",
+                        "call_id": "call_1",
+                        "output": result,
+                    }
+                )
+            text = await invoke({"r": 'cat("text\\n")'})
+            assert text == "text\n", (adapter, type(text), text)
+            try:
+                await invoke({"r": 'cat("r\\n")', "python": 'print("python")'})
+            except RuntimeError as rejected:
+                assert (
+                    str(rejected)
+                    == "only one of `r`, `python`, or `sql` may be supplied"
+                )
+            else:
+                raise AssertionError(f"{adapter} errored result did not raise")
+
+        try:
+            error_result = anthropic.call(image_error_arguments)
+            if inspect.isawaitable(error_result):
+                await error_result
+        except ToolError as error:
+            TypeAdapter(BetaToolResultBlockParam).validate_python(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_1",
+                    "content": error.content,
+                    "is_error": True,
+                }
+            )
+            assert isinstance(error.content, list), type(error.content)
+            return error.content
         else:
-            raise AssertionError("errored result did not raise")
+            raise AssertionError("Anthropic image error did not raise ToolError")
 
     async def run() -> TranscriptWithCompanions:
         transcripts = []
@@ -1222,23 +1355,52 @@ def test_chatlas_tool_preserves_image_results(
                 }
                 if client_type is AsyncMCPConsole:
                     async with client_type(**settings) as console:
-                        await exercise(console)
+                        image_error = await exercise(console)
                 else:
                     with client_type(**settings) as console:
-                        await exercise(console)
+                        image_error = await exercise(console)
                 transcript = json.loads(capture.read_text(encoding="utf-8"))
-                image_call = next(
+                error_call = next(
+                    entry
+                    for entry in transcript
+                    if entry.get("send") == image_error_arguments
+                )
+                error_result = error_call["result"]
+                assert error_result["isError"] is True, error_result
+                assert [item["type"] for item in error_result["content"]] == [
+                    "text",
+                    "image",
+                    "text",
+                ], error_result
+                before, _, after = error_result["content"]
+                assert before["text"] == "before image\n", before
+                assert "[worker exited with status 33]" in after["text"], after
+                assert image_error == [
+                    {"type": "text", "text": before["text"]},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": expected_image,
+                        },
+                    },
+                    {"type": "text", "text": after["text"]},
+                ], image_error
+                image_calls = [
                     entry
                     for entry in transcript
                     if entry.get("send") == image_arguments
-                )
-                image = image_call["result"]["content"][1]
-                assert image == {
-                    "type": "image",
-                    "mimeType": "image/png",
-                    "data": expected_image,
-                }, image
-                image["data"] = "<PNG byte-identical to live Rscript page 1>"
+                ]
+                assert len(image_calls) == 4, image_calls
+                for image_call in [*image_calls, error_call]:
+                    image = image_call["result"]["content"][1]
+                    assert image == {
+                        "type": "image",
+                        "mimeType": "image/png",
+                        "data": expected_image,
+                    }, image
+                    image["data"] = "<PNG byte-identical to live Rscript page 1>"
                 initialize = transcript[0]["input"]
                 assert initialize["method"] == "initialize"
                 client_info = initialize["params"]["clientInfo"]
@@ -1251,8 +1413,10 @@ def test_chatlas_tool_preserves_image_results(
                 transcripts.append(
                     [
                         {
-                            "scenario": f"Chatlas tools through {client_type.__name__}: "
-                            "an image result, a text result, then an invalid call.",
+                            "scenario": f"Callable tools through {client_type.__name__}: "
+                            "Chatlas, OpenAI Agents, Anthropic, and OpenAI Responses each "
+                            "receive an image result, a text result, then an invalid call. "
+                            "Anthropic also receives an image followed by a worker exit error.",
                             "fixture": "The built-in R runtime produces a plot whose PNG bytes "
                             "are compared with a live Rscript reference. The proxy records MCP "
                             "exchanges; adapter results are checked in Python.",
