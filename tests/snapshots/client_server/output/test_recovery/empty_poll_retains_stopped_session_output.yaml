@@ -40,6 +40,19 @@ result: {}
 ---
 send:
   timeout_ms: 0
+id: <cancelled request 3>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 3>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
 result:
   content:
     - type: text
@@ -49,8 +62,34 @@ result:
         [worker stopped: in-memory state lost]
         [stopped]
         [stopped]
+        [stopped]
         [session: "default"; status: idle]
 
+        [idle]
+        [idle]
+  isError: false
+---
+send:
+  timeout_ms: 0
+id: <cancelled request 4>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 4>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
         [idle]
   isError: false
 ---

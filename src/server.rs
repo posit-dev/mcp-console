@@ -483,11 +483,12 @@ fn responses_to_tool_result(
         .into_iter()
         .filter_map(|(name, status, mut response)| {
             if response.is_empty_stopped() {
-                // Stopped registry entries do not contribute display content,
-                // but their output claims still settle with this response.
+                // This omitted status contains no output to deliver or recover.
+                // Restoring it after cancellation would make an otherwise empty
+                // stopped session visible on the next poll.
                 let (_, _, acknowledgment, _) = response.into_parts();
                 if let Some(acknowledgment) = acknowledgment {
-                    deliveries.register(delivery, acknowledgment);
+                    acknowledgment.delivered();
                 }
                 None
             } else {

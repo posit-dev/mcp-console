@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from boundaries.client_server._harness import expose_idle_sideband_output
 from support.progress import elapsed_progress, phase_progress, without_elapsed
 from support.allocations import AllocationProfile
 from support.assertions import last_tool_text
@@ -320,6 +321,7 @@ def recovery_client(
                     "MCP_CONSOLE_TEST_RESULT_REACHED": str(reached.path),
                     "MCP_CONSOLE_TEST_RESULT_RELEASE": str(release.path),
                     "MCP_CONSOLE_TEST_PREVIEW_DIRECTORY": str(root),
+                    "TMPDIR": str(root),
                     **(
                         {
                             "ZOD_STARTUP_CONTROL": str(root / "startup-control"),
@@ -438,8 +440,10 @@ def test_empty_poll_retains_stopped_session_output(
         pending = client.start_send(control="restart", session="alpha")
         cancel_result(client, pending, reached, release)
 
-        # A stopped session still contributes its undelivered cell and stop
-        # notices to the next empty poll; only an empty stopped reply is omitted.
+        # Cancelling the aggregate poll must restore the stopped session's
+        # retained output along with the default session's idle response.
+        pending = client.start_send(timeout_ms=0)
+        cancel_result(client, pending, reached, release)
         profile.pause_results(False)
         result = client.send(timeout_ms=0)
         assert result == {
@@ -450,9 +454,48 @@ def test_empty_poll_retains_stopped_session_output(
                         '[session: "alpha"; status: stopped]\n'
                         "zod: alpha output\n"
                         "[worker stopped: in-memory state lost]\n"
-                        "[stopped]\n[stopped]\n"
-                        '[session: "default"; status: idle]\n\n[idle]'
+                        "[stopped]\n[stopped]\n[stopped]\n"
+                        '[session: "default"; status: idle]\n\n[idle]\n[idle]'
                     ),
+                }
+            ],
+            "isError": False,
+        }, result
+        # A cancelled poll of the now-empty stopped session must not turn its
+        # omitted status notice into pending output on the following poll.
+        profile.pause_results(True)
+        pending = client.start_send(timeout_ms=0)
+        cancel_result(client, pending, reached, release)
+        profile.pause_results(False)
+        assert client.send(timeout_ms=0) == {
+            "content": [{"type": "text", "text": "\n[idle]\n[idle]"}],
+            "isError": False,
+        }
+        assert client.send(timeout_ms=0) == {
+            "content": [{"type": "text", "text": "\n[idle]"}],
+            "isError": False,
+        }
+        return client.finish()
+
+
+@requires(NATIVE_FIXTURES)
+def test_cancelled_idle_polls_retain_output_until_delivery(binary: Path) -> Transcript:
+    with recovery_client(binary) as (client, profile, reached, release):
+        profile.pause_results(False)
+        # Emit output only after the cell's completion has been delivered, and
+        # wait for the sideband receipt before cancelling either kind of poll.
+        expose_idle_sideband_output(client, reached.path.parent)
+        profile.pause_results(True)
+        for arguments in ({"session": "default"}, {}):
+            pending = client.start_send(timeout_ms=0, **arguments)
+            cancel_result(client, pending, reached, release)
+        profile.pause_results(False)
+        result = client.send(timeout_ms=0)
+        assert result == {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "zod background sideband\n\n[idle]\n[idle]\n[idle]",
                 }
             ],
             "isError": False,
