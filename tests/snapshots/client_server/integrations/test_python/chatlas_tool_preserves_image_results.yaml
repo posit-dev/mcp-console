@@ -3,17 +3,9 @@ scenario: >-
   Chatlas tools through MCPConsole: an image result, a text result, then
   an invalid call.
 fixture: >-
-  The zod worker returns a fixed PNG for `emit image`. The recording proxy
-  captures the SDK's MCP requests and responses; adapter return values are
-  checked in Python assertions.
-transcript_normalization:
-  target: initialize.params.clientInfo
-  original:
-    name: mcp
-    version: 0.1.0
-  normalized:
-    name: acceptance-test
-    version: 1.0.0
+  The real Console server runs the synthetic zod worker, which emits fixed
+  text and PNG data instead of executing R or Python. The proxy records
+  MCP exchanges; adapter results are checked in Python.
 ---
 !same-as custom MCP initialization for this execution mode
 ---

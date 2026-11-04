@@ -1226,23 +1226,19 @@ def test_chatlas_tool_preserves_image_results(
                 assert initialize["method"] == "initialize"
                 client_info = initialize["params"]["clientInfo"]
                 assert client_info == {"name": "mcp", "version": "0.1.0"}, client_info
-                canonical_client_info = {"name": "acceptance-test", "version": "1.0.0"}
-                # Retain the SDK identity in metadata while comparing the rest
-                # of the complete handshake with the canonical worker reference.
-                initialize["params"]["clientInfo"] = canonical_client_info
+                # Normalize SDK identity before the full canonical-handshake comparison.
+                initialize["params"]["clientInfo"] = {
+                    "name": "acceptance-test",
+                    "version": "1.0.0",
+                }
                 transcripts.append(
                     [
                         {
                             "scenario": f"Chatlas tools through {client_type.__name__}: "
                             "an image result, a text result, then an invalid call.",
-                            "fixture": "The zod worker returns a fixed PNG for `emit image`. "
-                            "The recording proxy captures the SDK's MCP requests and responses; "
-                            "adapter return values are checked in Python assertions.",
-                            "transcript_normalization": {
-                                "target": "initialize.params.clientInfo",
-                                "original": client_info,
-                                "normalized": canonical_client_info,
-                            },
+                            "fixture": "The real Console server runs the synthetic zod worker, "
+                            "which emits fixed text and PNG data instead of executing R or Python. "
+                            "The proxy records MCP exchanges; adapter results are checked in Python.",
                         },
                         *transcript,
                     ]
