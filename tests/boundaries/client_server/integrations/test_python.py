@@ -1152,6 +1152,11 @@ def test_chatlas_tool_preserves_image_results(
     from chatlas import ContentToolResult
     from chatlas.types import ContentImageInline, ContentText
 
+    expected_image = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42Y"
+        "AAAAASUVORK5CYII="
+    )
+
     def check_image(result) -> None:
         assert isinstance(result, ContentToolResult), type(result)
         assert result.error is None
@@ -1161,10 +1166,7 @@ def test_chatlas_tool_preserves_image_results(
         text, image, after = result.value
         assert (text.text, after.text) == ("before image\n", "after image\n")
         assert image.image_content_type == "image/png"
-        assert image.data == (
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42Y"
-            "AAAAASUVORK5CYII="
-        )
+        assert image.data == expected_image
 
     async def exercise(console) -> None:
         tool = next(
@@ -1208,6 +1210,18 @@ def test_chatlas_tool_preserves_image_results(
                     with client_type(**settings) as console:
                         await exercise(console)
                 transcript = json.loads(capture.read_text(encoding="utf-8"))
+                image_call = next(
+                    entry
+                    for entry in transcript
+                    if entry.get("send") == {"r": "emit image"}
+                )
+                image = image_call["result"]["content"][1]
+                assert image == {
+                    "type": "image",
+                    "mimeType": "image/png",
+                    "data": expected_image,
+                }, image
+                image["data"] = "<PNG byte-identical to zod fixture>"
                 initialize = transcript[0]["input"]
                 assert initialize["method"] == "initialize"
                 client_info = initialize["params"]["clientInfo"]
