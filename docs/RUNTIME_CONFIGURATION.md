@@ -39,14 +39,7 @@ See [Named sessions](API.md#named-sessions) for creation, polling, and stopping 
 
 Use an existing environment when you want to manage its packages yourself, or managed Python when you want Console to prepare the environment and packages.
 
-| Setting                  | Accepted values                  | Selection behavior                                                                                                                                                                              |
-| ------------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `python`                 | Omitted or `null`                | Honor a launch-time `RETICULATE_PYTHON` selection; otherwise use managed Python. See [Environment variables](ENVIRONMENT.md#server-paths-and-executable-discovery) for the compatibility rules. |
-| `python`                 | Nonempty path string             | Use an existing Python executable or standard virtual environment. Equivalent to `python: {existing: PATH}`.                                                                                    |
-| `python`                 | Managed settings mapping or `{}` | Select managed Python explicitly, overriding launch-time `RETICULATE_PYTHON`. An empty mapping uses managed defaults.                                                                           |
-| `python.existing`        | Nonempty path string             | Use the installed packages in that executable's environment or virtual environment.                                                                                                             |
-| `python.managed`         | Mapping                          | Nested form of the [managed settings](#managed-python).                                                                                                                                         |
-| `python.first_available` | Nonempty list of candidates      | Select the first available candidate in order; see [fallback choices](#first-available-python).                                                                                                 |
+The [Python field reference](CONFIGURATION.md#python-environment-selection) lists selection forms and defaults.
 
 A Python mapping contains either managed fields directly or exactly one of `existing`, `managed`, or `first_available`.
 Combining direct managed fields with a selection key in the same mapping is an error.
@@ -79,9 +72,7 @@ python:
   version: ">=3.12,<3.14"
 ```
 
-| Setting          | Accepted values                                                                      | Meaning and default                                                                                                      |
-| ---------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `python.version` | One quoted Python version or constraint string, such as `"3.13"` or `">=3.12,<3.14"` | Restrict the managed CPython version. Omission adds no version constraint; versions older than 3.10 are always excluded. |
+Use a quoted version or constraint string; see the [Python field reference](CONFIGURATION.md#python-environment-selection).
 
 The same fields are accepted under `python.managed` and in a managed fallback candidate.
 For `packages` and `resolution` fields in these mappings, see [Package settings](PACKAGE_CONFIGURATION.md#startup-package-declarations).
@@ -137,11 +128,7 @@ r:
   vanilla: true
 ```
 
-| Setting        | Accepted values                     | Meaning and default                                                                                                                     |
-| -------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `r`            | Executable path, mapping, or `null` | Select an installation and its package/startup settings. Omission or `null` uses normal R discovery and defaults.                       |
-| `r.executable` | Nonempty path string or `null`      | Installed R executable or ordinary launcher. Omission uses installation hints and `PATH` discovery; `null` clears an earlier selection. |
-| `r.vanilla`    | `true` or `false`                   | Request R's native `--vanilla` startup. Default: `false`, retaining normal environment files, profiles, and workspace restoration.      |
+The [R field reference](CONFIGURATION.md#r-executable-selection) lists executable, package, and startup settings.
 
 For `r.packages` and `r.resolution`, see [Package settings](PACKAGE_CONFIGURATION.md).
 
@@ -196,11 +183,7 @@ startup:
     _console.sql_connection(connection)
 ```
 
-| Setting            | Accepted values                    | Meaning                                                                                              |
-| ------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `startup`          | Mapping or `null`                  | Optional SQL connection setup. Omitted or `null`: no user startup source.                            |
-| `startup.language` | `r` or `python`                    | Interpreter that runs the source. Required when `startup` is a mapping.                              |
-| `startup.code`     | Nonblank source string without NUL | Create and select a user-owned connection on that interpreter. Required when `startup` is a mapping. |
+Both `language` and `code` are required; see the [startup field reference](CONFIGURATION.md#tools-and-sessions).
 
 For R, use `language: r`, create a normal DBI connection, and select it with `.console$sql_connection(connection)`.
 Python uses a DB-API connection and `_console.sql_connection(connection)`.

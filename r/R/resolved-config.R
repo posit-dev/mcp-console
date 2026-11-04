@@ -9,14 +9,14 @@
 #' Set either path to `NULL` to skip it. Relative filenames and configured paths
 #' use `project`; `~` follows Console's launch-home convention, not R's `R_USER`.
 #'
-#' Native Console fills configuration defaults without starting interpreters or
+#' The loader fills configuration defaults without starting interpreters or
 #' preparing runtime packages. Generated tool descriptions and schema metadata
 #' are excluded from the editable configuration. Authored tool settings, including
 #' empty descriptions and text equal to a generated default, remain explicit.
 #' Tool presentation is generated from the final configuration at launch.
 #'
 #' Explicit worker/resolver permissions and Python selections replace their
-#' corresponding inherited nodes. Other mappings follow native layering rules.
+#' corresponding inherited nodes. Other mappings merge recursively.
 #' The calling R installation is a low-priority default; file settings and
 #' overrides can select another executable. A file's `r: null` or
 #' `r.executable: null` clears that preference and retains native R discovery
@@ -29,8 +29,9 @@
 #'
 #' @param global_file Global YAML or JSON path. Defaults to `config.yaml` under
 #'   `MCP_CONSOLE_HOME`, or `~/.agents/console/config.yaml` when unset.
-#' @param project_file Project YAML or JSON path, normally
-#'   `./.agents/console/config.yaml` relative to `project`.
+#' @param project_file Project YAML or JSON path. Defaults to
+#'   `file.path(project, ".agents", "console", "config.yaml")`. An explicitly
+#'   supplied relative path is relative to `project`.
 #' @param overrides `NULL`, a [ConsoleConfig()], or a named mapping applied after
 #'   the files.
 #' @inheritParams console_tools
@@ -46,13 +47,13 @@
 #' }
 #' @export
 load_console_config <- function(
+  project = getwd(),
   global_file = file.path(
     Sys.getenv("MCP_CONSOLE_HOME", unset = "~/.agents/console"),
     "config.yaml"
   ),
-  project_file = "./.agents/console/config.yaml",
+  project_file = file.path(project, ".agents", "console", "config.yaml"),
   overrides = NULL,
-  project = getwd(),
   path = NULL,
   version = NULL
 ) {
@@ -63,6 +64,17 @@ load_console_config <- function(
   if (missing(global_file)) {
     global_file <- console_global_config_file()
   }
+  if (
+    !is.character(project) ||
+      length(project) != 1L ||
+      is.na(project) ||
+      !dir.exists(project)
+  ) {
+    stop("`project` must identify an existing directory.", call. = FALSE)
+  }
+  # Normalize before evaluating project_file's default so a relative project is
+  # not interpreted twice when Console reads files from its working directory.
+  project <- normalizePath(project, mustWork = TRUE)
   for (name in c("global_file", "project_file")) {
     file <- get(name)
     if (
@@ -84,15 +96,6 @@ load_console_config <- function(
     overrides <- ConsoleConfig(overrides)
   }
   S7::validate(overrides)
-  if (
-    !is.character(project) ||
-      length(project) != 1L ||
-      is.na(project) ||
-      !dir.exists(project)
-  ) {
-    stop("`project` must identify an existing directory.", call. = FALSE)
-  }
-  project <- normalizePath(project, mustWork = TRUE)
   binary <- resolve_mcp_console(path, version)
   directory <- tempfile("mcp-console-config-")
   stopifnot(dir.create(directory))

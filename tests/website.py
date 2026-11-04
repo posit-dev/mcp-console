@@ -671,7 +671,7 @@ class WebsiteTests(unittest.TestCase):
                 },
             )
 
-    def test_reference_indexes_settings_by_their_owning_page(self) -> None:
+    def test_reference_indexes_one_configuration_field_reference(self) -> None:
         path = self.site / "reference/index.html"
         reference = BeautifulSoup(path.read_text(), "html.parser")
         settings = {}
@@ -682,25 +682,20 @@ class WebsiteTests(unittest.TestCase):
             self.assertIsNotNone(target)
             for name in names:
                 settings[name.get_text()] = linked_file(path, target["href"])
-        for key, owner in {
-            "r.packages": "package_configuration",
-            "python.packages": "package_configuration",
-            "r.resolution": "package_configuration",
-            "python.resolution": "package_configuration",
-            "resolver": "package_configuration",
-            "cache": "package_configuration",
-            "python": "runtime_configuration",
-            "startup": "runtime_configuration",
-            "sandbox.profile": "sandbox_configuration",
-            "languages": "tool_configuration",
-        }.items():
+        for key in settings:
             with self.subTest(setting=key):
-                self.assertEqual(settings.get(key), self.site / owner / "index.html")
+                self.assertEqual(settings[key], self.site / "configuration/index.html")
 
         configuration = BeautifulSoup(
             (self.site / "configuration/index.html").read_text(), "html.parser"
         )
-        self.assertIsNone(configuration.select_one("section#settings-by-task"))
+        fields = {
+            field.get_text()
+            for field in configuration.select(
+                "#top-level-settings table tbody td:first-child code"
+            )
+        }
+        self.assertLessEqual(set(settings), fields)
         packages = self.pages[self.site / "package_configuration/index.html"]
         self.assertLessEqual(
             {
@@ -1215,11 +1210,45 @@ class WebsiteTests(unittest.TestCase):
                 for link in navbar.select(".nav-link")
                 if link.get_text(strip=True)
             ],
-            ["MCP Console", "Get started", "Guides", "Build", "Reference"],
+            ["Get started", "Guides", "Reference", "Console documentation"],
         )
-        self.assertIn("../../../", self.pages[reference].links)
-        for target in ("getting-started/", "readme/", "build/", "reference/"):
-            self.assertIn(f"../../../{target}", self.pages[reference].links)
+        for name in (
+            "r/index.html",
+            "r/reference/index.html",
+            "r/reference/consoleconfig/index.html",
+            "r/reference/console_tools/index.html",
+            "r/articles/configuration/index.html",
+        ):
+            page = self.site / name
+            navbar = BeautifulSoup(page.read_text(), "html.parser").select_one(
+                ".navbar"
+            )
+            for link in navbar.select("a[href]"):
+                if link.get_text(strip=True) == "Console documentation":
+                    self.assertEqual(
+                        link["href"], "https://posit-dev.github.io/mcp-console/"
+                    )
+                elif link.get("aria-label") == "GitHub":
+                    self.assertEqual(
+                        link["href"], "https://github.com/posit-dev/mcp-console/"
+                    )
+                else:
+                    self.assertFalse(urlsplit(link["href"]).scheme)
+                    self.assertTrue(
+                        linked_file(page, link["href"]).is_relative_to(self.site / "r")
+                    )
+        constructor = self.site / "r/reference/consoleconfig/index.html"
+        soup = BeautifulSoup(constructor.read_text(), "html.parser")
+        heading = soup.select_one("#see-also")
+        self.assertIsNotNone(heading)
+        see_also = heading.find_parent("div", class_="section")
+        self.assertIn(
+            reference,
+            {
+                linked_file(constructor, link["href"])
+                for link in see_also.select("a[href]")
+            },
+        )
         self.assertIn(
             "https://github.com/posit-dev/mcp-console/blob/main/r/R/console-tool.R",
             self.pages[reference].links,

@@ -3,9 +3,207 @@ filters:
   - _filters/config-init.py
 ---
 
-# Configuration files
+# Configuration
 
-Use configuration files to customize Console's default settings for a project or across projects.
+This page lists the settings accepted in `config.yaml`, their values and defaults, and how configuration files combine.
+Use it for project settings or defaults shared across projects.
+For R lists with the same structure, see [Configure a Console session in R](https://posit-dev.github.io/mcp-console/r/articles/configuration/).
+
+## Settings {#top-level-settings}
+
+Write a YAML mapping using any of the fields below.
+Omitted fields use defaults or settings from an earlier file.
+Dotted names in the tables describe nesting; for example, `r.packages` is written as:
+
+```yaml
+r:
+  packages: [dplyr, ggplot2]
+  resolution: fixed
+sandbox:
+  profile: workspace
+  network: [api.example.com]
+```
+
+This prepares the selected R packages, keeps their declaration fixed during the session, permits ordinary project writes, and allows the worker to contact one hostname through a proxy.
+Package preparation has its own permissions.
+
+The complete field reference is grouped below: [R](#r-executable-selection), [Python](#python-environment-selection), [packages](#dependency-resolution-policies), [permissions](#sandbox-settings), [environment and caches](#environment-and-caches), and [tools and sessions](#tools-and-sessions).
+Lists replace earlier lists; mappings merge recursively.
+See [Merge rules](#merge-rules) for `null` and empty values.
+
+### R {#r-executable-selection}
+
+| Setting        | Accepted values and defaults                                                                                                                                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `r`            | An executable path, a mapping of the fields below, or `null`. A path is shorthand for `r.executable`.                                                                                                                        |
+| `r.executable` | A nonempty path to an R executable or launcher, or `null`. Omission uses installation hints and PATH; `null` clears an earlier selection. R package callers supply their calling R installation as a lower-priority default. |
+| `r.packages`   | A list of single-line `ir` package references. Omission keeps the default startup packages; `[]` requests no optional packages.                                                                                              |
+| `r.resolution` | `implicit` (default), `explicit`, `fixed`, or `disabled`; see [package policies](#dependency-resolution-policies).                                                                                                           |
+| `r.vanilla`    | `true` or `false` (default). True requests native `--vanilla` startup.                                                                                                                                                       |
+
+Select an executable, not an installation directory, Rscript, or a command with arguments.
+See [R startup behavior](RUNTIME_CONFIGURATION.md#native-r-startup) for profiles and workspace restoration.
+
+### Python {#python-environment-selection}
+
+| Setting                  | Accepted values and defaults                                                                                                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `python`                 | An existing executable/virtual-environment path, a mapping, or `null`. Omission honors launch-time `RETICULATE_PYTHON` when set, otherwise selects managed Python. An empty mapping explicitly selects managed Python. |
+| `python.existing`        | A nonempty path to an existing CPython executable or standard virtual environment. Use its installed packages; accept no managed settings alongside it.                                                                |
+| `python.managed`         | A mapping with `version`, `packages`, and `resolution`. These fields may instead appear directly under `python`.                                                                                                       |
+| `python.version`         | A quoted version or constraint, such as `"3.13"` or `">=3.12,<3.14"`. Omission adds no constraint; CPython older than 3.10 is excluded.                                                                                |
+| `python.packages`        | A list of named PEP 508 registry requirements. Omission keeps default startup packages; `[]` requests no optional packages.                                                                                            |
+| `python.resolution`      | `explicit` (default), `implicit`, or `fixed`; see [package policies](#dependency-resolution-policies).                                                                                                                 |
+| `python.first_available` | A nonempty list of `{existing: PATH}`, `active_venv`, and `{managed: {...}}` choices. At most one `active_venv` and one managed choice; managed must be last.                                                          |
+
+A Python mapping uses direct managed fields or exactly one of `existing`, `managed`, and `first_available`.
+Managed fields also apply inside a managed candidate.
+An absent candidate advances to the next choice; a present but unusable environment fails.
+For example:
+
+```yaml
+python:
+  first_available:
+    - existing: .venv
+    - active_venv
+    - managed:
+        version: "3.13"
+        packages: [pandas]
+        resolution: fixed
+```
+
+See [Python environment behavior](RUNTIME_CONFIGURATION.md#python-environment-selection) for embedding requirements and selection details.
+
+### Package policies {#dependency-resolution-policies}
+
+| `r.resolution` / `python.resolution` | At startup                                                       | During execution                                                                                      |
+| ------------------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `implicit`                           | Prepare startup packages.                                        | Also prepare on explicit requests and supported missing-package loads/imports. The cell is not rerun. |
+| `explicit`                           | Prepare startup packages.                                        | Accept explicit package requests; ordinary loads/imports do not prepare packages.                     |
+| `fixed`                              | Prepare startup packages.                                        | Reject changes to the declaration.                                                                    |
+| `disabled` (R only)                  | Use preinstalled packages, including Console's R infrastructure. | No managed preparation; `r.packages` must be omitted or empty.                                        |
+
+For preinstalled-only Python, select an existing environment.
+These policies control Console's preparation, not arbitrary installation commands in submitted code.
+See [default startup packages](PACKAGE_CONFIGURATION.md#default-startup-packages) and [live package requests](API.md#requirements).
+
+### Permissions {#sandbox-settings}
+
+`sandbox` and `resolver.sandbox` accept mappings with the fields below, or `null` to restore their context's defaults.
+Workers default to host reads, private temporary writes, and restricted networking without a proxy.
+Preparation defaults additionally allow dependency-cache writes and package-source downloads.
+Neither policy hides readable host secrets by default.
+
+| Setting                                      | Accepted values and defaults                                                                                                                                                                                                            |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sandbox`                                    | Permission mapping or `null` to restore worker defaults.                                                                                                                                                                                |
+| `sandbox.profile`                            | `read_only` (default), `workspace`, `inherit_codex`, or `{inherit_codex: {fallback: workspace}}`. `null` uses the default.                                                                                                              |
+| `sandbox.profile.inherit_codex.fallback`     | `read_only` (default) or `workspace`. Used when client permissions are unavailable.                                                                                                                                                     |
+| `sandbox.filesystem.read_only`               | List of paths permitting reads without writes. Default within a supplied filesystem mapping: `[]`.                                                                                                                                      |
+| `sandbox.filesystem.read_write`              | List of paths permitting reads, creation, edits, and deletion. Default within a supplied filesystem mapping: `[]`.                                                                                                                      |
+| `sandbox.filesystem.deny`                    | List of paths denying reads and writes. Default within a supplied filesystem mapping: `[]`.                                                                                                                                             |
+| `sandbox.tempdir`                            | `managed` (default): private writable storage removed after cleanup. `read_write`: grants writes to existing host temporary directories. `read_only`: no automatic temporary write grants.                                              |
+| `sandbox.network`                            | `true` / `enabled` for direct networking; `false` / `restricted` for restricted networking without a proxy; a hostname pattern or sequence of patterns for a managed proxy; or a mapping below. `null` omits this field from its layer. |
+| `sandbox.network.proxy`                      | Required mapping when network is a mapping; selects the managed proxy.                                                                                                                                                                  |
+| `sandbox.network.proxy.mode`                 | `full` (default) or `limited`. Limited permits plain HTTP GET, HEAD, and OPTIONS, with no HTTPS CONNECT or SOCKS.                                                                                                                       |
+| `sandbox.network.proxy.socks5`               | `tcp` (default) or `disabled`. Omit in limited mode. `tcp_udp` is currently rejected.                                                                                                                                                   |
+| `sandbox.network.proxy.allow_upstream_proxy` | `false` (default) or `true` to permit onward routing through the trusted launch environment's proxy.                                                                                                                                    |
+| `sandbox.network.proxy.domains.allow`        | List of hostname patterns or IP literals. An explicit domains mapping defaults to `[]`; omitting the mapping keeps the context's destination defaults.                                                                                  |
+| `sandbox.network.proxy.domains.deny`         | List of blocked hostname patterns or IP literals, default `[]`. Matching deny rules win.                                                                                                                                                |
+| `sandbox.network.sockets.unix_sockets`       | `[]` (default), absolute socket paths on macOS, or `dangerously_allow_all` on macOS/Linux. Windows rejects both forms of grant.                                                                                                         |
+| `sandbox.network.allow_local_binding`        | `auto` / `null` (default), `true`, or `false`. Auto disables worker binding and enables resolver binding on Unix. Windows managed proxies require binding.                                                                              |
+
+The same nested fields apply under `resolver.sandbox`, except its profile accepts only `read_only`, `workspace`, or `null`.
+An explicit resolver filesystem replaces its generated filesystem entries, including cache grants; see [preparation filesystem grants](PACKAGE_CONFIGURATION.md#filesystem-grants).
+
+`read_only` permits host reads and private temporary writes.
+`workspace` additionally permits ordinary writes under the launch directory, protecting metadata such as `.git` and `.agents`; network access remains separate.
+`inherit_codex` selects permissions supplied by a trusted client, including full access when granted, or uses its fallback.
+Workspace profiles decline automatic writes at a filesystem root, home, or an ancestor of home.
+
+Filesystem paths are concrete paths, not globs; create intended output directories before launch.
+Narrower rules override broader ones; at the same path, deny wins over write, then read.
+Domain patterns are hostnames rather than URLs: `*.example.org` matches subdomains and `**.example.org` also matches the apex.
+An empty network sequence selects an empty proxy allow list.
+For example, to allow report writes and one API:
+
+```yaml
+sandbox:
+  filesystem:
+    read_write: [./reports]
+    deny: [./secrets]
+  network: [api.example.com]
+```
+
+See [Sandbox permissions](SANDBOX_CONFIGURATION.md) for enforcement, platform limits, and examples.
+Use the CLI's `--no-sandbox` or R's `ConsoleConfig(sandbox = FALSE)` for host execution; YAML `sandbox: false` does not disable enforcement.
+
+### Environment, preparation, and caches {#environment-and-caches}
+
+| Setting                        | Accepted values and defaults                                                                                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `environment`                  | Mapping of names to string values, default `{}`. Shared by workers and preparation. Quote numbers and booleans; empty strings are values, not unset instructions.                            |
+| `inherit_environment`          | `true` (default) or `false`. Whether children inherit the launch environment; explicit mappings still apply.                                                                                 |
+| `resolver`                     | Mapping of `environment`, `inherit_environment`, and `sandbox` for package preparation.                                                                                                      |
+| `resolver.environment`         | Mapping of string values overriding individual shared values for preparation, default `{}`.                                                                                                  |
+| `resolver.inherit_environment` | `true` or `false`. Omission follows the shared `inherit_environment`.                                                                                                                        |
+| `resolver.sandbox`             | Independent permission mapping, or `null` for preparation defaults; see [Permissions](#sandbox-settings).                                                                                    |
+| `cache`                        | `managed` (alias `console`), `host`, `{directory: PATH}`, or `null`. Omission / `null` selects managed caches with sandboxing and host caches without it. Managed caches require sandboxing. |
+| `cache.directory`              | Nonempty path; stores managed dependency caches under `<directory>/dependencies`. Relative paths use the launch directory.                                                                   |
+
+For example, use a separate package source during preparation:
+
+```yaml
+inherit_environment: false
+environment:
+  TZ: UTC
+resolver:
+  environment:
+    UV_INDEX_URL: https://packages.example.org/simple
+    UV_HTTP_TIMEOUT: "120"
+cache:
+  directory: /path/to/console-cache
+```
+
+Console applies its own runtime/cache/proxy assignments after these values.
+With client-derived permissions, automatic cache selection waits for the client's permissions.
+See [recognized environment variables](ENVIRONMENT.md), [package sources](PACKAGE_CONFIGURATION.md#configuration), and [cache locations](PACKAGE_CONFIGURATION.md#cache-locations).
+
+### Tools, startup, and sessions {#tools-and-sessions}
+
+| Setting                              | Accepted values and defaults                                                                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `languages`                          | Nonempty list of `r`, `python`, and/or `sql`, or `null`. Default: all three. Changes tool visibility and accepted source fields, not runtime availability or permissions. |
+| `tool`                               | Mapping of `description`, `instructions`, and `parameters`.                                                                                                               |
+| `tool.description`                   | String replacing the complete `send` description, or `null` for generated text.                                                                                           |
+| `tool.instructions`                  | String replacing server initialization instructions, or `null` for generated text.                                                                                        |
+| `tool.parameters`                    | Mapping of parameter names to the entries below.                                                                                                                          |
+| `tool.parameters.<name>.enabled`     | `true` (default) or `false`. False hides the argument and rejects calls supplying it, while omission retains its runtime default.                                         |
+| `tool.parameters.<name>.description` | String replacing the parameter description, or `null` for generated text.                                                                                                 |
+| `tool.parameters.<name>.parameters`  | Mapping of nested names to the same parameter settings.                                                                                                                   |
+| `tool.parameters.<name>.schema`      | Unchanged metadata mapping from an exported configuration, or `null`. Read-only; omit when authoring settings.                                                            |
+| `startup`                            | Mapping with `language` and `code`, or `null` (default: no startup program).                                                                                              |
+| `startup.language`                   | Required `r` or `python`.                                                                                                                                                 |
+| `startup.code`                       | Required nonblank source string without NUL. Must create and select a user-owned SQL connection on the chosen interpreter. Runs once per worker, including after restart. |
+| `sessions`                           | Mapping with `max`.                                                                                                                                                       |
+| `sessions.max`                       | Positive integer or `null`. Omission / `null` means unlimited; `1` permits only the default session.                                                                      |
+
+Tool strings are used verbatim, including empty strings.
+Top-level parameter names are `r`, `python`, `sql`, `note`, `session`, `requirements`, `control`, `stdin`, and `timeout_ms`; source fields must be selected by `languages`.
+Nested `requirements` fields are `action`, `r`, `python`, `python_version`, `duckdb`, and `exclude_newer`.
+For example, show only R and SQL and hide the wait-budget argument:
+
+```yaml
+languages: [r, sql]
+tool:
+  parameters:
+    timeout_ms:
+      enabled: false
+sessions:
+  max: 2
+```
+
+See [tool presentation](TOOL_CONFIGURATION.md), [database startup](RUNTIME_CONFIGURATION.md#session-startup-source), and [session limits](RUNTIME_CONFIGURATION.md#session-limits) for behavior and examples.
 
 ## Files and precedence
 
@@ -58,40 +256,65 @@ Add `--editable` to retain authored tool settings and omit generated tool descri
 This keeps generated presentation responsive to later configuration edits while preserving explicit text, including empty strings and text equal to a generated default.
 Combine it with `--full` to include configuration defaults in the editable document.
 
-<span id="settings-by-task"></span> <span id="top-level-settings"></span> <span id="r-executable-selection"></span> <span id="native-r-startup"></span> <span id="python-environment-selection"></span> <span id="startup-package-declarations"></span> <span id="dependency-resolution-policies"></span> <span id="session-startup-source"></span> <span id="cache-selection"></span> <span id="shared-environment"></span> <span id="model-visible-languages"></span> <span id="tool-descriptions-and-parameters"></span>
+<span id="settings-by-task"></span> <span id="native-r-startup"></span> <span id="startup-package-declarations"></span> <span id="session-startup-source"></span> <span id="cache-selection"></span> <span id="shared-environment"></span> <span id="model-visible-languages"></span> <span id="tool-descriptions-and-parameters"></span>
 
-Use the [Reference index](REFERENCE.md#configuration) to look up a configuration key.
+Use [Settings](#top-level-settings) above to look up a configuration key.
 
 ## Choose which files to load
 
-Use these options to select or skip configuration files:
+By default, Console reads the global file and then the project file.
+Missing default files are skipped.
+To select one required file instead of both defaults:
 
-| Option                        | Files read                             |
-| ----------------------------- | -------------------------------------- |
-| No option                     | Global, then project                   |
-| `--config-file PATH`          | Only selected files, in argument order |
-| `--optional-config-file PATH` | Mark a selected file as optional       |
-| `--no-project-config`         | Global only                            |
-| `--no-global-config`          | Project only                           |
-| `--no-config`                 | None                                   |
+```sh
+mcp-console serve --config-file session.yaml
+```
+
+**`--config-file` is repeatable.** Each occurrence adds a file, and files are read in argument order:
+
+```sh
+mcp-console serve --config-file defaults.yaml --config-file session.yaml
+```
+
+Here both files must exist.
+`session.yaml` overrides matching settings from `defaults.yaml`; other settings remain in effect.
+Neither the usual global file nor the usual project file is read.
+
+To keep automatic discovery but skip one or both defaults:
+
+| Option                | Files read           |
+| --------------------- | -------------------- |
+| No option             | Global, then project |
+| `--no-project-config` | Global only          |
+| `--no-global-config`  | Project only         |
+| `--no-config`         | None                 |
 
 Launch defaults still apply before these files, and command-line overrides apply afterward.
 The options for skipping files cannot be combined with `--config-file`.
 Options may appear before or after the subcommand.
 They do not edit files or change recording-location selection.
 
-Console looks for the project file only in the directory where it starts; it does not search parent directories.
-Missing automatic files are skipped, but an explicitly selected file must exist unless marked optional.
-Repeat `--config-file` to layer selected files in order; a later file overrides matching settings from earlier files.
-Repeat `--optional-config-file` for selected paths that may be absent.
-This option does not select a file: each path must also appear in `--config-file`, matched before home expansion or canonicalization.
-An optional file that exists must still be readable, regular, and valid.
-The same underlying file is read only once, at its first selected position.
-Configuration must be a readable YAML or JSON mapping; invalid files and unknown fields are errors.
+### Allow a selected file to be absent
+
+`--optional-config-file PATH` relaxes the existence requirement for a file already selected by `--config-file PATH`.
+It is useful for launchers that layer a local customization file when present.
+It does not select another file or add a second configuration layer:
 
 ```sh
-mcp-console serve --config-file defaults.yaml --optional-config-file defaults.yaml --config-file session.json
+mcp-console serve \
+  --config-file defaults.yaml \
+  --config-file local.yaml \
+  --optional-config-file local.yaml
 ```
+
+`defaults.yaml` is required; `local.yaml` is read afterward if it exists.
+If `local.yaml` exists but is unreadable, not a regular file, or invalid, launch still fails.
+Repeat the optional flag only for additional selected files that may be missing, using exactly the same path spelling as their `--config-file` options.
+Passing only `--optional-config-file` is an error.
+
+Console looks for the automatic project file only in the launch directory; it does not search parent directories.
+The same underlying file is read only once, at its first selected position.
+Configuration must be a readable YAML or JSON mapping; invalid files and unknown fields are errors.
 
 Configuration files can choose which programs Console runs, provide credentials, and change permissions.
 Console loads project files automatically, including when the client was registered globally.

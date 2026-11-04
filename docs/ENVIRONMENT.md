@@ -6,13 +6,7 @@ Variables interpreted only by R, Python, compilers, or imported packages retain 
 
 ## Where to set variables
 
-| Setting                        | Accepted values             | Default and behavior                                                                          |
-| ------------------------------ | --------------------------- | --------------------------------------------------------------------------------------------- |
-| `inherit_environment`          | `true` or `false`           | Default: `true`. Inherit launch variables for the worker and, unless overridden, preparation. |
-| `environment`                  | Mapping of names to strings | Default: `{}`. Shared values for the worker and preparation.                                  |
-| `resolver.inherit_environment` | `true` or `false`           | Omission follows `inherit_environment`; an explicit value overrides it for preparation.       |
-| `resolver.environment`         | Mapping of names to strings | Default: `{}`. Override individual shared values for preparation.                             |
-
+The [environment field reference](CONFIGURATION.md#environment-and-caches) lists shared and resolver-specific values and inheritance settings.
 
 **Server settings** must be present in the environment launching `mcp-console serve`.
 For example, setting `MCP_CONSOLE_HOME` inside a cell or YAML `environment` does not move the running server's configuration or recordings.

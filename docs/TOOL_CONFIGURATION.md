@@ -8,9 +8,7 @@ For a guide with examples, see [Build a data assistant](BUILD_ON_CONSOLE.md).
 
 ## Model-visible languages
 
-| Setting     | Accepted values                                         | Default                                |
-| ----------- | ------------------------------------------------------- | -------------------------------------- |
-| `languages` | Nonempty list of `r`, `python`, and/or `sql`; or `null` | Omitted or `null`: `[r, python, sql]`. |
+The [tool field reference](CONFIGURATION.md#tools-and-sessions) lists `languages` and its default.
 
 
 ```yaml
@@ -29,13 +27,7 @@ This is a presentation setting, not a security boundary.
 
 ## Tool descriptions and parameters
 
-The `tool` mapping accepts these settings:
-
-| Setting             | Accepted values                        | Default and behavior                                                                         |
-| ------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `tool.description`  | String or `null`                       | Omitted or `null`: generated `send` description. A string replaces it completely.            |
-| `tool.instructions` | String or `null`                       | Omitted or `null`: generated initialization instructions. A string replaces them completely. |
-| `tool.parameters`   | Mapping of parameter names to settings | Omission keeps the normal schema and descriptions.                                           |
+The `tool` mapping accepts `description`, `instructions`, and `parameters`; see the [tool field reference](CONFIGURATION.md#tools-and-sessions) for their values and defaults.
 
 For example:
 
@@ -76,14 +68,7 @@ See [deferred tool discovery](TOOL_DESCRIPTIONS.md#deferred-tool-discovery) for 
 
 ### Parameter settings
 
-Each entry under `tool.parameters.<name>` accepts:
-
-| Node                                 | Accepted values                                                    | Meaning and default                                                                                                                                                           |
-| ------------------------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tool.parameters.<name>.enabled`     | `true` or `false`                                                  | Advertise and accept the parameter when true. Default: `true`. False hides it and rejects explicitly supplied values, including `null`; omission retains the runtime default. |
-| `tool.parameters.<name>.description` | String or `null`                                                   | Replace that parameter's description. Omitted or `null`: generated text.                                                                                                      |
-| `tool.parameters.<name>.parameters`  | Mapping of nested parameter names to the same settings             | Customize fields inside an object parameter. Omission keeps their defaults; scalar fields accept no nested names.                                                             |
-| `tool.parameters.<name>.schema`      | Unchanged metadata mapping from `config resolve --full`, or `null` | Read-only inspection of argument types/constraints. Changing metadata is invalid; omit it when writing configuration by hand.                                                 |
+Each entry under `tool.parameters.<name>` accepts `enabled`, `description`, nested `parameters`, and read-only `schema` metadata; see the [parameter field reference](CONFIGURATION.md#tools-and-sessions).
 
 Available top-level names are `r`, `python`, `sql`, `note`, `session`, `requirements`, `control`, `stdin`, and `timeout_ms`.
 Source fields are available only for the selected `languages`.
