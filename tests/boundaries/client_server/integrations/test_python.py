@@ -1155,7 +1155,7 @@ def test_chatlas_tool_preserves_image_results(
     def check_image(result) -> dict:
         assert isinstance(result, ContentToolResult), type(result)
         assert result.error is None
-        assert result.extra is None, result.extra
+        assert result.extra == {"display": {"open": True}}, result.extra
         kinds = [type(item) for item in result.value]
         assert kinds == [ContentText, ContentImageInline, ContentText], kinds
         text, image, after = result.value

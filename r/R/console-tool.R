@@ -20,6 +20,15 @@
 #' See `vignette("autonomous-report", package = "mcp.console")` for an explicit
 #' configuration, permission edits, inspection, and an ellmer launch.
 #'
+#' @section Image results:
+#'
+#' When a call produces an image, such as a plot, the tool function returns an
+#' [ellmer::ContentToolResult] whose value holds the ordered text and image
+#' content and whose `extra` carries `display = list(open = TRUE)`. Chat UIs
+#' that follow shinychat's tool-result display convention open the drill-down
+#' card by default, so plots are immediately visible; other clients ignore the
+#' metadata. Text-only and errored results keep their existing return shape.
+#'
 #' @section Executable resolution:
 #'
 #' * If `path` is supplied, `console_tools()` uses that executable directly.
@@ -551,6 +560,23 @@ mcp_contents <- function(result) {
   # the failure text in `content`, so pass the complete ordered content through.
   if (isTRUE(result$isError) && length(content) == 0L) {
     content <- list(ellmer::ContentText("mcp-console tool call failed."))
+  }
+
+  # A successful result containing an image returns a ContentToolResult whose
+  # `extra$display` follows shinychat's tool-result display convention, asking
+  # compatible chat UIs to open the drill-down card by default so plots are
+  # visible without expanding the call. The metadata is inert for clients that
+  # do not read it. Errored results never set it.
+  has_image <- any(vapply(
+    content,
+    \(x) S7::S7_inherits(x, ellmer::ContentImageInline),
+    logical(1)
+  ))
+  if (has_image && !isTRUE(result$isError)) {
+    return(ellmer::ContentToolResult(
+      value = if (length(content) == 1L) content[[1L]] else content,
+      extra = list(display = list(open = TRUE))
+    ))
   }
 
   if (length(content) == 0L) {

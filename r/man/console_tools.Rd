@@ -61,6 +61,17 @@ server shutdown.
 See \code{vignette("autonomous-report", package = "mcp.console")} for an explicit
 configuration, permission edits, inspection, and an ellmer launch.
 }
+\section{Image results}{
+
+
+When a call produces an image, such as a plot, the tool function returns an
+\link[ellmer:ContentToolResult]{ellmer::ContentToolResult} whose value holds the ordered text and image
+content and whose \code{extra} carries \code{display = list(open = TRUE)}. Chat UIs
+that follow shinychat's tool-result display convention open the drill-down
+card by default, so plots are immediately visible; other clients ignore the
+metadata. Text-only and errored results keep their existing return shape.
+}
+
 \section{Executable resolution}{
 
 \itemize{

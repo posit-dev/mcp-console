@@ -30,9 +30,12 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
 
     Text results return text, and tool errors raise. A successful result
     containing an image returns a `chatlas.ContentToolResult` carrying the
-    ordered text and image content, so providers receive the image content
-    and chat UIs can render it. [register()](chatlas.register.html) uses
-    chatlas's native MCP support instead, which also preserves image content.
+    ordered text and image content, with `extra={"display": {"open": True}}`
+    following shinychat's display convention so compatible chat UIs open the
+    tool-result card by default. The metadata is inert for clients that do not
+    read it. [register()](chatlas.register.html) uses chatlas's native MCP
+    support instead; chatlas owns that connection's result objects, so the
+    display hint cannot be attached there.
 
     Discovery includes every tool, even when the server has no `send` tool.
 
@@ -76,8 +79,9 @@ def _tool_result(result: CallToolResult) -> Any:
 
     Text-only results stay plain text and errors raise, matching
     `MCPConsole.send()`. A successful result containing an image becomes a
-    `ContentToolResult` whose value holds the ordered content, which chatlas
-    expands so providers receive text and image blocks.
+    `ContentToolResult` whose value holds the ordered content (chatlas expands
+    such values so providers receive text and image blocks) and whose `extra`
+    asks shinychat-compatible UIs to open the tool-result card by default.
     """
     if result.is_error or not any(item.type == "image" for item in result.content):
         return result_text(result)
@@ -91,7 +95,11 @@ def _tool_result(result: CallToolResult) -> Any:
         else ContentText(text=content_text(item))
         for item in result.content
     ]
-    return ContentToolResult(value=value, model_format="as_is")
+    return ContentToolResult(
+        value=value,
+        model_format="as_is",
+        extra={"display": {"open": True}},
+    )
 
 
 def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
