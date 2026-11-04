@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run --script
 
 import asyncio
+import base64
 import inspect
 import json
 import os
@@ -17,7 +18,7 @@ sys.path.insert(0, str(ROOT / "python"))
 import mcp_console
 from mcp_console import AsyncMCPConsole, MCPConsole
 from support.execution import DIRECT, SANDBOXED, Execution, executions
-from support.r import r_test_environment
+from support.r import r_test_environment, reference_plots
 from support.normalization import code
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.previews import assert_preview
@@ -1144,7 +1145,7 @@ def test_sync_responses_preserves_text_and_images(
         return outputs
 
 
-@requires(POSIX)
+@requires(R)
 @executions(DIRECT, SANDBOXED)
 def test_chatlas_tool_preserves_image_results(
     binary: Path, execution: Execution
@@ -1152,10 +1153,24 @@ def test_chatlas_tool_preserves_image_results(
     from chatlas import ContentToolResult
     from chatlas.types import ContentImageInline, ContentText
 
-    expected_image = (
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42Y"
-        "AAAAASUVORK5CYII="
+    environment, rscript = r_test_environment()
+    # fmt: r
+    plot_code = code(r"""
+        options(
+          console.plot.width_in = 4,
+          console.plot.height_in = 3,
+          console.plot.dpi = 100
+        )
+        cat("before image\n")
+        plot(1:3)
+        invisible(dev.off())
+        cat("after image\n")
+        """)
+    (expected_plot,) = reference_plots(
+        rscript, environment, plot_code, width=4, height=3, dpi=100, pages=1
     )
+    expected_image = base64.b64encode(expected_plot).decode("ascii")
+    image_arguments = {"r": plot_code, "timeout_ms": 300_000}
 
     def check_image(result) -> None:
         assert isinstance(result, ContentToolResult), type(result)
@@ -1177,11 +1192,11 @@ def test_chatlas_tool_preserves_image_results(
             result = tool.func(**arguments)
             return await result if inspect.isawaitable(result) else result
 
-        check_image(await invoke({"r": "emit image"}))
-        text = await invoke({"r": "echo text"})
-        assert text == "zod: text\n", (type(text), text)
+        check_image(await invoke(image_arguments))
+        text = await invoke({"r": 'cat("text\\n")'})
+        assert text == "text\n", (type(text), text)
         try:
-            await invoke({"r": "echo r", "python": "echo python"})
+            await invoke({"r": 'cat("r\\n")', "python": 'print("python")'})
         except RuntimeError as rejected:
             assert (
                 str(rejected) == "only one of `r`, `python`, or `sql` may be supplied"
@@ -1194,15 +1209,17 @@ def test_chatlas_tool_preserves_image_results(
         with tempfile.TemporaryDirectory() as directory:
             for client_type in (MCPConsole, AsyncMCPConsole):
                 capture = Path(directory) / f"{client_type.__name__}.json"
-                settings = options(binary, execution)
-                settings["command"] = sys.executable
-                settings["args"] = [
-                    "-u",
-                    ROOT / "tests/fixtures/mcp_recording_proxy.py",
-                    capture,
-                    binary,
-                    *settings["args"],
-                ]
+                settings = {
+                    "command": sys.executable,
+                    "args": [
+                        "-u",
+                        ROOT / "tests/fixtures/mcp_recording_proxy.py",
+                        capture,
+                        binary,
+                        *execution.serve(),
+                    ],
+                    "server_parameters": {"env": environment},
+                }
                 if client_type is AsyncMCPConsole:
                     async with client_type(**settings) as console:
                         await exercise(console)
@@ -1213,7 +1230,7 @@ def test_chatlas_tool_preserves_image_results(
                 image_call = next(
                     entry
                     for entry in transcript
-                    if entry.get("send") == {"r": "emit image"}
+                    if entry.get("send") == image_arguments
                 )
                 image = image_call["result"]["content"][1]
                 assert image == {
@@ -1221,7 +1238,7 @@ def test_chatlas_tool_preserves_image_results(
                     "mimeType": "image/png",
                     "data": expected_image,
                 }, image
-                image["data"] = "<PNG byte-identical to zod fixture>"
+                image["data"] = "<PNG byte-identical to live Rscript page 1>"
                 initialize = transcript[0]["input"]
                 assert initialize["method"] == "initialize"
                 client_info = initialize["params"]["clientInfo"]
@@ -1236,9 +1253,9 @@ def test_chatlas_tool_preserves_image_results(
                         {
                             "scenario": f"Chatlas tools through {client_type.__name__}: "
                             "an image result, a text result, then an invalid call.",
-                            "fixture": "The real Console server runs the synthetic zod worker, "
-                            "which emits fixed text and PNG data instead of executing R or Python. "
-                            "The proxy records MCP exchanges; adapter results are checked in Python.",
+                            "fixture": "The built-in R runtime produces a plot whose PNG bytes "
+                            "are compared with a live Rscript reference. The proxy records MCP "
+                            "exchanges; adapter results are checked in Python.",
                         },
                         *transcript,
                     ]
