@@ -40,16 +40,23 @@ def content_text(content: ContentBlock) -> str:
 
 
 def result_text(result: CallToolResult) -> str:
+    text = result_display_text(result)
+    if result.is_error:
+        raise RuntimeError(text or "MCP Console returned an error")
+    return text
+
+
+def result_display_text(result: CallToolResult) -> str:
+    """Render a complete result as text without raising on tool errors."""
     text = ""
     for item in result.content:
         part = content_text(item)
         if text and part and not text.endswith("\n") and not part.startswith("\n"):
             text += "\n"
         text += part
-    if result.is_error:
-        raise RuntimeError(text or "MCP Console returned an error")
     if (
-        isinstance(result.structured_content, dict)
+        not result.is_error
+        and isinstance(result.structured_content, dict)
         and "requirements" in result.structured_content
     ):
         return json.dumps(result.structured_content, indent=2)

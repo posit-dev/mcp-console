@@ -44,8 +44,8 @@ def test_sync_connection_closes_resources(binary: Path) -> Transcript:
         with client(root) as console:
             assert console.connect() is console
             assert console.get_tool("send").name == "send"
-            assert console.send(python="hello") == "hello"
-            assert console.send(control="interrupt") == "interrupted"
+            assert console.send(python="hello").text == "hello"
+            assert console.send(control="interrupt").text == "interrupted"
         assert (root / "closed").exists()
         # AnyIO's pool receives stop sentinels when the portal exits, but those
         # workers are not joined by the portal. Observe their termination before
@@ -118,11 +118,11 @@ def test_host_interrupt_cancels_wait_and_discards_partial_reply(
                     caller_returned.set()
                 guard.result(timeout=5)
                 recovered = console.send(python="recovered")
-                assert recovered == "recovered", (
+                assert recovered.text == "recovered", (
                     recovered,
                     (root / "requests.jsonl").read_text(encoding="utf-8"),
                 )
-                assert console.send(control="interrupt") == "interrupted"
+                assert console.send(control="interrupt").text == "interrupted"
             requests = [
                 json.loads(line)
                 for line in (root / "requests.jsonl")
@@ -247,7 +247,7 @@ def test_stalled_cancellation_invalidates_connection(binary: Path) -> Transcript
                     assert '"python": "recovered"' not in requests
                     (root / "closed").unlink()
                     with console:
-                        assert console.send(python="reconnected") == "reconnected"
+                        assert console.send(python="reconnected").text == "reconnected"
                     assert (root / "closed").exists()
     finally:
         signal.signal(signal.SIGINT, previous)
@@ -308,7 +308,7 @@ def test_concurrent_send_rejected_during_cancellation(binary: Path) -> Transcrip
                 else:
                     raise AssertionError("host interrupt missing")
                 concurrent.result(timeout=5)
-                assert console.send(python="recovered") == "recovered"
+                assert console.send(python="recovered").text == "recovered"
             assert (root / "closed").exists()
             requests = (root / "requests.jsonl").read_text(encoding="utf-8")
             assert "overtaking cancellation" not in requests
@@ -401,7 +401,7 @@ def test_concurrent_send_cannot_overtake_host_interrupt(binary: Path) -> Transcr
                         )
                     finally:
                         release_cleanup.set()
-                assert console.send(python="recovered") == "recovered"
+                assert console.send(python="recovered").text == "recovered"
             assert (root / "closed").exists()
             requests = (root / "requests.jsonl").read_text(encoding="utf-8")
             assert "overtaking host interrupt" not in requests, requests
@@ -537,7 +537,7 @@ def test_busy_loop_cancellation_retires_shielded_cleanup(binary: Path) -> Transc
                 assert (root / "closed").exists()
                 (root / "closed").unlink()
                 with console:
-                    assert console.send(python="reconnected") == "reconnected"
+                    assert console.send(python="reconnected").text == "reconnected"
                 assert (root / "closed").exists()
     finally:
         signal.signal(signal.SIGINT, previous)
@@ -601,14 +601,14 @@ def test_host_interrupt_before_request_starts(binary: Path) -> Transcript:
                     assert interrupted.is_set()
                 finally:
                     release_validation.set()
-                assert pending.result(timeout=5) == "occupy loop"
-                assert console.send(python="recovered") == "recovered"
+                assert pending.result(timeout=5).text == "occupy loop"
+                assert console.send(python="recovered").text == "recovered"
             requests = (root / "requests.jsonl").read_text(encoding="utf-8")
             assert "never started" not in requests, requests
             assert (root / "closed").exists()
             (root / "closed").unlink()
             with console:
-                assert console.send(python="reconnected") == "reconnected"
+                assert console.send(python="reconnected").text == "reconnected"
             assert (root / "closed").exists()
     finally:
         signal.signal(signal.SIGINT, previous)
@@ -627,7 +627,7 @@ def test_sync_shutdown_error_disconnects_client(binary: Path) -> Transcript:
         console = client(root)
         with patch.object(Client, "__aexit__", close_then_fail):
             console.connect()
-            assert console.send(python="hello") == "hello"
+            assert console.send(python="hello").text == "hello"
             try:
                 console.close()
             except RuntimeError as error:
@@ -637,7 +637,7 @@ def test_sync_shutdown_error_disconnects_client(binary: Path) -> Transcript:
         assert (root / "closed").exists()
         (root / "closed").unlink()
         with console:
-            assert console.send(python="reconnected") == "reconnected"
+            assert console.send(python="reconnected").text == "reconnected"
         assert (root / "closed").exists()
     return [{"error": "fixture shutdown error", "closed": True, "reconnect": True}]
 
@@ -658,11 +658,11 @@ def test_sync_connection_can_interrupt_pending_call(binary: Path) -> Transcript:
                     assert gate.recv(1) == b"1"
                     try:
                         interrupt = pool.submit(console.send, control="interrupt")
-                        assert interrupt.result(timeout=5) == "interrupted"
+                        assert interrupt.result(timeout=5).text == "interrupted"
                     finally:
                         gate.sendall(b"1")
-                assert pending.result(timeout=5) == "released"
-            assert console.send(python="recovered") == "recovered"
+                assert pending.result(timeout=5).text == "released"
+            assert console.send(python="recovered").text == "recovered"
     return [
         {
             "control": "interrupted",
@@ -678,18 +678,18 @@ def test_sync_protocol_errors_and_large_messages(binary: Path) -> Transcript:
         console = client(root)
         with console:
             source = "λ\n" * 100_000
-            assert console.send(python=source) == source
+            assert console.send(python=source).text == source
             try:
                 console.send(python="rpc error")
             except MCPError as error:
                 assert str(error) == "fixture error"
             else:
                 raise AssertionError("JSON-RPC error was accepted")
-            assert console.send(python="recovered") == "recovered"
+            assert console.send(python="recovered").text == "recovered"
         console.close()
         assert (root / "closed").exists()
         with console:
-            assert console.send(python="reconnected") == "reconnected"
+            assert console.send(python="reconnected").text == "reconnected"
     return [
         {
             "large_unicode_message": "preserved",
@@ -720,7 +720,7 @@ def test_sync_negotiates_supported_protocol_versions(binary: Path) -> Transcript
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         with client(root, "2025-06-18") as console:
-            assert console.send(python="negotiated") == "negotiated"
+            assert console.send(python="negotiated").text == "negotiated"
         (root / "closed").unlink()
         try:
             client(root, "unsupported").connect()
@@ -755,7 +755,7 @@ def test_sync_server_exit_closes_connection(binary: Path) -> Transcript:
             else:
                 raise AssertionError("failed connection accepted a call")
         with console:
-            assert console.send(python="reconnected") == "reconnected"
+            assert console.send(python="reconnected").text == "reconnected"
     return [
         {
             "error": "Connection closed",

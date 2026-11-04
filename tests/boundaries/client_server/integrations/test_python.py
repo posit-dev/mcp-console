@@ -184,7 +184,8 @@ def test_clients_record_notes_with_and_without_code(binary: Path) -> Transcript:
             {"note": notes[1]},
         ):
             output = console.send(**arguments)
-            outputs.append(await output if inspect.isawaitable(output) else output)
+            output = await output if inspect.isawaitable(output) else output
+            outputs.append(output.text)
         assert outputs == ["42\n", "[done]"], outputs
         return outputs
 
@@ -250,7 +251,7 @@ def test_clients_preserve_session_selection_and_omission(binary: Path) -> Transc
             output = console.send(**arguments)
             if inspect.isawaitable(output):
                 output = await output
-            assert output == expected, output
+            assert output.text == expected, output
 
     async def run() -> Transcript:
         results = []
@@ -352,6 +353,11 @@ def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcrip
         for invoke in (
             lambda: console.send(**arguments),
             lambda: console(**arguments, timeout_ms=None),
+        ):
+            output = invoke()
+            output = await output if inspect.isawaitable(output) else output
+            outputs.append(output.text)
+        for invoke in (
             lambda: responses.call(arguments),
             lambda: agent.on_invoke_tool(context, encoded),
             lambda: anthropic.call(arguments),
@@ -467,7 +473,7 @@ def test_clients_inspect_and_replace_requirements(
             "server_parameters": {"cwd": directory, "env": environment},
         }
         with MCPConsole(**settings) as console:
-            startup = json.loads(console.send(requirements={"action": "get"}))
+            startup = console.send(requirements={"action": "get"}).structured_content
             assert startup["prepared"] is True, startup
             console.send(
                 requirements={
@@ -477,7 +483,7 @@ def test_clients_inspect_and_replace_requirements(
                     "exclude_newer": "2026-01-01",
                 }
             )
-            selected = json.loads(console.send(requirements={"action": "get"}))
+            selected = console.send(requirements={"action": "get"}).structured_content
             console.send(requirements=dict(selected["requirements"], action="set"))
             assert selected["prepared"] is True, selected
             assert selected["requirements"]["python"] == []
@@ -485,12 +491,14 @@ def test_clients_inspect_and_replace_requirements(
 
         async def asynchronous() -> None:
             async with AsyncMCPConsole(**settings) as console:
-                startup = json.loads(await console.send(requirements={"action": "get"}))
+                startup = (
+                    await console.send(requirements={"action": "get"})
+                ).structured_content
                 assert startup["prepared"] is True, startup
                 await console.send(requirements={"action": "set"})
-                selected = json.loads(
+                selected = (
                     await console.send(requirements={"action": "get"})
-                )
+                ).structured_content
                 assert selected["requirements"]["python"] == []
                 results.append({"async": selected})
 
@@ -525,13 +533,13 @@ def test_sync_and_async_clients_receive_bounded_previews(
             )
 
         with MCPConsole(**settings) as console:
-            check(console.send(r="overflow console output"))
-            assert console.send(session="default") == "\n[idle]"
+            check(console.send(r="overflow console output").text)
+            assert console.send(session="default").text == "\n[idle]"
 
         async def asynchronous() -> None:
             async with AsyncMCPConsole(**settings) as console:
-                check(await console.send(r="overflow console output"))
-                assert await console.send(session="default") == "\n[idle]"
+                check((await console.send(r="overflow console output")).text)
+                assert (await console.send(session="default")).text == "\n[idle]"
 
         asyncio.run(asynchronous())
     return results
@@ -574,8 +582,8 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
         settings["args"] = ["-u", str(gate), str(binary), *settings["args"]]
         with MCPConsole(**settings) as console:
             result = console.send(r="echo initialized")
-            assert result == "zod: initialized\n", result
-        return [{"startup_kept_one_lifecycle": True, "output": result}]
+            assert result.text == "zod: initialized\n", result
+        return [{"startup_kept_one_lifecycle": True, "output": result.text}]
 
 
 @requires(POSIX, R)
@@ -662,7 +670,8 @@ def test_callable_tools_follow_connected_server_fields(
         )
         for invoke in (lambda: console.send(**arguments), lambda: console(**arguments)):
             output = invoke()
-            outputs.append(await output if inspect.isawaitable(output) else output)
+            output = await output if inspect.isawaitable(output) else output
+            outputs.append(output.text)
         for schema, invoke in tools:
             assert schema == live_schema, schema
             validator = Draft202012Validator(schema)
@@ -749,11 +758,11 @@ def test_callable_preserves_line_breaks_around_images(
 ) -> Transcript:
     async def exercise():
         async with AsyncMCPConsole(**options(binary, execution)) as console:
-            return await console.send(r="emit image")
+            return str(await console.send(r="emit image"))
 
     asynchronous = asyncio.run(exercise())
     with MCPConsole(**options(binary, execution)) as console:
-        synchronous = console.send(r="emit image")
+        synchronous = str(console.send(r="emit image"))
     assert (
         synchronous
         == asynchronous
@@ -799,11 +808,11 @@ def test_callable_preserves_mixed_language_state(
             assert await console.connect() is console
             transcript = []
             for language, source in cells.items():
-                chunks = [await console(**{language: source}, timeout_ms=0)]
+                chunks = [(await console(**{language: source}, timeout_ms=0)).text]
                 # A returned send can still be running. Collect its complete output
                 # before submitting the next cell, including on a cold R startup.
                 while chunks[-1].endswith(running):
-                    chunks.append(await console.send(session="default"))
+                    chunks.append((await console.send(session="default")).text)
                 transcript.append({language: collected(chunks)})
             return transcript
 
@@ -811,9 +820,9 @@ def test_callable_preserves_mixed_language_state(
     with MCPConsole(**settings) as console:
         synchronous = []
         for language, source in cells.items():
-            chunks = [console(**{language: source}, timeout_ms=0)]
+            chunks = [console(**{language: source}, timeout_ms=0).text]
             while chunks[-1].endswith(running):
-                chunks.append(console.send(session="default"))
+                chunks.append(console.send(session="default").text)
             synchronous.append({language: collected(chunks)})
     assert synchronous == transcript
     return transcript
@@ -832,7 +841,9 @@ def test_errors_close_and_reconnect(binary: Path, execution: Execution) -> Trans
                 transcript.append({"error": str(error)})
             else:
                 raise AssertionError("invalid send succeeded")
-            transcript.append({"recovery": await console.send(r="echo recovered")})
+            transcript.append(
+                {"recovery": (await console.send(r="echo recovered")).text}
+            )
         await console.close()
         try:
             await console.send()
@@ -841,7 +852,9 @@ def test_errors_close_and_reconnect(binary: Path, execution: Execution) -> Trans
         else:
             raise AssertionError("closed console accepted a call")
         async with console:
-            transcript.append({"reconnected": await console.send(r="echo reconnected")})
+            transcript.append(
+                {"reconnected": (await console.send(r="echo reconnected")).text}
+            )
         return transcript
 
     return asyncio.run(exercise())
@@ -1063,7 +1076,7 @@ def test_sync_callable_and_framework_tools(
     with console:
         assert console.connect() is console
         assert not inspect.iscoroutinefunction(console.send)
-        transcript.append({"callable": console(r="echo sync")})
+        transcript.append({"callable": console(r="echo sync").text})
         try:
             console.send(r="echo r", python="echo python")
         except RuntimeError as error:
@@ -1108,9 +1121,9 @@ def test_sync_callable_and_framework_tools(
     else:
         raise AssertionError("closed console accepted a call")
     with console:
-        transcript.append({"reconnected": console.send(r="echo reconnected")})
+        transcript.append({"reconnected": console.send(r="echo reconnected").text})
         # Closing must also clean up an active worker and the MCP transport.
-        assert "running" in console.send(r="stall", timeout_ms=0)
+        assert "running" in console.send(r="stall", timeout_ms=0).text
     return transcript
 
 

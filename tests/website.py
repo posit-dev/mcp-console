@@ -1362,6 +1362,8 @@ class WebsiteTests(unittest.TestCase):
         for name in (
             "MCPConsole",
             "AsyncMCPConsole",
+            "ConsoleResult",
+            "ConsoleError",
             "Requirements",
             "chatlas.tools",
             "chatlas.register",

@@ -34,6 +34,19 @@ reference:
         - __aexit__
       - name: Requirements
         members: false
+    - title: Results and errors
+      contents:
+      - name: ConsoleResult
+        members:
+        - raw
+        - content
+        - text
+        - images
+        - structured_content
+        - is_error
+        - __str__
+      - name: ConsoleError
+        members: false
     - title: chatlas
       contents:
       - chatlas.tools

@@ -2,7 +2,8 @@ from collections.abc import Mapping, Sequence
 from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any, Literal, Self, TypedDict
 
-from ._common import Command, result_text, stdio_command
+from ._common import Command, stdio_command
+from ._result import ConsoleError, ConsoleResult
 
 if TYPE_CHECKING:
     from mcp import Client
@@ -18,8 +19,9 @@ class Requirements(TypedDict, total=False):
     also discards its variables. Python packages run in Console's worker
     environment; installing a framework extra prepares the calling application.
 
-    Inspection normally returns JSON text, but can return a startup notice
-    before the runtime is ready; check the response before parsing it.
+    Inspection normally returns declarations in `result.structured_content`, but
+    can return a startup notice before the runtime is ready. Check that field
+    before reading it; notices are available in `result.text`.
     See the [send reference](../../API.html#requirements) for accepted package
     syntax, preparation policies, and complete replacement rules.
 
@@ -188,11 +190,11 @@ class AsyncMCPConsole:
         requirements: Requirements | None = None,
         stdin: str | None = None,
         timeout_ms: int | None = None,
-    ) -> str:
+    ) -> ConsoleResult:
         """Run or control the persistent R, Python, and SQL console.
 
         Send at most one of r, python, or sql per call.
-        If output ends in ``[running; poll with an empty send]``, call again
+        If `result.text` ends in ``[running; poll with an empty send]``, call again
         with the same `session` and without code or stdin until completion
         before submitting another cell to that session. Different sessions
         can run concurrently. An empty call without `session` polls all active
@@ -213,17 +215,24 @@ class AsyncMCPConsole:
             control: Interrupt the active operation or restart the runtime.
             requirements: Declaration keyed by r, python, or duckdb, with optional
                 python_version and exclude_newer constraints. action defaults to
-                add; get normally returns inspection JSON, but can return a
-                startup notice before the runtime is ready; set replaces omitted
-                fields with empty values; reset restores startup defaults.
+                add; get normally returns inspection data in `structured_content`,
+                but can return a startup notice before the runtime is ready; set
+                replaces omitted fields with empty values; reset restores startup defaults.
                 Changed replacements of a live worker require control="restart".
             stdin: Exact input for an active prompt or debugger.
             timeout_ms: Maximum observation wait; timeout does not cancel work.
                 Omission or None uses the server default of 60,000 ms.
 
         Returns:
-            Collected text output and lifecycle notices. Images appear as MIME
-            placeholders. MCP tool errors raise `RuntimeError`.
+            A `ConsoleResult` retaining the complete MCP response. Its `text`
+            property contains text output and lifecycle notices; `images` holds
+            native image blocks, and `content` preserves their order. Printing
+            the result renders image placeholders; notebook display renders
+            the images. Calling `send()` itself does not display anything.
+
+        Raises:
+            ConsoleError: An MCP tool error, with the complete response available
+                as `error.result`. This is a `RuntimeError` subclass.
 
         Examples:
             A short observation window may return before the cell finishes.
@@ -242,7 +251,7 @@ class AsyncMCPConsole:
                         timeout_ms=0,
                     )
                     print(output, end="")
-                    while output.endswith("[running; poll with an empty send]"):
+                    while output.text.endswith("[running; poll with an empty send]"):
                         output = await console.send(session="default")
                         print(output, end="")
 
@@ -261,12 +270,15 @@ class AsyncMCPConsole:
             "stdin": stdin,
             "timeout_ms": timeout_ms,
         }
-        return result_text(
+        result = ConsoleResult(
             await self.call_tool(
                 "send",
                 {name: value for name, value in arguments.items() if value is not None},
             )
         )
+        if result.is_error:
+            raise ConsoleError(result)
+        return result
 
     # Ordinary Python shorthand; SDK registration uses the product adapters.
     __call__ = send

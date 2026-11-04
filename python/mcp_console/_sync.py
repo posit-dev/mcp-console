@@ -6,7 +6,8 @@ from threading import Condition, Event, Lock
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ._client import AsyncMCPConsole, Requirements
-from ._common import Command, result_text
+from ._common import Command
+from ._result import ConsoleError, ConsoleResult
 
 _CANCELLATION_ERROR = (
     "Request cancellation cleanup did not finish; "
@@ -302,16 +303,19 @@ class MCPConsole:
         requirements: Requirements | None = None,
         stdin: str | None = None,
         timeout_ms: int | None = None,
-    ) -> str:
-        """Run or control a cell on this connection and return its text output.
+    ) -> ConsoleResult:
+        """Run or control a cell and return its complete `ConsoleResult`.
 
         The arguments and polling behavior match
         [AsyncMCPConsole.send()](AsyncMCPConsole.html#send). Send one language
-        per call. If output ends in `[running; poll with an empty send]`, collect
-        the remaining output with `console.send(session=...)` before submitting
+        per call. If `result.text` ends in `[running; poll with an empty send]`,
+        collect the remaining output with `console.send(session=...)` before submitting
         another cell to that session. Omit `session` on an empty call to poll all
         active sessions and list their statuses.
-        Images appear as MIME placeholders; MCP tool errors raise `RuntimeError`.
+        The result retains ordered text and images. `print(result)` renders image
+        placeholders; IPython notebook display renders the images. `send()` does
+        not display anything itself. MCP tool errors raise `ConsoleError`, a
+        `RuntimeError` subclass retaining the complete response as `error.result`.
         `console(...)` is an alias for `send(...)`.
         If tool configuration hides `timeout_ms`, poll without that argument.
         """
@@ -326,12 +330,15 @@ class MCPConsole:
             "stdin": stdin,
             "timeout_ms": timeout_ms,
         }
-        return result_text(
+        result = ConsoleResult(
             self.call_tool(
                 "send",
                 {name: value for name, value in arguments.items() if value is not None},
             )
         )
+        if result.is_error:
+            raise ConsoleError(result)
+        return result
 
     __call__ = send
 
