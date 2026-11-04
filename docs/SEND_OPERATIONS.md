@@ -64,7 +64,8 @@ Supply the name when polling one session:
 { "session": "analysis", "timeout_ms": 300000 }
 ```
 
-An empty call without `session` collects output from all active sessions and lists their statuses.
+An empty call without `session` collects output from all active sessions.
+With one session, it returns the ordinary single-session result; with multiple sessions, each output section starts with its name and status.
 It polls them concurrently within one observation budget and can wait for other busy sessions.
 Use the same name for input, requirements, interrupts, and restarts.
 To stop a named session, send its name with `control="restart"` and no code or nonempty input.

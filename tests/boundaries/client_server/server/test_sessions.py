@@ -3,6 +3,7 @@
 import json
 import sys
 import tempfile
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
+from support.progress import RUNNING, without_elapsed_result
 from support.records import Transcript
 from support.requirements import POSIX, requires
 from support.suites import run_this_suite
@@ -61,11 +63,11 @@ def test_session_arguments_have_no_effect_until_valid_code(
         ) as client:
             client.initialize_and_list_tools()
             client.expect(python="retained = 'default state'")
-            baseline = {"sessions": [{"session": "default", "status": "idle"}]}
-            assert client.send(timeout_ms=0)["structuredContent"] == baseline
-            assert last_result_text(client) == (
-                '[session: "default"; status: idle]\n\n[idle]'
-            )
+            baseline = {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
+            }
+            assert client.send(timeout_ms=0) == baseline
             for arguments in (
                 {"session": "unknown", "timeout_ms": 0},
                 {"session": None, "python": "retained = 'invalid null'"},
@@ -78,15 +80,19 @@ def test_session_arguments_have_no_effect_until_valid_code(
             ):
                 rejected = client.send(**arguments)
                 assert rejected["isError"] is True, rejected
-                assert client.send(timeout_ms=0)["structuredContent"] == baseline
+                assert client.send(timeout_ms=0) == baseline
             client.expect("'default state'\n", python="retained")
             client.expect(python="retained = 'empty session name'", session="")
             client.expect("'empty session name'\n", python="retained", session="")
-            assert client.send(timeout_ms=0)["structuredContent"] == {
-                "sessions": [
-                    {"session": "", "status": "idle"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert client.send(timeout_ms=0) == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: ""; status: idle]\n\n[idle]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }
             return client.finish()
 
@@ -116,24 +122,19 @@ def test_named_sessions_can_wait_for_input_concurrently(
                 session="beta",
             )
             active = client.send(timeout_ms=0)
-            assert active["structuredContent"] == {
-                "sessions": [
-                    {"session": "alpha", "status": "waiting_for_stdin"},
-                    {"session": "beta", "status": "waiting_for_stdin"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert active == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: "alpha"; status: waiting_for_stdin]\n\n[waiting for stdin]\n'
+                        '[session: "beta"; status: waiting_for_stdin]\n\n[waiting for stdin]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }, active
             null_note = client.send(note=None, timeout_ms=0)
-            assert null_note.get("structuredContent") == active["structuredContent"], (
-                null_note
-            )
-            output = "".join(part["text"] for part in active["content"])
-            for session, status in (
-                ("alpha", "waiting_for_stdin"),
-                ("beta", "waiting_for_stdin"),
-                ("default", "idle"),
-            ):
-                assert f'[session: "{session}"; status: {status}]' in output, active
+            assert null_note == active, null_note
             client.send(session="alpha", timeout_ms=0)
             assert last_result_text(client) == "\n[waiting for stdin]"
             client.expect(stdin="beta answer\n", session="beta")
@@ -143,12 +144,16 @@ def test_named_sessions_can_wait_for_input_concurrently(
             client.expect(stdin="alpha answer\n", session="alpha")
             client.expect("'alpha answer'\n", python="answer", session="alpha")
             active = client.send(timeout_ms=0)
-            assert active["structuredContent"] == {
-                "sessions": [
-                    {"session": "alpha", "status": "idle"},
-                    {"session": "beta", "status": "idle"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert active == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: "alpha"; status: idle]\n\n[idle]\n'
+                        '[session: "beta"; status: idle]\n\n[idle]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }, active
             return client.finish()
 
@@ -227,8 +232,9 @@ def test_restarting_named_session_defers_replacement_until_code(
             assert "[worker stopped: in-memory state lost]" in last_result_text(client)
             assert "[starting new worker]" not in last_result_text(client)
             active = client.send(timeout_ms=0)
-            assert active["structuredContent"] == {
-                "sessions": [{"session": "default", "status": "idle"}]
+            assert active == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
             }, active
             client.send(session="alpha", timeout_ms=0)
             assert last_result_text(client) == "\n[stopped]"
@@ -243,6 +249,97 @@ def test_restarting_named_session_defers_replacement_until_code(
                     """),
                 session="alpha",
             )
+            return client.finish()
+
+
+@requires(POSIX)
+@executions(RUNTIME)
+def test_cancelled_aggregate_poll_omits_empty_stopped_session(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        with (
+            closing(FifoCheckpoint.create(root / "default-ready")) as ready,
+            closing(FifoCheckpoint.create(root / "default-release")) as release,
+            McpClient(
+                binary,
+                execution.serve(
+                    *(("--writable-root", str(root)) if execution == SANDBOXED else ())
+                ),
+                selected_python(root, Path(sys.executable)),
+                root,
+            ) as client,
+        ):
+            client.transcript.append(
+                {
+                    "scenario": "Cancelling an aggregate poll while one session is running must not restore an empty stopped session's notice.",
+                    "fixture": "The default Python cell waits at a FIFO. A competing targeted poll proves the aggregate owns its wait before cancellation; alpha has already stopped with all output delivered.",
+                }
+            )
+            client.initialize_and_list_tools()
+            client.expect(python="pass")
+            client.expect(python="pass", session="alpha")
+            client.expect(
+                "[worker stopped: in-memory state lost]\n[stopped]",
+                control="restart",
+                session="alpha",
+            )
+            try:
+                started = client.send(
+                    timeout_ms=0,
+                    # fmt: python
+                    python=code("""
+                        with open("default-ready", "wb", buffering=0) as ready:
+                            _ = ready.write(b"1")
+                        with open("default-release", "rb", buffering=0) as release:
+                            assert release.read(1) == b"1"
+                        print("default returned")
+                        """),
+                )
+                running = {
+                    "content": [{"type": "text", "text": RUNNING}],
+                    "isError": False,
+                }
+                assert without_elapsed_result(started) == running, started
+                ready.wait("default is blocked before completion", client=client)
+                pending = client.start_send(timeout_ms=60_000)
+                deadline = client.response_deadline()
+                first_probe = len(client.transcript)
+                while True:
+                    observed = client.send(session="default", timeout_ms=0)
+                    if observed.get("isError"):
+                        assert observed == {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "[worker evaluation is already being polled]",
+                                }
+                            ],
+                            "isError": True,
+                        }, observed
+                        break
+                    assert without_elapsed_result(observed) == running, observed
+                    assert time.monotonic() < deadline, (
+                        "aggregate did not claim default"
+                    )
+                # Keep the ownership receipt; earlier successful probes only
+                # reflect scheduling before the aggregate claimed the wait.
+                client.transcript[first_probe:] = [client.transcript[-1]]
+                client.notify("notifications/cancelled", requestId=pending["id"])
+                assert client.request("ping")["result"] == {}
+                assert "result" not in pending, pending
+            finally:
+                release.release()
+            result = client.send(timeout_ms=60_000)
+            assert result == {
+                "content": [{"type": "text", "text": "default returned\n"}],
+                "isError": False,
+            }, result
+            assert client.send(timeout_ms=0) == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
+            }
             return client.finish()
 
 
@@ -307,8 +404,9 @@ def test_failed_named_session_waits_for_new_code(
             assert "[worker stopped: in-memory state lost]" in last_result_text(client)
             assert "[starting new worker]" not in last_result_text(client)
             active = client.send(timeout_ms=0)
-            assert active["structuredContent"] == {
-                "sessions": [{"session": "default", "status": "idle"}]
+            assert active == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
             }, active
             client.expect("'default state'\n", python="value")
             client.expect(
@@ -338,15 +436,7 @@ def test_aggregate_poll_omits_delivered_named_discovery_failure(
             assert failure.get("isError"), failure
             assert "selected Python executable is not an absolute file" in str(failure)
             active = {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": '[session: "default"; status: idle]\n\n[idle]',
-                    }
-                ],
-                "structuredContent": {
-                    "sessions": [{"session": "default", "status": "idle"}]
-                },
+                "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }
             assert client.send(timeout_ms=0) == active

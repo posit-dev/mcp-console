@@ -86,13 +86,8 @@ result:
   content:
     - type: text
       text: |-
-        [session: "default"; status: idle]
 
         [idle]
-  structuredContent:
-    sessions:
-      - session: default
-        status: idle
   isError: false
 ---
 send:

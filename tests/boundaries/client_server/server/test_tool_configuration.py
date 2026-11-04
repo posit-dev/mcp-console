@@ -180,9 +180,10 @@ def test_hides_parameters_and_keeps_omission_defaults(binary: Path) -> Transcrip
             assert last_tool_text(client) == "42\n"
             assert client.request("tools/list")["result"]["tools"] == [tool]
             result = client.send()
-            assert result["structuredContent"]["sessions"] == [
-                {"session": "default", "status": "idle"}
-            ], result
+            assert result == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
+            }, result
             return client.finish()
 
 

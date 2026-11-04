@@ -1,0 +1,118 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+send:
+  r: echo ready
+result:
+  content:
+    - type: text
+      text: |
+        zod: ready
+  isError: false
+---
+send:
+  r: echo alpha output
+  session: alpha
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  control: restart
+  session: alpha
+id: <cancelled request 2>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 2>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+id: <cancelled request 3>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 3>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+        [session: "alpha"; status: stopped]
+        zod: alpha output
+        [worker stopped: in-memory state lost]
+        [stopped]
+        [stopped]
+        [stopped]
+        [session: "default"; status: idle]
+
+        [idle]
+        [idle]
+  isError: false
+---
+send:
+  timeout_ms: 0
+  session: alpha
+id: <cancelled request 4>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 4>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+id: <cancelled request 5>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 5>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+        [idle]
+  isError: false
+---
+send:
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
