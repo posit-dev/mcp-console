@@ -20,6 +20,14 @@
 #' See `vignette("autonomous-report", package = "mcp.console")` for an explicit
 #' configuration, permission edits, inspection, and an ellmer launch.
 #'
+#' @section Result shape:
+#'
+#' Successful calls return an [ellmer::ContentToolResult] whose value holds
+#' the ordered text and image content, so display metadata can ride in
+#' `extra` for any call. Errored results keep their existing unwrapped
+#' return shape.
+#'
+
 #' @section Executable resolution:
 #'
 #' * If `path` is supplied, `console_tools()` uses that executable directly.
@@ -164,7 +172,7 @@ mcp_ellmer_tool <- function(metadata, client) {
         arguments = mcp_argument_value(arguments, metadata$inputSchema)
       )
     )
-    mcp_contents(result)
+    mcp_contents(result, arguments)
   }
   arguments <- rep(list(omitted), length(fields))
   arguments[required] <- rep(alist(argument = ), sum(required))
@@ -533,7 +541,7 @@ mcp_pump <- function(client, timeout) {
   invisible()
 }
 
-mcp_contents <- function(result) {
+mcp_contents <- function(result, arguments = list()) {
   if (!is.null(result$structuredContent$requirements)) {
     return(ellmer::ContentText(as.character(jsonlite::toJSON(
       result$structuredContent,
@@ -559,13 +567,24 @@ mcp_contents <- function(result) {
     content <- list(ellmer::ContentText("mcp-console tool call failed."))
   }
 
-  if (length(content) == 0L) {
-    ""
-  } else if (length(content) == 1L) {
-    content[[1L]]
-  } else {
-    content
+  # Errored results keep their existing return shape (bare content), so chat
+  # clients surface the failure exactly as before; they never carry display
+  # metadata.
+  if (isTRUE(result$isError)) {
+    if (length(content) == 0L) {
+      return("")
+    } else if (length(content) == 1L) {
+      return(content[[1L]])
+    } else {
+      return(content)
+    }
   }
+
+  # Every other successful result returns a ContentToolResult so display
+  # metadata can ride in `extra` for any call.
+  ellmer::ContentToolResult(
+    value = if (length(content) == 1L) content[[1L]] else content
+  )
 }
 
 json_object <- function(x = list()) {

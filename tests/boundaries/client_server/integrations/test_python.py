@@ -33,6 +33,19 @@ from support.resolvers import (
 from support.suites import run_this_suite
 
 
+def adapter_text(value):
+    """Unwrap a chatlas ContentToolResult to its text, passing through plain text.
+
+    Cross-adapter comparisons exercise result equivalence; the chatlas
+    adapter's ContentToolResult shape is asserted by its dedicated tests.
+    """
+    from chatlas import ContentToolResult
+
+    if isinstance(value, ContentToolResult):
+        value = value.value
+    return getattr(value, "text", value)
+
+
 def options(binary: Path, execution: Execution) -> dict:
     return {
         "command": binary,
@@ -101,6 +114,7 @@ def test_clients_and_adapters_discover_multiple_tools_without_send(
             ):
                 value = invoke()
                 values[adapter] = await value if inspect.isawaitable(value) else value
+            values = {adapter: adapter_text(value) for adapter, value in values.items()}
             assert values == dict.fromkeys(
                 ("responses", "agents", "anthropic", "chatlas"), definition.name
             ), values
@@ -365,6 +379,7 @@ def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcrip
         ):
             output = invoke()
             outputs.append(await output if inspect.isawaitable(output) else output)
+        outputs = [adapter_text(output) for output in outputs]
         assert outputs == ["42\n"] * 6, outputs
         try:
             output = console.send(**arguments, timeout_ms=60_000)
@@ -736,8 +751,9 @@ def test_callable_tools_follow_connected_server_fields(
                 assert not validator.is_valid(arguments | {omitted: value}), schema
             output = invoke()
             outputs.append(await output if inspect.isawaitable(output) else output)
-        assert all(output == outputs[0] for output in outputs), outputs
-        return outputs[0]
+        texts = [adapter_text(output) for output in outputs]
+        assert all(text == texts[0] for text in texts), outputs
+        return texts[0]
 
     async def exercise():
         transcript = []
@@ -1089,7 +1105,9 @@ def test_chatlas_callable_registers_concrete_schema(
             tools = chat.get_tools()
             assert [tool.name for tool in tools] == ["send"]
             tool = next(tool for tool in tools if tool.name == "send")
-            return [{"output": await tool.func(r="echo callable chatlas")}]
+            return [
+                {"output": adapter_text(await tool.func(r="echo callable chatlas"))}
+            ]
 
     return asyncio.run(exercise())
 
@@ -1120,7 +1138,7 @@ def test_sync_callable_and_framework_tools(
         chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
         chat_tool = next(tool for tool in chat.get_tools() if tool.name == "send")
         assert not inspect.iscoroutinefunction(chat_tool.func)
-        transcript.append({"chatlas": chat_tool.func(r="echo chatlas")})
+        transcript.append({"chatlas": adapter_text(chat_tool.func(r="echo chatlas"))})
 
         anthropic_tool = next(
             tool
@@ -1353,7 +1371,7 @@ def test_callable_tools_preserve_image_results(
                     }
                 )
             text = await invoke({"r": 'cat("text\\n")'})
-            assert text == "text\n", (adapter, type(text), text)
+            assert adapter_text(text) == "text\n", (adapter, type(text), text)
             try:
                 await invoke({"r": 'cat("r\\n")', "python": 'print("python")'})
             except RuntimeError as rejected:
@@ -1476,6 +1494,42 @@ def test_callable_tools_preserve_image_results(
         )
 
     return asyncio.run(run())
+
+
+@requires(POSIX)
+@executions(DIRECT, SANDBOXED)
+def test_chatlas_tool_returns_tool_result_for_text(
+    binary: Path, execution: Execution
+) -> Transcript:
+    from chatlas import ContentToolResult
+    from chatlas.types import ContentText
+
+    async def exercise(console) -> dict:
+        tool = next(
+            tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
+        )
+
+        async def invoke(arguments):
+            result = tool.func(**arguments)
+            return await result if inspect.isawaitable(result) else result
+
+        result = await invoke({"r": "echo text"})
+        assert isinstance(result, ContentToolResult), type(result)
+        assert result.error is None
+        assert isinstance(result.value, ContentText)
+        assert result.value.text == "zod: text\n"
+        assert not result.extra, result.extra
+        return {"type": type(result).__name__, "text": result.value.text}
+
+    async def asynchronous() -> dict:
+        async with AsyncMCPConsole(**options(binary, execution)) as console:
+            return await exercise(console)
+
+    async_result = asyncio.run(asynchronous())
+    with MCPConsole(**options(binary, execution)) as console:
+        sync_result = asyncio.run(exercise(console))
+    assert sync_result == async_result
+    return [sync_result]
 
 
 def test_thread_configuration_preserves_existing_servers(binary: Path) -> Transcript:

@@ -28,11 +28,12 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
     and requirements fields. `register_tool(console.send)` infers a schema from
     Python annotations and cannot describe those server settings.
 
-    Text results return text, and tool errors raise. A successful result
-    containing an image returns a `chatlas.ContentToolResult` carrying the
-    ordered text and image content, so providers receive the image content
-    and chat UIs can render it. [register()](chatlas.register.html) uses
-    chatlas's native MCP support instead, which also preserves image content.
+    Successful results return a `chatlas.ContentToolResult` carrying the
+    ordered text and image content, so display metadata can ride in `extra`
+    for any call. Tool errors raise, and requirements responses stay plain
+    text (they are configuration responses, not cell executions).
+    [register()](chatlas.register.html) uses chatlas's native MCP support
+    instead, which also preserves image content.
 
     Discovery includes every tool, even when the server has no `send` tool.
 
@@ -71,15 +72,21 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
     return [_tool(console, definition) for definition in console.tools]
 
 
-def _tool_result(result: CallToolResult) -> Any:
+def _tool_result(result: CallToolResult, arguments: dict[str, Any]) -> Any:
     """Convert a Console tool result into the chatlas tool's return value.
 
-    Text-only results stay plain text and errors raise. A successful result
-    containing an image becomes a
-    `ContentToolResult` whose value holds the ordered content, which chatlas
-    expands so providers receive text and image blocks.
+    Errors raise and requirements responses stay plain text, matching
+    `MCPConsole.send()`. Every other successful result becomes a
+    `ContentToolResult` whose value holds the ordered text and image content
+    (chatlas expands such values so providers receive text and image blocks),
+    so display metadata can ride in `extra` for any call.
     """
-    if result.is_error or not any(item.type == "image" for item in result.content):
+    if result.is_error:
+        return result_text(result)
+    if (
+        isinstance(result.structured_content, dict)
+        and "requirements" in result.structured_content
+    ):
         return result_text(result)
 
     from chatlas import ContentToolResult
@@ -91,7 +98,10 @@ def _tool_result(result: CallToolResult) -> Any:
         else ContentText(text=content_text(item))
         for item in result.content
     ]
-    return ContentToolResult(value=value, model_format="as_is")
+    return ContentToolResult(
+        value=value[0] if len(value) == 1 else value,
+        model_format="as_is",
+    )
 
 
 def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
@@ -101,11 +111,11 @@ def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
     if iscoroutinefunction(console.call_tool):
 
         async def invoke(**arguments: Any) -> Any:
-            return _tool_result(await console.call_tool(name, arguments))
+            return _tool_result(await console.call_tool(name, arguments), arguments)
     else:
 
         def invoke(**arguments: Any) -> Any:
-            return _tool_result(console.call_tool(name, arguments))
+            return _tool_result(console.call_tool(name, arguments), arguments)
 
     return Tool(
         func=invoke,

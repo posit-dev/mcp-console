@@ -15,18 +15,27 @@ sandbox_test_r <- function() {
   file.path(R.home("bin"), if (.Platform$OS.type == "windows") "R.exe" else "R")
 }
 
+# Successful tool results are ContentToolResult wrappers; requirements
+# responses stay plain ContentText. Extract the text of either.
+result_text <- function(result) {
+  if (S7::S7_inherits(result, ellmer::ContentToolResult)) {
+    result <- result@value
+  }
+  result@text
+}
+
 inspect_requirements <- function(send) {
   deadline <- Sys.time() + 600
-  text <- send(requirements = list(action = "get"), timeout_ms = 0)@text
+  text <- result_text(send(requirements = list(action = "get"), timeout_ms = 0))
   while (endsWith(text, "[worker starting]")) {
     remaining <- as.numeric(difftime(deadline, Sys.time(), units = "secs"))
     stopifnot(remaining > 0)
     # This is the public readiness poll. Each call waits for startup rather
     # than parsing a pending notice as a JSON requirements declaration.
-    text <- send(
+    text <- result_text(send(
       requirements = list(action = "get"),
       timeout_ms = as.integer(1000 * min(60, remaining))
-    )@text
+    ))
   }
   jsonlite::fromJSON(text)
 }
