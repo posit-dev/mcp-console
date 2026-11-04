@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run --script
 
 import asyncio
+import base64
 import inspect
 import json
 import os
@@ -17,9 +18,9 @@ sys.path.insert(0, str(ROOT / "python"))
 import mcp_console
 from mcp_console import AsyncMCPConsole, MCPConsole
 from support.execution import DIRECT, SANDBOXED, Execution, executions
-from support.r import r_test_environment
+from support.r import r_test_environment, reference_plots
 from support.normalization import code
-from support.records import Transcript
+from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.previews import assert_preview
 from support.progress import elapsed_progress, normalize_elapsed, without_elapsed
 from support.evidence import compact_text
@@ -1142,6 +1143,130 @@ def test_sync_responses_preserves_text_and_images(
             outputs.append(result)
         assert tool.call({"r": "echo direct"}) == "zod: direct\n"
         return outputs
+
+
+@requires(R)
+@executions(DIRECT, SANDBOXED)
+def test_chatlas_tool_preserves_image_results(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    from chatlas import ContentToolResult
+    from chatlas.types import ContentImageInline, ContentText
+
+    environment, rscript = r_test_environment()
+    # fmt: r
+    plot_code = code(r"""
+        options(
+          console.plot.width_in = 4,
+          console.plot.height_in = 3,
+          console.plot.dpi = 100
+        )
+        cat("before image\n")
+        plot(1:3)
+        invisible(dev.off())
+        cat("after image\n")
+        """)
+    (expected_plot,) = reference_plots(
+        rscript, environment, plot_code, width=4, height=3, dpi=100, pages=1
+    )
+    expected_image = base64.b64encode(expected_plot).decode("ascii")
+    image_arguments = {"r": plot_code, "timeout_ms": 300_000}
+
+    def check_image(result) -> None:
+        assert isinstance(result, ContentToolResult), type(result)
+        assert result.error is None
+        assert result.extra is None, result.extra
+        kinds = [type(item) for item in result.value]
+        assert kinds == [ContentText, ContentImageInline, ContentText], kinds
+        text, image, after = result.value
+        assert (text.text, after.text) == ("before image\n", "after image\n")
+        assert image.image_content_type == "image/png"
+        assert image.data == expected_image
+
+    async def exercise(console) -> None:
+        tool = next(
+            tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
+        )
+
+        async def invoke(arguments):
+            result = tool.func(**arguments)
+            return await result if inspect.isawaitable(result) else result
+
+        check_image(await invoke(image_arguments))
+        text = await invoke({"r": 'cat("text\\n")'})
+        assert text == "text\n", (type(text), text)
+        try:
+            await invoke({"r": 'cat("r\\n")', "python": 'print("python")'})
+        except RuntimeError as rejected:
+            assert (
+                str(rejected) == "only one of `r`, `python`, or `sql` may be supplied"
+            )
+        else:
+            raise AssertionError("errored result did not raise")
+
+    async def run() -> TranscriptWithCompanions:
+        transcripts = []
+        with tempfile.TemporaryDirectory() as directory:
+            for client_type in (MCPConsole, AsyncMCPConsole):
+                capture = Path(directory) / f"{client_type.__name__}.json"
+                settings = {
+                    "command": sys.executable,
+                    "args": [
+                        "-u",
+                        ROOT / "tests/fixtures/mcp_recording_proxy.py",
+                        capture,
+                        binary,
+                        *execution.serve(),
+                    ],
+                    "server_parameters": {"env": environment},
+                }
+                if client_type is AsyncMCPConsole:
+                    async with client_type(**settings) as console:
+                        await exercise(console)
+                else:
+                    with client_type(**settings) as console:
+                        await exercise(console)
+                transcript = json.loads(capture.read_text(encoding="utf-8"))
+                image_call = next(
+                    entry
+                    for entry in transcript
+                    if entry.get("send") == image_arguments
+                )
+                image = image_call["result"]["content"][1]
+                assert image == {
+                    "type": "image",
+                    "mimeType": "image/png",
+                    "data": expected_image,
+                }, image
+                image["data"] = "<PNG byte-identical to live Rscript page 1>"
+                initialize = transcript[0]["input"]
+                assert initialize["method"] == "initialize"
+                client_info = initialize["params"]["clientInfo"]
+                assert client_info == {"name": "mcp", "version": "0.1.0"}, client_info
+                # Normalize SDK identity before the full canonical-handshake comparison.
+                initialize["params"]["clientInfo"] = {
+                    "name": "acceptance-test",
+                    "version": "1.0.0",
+                }
+                transcripts.append(
+                    [
+                        {
+                            "scenario": f"Chatlas tools through {client_type.__name__}: "
+                            "an image result, a text result, then an invalid call.",
+                            "fixture": "The built-in R runtime produces a plot whose PNG bytes "
+                            "are compared with a live Rscript reference. The proxy records MCP "
+                            "exchanges; adapter results are checked in Python.",
+                        },
+                        *transcript,
+                    ]
+                )
+        sync_transcript, async_transcript = transcripts
+        assert sync_transcript[1:] == async_transcript[1:]
+        return TranscriptWithCompanions(
+            sync_transcript, {"async.yaml": McpTranscript(async_transcript)}
+        )
+
+    return asyncio.run(run())
 
 
 def test_thread_configuration_preserves_existing_servers(binary: Path) -> Transcript:

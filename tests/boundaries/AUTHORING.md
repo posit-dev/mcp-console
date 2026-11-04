@@ -14,7 +14,13 @@ Prefer equality assertions on complete structured results when the whole value b
 Reuse shared clients and fixtures; avoid adding production APIs solely to let a test inspect private state.
 Pass fixture environment to child processes explicitly instead of changing the test runner's process environment.
 
+Use real runtimes for ordinary text output, plots, input validation, and adapter behavior.
+Use a synthetic worker only when a worker failure mode is hard or impossible to reproduce deterministically with a real runtime.
+The case's fixture description should explain that need.
+
 Make each YAML understandable without reading its Python fixture.
+Record exchanges observed at the tested boundary, rather than synthetic summaries of several calls.
+Keep adapter return-value checks in Python assertions; their YAML transcripts retain the underlying requests and responses.
 Emit a short `scenario` and `fixture` description before initialization when setup is not evident from the exchanges.
 Identify fake workers, hidden runtimes, injected failures, gates, and host-side actions in one to three sentences; keep the prose in the producer so regeneration preserves it.
 Record one Console invocation per transcript, using companions for genuinely distinct sessions.
