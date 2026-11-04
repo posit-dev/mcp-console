@@ -2,29 +2,36 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from mcp.types import CallToolResult, ImageContent
 
 from ._common import content_text, result_display_text
 
-if TYPE_CHECKING:
-    from mcp.types import CallToolResult, ContentBlock, ImageContent
 
-
-class ConsoleResult:
-    """A Console response with text, images, and its complete MCP result.
+class ConsoleResult(CallToolResult):
+    """An MCP `CallToolResult` with text, image, and notebook conveniences.
 
     `MCPConsole.send()` and `AsyncMCPConsole.send()` return this type, including
     for text-only output. `content` preserves the order of the original SDK
     blocks; `text` and `images` provide separate views of those blocks.
-    No image data is decoded or re-encoded.
+    All MCP fields and validation/serialization methods are inherited from
+    `mcp.types.CallToolResult`. The result can be passed directly to code
+    accepting that type. No image data is decoded or re-encoded.
 
     `print(result)` renders text with MIME placeholders for images. In an
     IPython notebook, `display(result)` or leaving the result as the last
     expression renders each text and image block in order. Ordinary calls and
     text rendering do not import or require IPython.
 
-    Args:
-        raw: The MCP SDK's `CallToolResult`, retained without copying.
+    Construct results with the SDK's keyword fields, such as
+    `ConsoleResult(content=[])`. Use `model_dump()` or `model_dump_json()`
+    to serialize the complete result.
+
+    Attributes:
+        content: Native MCP content blocks in their original order.
+        structured_content: The structured payload, or `None` when omitted.
+        is_error: Whether the tool call ended in an MCP tool error.
+        meta: MCP result metadata, or `None` when omitted.
+        result_type: The SDK's result completion status.
 
     Examples:
         ```python
@@ -49,19 +56,6 @@ class ConsoleResult:
         ```
     """
 
-    def __init__(self, raw: CallToolResult) -> None:
-        self._raw = raw
-
-    @property
-    def raw(self) -> CallToolResult:
-        """The original SDK result, including metadata and all content blocks."""
-        return self._raw
-
-    @property
-    def content(self) -> list[ContentBlock]:
-        """The original content blocks, preserving text/image order."""
-        return self.raw.content
-
     @property
     def text(self) -> str:
         """Text blocks concatenated without added separators or image placeholders.
@@ -76,23 +70,13 @@ class ConsoleResult:
         """Native image blocks in order, with their original MIME and base64 data."""
         return [item for item in self.content if item.type == "image"]
 
-    @property
-    def structured_content(self) -> dict[str, Any] | None:
-        """The original structured payload, or `None` when the tool omitted it."""
-        return self.raw.structured_content
-
-    @property
-    def is_error(self) -> bool:
-        """Whether the MCP response marks the tool call as an error."""
-        return self.raw.is_error
-
     def __str__(self) -> str:
         """Render text and image placeholders without raising on tool errors.
 
         Successful requirements inspection retains the complete formatted JSON
         representation used by earlier string-returning clients.
         """
-        return result_display_text(self.raw)
+        return result_display_text(self)
 
     def __repr__(self) -> str:
         return (
@@ -124,8 +108,8 @@ class ConsoleError(RuntimeError):
         result: The `ConsoleResult` marked as an MCP tool error.
 
     Attributes:
-        result: The complete result, including its original MCP response in
-            `result.raw`. It can be inspected, printed, or displayed in a notebook.
+        result: The complete MCP result. It can be inspected, serialized,
+            printed, or displayed in a notebook.
 
     Examples:
         ```python
