@@ -270,6 +270,30 @@ test_that("console_tools open image results by default", {
     text_result <- send(r = "6 * 7")
     expect_true(S7::S7_inherits(text_result, ellmer::ContentText))
 
+    # An image-only result unwraps to a single ContentImageInline value,
+    # matching the pre-existing single-content collapse.
+    image_only <- send(r = "plot(1:3)")
+    expect_true(S7::S7_inherits(image_only, ellmer::ContentToolResult))
+    expect_identical(image_only@extra, list(display = list(open = TRUE)))
+    expect_true(S7::S7_inherits(image_only@value, ellmer::ContentImageInline))
+
+    # A runtime R error is ordinary cell output, not an MCP tool error: the
+    # error text arrives as content alongside the plot, so the open hint still
+    # applies. Only MCP-level isError results suppress it (covered by the
+    # isTRUE guard in mcp_contents; such results cannot be produced
+    # deterministically from the public API).
+    image_error <- send(r = 'plot(1:3); stop("boom")')
+    expect_true(S7::S7_inherits(image_error, ellmer::ContentToolResult))
+    expect_identical(image_error@extra, list(display = list(open = TRUE)))
+    error_text <- vapply(
+      image_error@value,
+      function(x) {
+        if (S7::S7_inherits(x, ellmer::ContentText)) x@text else ""
+      },
+      character(1)
+    )
+    expect_match(paste(error_text, collapse = ""), "Error: boom", fixed = TRUE)
+
     error_result <- send(requirements = list(action = "get", r = "praise"))
     expect_true(S7::S7_inherits(error_result, ellmer::ContentText))
     expect_match(error_result@text, "takes no package lists", fixed = TRUE)
