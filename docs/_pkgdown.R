@@ -12,6 +12,15 @@ pkgdown::build_site_github_pages(
   examples = FALSE
 )
 
+# pkgdown 2.2.1 emits {"path": []} for sections with no indexed content,
+# including See also. These are not search results and have no URL to publish.
+search_file <- file.path(output_dir, "r", "search.json")
+search <- Filter(
+  function(entry) !identical(entry$path, list()),
+  jsonlite::read_json(search_file)
+)
+jsonlite::write_json(search, search_file, auto_unbox = TRUE)
+
 # Repository links in the package README target guides beside the r/ subsite.
 home <- file.path(output_dir, "r", "index.html")
 html <- readLines(home, encoding = "UTF-8", warn = FALSE)

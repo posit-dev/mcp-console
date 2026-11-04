@@ -19,7 +19,8 @@ For a complete analysis task, see [Giving an agent an R session](autonomous-repo
 
 ## Supply settings in R
 
-`ConsoleConfig()` accepts named fields or one named list.
+`ConsoleConfig()` accepts named fields or one named list, without combining the two forms.
+Its arguments after `...` must use their full names; a single list may be passed in the first position.
 Nested lists follow the structure of `config.yaml` and become typed, validated properties.
 The constructor reads no files, discovers no runtimes, and starts no processes.
 
@@ -34,7 +35,7 @@ config <- ConsoleConfig(
   resolver = list(environment = list(UV_INDEX_URL = "https://pypi.org/simple"))
 )
 
-tools <- console_tools(config = config, project = "/path/to/project")
+tools <- console_tools(config, project = "/path/to/project")
 ```
 
 The calling R installation is the default at loading and launch time.
@@ -45,12 +46,88 @@ An executable selected in a file or supplied object takes precedence over that d
 Select an existing Python environment with `python = ".venv"` or `python = list(existing = ".venv")`.
 It must already exist; Console does not install packages into it.
 Managed Python accepts `version`, `packages`, and `resolution`, either inside `managed` or directly in the Python mapping.
-R and managed Python support `implicit`, `explicit`, and `fixed` resolution; R also supports `disabled` for preinstalled packages.
-See [package settings](https://posit-dev.github.io/mcp-console/package_configuration/).
+R and managed Python support these package preparation policies:
+
+| `resolution`          | At startup                                                  | During the session                                                                                    |
+| --------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `"implicit"`          | Prepare the declared packages.                              | Also prepare missing packages on supported loads/imports or explicit requests. This is the R default. |
+| `"explicit"`          | Prepare the declared packages.                              | Prepare additional packages only on explicit requests. This is the managed Python default.            |
+| `"fixed"`             | Prepare the declared packages.                              | Reject changes to the package declaration.                                                            |
+| `"disabled"` (R only) | Use installed packages, including Console's R dependencies. | No managed package preparation. `packages` must be omitted or empty.                                  |
+
+Omitting `packages` keeps Console's default startup packages; `packages = character()` requests no optional packages.
+Existing Python environments use their installed packages and accept no `packages`, `version`, or `resolution` settings.
+These policies control Console's package preparation, not arbitrary installation commands in submitted code.
 
 `project` must be an existing directory.
 It sets the child's working directory without changing the caller's directory.
 All relative configuration paths use it, including paths written in a global file.
+
+## Configuration fields
+
+The constructor's arguments correspond to the top-level YAML fields.
+Use R lists for nested mappings, character vectors for lists of strings, and `TRUE` or `FALSE` for booleans.
+`NULL` omits a field from a newly constructed object; empty vectors and mappings are retained.
+
+| Argument              | Accepted settings                                                                                                                                                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `r`                   | An executable path or a list with `executable`, `packages`, `resolution`, and `vanilla`. `vanilla = TRUE` skips native R startup files; the default is `FALSE`.                                                                                  |
+| `python`              | An existing environment path, `list(existing = path)`, or managed settings with `version`, `packages`, and `resolution`. `list(first_available = list(...))` tries existing environments, `"active_venv"`, and an optional managed choice, last. |
+| `languages`           | A nonempty vector containing `"r"`, `"python"`, and/or `"sql"`. All three are visible by default. This changes the tool interface, not permissions or runtime availability.                                                                      |
+| `sandbox`             | A list with `profile`, `filesystem`, `network`, and `tempdir`; see [Permissions](#permissions). `FALSE` runs with host permissions.                                                                                                              |
+| `resolver`            | A list with `environment`, `inherit_environment`, and `sandbox` for package preparation. Its permissions are independent of the worker's.                                                                                                        |
+| `cache`               | `"managed"`, `"host"`, or `list(directory = "/path/to/cache")`. Sandboxed sessions default to managed caches; host execution uses host caches. Managed caches require sandboxing.                                                                |
+| `environment`         | Named string values, such as `c(TZ = "UTC")` or `list(TZ = "UTC")`, shared by workers and preparation.                                                                                                                                           |
+| `inherit_environment` | `TRUE` by default. `FALSE` omits inherited child environment values; explicit settings still apply.                                                                                                                                              |
+| `tool`                | A list with `description`, `instructions`, and `parameters`. Parameter entries accept `enabled`, `description`, and nested `parameters`.                                                                                                         |
+| `startup`             | A list with `language = "r"` or `"python"` and `code` that creates and selects a SQL connection. Runs once per worker, including after restart.                                                                                                  |
+| `sessions`            | `list(max = 4)` limits concurrent sessions, including the default session. `max` must be a positive whole number; omission means no limit.                                                                                                       |
+
+For example, expose only R and SQL, use installed R packages, and limit the connection to one session:
+
+```r
+config <- ConsoleConfig(
+  languages = c("r", "sql"),
+  r = list(resolution = "disabled", vanilla = TRUE),
+  sessions = list(max = 1)
+)
+```
+
+To try an existing Python environment and otherwise prepare a managed one:
+
+```r
+config <- ConsoleConfig(
+  python = list(
+    first_available = list(
+      list(existing = ".venv"),
+      "active_venv",
+      list(managed = list(version = "3.13", packages = "pandas"))
+    )
+  )
+)
+```
+
+An absent environment advances to the next choice; an existing but unusable environment fails.
+Only one `"active_venv"` and one managed choice are allowed.
+
+To select a database connection before the first SQL cell:
+
+```r
+config <- ConsoleConfig(
+  r = list(packages = c("DBI", "RSQLite")),
+  startup = list(
+    language = "r",
+    code = paste(
+      'connection <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")',
+      ".console$sql_connection(connection)",
+      sep = "\n"
+    )
+  )
+)
+```
+
+Startup code must leave a user-created connection selected on the chosen interpreter.
+If it fails, SQL remains unavailable until an explicit restart; Console does not silently use its default DuckDB connection.
 
 ## Read one YAML file yourself
 
@@ -76,9 +153,10 @@ You do not need `!!!` splicing or another Console-specific reader.
 It does not start interpreters or prepare packages.
 
 ```r
-config <- load_console_config(project = "/path/to/project")
+project <- "/path/to/project"
+config <- load_console_config(project = project)
 print(config)
-tools <- console_tools(config = config, project = "/path/to/project")
+tools <- console_tools(config, project = project)
 ```
 
 The default sources are:
@@ -86,9 +164,11 @@ The default sources are:
 | Argument       | Default source                                                                                  |
 | -------------- | ----------------------------------------------------------------------------------------------- |
 | `global_file`  | `$MCP_CONSOLE_HOME/config.yaml`, or `~/.agents/console/config.yaml` when that variable is unset |
-| `project_file` | `./.agents/console/config.yaml` under `project`                                                 |
+| `project_file` | `file.path(project, ".agents", "console", "config.yaml")`                                       |
 
 There is no ancestor-directory search.
+Changing `project` changes the default project file too.
+An explicitly supplied relative `project_file`, such as `"settings/report.yaml"`, is also interpreted under `project`.
 A missing default file is skipped; an existing malformed or unreadable file fails.
 A non-`NULL` path supplied explicitly must exist, even if it spells the conventional path.
 Set a source to `NULL` to disable it:
@@ -99,7 +179,7 @@ load_console_config(project_file = NULL) # Global only
 load_console_config(global_file = NULL, project_file = "settings/report.yaml")
 ```
 
-Settings apply in this order: native defaults and the calling R preference, global file, project file, then `overrides`.
+Settings apply in this order: built-in defaults and the calling R preference, global file, project file, then `overrides`.
 In a selected file, `r: null` or `r.executable: null` clears the calling R preference and leaves R discovery to Console, including after edits and at launch.
 Exporting with `jsonlite::write_json(as.list(config), "config.json", auto_unbox = TRUE)` retains that reset as `r.executable: null`; reloading the file with `load_console_config()` preserves native discovery.
 `overrides` can be a named list or a `ConsoleConfig`:
@@ -124,6 +204,7 @@ An empty package vector means no optional startup packages.
 File discovery ends when the loader returns.
 Editing a source file or changing `MCP_CONSOLE_HOME` afterward does not change that object's settings or cause another file read at launch or worker restart.
 Use the same `project`, and the same Console `path` or `version`, when loading and launching.
+`project` is a working directory for those operations, not a field stored in the configuration object.
 During development, use a matching checkout binary.
 
 ## Environment variables and file selection
@@ -197,6 +278,25 @@ Use `as.list()` and `all.equal()` to compare application settings if useful.
 
 ## Permissions
 
+Choose a base profile, then add filesystem and network rules as needed:
+
+| `sandbox$profile`                                    | Behavior                                                                                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `"read_only"` (default)                              | Read host files and write private temporary storage. No ordinary project writes or worker networking. This does not hide readable host secrets. |
+| `"workspace"`                                        | Also allow ordinary writes under `project`, while protecting workspace metadata such as `.git` and `.agents`. Network access remains separate.  |
+| `"inherit_codex"`                                    | Use the launching client's permissions when available; otherwise use the read-only base. This applies only to workers.                          |
+| `list(inherit_codex = list(fallback = "workspace"))` | Use client permissions when available, with workspace writes as the fallback. `"read_only"` is the other fallback value.                        |
+
+For an ellmer chat with project writes, `"workspace"` selects the policy directly:
+
+```r
+config <- ConsoleConfig(sandbox = list(profile = "workspace"))
+tools <- console_tools(config, project = "/path/to/project")
+```
+
+The workspace profile declines automatic writes when `project` is a filesystem root, the home directory, or an ancestor of home.
+Explicit filesystem rules can add or restrict access within either base profile.
+
 Keep filesystem and network rules under their respective sections:
 
 ```r
@@ -245,10 +345,20 @@ Proxy options stay under `proxy`; `sockets` and `allow_local_binding` control lo
 Omitting `proxy.domains` retains context defaults.
 Supplying it selects explicit destination rules; an empty domains mapping or allow list can remove the resolver's generated repository allowlist.
 
-Use `sandbox = list(profile = "workspace")` for ordinary project writes with metadata protections.
-For a client-derived profile with workspace fallback, use `profile = list(inherit_codex = list(fallback = "workspace"))`.
-`tempdir` selects `"managed"`, `"read_write"`, or `"read_only"` storage.
-Worker and resolver policies are independent.
+Other permission settings are:
+
+| Setting                              | Accepted values                                                                                                                                           |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tempdir`                            | `"managed"` (default) creates private writable storage; `"read_write"` permits shared host temporary writes; `"read_only"` adds no temporary write grant. |
+| `network$proxy$mode`                 | `"full"` (default) supports HTTP/HTTPS and SOCKS; `"limited"` permits plain HTTP GET, HEAD, and OPTIONS, with no HTTPS CONNECT or SOCKS.                  |
+| `network$proxy$socks5`               | `"tcp"` (default) or `"disabled"`. Omit it in limited mode. `"tcp_udp"` is currently unsupported.                                                         |
+| `network$proxy$allow_upstream_proxy` | `FALSE` by default; `TRUE` permits onward routing through the trusted launch environment's proxy.                                                         |
+| `network$sockets$unix_sockets`       | A vector of absolute socket paths on macOS, or `"dangerously_allow_all"` on macOS/Linux. Windows supports neither grant.                                  |
+| `network$allow_local_binding`        | `"auto"`, `TRUE`, or `FALSE`. Auto disables worker binding on Unix and enables resolver binding; Windows managed proxies require it.                      |
+
+Proxy patterns use hostnames, not URLs: `"*.example.org"` matches subdomains, while `"**.example.org"` also matches the apex.
+Worker and resolver policies are independent; setting worker `network = FALSE` still allows preparation to download packages under its own policy.
+Resolver profiles accept `"read_only"` and `"workspace"`, with cache writes and package-source downloads supplied by its defaults.
 See [sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/) for enforcement and platform details.
 
 ## Launch a configured session {#existing-callers}

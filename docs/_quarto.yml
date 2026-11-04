@@ -109,7 +109,7 @@ website:
       - href: REFERENCE.md
         text: Reference index
       - CONFIGURATION.md
-      - section: Settings
+      - section: Configuration details
         contents:
         - RUNTIME_CONFIGURATION.md
         - href: PACKAGE_CONFIGURATION.md
