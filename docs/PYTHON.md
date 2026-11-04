@@ -45,6 +45,11 @@ The API reference includes examples with setup and cleanup.
 Your application still owns its model client, chat or agent, and any function-calling loop.
 Registering Console tools does not choose a model.
 
+The callable adapters preserve images in successful results using each framework's native content types, with Console's original image bytes, MIME types, and text/image order.
+Text-only results remain strings.
+MCP tool errors raise: Anthropic preserves image error content in its `ToolError`, while the other callable adapters raise text exceptions.
+For OpenAI Agents, use `agents_server()` to retain image content in MCP error results.
+
 Use the plural adapters so the model receives every discovered tool and its actual schema, including tools added or renamed by future servers.
 Inferring a schema from `console.send` annotations loses configured fields.
 Recreate adapters after reconnecting.
