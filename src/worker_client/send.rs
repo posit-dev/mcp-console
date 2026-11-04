@@ -37,9 +37,11 @@ impl Client {
             && !self.is_configured()
             && self.current_evaluation()?.is_none()
         {
-            let mut response = output::render_response(SendResponse::Stopped(self.0.output.take()));
-            response.recover_to(self.0.output.clone());
-            return Ok(response);
+            let mut output = self.0.output.take();
+            if output.has_pending_output() {
+                output.recover_to(self.0.output.clone());
+            }
+            return Ok(output::render_response(SendResponse::Stopped(output)));
         }
         self.send(request, false).await
     }
@@ -533,7 +535,11 @@ impl Client {
             && self.0.session_kind == super::SessionKind::Named;
         drop(worker);
         let mut output = self.0.output.drain_through(snapshot.cut);
-        output.recover_to(self.0.output.clone());
+        // An empty stopped observation has no payload to recover. Its synthetic
+        // banner must not become pending output after cancellation.
+        if !stopped || output.has_pending_output() {
+            output.recover_to(self.0.output.clone());
+        }
         Ok(if snapshot.input_requested {
             SendResponse::InputRequested(output)
         } else if stopped {

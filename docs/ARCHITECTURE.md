@@ -291,7 +291,7 @@ Polling tasks are owned by the call and cannot continue collecting output after 
 
 One recoverable response per session remains owned until local delivery or cancellation settles it.
 Idle, stopped, and input-waiting workers retain drained output through the same delivery boundary, including failure responses.
-An aggregate poll settles an omitted empty stopped-session notice immediately; it contains no output to deliver or recover.
+An empty stopped-session observation owns no recovery receipt; cancelling a targeted or aggregate poll cannot turn its synthetic status notice into pending output.
 Failed delivery restores the entire claimed region, including output preceding a combined control-and-cell call.
 An admitted poll waits within its existing deadline for pending response delivery before claiming output, including when a later cell began before the poll's handler ran.
 If another call delivered the terminal result, the poll rechecks the active slot and follows the ordinary idle path, including any submitted input.

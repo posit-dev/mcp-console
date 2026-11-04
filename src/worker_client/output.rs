@@ -152,6 +152,11 @@ impl SendFailure {
 }
 
 impl Response {
+    /// Inspect drained output before adding a synthetic status observation.
+    pub(super) fn has_pending_output(&self) -> bool {
+        !self.is_empty() || self.is_error
+    }
+
     pub(crate) fn is_empty_stopped(&mut self) -> bool {
         !self.is_error
             && matches!(self.terminal, Some(TerminalState::Stopped))

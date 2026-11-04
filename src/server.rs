@@ -412,12 +412,6 @@ impl ConsoleServer {
         let mut observed = std::collections::BTreeMap::new();
         while let Some((name, runtime, mut response)) = polls.next().await {
             if response.is_empty_stopped() {
-                // Settle this omitted notice before awaiting another session.
-                // Cancellation must not restore it as pending stopped output.
-                let (_, _, acknowledgment, _) = response.into_parts();
-                if let Some(acknowledgment) = acknowledgment {
-                    acknowledgment.delivered();
-                }
                 continue;
             }
             observed.insert(name, (runtime, response));

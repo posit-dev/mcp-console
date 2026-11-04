@@ -71,12 +71,26 @@ result:
 ---
 send:
   timeout_ms: 0
+  session: alpha
 id: <cancelled request 4>
 ---
 input:
   method: notifications/cancelled
   params:
     requestId: <cancelled request 4>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  timeout_ms: 0
+id: <cancelled request 5>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 5>
 ---
 input:
   method: ping

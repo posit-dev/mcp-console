@@ -461,16 +461,18 @@ def test_empty_poll_retains_stopped_session_output(
             ],
             "isError": False,
         }, result
-        # A cancelled poll of the now-empty stopped session must not turn its
-        # omitted status notice into pending output on the following poll.
+        # Neither a targeted nor an aggregate cancelled poll of the now-empty
+        # stopped session may turn its status notice into pending output.
         profile.pause_results(True)
-        pending = client.start_send(timeout_ms=0)
-        cancel_result(client, pending, reached, release)
+        for arguments in ({"session": "alpha"}, {}):
+            pending = client.start_send(timeout_ms=0, **arguments)
+            cancel_result(client, pending, reached, release)
         profile.pause_results(False)
-        assert client.send(timeout_ms=0) == {
+        result = client.send(timeout_ms=0)
+        assert result == {
             "content": [{"type": "text", "text": "\n[idle]\n[idle]"}],
             "isError": False,
-        }
+        }, result
         assert client.send(timeout_ms=0) == {
             "content": [{"type": "text", "text": "\n[idle]"}],
             "isError": False,
