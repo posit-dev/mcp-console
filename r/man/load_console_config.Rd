@@ -5,28 +5,29 @@
 \title{Load Console configuration files}
 \usage{
 load_console_config(
+  project = getwd(),
   global_file = file.path(Sys.getenv("MCP_CONSOLE_HOME", unset = "~/.agents/console"),
     "config.yaml"),
-  project_file = "./.agents/console/config.yaml",
+  project_file = file.path(project, ".agents", "console", "config.yaml"),
   overrides = NULL,
-  project = getwd(),
   path = NULL,
   version = NULL
 )
 }
 \arguments{
-\item{global_file}{Global YAML or JSON path. Defaults to \code{config.yaml} under
-\code{MCP_CONSOLE_HOME}, or \verb{~/.agents/console/config.yaml} when unset.}
-
-\item{project_file}{Project YAML or JSON path, normally
-\code{./.agents/console/config.yaml} relative to \code{project}.}
-
-\item{overrides}{\code{NULL}, a \code{\link[=ConsoleConfig]{ConsoleConfig()}}, or a named mapping applied after
-the files.}
-
 \item{project}{Existing directory to use as the child process's working
 directory, defaulting to \code{getwd()}. Relative config and runtime paths use
 this directory; the caller's working directory is unchanged.}
+
+\item{global_file}{Global YAML or JSON path. Defaults to \code{config.yaml} under
+\code{MCP_CONSOLE_HOME}, or \verb{~/.agents/console/config.yaml} when unset.}
+
+\item{project_file}{Project YAML or JSON path. Defaults to
+\code{file.path(project, ".agents", "console", "config.yaml")}. An explicitly
+supplied relative path is relative to \code{project}.}
+
+\item{overrides}{\code{NULL}, a \code{\link[=ConsoleConfig]{ConsoleConfig()}}, or a named mapping applied after
+the files.}
 
 \item{path}{\code{NULL}, or a path to an \code{mcp-console} executable.}
 
@@ -47,14 +48,14 @@ exist. Malformed, unreadable, and non-file sources are errors in either case.
 Set either path to \code{NULL} to skip it. Relative filenames and configured paths
 use \code{project}; \code{~} follows Console's launch-home convention, not R's \code{R_USER}.
 
-Native Console fills configuration defaults without starting interpreters or
+The loader fills configuration defaults without starting interpreters or
 preparing runtime packages. Generated tool descriptions and schema metadata
 are excluded from the editable configuration. Authored tool settings, including
 empty descriptions and text equal to a generated default, remain explicit.
 Tool presentation is generated from the final configuration at launch.
 
 Explicit worker/resolver permissions and Python selections replace their
-corresponding inherited nodes. Other mappings follow native layering rules.
+corresponding inherited nodes. Other mappings merge recursively.
 The calling R installation is a low-priority default; file settings and
 overrides can select another executable. A file's \code{r: null} or
 \code{r.executable: null} clears that preference and retains native R discovery

@@ -10,10 +10,7 @@ The `requirements` argument can change the live declaration within the configure
 
 ## Choose startup packages {#startup-package-declarations}
 
-| Setting           | Accepted values                             | Meaning and default                                                                                                                                                         |
-| ----------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `r.packages`      | List of single-line `ir` package references | Startup R packages. Omission keeps the defaults; `[]` requests no optional packages.                                                                                        |
-| `python.packages` | List of named PEP 508 registry requirements | Startup packages for managed Python. Also accepted under `python.managed` or a managed fallback candidate. Omission keeps the defaults; `[]` requests no optional packages. |
+Use `r.packages` for `ir` references and `python.packages` for named PEP 508 requirements; see the [R](CONFIGURATION.md#r-executable-selection) and [Python](CONFIGURATION.md#python-environment-selection) field reference.
 
 ```yaml
 r:
@@ -72,12 +69,7 @@ python:
 
 For how these choices affect an analysis, read [When packages are prepared](REQUIREMENTS.md#resolution-policy-admission).
 
-| Policy              | Startup preparation                                                     | During the session                                                                                                                                                         |
-| ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fixed`             | Prepare the startup declaration.                                        | Keep that declaration fixed for the connection; reject package additions and version changes through Console.                                                              |
-| `explicit`          | Prepare the startup declaration.                                        | Also accept package requests through `requirements` and managed Python declarations through `reticulate::py_require()`. Ordinary loads/imports do not trigger preparation. |
-| `implicit`          | Prepare the startup declaration.                                        | Also accept explicit requests and prepare missing packages when execution reaches a supported load/import. The cell is not rerun.                                          |
-| `disabled` (R only) | No managed R package preparation, including Console's R infrastructure. | No managed preparation. If `r.packages` is supplied, it must be empty.                                                                                                     |
+The [package policy table](CONFIGURATION.md#dependency-resolution-policies) compares `implicit`, `explicit`, `fixed`, and R-only `disabled` preparation.
 
 For example, allow explicit R package requests while keeping the Python startup declaration fixed:
 
@@ -123,12 +115,7 @@ See [the trust boundary](#trust-boundary).
 
 ## Cache locations
 
-| Value of `cache`    | Behavior                                                                                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `managed`           | Use Console-specific dependency caches and generated resolver write grants. Requires sandboxing.                                                         |
-| `host`              | Use ordinary host cache locations and installed package environments where supported. Selecting host caches does not itself disable resolver sandboxing. |
-| `{directory: PATH}` | Use managed dependency caches under `<directory>/dependencies` for preparation and workers. Requires sandboxing.                                         |
-| Omitted or `null`   | Use `managed` for sandboxed execution, or `host` with `--no-sandbox`.                                                                                    |
+The [cache field reference](CONFIGURATION.md#environment-and-caches) lists `managed`, `host`, and custom-directory choices.
 
 `console` is an alias for `managed`; configuration exports use `managed`.
 
@@ -213,14 +200,9 @@ Exact platform fallbacks and generated grants are implemented in [`src/resolver/
 
 ## Configure package sources {#configuration}
 
-| Setting                        | Accepted values             | Default and behavior                                                                                                                                                     |
-| ------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `resolver`                     | Mapping                     | Optional preparation settings; unknown fields are errors.                                                                                                                |
-| `resolver.sandbox`             | Sandbox mapping or `null`   | Independent preparation permissions. Omitted or `null`: host reads, cache writes, private temporary storage, and the [default download proxy](#expanded-public-default). |
-| `resolver.environment`         | Mapping of names to strings | Default: `{}`. Override individual shared environment values for preparation.                                                                                            |
-| `resolver.inherit_environment` | `true` or `false`           | Omission follows the top-level `inherit_environment` setting.                                                                                                            |
+The [preparation field reference](CONFIGURATION.md#environment-and-caches) lists `resolver.environment`, `resolver.inherit_environment`, and `resolver.sandbox`.
 
-The complete permission fields are in [Sandbox permissions](SANDBOX_CONFIGURATION.md).
+The complete permission fields are in [Configuration](CONFIGURATION.md#sandbox-settings), with enforcement details in [Sandbox permissions](SANDBOX_CONFIGURATION.md).
 [Environment variables](ENVIRONMENT.md#where-to-set-variables) covers inheritance, value validation, and variables recognized by Console and its package tools.
 
 Python indexes and mirrors use uv's native settings, including user- or system-level `uv.toml` files and environment variables such as `UV_INDEX_URL`.

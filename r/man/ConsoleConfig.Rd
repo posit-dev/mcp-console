@@ -4,13 +4,68 @@
 \alias{ConsoleConfig}
 \title{Configure a Console session}
 \usage{
-ConsoleConfig(...)
+ConsoleConfig(
+  ...,
+  r = NULL,
+  python = NULL,
+  resolver = NULL,
+  sandbox = NULL,
+  languages = NULL,
+  cache = NULL,
+  environment = NULL,
+  inherit_environment = NULL,
+  tool = NULL,
+  startup = NULL,
+  sessions = NULL
+)
 }
 \arguments{
-\item{...}{Named configuration fields, or a single unnamed mapping. The two
-forms cannot be combined. Supported fields are \code{r}, \code{python}, \code{resolver},
-\code{sandbox}, \code{languages}, \code{cache}, \code{environment}, \code{inherit_environment}, \code{tool},
-\code{startup}, and \code{sessions}.}
+\item{...}{A single unnamed list of configuration fields, instead of named
+arguments. All other arguments must be supplied by their full names.}
+
+\item{r}{An R executable path, or a list with \code{executable}, \code{packages},
+\code{resolution}, and \code{vanilla}. Resolution is \code{"implicit"} (prepare packages
+as needed), \code{"explicit"} (only on request), \code{"fixed"} (startup packages
+only), or \code{"disabled"} (use installed packages). \code{vanilla = TRUE} skips
+native R startup files.}
+
+\item{python}{An existing environment path, \code{list(existing = path)}, or
+\code{list(managed = list(version = "3.13", packages = "pandas", resolution = "fixed"))}. Managed Python supports \code{"implicit"}, \code{"explicit"},
+and \code{"fixed"}. \code{list(first_available = list(...))} tries existing paths,
+\code{"active_venv"}, and an optional managed choice, last, in order.}
+
+\item{resolver}{A list with \code{environment}, \code{inherit_environment}, and
+\code{sandbox}, controlling package preparation separately from executed code.}
+
+\item{sandbox}{A permission list with \code{profile}, \code{filesystem}, \code{network},
+and \code{tempdir}, or \code{FALSE} for host execution. Profiles are \code{"read_only"}
+(the default), \code{"workspace"} (project writes with metadata protection),
+and \code{"inherit_codex"} (client permissions). Filesystem entries are
+\code{read_only}, \code{read_write}, and \code{deny} path vectors. Temporary storage is
+\code{"managed"} (the default), \code{"read_write"}, or \code{"read_only"}.}
+
+\item{languages}{A character vector selecting \code{"r"}, \code{"python"}, and/or
+\code{"sql"}. By default all three are visible to the model.}
+
+\item{cache}{\code{"managed"}, \code{"host"}, or \code{list(directory = "/path/to/cache")}
+for package caches. Defaults to managed caches with sandboxing and host
+caches with \code{sandbox = FALSE}.}
+
+\item{environment}{Named character vector or list of string environment
+values shared by workers and package preparation.}
+
+\item{inherit_environment}{Whether child processes inherit the launch
+environment, \code{TRUE} by default.}
+
+\item{tool}{A list with \code{description}, \code{instructions}, and \code{parameters}.
+Each named parameter accepts \code{enabled}, \code{description}, and nested
+\code{parameters}; for example, \code{list(parameters = list(timeout_ms = list(enabled = FALSE)))} hides the timeout argument.}
+
+\item{startup}{A list with \code{language} (\code{"r"} or \code{"python"}) and \code{code} that
+creates and selects a SQL connection before the first cell in each session.}
+
+\item{sessions}{A list with \code{max}, a positive whole number limiting concurrent
+sessions. By default there is no limit.}
 }
 \value{
 An S7 configuration object.
@@ -52,4 +107,9 @@ ConsoleConfig(list(
   python = ".venv",
   sandbox = list(filesystem = list(read_write = "./output"))
 ))
+}
+\seealso{
+\code{\link[=console_tools]{console_tools()}} to launch with this configuration;
+\code{\link[=load_console_config]{load_console_config()}} to read configuration files;
+\code{vignette("configuration", package = "mcp.console")} for settings and examples.
 }

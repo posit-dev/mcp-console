@@ -236,11 +236,47 @@ SessionsConfig <- S7::new_class(
 #' `network: null` is omitted when files merge, preserving an earlier network
 #' field. R `network = NULL` is omitted from the constructed settings.
 #'
-#' @param ... Named configuration fields, or a single unnamed mapping. The two
-#'   forms cannot be combined. Supported fields are `r`, `python`, `resolver`,
-#'   `sandbox`, `languages`, `cache`, `environment`, `inherit_environment`, `tool`,
-#'   `startup`, and `sessions`.
+#' @param ... A single unnamed list of configuration fields, instead of named
+#'   arguments. All other arguments must be supplied by their full names.
+#' @param r An R executable path, or a list with `executable`, `packages`,
+#'   `resolution`, and `vanilla`. Resolution is `"implicit"` (prepare packages
+#'   as needed), `"explicit"` (only on request), `"fixed"` (startup packages
+#'   only), or `"disabled"` (use installed packages). `vanilla = TRUE` skips
+#'   native R startup files.
+#' @param python An existing environment path, `list(existing = path)`, or
+#'   `list(managed = list(version = "3.13", packages = "pandas",
+#'   resolution = "fixed"))`. Managed Python supports `"implicit"`, `"explicit"`,
+#'   and `"fixed"`. `list(first_available = list(...))` tries existing paths,
+#'   `"active_venv"`, and an optional managed choice, last, in order.
+#' @param resolver A list with `environment`, `inherit_environment`, and
+#'   `sandbox`, controlling package preparation separately from executed code.
+#' @param sandbox A permission list with `profile`, `filesystem`, `network`,
+#'   and `tempdir`, or `FALSE` for host execution. Profiles are `"read_only"`
+#'   (the default), `"workspace"` (project writes with metadata protection),
+#'   and `"inherit_codex"` (client permissions). Filesystem entries are
+#'   `read_only`, `read_write`, and `deny` path vectors. Temporary storage is
+#'   `"managed"` (the default), `"read_write"`, or `"read_only"`.
+#' @param languages A character vector selecting `"r"`, `"python"`, and/or
+#'   `"sql"`. By default all three are visible to the model.
+#' @param cache `"managed"`, `"host"`, or `list(directory = "/path/to/cache")`
+#'   for package caches. Defaults to managed caches with sandboxing and host
+#'   caches with `sandbox = FALSE`.
+#' @param environment Named character vector or list of string environment
+#'   values shared by workers and package preparation.
+#' @param inherit_environment Whether child processes inherit the launch
+#'   environment, `TRUE` by default.
+#' @param tool A list with `description`, `instructions`, and `parameters`.
+#'   Each named parameter accepts `enabled`, `description`, and nested
+#'   `parameters`; for example, `list(parameters = list(timeout_ms =
+#'   list(enabled = FALSE)))` hides the timeout argument.
+#' @param startup A list with `language` (`"r"` or `"python"`) and `code` that
+#'   creates and selects a SQL connection before the first cell in each session.
+#' @param sessions A list with `max`, a positive whole number limiting concurrent
+#'   sessions. By default there is no limit.
 #' @return An S7 configuration object.
+#' @seealso [console_tools()] to launch with this configuration;
+#'   [load_console_config()] to read configuration files;
+#'   `vignette("configuration", package = "mcp.console")` for settings and examples.
 #' @examples
 #' ConsoleConfig()
 #' ConsoleConfig(r = list(packages = c("dplyr", "ggplot2")))
@@ -300,8 +336,42 @@ ConsoleConfig <- S7::new_class(
     startup = config_property(NULL | StartupConfig),
     sessions = config_property(NULL | SessionsConfig)
   ),
-  constructor = function(...) {
-    fields <- config_constructor_fields(list(...))
+  constructor = function(
+    ...,
+    r = NULL,
+    python = NULL,
+    resolver = NULL,
+    sandbox = NULL,
+    languages = NULL,
+    cache = NULL,
+    environment = NULL,
+    inherit_environment = NULL,
+    tool = NULL,
+    startup = NULL,
+    sessions = NULL
+  ) {
+    fields <- list(
+      r = r,
+      python = python,
+      resolver = resolver,
+      sandbox = sandbox,
+      languages = languages,
+      cache = cache,
+      environment = environment,
+      inherit_environment = inherit_environment,
+      tool = tool,
+      startup = startup,
+      sessions = sessions
+    )
+    if (...length()) {
+      if (any(names(fields) %in% names(match.call()))) {
+        stop(
+          "Supply a single mapping or named fields, not both.",
+          call. = FALSE
+        )
+      }
+      fields <- config_constructor_fields(list(...))
+    }
     # as.list() uses an unboxed missing string for an explicit JSON null.
     # Ordinary NULL fields remain omissions in pure construction.
     r_reset <- is.list(fields[["r"]]) &&

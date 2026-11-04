@@ -68,7 +68,7 @@ Those two scalar strings are reserved mode names; other strings select proxy des
 For explicit allow and deny rules, use `network = list(proxy = list(domains = list(allow = "*.example.com", deny = "blocked.example.com")))`.
 YAML accepts the same boolean, string, and sequence forms.
 `network: null` omits that field when files merge, preserving an earlier network value; R `network = NULL` omits it from the constructed settings.
-See [sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/) for temporary storage, path rules, and platform limits.
+See [permissions in R](https://posit-dev.github.io/mcp-console/r/articles/configuration/#permissions) for profiles, temporary storage, and path rules.
 
 <span id="discover-configuration-once"></span> <span id="inspect-and-edit-configuration"></span> <span id="existing-callers"></span>
 
@@ -110,8 +110,7 @@ Keep the tools reachable while the chat is using them.
 Shutdown begins after the last tool becomes unreachable.
 
 [Console documentation](https://posit-dev.github.io/mcp-console/readme/) covers the shared workbench, language behavior, and configuration.
-[API reference](https://posit-dev.github.io/mcp-console/reference/) links the MCP interface and client package references.
-The package reference documents the exact R signature.
+The [R reference](https://posit-dev.github.io/mcp-console/r/reference/) documents the three package functions and their arguments.
 
 ## Give an agent an R session
 
