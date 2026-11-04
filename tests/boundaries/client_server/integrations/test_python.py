@@ -19,7 +19,8 @@ from mcp_console import AsyncMCPConsole, MCPConsole
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.r import r_test_environment
 from support.normalization import code
-from support.records import Transcript
+from support.records import McpTranscript, Transcript, TranscriptWithCompanions
+from support.snapshots import execution_snapshots
 from support.previews import assert_preview
 from support.progress import elapsed_progress, normalize_elapsed, without_elapsed
 from support.evidence import compact_text
@@ -1146,13 +1147,14 @@ def test_sync_responses_preserves_text_and_images(
 
 @requires(POSIX)
 @executions(DIRECT, SANDBOXED)
+@execution_snapshots
 def test_chatlas_tool_preserves_image_results(
     binary: Path, execution: Execution
-) -> Transcript:
+) -> TranscriptWithCompanions:
     from chatlas import ContentToolResult
     from chatlas.types import ContentImageInline, ContentText
 
-    def check_image(result) -> dict:
+    def check_image(result) -> None:
         assert isinstance(result, ContentToolResult), type(result)
         assert result.error is None
         assert result.extra is None, result.extra
@@ -1160,13 +1162,13 @@ def test_chatlas_tool_preserves_image_results(
         assert kinds == [ContentText, ContentImageInline, ContentText], kinds
         text, image, after = result.value
         assert (text.text, after.text) == ("before image\n", "after image\n")
-        return {
-            "type": type(result).__name__,
-            "extra": result.extra,
-            "image": {"mime": image.image_content_type, "data": image.data},
-        }
+        assert image.image_content_type == "image/png"
+        assert image.data == (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42Y"
+            "AAAAASUVORK5CYII="
+        )
 
-    async def exercise(console) -> dict:
+    async def exercise(console) -> None:
         tool = next(
             tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
         )
@@ -1175,26 +1177,57 @@ def test_chatlas_tool_preserves_image_results(
             result = tool.func(**arguments)
             return await result if inspect.isawaitable(result) else result
 
-        image = check_image(await invoke({"r": "emit image"}))
+        check_image(await invoke({"r": "emit image"}))
         text = await invoke({"r": "echo text"})
         assert text == "zod: text\n", (type(text), text)
         try:
             await invoke({"r": "echo r", "python": "echo python"})
         except RuntimeError as rejected:
-            error = str(rejected)
+            assert (
+                str(rejected) == "only one of `r`, `python`, or `sql` may be supplied"
+            )
         else:
             raise AssertionError("errored result did not raise")
-        return {"image": image, "error": error}
 
-    async def asynchronous() -> dict:
-        async with AsyncMCPConsole(**options(binary, execution)) as console:
-            return await exercise(console)
+    async def run() -> TranscriptWithCompanions:
+        transcripts = []
+        with tempfile.TemporaryDirectory() as directory:
+            for client_type in (MCPConsole, AsyncMCPConsole):
+                capture = Path(directory) / f"{client_type.__name__}.json"
+                settings = options(binary, execution)
+                settings["command"] = sys.executable
+                settings["args"] = [
+                    "-u",
+                    ROOT / "tests/fixtures/mcp_recording_proxy.py",
+                    capture,
+                    binary,
+                    *settings["args"],
+                ]
+                if client_type is AsyncMCPConsole:
+                    async with client_type(**settings) as console:
+                        await exercise(console)
+                else:
+                    with client_type(**settings) as console:
+                        await exercise(console)
+                transcripts.append(
+                    [
+                        {
+                            "scenario": f"Chatlas tools through {client_type.__name__}: "
+                            "an image result, a text result, then an invalid call.",
+                            "fixture": "The zod worker returns a fixed PNG for `emit image`. "
+                            "The recording proxy captures the SDK's MCP requests and responses; "
+                            "adapter return values are checked in Python assertions.",
+                        },
+                        *json.loads(capture.read_text(encoding="utf-8")),
+                    ]
+                )
+        sync_transcript, async_transcript = transcripts
+        assert sync_transcript[1:] == async_transcript[1:]
+        return TranscriptWithCompanions(
+            sync_transcript, {"async.yaml": McpTranscript(async_transcript)}
+        )
 
-    async_result = asyncio.run(asynchronous())
-    with MCPConsole(**options(binary, execution)) as console:
-        sync_result = asyncio.run(exercise(console))
-    assert sync_result == async_result
-    return [sync_result]
+    return asyncio.run(run())
 
 
 def test_thread_configuration_preserves_existing_servers(binary: Path) -> Transcript:
