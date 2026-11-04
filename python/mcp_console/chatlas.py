@@ -74,8 +74,8 @@ def tools(console: MCPConsole | AsyncMCPConsole) -> list[Tool]:
 def _tool_result(result: CallToolResult) -> Any:
     """Convert a Console tool result into the chatlas tool's return value.
 
-    Text-only results stay plain text and errors raise, matching
-    `MCPConsole.send()`. A successful result containing an image becomes a
+    Text-only results stay plain text and errors raise. A successful result
+    containing an image becomes a
     `ContentToolResult` whose value holds the ordered content, which chatlas
     expands so providers receive text and image blocks.
     """

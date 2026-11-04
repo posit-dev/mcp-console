@@ -29,7 +29,7 @@ expected = "zod: installed wheel\n"
 
 def sync_main() -> None:
     with mcp_console.MCPConsole(**options) as console:
-        assert console.send(r="echo installed wheel") == expected
+        assert console.send(r="echo installed wheel").text == expected
         tools = mcp_console.openai.agents_tools(console)
         tool = next(tool for tool in tools if tool.name == "send")
         assert asyncio.run(tool.on_invoke_tool(context, arguments)) == expected
@@ -53,7 +53,7 @@ def sync_main() -> None:
 
 async def main() -> None:
     async with mcp_console.AsyncMCPConsole(**options) as console:
-        assert await console.send(r="echo installed wheel") == expected
+        assert (await console.send(r="echo installed wheel")).text == expected
         tools = mcp_console.openai.agents_tools(console)
         tool = next(tool for tool in tools if tool.name == "send")
         assert await tool.on_invoke_tool(context, arguments) == expected

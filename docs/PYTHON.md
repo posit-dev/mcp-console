@@ -29,6 +29,50 @@ Use [AsyncMCPConsole](https://posit-dev.github.io/mcp-console/python/reference/a
 Enter and close an async connection in the same task.
 The [API reference](https://posit-dev.github.io/mcp-console/python/reference/) documents launch commands, working directories, environment options, and exact signatures.
 
+## Read and display results
+
+`console.send(...)` and its shorthand `console(...)` return a [ConsoleResult](https://posit-dev.github.io/mcp-console/python/reference/consoleresult/).
+The asynchronous client returns the same type after `await`.
+The result retains the complete MCP response, including images and structured content:
+
+| Property                    | Contents                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| `result.content`            | MCP content blocks in their original text/image order.                                         |
+| `result.text`               | Text blocks concatenated in their original order, without image placeholders.                  |
+| `result.images`             | The image blocks from `content`, with their original MIME types and base64-encoded image data. |
+| `result.structured_content` | Structured data returned by the tool, when present.                                            |
+| `result.is_error`           | The MCP tool-error flag.                                                                       |
+| `result.raw`                | The original MCP SDK `CallToolResult`.                                                         |
+
+`print(result)` produces readable text with MIME placeholders such as `[image/png output]` where images occurred.
+For requirements inspection, `print(result)` retains the formatted JSON representation; use `result.structured_content` to read the complete declaration directly.
+Use `content` when interleaving matters: separate text and image views do not retain each image's position among the text blocks.
+
+In an IPython notebook, display the result to render text and images in order:
+
+```python
+from IPython.display import display
+from mcp_console import MCPConsole
+
+with MCPConsole() as console:
+    result = console(r="plot(1:3)")
+    display(result)
+```
+
+Leaving `result` as the last expression in a notebook cell also displays it.
+Assigning a result does not display it.
+IPython is needed only for notebook display; ordinary client calls and `print(result)` do not require it.
+
+MCP tool errors raise [ConsoleError](https://posit-dev.github.io/mcp-console/python/reference/consoleerror/), a `RuntimeError` subclass whose `result` attribute retains the full `ConsoleResult`.
+For example, if a worker exits after producing a plot, the exception retains the image and the failure text.
+Language errors reported as ordinary Console output remain in the returned result.
+The lower-level `console.call_tool(name, arguments)` continues to return the unwrapped MCP result, including its error flag.
+
+This changes the return type of `send()` from a string to `ConsoleResult`.
+Existing `print(console.send(...))` calls still work.
+Use `.text` for string operations, such as `result.text.endswith("[running; poll with an empty send]")`, and for collecting text chunks while polling.
+Replace `json.loads(console.send(requirements={"action": "get"}))` with `console.send(requirements={"action": "get"}).structured_content`.
+
 ## Choose a model integration
 
 Install the extra for your framework.
