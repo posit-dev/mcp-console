@@ -1593,6 +1593,9 @@ def r_startup_with_python(
         with McpClient(binary, serve, environment, root) as client:
             client.initialize_and_list_tools()
             if managed:
+                # Finish eager default-package hooks before the setup restart so
+                # interruption cannot become a package-loading diagnostic.
+                client.expect(r="invisible(NULL)")
                 client.expect(
                     None, control="restart", requirements={"python_version": [version]}
                 )
@@ -1733,8 +1736,6 @@ def r_startup_with_python(
                 ]["requirements"]
                 assert retained == accepted, (retained, accepted)
             records = client.finish()
-            if not (system_default_packages or plot_after_startup):
-                records = records[3:]
             if managed:
                 records = json.loads(
                     json.dumps(records).replace(version, "<selected Python version>")
