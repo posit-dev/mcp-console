@@ -15,7 +15,6 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-import duckdb
 import sqlglot
 from chatlas import ContentToolRequest, ContentToolResult
 from chatlas.types import ContentImageInline
@@ -109,20 +108,16 @@ def create_app(
     catalog = Catalog(Path(catalog_files.name) / "tables.duckdb")
     # Small previews are shared by all viewers; full tables stay in Parquet.
     originals = {}
-    with duckdb.connect() as preview:
-        for table in TABLES:
-            source = str(DATA / f"{table}.parquet")
-            [(total,)] = preview.execute(
-                "SELECT count(*) FROM read_parquet(?)", [source]
-            ).fetchall()
-            originals[table] = {
-                "title": table,
-                "rows": total,
-                "query": f"FROM {table}",
-                "data": preview.execute(
-                    "FROM read_parquet(?) LIMIT 1000", [source]
-                ).df(),
-            }
+    for table in TABLES:
+        [(total,)] = catalog.connection.execute(
+            f"SELECT count(*) FROM {table}"
+        ).fetchall()
+        originals[table] = {
+            "title": table,
+            "rows": total,
+            "query": f"FROM {table}",
+            "data": catalog.connection.execute(f"FROM {table} LIMIT 1000").df(),
+        }
     choices = {
         name: f"{name} · {item['rows']:,} rows" for name, item in originals.items()
     }
@@ -372,7 +367,6 @@ def create_app(
                 yield "Wait for the current analysis to finish before sending another question."
                 return
             active = asyncio.current_task()
-            answer: list[str] = []
             try:
                 if backend is None:
                     status.set("Starting")
@@ -477,12 +471,10 @@ def create_app(
                             for plot in plots:
                                 yield plot
                         else:
-                            # Chatlas streams assistant text as strings even
-                            # with content="all"; other chunks are rich content.
-                            if isinstance(chunk, str):
-                                answer.append(chunk)
                             yield chunk
-                await backend.send(note="".join(answer).strip())
+                # Include prose from before and after tools in this answer.
+                answer = backend.chat.get_turns(tool_result_role="assistant")[-1]
+                await backend.send(note=answer.text.strip())
                 for kind, language, question in backend.suggestions:
                     label = {
                         "visualize": "Visualize",
@@ -677,7 +669,7 @@ def create_app(
                 title="Download a zip containing a Quarto (.qmd) report and its Parquet data",
             )
 
-        @render.download(
+        @render.download_button(
             filename="console-chat-analysis.zip", media_type="application/zip"
         )
         def download_analysis():

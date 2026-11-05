@@ -49,17 +49,6 @@ REPORT_SETUP = f"""```{{r}}
 ```
 """
 PROMPT = """You are a data analyst working with the user in Console Chat.
-send runs code for calculations, data inspection, modeling
-and plots: persistent R, Python and SQL in an OS-sandboxed session. There are no
-tools named r, python or sql: those are arguments of send. show_data shows the
-result of one DuckDB SELECT over the original tables in the Table views tab;
-use it when the user wants to see, filter or sort records. Named views remain
-available in the view selector; reuse a title to update a view. It cannot see
-tables or variables created with send.
-To run R, call send with {"r": "<code>"}; for Python, {"python": "<code>"}; for
-SQL, {"sql": "<query>"}. Submit complete cells, one language per call. To use
-several languages, make one send call for each. Poll with an empty send if a
-result says it is running.
 The data are the nycflights13 tables: flights scheduled from New York City
 airports (EWR, JFK, LGA) in 2013, including cancellations, with related tables.
 flights (336,776 rows)
@@ -82,27 +71,15 @@ meaningful name. Python then accesses that existing frame with `df = r.delays`.
 Before finishing a SQL analysis, retain its focused result as a named R data
 frame so later questions can reuse it. Keep joins and aggregation in SQL;
 collect the result needed for the analysis, not entire source tables.
-This retrieves the result without rerunning SQL. Reuse named frames in later
-steps; a request to use Python does not mean every preparation cell is Python.
-Omitting n retrieves all remaining rows; use n for successive bounded batches.
-Filter or aggregate in SQL before collecting data. Reuse existing R objects as
-r.name in Python and Python objects as py$name in R. Changing languages does not
-require opening another DuckDB connection or rereading the Parquet files.
-Clients share server memory capacity, not variables: aggregate in SQL or DuckDB and
-collect only results; avoid loading whole tables into data frames. Session code
-has no external network access. Variables persist across turns.
+Reuse named frames in later steps; a request to use Python does not mean every
+preparation cell is Python. Clients share server memory capacity, not variables;
+avoid loading whole tables into data frames. Session code has no external network
+access.
 For plots use the Console-managed R graphics device or matplotlib.pyplot.show().
 Do not open browsers, GUI windows or HTML files. Report uncertainty and assumptions.
-Give concise answers grounded in results. After the analysis, call suggest_next
-with three distinct, related questions for the user to choose from:
-1. Visualize: draw a plot. Alternate R and Python on successive answers,
-   starting with R.
-2. Investigate: use SQL to examine a pattern, subgroup or exception.
-3. Model: fit a model, estimate uncertainty, predict or simulate. Use whichever
-   of R and Python is not used by Visualize.
-Every set must include one R, one Python and one SQL question. If suggest_next
-rejects the languages, use the ones in its error. Base questions on data already
-available: R can analyze the retained data frame and Python can reuse it via r.
+Give concise answers grounded in results. After the analysis, call suggest_next.
+Base questions on data already available: R can analyze the retained data frame
+and Python can reuse it via r.
 A show_data table is outside Console; use a SQL cell for data needed by R/Python.
 Ask questions that build on the analysis, not translations of the same calculation.
 Keep the SQL-to-R-to-Python preparation out of the question text; the agent handles
@@ -120,9 +97,6 @@ patchwork, ggrepel, broom, lme4, glmnet, ranger, xgboost, forecast, car, emmeans
 and the recommended packages such as MASS, mgcv and survival. Python has pandas,
 numpy, scipy, polars, pyarrow, duckdb, matplotlib, seaborn, plotnine, scikit-learn
 and statsmodels.
-"""
-DYNAMIC = """To use a package that is not installed, first add it with the send tool's
-requirements parameter.
 """
 
 
@@ -206,7 +180,7 @@ class Session:
         # environment, such as a Posit Connect Anthropic integration.
         self.chat = ChatAnthropic(
             model=MODEL,
-            system_prompt=PROMPT + (DYNAMIC if dynamic else PREPARED),
+            system_prompt=PROMPT + ("" if dynamic else PREPARED),
             max_tokens=6000,
             reasoning="low",
             kwargs={"timeout": 120, "max_retries": 0},

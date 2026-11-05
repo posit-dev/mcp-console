@@ -49,6 +49,12 @@ After the rendering cleanup, a live Terra conversation used the merged Console b
 Both images loaded inline through ShinyChat's native renderer.
 The three-row table view, expandable SQL output, code-format switch and one follow-up per language also worked.
 
+The subsequent prompt and history cleanup passed all 22 app tests before and after the changes.
+A live Terra conversation again queried in SQL, plotted in R, and reused `r.origin_counts` for a Python plot.
+Follow-ups alternated the plot language, and the source-table preview showed all 16 airlines.
+The report download endpoint returned a zip with all five Parquet files and SQL, R and Python chunks.
+Both answers retained their prose from before and after tool calls exactly once, using chatlas's conversation history.
+
 Earlier browser checks on October 31 drove a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
 A second browser client had only its own table views.
 Generated follow-ups were activated through their buttons.

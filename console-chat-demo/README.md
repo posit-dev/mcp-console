@@ -22,6 +22,8 @@ Its **Full screen** control expands the table to fill the window; **About the de
 The interface builds on [querychat](https://posit-dev.github.io/querychat/py/)'s chat and data-view workflow.
 Console handles code execution, persistent state, cross-language access, plot capture and sandbox enforcement.
 Chatlas handles the model/tool loop and MCP connection.
+Its conversation history supplies report prose; Console records the executed cells.
+The app adds code formatting, table views, follow-up choices and portable report setup.
 The app uses public Console tools; it does not need the [Shiny fixture's](../tests/fixtures/control_shiny/README.md) private control socket.
 
 ## Run locally
