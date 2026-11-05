@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Mapping, Sequence
 from concurrent.futures import Future
@@ -7,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ._client import AsyncMCPConsole, Requirements
 from ._common import Command
-from ._result import ConsoleError, ConsoleResult
 
 _CANCELLATION_ERROR = (
     "Request cancellation cleanup did not finish; "
@@ -20,6 +21,8 @@ _CANCELLATION_PENDING = (
 if TYPE_CHECKING:
     from anyio.from_thread import BlockingPortal
     from mcp.types import CallToolResult, Tool
+
+    from ._result import ConsoleResult
 
 
 class _Request:
@@ -319,6 +322,8 @@ class MCPConsole:
         `console(...)` is an alias for `send(...)`.
         If tool configuration hides `timeout_ms`, poll without that argument.
         """
+        from ._result import ConsoleError, ConsoleResult
+
         arguments = {
             "r": r,
             "python": python,
@@ -330,11 +335,13 @@ class MCPConsole:
             "stdin": stdin,
             "timeout_ms": timeout_ms,
         }
-        result = ConsoleResult(
-            self.call_tool(
-                "send",
-                {name: value for name, value in arguments.items() if value is not None},
-            )
+        raw = self.call_tool(
+            "send",
+            {name: value for name, value in arguments.items() if value is not None},
+        )
+        # The SDK has already validated these fields; retain its native objects.
+        result = ConsoleResult.model_construct(
+            _fields_set=raw.model_fields_set.copy(), **dict(raw)
         )
         if result.is_error:
             raise ConsoleError(result)

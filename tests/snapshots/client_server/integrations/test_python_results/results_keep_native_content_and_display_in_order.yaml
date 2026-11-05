@@ -1,9 +1,11 @@
 ---
 fixture: >-
-  The public result wrapper retains native MCP content and metadata;
-  IPython displays it without a framework adapter.
+  The public result extends the MCP SDK model, retaining native content,
+  metadata, and serialization; IPython displays it without a framework
+  adapter. Client imports and constructors remain usable without optional
+  dependencies.
 ---
-raw:
+result:
   _meta:
     source: original result
   content:

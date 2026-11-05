@@ -33,7 +33,8 @@ The [API reference](https://posit-dev.github.io/mcp-console/python/reference/) d
 
 `console.send(...)` and its shorthand `console(...)` return a [ConsoleResult](https://posit-dev.github.io/mcp-console/python/reference/consoleresult/).
 The asynchronous client returns the same type after `await`.
-The result retains the complete MCP response, including images and structured content:
+`ConsoleResult` extends the MCP SDK's `CallToolResult`, inheriting its fields and serialization methods.
+It retains the complete MCP response, including images and structured content, and adds text/image views and notebook display:
 
 | Property                    | Contents                                                                                       |
 | --------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -42,7 +43,10 @@ The result retains the complete MCP response, including images and structured co
 | `result.images`             | The image blocks from `content`, with their original MIME types and base64-encoded image data. |
 | `result.structured_content` | Structured data returned by the tool, when present.                                            |
 | `result.is_error`           | The MCP tool-error flag.                                                                       |
-| `result.raw`                | The original MCP SDK `CallToolResult`.                                                         |
+| `result.meta`               | Metadata attached to the MCP result, when present.                                             |
+
+The result can be passed directly to code accepting `CallToolResult`.
+Use the SDK's `result.model_dump()` or `result.model_dump_json()` methods to serialize it.
 
 `print(result)` produces readable text with MIME placeholders such as `[image/png output]` where images occurred.
 For requirements inspection, `print(result)` retains the formatted JSON representation; use `result.structured_content` to read the complete declaration directly.
@@ -66,12 +70,14 @@ IPython is needed only for notebook display; ordinary client calls and `print(re
 MCP tool errors raise [ConsoleError](https://posit-dev.github.io/mcp-console/python/reference/consoleerror/), a `RuntimeError` subclass whose `result` attribute retains the full `ConsoleResult`.
 For example, if a worker exits after producing a plot, the exception retains the image and the failure text.
 Language errors reported as ordinary Console output remain in the returned result.
-The lower-level `console.call_tool(name, arguments)` continues to return the unwrapped MCP result, including its error flag.
+The lower-level `console.call_tool(name, arguments)` continues to return a plain `CallToolResult`, including its error flag.
 
 This changes the return type of `send()` from a string to `ConsoleResult`.
 Existing `print(console.send(...))` calls still work.
 Use `.text` for string operations, such as `result.text.endswith("[running; poll with an empty send]")`, and for collecting text chunks while polling.
 Replace `json.loads(console.send(requirements={"action": "get"}))` with `console.send(requirements={"action": "get"}).structured_content`.
+If you used the earlier wrapper's `result.raw`, use `result` itself instead.
+Construct results with the SDK's keyword fields, such as `ConsoleResult(content=[])`, instead of passing a `CallToolResult` positionally.
 
 ## Choose a model integration
 

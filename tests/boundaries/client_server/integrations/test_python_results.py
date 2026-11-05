@@ -4,6 +4,7 @@ import asyncio
 import base64
 import inspect
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -28,13 +29,40 @@ def test_results_keep_native_content_and_display_in_order(binary: Path) -> Trans
     from mcp.types import CallToolResult, ImageContent, TextContent
     from mcp_console import ConsoleResult
 
+    # The base package and client constructors remain usable without extras.
+    imported = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            # fmt: python
+            code(r"""
+                import sys
+
+                sys.path.insert(0, sys.argv[1])
+                import mcp_console
+                from mcp_console import AsyncMCPConsole, MCPConsole
+
+                AsyncMCPConsole()
+                MCPConsole()
+                assert {"ConsoleError", "ConsoleResult"} <= set(dir(mcp_console))
+                assert "mcp" not in sys.modules
+                assert "IPython" not in sys.modules
+                """),
+            str(ROOT / "python"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert imported.returncode == 0, (imported.stdout, imported.stderr)
+    assert issubclass(ConsoleResult, CallToolResult)
     image = ImageContent(
         data="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB8sAAAAASUVORK5CYII=",
         mime_type="image/png",
         annotations={"audience": ["user"], "priority": 0.5},
         meta={"caption": "original image"},
     )
-    raw = CallToolResult(
+    result = ConsoleResult(
         content=[
             TextContent(text="before image\n"),
             image,
@@ -45,20 +73,29 @@ def test_results_keep_native_content_and_display_in_order(binary: Path) -> Trans
         structured_content={"summary": "original structured content"},
         meta={"source": "original result"},
     )
-    result = ConsoleResult(raw)
-    assert result.raw is raw
-    assert result.content is raw.content
+    assert isinstance(result, CallToolResult)
+    assert not hasattr(result, "raw")
     assert result.images == [image, image]
     assert result.images[0] is image
-    assert result.structured_content is raw.structured_content
-    assert result.raw.meta == {"source": "original result"}
+    assert result.structured_content == {"summary": "original structured content"}
+    assert result.meta == {"source": "original result"}
     assert result.images[0].meta == {"caption": "original image"}
     assert result.is_error is False
+    assert result.result_type == "complete"
     assert result.text == "before image\nbetween images\nafter image\n"
     assert (
         str(result)
         == "before image\n[image/png output]\nbetween images\n[image/png output]\nafter image\n"
     )
+    serialized = result.model_dump(mode="json", by_alias=True, exclude_none=True)
+    native = CallToolResult.model_validate_json(result.model_dump_json())
+    assert serialized == native.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+    )
+    restored = ConsoleResult.model_validate_json(result.model_dump_json())
+    assert restored.model_dump() == result.model_dump()
+    assert restored.text == result.text
+    assert restored.images == result.images
 
     InteractiveShell.instance()
     with capture_output() as shown:
@@ -73,7 +110,7 @@ def test_results_keep_native_content_and_display_in_order(binary: Path) -> Trans
         {"text/plain": "after image\n"},
     ], shown_content
 
-    empty = ConsoleResult(CallToolResult(content=[]))
+    empty = ConsoleResult(content=[])
     assert empty.text == str(empty) == ""
     assert empty.images == []
     with capture_output() as empty_display:
@@ -82,27 +119,25 @@ def test_results_keep_native_content_and_display_in_order(binary: Path) -> Trans
     assert empty_display.outputs == []
 
     split_text = ConsoleResult(
-        CallToolResult(content=[TextContent(text="first"), TextContent(text="second")])
+        content=[TextContent(text="first"), TextContent(text="second")]
     )
     assert split_text.text == "firstsecond"
     assert str(split_text) == "first\nsecond"
 
     requirements = {"requirements": {"python": []}}
     inspected = ConsoleResult(
-        CallToolResult(
-            content=[TextContent(text="bounded preview")],
-            structured_content=requirements,
-        )
+        content=[TextContent(text="bounded preview")],
+        structured_content=requirements,
     )
     assert inspected.structured_content == requirements
-    assert inspected.structured_content is inspected.raw.structured_content
+    assert inspected.structured_content is requirements
     assert inspected.text == "bounded preview"
     assert str(inspected) == json.dumps(requirements, indent=2)
     return [
         {
-            "fixture": "The public result wrapper retains native MCP content and metadata; IPython displays it without a framework adapter."
+            "fixture": "The public result extends the MCP SDK model, retaining native content, metadata, and serialization; IPython displays it without a framework adapter. Client imports and constructors remain usable without optional dependencies."
         },
-        {"raw": raw.model_dump(mode="json", by_alias=True, exclude_none=True)},
+        {"result": serialized},
         {"text": result.text, "printed": str(result), "displayed": shown_content},
         {
             "empty_display": [],
@@ -158,8 +193,8 @@ def test_clients_return_images_and_keep_error_results(
         assert during_send.stdout == during_send.stderr == ""
         assert during_send.outputs == []
         assert isinstance(result, ConsoleResult), type(result)
-        assert isinstance(result.raw, CallToolResult)
-        assert result.content is result.raw.content
+        assert isinstance(result, CallToolResult)
+        assert not hasattr(result, "raw")
         assert [type(item) for item in result.content] == [
             TextContent,
             ImageContent,
@@ -183,6 +218,7 @@ def test_clients_return_images_and_keep_error_results(
 
         text = await invoke(console, r='cat("text\\n")')
         assert isinstance(text, ConsoleResult), type(text)
+        assert isinstance(text, CallToolResult)
         assert text.text == str(text) == "text\n"
         assert text.images == []
         raw = await invoke(console.call_tool, "send", {"r": 'cat("raw\\n")'})
@@ -195,6 +231,7 @@ def test_clients_return_images_and_keep_error_results(
             assert isinstance(rejected, RuntimeError)
             invalid = rejected.result
             assert isinstance(invalid, ConsoleResult)
+            assert isinstance(invalid, CallToolResult)
             assert invalid.is_error is True
             assert invalid.images == []
             assert (
@@ -210,10 +247,10 @@ def test_clients_return_images_and_keep_error_results(
         except ConsoleError as rejected:
             error = rejected.result
             assert isinstance(error, ConsoleResult)
+            assert isinstance(error, CallToolResult)
             assert error.is_error is True
             assert error.images[0].data == expected_image
             assert error.images[0].mime_type == "image/png"
-            assert error.content is error.raw.content
             assert error.content[0] == TextContent(text="before image\n")
             assert error.content[-1].text.startswith("after image\n")
             assert "[worker exited with status 33]" in error.text
@@ -229,7 +266,7 @@ def test_clients_return_images_and_keep_error_results(
             ]
         else:
             raise AssertionError("image-bearing failure did not raise ConsoleError")
-        return [result.raw, text.raw, raw, invalid.raw, error.raw]
+        return [result, text, raw, invalid, error]
 
     async def run() -> TranscriptWithCompanions:
         transcripts = []
@@ -257,7 +294,9 @@ def test_clients_return_images_and_keep_error_results(
                 calls = [entry for entry in transcript if "send" in entry]
                 assert len(calls) == len(results)
                 for entry, result in zip(calls, results, strict=True):
-                    assert result == CallToolResult.model_validate(entry["result"])
+                    native = CallToolResult.model_validate(entry["result"])
+                    assert result.model_dump() == native.model_dump()
+                    assert result.model_fields_set == native.model_fields_set
                     for content in entry["result"]["content"]:
                         if content["type"] == "image":
                             assert content == {

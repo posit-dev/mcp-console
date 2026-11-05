@@ -1446,6 +1446,16 @@ class WebsiteTests(unittest.TestCase):
                 }
                 self.assertIn(target, destinations)
 
+    def test_python_result_uses_sdk_constructor(self) -> None:
+        path = self.site / "python/reference/consoleresult/index.html"
+        page = BeautifulSoup(path.read_text(), "html.parser")
+        signatures = [
+            signature.get_text("", strip=True)
+            for signature in page.select(".doc-signature code")
+        ]
+        self.assertNotIn("ConsoleResult()", signatures)
+        self.assertIn("ConsoleResult(content=[])", page.select_one("main").get_text())
+
     def test_python_reference_uses_main_website(self) -> None:
         guide = BeautifulSoup(
             (self.site / "python-guide/index.html").read_text(), "html.parser"

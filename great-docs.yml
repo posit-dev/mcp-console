@@ -38,12 +38,8 @@ reference:
       contents:
       - name: ConsoleResult
         members:
-        - raw
-        - content
         - text
         - images
-        - structured_content
-        - is_error
         - __str__
       - name: ConsoleError
         members: false
