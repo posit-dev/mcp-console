@@ -6,7 +6,7 @@ Live browser conversations used `gpt-6.1-terra` through chatlas's Responses API 
 
 ## App and process checks
 
-The app run passed all 21 tests, including installation and use of `humanize` in a managed environment.
+After simplifying the chatlas callbacks and ShinyChat rendering, the app run passed all 22 tests, including installation and use of `humanize` in a managed environment.
 The two HTTP app tests also passed after switching catalog cleanup to Shiny's public `on_shutdown()` hook.
 The checks cover:
 
@@ -21,6 +21,8 @@ The checks cover:
   Code runs clear outdated choices; notes and polls preserve them.
   A retained SQL result is retrieved in R and reused as a data frame in Python.
 - Separate exports for independent Console sessions, knitr selection for SQL-only exports, and execution of R, Python and SQL chunks from the exported report.
+- The real chatlas tool loop clears stale suggestions after code runs and sends PNG image content to the model provider.
+  This test scripts only the model's HTTP responses and uses a real Console runtime.
 
 From the repository root:
 
@@ -42,6 +44,10 @@ One queried daily delays in SQL, retrieved them in R and drew an inline ggplot2 
 The other client counted airports and created its own Python variable, then ran a long cell that was stopped through the UI while the first client remained responsive.
 Stop, New session and disconnect removed the clients' runtime directories and recordings.
 These conversations used Console `0.0.6+dev.g74e81f4d49ef` before the merge; afterward, the app was restarted with the merged build and its opening page checked in the browser.
+
+After the rendering cleanup, a live Terra conversation used the merged Console build to query flight counts in SQL, retrieve the result in R, draw an R chart and reuse the R data frame for a Python chart.
+Both images loaded inline through ShinyChat's native renderer.
+The three-row table view, expandable SQL output, code-format switch and one follow-up per language also worked.
 
 Earlier browser checks on October 31 drove a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
 A second browser client had only its own table views.
@@ -68,6 +74,7 @@ TMPDIR="$PWD/console-chat-demo/.runtime/tmp" \
 ## Console checks and limits
 
 After the merge, `scripts/preflight` and `scripts/check` passed, including companion staging, Clippy, all 53 Rust tests, a release build and all 17 smoke cases at default concurrency.
+Console's core was unchanged by the subsequent app rendering refactor; these native checks were not repeated.
 `scripts/format` reported success for Ruff, Yamark, rustfmt and Air on November 5.
 The first native test run exceeded macOS's `SUN_LEN` with the longer temporary path.
 Rerunning with `TMPDIR="$PWD/.tmp"` passed without code changes.

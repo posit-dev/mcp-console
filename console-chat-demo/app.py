@@ -21,7 +21,6 @@ from chatlas import ContentToolRequest, ContentToolResult
 from chatlas.types import ContentImageInline
 from runtime import DATA, MODEL, TABLES, Catalog, Session as AnalysisSession
 from shiny import App, Inputs, Outputs, Session, reactive, render, req, ui
-from shinychat import message_content
 from shinychat.types import ToolResultDisplay
 from yaml12 import format_yaml
 
@@ -433,20 +432,15 @@ def create_app(
                                     note=f"**Shown in Table views:** {chunk.extra['title']}\n\n"
                                     + fenced("sql", chunk.extra["query"])
                                 )
-                            yield message_content(
-                                chunk.model_copy(
-                                    update={
-                                        "extra": {
-                                            "display": ToolResultDisplay(
-                                                title="Shown in Table views"
-                                                if chunk.error is None
-                                                else "Table query failed",
-                                                show_request=False,
-                                            )
-                                        }
-                                    }
+                            chunk.extra = {
+                                "display": ToolResultDisplay(
+                                    title="Shown in Table views"
+                                    if chunk.error is None
+                                    else "Table query failed",
+                                    show_request=False,
                                 )
-                            )
+                            }
+                            yield chunk
                         elif isinstance(chunk, ContentToolResult):
                             parts = (
                                 chunk.value
@@ -469,32 +463,19 @@ def create_app(
                                 ),
                                 None,
                             )
-                            # Only the display copy changes. Chatlas retains the original
-                            # image-bearing result and sends it to the model.
-                            yield message_content(
-                                chunk.model_copy(
-                                    update={
-                                        "value": text,
-                                        "extra": {
-                                            "display": ToolResultDisplay(
-                                                title=f"{LANGUAGES[language]} output"
-                                                if language
-                                                else "Console output",
-                                                show_request=False,
-                                            )
-                                        },
-                                    }
+                            # Display metadata leaves the model's rich result intact.
+                            chunk.extra = {
+                                "display": ToolResultDisplay(
+                                    title=f"{LANGUAGES[language]} output"
+                                    if language
+                                    else "Console output",
+                                    markdown=fenced("text", text),
+                                    show_request=False,
                                 )
-                            )
+                            }
+                            yield chunk
                             for plot in plots:
-                                url = (
-                                    f"data:{plot.image_content_type};base64,{plot.data}"
-                                )
-                                yield ui.tags.img(
-                                    src=url,
-                                    alt="Plot produced by Console",
-                                    class_="chat-plot",
-                                )
+                                yield plot
                         else:
                             # Chatlas streams assistant text as strings even
                             # with content="all"; other chunks are rich content.

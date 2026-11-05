@@ -212,6 +212,15 @@ class Session:
             kwargs={"timeout": 120, "max_retries": 0},
         )
 
+        @self.chat.on_tool_result
+        def clear_suggestions(result: ContentToolResult) -> None:
+            if (
+                result.request.name == "send"
+                and result.error is None
+                and any(result.request.arguments.get(x) for x in ("r", "python", "sql"))
+            ):
+                self.suggestions = []
+
         async def show_data(query: str, title: str) -> ContentToolResult:
             """Show a SQL query's result in the Table views tab.
 
@@ -394,18 +403,13 @@ class Session:
             await self.close()
             raise
         self.tool = next(tool for tool in self.chat.get_tools() if tool.name == "send")
-        send = self.tool.func
-
-        async def tracked_send(**kwargs: Any) -> ContentToolResult:
-            result = await send(**kwargs)
-            if any(kwargs.get(language) for language in ("r", "python", "sql")):
-                self.suggestions = []
-            return result
-
-        self.tool.func = tracked_send
 
     async def send(self, **kwargs: Any) -> ContentToolResult:
-        return await self.tool.func(**kwargs)
+        # Direct app calls do not go through chatlas's model tool loop.
+        result = await self.tool.func(**kwargs)
+        if any(kwargs.get(language) for language in ("r", "python", "sql")):
+            self.suggestions = []
+        return result
 
     def reports(self) -> dict[str, str]:
         """One recorded QMD per worker, with setup for the bundled Parquet files.

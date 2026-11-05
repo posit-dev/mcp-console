@@ -111,8 +111,12 @@ async def main() -> None:
             await expect(first.locator("#session_info")).to_contain_text(
                 "prepared packages"
             )
-            await expect(first.locator(".chat-plot")).to_have_count(1)
-            assert await first.locator(".chat-plot").evaluate_all(
+            await expect(
+                first.locator('.chat-card img[src^="data:image/"]')
+            ).to_have_count(1)
+            assert await first.locator(
+                '.chat-card img[src^="data:image/"]'
+            ).evaluate_all(
                 "images => images.every(x => x.complete && x.naturalWidth > 0)"
             )
             # Code appears inline; the Format code switch picks a version with CSS.
@@ -197,7 +201,9 @@ async def main() -> None:
             await expect(first.locator("#session_info")).to_contain_text(
                 "next question"
             )
-            await expect(first.locator(".chat-plot")).to_have_count(0)
+            await expect(
+                first.locator('.chat-card img[src^="data:image/"]')
+            ).to_have_count(0)
             if args.skip_dynamic:
                 await expect(
                     first.get_by_label("Allow package installs")

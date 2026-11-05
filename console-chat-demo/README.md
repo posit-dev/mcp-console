@@ -89,6 +89,8 @@ Run one server process.
 Shiny's nonblocking chat stream lets other clients progress while one client waits for a model or executes code.
 Each Shiny session creates its own chatlas conversation on the first question and registers Console with `register_mcp_tools_stdio_async()`.
 Disconnect, Stop and New session close that conversation with `close_async()`.
+Chatlas tool callbacks track analysis state, and ShinyChat renders the returned image objects directly.
+Display metadata controls the output cards without changing the results sent to the model.
 There is no app-managed pool, slot reuse or conversation limit; configure connection limits in the hosting service.
 Each turn has a three-minute deadline, or ten minutes with dynamic packages, and a maximum of sixteen tool calls.
 

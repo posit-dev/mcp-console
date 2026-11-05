@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import contextlib
+import json
 import os
 import shutil
 import signal
@@ -11,12 +12,15 @@ import threading
 from pathlib import Path
 
 import duckdb
+import httpx2
 import pytest
 import pytest_asyncio
+from chatlas import ChatAnthropic
 from chatlas.types import ContentImageInline
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from runtime import Catalog, Session
+import runtime
 
 HERE = Path(__file__).resolve().parents[1]
 
@@ -275,6 +279,84 @@ async def test_follow_ups_use_task_categories_and_reusable_data(open_session):
     show = next(t for t in session.chat.get_tools() if t.name == "show_data")
     await show.func(query="FROM airlines", title="Airlines")
     assert session.suggestions == []
+
+
+@pytest.mark.asyncio
+async def test_chatlas_tool_loop_keeps_images_and_clears_stale_suggestions(
+    open_session, monkeypatch
+):
+    # Script only the model responses; chatlas and the Console runtime are real.
+    responses = iter(
+        [
+            [
+                {
+                    "type": "tool_use",
+                    "id": "choices",
+                    "name": "suggest_next",
+                    "input": {
+                        "plot_language": "R",
+                        "plot_question": "Plot delays?",
+                        "investigate_language": "SQL",
+                        "investigate_question": "Compare airports?",
+                        "method_language": "Python",
+                        "method_question": "Model delays?",
+                    },
+                }
+            ],
+            [
+                {
+                    "type": "tool_use",
+                    "id": "plot",
+                    "name": "send",
+                    "input": {
+                        "r": "plot(1:3); cat('plot complete\\n')",
+                    },
+                }
+            ],
+            [{"type": "text", "text": "Analysis complete."}],
+        ]
+    )
+    requests = []
+    suggestion_counts = []
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        requests.append(json.loads(request.content))
+        suggestion_counts.append(len(session.suggestions))
+        content = next(responses)
+        return httpx2.Response(
+            200,
+            json={
+                "id": f"message-{len(requests)}",
+                "type": "message",
+                "role": "assistant",
+                "model": runtime.MODEL,
+                "content": content,
+                "stop_reason": "tool_use"
+                if content[0]["type"] == "tool_use"
+                else "end_turn",
+                "stop_sequence": None,
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+        )
+
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as client:
+
+        def chat(**kwargs):
+            kwargs["kwargs"]["http_client"] = client
+            return ChatAnthropic(**kwargs)
+
+        monkeypatch.setattr(runtime, "ChatAnthropic", chat)
+        session = await open_session()
+        await session.chat.chat_async("Draw a plot.", stream=False, echo="none")
+        assert suggestion_counts == [0, 3, 0]
+        # The model receives actual image content, not an HTML tag or placeholder.
+        content = requests[-1]["messages"][-1]["content"]
+        assert content[0]["type"] == "tool_result"
+        image = next(item for item in content if item["type"] == "image")
+        assert image["source"]["media_type"] == "image/png"
+        assert base64.b64decode(image["source"]["data"]).startswith(
+            b"\x89PNG\r\n\x1a\n"
+        )
 
 
 @pytest.mark.asyncio

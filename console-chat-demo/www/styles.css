@@ -105,7 +105,7 @@ body.console-chat-app {
 .view-heading details { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
 .view-heading pre { margin: 6px 0 0; max-height: 120px; overflow: auto; font-size: 11px; }
 .privacy-note { font-size: 11px; color: #7a8981; line-height: 1.7; margin: 0 9px 4px; }
-.chat-plot { width: 100%; max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e8ece5; background: white; }
+.chat-card img[src^="data:image/"] { width: 100%; max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e8ece5; background: white; }
 .chatlas-tool-result pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
 .chatlas-tool-request, .chatlas-tool-result { font-size: 12px; }
 .code-cell { position: relative; }
