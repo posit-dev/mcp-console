@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: INSERT INTO retained VALUES (41)
@@ -16,6 +19,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: BEGIN
@@ -24,6 +30,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: INSERT INTO retained VALUES (99)
@@ -32,6 +41,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: ROLLBACK
@@ -40,6 +52,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: BEGIN
@@ -48,6 +63,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: INSERT INTO retained VALUES (1)
@@ -56,6 +74,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: COMMIT
@@ -64,6 +85,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SELECT sum(value) AS answer FROM retained
@@ -76,6 +100,9 @@ result:
           <decimal128(38, 0)>
         1                  42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: print(6 * 7)
@@ -85,6 +112,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: "1"
@@ -117,6 +147,9 @@ result:
           <decimal128(38, 0)>
         1                  42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   session: default
@@ -160,3 +193,6 @@ result:
         # ℹ 1 variable: name <string>
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

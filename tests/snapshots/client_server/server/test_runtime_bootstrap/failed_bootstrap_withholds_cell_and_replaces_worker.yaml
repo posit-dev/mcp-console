@@ -10,6 +10,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -37,6 +40,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -56,3 +62,6 @@ result:
       text: |
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

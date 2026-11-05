@@ -204,7 +204,9 @@ impl ConsoleServer {
             && requirements.is_none()
             && stdin.is_none()
         {
-            return Ok(CallToolResult::success(vec![ContentBlock::text("[done]")]));
+            let mut result = CallToolResult::success(vec![ContentBlock::text("[done]")]);
+            add_meta(&mut result, note.as_deref(), None);
+            return Ok(result);
         }
         let cell = match (r, python, sql) {
             (Some(source), None, None) => Some(crate::cell::Cell {
@@ -227,6 +229,7 @@ impl ConsoleServer {
                 ));
             }
         };
+        let language = cell.as_ref().map(|cell| cell.language);
         if let Some(requirements) = &requirements {
             use crate::worker_client::RequirementsAction::{Get, Reset};
             if matches!(requirements.action, Get | Reset)
@@ -365,14 +368,55 @@ impl ConsoleServer {
         }
         .await
         .unwrap_or_else(crate::worker_client::Response::tool_error);
-        Ok(response_to_tool_result(
+        let mut result = response_to_tool_result(
             response,
             &call,
             &runtime.transcript,
             &self.deliveries,
             &delivery,
-        ))
+        );
+        add_meta(&mut result, note.as_deref(), language);
+        Ok(result)
     }
+}
+
+/// `_meta` key carrying the facts chat UIs translate into result cards.
+/// The `posit.mcp-console` prefix is Posit-controlled; `send` scopes the
+/// payload to this tool. Contract: docs/API.md.
+const SEND_FACTS_KEY: &str = "posit.mcp-console/send";
+
+/// Attach the call's facts (the verbatim note and the language that ran) to a
+/// successful result's `_meta`, preserving other entries. No-ops on errored
+/// results and on calls with neither a note nor code (session polls,
+/// control-only calls, requirements responses).
+fn add_meta(
+    result: &mut CallToolResult,
+    note: Option<&str>,
+    language: Option<crate::cell::Language>,
+) {
+    if result.is_error == Some(true) {
+        return;
+    }
+    let mut facts = serde_json::Map::new();
+    if let Some(note) = note {
+        facts.insert("note".into(), serde_json::Value::String(note.to_owned()));
+    }
+    if let Some(language) = language {
+        let key = match language {
+            crate::cell::Language::R => "r",
+            crate::cell::Language::Python => "python",
+            crate::cell::Language::Sql => "sql",
+        };
+        facts.insert("language".into(), serde_json::Value::String(key.into()));
+    }
+    if facts.is_empty() {
+        return;
+    }
+    result
+        .meta
+        .get_or_insert_with(rmcp::model::MetaObject::new)
+        .0
+        .insert(SEND_FACTS_KEY.into(), serde_json::Value::Object(facts));
 }
 
 impl ConsoleServer {

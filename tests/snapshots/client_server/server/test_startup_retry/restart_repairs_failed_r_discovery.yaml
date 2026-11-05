@@ -32,3 +32,6 @@ result:
         [1] 42
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

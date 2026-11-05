@@ -152,6 +152,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -304,6 +307,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: print(input())
@@ -315,6 +321,9 @@ result:
       text: |
         accepted
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: ~

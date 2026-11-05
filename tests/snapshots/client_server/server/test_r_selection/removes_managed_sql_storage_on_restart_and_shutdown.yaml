@@ -25,6 +25,9 @@ result:
       text: |
         "<SQL storage>"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -61,3 +64,6 @@ result:
       text: |
         "<SQL storage>"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

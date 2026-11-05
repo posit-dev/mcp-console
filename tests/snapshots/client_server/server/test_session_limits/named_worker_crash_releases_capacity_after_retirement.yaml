@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: retained = 'alpha'
@@ -17,6 +20,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: beta
@@ -60,6 +66,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   timeout_ms: 0
@@ -83,3 +92,6 @@ result:
       text: |
         default
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

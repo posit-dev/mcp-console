@@ -87,6 +87,9 @@ result:
         [input requested: "fresh> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |
@@ -106,6 +109,9 @@ result:
       text: |
         'fresh input'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -121,6 +127,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: answer + 1
@@ -130,3 +139,6 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

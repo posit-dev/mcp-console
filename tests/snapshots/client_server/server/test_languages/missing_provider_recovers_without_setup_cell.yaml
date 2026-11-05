@@ -11,6 +11,9 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: restart
@@ -36,6 +39,9 @@ result:
         selected Python environment, or select a DB-API connection with
         _console.sql_connection(connection)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: restart
@@ -61,3 +67,6 @@ result:
         ---------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

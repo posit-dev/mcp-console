@@ -11,6 +11,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: CREATE TABLE answers AS SELECT 42 AS answer
@@ -22,6 +25,9 @@ result:
         -----
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   requirements:
@@ -48,6 +54,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT sql_gate(answer) FROM answers
@@ -58,6 +67,9 @@ result:
         [input requested: "SQL gate> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: interrupt
@@ -78,6 +90,9 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: >-
@@ -92,6 +107,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: interrupt
@@ -112,6 +130,9 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -140,6 +161,9 @@ result:
       text: |
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: >-
@@ -153,3 +177,6 @@ result:
         -----
         0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

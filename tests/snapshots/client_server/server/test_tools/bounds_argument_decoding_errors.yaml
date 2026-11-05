@@ -78,3 +78,6 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

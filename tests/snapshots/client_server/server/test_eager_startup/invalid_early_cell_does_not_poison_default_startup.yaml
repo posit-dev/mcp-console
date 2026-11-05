@@ -13,6 +13,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -30,3 +33,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

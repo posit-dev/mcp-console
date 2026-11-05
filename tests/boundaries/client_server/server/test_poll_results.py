@@ -68,6 +68,7 @@ def test_empty_poll_preserves_completed_r_errors(
                                 }
                             ],
                             "isError": False,
+                            "_meta": {"posit.mcp-console/send": {"language": "r"}},
                         }, pending
                     finally:
                         release.release()

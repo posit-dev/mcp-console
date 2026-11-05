@@ -41,3 +41,6 @@ result:
         [input requested: ""]
         'retained input'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -43,6 +43,9 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -63,3 +66,6 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

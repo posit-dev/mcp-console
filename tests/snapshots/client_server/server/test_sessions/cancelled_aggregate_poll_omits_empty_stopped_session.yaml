@@ -18,6 +18,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: pass
@@ -27,6 +30,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -55,6 +61,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 input:
   method: ping

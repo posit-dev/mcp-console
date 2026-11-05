@@ -25,6 +25,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -75,6 +78,9 @@ result:
       text: |
         (1, 1)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: raise RuntimeError('first user filenames')
@@ -86,3 +92,6 @@ result:
           File "<mcp-console:python:e3>", line 1, in <module>
         RuntimeError: first user filenames
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

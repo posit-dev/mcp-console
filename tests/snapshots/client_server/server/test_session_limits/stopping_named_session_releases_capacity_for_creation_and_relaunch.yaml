@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: retained = 100
@@ -17,6 +20,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: beta
@@ -51,6 +57,9 @@ result:
         100
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: retained += 1; print(retained)
@@ -61,6 +70,9 @@ result:
       text: |
         101
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -81,6 +93,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -211,6 +226,9 @@ result:
         [input requested: "fresh> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -231,3 +249,6 @@ result:
       text: |
         default
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

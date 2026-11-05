@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: retained = 'alpha'
@@ -17,6 +20,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -37,6 +43,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -104,6 +113,9 @@ result:
       text: |
         beta
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: beta
@@ -146,6 +158,9 @@ result:
         [starting new worker]
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: print(retained)
@@ -155,3 +170,6 @@ result:
       text: |
         default
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

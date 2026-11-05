@@ -9,6 +9,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: pass
@@ -18,6 +21,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 input:
   method: ping
@@ -38,6 +44,9 @@ result:
       text: |
         alpha returned
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: print('beta returned')
@@ -48,3 +57,6 @@ result:
       text: |
         beta returned
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value = 'old state'
@@ -17,6 +20,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import os; os._exit(86)
@@ -48,6 +54,9 @@ result:
       text: |
         'default state'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: "'value' in globals()"
@@ -59,3 +68,6 @@ result:
         [starting new worker]
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

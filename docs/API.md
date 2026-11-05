@@ -98,6 +98,13 @@ MCP results contain text and, when produced, images.
 Language exceptions normally appear as console text; preparation, transport, and worker failures are tool errors.
 Errors do not undo earlier side effects.
 
+### Display facts
+
+Successful `send` results for calls with code or a note carry `_meta["posit.mcp-console/send"]`, an object with `note` (the call's note, verbatim, when given) and `language` (`"r"`/`"python"`/`"sql"`, when code ran).
+Chat UIs can use the facts to render calls as display cards; other clients may ignore the metadata entirely.
+Errored results and calls with neither code nor a note (session polls, control-only calls, requirements responses) never carry it.
+The key and its field set are the stable contract; how any client renders them is that client's choice.
+
 | Notice                               | Action                                                                                                    |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `[running; poll with an empty send]` | Poll without code. Do not resubmit the cell.                                                              |

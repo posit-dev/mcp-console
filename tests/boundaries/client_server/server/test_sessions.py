@@ -213,6 +213,7 @@ def test_named_session_completes_while_another_send_waits(
             assert alpha["result"] == {
                 "content": [{"type": "text", "text": "alpha returned\n"}],
                 "isError": False,
+                "_meta": {"posit.mcp-console/send": {"language": "python"}},
             }, alpha
             return client.finish()
 
@@ -320,7 +321,12 @@ def test_cancelled_aggregate_poll_omits_empty_stopped_session(
                     "content": [{"type": "text", "text": RUNNING}],
                     "isError": False,
                 }
-                assert without_elapsed_result(started) == running, started
+                # Only the code-bearing initial send carries display facts;
+                # the targeted polls below do not.
+                assert without_elapsed_result(started) == {
+                    **running,
+                    "_meta": {"posit.mcp-console/send": {"language": "python"}},
+                }, started
                 started_id = client.transcript[-1]["id"]
                 ready.wait("default is blocked before completion", client=client)
                 write_reached.wait("initial running response has an unsettled write")

@@ -26,3 +26,6 @@ result:
           <int32>
         1      42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

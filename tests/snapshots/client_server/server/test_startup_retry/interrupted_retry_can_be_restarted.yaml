@@ -51,3 +51,6 @@ result:
         42
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

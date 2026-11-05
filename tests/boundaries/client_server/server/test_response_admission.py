@@ -206,6 +206,7 @@ def test_keeps_wire_order_across_cancelled_waiting_send(
                         {"type": "text", "text": "zod response-gated operation\n"}
                     ],
                     "isError": False,
+                    "_meta": {"posit.mcp-console/send": {"language": "r"}},
                 }
                 client.receive(first)
                 assert first["result"] == expected, first

@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: answer = input('alpha> ')
@@ -19,6 +22,9 @@ result:
         [input requested: "alpha> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: answer = input('beta> ')
@@ -30,6 +36,9 @@ result:
         [input requested: "beta> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   timeout_ms: 0
@@ -96,6 +105,9 @@ result:
       text: |
         'beta answer'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -127,6 +139,9 @@ result:
       text: |
         'alpha answer'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   timeout_ms: 0

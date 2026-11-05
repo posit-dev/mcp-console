@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value = 'alpha state'
@@ -17,6 +20,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value = 'beta state'
@@ -26,6 +32,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value
@@ -36,6 +45,9 @@ result:
       text: |
         'alpha state'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value
@@ -46,6 +58,9 @@ result:
       text: |
         'beta state'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value
@@ -55,6 +70,9 @@ result:
       text: |
         'default state'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value
@@ -65,3 +83,6 @@ result:
       text: |
         'default state'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

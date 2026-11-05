@@ -13,6 +13,9 @@ result:
         [input requested: "original cell> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -86,3 +89,6 @@ result:
       text: |
         original cell and worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

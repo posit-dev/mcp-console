@@ -25,6 +25,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: r.visible_frame = frame
@@ -33,6 +36,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT sum(value) AS answer FROM visible_frame
@@ -45,3 +51,6 @@ result:
           <double>
         1     42.0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

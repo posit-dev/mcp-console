@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -21,6 +24,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output; phase: startup]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: beta
@@ -99,6 +105,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -131,6 +140,9 @@ result:
       text: |
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: print(retained)
@@ -140,3 +152,6 @@ result:
       text: |
         40
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

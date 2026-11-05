@@ -17,6 +17,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output; phase: startup]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 input:
   method: ping
@@ -40,3 +43,6 @@ result:
       text: |
         [1] 1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
