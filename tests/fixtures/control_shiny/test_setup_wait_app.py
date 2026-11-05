@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from boundaries.client_server.integrations.test_control import ControlClient
 from support.checkpoints import wait_for_checkpoint, wait_for_path
+from support.python import python_script_header
 
 pytest_plugins = ["test_app"]
 
@@ -25,8 +26,7 @@ def capture_control_endpoint(tmp_path, monkeypatch):
     binary = Path(os.environ["MCP_CONSOLE_TEST_BINARY"]).resolve()
     launcher = tmp_path / "console-launcher"
     launcher.write_text(
-        f"#!{sys.executable}\n"
-        "import os, sys\nfrom pathlib import Path\n"
+        python_script_header() + "import os, sys\nfrom pathlib import Path\n"
         'endpoint = sys.argv[sys.argv.index("--control-socket") + 1]\n'
         'Path("fixture-control-endpoint").write_text(endpoint)\n'
         f"os.execv({str(binary)!r}, [{str(binary)!r}, *sys.argv[1:]])\n"

@@ -22,6 +22,7 @@ from support.client import McpClient
 from support.checkpoints import FifoCheckpoint
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
+from support.python import python_script_header
 from support.progress import without_elapsed
 from support.records import ToolResult, Transcript
 from support.r import r_test_environment
@@ -717,7 +718,7 @@ def permissions(binary: Path, *, tailored: bool) -> Transcript:
             }))
             os.execv(os.environ["RESOLVER_TEST_UV"], ["uv", *sys.argv[1:]])
             """)
-        (tools / "uv").write_text(f"#!{sys.executable}\n" + probe, encoding="utf-8")
+        (tools / "uv").write_text(python_script_header() + probe, encoding="utf-8")
         (tools / "uv").chmod(0o755)
         (protected / "readable").write_text("host read")
         env = dict(

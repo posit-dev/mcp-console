@@ -27,6 +27,7 @@ from support.capture import read_lines
 from support.events import Events
 from support.native import SHARED_LIBRARY_FLAG
 from support.normalization import code
+from support.python import python_script_header
 from support.processes import (
     capture_process_identity,
     signal_process,
@@ -378,7 +379,7 @@ class TranscriptRunnerFixture(unittest.TestCase):
         commands.mkdir()
         cargo = commands / "cargo"
         cargo.write_text(
-            f"#!{sys.executable}\n"
+            python_script_header()
             # fmt: python
             + code("""
                 import sys
@@ -400,7 +401,7 @@ class TranscriptRunnerFixture(unittest.TestCase):
         # checkout depend on registry access inside the command's ten-second limit.
         uv = commands / "uv"
         uv.write_text(
-            f"#!{sys.executable}\n"
+            python_script_header()
             # fmt: python
             + code("""
                 import os
@@ -586,7 +587,7 @@ class TranscriptRunnerTests(TranscriptRunnerFixture):
         r_home = self.root / "selected-R"
         (r_home / "bin").mkdir(parents=True)
         rscript = (
-            f"#!{sys.executable}\n"
+            python_script_header()
             # fmt: python
             + code("""
                 from pathlib import Path

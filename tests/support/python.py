@@ -2,10 +2,17 @@
 
 import subprocess
 import os
+import shlex
 import sys
 import sysconfig
 import zipfile
 from pathlib import Path
+
+
+def python_script_header(*arguments: str) -> str:
+    """Keep fixture interpreter selection when its path contains spaces."""
+    command = shlex.join((sys.executable, *arguments))
+    return "#!/bin/sh\n" + f"'''exec' {command} \"$0\" \"$@\"\n" + "' '''\n"
 
 
 def windows_short_path(path: Path) -> Path:

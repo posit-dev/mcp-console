@@ -23,6 +23,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.linux_sandbox import retain_system_bwrap
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code, normalize_python_resolution_error
+from support.python import python_script_header
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.snapshots import execution_snapshots
 from support.resolvers import expose_uv, write_python_executable
@@ -296,9 +297,9 @@ def test_prepares_builtin_extensions_without_downloads(
         # Use its flag because Console removes ambient UV_OFFLINE.
         write_python_executable(
             offline_uv,
+            python_script_header("-S")
             # fmt: python
-            code(f"""
-                #!{sys.executable} -S
+            + code(f"""
                 import os
                 import sys
                 from pathlib import Path

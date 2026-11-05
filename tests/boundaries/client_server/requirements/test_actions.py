@@ -17,6 +17,7 @@ from support.assertions import last_tool_text, wait_for_evaluation_output
 from support.client import McpClient, stop_client
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_python_resolution_error
+from support.python import python_script_header
 from support.r import isolated_r_home
 from support.records import Transcript
 from support.suites import run_this_suite
@@ -509,7 +510,7 @@ def test_r_duckdb_replacement_failure_and_reset(
             sys.stderr.buffer.write(result.stderr)
             raise SystemExit(result.returncode)
             """)
-        rscript.write_text(f"#!{sys.executable}\n{capture}")
+        rscript.write_text(python_script_header() + capture)
         rscript.chmod(0o755)
         environment["MCP_CONSOLE_TEST_IR_FAIL_REQUIREMENT"] = "missing.fixture"
         with McpClient(

@@ -20,6 +20,7 @@ from support.processes import (
     live_processes,
 )
 from support.normalization import code
+from support.python import python_script_header
 from support.native import LOADER_VARIABLE, build_interposer
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.requirements import (
@@ -87,7 +88,7 @@ def trusted_warmup_environment(workspace: Path) -> dict[str, str]:
     uv.unlink()
     variables = (*CACHE_VARIABLES, "XDG_CACHE_HOME", "MPLCONFIGDIR")
     uv.write_text(
-        f"#!{sys.executable}\n"
+        python_script_header()
         # fmt: python
         + code(f"""
             import errno
