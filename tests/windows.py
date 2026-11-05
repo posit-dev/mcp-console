@@ -144,7 +144,11 @@ class Session:
             self.messages.put(json.loads(line))
         self.messages.put(None)
 
-    def request(self, method, params, *, close_input=False):
+    def request(
+        self, method, params, *, close_input=False, deadline: float | None = None
+    ):
+        if deadline is None:
+            deadline = time.monotonic() + self.timeout
         self.sequence += 1
         message = {
             "jsonrpc": "2.0",
@@ -157,7 +161,7 @@ class Session:
         if close_input:
             self.process.stdin.close()
         while True:
-            response = self.messages.get(timeout=self.timeout)
+            response = self.messages.get(timeout=max(0, deadline - time.monotonic()))
             if response is None:
                 recorded = []
                 try:
@@ -226,48 +230,125 @@ class Session:
             )
             assert "running;" not in json.dumps(result), result
 
-    def send(self, **arguments):
-        observe_completion = "timeout_ms" not in arguments
+    def send(self, *, response_deadline: float | None = None, **arguments):
+        if response_deadline is None:
+            response_deadline = time.monotonic() + self.timeout
+        observe_once = "timeout_ms" in arguments
         arguments.setdefault("session", "default")
         arguments.setdefault("timeout_ms", 10000)
-        result = self.request("tools/call", {"name": "send", "arguments": arguments})
-        # Cold resolver caches can outlive one observation. Preserve tests that
-        # explicitly choose a timeout to inspect an intermediate lifecycle state.
-        if observe_completion:
-            for _ in range(18):
-                if not any(
-                    item.get("text", "")
-                    .strip()
-                    .endswith("[running; poll with an empty send]")
-                    for item in result.get("content", [])
-                ):
-                    break
-                result = self.request(
-                    "tools/call",
-                    {
-                        "name": "send",
-                        "arguments": {
-                            "session": arguments["session"],
-                            "timeout_ms": 10000,
-                        },
-                    },
-                )
-        return result
+        result = self.request(
+            "tools/call",
+            {"name": "send", "arguments": arguments},
+            deadline=response_deadline,
+        )
+        if observe_once:
+            return result
+        return self._collect(result, arguments, response_deadline)
 
     def expect(self, expected: str, **arguments) -> dict:
+        """Collect successful output through completion before a dependent call."""
         deadline = time.monotonic() + self.timeout
-        result = self.send(**arguments, timeout_ms=0)
+        result = self.send(**arguments, timeout_ms=0, response_deadline=deadline)
+        result = self._collect(result, arguments, deadline, expected=expected)
+        assert not result.get("isError"), result
+        assert expected in json.dumps(result, ensure_ascii=False), result
+        return result
+
+    def observe(self, expected: str, **arguments) -> dict:
+        """Observe output from a deliberately running or input-blocked cell."""
+        deadline = time.monotonic() + self.timeout
+        result = self.send(**arguments, timeout_ms=0, response_deadline=deadline)
+        return self._collect(result, arguments, deadline, observation=expected)
+
+    def _collect(
+        self,
+        result: dict,
+        arguments: dict,
+        deadline: float,
+        *,
+        expected: str | None = None,
+        observation: str | None = None,
+    ) -> dict:
+        from support.progress import without_elapsed
+
+        content = []
+        running = "\n[running; poll with an empty send]"
+        waiting = "[waiting for stdin]"
+        controlled = arguments.get("control") is not None and any(
+            arguments.get(language) is not None for language in ("r", "python", "sql")
+        )
         while True:
+            status = ""
+            for item in result.get("content", []):
+                if item["type"] == "text":
+                    text = without_elapsed(item["text"])
+                    if text.endswith(running):
+                        text = text.removesuffix(running)
+                        status = running
+                    elif text.endswith(waiting):
+                        text = text.removesuffix(waiting)
+                        status = waiting
+                        if text == "\n":
+                            text = ""
+                    if not text:
+                        continue
+                    item = item | {"text": text}
+                if (
+                    item == {"type": "text", "text": "[done]"}
+                    and content
+                    and not controlled
+                ):
+                    continue
+                if (
+                    item == {"type": "text", "text": "[done]"}
+                    and controlled
+                    and content
+                    and content[-1]["type"] == "text"
+                    and not content[-1]["text"].endswith("\n")
+                ):
+                    item = item | {"text": "\n[done]"}
+                if item["type"] == "text" and content and content[-1]["type"] == "text":
+                    content[-1] = content[-1] | {
+                        "text": content[-1]["text"] + item["text"]
+                    }
+                else:
+                    content.append(item)
+            observed_content = content[:]
+            if status:
+                suffix = status
+                if status == waiting and not (
+                    observed_content
+                    and observed_content[-1]["type"] == "text"
+                    and observed_content[-1]["text"].endswith("\n")
+                ):
+                    suffix = "\n" + status
+                if observed_content and observed_content[-1]["type"] == "text":
+                    observed_content[-1] = observed_content[-1] | {
+                        "text": observed_content[-1]["text"] + suffix
+                    }
+                else:
+                    observed_content.append({"type": "text", "text": suffix})
+            collected = result | {"content": observed_content}
+            reached = observation is not None and observation in json.dumps(
+                collected, ensure_ascii=False
+            )
+            continuing = not reached and (
+                status == running or (expected is not None and status == waiting)
+            )
+            if not continuing:
+                if observation is not None:
+                    assert not result.get("isError"), result
+                assert observation is None or reached, collected
+                return collected
             assert not result.get("isError"), result
-            output = json.dumps(result, ensure_ascii=False)
-            if expected in output:
-                return result
-            assert "running;" in output or "waiting for stdin" in output, result
             remaining = deadline - time.monotonic()
-            assert remaining > 0, f"did not observe {expected!r}: {result}"
+            assert remaining > 0, (
+                f"evaluation did not reach its expected state: {collected}"
+            )
             result = self.send(
                 session=arguments.get("session", "default"),
                 timeout_ms=min(1000, max(1, int(remaining * 1000))),
+                response_deadline=deadline,
             )
 
     def close(self):
@@ -289,7 +370,7 @@ class Session:
 
 def exercise_input_and_interrupt(session: Session) -> None:
     """The same public, network-independent scenario for direct execution and Windows MXC."""
-    result = session.expect(
+    result = session.observe(
         "waiting for stdin",
         # fmt: r
         r=dedent("""
@@ -300,7 +381,7 @@ def exercise_input_and_interrupt(session: Session) -> None:
     assert "waiting for stdin" in json.dumps(result), result
     result = session.expect("Windows", stdin="Windows\n")
     assert "Windows" in json.dumps(result), result
-    result = session.expect(
+    result = session.observe(
         "Loop ready", r='saved <- 42; cat("Loop ready\\n"); repeat {}'
     )
     assert "running" in json.dumps(result), result
@@ -331,7 +412,7 @@ def exercise_sql_interrupt(session: Session) -> None:
             print("SQL callback ready")
             """),
     )
-    session.expect("waiting for stdin", sql="SELECT sql_gate() AS answer")
+    session.observe("waiting for stdin", sql="SELECT sql_gate() AS answer")
     result = session.send(control="interrupt", timeout_ms=10000)
     output = json.dumps(result)
     assert not result.get("isError") and "running;" not in output, result
@@ -357,9 +438,6 @@ def exercise_r_sql(session: Session) -> None:
             """),
     )
     session.expect("7654321", sql="SELECT * FROM frame")
-    # Result rows can arrive before the cell's completion receipt.
-    settled = session.send()
-    assert not settled.get("isError") and "running;" not in json.dumps(settled), settled
     result = session.send(
         sql="SELECT sum(i::DOUBLE) FROM range(1000000000000) AS values(i)",
         timeout_ms=1000,
@@ -646,6 +724,76 @@ class WindowsPackaging(unittest.TestCase):
 
 @unittest.skipUnless(os.name == "nt", "native Windows acceptance")
 class WindowsConsole(unittest.TestCase):
+    def test_collects_streamed_output_before_starting_the_next_cell(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        from support.checkpoints import wait_for_checkpoint
+        from support.previews import live_recording_events
+
+        session = self.session()
+        session.send(python="pass")
+        (recording,) = (
+            Path(session.directory.name) / ".agents/console/sessions"
+        ).iterdir()
+        gate = Gate(timeout=session.timeout)
+        self.addCleanup(gate.close)
+
+        def release_after_running_result():
+            gate.accept(session.process)
+            self.assertEqual(gate.readline(), b"ready\n")
+
+            def running_result():
+                for event in live_recording_events(recording):
+                    if event["event"] != "tool_result":
+                        continue
+                    text = "".join(
+                        item.get("text", "") for item in event["result"]["content"]
+                    )
+                    if "stream prefix" in text and text.endswith(
+                        "[running; poll with an empty send]"
+                    ):
+                        return recording
+                return None
+
+            # Release only after a public running response contains the prefix.
+            # This forces two observations without depending on evaluator speed.
+            wait_for_checkpoint(
+                running_result,
+                "stream prefix was returned while the cell was gated",
+                root=recording / "capture",
+                timeout=session.timeout,
+            )
+            gate.sendall(b"1")
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            released = executor.submit(release_after_running_result)
+            result = session.expect(
+                "stream prefix",
+                control="restart",
+                # fmt: python
+                python=code(f"""
+                    with open({gate.name!r}, "r+b", buffering=0) as gate:
+                        gate.write(b"ready\\n")
+                        print("stream prefix")
+                        assert gate.read(1) == b"1"
+                    print("stream suffix", end="")
+                    streamed_state = 42
+                    """),
+            )
+            released.result(timeout=session.timeout)
+        self.assertEqual(
+            result["content"],
+            [
+                {
+                    "type": "text",
+                    "text": "[worker stopped: in-memory state lost]\n"
+                    "[starting new worker]\nstream prefix\nstream suffix\n[done]",
+                }
+            ],
+        )
+        result = session.send(python="streamed_state")
+        self.assertEqual(result["content"], [{"type": "text", "text": "42\n"}])
+
     def test_completed_recording_in_inherited_acl_workspace(self):
         from support.client import McpClient
         from support.execution import DIRECT
@@ -1014,7 +1162,7 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn(
             "running;",
             json.dumps(
-                session.expect(
+                session.observe(
                     "R sleep entered", r='cat("R sleep entered\\n"); Sys.sleep(60)'
                 )
             ),
@@ -1111,7 +1259,7 @@ class WindowsConsole(unittest.TestCase):
                     self.assertIn(
                         "running;",
                         json.dumps(
-                            session.expect(
+                            session.observe(
                                 "Python sleep entered",
                                 python="print('Python sleep entered'); time.sleep(60)",
                             )
@@ -1130,7 +1278,7 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn(
             "running;",
             json.dumps(
-                session.expect(
+                session.observe(
                     "Python loop entered",
                     python="print('Python loop entered')\nwhile True: pass",
                 )
@@ -1143,7 +1291,7 @@ class WindowsConsole(unittest.TestCase):
         self.assertIn("42", json.dumps(session.send(r="42L")))
         # A failed iteration leaves an active cell: stop at the first failure.
         for _ in range(12):
-            result = session.expect(
+            result = session.observe(
                 "R loop entered",
                 r='cat("R loop entered\\n"); repeat { Sys.sleep(0) }',
             )
@@ -1154,7 +1302,7 @@ class WindowsConsole(unittest.TestCase):
                 {"r": "readline('R input: ')"},
                 {"python": "input('Python input: ')"},
             ):
-                result = session.expect("waiting for stdin", **arguments)
+                result = session.observe("waiting for stdin", **arguments)
                 self.assertIn("waiting for stdin", json.dumps(result))
                 result = session.send(control="interrupt", timeout_ms=2000)
                 self.assertNotIn("running;", json.dumps(result))
@@ -1204,7 +1352,7 @@ class WindowsConsole(unittest.TestCase):
         )
         self.assertIn("Python alone: 42", json.dumps(result))
         self.assertFalse(result.get("isError"), result)
-        result = session.expect(
+        result = session.observe(
             "waiting for stdin", python="name = input('Name: '); print(name)"
         )
         self.assertIn("waiting for stdin", json.dumps(result))
@@ -1214,7 +1362,7 @@ class WindowsConsole(unittest.TestCase):
                 session.expect("caf\u00e9", stdin="caf\u00e9\n"), ensure_ascii=False
             ),
         )
-        result = session.expect(
+        result = session.observe(
             "Python loop entered",
             python="print('Python loop entered')\nwhile True: pass",
         )
@@ -2289,7 +2437,7 @@ class WindowsConsole(unittest.TestCase):
     def test_interrupt_waiting_for_input(self):
         session = self.session()
         session.send(r="1L")
-        result = session.expect("waiting for stdin", r="readline('Name: ')")
+        result = session.observe("waiting for stdin", r="readline('Name: ')")
         self.assertIn("waiting for stdin", json.dumps(result))
         result = session.send(control="interrupt", timeout_ms=1000)
         self.assertNotIn("waiting for stdin", json.dumps(result))
@@ -2344,7 +2492,7 @@ class WindowsConsole(unittest.TestCase):
         self.assertTrue(
             any(item["type"] == "image" for item in result["content"]), result
         )
-        result = session.expect(
+        result = session.observe(
             "Python loop entered",
             python="print('Python loop entered')\nwhile True: pass",
         )
@@ -2468,7 +2616,9 @@ class WindowsConsole(unittest.TestCase):
 
     def test_stdin_preserves_control_bytes(self):
         session = self.session()
-        result = session.send(r="as.integer(charToRaw(readline()))", stdin="\x1a\n")
+        result = session.expect(
+            "26", r="as.integer(charToRaw(readline()))", stdin="\x1a\n"
+        )
         self.assertIn("26", json.dumps(result))
 
     def test_input_and_interrupt(self):
