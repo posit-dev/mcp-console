@@ -98,8 +98,9 @@ def test_selected_r_connection_does_not_initialize_python(
             # fmt: r
             r=code("""
                 stopifnot(DBI::dbIsValid(native))
-                error <- tryCatch(.console$sql_connection(), error = conditionMessage)
-                stopifnot(grepl("active SQL connection belongs to Python", error, fixed = TRUE))
+                borrowed <- .console$sql_connection()
+                stopifnot(inherits(borrowed, "python.builtin.object"))
+                stopifnot(reticulate::py_id(borrowed) == reticulate::py_id(py$user))
                 """),
         )
         client.finish()

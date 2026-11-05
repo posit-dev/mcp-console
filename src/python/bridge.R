@@ -478,6 +478,13 @@ base::local(
         "numpy",
         "ephemeral"
       )]
+      sql <- reticulate::import("_mcp_console_sql", convert = FALSE)
+      # The SQL helpers can be installed after this initialization hook.
+      # Resolve lazily in the attached tools environment, not user globals.
+      sql$`_r_connection` <- reticulate::r_to_py(
+        function(...) get(".console", envir = tools)$sql_connection(...),
+        convert = TRUE
+      )
       invisible(TRUE)
     }
 

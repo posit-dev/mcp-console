@@ -16,6 +16,7 @@ _PROVIDER_MANAGED = 1
 _PROVIDER_HANDLED = 2
 _UNSET = object()
 _r_selected = False
+_r_connection = None
 _last_result = None
 _result_epoch = 0
 
@@ -109,15 +110,19 @@ def _validate_connection(connection):
         )
 
 
+def _r_sql_connection(*args: object) -> object:
+    # Attach a private callback without reading the workspace's r binding.
+    _services.attach_r()
+    return _r_connection(*args)
+
+
 def sql_connection(connection: object = _UNSET) -> object:
     global _connection, _restore_managed, _r_selected
 
     if connection is _UNSET:
         if _connection is None:
             if not _native_enabled:
-                raise RuntimeError(
-                    "The active SQL connection belongs to R; use .console$sql_connection() in R"
-                )
+                return _r_sql_connection()
             _connection = _ensure_managed_connection()
         return _connection
 
@@ -127,6 +132,12 @@ def sql_connection(connection: object = _UNSET) -> object:
         _r_selected = False
         _connection = None
         _restore_managed = True
+        return None
+
+    if type(connection).__name__ == "PyCapsule":
+        # Reticulate unwraps R-object capsules before the native DBI validator.
+        # R rejects other capsules without routing them back through Python.
+        _r_sql_connection(connection)
         return None
 
     _validate_connection(connection)

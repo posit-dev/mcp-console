@@ -101,7 +101,7 @@ result:
     - type: text
       text: |
         Traceback (most recent call last):
-          File "<string>", line 318, in _evaluate
+          File "<string>", line 329, in _evaluate
           File "<mcp-console:python:e1>", line 38, in execute
         KeyboardInterrupt
   isError: false

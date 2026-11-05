@@ -78,23 +78,25 @@ result:
               final visible expression autoprints; leave the primary result last.
               Declare dependencies with `requirements.python` before importing them;
               preparation can accompany the cell. Import names may differ from
-              distribution names. Select a user-owned DB-API connection for SQL cells
-              with `_console.sql_connection(connection)`; restore managed DuckDB with
-              `_console.sql_connection(None)`. After Python-owned SQL, `data =
-              _console.sql_last_result(n=100)` retrieves up to n successive native
-              rows, including the original preview first, without re-executing SQL;
-              omit n to materialize all remaining rows. It returns a dictionary with
-              `rows` and ordered `columns`, without requiring pandas. Optional
-              `pandas.DataFrame(data["rows"], columns=data["columns"])` conversion
-              follows pandas' type rules. Cleanup is automatic on exhaustion,
-              replacement, or retrieval failure; connections stay open.
-              `_console.sql_connection()` returns the active native Python connection,
-              or errors if another runtime owns SQL; on Python-owned DuckDB, register
-              frames with `_console.sql_connection().register(name, frame)` (globals
-              are not scanned). `matplotlib.pyplot.show()` returns open figures as
-              PNGs immediately and closes them. At cell end, even after errors,
-              remaining open figures return as PNGs and close; `show()` is optional.
-              Closing an unshown figure suppresses capture.
+              distribution names. Select a user-owned DB-API connection or bridged DBI
+              connection for SQL cells with `_console.sql_connection(connection)`;
+              restore managed DuckDB with `_console.sql_connection(None)`. After
+              Python-owned SQL, `data = _console.sql_last_result(n=100)` retrieves up
+              to n successive native rows, including the original preview first,
+              without re-executing SQL; omit n to materialize all remaining rows. It
+              returns a dictionary with `rows` and ordered `columns`, without
+              requiring pandas. Optional `pandas.DataFrame(data["rows"],
+              columns=data["columns"])` conversion follows pandas' type rules. Cleanup
+              is automatic on exhaustion, replacement, or retrieval failure;
+              connections stay open. `_console.sql_connection()` returns the active
+              native Python connection, or an opaque bridged handle for another
+              runtime's connection. Pass bridged handles back to that runtime's
+              functions. To query frames on Python-owned DuckDB, register them with
+              `_console.sql_connection().register(name, frame)` (globals are not
+              scanned). `matplotlib.pyplot.show()` returns open figures as PNGs
+              immediately and closes them. At cell end, even after errors, remaining
+              open figures return as PNGs and close; `show()` is optional. Closing an
+              unshown figure suppresses capture.
             type:
               - string
               - "null"

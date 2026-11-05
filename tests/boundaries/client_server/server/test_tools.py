@@ -450,9 +450,21 @@ def _initializes_and_lists_tools(
                             in description
                         )
                     r_description = properties["r"]["description"]
+                    assert "reticulate proxy" in r_description
+                    assert "bridged DB-API connection" in r_description
+                    assert "errors if" not in r_description
                     assert ".console$sql_last_result(n = 100)" in r_description
                     assert "returns a data frame" in r_description
                     assert "Arrow" not in r_description
+                if "python" in properties:
+                    python_description = properties["python"]["description"]
+                    assert "bridged DBI connection" in python_description
+                    assert "errors if" not in python_description
+                    if "r" in properties:
+                        assert "opaque R DBI handle" in python_description
+                        assert "r['DBI::dbGetQuery']" in python_description
+                    else:
+                        assert "opaque bridged handle" in python_description
                 extensions = send["inputSchema"]["properties"]["requirements"][
                     "properties"
                 ]["duckdb"]

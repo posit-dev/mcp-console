@@ -84,22 +84,25 @@ result:
               `text <- capture.output(print(?pkg::topic))`, then print line ranges
               with `writeLines()`. Access Python globals through `py$name`.
               `.console$sql_connection()` returns the active native DBI connection for
-              DBI/dplyr, or errors if another runtime owns SQL. Select a user-owned
-              DBI connection for SQL cells with `.console$sql_connection(connection)`;
-              restore managed DuckDB with `.console$sql_connection(NULL)`. Never
-              disconnect the managed connection; restore it before disconnecting a
-              selection. After R-owned SQL, `.console$sql_last_result(n = 100)`
-              returns a data frame of up to n successive rows, including the original
-              preview first, without re-executing SQL; omit n to materialize all
-              remaining rows. Column types and precision follow the database driver.
-              Cleanup is automatic on exhaustion, replacement, or retrieval failure.
-              Default-device plots return as PNGs and finalize at cell end, including
-              after errors; draw each plot in one cell. Explicit devices are not
-              captured. Set persistent dimensions in inches and DPI with
-              `options(console.plot.width_in = ..., console.plot.height_in = ...,
-              console.plot.dpi = ...)`. For a reusable R script, include imports, data
-              inputs, and `#| packages:`/`#| r-version:` metadata for `ir run
-              script.R`, which starts without live Console objects.
+              DBI/dplyr, or a reticulate proxy for another runtime's connection. Call
+              proxy methods with `$` and convert their results with
+              `reticulate::py_to_r()`. Select a user-owned DBI connection or bridged
+              DB-API connection for SQL cells with
+              `.console$sql_connection(connection)`; restore managed DuckDB with
+              `.console$sql_connection(NULL)`. Never disconnect the managed
+              connection; restore it before disconnecting a selection. After R-owned
+              SQL, `.console$sql_last_result(n = 100)` returns a data frame of up to n
+              successive rows, including the original preview first, without
+              re-executing SQL; omit n to materialize all remaining rows. Column types
+              and precision follow the database driver. Cleanup is automatic on
+              exhaustion, replacement, or retrieval failure. Default-device plots
+              return as PNGs and finalize at cell end, including after errors; draw
+              each plot in one cell. Explicit devices are not captured. Set persistent
+              dimensions in inches and DPI with `options(console.plot.width_in = ...,
+              console.plot.height_in = ..., console.plot.dpi = ...)`. For a reusable R
+              script, include imports, data inputs, and `#| packages:`/`#| r-version:`
+              metadata for `ir run script.R`, which starts without live Console
+              objects.
             type:
               - string
               - "null"

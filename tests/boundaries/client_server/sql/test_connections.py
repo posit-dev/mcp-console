@@ -127,28 +127,46 @@ def test_gets_selects_and_resets_the_active_native_connection(
             assert "_console" not in globals()
             assert "sql_connection" not in vars(builtins)
             assert "console_sql_connection" not in vars(builtins)
-            try:
-                _console.sql_connection()
-            except RuntimeError as error:
-                print(error)
+            borrowed_r = _console.sql_connection()
+            assert r["function(connection) identical(connection, sqlite)"](borrowed_r)
+            assert (
+                r[
+                    "function(connection) DBI::dbGetQuery(connection, 'SELECT value FROM chosen')$value"
+                ](borrowed_r)
+                == 11
+            )
+            assert _console.sql_connection(borrowed_r) is None
+            print("borrowed R connection retains identity and supports R calls")
             selected = sqlite3.connect(":memory:")
             assert _console.sql_connection(connection=selected) is None
             assert _console.sql_connection() is selected
             _ = selected.execute("CREATE TABLE chosen AS SELECT 23 AS value")
             """)
-        client.send(python=python)
-        assert last_tool_text(client) == (
-            "The active SQL connection belongs to R; use .console$sql_connection() in R\n"
+        client.expect(
+            "borrowed R connection retains identity and supports R calls\n",
+            python=python,
         )
         # fmt: r
         r = code(r"""
-            writeLines(tryCatch(.console$sql_connection(), error = conditionMessage))
+            borrowed_python <- .console$sql_connection()
+            stopifnot(inherits(borrowed_python, "python.builtin.object"))
+            rows <- borrowed_python$execute("SELECT value FROM chosen")$fetchone()
+            stopifnot(identical(reticulate::py_to_r(rows), list(23L)))
+            stopifnot(is.null(.console$sql_connection(borrowed_python)))
             stopifnot(DBI::dbIsValid(sqlite))
+            writeLines("borrowed Python connection supports native methods")
             """)
         client.send(r=r)
         assert last_tool_text(client) == (
-            "The active SQL connection belongs to Python; use _console.sql_connection() in Python\n"
+            "borrowed Python connection supports native methods\n"
         )
+        client.expect(python="assert _console.sql_connection() is selected")
+        client.expect(python="_console.sql_connection(borrowed_r)")
+        client.expect(r="stopifnot(identical(.console$sql_connection(), sqlite))")
+        client.expect(None, sql="SELECT value FROM chosen")
+        client.expect(r="stopifnot(.console$sql_last_result()$value == 11L)")
+        client.expect(r=".console$sql_connection(borrowed_python)")
+        client.expect(python="assert _console.sql_connection() is selected")
         client.send(sql="SELECT value FROM chosen")
         assert "23" in last_tool_text(client)
         # fmt: python
@@ -157,6 +175,13 @@ def test_gets_selects_and_resets_the_active_native_connection(
                 _console.sql_connection(object())
             except TypeError as error:
                 print(error)
+            assert _console.sql_connection() is selected
+            try:
+                _console.sql_connection(r.closed)
+            except RuntimeError as error:
+                assert "valid DBIConnection" in str(error)
+            else:
+                raise AssertionError("selected a closed R connection through Python")
             assert _console.sql_connection() is selected
             _ = _console.sql_last_result()
             selected.close()
@@ -175,14 +200,13 @@ def test_gets_selects_and_resets_the_active_native_connection(
             _console.sql_connection(selected)
             assert _console.sql_connection(None) is None
             assert selected.execute("SELECT value FROM still_open").fetchone() == (7,)
-            try:
-                _console.sql_connection()
-            except RuntimeError as error:
-                print(error)
+            restored = _console.sql_connection()
+            assert r["function(connection) identical(connection, managed)"](restored)
+            print("Python reset restores the same managed R connection")
             """)
         client.send(python=python)
         assert last_tool_text(client) == (
-            "The active SQL connection belongs to R; use .console$sql_connection() in R\n"
+            "Python reset restores the same managed R connection\n"
         )
         # fmt: r
         r = code(r"""
