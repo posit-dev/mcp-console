@@ -18,6 +18,10 @@ Under explicit resolution, hiding `requirements.python` or its parent switches g
 Configuration exports leave generated Python parameter descriptions as `null` so later launches regenerate them after selection; explicit description overrides are preserved.
 Requirements can remain visible for a hidden SQL provider.
 
+The definition also carries a static BaseMetadata `title`: a single-language interface names its language ("Run R code"); an interface with several languages advertises "Run code", since one shared title cannot name a single language.
+Clients that aggregate several calls into one row or header (such as chat tool groups) need a stable shared label; a static title keeps that header from adopting one call's dynamic result title, and per-call titles stay distinct inside the group.
+The title is server-owned: launcher configuration has no title override.
+
 Launcher [tool configuration](TOOL_CONFIGURATION.md#tool-descriptions-and-parameters) applies after generated presentation.
 It can replace tool prose, initialization instructions, and nested parameter descriptions verbatim, or hide parameters while preserving their omission defaults.
 The editorial guidance below governs generated text; explicit replacements are owned by the launcher.
@@ -30,7 +34,7 @@ Bridge examples require both source languages to be visible; Python-owned SQL re
 MCP initialization instructions introduce the server; the `send` definition explains the tool.
 Start both with a short task-oriented summary so deferred-discovery clients can choose Console before loading its full schema.
 
-These are separate protocol fields: [`initialize`](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#initialization) returns server `instructions`; [`tools/list`](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#listing-tools) returns each tool's `description` and `inputSchema`, including argument descriptions.
+These are separate protocol fields: [`initialize`](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#initialization) returns server `instructions`; [`tools/list`](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#listing-tools) returns each tool's `title`, `description`, and `inputSchema`, including argument descriptions.
 Initialization makes instructions available to the client before it lists tools.
 The client decides which text to put in the model's context and when.
 Fetching a definition from Console does not necessarily expose that definition to the model immediately.

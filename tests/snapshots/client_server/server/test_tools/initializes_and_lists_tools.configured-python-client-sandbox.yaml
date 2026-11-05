@@ -31,6 +31,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run Python code
       description: >-
         Persistent Python REPL for calculations, data exploration and analysis,
         database queries, debugging, simulations, and plots. Reuse objects

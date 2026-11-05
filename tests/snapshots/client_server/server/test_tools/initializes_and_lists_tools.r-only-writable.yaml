@@ -28,6 +28,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run R code
       description: >-
         Persistent R REPL for calculations, data exploration and analysis,
         database queries, debugging, simulations, and plots. Reuse objects

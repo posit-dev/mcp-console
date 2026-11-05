@@ -28,6 +28,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run code
       description: >-
         Persistent R and Python REPL for calculations, data exploration and
         analysis, database queries, debugging, simulations, and plots. Reuse
@@ -323,6 +324,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run code
       description: >-
         Persistent R and Python REPL for calculations, data exploration and
         analysis, database queries, debugging, simulations, and plots. Reuse

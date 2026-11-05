@@ -181,6 +181,12 @@ mcp_ellmer_tool <- function(metadata, client) {
     name = metadata$name,
     # The adapter owns schema conversion, including explicit nullable arguments.
     convert = FALSE,
+    # shinychat reads the definition title for multi-call group headers.
+    annotations = if (is.null(metadata$title)) {
+      list()
+    } else {
+      ellmer::tool_annotations(title = metadata$title)
+    },
     description = if (is.null(metadata$description)) {
       ""
     } else {

@@ -28,6 +28,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run code
       description: >-
         Persistent R, Python, and SQL REPL for calculations, data exploration
         and analysis, database queries, debugging, simulations, and plots. Reuse

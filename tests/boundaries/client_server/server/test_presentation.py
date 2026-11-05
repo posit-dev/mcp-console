@@ -14,7 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED
-from support.presentation import assert_tool_guidance, without_descriptions
+from support.presentation import (
+    assert_tool_guidance,
+    definition_title,
+    without_descriptions,
+)
 from support.records import Transcript
 from support.requirements import SQL
 from support.suites import run_this_suite
@@ -284,6 +288,7 @@ def _configured_language_matrix(binary: Path) -> Transcript:
                     }
                     expected_tool = {
                         **baseline,
+                        "title": definition_title(fields),
                         "description": description,
                         "inputSchema": {
                             **baseline["inputSchema"],

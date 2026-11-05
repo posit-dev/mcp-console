@@ -26,6 +26,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run SQL code
       description: >-
         Persistent custom-worker SQL REPL. Reuse objects across calls to inspect
         results, test hypotheses, and compare approaches.
