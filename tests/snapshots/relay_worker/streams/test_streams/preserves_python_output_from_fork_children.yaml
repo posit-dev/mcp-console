@@ -108,6 +108,10 @@ relay:
   kind: evaluate
   language: python
   source: |
+    import os
+
+    with open(os.environ["MCP_CONSOLE_MITM_OUTPUT_GATE"], "rb", buffering=0) as output_gate:
+        assert output_gate.read(1) == b"1"
     def child_output():
         print("fork child stdout", flush=True)
         sys.stderr.write("fork child stderr\n")

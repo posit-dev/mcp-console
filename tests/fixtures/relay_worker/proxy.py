@@ -3,13 +3,16 @@
 exec "${MCP_CONSOLE_TEST_PYTHON:?}" "$0" "$@"
 ":"""
 
+import array
 import codecs
+import fcntl
 import json
 import os
 import select
 import stat
 import subprocess
 import tempfile
+import termios
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO
 
@@ -72,8 +75,8 @@ def proxy(
     active = {relay_descriptor, worker_descriptor, *streams}
     buffers = {"relay": bytearray(), "worker": bytearray()}
 
-    def read_stream(descriptor: int) -> None:
-        chunk = os.read(descriptor, BUFFER_SIZE)
+    def read_stream(descriptor: int, size: int = BUFFER_SIZE) -> int:
+        chunk = os.read(descriptor, size)
         name, destination = streams[descriptor]
         if chunk:
             write_all(destination, chunk)
@@ -83,6 +86,7 @@ def proxy(
             text = decoders[descriptor].decode(b"", final=True)
         if text:
             pending[name].append(text)
+        return len(chunk)
 
     def read_ready_streams() -> None:
         descriptors = [descriptor for descriptor in streams if descriptor in active]
@@ -91,7 +95,18 @@ def proxy(
         ready, _, _ = select.select(descriptors, [], [], 0)
         for descriptor in streams:
             if descriptor in ready:
-                read_stream(descriptor)
+                # Capture the finite bytes already queued at this sideband
+                # boundary, including more than one read buffer. Later writes
+                # cannot keep a background producer ahead of the sideband.
+                available = array.array("i", [0])
+                fcntl.ioctl(descriptor, termios.FIONREAD, available, True)
+                remaining = available[0]
+                if not remaining:
+                    read_stream(descriptor)
+                while remaining:
+                    received = read_stream(descriptor, min(remaining, BUFFER_SIZE))
+                    assert received, "pipe closed before its queued bytes were read"
+                    remaining -= received
 
     def flush_streams() -> None:
         event = {

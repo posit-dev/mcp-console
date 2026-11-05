@@ -8,6 +8,10 @@ relay:
   source: |
     import os
 
+    with open(os.environ["MCP_CONSOLE_MITM_OUTPUT_GATE"], "rb", buffering=0) as output_gate:
+        assert output_gate.read(1) == b"1"
+    import os
+
 
     def write_all(file_descriptor, data):
         data = memoryview(data)

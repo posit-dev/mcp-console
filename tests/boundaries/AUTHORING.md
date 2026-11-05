@@ -93,6 +93,8 @@ Parse finalized journals in full so truncated recordings remain failures.
 For direct pipe fixtures, `read_lines()` consumes an exact batch up to the producer's next command or checkpoint gate.
 Count all records in that batch; adjacent records may arrive in one read.
 Use `read_relay_ready()` for the ordered `worker_started` and `ready` handshake, and release the worker only after checking both records.
+Raw stdout/stderr and worker sideband events travel independently.
+When a transcript needs raw output after `cell_started`, observe that event in the capture before releasing the producer; receiving an MCP result or writing stdin does not establish that order.
 
 `wait_for_evaluation_output()` submits once, accumulates every text delta, and bounds transport receives with its completion budget.
 `client.expect()` uses that collector with the client's existing response budget and checks exact successful output (`[done]` by default).
@@ -102,6 +104,8 @@ Use `client.expect(None, ...)` when asserting the collected content separately, 
 An initial `timeout_ms=0` exercises polling without making query speed part of those assertions.
 Give cold preparation an explicit longer budget.
 The default `send` observation deadline can return while setup is still running; establish completion before dependent requests.
+Combined code and stdin can also return at input readiness before consuming the queued input.
+Collect through the expected final result, retaining every output delta; use an explicit pending-state observation when the test needs a running or input-blocked cell.
 Use local wheels for packages that serve only as installation or import sentinels, while retaining real libraries when their behavior or permissions are the contract being tested.
 Use the client's preparation budget for resolver collection and initial requirements inspection.
 Use `McpClient.response_deadline()` for client-aware fixture waits so the remaining case deadline retains its shutdown and reap reserve.
