@@ -16,6 +16,9 @@ result:
       text: |
         delivered before acknowledgment
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import delivery_probe; print(delivery_probe.value)
@@ -25,3 +28,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

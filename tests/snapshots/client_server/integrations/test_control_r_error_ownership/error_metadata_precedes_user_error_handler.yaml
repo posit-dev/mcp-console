@@ -19,6 +19,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -43,3 +46,6 @@ result:
       text: |
         recovered
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

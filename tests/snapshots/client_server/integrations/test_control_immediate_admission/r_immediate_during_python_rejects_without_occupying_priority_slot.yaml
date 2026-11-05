@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: pass
@@ -16,6 +19,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -31,6 +37,9 @@ result:
       text: |
         foreground complete
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: immediate_r_ran
@@ -40,6 +49,9 @@ result:
       text: |
         [1] FALSE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: immediate_r_ran
@@ -49,3 +61,6 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

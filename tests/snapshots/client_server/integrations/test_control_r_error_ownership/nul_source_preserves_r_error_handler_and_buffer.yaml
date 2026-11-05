@@ -9,6 +9,9 @@ result:
       text: |
         Error: foreground failure
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -25,6 +28,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -44,3 +50,6 @@ result:
       text: |
         usable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

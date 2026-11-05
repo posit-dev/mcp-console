@@ -23,9 +23,10 @@
 #' @section Result shape:
 #'
 #' Successful calls return an [ellmer::ContentToolResult] whose value holds
-#' the ordered text and image content, so display metadata can ride in
-#' `extra` for any call. Errored results keep their existing unwrapped
-#' return shape.
+#' the ordered text and image content, with the server's result `_meta`
+#' forwarded verbatim in `extra` (e.g. its `posit.mcp-console/send` display
+#' facts, which compatible chat UIs can translate into result cards).
+#' Errored results keep their existing unwrapped return shape.
 #'
 
 #' @section Executable resolution:
@@ -172,7 +173,7 @@ mcp_ellmer_tool <- function(metadata, client) {
         arguments = mcp_argument_value(arguments, metadata$inputSchema)
       )
     )
-    mcp_contents(result, arguments)
+    mcp_contents(result)
   }
   arguments <- rep(list(omitted), length(fields))
   arguments[required] <- rep(alist(argument = ), sum(required))
@@ -541,7 +542,7 @@ mcp_pump <- function(client, timeout) {
   invisible()
 }
 
-mcp_contents <- function(result, arguments = list()) {
+mcp_contents <- function(result) {
   if (!is.null(result$structuredContent$requirements)) {
     return(ellmer::ContentText(as.character(jsonlite::toJSON(
       result$structuredContent,
@@ -580,10 +581,16 @@ mcp_contents <- function(result, arguments = list()) {
     }
   }
 
-  # Every other successful result returns a ContentToolResult so display
-  # metadata can ride in `extra` for any call.
+  # Every other successful result returns a ContentToolResult so the
+  # server's result `_meta` (e.g. its `posit.mcp-console/send` display
+  # facts) can ride in `extra` verbatim — the same convention-agnostic
+  # pass-through chatlas and mcptools perform on the client-native path.
+  # Presentation belongs to chat UIs, not this package. Inert for clients
+  # that do not read it.
+  meta <- result[["_meta"]]
   ellmer::ContentToolResult(
-    value = if (length(content) == 1L) content[[1L]] else content
+    value = if (length(content) == 1L) content[[1L]] else content,
+    extra = if (length(meta) == 0L) list() else meta
   )
 }
 

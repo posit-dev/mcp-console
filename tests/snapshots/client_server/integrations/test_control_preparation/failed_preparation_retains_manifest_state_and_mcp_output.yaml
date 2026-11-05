@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import sys; print(sys.executable)
@@ -17,6 +20,9 @@ result:
       text: |
         <running Python>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -34,6 +40,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send: {}
 result:
@@ -75,3 +84,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

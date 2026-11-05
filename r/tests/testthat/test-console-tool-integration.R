@@ -256,6 +256,58 @@ test_that("console_tools forward the advertised tool title", {
   })
 })
 
+test_that("console_tools forward result _meta into extra verbatim", {
+  with_temp_working_directory({
+    send <- console_tools(
+      path = real_mcp_console(),
+      config = ConsoleConfig(
+        r = list(resolution = "disabled"),
+        languages = c("r", "python"),
+        sandbox = FALSE
+      )
+    )$send
+
+    # Facts arrive untouched: the note keeps its raw text (no escaping, no
+    # truncation) and the language names the executed code's argument.
+    noted <- send(r = "6 * 7", note = "Check the <answer> first.\nSecond line.")
+    facts <- noted@extra[["posit.mcp-console/send"]]
+    expect_identical(facts$note, "Check the <answer> first.\nSecond line.")
+    expect_identical(facts$language, "r")
+
+    code_only <- send(python = "1 + 1")@extra[["posit.mcp-console/send"]]
+    expect_identical(code_only$language, "python")
+    expect_null(code_only$note)
+
+    note_only <- send(note = "Just a thought")@extra[["posit.mcp-console/send"]]
+    expect_identical(note_only$note, "Just a thought")
+    expect_null(note_only$language)
+
+    # Calls with neither code nor a note (session polls) carry no metadata.
+    expect_identical(send()@extra, list())
+
+    # Requirements responses keep their plain-text shape and errored
+    # results keep their unwrapped shape; neither carries metadata.
+    requirements <- send(requirements = list(action = "get", r = "praise"))
+    expect_true(S7::S7_inherits(requirements, ellmer::ContentText))
+    errored <- send(r = "1", python = "1")
+    expect_false(S7::S7_inherits(errored, ellmer::ContentToolResult))
+    expect_match(
+      paste(
+        vapply(
+          if (is.list(errored)) errored else list(errored),
+          \(x) if (S7::S7_inherits(x, ellmer::ContentText)) x@text else "",
+          character(1)
+        ),
+        collapse = ""
+      ),
+      "only one of",
+      fixed = TRUE
+    )
+    rm(send)
+    invisible(gc())
+  })
+})
+
 test_that("console_tools work when registered with an ellmer chat", {
   # fmt: r
   source <- r"(
@@ -468,7 +520,7 @@ test_that("ellmer receives native images with their original bytes and order", {
     )
 
     # A language error is console output and must retain the preceding plot.
-    failed <- tools$send(r = paste0(source, '\nstop("after plot")'))
+    failed <- tools$send(r = paste0(source, '\nstop("after plot")'))@value
     expect_length(failed, 3L)
     expect_identical(failed[[1L]], contents[[1L]])
     expect_identical(failed[[2L]], contents[[2L]])

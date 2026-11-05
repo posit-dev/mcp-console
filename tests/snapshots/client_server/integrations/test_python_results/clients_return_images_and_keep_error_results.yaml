@@ -33,6 +33,9 @@ result:
       text: |
         after image
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: cat("text\n")
@@ -42,6 +45,9 @@ result:
       text: |
         text
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: cat("raw\n")
@@ -51,6 +57,9 @@ result:
       text: |
         raw
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: cat("r\n")

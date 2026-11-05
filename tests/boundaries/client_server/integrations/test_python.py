@@ -1218,7 +1218,7 @@ def test_callable_tools_preserve_image_results(
     from anthropic.lib.tools import ToolError
     from anthropic.types.beta import BetaToolResultBlockParam
     from chatlas import ContentToolResult
-    from chatlas.types import ContentImageInline, ContentText
+    from chatlas.types import ContentImageInline
     from openai.types.responses import ResponseFunctionToolCall
     from openai.types.responses.response_input_item_param import FunctionCallOutput
     from pydantic import TypeAdapter
@@ -1253,11 +1253,15 @@ def test_callable_tools_preserve_image_results(
     def check_image(result) -> None:
         assert isinstance(result, ContentToolResult), type(result)
         assert result.error is None
-        assert result.extra is None, result.extra
+        assert result.extra["posit.mcp-console/send"]["language"] == "r", result.extra
+        # Text parts stay plain strings, matching chatlas's own MCP adapter
+        # (Tool.from_mcp): providers can serialize the value as-is (a bare
+        # ContentText produced an invalid Anthropic tool_result payload —
+        # posit-dev/chatlas#494).
         kinds = [type(item) for item in result.value]
-        assert kinds == [ContentText, ContentImageInline, ContentText], kinds
+        assert kinds == [str, ContentImageInline, str], kinds
         text, image, after = result.value
-        assert (text.text, after.text) == ("before image\n", "after image\n")
+        assert (text, after) == ("before image\n", "after image\n")
         assert image.image_content_type == "image/png"
         assert image.data == expected_image
 
@@ -1502,7 +1506,6 @@ def test_chatlas_tool_returns_tool_result_for_text(
     binary: Path, execution: Execution
 ) -> Transcript:
     from chatlas import ContentToolResult
-    from chatlas.types import ContentText
 
     async def exercise(console) -> dict:
         tool = next(
@@ -1516,10 +1519,69 @@ def test_chatlas_tool_returns_tool_result_for_text(
         result = await invoke({"r": "echo text"})
         assert isinstance(result, ContentToolResult), type(result)
         assert result.error is None
-        assert isinstance(result.value, ContentText)
-        assert result.value.text == "zod: text\n"
-        assert not result.extra, result.extra
-        return {"type": type(result).__name__, "text": result.value.text}
+        # A single text part becomes a plain string, matching chatlas's own
+        # MCP adapter (Tool.from_mcp): providers serialize the value as-is
+        # (posit-dev/chatlas#494).
+        assert isinstance(result.value, str)
+        assert result.value == "zod: text\n"
+        assert result.extra["posit.mcp-console/send"]["language"] == "r", result.extra
+        return {"type": type(result).__name__, "text": result.value}
+
+    async def asynchronous() -> dict:
+        async with AsyncMCPConsole(**options(binary, execution)) as console:
+            return await exercise(console)
+
+    async_result = asyncio.run(asynchronous())
+    with MCPConsole(**options(binary, execution)) as console:
+        sync_result = asyncio.run(exercise(console))
+    assert sync_result == async_result
+    return [sync_result]
+
+
+@requires(POSIX)
+@executions(DIRECT, SANDBOXED)
+def test_chatlas_tool_forwards_result_meta(
+    binary: Path, execution: Execution
+) -> Transcript:
+    async def exercise(console) -> dict:
+        tool = next(
+            tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
+        )
+
+        async def invoke(arguments):
+            result = tool.func(**arguments)
+            return await result if inspect.isawaitable(result) else result
+
+        # Facts arrive untouched: the note keeps its raw text (no escaping,
+        # no truncation) and the language names the executed code's
+        # argument. Presentation belongs to chat UIs, not this adapter.
+        noted = (
+            await invoke(
+                {"r": "echo 42", "note": "Check the <answer> first.\nSecond line."}
+            )
+        ).extra["posit.mcp-console/send"]
+        assert noted == {
+            "note": "Check the <answer> first.\nSecond line.",
+            "language": "r",
+        }
+
+        assert (await invoke({"python": "echo snake"})).extra[
+            "posit.mcp-console/send"
+        ] == {"language": "python"}
+
+        assert (await invoke({"note": "Just a thought"})).extra[
+            "posit.mcp-console/send"
+        ] == {"note": "Just a thought"}
+
+        # Image results carry the same facts; no display html is composed.
+        assert (await invoke({"r": "emit image"})).extra["posit.mcp-console/send"] == {
+            "language": "r"
+        }
+
+        # No code and no note -> no metadata at all.
+        assert (await invoke({})).extra == {}
+
+        return {"noted": noted["note"]}
 
     async def asynchronous() -> dict:
         async with AsyncMCPConsole(**options(binary, execution)) as console:

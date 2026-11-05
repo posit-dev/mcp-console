@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: list = None
@@ -16,6 +19,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -35,6 +41,9 @@ result:
       text: |
         True True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -54,6 +63,9 @@ result:
       text: |
         True True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: del list
@@ -62,6 +74,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: str = None
@@ -70,6 +85,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -89,6 +107,9 @@ result:
       text: |
         True True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -108,6 +129,9 @@ result:
       text: |
         True True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: del str
@@ -116,3 +140,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

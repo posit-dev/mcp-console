@@ -19,6 +19,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: >-
@@ -28,6 +31,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -47,6 +53,9 @@ result:
       text: |
         1 True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: BrokenMessage.calls = 0; BrokenMessage.formatter_failure = SystemExit
@@ -55,6 +64,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -74,3 +86,6 @@ result:
       text: |
         1 True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

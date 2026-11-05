@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -23,6 +26,9 @@ result:
       text: |
         agent finished
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: print(sentinel)
@@ -32,3 +38,6 @@ result:
       text: |
         0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

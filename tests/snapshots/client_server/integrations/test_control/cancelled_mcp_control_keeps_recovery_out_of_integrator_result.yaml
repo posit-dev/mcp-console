@@ -15,6 +15,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -72,3 +75,6 @@ result:
       text: |
         0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

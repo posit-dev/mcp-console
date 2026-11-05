@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -31,6 +34,9 @@ result:
         foreground pending
         foreground complete
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: release
@@ -40,6 +46,9 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: priority_value
@@ -49,3 +58,6 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

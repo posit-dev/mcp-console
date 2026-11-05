@@ -11,6 +11,9 @@ result:
         [output produced while idle]
         ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: stopifnot(requireNamespace('praise', quietly = TRUE))
@@ -19,6 +22,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default

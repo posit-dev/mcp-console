@@ -1,4 +1,7 @@
 ---
+_meta:
+  posit.mcp-console/send:
+    language: r
 content:
   - type: text
     text: |

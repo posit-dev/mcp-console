@@ -10,6 +10,9 @@ result:
         [input requested: "default: "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -21,6 +24,9 @@ result:
         [input requested: "alpha: "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha
@@ -41,6 +47,9 @@ result:
         [input requested: "interrupt alpha: "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: alpha

@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -47,6 +50,9 @@ result:
             count: 3967
           - "\n"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: cat("still recorded\n")
@@ -56,3 +62,6 @@ result:
       text: |
         still recorded
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

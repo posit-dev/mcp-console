@@ -36,6 +36,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: writeLines("ordinary ran", "interrupted-source")
@@ -48,6 +51,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -64,6 +70,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -79,6 +88,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -96,6 +108,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: writeLines("ordinary ran", "caught-interrupt-source")
@@ -108,6 +123,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -124,6 +142,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: writeLines("ordinary ran", "restarted-source")
@@ -136,6 +157,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -160,3 +184,6 @@ result:
       text: |
         worker usable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
