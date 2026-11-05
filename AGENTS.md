@@ -64,6 +64,8 @@ Use `scripts/with-checkout` for direct build commands; never bypass checkout own
 Use temporary workspaces and `MCP_CONSOLE_HOME`, preserving `HOME` and the caller's tool environment.
 Declare platform/capability requirements in shared test support.
 Retain real-library sandbox regressions where the library's APIs exercise distinct permissions.
+Use real runtimes for ordinary execution and adapter tests.
+Reserve synthetic workers for worker failure modes that are hard or impossible to reproduce deterministically with a real runtime, and explain that need in the case.
 
 Never hand-edit `tests/snapshots/`.
 Regenerate through `scripts/test --update` or formatting, inspect the diff, and rerun without `--update`.

@@ -35,6 +35,7 @@ The client itself does not need to be installed when writing its configuration.
 
 After registration, setup starts one background `warmup` and prints its PID and log path.
 It returns without waiting for runtime checks or package preparation.
+If the selected release does not expose `send`, setup checks discovery and shutdown, and reports runtime warmup as skipped.
 Use `--no-warmup` to skip this step; `--dry-run` previews it without starting a job.
 Logs remain in `logs/warmup-*.log` under [Console home](ENVIRONMENT.md#server-paths-and-executable-discovery), normally `~/.agents/console` or the directory selected by `MCP_CONSOLE_HOME`.
 
@@ -132,14 +133,16 @@ Use a current client version that supports the respective setting.
 For Codex, setup also sets `tool_input_schema_max_bytes = 12000` on the selected server.
 This raises its input-schema compaction threshold from 5,000 to 12,000 bytes so Console's argument descriptions are retained, including with `--no-auto-load`.
 
-Configuration also allows Console's `send` tool to run without a per-call approval prompt:
+Configuration also allows Console tools to run without a per-call approval prompt, including tools added or renamed in later releases:
 
-- Codex: [`approval_mode = "approve"`](https://learn.chatgpt.com/docs/config-file/config-reference) in `[mcp_servers.console.tools.send]`.
-- Claude Code: [`"mcp__console__send"`](https://code.claude.com/docs/en/permissions#mcp) in `permissions.allow` in its settings file.
+- Codex: [`default_tools_approval_mode = "approve"`](https://learn.chatgpt.com/docs/config-file/config-reference) in `[mcp_servers.console]`.
+- Claude Code: [`"mcp__console__*"`](https://code.claude.com/docs/en/permissions#mcp) in `permissions.allow` in its settings file.
 
 `--name` selects the server for both settings; Claude Code's permission rule uses the server's normalized tool-name spelling.
 Existing Claude Code allow rules are retained without adding duplicate entries.
-`--no-auto-load` affects discovery only; it still configures approval for `send`.
+Existing Codex per-tool settings are retained and take precedence over the server default.
+Run `configure-client` again to update a registration created by an older release.
+`--no-auto-load` affects discovery only; it still configures tool approvals.
 Console's sandbox permissions are unchanged by the tool allowlist.
 Explicit Claude Code `ask` or `deny` rules and managed client restrictions can still require approval or block a call.
 
@@ -215,16 +218,19 @@ Run an installed program with Console's filesystem and network permissions.
 
 These options work before or after `serve`, `warmup`, and ordinary `sandbox`, and with [`config resolve`](#inspect-configuration):
 
-| Option                               | Effect                                                      |
-| ------------------------------------ | ----------------------------------------------------------- |
-| `--no-project-config`                | Skip the automatic project file.                            |
-| `--no-global-config`                 | Skip the automatic global file.                             |
-| `--no-config`                        | Skip both automatic files.                                  |
-| `--config-file PATH`                 | Read one required YAML or JSON file instead of those files. |
-| `--default-config KEY=VALUE`         | Set a launch default that configuration files can override. |
-| `-c KEY=VALUE`, `--config KEY=VALUE` | Override settings from configuration files.                 |
+| Option                               | Effect                                                            |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `--no-project-config`                | Skip the automatic project file.                                  |
+| `--no-global-config`                 | Skip the automatic global file.                                   |
+| `--no-config`                        | Skip both automatic files.                                        |
+| `--config-file PATH`                 | Read selected YAML or JSON files in order instead of those files. |
+| `--optional-config-file PATH`        | Allow a selected configuration file to be absent.                 |
+| `--default-config KEY=VALUE`         | Set a launch default that configuration files can override.       |
+| `-c KEY=VALUE`, `--config KEY=VALUE` | Override settings from configuration files.                       |
 
-`--config-file` may occur once and cannot be combined with discovery-exclusion flags.
+Repeat `--config-file` for ordered layers; it cannot be combined with discovery-exclusion flags.
+Each selected file is required unless marked with `--optional-config-file` using the same path before expansion.
+Optional files that exist must still be readable, regular configuration files.
 Both assignment options accept dotted keys and YAML values; repeat them to apply several in order.
 
 ```sh
@@ -296,6 +302,7 @@ mcp-console serve --config-file session.yaml
 `config resolve` prints settings without starting runtimes or preparing packages.
 The default output is YAML with built-in defaults omitted.
 Use `--full` to include defaults or `--format json` for JSON; `--full` and `--prune` are mutually exclusive.
+Add `--editable` to preserve authored tool settings while omitting generated descriptions and schema, including when using `--full`.
 The [configuration options](#configuration-options) apply before `config` or after `resolve`.
 
 See [Export a configuration](CONFIGURATION.md#export-a-configuration) for pruning rules, relative paths, editable fields, and what an export retains.

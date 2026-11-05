@@ -336,9 +336,9 @@ impl Client {
                 }
                 PriorEvaluation::Failed(response) => Ok(self.return_controlled_response(response)),
                 PriorEvaluation::None => match self.take_idle_response(&generation) {
-                    Ok(response) => {
-                        Ok(self.return_controlled_response(output::render_response(response)))
-                    }
+                    Ok(response) => Ok(ControlledEvaluation::Returned(output::render_response(
+                        response,
+                    ))),
                     Err(failure) => {
                         Ok(self.return_controlled_failure(Response::default(), failure))
                     }

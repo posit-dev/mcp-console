@@ -410,7 +410,10 @@ impl ConsoleServer {
             });
         }
         let mut observed = std::collections::BTreeMap::new();
-        while let Some((name, runtime, response)) = polls.next().await {
+        while let Some((name, runtime, mut response)) = polls.next().await {
+            if response.is_empty_stopped() {
+                continue;
+            }
             observed.insert(name, (runtime, response));
         }
         let responses = observed
@@ -425,20 +428,13 @@ impl ConsoleServer {
                 (name, status, response)
             })
             .collect::<Vec<_>>();
-        let statuses = responses
-            .iter()
-            .filter(|(_, status, _)| *status != "stopped")
-            .map(|(name, status, _)| serde_json::json!({"session": name, "status": status}))
-            .collect::<Vec<_>>();
-        let mut result = responses_to_tool_result(
+        Ok(responses_to_tool_result(
             responses,
             call,
             &self.startup.runtime().transcript,
             &self.deliveries,
             delivery,
-        );
-        result.structured_content = Some(serde_json::json!({"sessions": statuses}));
-        Ok(result)
+        ))
     }
 }
 
@@ -480,12 +476,18 @@ fn response_to_tool_result(
 }
 
 fn responses_to_tool_result(
-    responses: Vec<(String, &'static str, crate::worker_client::Response)>,
+    mut responses: Vec<(String, &'static str, crate::worker_client::Response)>,
     call: &crate::transcript::Call,
     transcript: &crate::transcript::Transcript,
     deliveries: &crate::server_transport::ResponseDeliveries,
     delivery: &crate::server_transport::ResponseDeliveryCall,
 ) -> CallToolResult {
+    if responses.len() == 1 {
+        let (_, _, response) = responses.pop().expect("one visible session");
+        return response_to_tool_result(response, call, transcript, deliveries, delivery);
+    }
+    // Poll output belongs in content. Status-only structured content can hide
+    // text, language errors, and images in hosts that prefer structured results.
     let mut combined = crate::worker_client::Response::default();
     for (name, status, response) in responses {
         if let Some(acknowledgment) = combined.append_session(&name, status, response) {

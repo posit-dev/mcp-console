@@ -148,8 +148,8 @@ result:
               Select a session by name (default: "default"). A new name starts an independent session
               with its first code cell. Each session retains its own variables, database
               state, and requirements; different sessions can execute concurrently. Supply the name
-              again to poll, interrupt, or restart it. An empty call without session polls all active
-              sessions and lists their statuses. Restart without code or nonempty stdin stops a named
+              again to poll, interrupt, or restart it. An empty call without session collects output
+              from all active sessions. Restart without code or nonempty stdin stops a named
               session until its next code or nonempty-input call; the default session restarts immediately.
             type: string
             default: default

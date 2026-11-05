@@ -41,18 +41,27 @@ pub(crate) fn configuration(
                 .expect("sandbox defaults")
                 .remove("network");
         }
-        // Removing explicit prose is safe only when this launch would regenerate
-        // the same text. Visibility defaults still remain enabled for pruning.
-        defaults["tool"] = serde_json::to_value(crate::server::materialized_tool(
-            languages,
-            captured.python.as_ref(),
-            policy,
-            no_sandbox,
-            uses_client_profile,
-            &captured.tool,
-            false,
-        ))
-        .expect("tool defaults");
+        if captured.preserve_tool_overrides {
+            // Adapter inspection must retain authorship, even when explicit
+            // text currently equals generated prose.
+            defaults
+                .as_object_mut()
+                .expect("configuration defaults")
+                .remove("tool");
+        } else {
+            // Removing explicit prose is safe only when this launch would regenerate
+            // the same text. Visibility defaults still remain enabled for pruning.
+            defaults["tool"] = serde_json::to_value(crate::server::materialized_tool(
+                languages,
+                captured.python.as_ref(),
+                policy,
+                no_sandbox,
+                uses_client_profile,
+                &captured.tool,
+                false,
+            ))
+            .expect("tool defaults");
+        }
     }
     let tool = crate::server::materialized_tool(
         languages,
@@ -63,7 +72,9 @@ pub(crate) fn configuration(
         &captured.tool,
         true,
     );
-    value["tool"] = serde_json::to_value(tool).expect("tool configuration");
+    if !captured.preserve_tool_overrides {
+        value["tool"] = serde_json::to_value(tool).expect("tool configuration");
+    }
     value["sessions"] = json!({"max": captured.sessions.max});
     value
         .as_object_mut()

@@ -5,29 +5,31 @@ The client runs in your R session; the agent's analysis runs in Console.
 
 ## Add Console to a chat
 
-Install the package and its dependencies:
+Install the package, including its declared development dependencies on ellmer and S7:
 
 ```r
 pak::pak("github::posit-dev/mcp-console/r")
 ```
 
-Register a Console tool with your chat:
+Register Console's tools with your chat:
 
 ```r
 library(ellmer)
 library(mcp.console)
 
 chat <- chat_openai()
-tool <- console_tool()
-chat$register_tool(tool)
+tools <- console_tools()
+chat$register_tools(tools)
 chat$chat("Explore mtcars with Console. Keep the data for follow-up.")
 ```
 
 Your model provider's credentials belong in the calling R process.
-Keep the tool available while the chat is using it; state persists while its Console connection remains alive.
+The tools share one Console connection.
+Keep them available while the chat is using them.
+`console_tools()` discovers every advertised tool without requiring a particular name.
 For dependent calls through `chat$chat_async()`, select `tool_mode = "sequential"`.
 
-`console_tool()` uses Console on PATH or launches the latest published release through `reticulate::uv_run_tool()`.
+`console_tools()` uses Console on PATH or launches the latest published release through `reticulate::uv_run_tool()`.
 The [package guide](../r/README.md#select-console) covers selecting an executable or version.
 
 ## Choose the workspace and settings
@@ -37,7 +39,7 @@ Without an explicit `config`, Console discovers global and project configuration
 For example:
 
 ```r
-tool <- console_tool(project = "/path/to/project")
+tools <- console_tools(project = "/path/to/project")
 ```
 
 The directory must already exist.
@@ -46,11 +48,16 @@ Relative paths in Console use this directory without changing the calling R sess
 To supply settings directly, pass a `ConsoleConfig` object:
 
 ```r
-config <- ConsoleConfig(sandbox = SandboxPolicy(profile = "workspace"))
-tool <- console_tool(config = config, project = "/path/to/project")
+config <- ConsoleConfig(sandbox = list(profile = "workspace"))
+tools <- console_tools(config = config, project = "/path/to/project")
 ```
 
 An explicit configuration skips file discovery.
+`ConsoleConfig()` accepts named fields or a parsed mapping, such as `ConsoleConfig(yaml12::read_yaml("config.yaml"))`.
+Use `load_console_config(global_file = ..., project_file = ..., overrides = ...)` to combine selected sources once before launch.
+The loader defaults to the global Console home and `project/.agents/console/config.yaml`; setting either file to `NULL` skips it.
+`MCP_CONSOLE_HOME` changes only the default global source.
+The calling R installation supplies the default executable, below file settings and explicit R overrides.
 Here the `workspace` profile allows ordinary project writes; network access is configured separately.
 [Configure a Console session](https://posit-dev.github.io/mcp-console/r/articles/configuration/) covers inspecting, editing, saving, and reusing settings.
 The [R API](https://posit-dev.github.io/mcp-console/r/reference/) documents the complete configuration interface.

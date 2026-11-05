@@ -67,8 +67,9 @@ def test_stopped_named_session_prepares_its_next_environment(
                 requirements={"python": [standalone]},
             )
             client.expect("\n[stopped]", session="alpha")
-            assert client.send(timeout_ms=0)["structuredContent"] == {
-                "sessions": [{"session": "default", "status": "idle"}]
+            assert client.send(timeout_ms=0) == {
+                "content": [{"type": "text", "text": "\n[idle]"}],
+                "isError": False,
             }
             client.expect(
                 "[starting new worker]\n43\n",

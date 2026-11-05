@@ -160,18 +160,8 @@ jobs:
           working-directory: r
           cache-version: windows-runtime-v3-${{ steps.epoch.outputs.week }}
           upgrade: "FALSE"
-          dependencies: "NA"
           packages: |
             deps::.
-            any::reticulate
-            any::jsonlite
-            any::ellmer
-            any::processx
-            any::ps
-            any::httr2
-            any::knitr
-            any::rmarkdown
-            any::testthat
       - name: Inventory Windows development prerequisites
         run: |
           scripts/preflight.cmd --json

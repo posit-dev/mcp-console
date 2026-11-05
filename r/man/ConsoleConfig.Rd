@@ -2,13 +2,10 @@
 % Please edit documentation in R/session-config.R
 \name{ConsoleConfig}
 \alias{ConsoleConfig}
-\alias{ConfigDiscovery}
 \title{Configure a Console session}
 \usage{
-ConfigDiscovery(global = TRUE, project = TRUE)
-
 ConsoleConfig(
-  discovery = NULL,
+  ...,
   r = NULL,
   python = NULL,
   resolver = NULL,
@@ -23,96 +20,96 @@ ConsoleConfig(
 )
 }
 \arguments{
-\item{global, project}{Whether to discover each configuration source.
-Both default to \code{TRUE} when \code{ConfigDiscovery()} is explicitly constructed.}
+\item{...}{A single unnamed list of configuration fields, instead of named
+arguments. All other arguments must be supplied by their full names.}
 
-\item{discovery}{\code{NULL} (no file discovery), or a \code{\link[=ConfigDiscovery]{ConfigDiscovery()}}.}
+\item{r}{An R executable path, or a list with \code{executable}, \code{packages},
+\code{resolution}, and \code{vanilla}. Resolution is \code{"implicit"} (prepare packages
+as needed), \code{"explicit"} (only on request), \code{"fixed"} (startup packages
+only), or \code{"disabled"} (use installed packages). \code{vanilla = TRUE} skips
+native R startup files.}
 
-\item{r}{\code{NULL} or an \code{\link[=RConfig]{RConfig()}}.}
+\item{python}{An existing environment path, \code{list(existing = path)}, or
+\code{list(managed = list(version = "3.13", packages = "pandas", resolution = "fixed"))}. Managed Python supports \code{"implicit"}, \code{"explicit"},
+and \code{"fixed"}. \code{list(first_available = list(...))} tries existing paths,
+\code{"active_venv"}, and an optional managed choice, last, in order.}
 
-\item{python}{\code{NULL}, an \code{\link[=ExistingPython]{ExistingPython()}}, a \code{\link[=ManagedPython]{ManagedPython()}}, or a
-\code{\link[=FirstAvailablePython]{FirstAvailablePython()}}.}
+\item{resolver}{A list with \code{environment}, \code{inherit_environment}, and
+\code{sandbox}, controlling package preparation separately from executed code.}
 
-\item{resolver}{\code{NULL} or a \code{\link[=ResolverConfig]{ResolverConfig()}}.}
+\item{sandbox}{A permission list with \code{profile}, \code{filesystem}, \code{network},
+and \code{tempdir}, or \code{FALSE} for host execution. Profiles are \code{"read_only"}
+(the default), \code{"workspace"} (project writes with metadata protection),
+and \code{"inherit_codex"} (client permissions). Filesystem entries are
+\code{read_only}, \code{read_write}, and \code{deny} path vectors. Temporary storage is
+\code{"managed"} (the default), \code{"read_write"}, or \code{"read_only"}.}
 
-\item{sandbox}{\code{NULL}, a \code{\link[=SandboxPolicy]{SandboxPolicy()}}, or \code{FALSE} for host execution.}
+\item{languages}{A character vector selecting \code{"r"}, \code{"python"}, and/or
+\code{"sql"}. By default all three are visible to the model.}
 
-\item{languages}{\code{NULL} or a character vector selecting \code{"r"}, \code{"python"},
-and/or \code{"sql"} tool inputs. This does not select the installed runtimes.}
+\item{cache}{\code{"managed"}, \code{"host"}, or \code{list(directory = "/path/to/cache")}
+for package caches. Defaults to managed caches with sandboxing and host
+caches with \code{sandbox = FALSE}.}
 
-\item{cache}{\code{NULL}, \code{"managed"}, \code{"host"}, or \code{list(directory = "path")}.
-\code{"console"} is an alias for \code{"managed"}. A directory uses managed
-caches under \verb{<directory>/dependencies} for preparation and workers.
-Relative paths use the project directory; a leading \code{~} uses Console's
-launch-home convention. Managed caches require sandboxing.}
+\item{environment}{Named character vector or list of string environment
+values shared by workers and package preparation.}
 
-\item{environment}{\code{NULL} or a named character vector of child environment
-assignments. Empty string values are allowed; \code{character()} is an empty
-mapping. Resolver assignments override worker assignments for preparation.}
+\item{inherit_environment}{Whether child processes inherit the launch
+environment, \code{TRUE} by default.}
 
-\item{inherit_environment}{\code{NULL}, \code{TRUE}, or \code{FALSE}; controls inheritance
-of the trusted launch environment. Console retains its owned assignments.}
+\item{tool}{A list with \code{description}, \code{instructions}, and \code{parameters}.
+Each named parameter accepts \code{enabled}, \code{description}, and nested
+\code{parameters}; for example, \code{list(parameters = list(timeout_ms = list(enabled = FALSE)))} hides the timeout argument.}
 
-\item{tool}{\code{NULL} or a \code{\link[=ToolConfig]{ToolConfig()}} customizing descriptions and parameter
-visibility.}
+\item{startup}{A list with \code{language} (\code{"r"} or \code{"python"}) and \code{code} that
+creates and selects a SQL connection before the first cell in each session.}
 
-\item{startup}{\code{NULL} or a \code{\link[=StartupConfig]{StartupConfig()}} selecting a SQL connection.}
-
-\item{sessions}{\code{NULL} or a \code{\link[=SessionsConfig]{SessionsConfig()}} limiting live sessions.}
+\item{sessions}{A list with \code{max}, a positive whole number limiting concurrent
+sessions. By default there is no limit.}
 }
 \value{
-An S7 configuration object. The constructor is also its S7 class.
+An S7 configuration object.
 }
 \description{
-\code{ConsoleConfig()} combines runtime selection, package preparation, worker
-permissions, resolver settings, and tool presentation for \code{\link[=console_tool]{console_tool()}}.
-Constructors have the same field names as Console's application configuration.
+Construct configuration from named fields or one named list using the same
+field names and nesting as \code{config.yaml}. Construction validates the supplied
+values without reading files, finding executables, or starting a process.
+Nested lists are converted to typed configuration objects; edit properties
+with \code{@}, including replacing a nested object with another named list.
 }
 \details{
-An empty \code{ConsoleConfig()} uses built-in defaults without reading
-global or project configuration files. Workers can read host files, write
-private temporary storage, and cannot use the network. Dependency preparation
-retains its independent built-in permissions and may download packages.
+Use \code{\link[=load_console_config]{load_console_config()}} to read configuration files once. Both constructors
+return the same class, and passing either result to \code{\link[=console_tools]{console_tools()}} disables
+further file discovery. Unspecified R selection uses the calling R installation
+at load or launch, below explicit configuration.
+
+\code{NULL} fields are omitted. Empty mappings and character vectors are retained.
+\code{as.list()} returns JSON-ready application settings; the launch-only choice
+\code{sandbox = FALSE} is not included in that document.
+A loaded R executable reset is retained as an explicit JSON \code{null}, so saving
+and reloading the settings preserves native R discovery.
+
+For worker or resolver \code{network} settings, \code{TRUE} enables direct networking
+and \code{FALSE} restricts it. The scalar strings \code{"enabled"} and \code{"restricted"}
+select the same modes; other strings are allowed proxy patterns. Character
+vectors and unnamed lists supply allowed patterns, including an empty vector
+or list for an explicit empty allow list. Named mappings use
+\code{proxy = list(domains = list(allow = ..., deny = ...))} for explicit rules.
+YAML accepts the same boolean, string, and sequence forms. A YAML
+\code{network: null} is omitted when files merge, preserving an earlier network
+field. R \code{network = NULL} is omitted from the constructed settings.
 }
-\section{Discovery and layering}{
-
-Prefer \code{\link[=discover_console_config]{discover_console_config()}} to read files once into an inspectable
-object, or \code{\link[=materialize_console_config]{materialize_console_config()}} to fill defaults without file reads.
-\code{\link[=prune_console_config]{prune_console_config()}} produces a compact view of nondefault settings.
-\code{\link[=console_tool]{console_tool()}} discovers files when \code{config} is omitted.
-
-\code{ConfigDiscovery()} explicitly enables global and project file discovery at launch.
-Disable either source with \code{global = FALSE} or \code{project = FALSE}. Project
-discovery reads \code{.agents/console/config.yaml} in \code{console_tool()}'s launch
-directory; no ancestor directories are searched. Files can select runtimes,
-child environments, and permissions, so discovery trusts the whole file.
-
-\code{NULL} fields are omitted: selected files supply their values before native
-defaults apply. Runtime and environment mappings follow Console's recursive
-layering rules; supplied package lists replace inherited lists, including
-\code{character()} for no optional startup packages. Python selections replace
-the whole \code{python} node to avoid mixing existing and managed environments.
-Explicit worker and resolver \code{\link[=SandboxPolicy]{SandboxPolicy()}} objects replace their entire
-permission nodes; they do not inherit grants from discovered files.
-
-\code{sandbox = FALSE} disables enforcement for workers and dependency preparation,
-clearing any discovered permission nodes. An explicit resolver policy cannot
-be combined with this choice. Host execution has no native runner guarantee
-of descendant cleanup.
-
-\code{as.list()} returns JSON-ready application settings. It excludes the launch
-controls \code{discovery} and \code{sandbox = FALSE}; inspect those S7 properties with
-\code{@}. Empty mappings, empty arrays, and omissions stay distinct.
-}
-
 \examples{
 ConsoleConfig()
-ConsoleConfig(sandbox = FALSE)
-ConsoleConfig(discovery = ConfigDiscovery(global = FALSE))
-config <- ConsoleConfig(
-  r = RConfig(packages = c("dplyr", "ggplot2"), resolution = "fixed"),
-  python = ManagedPython(version = "3.13", packages = "pandas"),
-  sandbox = SandboxPolicy(filesystem = SandboxFilesystem(read_write = "./output"))
-)
-as.list(config)
+ConsoleConfig(r = list(packages = c("dplyr", "ggplot2")))
+ConsoleConfig(sandbox = list(network = c("api.example.com", "*.example.org")))
+ConsoleConfig(list(
+  python = ".venv",
+  sandbox = list(filesystem = list(read_write = "./output"))
+))
+}
+\seealso{
+\code{\link[=console_tools]{console_tools()}} to launch with this configuration;
+\code{\link[=load_console_config]{load_console_config()}} to read configuration files;
+\code{vignette("configuration", package = "mcp.console")} for settings and examples.
 }

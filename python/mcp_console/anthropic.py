@@ -7,25 +7,31 @@ from contextlib import asynccontextmanager
 from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING, Any
 
-from ._common import Command, stdio_command
+from ._common import Command, result_text, stdio_command
 
 if TYPE_CHECKING:
+    from mcp.types import CallToolResult, Tool
+
     from ._client import AsyncMCPConsole
     from ._sync import MCPConsole
 
 
-def tool(console: MCPConsole | AsyncMCPConsole, **kwargs: Any) -> Any:
+def callable_tools(console: MCPConsole | AsyncMCPConsole, **kwargs: Any) -> list[Any]:
     """Give Anthropic's tool runner access to an existing Console session.
 
-    The runner calls Console's `send` tool and returns its output to Claude
+    The runner calls Console's tools and returns their output to Claude
     before requesting the next response. Keep the connection open for the
     whole conversation so later tool calls can use variables from earlier cells.
-    A synchronous client produces a synchronous tool; an async client produces
-    an async tool for `AsyncAnthropic`.
+    A synchronous client produces synchronous tools; an async client produces
+    async tools for `AsyncAnthropic`.
 
-    This adapter returns text, with placeholders for images. For plots and other
-    image output, use [tools()](anthropic.tools.html), which opens its own
-    connection and preserves MCP content blocks.
+    Text results return text, and text-only tool errors raise `RuntimeError`.
+    Results containing images use Anthropic content blocks with the server's
+    image data and MIME types, preserving the order of text and images. An image
+    result marked as an error raises `anthropic.lib.tools.ToolError` carrying
+    those blocks, so the tool runner retains the images and error status.
+
+    Discovery includes every tool, even when the server has no `send` tool.
 
     Args:
         console: A connected `MCPConsole` or `AsyncMCPConsole`.
@@ -33,7 +39,7 @@ def tool(console: MCPConsole | AsyncMCPConsole, **kwargs: Any) -> Any:
             such as `defer_loading`.
 
     Returns:
-        A tool to include in `client.beta.messages.tool_runner(tools=...)`.
+        All discovered tools for `client.beta.messages.tool_runner(tools=...)`.
 
     Examples:
         Install with `pip install 'mcp-console[anthropic]'`. Set
@@ -50,7 +56,7 @@ def tool(console: MCPConsole | AsyncMCPConsole, **kwargs: Any) -> Any:
             runner = client.beta.messages.tool_runner(
                 model=os.environ["ANTHROPIC_MODEL"],
                 max_tokens=4096,
-                tools=[mcp_console.anthropic.tool(console)],
+                tools=mcp_console.anthropic.callable_tools(console),
                 messages=[
                     {
                         "role": "user",
@@ -65,19 +71,40 @@ def tool(console: MCPConsole | AsyncMCPConsole, **kwargs: Any) -> Any:
                     print(block.text)
         ```
     """
+    return [_callable_tool(console, definition, kwargs) for definition in console.tools]
+
+
+def _tool_result(result: CallToolResult) -> str | list[Any]:
+    if not any(item.type == "image" for item in result.content):
+        return result_text(result)
+
+    from anthropic.lib.tools import ToolError
+    from anthropic.lib.tools.mcp import mcp_content
+
+    content = [mcp_content(item) for item in result.content]
+    if result.is_error:
+        raise ToolError(content)
+    return content
+
+
+def _callable_tool(
+    console: MCPConsole | AsyncMCPConsole,
+    definition: Tool,
+    kwargs: Mapping[str, Any],
+) -> Any:
     from anthropic import beta_async_tool, beta_tool
 
-    definition = console.send_tool
-    if iscoroutinefunction(console.send):
+    name = definition.name
+    if iscoroutinefunction(console.call_tool):
 
-        async def invoke(**arguments: Any) -> str:
-            return await console.send(**arguments)
+        async def invoke(**arguments: Any) -> str | list[Any]:
+            return _tool_result(await console.call_tool(name, arguments))
 
         decorate = beta_async_tool
     else:
 
-        def invoke(**arguments: Any) -> str:
-            return console.send(**arguments)
+        def invoke(**arguments: Any) -> str | list[Any]:
+            return _tool_result(console.call_tool(name, arguments))
 
         decorate = beta_tool
 
@@ -107,7 +134,7 @@ async def tools(
     leaving it closes the MCP connection and its subprocess.
 
     You do not need to create an `AsyncMCPConsole` yourself. To share a connection
-    with ordinary Python calls, use [tool()](anthropic.tool.html) instead.
+    with ordinary Python calls, use [callable_tools()](anthropic.callable_tools.html) instead.
 
     Args:
         command: Console executable. Defaults to the installed `mcp-console`.
@@ -168,8 +195,15 @@ async def tools(
     command, args = stdio_command(command, args)
     parameters = dict(server_parameters or {}) | {"command": command, "args": args}
     async with Client(StdioServerParameters(**parameters)) as client:
-        tools = await client.list_tools()
-        yield [
-            async_mcp_tool(tool, client, **dict(tool_kwargs or {}))
-            for tool in tools.tools
-        ]
+        discovered = []
+        cursor = None
+        while True:
+            page = await client.list_tools(cursor=cursor)
+            discovered.extend(
+                async_mcp_tool(tool, client, **dict(tool_kwargs or {}))
+                for tool in page.tools
+            )
+            cursor = page.next_cursor
+            if cursor is None:
+                break
+        yield discovered

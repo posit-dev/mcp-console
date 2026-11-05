@@ -1,0 +1,116 @@
+---
+scenario: >-
+  Empty polls expose completed R errors with one or multiple active
+  sessions.
+fixture: >-
+  A FIFO holds each cell until its initial send has returned, avoiding
+  timing-dependent sleeps.
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    release <- fifo("default-only", open = "rb", blocking = TRUE)
+    stopifnot(identical(readBin(release, "raw", 1L), charToRaw("1")))
+    close(release)
+    stop("console-poll-mre")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        Error: console-poll-mre
+  isError: false
+---
+send:
+  r: invisible(NULL)
+  session: alpha
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  r: |
+    release <- fifo("two-sessions", open = "rb", blocking = TRUE)
+    stopifnot(identical(readBin(release, "raw", 1L), charToRaw("1")))
+    close(release)
+    stop("console-poll-mre")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        [session: "alpha"; status: idle]
+
+        [idle]
+        [session: "default"; status: idle]
+        Error: console-poll-mre
+  isError: false
+---
+send:
+  control: restart
+  session: alpha
+result:
+  content:
+    - type: text
+      text: |-
+        [worker stopped: in-memory state lost]
+        [stopped]
+  isError: false
+---
+send:
+  r: |
+    release <- fifo("named-stopped", open = "rb", blocking = TRUE)
+    stopifnot(identical(readBin(release, "raw", 1L), charToRaw("1")))
+    close(release)
+    stop("console-poll-mre")
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        Error: console-poll-mre
+  isError: false

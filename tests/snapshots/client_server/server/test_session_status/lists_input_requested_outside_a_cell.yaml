@@ -1,5 +1,5 @@
 ---
-scenario: Session listing reports an idle worker's input request.
+scenario: An empty poll reports an idle worker's input request.
 fixture: >-
   The fake worker acknowledges cell completion before requesting input;
   its sideband receipt proves the server processed that request.
@@ -30,13 +30,8 @@ result:
   content:
     - type: text
       text: |-
-        [session: "default"; status: waiting_for_stdin]
 
         [waiting for stdin]
-  structuredContent:
-    sessions:
-      - session: default
-        status: waiting_for_stdin
   isError: false
 ---
 send:
@@ -56,11 +51,6 @@ result:
   content:
     - type: text
       text: |-
-        [session: "default"; status: idle]
 
         [idle]
-  structuredContent:
-    sessions:
-      - session: default
-        status: idle
   isError: false

@@ -29,37 +29,51 @@ expected = "zod: installed wheel\n"
 
 def sync_main() -> None:
     with mcp_console.MCPConsole(**options) as console:
-        assert console.send(r="echo installed wheel") == expected
-        tool = mcp_console.openai.agents_tool(console)
+        assert console.send(r="echo installed wheel").text == expected
+        tools = mcp_console.openai.agents_tools(console)
+        tool = next(tool for tool in tools if tool.name == "send")
         assert asyncio.run(tool.on_invoke_tool(context, arguments)) == expected
-        assert (
-            mcp_console.anthropic.tool(console).call({"r": "echo installed wheel"})
-            == expected
+        anthropic_tool = next(
+            tool
+            for tool in mcp_console.anthropic.callable_tools(console)
+            if tool.to_dict()["name"] == "send"
         )
-        assert mcp_console.openai.responses_tool(console).call(arguments) == expected
+        assert anthropic_tool.call({"r": "echo installed wheel"}) == expected
+        responses_tool = next(
+            tool
+            for tool in mcp_console.openai.responses_tools(console)
+            if tool.definition["name"] == "send"
+        )
+        assert responses_tool.call(arguments) == expected
         chat = ChatOpenAI(model="unused", api_key="unused")
-        chat.set_tools([*chat.get_tools(), mcp_console.chatlas.tool(console)])
-        assert chat.get_tools()[0].func(r="echo installed wheel") == expected
+        chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
+        chat_tool = next(tool for tool in chat.get_tools() if tool.name == "send")
+        assert chat_tool.func(r="echo installed wheel") == expected
 
 
 async def main() -> None:
     async with mcp_console.AsyncMCPConsole(**options) as console:
-        assert await console.send(r="echo installed wheel") == expected
-        tool = mcp_console.openai.agents_tool(console)
+        assert (await console.send(r="echo installed wheel")).text == expected
+        tools = mcp_console.openai.agents_tools(console)
+        tool = next(tool for tool in tools if tool.name == "send")
         assert await tool.on_invoke_tool(context, arguments) == expected
-        assert (
-            await mcp_console.anthropic.tool(console).call(
-                {"r": "echo installed wheel"}
-            )
-            == expected
+        anthropic_tool = next(
+            tool
+            for tool in mcp_console.anthropic.callable_tools(console)
+            if tool.to_dict()["name"] == "send"
         )
-        assert (
-            await mcp_console.openai.responses_tool(console).call(arguments) == expected
+        assert await anthropic_tool.call({"r": "echo installed wheel"}) == expected
+        responses_tool = next(
+            tool
+            for tool in mcp_console.openai.responses_tools(console)
+            if tool.definition["name"] == "send"
         )
+        assert await responses_tool.call(arguments) == expected
         chat = ChatOpenAI(model="unused", api_key="unused")
-        chat.set_tools([*chat.get_tools(), mcp_console.chatlas.tool(console)])
-        assert await chat.get_tools()[0].func(r="echo installed wheel") == expected
-        assert Agent(name="test", tools=[tool]).tools == [tool]
+        chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
+        chat_tool = next(tool for tool in chat.get_tools() if tool.name == "send")
+        assert await chat_tool.func(r="echo installed wheel") == expected
+        assert Agent(name="test", tools=tools).tools == tools
     server = mcp_console.openai.agents_server()
     assert Agent(name="test", mcp_servers=[server]).mcp_servers == [server]
     ThreadStartParams(config={"mcp_servers": {"console": mcp_console.codex.server()}})

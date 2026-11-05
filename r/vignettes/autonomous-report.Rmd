@@ -39,9 +39,10 @@ All relative configuration paths below are relative to `project`.
 For example, `./reports` means a directory inside the report project.
 
 For an unattended job, it's useful to state the configuration in the script so you can review it alongside the task.
-`ConsoleConfig()` reads no configuration files, and passing it to `console_tool()` skips global and project configuration discovery.
+`ConsoleConfig()` reads no configuration files, and passing it to `console_tools()` skips global and project configuration discovery.
 
-Let's use the R installation running this script, selected by `current_r()`, and prepare `rmarkdown` and `httr2` for the agent.
+Console uses the R installation running this script by default.
+Let's prepare `rmarkdown` and `httr2` for the agent.
 The initial sandbox policy lets it write reports and contact an API.
 Replace `api.example.com` with the service your report needs.
 On Windows, a managed proxy also permits local binding because MXC's host-loopback access is bidirectional.
@@ -52,22 +53,17 @@ config <- ConsoleConfig(
   languages = "r",
   inherit_environment = FALSE,
   environment = c(TZ = "UTC"),
-  r = RConfig(
-    executable = current_r(),
+  r = list(
     vanilla = TRUE,
     packages = c("rmarkdown", "httr2")
   ),
-  sandbox = SandboxPolicy(
-    filesystem = SandboxFilesystem(
+  sandbox = list(
+    filesystem = list(
       read_only = "./data",
       read_write = "./reports",
-      deny = path.expand("~/.ssh")
+      deny = "~/.ssh"
     ),
-    network = SandboxNetwork(
-      proxy = SandboxProxy(
-        domains = SandboxDomains(allow = "api.example.com")
-      )
-    )
+    network = "api.example.com"
   )
 )
 ```
@@ -87,7 +83,7 @@ The `deny` entry blocks access to `~/.ssh`; add other sensitive locations as nee
 See [Sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/) for the full policy.
 
 Package preparation has separate permissions and may download packages at startup or while the agent is working.
-See [Package settings](https://posit-dev.github.io/mcp-console/package_configuration/#preparation-permissions) if you need to configure that access too; explicit resolver sandbox policies are unsupported on Windows.
+See [Package settings](https://posit-dev.github.io/mcp-console/package_configuration/#preparation-permissions) if you need to configure that access too.
 
 ## Add a writable directory and an allowed domain
 
@@ -96,10 +92,8 @@ Let's add a directory for figures while keeping the existing permission to write
 The configuration is an S7 object, so we can edit its properties with `@`:
 
 ```{r figures}
-config@sandbox@filesystem@read_write <- c(
-  config@sandbox@filesystem@read_write,
-  "./figures"
-)
+`append<-` <- function(x, value) c(x, value)
+append(config@sandbox@filesystem@read_write) <- "./figures"
 ```
 
 Now suppose the report needs a second data source.
@@ -107,10 +101,7 @@ We can add its domain to the existing allow list in the same way.
 Replace `data.example.com` with that service's hostname:
 
 ```{r domain}
-config@sandbox@network@proxy@domains@allow <- c(
-  config@sandbox@network@proxy@domains@allow,
-  "data.example.com"
-)
+append(config@sandbox@network@proxy@domains@allow) <- "data.example.com"
 ```
 
 This grants access to the hostname; it doesn't restrict individual URL paths or email recipients.
@@ -126,48 +117,37 @@ for (directory in config@sandbox@filesystem@read_write) {
 }
 ```
 
-## Inspect the complete and compact configurations
+## Review the settings
 
-So far, we've written down the settings we care about and left the rest at their defaults.
-Before handing the session to an agent, we can make those defaults visible.
-`materialize_console_config()` fills them in, including the tool description and argument descriptions the model will see.
-It validates the configuration without starting R or installing packages.
+The object contains the choices we made in R, with the same nested sections as a `config.yaml`.
+Review it before launching:
 
-```{r materialize}
-full <- materialize_console_config(config, project = project)
-print(full)
+```{r inspect}
+print(config)
 ```
 
-Review the permissions and the generated tool guidance together.
-Printing also shows any environment values you've included, so do this before adding secrets if you plan to share the output.
+Printing also shows any environment values you included.
+The calling R installation supplies the default executable at launch; a configured `r.executable` would take precedence.
+Console generates tool descriptions from the current settings when the tools are created.
+We can edit permissions or parameter visibility without a separate resolution step.
 
-The complete configuration is useful for inspection, but it can be long.
-To focus on your choices, `prune_console_config()` removes settings that match the defaults, retaining meaningful empty values:
+For example, this hides the optional timeout parameter while retaining its runtime default:
 
-```{r prune}
-compact <- prune_console_config(full, project = project)
-print(compact)
+```{r tool-settings}
+config@tool <- list(parameters = list(timeout_ms = list(enabled = FALSE)))
 ```
 
-Both results are ordinary, editable `ConsoleConfig` objects.
-We'll launch `full` to keep the defaults and descriptions we just inspected.
-Launching `compact` instead lets omitted settings follow Console's defaults at launch.
-Neither form locks package versions or snapshots the host environment.
+## Give the agent its tools
 
-If you later edit permissions or parameter visibility in `full`, set the affected tool descriptions to `NULL` before materializing again so Console can regenerate them.
-For comparisons between configurations, use `as.list()` and `all.equal()`.
-
-## Give the agent its tool
-
-With the configuration reviewed, we can start Console and get a tool to register with an [ellmer](https://ellmer.tidyverse.org/) chat:
+With the configuration reviewed, we can start Console and get its tools to register with an [ellmer](https://ellmer.tidyverse.org/) chat:
 
 ```{r launch}
-send <- console_tool(config = full, project = project)
+tools <- console_tools(config = config, project = project)
 ```
 
 The sandbox describes what the agent is allowed to do.
 The chat prompt describes the work we'd like it to do within those limits.
-Let's give it the report task and register the tool so it can use R to investigate the data.
+Let's give it the report task and register the tools so it can use R to investigate the data.
 This step requires an ellmer provider and its credentials in the calling R process; this example uses OpenAI.
 Those credentials are not forwarded to Console's workers unless you include them in the configuration.
 
@@ -179,7 +159,7 @@ chat <- ellmer::chat_openai(
     "Write figures to figures/ and explain any missing inputs."
   )
 )
-chat$register_tool(send)
+chat$register_tools(tools)
 ```
 
 Now ask for the report.
@@ -196,15 +176,25 @@ summary <- chat$chat(
 cat(summary)
 ```
 
-Keep `send` and `chat` reachable until the job finishes.
+Keep `tools` and `chat` reachable until the job finishes.
 The agent can use R to inspect the data and save its report and figures, then return a summary to the calling script.
 That script can send the summary or report through your existing email workflow, with the recipient specified in your code.
 
 Once you're satisfied with a run, save the code in a script such as `report.R` and have your scheduler run `Rscript --vanilla report.R`.
-`current_r()` will select the R installation running that script.
-You can save an inspected configuration with `saveRDS(full, "report-config.rds")` and load it with `readRDS()`; continue to supply the intended `project` at launch.
+The calling R installation will remain the default.
+You can save an inspected configuration with `saveRDS(config, "report-config.rds")` and load it with `readRDS()`; continue to supply the intended `project` at launch.
 
-If you already keep configuration in files, you can use that as your starting point too.
-`discover_console_config()` reads optional global/project files explicitly, while `read_console_config()` reads one required JSON or YAML file.
+If you already keep configuration in files, use that as your starting point:
+
+```{r file-config}
+config <- load_console_config(project = project)
+# Or read exactly one file yourself, with no discovery:
+config <- ConsoleConfig(yaml12::read_yaml("report-config.yaml"))
+```
+
 Both return a configuration you can inspect, edit, and launch using the same steps above.
-See `?config-workflow` for those operations and `?console_tool` for launch options.
+`load_console_config()` accepts `global_file`, `project_file`, and optional R `overrides`.
+Setting either source to `NULL` skips it.
+`MCP_CONSOLE_HOME` changes the default global file location; project discovery still uses `project/.agents/console/config.yaml`.
+Once an object is supplied to `console_tools()`, it discovers no additional config files.
+See `?load_console_config` and `?console_tools` for the file and launch options.

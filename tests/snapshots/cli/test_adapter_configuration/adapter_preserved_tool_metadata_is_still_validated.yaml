@@ -1,0 +1,5 @@
+---
+exit_code: 1
+stderr: >
+  configuration with CLI overrides: tool.parameters.timeout_ms.schema is
+  read-only; parameter types and constraints cannot be replaced

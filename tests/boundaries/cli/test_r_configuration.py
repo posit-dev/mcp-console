@@ -68,7 +68,6 @@ def test_rejects_invalid_r_settings(binary: Path) -> Transcript:
             "r.vanilla=null",
             'r.vanilla="false"',
             "r=[]",
-            "r.executable=null",
             "r.executable=1",
             'r.executable=""',
             "r.profiles=true",
@@ -85,6 +84,39 @@ def test_rejects_invalid_r_settings(binary: Path) -> Transcript:
             assert not result.stdout, result
             transcript.append({"setting": setting, "stderr": result.stderr})
         return transcript
+
+
+def test_null_r_selection_clears_launch_defaults(binary: Path) -> Transcript:
+    transcript = []
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        config = root / "selected.json"
+        for selection, expected in (
+            (None, {"vanilla": False, "resolution": "implicit"}),
+            (
+                {"executable": None, "packages": [], "resolution": "disabled"},
+                {"vanilla": True, "packages": [], "resolution": "disabled"},
+            ),
+        ):
+            config.write_text(json.dumps({"r": selection}), encoding="utf-8")
+            result = resolve(
+                binary,
+                root,
+                "--config-file",
+                str(config),
+                "--default-config",
+                "r.executable=./calling-R",
+                "--default-config",
+                "r.vanilla=true",
+                "--full",
+                "--format",
+                "json",
+            )
+            assert result.returncode == 0 and result.stderr == "", result
+            actual = json.loads(result.stdout)["r"]
+            assert actual == expected, actual
+            transcript.append({"selected_r": selection, "materialized_r": actual})
+    return transcript
 
 
 def test_rejects_explicit_r_settings_with_custom_workers(binary: Path) -> Transcript:

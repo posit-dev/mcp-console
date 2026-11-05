@@ -1,10 +1,16 @@
-#' Use MCP Console as an ellmer tool
+#' Use MCP Console as ellmer tools
 #'
-#' `console_tool()` starts `mcp-console serve` and returns its `send` tool as
-#' an [ellmer::ToolDef]. The server process and its persistent R, Python, and
-#' DuckDB state live as long as the returned tool remains reachable.
+#' `console_tools()` starts `mcp-console serve` and returns a named list of
+#' [ellmer::ToolDef] objects for all tools advertised by the server. Discovery
+#' does not require a tool named `send`. The tools share one server process and
+#' its persistent R, Python, and DuckDB state.
 #'
-#' When the tool is garbage collected, it closes the server's input to request
+#' Explicit `NULL` values are preserved where the server schema permits null.
+#' For `send` requirements, `NULL` package and constraint fields mean omission
+#' unless `action = "set"`. Replacement declarations retain nullable values
+#' so explicit clears reach the server.
+#'
+#' When the last tool is garbage collected, it closes the server's input to request
 #' shutdown and waits up to 15 seconds before forcibly stopping the server.
 #' With sandboxing enabled, the sandbox manager owns cleanup of worker
 #' descendants; the R wrapper's fallback targets only the server process.
@@ -16,7 +22,7 @@
 #'
 #' @section Executable resolution:
 #'
-#' * If `path` is supplied, `console_tool()` uses that executable directly.
+#' * If `path` is supplied, `console_tools()` uses that executable directly.
 #' * Otherwise, if `version` is supplied, it resolves that published version
 #'   with [reticulate::uv_run_tool()] without consulting `PATH`.
 #' * Otherwise, it uses `mcp-console` from `PATH` when available and falls back
@@ -25,44 +31,46 @@
 #' `path` and `version` are mutually exclusive.
 #'
 #' @param ... Must be empty. Reserved for future use.
-#' @param path `NULL`, or a path to an `mcp-console` executable.
-#' @param version `NULL`, or one published `mcp-console` version, such as
-#'   `"0.0.2"`.
-#' @param config A [ConsoleConfig()]. By default, [discover_console_config()]
-#'   reads optional global/project files once and materializes their settings.
+#' @param config A [ConsoleConfig()]. By default, [load_console_config()]
+#'   reads optional global/project files once and combines their settings.
 #'   Pass `ConsoleConfig()` to skip files and use built-in defaults: host reads,
 #'   private temporary writes, and no worker networking. Resolver defaults are
-#'   independent. A supplied config reads no files unless its `discovery`
-#'   property explicitly requests it. Explicit `NULL` is equivalent to
+#'   independent. A supplied config never reads additional configuration files.
+#'   The calling R installation is the default unless `r.executable` selects
+#'   another installation. Explicit `NULL` is equivalent to
 #'   `ConsoleConfig()`. Use the same `path`, `version`, and `project` when
 #'   inspecting and launching a config.
 #' @param project Existing directory to use as the child process's working
 #'   directory, defaulting to `getwd()`. Relative config and runtime paths use
 #'   this directory; the caller's working directory is unchanged.
-#' @return An [ellmer::ToolDef] to pass to an ellmer chat's
-#'   `$register_tool()` method.
+#' @param path `NULL`, or a path to an `mcp-console` executable.
+#' @param version `NULL`, or one published `mcp-console` version, such as
+#'   `"0.0.2"`.
+#' @return `console_tools()` returns a named list of [ellmer::ToolDef] objects
+#'   to pass to an ellmer chat's `$register_tools()` method. Select a tool by
+#'   name from the list for direct calls.
 #' @examples
 #' \dontrun{
 #' chat <- ellmer::chat_openai()
-#' chat$register_tool(console_tool())
+#' chat$register_tools(console_tools())
 #' chat$chat(
 #'   "Tell me something interesting about mtcars. Use the console as a workbench."
 #' )
 #'
-#' console_tool(path = Sys.which("mcp-console"))
-#' console_tool(version = "0.0.2")
+#' console_tools(path = Sys.which("mcp-console"))
+#' console_tools(version = "0.0.2")
 #' }
 #' @export
-console_tool <- function(
-  ...,
-  path = NULL,
-  version = NULL,
-  config = discover_console_config(
+console_tools <- function(
+  config = load_console_config(
+    project = project,
     path = path,
-    version = version,
-    project = project
+    version = version
   ),
-  project = getwd()
+  ...,
+  project = getwd(),
+  path = NULL,
+  version = NULL
 ) {
   if (...length() != 0L) {
     stop("`...` must be empty.", call. = FALSE)
@@ -84,11 +92,12 @@ console_tool <- function(
     stop("`project` must identify an existing directory.", call. = FALSE)
   }
   project <- normalizePath(project, mustWork = TRUE)
-  file <- tempfile("mcp-console-overrides-", fileext = ".json")
-  on.exit(unlink(file), add = TRUE)
+  directory <- tempfile("mcp-console-config-")
+  stopifnot(dir.create(directory))
+  on.exit(unlink(directory, recursive = TRUE), add = TRUE)
   client <- new_mcp_client(
     resolve_mcp_console(path, version),
-    console_cli_arguments(config, file),
+    console_cli_arguments(config, directory),
     project
   )
   ready <- FALSE
@@ -108,60 +117,144 @@ console_tool <- function(
   )
   mcp_write(client, list(jsonrpc = "2.0", method = "notifications/initialized"))
 
-  tools <- mcp_request(client, "tools/list")$tools
-  matches <- vapply(tools, \(x) identical(x$name, "send"), logical(1))
-  if (sum(matches) != 1L) {
-    stop("mcp-console did not expose exactly one `send` tool.", call. = FALSE)
+  metadata <- list()
+  params <- NULL
+  repeat {
+    page <- mcp_request(client, "tools/list", params)
+    metadata <- c(metadata, page$tools)
+    if (is.null(page$nextCursor)) {
+      break
+    }
+    params <- list(cursor = page$nextCursor)
   }
-  metadata <- tools[[which(matches)]]
+  tools <- lapply(metadata, mcp_ellmer_tool, client = client)
+  names(tools) <- vapply(metadata, \(tool) tool$name, character(1))
+  ready <- TRUE
+  tools
+}
 
+mcp_ellmer_tool <- function(metadata, client) {
+  force(client)
   properties <- metadata$inputSchema$properties
   fields <- names(properties)
-  properties <- lapply(properties, ellmer_argument_schema)
+  required <- fields %in%
+    unlist(metadata$inputSchema$required, use.names = FALSE)
+  omitted <- new.env(parent = emptyenv())
 
-  send <- function() {
-    arguments <- mget(fields, envir = environment(), inherits = FALSE)
-    arguments <- arguments[!vapply(arguments, is.null, logical(1))]
-
-    if (!is.null(arguments$requirements)) {
-      requirements <- arguments$requirements
-      requirements <- requirements[!vapply(requirements, is.null, logical(1))]
-      arrays <- intersect(
-        names(requirements),
-        c("r", "python", "duckdb", "python_version")
-      )
-      requirements[arrays] <- lapply(requirements[arrays], \(x) {
-        unname(as.list(x))
-      })
-      arguments$requirements <- json_object(requirements)
+  invoke <- function(...) {
+    arguments <- list(...)
+    arguments <- arguments[!vapply(arguments, identical, logical(1), omitted)]
+    requirements <- arguments$requirements
+    if (
+      identical(metadata$name, "send") &&
+        is.list(requirements) &&
+        !identical(requirements$action, "set")
+    ) {
+      # Strict-mode NULL placeholders mean omission for requirements operations.
+      # Only set can clear nullable constraints; other values reach validation.
+      arguments$requirements <- requirements[
+        !vapply(requirements, is.null, logical(1))
+      ]
     }
-
     result <- mcp_request(
       client,
       "tools/call",
-      list(name = "send", arguments = json_object(arguments))
+      list(
+        name = metadata$name,
+        arguments = mcp_argument_value(arguments, metadata$inputSchema)
+      )
     )
     mcp_contents(result)
   }
-  send_formals <- rep(list(NULL), length(fields))
-  names(send_formals) <- fields
-  formals(send) <- send_formals
+  arguments <- rep(list(omitted), length(fields))
+  arguments[required] <- rep(alist(argument = ), sum(required))
+  names(arguments) <- fields
+  call <- function() NULL
+  formals(call) <- arguments
+  # Embed the dispatcher so advertised argument names cannot shadow its state.
+  values <- lapply(fields, as.name)
+  names(values) <- fields
+  body(call) <- as.call(c(list(invoke), values))
 
-  tool <- ellmer::tool(
-    send,
+  ellmer::tool(
+    call,
     name = metadata$name,
-    description = metadata$description,
-    arguments = lapply(
-      properties[fields],
-      \(x) ellmer::TypeJsonSchema(json = x, required = FALSE)
+    # The adapter owns schema conversion, including explicit nullable arguments.
+    convert = FALSE,
+    description = if (is.null(metadata$description)) {
+      ""
+    } else {
+      metadata$description
+    },
+    arguments = Map(
+      \(schema, required) {
+        ConsoleToolArgument(
+          json = schema,
+          required = required
+        )
+      },
+      properties,
+      required
     )
   )
-  ready <- TRUE
-  tool
 }
 
-ellmer_argument_schema <- function(schema) {
-  types <- setdiff(unlist(schema$type, use.names = FALSE), "null")
+ConsoleToolArgument <- S7::new_class(
+  "ConsoleToolArgument",
+  parent = ellmer::TypeJsonSchema
+)
+
+# ellmer's serializer and OpenAI provider family are internal. Extend only our
+# schema type so strict-mode adjustments leave other providers' schemas intact.
+ellmer_as_json <- S7::new_external_generic(
+  "ellmer",
+  "as_json",
+  c("provider", "x")
+)
+S7::method(
+  ellmer_as_json,
+  list(ellmer::Provider, ConsoleToolArgument)
+) <- function(provider, x, ...) {
+  if (
+    inherits(provider, "ellmer::ProviderOpenAICompatible") &&
+      provider@strict
+  ) {
+    return(ellmer_argument_schema(x@json, x@required))
+  }
+  x@json
+}
+
+mcp_argument_value <- function(value, schema) {
+  if (is.null(value)) {
+    return(NULL)
+  }
+  types <- unlist(schema$type, use.names = FALSE)
+  if ("array" %in% types) {
+    return(unname(lapply(as.list(value), mcp_argument_value, schema$items)))
+  }
+  if ("object" %in% types) {
+    properties <- lapply(names(value), \(name) schema$properties[[name]])
+    required <- names(value) %in% unlist(schema$required, use.names = FALSE)
+    nullable <- vapply(
+      properties,
+      function(property) {
+        is.null(property) ||
+          "null" %in% unlist(property$type, use.names = FALSE)
+      },
+      logical(1)
+    )
+    keep <- required | nullable | !vapply(value, is.null, logical(1))
+    value <- Map(mcp_argument_value, value[keep], properties[keep])
+    return(json_object(value))
+  }
+  value
+}
+
+ellmer_argument_schema <- function(schema, required) {
+  types <- unlist(schema$type, use.names = FALSE)
+  if (!required) {
+    types <- setdiff(types, "null")
+  }
   schema$type <- if (length(types) == 1L) types[[1L]] else as.list(types)
 
   if (!is.null(schema$enum)) {

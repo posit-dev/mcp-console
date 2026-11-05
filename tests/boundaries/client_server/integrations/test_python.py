@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run --script
 
 import asyncio
+import base64
 import inspect
 import json
 import os
@@ -17,9 +18,9 @@ sys.path.insert(0, str(ROOT / "python"))
 import mcp_console
 from mcp_console import AsyncMCPConsole, MCPConsole
 from support.execution import DIRECT, SANDBOXED, Execution, executions
-from support.r import r_test_environment
+from support.r import r_test_environment, reference_plots
 from support.normalization import code
-from support.records import Transcript
+from support.records import McpTranscript, Transcript, TranscriptWithCompanions
 from support.previews import assert_preview
 from support.progress import elapsed_progress, normalize_elapsed, without_elapsed
 from support.evidence import compact_text
@@ -42,6 +43,134 @@ def options(binary: Path, execution: Execution) -> dict:
     }
 
 
+def test_clients_and_adapters_discover_multiple_tools_without_send(
+    binary: Path,
+) -> Transcript:
+    from agents.tool_context import ToolContext
+
+    async def exercise(console) -> dict:
+        definitions = console.tools
+        names = [tool.name for tool in definitions]
+        assert names == ["evaluate", "inspect"], names
+        responses = mcp_console.openai.responses_tools(console)
+        agents = mcp_console.openai.agents_tools(console)
+        anthropic = mcp_console.anthropic.callable_tools(console)
+        chatlas = mcp_console.chatlas.tools(console)
+        outputs = []
+        for definition, response, agent, claude, chat in zip(
+            definitions, responses, agents, anthropic, chatlas, strict=True
+        ):
+            assert [
+                response.definition["name"],
+                agent.name,
+                claude.to_dict()["name"],
+                chat.name,
+            ] == [definition.name] * 4
+            for description in (
+                response.definition["description"],
+                agent.description,
+                claude.to_dict()["description"],
+                chat.schema["function"]["description"],
+            ):
+                assert description == definition.description
+            for schema in (
+                response.definition["parameters"],
+                agent.params_json_schema,
+                claude.to_dict()["input_schema"],
+                chat.schema["function"]["parameters"],
+            ):
+                assert schema == definition.input_schema
+            arguments = {"value": None}
+            encoded = json.dumps(arguments)
+            context = ToolContext(
+                context=None,
+                tool_name=definition.name,
+                tool_call_id="call_1",
+                tool_arguments=encoded,
+            )
+            result = console.call_tool(definition.name, arguments)
+            if inspect.isawaitable(result):
+                result = await result
+            assert result.content[0].text == definition.name
+            values = {}
+            for adapter, invoke in (
+                ("responses", lambda: response.call(arguments)),
+                ("agents", lambda: agent.on_invoke_tool(context, encoded)),
+                ("anthropic", lambda: claude.call(arguments)),
+                ("chatlas", lambda: chat.func(**arguments)),
+            ):
+                value = invoke()
+                values[adapter] = await value if inspect.isawaitable(value) else value
+            assert values == dict.fromkeys(
+                ("responses", "agents", "anthropic", "chatlas"), definition.name
+            ), values
+            outputs.append({"name": definition.name, "outputs": values})
+        try:
+            console.get_tool("send")
+        except RuntimeError as error:
+            assert str(error) == "MCP Console did not expose a tool named 'send'"
+        else:
+            raise AssertionError("missing send tool was accepted")
+        return {"client": type(console).__name__, "tools": outputs}
+
+    async def run() -> Transcript:
+        transcript = [
+            {
+                "fixture": "A paginated MCP peer exposes evaluate and inspect, with no send tool."
+            }
+        ]
+        for client_type in (AsyncMCPConsole, MCPConsole):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                console = client_type(
+                    command=sys.executable,
+                    args=[
+                        "-u",
+                        ROOT / "tests/fixtures/python_sync_server.py",
+                        "multiple-tools",
+                    ],
+                    server_parameters={
+                        "cwd": root,
+                        "env": dict(os.environ, MCP_CONSOLE_HOME=str(root)),
+                    },
+                )
+                if isinstance(console, AsyncMCPConsole):
+                    async with console:
+                        transcript.append(await exercise(console))
+                else:
+                    with console:
+                        transcript.append(await exercise(console))
+                assert (root / "closed").exists()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            async with mcp_console.anthropic.tools(
+                command=sys.executable,
+                args=[
+                    "-u",
+                    ROOT / "tests/fixtures/python_sync_server.py",
+                    "multiple-tools",
+                ],
+                server_parameters={
+                    "cwd": root,
+                    "env": dict(os.environ, MCP_CONSOLE_HOME=str(root)),
+                },
+            ) as native:
+                assert [tool.to_dict()["name"] for tool in native] == [
+                    "evaluate",
+                    "inspect",
+                ]
+                results = [await tool.call({"value": None}) for tool in native]
+                assert [[item["text"] for item in result] for result in results] == [
+                    ["evaluate"],
+                    ["inspect"],
+                ]
+            assert (root / "closed").exists()
+            transcript.append({"native_anthropic": ["evaluate", "inspect"]})
+        return transcript
+
+    return asyncio.run(run())
+
+
 def test_clients_record_notes_with_and_without_code(binary: Path) -> Transcript:
     notes = [
         "## Investigation\n\nCheck the observed **total**.",
@@ -55,7 +184,8 @@ def test_clients_record_notes_with_and_without_code(binary: Path) -> Transcript:
             {"note": notes[1]},
         ):
             output = console.send(**arguments)
-            outputs.append(await output if inspect.isawaitable(output) else output)
+            output = await output if inspect.isawaitable(output) else output
+            outputs.append(output.text)
         assert outputs == ["42\n", "[done]"], outputs
         return outputs
 
@@ -121,7 +251,7 @@ def test_clients_preserve_session_selection_and_omission(binary: Path) -> Transc
             output = console.send(**arguments)
             if inspect.isawaitable(output):
                 output = await output
-            assert output == expected, output
+            assert output.text == expected, output
 
     async def run() -> Transcript:
         results = []
@@ -171,7 +301,7 @@ def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcrip
     from agents.tool_context import ToolContext
 
     async def exercise(console) -> dict:
-        tool = console.send_tool
+        tool = console.get_tool("send")
         assert "timeout_ms" not in tool.input_schema["properties"]
         assert "session" not in tool.input_schema["properties"]
         assert tool.description == "Evaluation tool."
@@ -187,10 +317,24 @@ def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcrip
             tool_call_id="call_1",
             tool_arguments=encoded,
         )
-        responses = mcp_console.openai.responses_tool(console)
-        agent = mcp_console.openai.agents_tool(console)
-        anthropic = mcp_console.anthropic.tool(console)
-        chatlas = mcp_console.chatlas.tool(console)
+        responses = next(
+            tool
+            for tool in mcp_console.openai.responses_tools(console)
+            if tool.definition["name"] == "send"
+        )
+        agent = next(
+            tool
+            for tool in mcp_console.openai.agents_tools(console)
+            if tool.name == "send"
+        )
+        anthropic = next(
+            tool
+            for tool in mcp_console.anthropic.callable_tools(console)
+            if tool.to_dict()["name"] == "send"
+        )
+        chatlas = next(
+            tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
+        )
         assert (
             responses.definition["description"]
             == agent.description
@@ -209,6 +353,11 @@ def test_clients_and_adapters_preserve_hidden_timeout(binary: Path) -> Transcrip
         for invoke in (
             lambda: console.send(**arguments),
             lambda: console(**arguments, timeout_ms=None),
+        ):
+            output = invoke()
+            output = await output if inspect.isawaitable(output) else output
+            outputs.append(output.text)
+        for invoke in (
             lambda: responses.call(arguments),
             lambda: agent.on_invoke_tool(context, encoded),
             lambda: anthropic.call(arguments),
@@ -324,7 +473,7 @@ def test_clients_inspect_and_replace_requirements(
             "server_parameters": {"cwd": directory, "env": environment},
         }
         with MCPConsole(**settings) as console:
-            startup = json.loads(console.send(requirements={"action": "get"}))
+            startup = console.send(requirements={"action": "get"}).structured_content
             assert startup["prepared"] is True, startup
             console.send(
                 requirements={
@@ -334,7 +483,7 @@ def test_clients_inspect_and_replace_requirements(
                     "exclude_newer": "2026-01-01",
                 }
             )
-            selected = json.loads(console.send(requirements={"action": "get"}))
+            selected = console.send(requirements={"action": "get"}).structured_content
             console.send(requirements=dict(selected["requirements"], action="set"))
             assert selected["prepared"] is True, selected
             assert selected["requirements"]["python"] == []
@@ -342,12 +491,14 @@ def test_clients_inspect_and_replace_requirements(
 
         async def asynchronous() -> None:
             async with AsyncMCPConsole(**settings) as console:
-                startup = json.loads(await console.send(requirements={"action": "get"}))
+                startup = (
+                    await console.send(requirements={"action": "get"})
+                ).structured_content
                 assert startup["prepared"] is True, startup
                 await console.send(requirements={"action": "set"})
-                selected = json.loads(
+                selected = (
                     await console.send(requirements={"action": "get"})
-                )
+                ).structured_content
                 assert selected["requirements"]["python"] == []
                 results.append({"async": selected})
 
@@ -382,13 +533,13 @@ def test_sync_and_async_clients_receive_bounded_previews(
             )
 
         with MCPConsole(**settings) as console:
-            check(console.send(r="overflow console output"))
-            assert console.send(session="default") == "\n[idle]"
+            check(console.send(r="overflow console output").text)
+            assert console.send(session="default").text == "\n[idle]"
 
         async def asynchronous() -> None:
             async with AsyncMCPConsole(**settings) as console:
-                check(await console.send(r="overflow console output"))
-                assert await console.send(session="default") == "\n[idle]"
+                check((await console.send(r="overflow console output")).text)
+                assert (await console.send(session="default")).text == "\n[idle]"
 
         asyncio.run(asynchronous())
     return results
@@ -431,8 +582,8 @@ def test_initialization_keeps_one_lifecycle_while_startup_is_pending(
         settings["args"] = ["-u", str(gate), str(binary), *settings["args"]]
         with MCPConsole(**settings) as console:
             result = console.send(r="echo initialized")
-            assert result == "zod: initialized\n", result
-        return [{"startup_kept_one_lifecycle": True, "output": result}]
+            assert result.text == "zod: initialized\n", result
+        return [{"startup_kept_one_lifecycle": True, "output": result.text}]
 
 
 @requires(POSIX, R)
@@ -446,21 +597,21 @@ def test_callable_tools_follow_connected_server_fields(
 
     for console_type in (AsyncMCPConsole, MCPConsole):
         console = console_type()
-        for create_tool in (
-            mcp_console.openai.responses_tool,
-            mcp_console.openai.agents_tool,
-            mcp_console.anthropic.tool,
-            mcp_console.chatlas.tool,
+        for create_tools in (
+            mcp_console.openai.responses_tools,
+            mcp_console.openai.agents_tools,
+            mcp_console.anthropic.callable_tools,
+            mcp_console.chatlas.tools,
         ):
             try:
-                create_tool(console)
+                create_tools(console)
             except RuntimeError as error:
                 assert "connect" in str(error).lower(), error
             else:
-                raise AssertionError("disconnected console created a tool")
+                raise AssertionError("disconnected console created tools")
 
     async def exercise_tools(console, source, expected_fields):
-        live_tool = console.send_tool
+        live_tool = console.get_tool("send")
         live_schema = live_tool.input_schema
         assert set(live_schema["properties"]) == expected_fields, live_schema
         chat = ChatOpenAI(model="unused", api_key="unused")
@@ -471,11 +622,19 @@ def test_callable_tools_follow_connected_server_fields(
 
         chat.register_tool(existing_tool)
         existing = chat.get_tools()[0]
-        chat.set_tools([*chat.get_tools(), mcp_console.chatlas.tool(console)])
+        chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
         assert chat.get_tools()[0] is existing
-        chat_tool = chat.get_tools()[1]
-        agent = mcp_console.openai.agents_tool(console)
-        anthropic = mcp_console.anthropic.tool(console)
+        chat_tool = next(tool for tool in chat.get_tools() if tool.name == "send")
+        agent = next(
+            tool
+            for tool in mcp_console.openai.agents_tools(console)
+            if tool.name == "send"
+        )
+        anthropic = next(
+            tool
+            for tool in mcp_console.anthropic.callable_tools(console)
+            if tool.to_dict()["name"] == "send"
+        )
         arguments = {"r": source}
         encoded = json.dumps(arguments)
         context = ToolContext(
@@ -484,7 +643,11 @@ def test_callable_tools_follow_connected_server_fields(
             tool_call_id="call_1",
             tool_arguments=encoded,
         )
-        responses = mcp_console.openai.responses_tool(console)
+        responses = next(
+            tool
+            for tool in mcp_console.openai.responses_tools(console)
+            if tool.definition["name"] == "send"
+        )
         tools = (
             (responses.definition["parameters"], lambda: responses.call(arguments)),
             (
@@ -507,7 +670,8 @@ def test_callable_tools_follow_connected_server_fields(
         )
         for invoke in (lambda: console.send(**arguments), lambda: console(**arguments)):
             output = invoke()
-            outputs.append(await output if inspect.isawaitable(output) else output)
+            output = await output if inspect.isawaitable(output) else output
+            outputs.append(output.text)
         for schema, invoke in tools:
             assert schema == live_schema, schema
             validator = Draft202012Validator(schema)
@@ -568,7 +732,7 @@ def test_callable_tools_follow_connected_server_fields(
             ):
                 async with AsyncMCPConsole(**settings) as console:
                     if label == "bare":
-                        assert console.send_tool.input_schema["properties"][
+                        assert console.get_tool("send").input_schema["properties"][
                             "requirements"
                         ]["properties"]["action"]["enum"] == [
                             "get",
@@ -594,11 +758,11 @@ def test_callable_preserves_line_breaks_around_images(
 ) -> Transcript:
     async def exercise():
         async with AsyncMCPConsole(**options(binary, execution)) as console:
-            return await console.send(r="emit image")
+            return str(await console.send(r="emit image"))
 
     asynchronous = asyncio.run(exercise())
     with MCPConsole(**options(binary, execution)) as console:
-        synchronous = console.send(r="emit image")
+        synchronous = str(console.send(r="emit image"))
     assert (
         synchronous
         == asynchronous
@@ -644,11 +808,11 @@ def test_callable_preserves_mixed_language_state(
             assert await console.connect() is console
             transcript = []
             for language, source in cells.items():
-                chunks = [await console(**{language: source}, timeout_ms=0)]
+                chunks = [(await console(**{language: source}, timeout_ms=0)).text]
                 # A returned send can still be running. Collect its complete output
                 # before submitting the next cell, including on a cold R startup.
                 while chunks[-1].endswith(running):
-                    chunks.append(await console.send(session="default"))
+                    chunks.append((await console.send(session="default")).text)
                 transcript.append({language: collected(chunks)})
             return transcript
 
@@ -656,9 +820,9 @@ def test_callable_preserves_mixed_language_state(
     with MCPConsole(**settings) as console:
         synchronous = []
         for language, source in cells.items():
-            chunks = [console(**{language: source}, timeout_ms=0)]
+            chunks = [console(**{language: source}, timeout_ms=0).text]
             while chunks[-1].endswith(running):
-                chunks.append(console.send(session="default"))
+                chunks.append(console.send(session="default").text)
             synchronous.append({language: collected(chunks)})
     assert synchronous == transcript
     return transcript
@@ -677,7 +841,9 @@ def test_errors_close_and_reconnect(binary: Path, execution: Execution) -> Trans
                 transcript.append({"error": str(error)})
             else:
                 raise AssertionError("invalid send succeeded")
-            transcript.append({"recovery": await console.send(r="echo recovered")})
+            transcript.append(
+                {"recovery": (await console.send(r="echo recovered")).text}
+            )
         await console.close()
         try:
             await console.send()
@@ -686,7 +852,9 @@ def test_errors_close_and_reconnect(binary: Path, execution: Execution) -> Trans
         else:
             raise AssertionError("closed console accepted a call")
         async with console:
-            transcript.append({"reconnected": await console.send(r="echo reconnected")})
+            transcript.append(
+                {"reconnected": (await console.send(r="echo reconnected")).text}
+            )
         return transcript
 
     return asyncio.run(exercise())
@@ -703,7 +871,9 @@ def test_responses_preserves_schema_text_and_images(
 
     async def exercise():
         async with AsyncMCPConsole(**options(binary, execution)) as console:
-            tool = mcp_console.openai.responses_tool(console)
+            tools = mcp_console.openai.responses_tools(console)
+            by_name = {tool.definition["name"]: tool for tool in tools}
+            tool = by_name["send"]
             assert isinstance(tool, mcp_console.openai.AsyncResponsesTool)
             schema = tool.definition["parameters"]
             assert set(schema["properties"]) == {
@@ -720,14 +890,13 @@ def test_responses_preserves_schema_text_and_images(
             assert tool.definition["strict"] is False
             outputs = []
             for source in ("echo response", "emit image"):
-                result = await tool(
-                    ResponseFunctionToolCall(
-                        type="function_call",
-                        name="send",
-                        call_id="call_1",
-                        arguments=json.dumps({"r": source}),
-                    )
+                call = ResponseFunctionToolCall(
+                    type="function_call",
+                    name="send",
+                    call_id="call_1",
+                    arguments=json.dumps({"r": source}),
                 )
+                result = await by_name[call.name](call)
                 TypeAdapter(FunctionCallOutput).validate_python(result)
                 outputs.append(result)
             return outputs
@@ -746,11 +915,12 @@ def test_openai_agents_callable_preserves_optional_arguments(
 
     async def exercise():
         async with AsyncMCPConsole(**options(binary, execution)) as console:
-            tool = mcp_console.openai.agents_tool(console)
+            tools = mcp_console.openai.agents_tools(console)
+            tool = next(tool for tool in tools if tool.name == "send")
             assert isinstance(tool, FunctionTool)
             validate({"requirements": {"r": ["praise"]}}, tool.params_json_schema)
-            agent = Agent(name="test", tools=[tool])
-            assert agent.tools == [tool]
+            agent = Agent(name="test", tools=tools)
+            assert agent.tools == tools
             arguments = json.dumps({"r": "echo agent"})
             context = ToolContext(
                 context=None,
@@ -796,15 +966,17 @@ def test_anthropic_callable_and_native_tools(
 
     async def exercise():
         async with AsyncMCPConsole(**options(binary, execution)) as console:
-            tool = mcp_console.anthropic.tool(console)
+            tools = mcp_console.anthropic.callable_tools(console)
+            tool = next(tool for tool in tools if tool.to_dict()["name"] == "send")
             assert tool.to_dict()["name"] == "send"
             text = await tool.call({"r": "echo anthropic"})
         async with mcp_console.anthropic.tools(
             **options(binary, execution), tool_kwargs={"defer_loading": True}
         ) as tools:
             assert len(tools) == 1
-            assert tools[0].to_dict()["defer_loading"] is True
-            images = await tools[0].call({"r": "emit image"})
+            tool = next(tool for tool in tools if tool.to_dict()["name"] == "send")
+            assert tool.to_dict()["defer_loading"] is True
+            images = await tool.call({"r": "emit image"})
         return [{"callable": text}, {"native": to_jsonable_python(images)}]
 
     return asyncio.run(exercise())
@@ -862,8 +1034,9 @@ def test_chatlas_registers_on_existing_chat(
             )
             tools = chat.get_tools()
             assert len(tools) == 1
-            result = await tools[0].func(r="echo chatlas")
-            return [{"name": tools[0].name, "value": result.value}]
+            tool = next(tool for tool in tools if tool.name == "send")
+            result = await tool.func(r="echo chatlas")
+            return [{"name": tool.name, "value": result.value}]
         finally:
             await chat.cleanup_mcp_tools()
 
@@ -880,10 +1053,11 @@ def test_chatlas_callable_registers_concrete_schema(
     async def exercise():
         chat = ChatOpenAI(model="unused", api_key="unused")
         async with AsyncMCPConsole(**options(binary, execution)) as console:
-            chat.set_tools([*chat.get_tools(), mcp_console.chatlas.tool(console)])
+            chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
             tools = chat.get_tools()
             assert [tool.name for tool in tools] == ["send"]
-            return [{"output": await tools[0].func(r="echo callable chatlas")}]
+            tool = next(tool for tool in tools if tool.name == "send")
+            return [{"output": await tool.func(r="echo callable chatlas")}]
 
     return asyncio.run(exercise())
 
@@ -902,7 +1076,7 @@ def test_sync_callable_and_framework_tools(
     with console:
         assert console.connect() is console
         assert not inspect.iscoroutinefunction(console.send)
-        transcript.append({"callable": console(r="echo sync")})
+        transcript.append({"callable": console(r="echo sync").text})
         try:
             console.send(r="echo r", python="echo python")
         except RuntimeError as error:
@@ -911,15 +1085,23 @@ def test_sync_callable_and_framework_tools(
             raise AssertionError("invalid send succeeded")
 
         chat = ChatOpenAI(model="unused", api_key="unused")
-        chat.set_tools([*chat.get_tools(), mcp_console.chatlas.tool(console)])
-        chat_tool = chat.get_tools()[0]
+        chat.set_tools([*chat.get_tools(), *mcp_console.chatlas.tools(console)])
+        chat_tool = next(tool for tool in chat.get_tools() if tool.name == "send")
         assert not inspect.iscoroutinefunction(chat_tool.func)
         transcript.append({"chatlas": chat_tool.func(r="echo chatlas")})
 
-        anthropic_tool = mcp_console.anthropic.tool(console)
+        anthropic_tool = next(
+            tool
+            for tool in mcp_console.anthropic.callable_tools(console)
+            if tool.to_dict()["name"] == "send"
+        )
         transcript.append({"anthropic": anthropic_tool.call({"r": "echo anthropic"})})
 
-        agent_tool = mcp_console.openai.agents_tool(console)
+        agent_tool = next(
+            tool
+            for tool in mcp_console.openai.agents_tools(console)
+            if tool.name == "send"
+        )
         validate({"requirements": {"r": ["praise"]}}, agent_tool.params_json_schema)
         arguments = json.dumps({"r": "echo agent"})
         context = ToolContext(
@@ -939,9 +1121,9 @@ def test_sync_callable_and_framework_tools(
     else:
         raise AssertionError("closed console accepted a call")
     with console:
-        transcript.append({"reconnected": console.send(r="echo reconnected")})
+        transcript.append({"reconnected": console.send(r="echo reconnected").text})
         # Closing must also clean up an active worker and the MCP transport.
-        assert "running" in console.send(r="stall", timeout_ms=0)
+        assert "running" in console.send(r="stall", timeout_ms=0).text
     return transcript
 
 
@@ -955,24 +1137,313 @@ def test_sync_responses_preserves_text_and_images(
     from pydantic import TypeAdapter
 
     with MCPConsole(**options(binary, execution)) as console:
-        tool = mcp_console.openai.responses_tool(console)
+        tools = mcp_console.openai.responses_tools(console)
+        by_name = {tool.definition["name"]: tool for tool in tools}
+        tool = by_name["send"]
         assert isinstance(tool, mcp_console.openai.ResponsesTool)
         assert tool.definition["name"] == "send"
         assert tool.definition["strict"] is False
         outputs = []
         for source in ("echo response", "emit image"):
-            result = tool(
-                ResponseFunctionToolCall(
-                    type="function_call",
-                    name="send",
-                    call_id="call_1",
-                    arguments=json.dumps({"r": source}),
-                )
+            call = ResponseFunctionToolCall(
+                type="function_call",
+                name="send",
+                call_id="call_1",
+                arguments=json.dumps({"r": source}),
             )
+            result = by_name[call.name](call)
             TypeAdapter(FunctionCallOutput).validate_python(result)
             outputs.append(result)
         assert tool.call({"r": "echo direct"}) == "zod: direct\n"
         return outputs
+
+
+@requires(R)
+@executions(DIRECT, SANDBOXED)
+def test_callable_tools_preserve_image_results(
+    binary: Path, execution: Execution
+) -> TranscriptWithCompanions:
+    from agents import ItemHelpers, ToolOutputImage, ToolOutputText
+    from agents.tool_context import ToolContext
+    from anthropic.lib.tools import ToolError
+    from anthropic.types.beta import BetaToolResultBlockParam
+    from chatlas import ContentToolResult
+    from chatlas.types import ContentImageInline, ContentText
+    from openai.types.responses import ResponseFunctionToolCall
+    from openai.types.responses.response_input_item_param import FunctionCallOutput
+    from pydantic import TypeAdapter
+
+    environment, rscript = r_test_environment()
+    # fmt: r
+    plot_code = code(r"""
+        options(
+          console.plot.width_in = 4,
+          console.plot.height_in = 3,
+          console.plot.dpi = 100
+        )
+        cat("before image\n")
+        plot(1:3)
+        invisible(dev.off())
+        cat("after image\n")
+        """)
+    (expected_plot,) = reference_plots(
+        rscript, environment, plot_code, width=4, height=3, dpi=100, pages=1
+    )
+    expected_image = base64.b64encode(expected_plot).decode("ascii")
+    image_arguments = {"r": plot_code, "timeout_ms": 300_000}
+    # fmt: r
+    exit_code = code(r"""
+        quit(save = "no", status = 33L, runLast = FALSE)
+        """)
+    image_error_arguments = {
+        "r": plot_code + "\n" + exit_code,
+        "timeout_ms": 300_000,
+    }
+
+    def check_image(result) -> None:
+        assert isinstance(result, ContentToolResult), type(result)
+        assert result.error is None
+        assert result.extra is None, result.extra
+        kinds = [type(item) for item in result.value]
+        assert kinds == [ContentText, ContentImageInline, ContentText], kinds
+        text, image, after = result.value
+        assert (text.text, after.text) == ("before image\n", "after image\n")
+        assert image.image_content_type == "image/png"
+        assert image.data == expected_image
+
+    expected_responses_content = [
+        {"type": "input_text", "text": "before image\n"},
+        {
+            "type": "input_image",
+            "image_url": f"data:image/png;base64,{expected_image}",
+            "detail": "auto",
+        },
+        {"type": "input_text", "text": "after image\n"},
+    ]
+
+    async def exercise(console) -> list:
+        chatlas = next(
+            tool for tool in mcp_console.chatlas.tools(console) if tool.name == "send"
+        )
+        agents = next(
+            tool
+            for tool in mcp_console.openai.agents_tools(console)
+            if tool.name == "send"
+        )
+        anthropic = next(
+            tool
+            for tool in mcp_console.anthropic.callable_tools(console)
+            if tool.to_dict()["name"] == "send"
+        )
+        responses = next(
+            tool
+            for tool in mcp_console.openai.responses_tools(console)
+            if tool.definition["name"] == "send"
+        )
+
+        def invoke_agents(arguments):
+            encoded = json.dumps(arguments)
+            context = ToolContext(
+                context=None,
+                tool_name="send",
+                tool_call_id="call_1",
+                tool_arguments=encoded,
+            )
+            return agents.on_invoke_tool(context, encoded)
+
+        for adapter, call in (
+            ("chatlas", lambda arguments: chatlas.func(**arguments)),
+            ("agents", invoke_agents),
+            ("anthropic", anthropic.call),
+            ("responses", responses.call),
+        ):
+
+            async def invoke(arguments):
+                result = call(arguments)
+                return await result if inspect.isawaitable(result) else result
+
+            result = await invoke(image_arguments)
+            if adapter == "chatlas":
+                check_image(result)
+            elif adapter == "agents":
+                assert isinstance(result, list), type(result)
+                assert [type(item) for item in result] == [
+                    ToolOutputText,
+                    ToolOutputImage,
+                    ToolOutputText,
+                ]
+                assert result == [
+                    ToolOutputText(text="before image\n"),
+                    ToolOutputImage(
+                        image_url=f"data:image/png;base64,{expected_image}",
+                        detail="auto",
+                    ),
+                    ToolOutputText(text="after image\n"),
+                ]
+                function_call = ResponseFunctionToolCall(
+                    type="function_call",
+                    name="send",
+                    call_id="call_1",
+                    arguments=json.dumps(image_arguments),
+                )
+                provider_result = ItemHelpers.tool_call_output_item(
+                    function_call, result
+                )
+                TypeAdapter(FunctionCallOutput).validate_python(provider_result)
+                assert provider_result == {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": expected_responses_content,
+                }
+            elif adapter == "anthropic":
+                assert result == [
+                    {"type": "text", "text": "before image\n"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": expected_image,
+                        },
+                    },
+                    {"type": "text", "text": "after image\n"},
+                ], type(result)
+                TypeAdapter(BetaToolResultBlockParam).validate_python(
+                    {"type": "tool_result", "tool_use_id": "call_1", "content": result}
+                )
+            else:
+                assert result == expected_responses_content, result
+                TypeAdapter(FunctionCallOutput).validate_python(
+                    {
+                        "type": "function_call_output",
+                        "call_id": "call_1",
+                        "output": result,
+                    }
+                )
+            text = await invoke({"r": 'cat("text\\n")'})
+            assert text == "text\n", (adapter, type(text), text)
+            try:
+                await invoke({"r": 'cat("r\\n")', "python": 'print("python")'})
+            except RuntimeError as rejected:
+                assert (
+                    str(rejected)
+                    == "only one of `r`, `python`, or `sql` may be supplied"
+                )
+            else:
+                raise AssertionError(f"{adapter} errored result did not raise")
+
+        try:
+            error_result = anthropic.call(image_error_arguments)
+            if inspect.isawaitable(error_result):
+                await error_result
+        except ToolError as error:
+            TypeAdapter(BetaToolResultBlockParam).validate_python(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "call_1",
+                    "content": error.content,
+                    "is_error": True,
+                }
+            )
+            assert isinstance(error.content, list), type(error.content)
+            return error.content
+        else:
+            raise AssertionError("Anthropic image error did not raise ToolError")
+
+    async def run() -> TranscriptWithCompanions:
+        transcripts = []
+        with tempfile.TemporaryDirectory() as directory:
+            for client_type in (MCPConsole, AsyncMCPConsole):
+                capture = Path(directory) / f"{client_type.__name__}.json"
+                settings = {
+                    "command": sys.executable,
+                    "args": [
+                        "-u",
+                        ROOT / "tests/fixtures/mcp_recording_proxy.py",
+                        capture,
+                        binary,
+                        *execution.serve(),
+                    ],
+                    "server_parameters": {"env": environment},
+                }
+                if client_type is AsyncMCPConsole:
+                    async with client_type(**settings) as console:
+                        image_error = await exercise(console)
+                else:
+                    with client_type(**settings) as console:
+                        image_error = await exercise(console)
+                transcript = json.loads(capture.read_text(encoding="utf-8"))
+                error_call = next(
+                    entry
+                    for entry in transcript
+                    if entry.get("send") == image_error_arguments
+                )
+                error_result = error_call["result"]
+                assert error_result["isError"] is True, error_result
+                assert [item["type"] for item in error_result["content"]] == [
+                    "text",
+                    "image",
+                    "text",
+                ], error_result
+                before, _, after = error_result["content"]
+                assert before["text"] == "before image\n", before
+                assert "[worker exited with status 33]" in after["text"], after
+                assert image_error == [
+                    {"type": "text", "text": before["text"]},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": expected_image,
+                        },
+                    },
+                    {"type": "text", "text": after["text"]},
+                ], image_error
+                image_calls = [
+                    entry
+                    for entry in transcript
+                    if entry.get("send") == image_arguments
+                ]
+                assert len(image_calls) == 4, image_calls
+                for image_call in [*image_calls, error_call]:
+                    image = image_call["result"]["content"][1]
+                    assert image == {
+                        "type": "image",
+                        "mimeType": "image/png",
+                        "data": expected_image,
+                    }, image
+                    image["data"] = "<PNG byte-identical to live Rscript page 1>"
+                initialize = transcript[0]["input"]
+                assert initialize["method"] == "initialize"
+                client_info = initialize["params"]["clientInfo"]
+                assert client_info == {"name": "mcp", "version": "0.1.0"}, client_info
+                # Normalize SDK identity before the full canonical-handshake comparison.
+                initialize["params"]["clientInfo"] = {
+                    "name": "acceptance-test",
+                    "version": "1.0.0",
+                }
+                transcripts.append(
+                    [
+                        {
+                            "scenario": f"Callable tools through {client_type.__name__}: "
+                            "Chatlas, OpenAI Agents, Anthropic, and OpenAI Responses each "
+                            "receive an image result, a text result, then an invalid call. "
+                            "Anthropic also receives an image followed by a worker exit error.",
+                            "fixture": "The built-in R runtime produces a plot whose PNG bytes "
+                            "are compared with a live Rscript reference. The proxy records MCP "
+                            "exchanges; adapter results are checked in Python.",
+                        },
+                        *transcript,
+                    ]
+                )
+        sync_transcript, async_transcript = transcripts
+        assert sync_transcript[1:] == async_transcript[1:]
+        return TranscriptWithCompanions(
+            sync_transcript, {"async.yaml": McpTranscript(async_transcript)}
+        )
+
+    return asyncio.run(run())
 
 
 def test_thread_configuration_preserves_existing_servers(binary: Path) -> Transcript:

@@ -154,11 +154,13 @@ For example, install `mcp-console[chatlas]` and, with an existing chatlas `chat`
 ```python
 from chatlas import Tool
 from mcp_console import MCPConsole
+from mcp_console.chatlas import tools
 
 with MCPConsole(args=["serve", "--config-file", "application.yaml"]) as console:
-    definition = console.send_tool
+    definition = console.get_tool("send")
+    send_tool = next(tool for tool in tools(console) if tool.name == "send")
     query_sales = Tool(
-        func=console.send,
+        func=send_tool.func,
         name="query_sales",
         description=definition.description or "",
         parameters=definition.input_schema,
@@ -169,7 +171,8 @@ with MCPConsole(args=["serve", "--config-file", "application.yaml"]) as console:
 ```
 
 `set_tools()` replaces the chat's tool list.
-Using `console.send_tool.input_schema` preserves configured languages and hidden arguments; inferring a schema from the Python method's signature would lose those settings.
+Using `console.get_tool("send").input_schema` preserves configured languages and hidden arguments; inferring a schema from the Python method's signature would lose those settings.
+Reusing the framework adapter's callback preserves its text and image result handling.
 
 [Get started](getting-started.qmd) links to MCP, Python, and R connection guides.
 The [Python](PYTHON.md#choose-a-model-integration) and [R](R.md) guides cover adding Console to a chat or model framework.

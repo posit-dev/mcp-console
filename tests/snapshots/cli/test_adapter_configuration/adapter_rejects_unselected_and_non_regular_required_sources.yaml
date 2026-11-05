@@ -1,0 +1,23 @@
+---
+files: []
+optional_files:
+  - unselected.yaml
+exit_code: 1
+stderr: >
+  --optional-config-file 'unselected.yaml' must also be selected with
+  --config-file
+---
+files:
+  - directory.yaml
+optional_files: []
+exit_code: 1
+stderr: |
+  configuration 'directory.yaml' must be a regular file
+---
+files:
+  - directory.yaml
+optional_files:
+  - directory.yaml
+exit_code: 1
+stderr: |
+  configuration 'directory.yaml' must be a regular file

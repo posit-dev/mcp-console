@@ -7,6 +7,7 @@ import re
 import tempfile
 from urllib.parse import urljoin
 
+from _markdown import rewrite_links
 from great_docs._apiref import APIReference
 from yaml12 import read_yaml
 
@@ -76,11 +77,19 @@ with tempfile.TemporaryDirectory(prefix="console-python-reference-") as workspac
     ).build()
     generated = Path(workspace) / "python"
     for page in (generated / "reference").glob("*.qmd"):
+        text = page.read_text()
+        if page.stem == "ConsoleResult":
+            # Great Docs 0.17 cannot infer the inherited Pydantic constructor.
+            # Keep the documented keyword example instead of a false signature.
+            signature = (
+                "::: {.doc-signature .doc-Kind.CLASS}\n"
+                "```python\nConsoleResult()\n```\n:::\n"
+            )
+            assert text.count(signature) == 1, "ConsoleResult signature changed"
+            text = text.replace(signature, "", 1)
         # Set the sidebar on each page: directory metadata treats "reference"
         # as the sibling directory and rewrites it as a relative path.
-        page.write_text(
-            page.read_text().replace("---\n", "---\nsidebar: reference\n", 1)
-        )
+        page.write_text(text.replace("---\n", "---\nsidebar: reference\n", 1))
         if page.stem != "index":
             add_anchors(page)
     # Preserve the package's Markdown and LLM download URLs. They are resources,
@@ -102,20 +111,18 @@ with tempfile.TemporaryDirectory(prefix="console-python-reference-") as workspac
         title = config["display_name"] if page == sources[0] else page.stem
         if relative == Path("reference/index.md"):
             title = config["reference"]["title"]
-        markdown = re.sub(
-            r"(\]\([^)\n]+)\.(?:qmd|md)([?#][^)]*)?\)",
-            r"\1.html\2)",
+        markdown = rewrite_links(
             f"# {title}\n\n{body}",
+            lambda url: re.sub(r"\.(?:qmd|md)(?=[?#]|$)", ".html", url),
         )
         (generated / relative).write_text(markdown)
         url = website["site-url"] + "python/" + relative.with_suffix(".html").as_posix()
         # The combined download lives above reference/. Resolve each page's
         # links against its own URL before moving its text into that download.
         full_text.append(
-            re.sub(
-                r"(?<=\]\()([^)\s]+)(?=\))",
-                lambda match: urljoin(url, match[0]),
+            rewrite_links(
                 markdown,
+                lambda destination: urljoin(url, destination),
             )
         )
         links.append(f"- [{title}]({url})")

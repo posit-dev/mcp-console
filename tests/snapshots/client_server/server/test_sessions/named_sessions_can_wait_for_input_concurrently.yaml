@@ -46,14 +46,6 @@ result:
         [session: "default"; status: idle]
 
         [idle]
-  structuredContent:
-    sessions:
-      - session: alpha
-        status: waiting_for_stdin
-      - session: beta
-        status: waiting_for_stdin
-      - session: default
-        status: idle
   isError: false
 ---
 send:
@@ -72,14 +64,6 @@ result:
         [session: "default"; status: idle]
 
         [idle]
-  structuredContent:
-    sessions:
-      - session: alpha
-        status: waiting_for_stdin
-      - session: beta
-        status: waiting_for_stdin
-      - session: default
-        status: idle
   isError: false
 ---
 send:
@@ -159,12 +143,4 @@ result:
         [session: "default"; status: idle]
 
         [idle]
-  structuredContent:
-    sessions:
-      - session: alpha
-        status: idle
-      - session: beta
-        status: idle
-      - session: default
-        status: idle
   isError: false

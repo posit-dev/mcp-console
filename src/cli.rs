@@ -23,7 +23,7 @@ Examples:
 const CONFIGURE_CLIENT_EXAMPLES: &str = "\
 Prints each configuration file and setting changed. Unrelated settings are
 preserved. Use --dry-run to preview or apply the changes manually.
-Allows Console's send tool without individual approval, subject to client restrictions.
+Allows Console tools without individual approval, subject to client restrictions.
 Starts cache warming in the background; use --no-warmup to skip it.
 Codex launches default to the client's sandbox permissions; configuration files
 can select another profile. Arguments after -- customize the serve settings.
@@ -76,9 +76,13 @@ pub struct ConfigOverrides {
     #[arg(long)]
     pub no_config: bool,
 
-    /// Use only this YAML or JSON configuration file, then apply -c overrides
+    /// Use only the selected YAML or JSON files; repeat for ordered layers before -c overrides
     #[arg(long, value_name = "PATH")]
-    pub config_file: Option<PathBuf>,
+    pub config_file: Vec<PathBuf>,
+
+    /// Allow a selected --config-file path to be absent; paths match before expansion
+    #[arg(long, value_name = "PATH")]
+    pub optional_config_file: Vec<PathBuf>,
 
     /// Supply defaults below configuration files; repeat for ordered dotted KEY=VALUE assignments
     #[arg(long = "default-config", value_name = "KEY=VALUE")]
@@ -87,32 +91,17 @@ pub struct ConfigOverrides {
     /// Override layered global and project configuration; repeat for ordered dotted KEY=VALUE assignments
     #[arg(short = 'c', long = "config", value_name = "KEY=VALUE")]
     pub values: Vec<String>,
-
-    /// Private R adapter transport: optional files and ordered KEY=VALUE overrides
-    #[arg(long = "config-overrides-file", hide = true)]
-    pub values_file: Option<PathBuf>,
 }
 
 impl ConfigOverrides {
-    pub fn extend(&mut self, other: Self) -> Result<(), String> {
-        if self.config_file.is_some() && other.config_file.is_some() {
-            return Err("--config-file may be supplied only once".into());
-        }
-        if other.config_file.is_some() {
-            self.config_file = other.config_file;
-        }
-        if self.values_file.is_some() && other.values_file.is_some() {
-            return Err("--config-overrides-file may be supplied only once".into());
-        }
-        if other.values_file.is_some() {
-            self.values_file = other.values_file;
-        }
+    pub fn extend(&mut self, other: Self) {
+        self.config_file.extend(other.config_file);
+        self.optional_config_file.extend(other.optional_config_file);
         self.default_values.extend(other.default_values);
         self.values.extend(other.values);
         self.no_project_config |= other.no_project_config;
         self.no_global_config |= other.no_global_config;
         self.no_config |= other.no_config;
-        Ok(())
     }
 }
 
@@ -277,9 +266,12 @@ pub enum ConfigCommand {
         /// Resolve defaults for a subsequent serve --no-sandbox launch
         #[arg(long)]
         no_sandbox: bool,
-        /// Include all configuration defaults and the complete editable tool presentation
+        /// Include all configuration defaults
         #[arg(long, conflicts_with = "prune")]
         full: bool,
+        /// Preserve authored tool settings and omit generated tool descriptions and schema
+        #[arg(long)]
+        editable: bool,
         /// Include only settings that differ from built-in defaults (the default)
         #[arg(long)]
         prune: bool,

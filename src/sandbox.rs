@@ -121,10 +121,10 @@ pub fn run(
             Some("--no-project-config")
         } else if overrides.no_global_config {
             Some("--no-global-config")
-        } else if overrides.config_file.is_some() {
+        } else if !overrides.config_file.is_empty() {
             Some("--config-file")
-        } else if overrides.values_file.is_some() {
-            Some("--config-overrides-file")
+        } else if !overrides.optional_config_file.is_empty() {
+            Some("--optional-config-file")
         } else if private_selector.is_some() && !overrides.default_values.is_empty() {
             Some("--default-config")
         } else if private_selector.is_some() && !overrides.values.is_empty() {

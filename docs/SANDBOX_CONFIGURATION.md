@@ -7,10 +7,7 @@ For command-line examples, see [Run commands in a sandbox](SANDBOX_COMMAND.md).
 
 ## Which permissions to configure
 
-| Node               | Accepted values   | Applies to                                                                 |
-| ------------------ | ----------------- | -------------------------------------------------------------------------- |
-| `sandbox`          | Mapping or `null` | Code evaluated in Console, standalone commands, and their child processes. |
-| `resolver.sandbox` | Mapping or `null` | Runtime inspection and package preparation.                                |
+`sandbox` controls evaluated code and standalone commands; `resolver.sandbox` controls runtime inspection and package preparation.
 
 The two policies are independent.
 Examples below configure `sandbox`; the same fields are accepted under `resolver.sandbox`, except for the `inherit_codex` profile.
@@ -27,10 +24,7 @@ To disable enforcement, see [Run without the sandbox](#run-without-the-sandbox).
 
 ## Choose a base profile {#profiles-and-temporary-storage}
 
-| Node                       | Accepted values                                                                  | Meaning and default                                                                            |
-| -------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `sandbox.profile`          | `read_only`, `workspace`, `inherit_codex`, an `inherit_codex` mapping, or `null` | Select the base profile. Omitted, `null`, or `read_only`: host reads without workspace writes. |
-| `resolver.sandbox.profile` | `read_only`, `workspace`, or `null`                                              | Select a preparation profile. Omitted, `null`, or `read_only`: no workspace profile.           |
+The [permission field reference](CONFIGURATION.md#sandbox-settings) lists profiles and defaults for workers and preparation.
 
 For evaluated code, `read_only` keeps private writable temporary storage and restricted networking without a proxy by default.
 It does not deny host reads.
@@ -113,14 +107,7 @@ sandbox:
 ```
 
 Create `./output` before launch.
-`sandbox.filesystem` and `resolver.sandbox.filesystem` each require a mapping.
-Fields within that mapping are:
-
-| Field        | Accepted values      | Access to each path and its descendants                             |
-| ------------ | -------------------- | ------------------------------------------------------------------- |
-| `read_only`  | List of path strings | Permit reads, with no writes at that path.                          |
-| `read_write` | List of path strings | Permit reads and writes, including creation, editing, and deletion. |
-| `deny`       | List of path strings | Deny reads and writes.                                              |
+`sandbox.filesystem` and `resolver.sandbox.filesystem` each require a mapping of `read_only`, `read_write`, and `deny` path entries; see the [permission field reference](CONFIGURATION.md#sandbox-settings).
 
 Each list defaults to `[]` within a supplied mapping.
 Paths are concrete paths, not globs.
@@ -175,28 +162,25 @@ See the [path rules above](#filesystem) for explicit exclusions and more specifi
 
 ## Configure network access {#network-choices}
 
-The value of `sandbox.network` or `resolver.sandbox.network` selects the network policy:
-
-| Value                   | Effect                                                 |
-| ----------------------- | ------------------------------------------------------ |
-| `network: restricted`   | Restricted native networking, without a managed proxy. |
-| `network: enabled`      | Host networking; filesystem enforcement remains.       |
-| `network: {proxy: {…}}` | Restricted native networking with a managed proxy.     |
+The value of `sandbox.network` or `resolver.sandbox.network` selects the network policy.
+The [permission field reference](CONFIGURATION.md#sandbox-settings) lists the boolean, string, sequence, and mapping forms.
 
 Worker networking defaults to restricted without a proxy.
 Resolver networking defaults to its [download proxy](PACKAGE_CONFIGURATION.md#expanded-public-default).
-Explicit scalar values also remove that generated resolver proxy.
+The `enabled` and `restricted` modes, including their boolean aliases, replace that generated resolver proxy.
 
 A managed mapping requires a non-null `proxy` mapping.
-There is no `network: full` shortcut or public proxy-enabled boolean.
+The strings `enabled` and `restricted` are reserved mode names; other strings are single allowed hostname patterns or IP literals.
+Use a sequence such as `[enabled]` to treat a reserved name as a destination.
+The R configuration object accepts the corresponding booleans, character vectors, unnamed lists, and named mappings; use `list("enabled")` for a literal reserved name because a one-element character vector is also a scalar string in R.
 
-Fields within a network mapping are:
+Before merging each layer, a destination sequence or string expands to `proxy.domains.allow`.
+This replaces the allow list while retaining inherited deny rules, proxy options, and socket settings.
+An empty sequence explicitly selects an empty allow list; it keeps the managed proxy and does not restore the resolver's download destinations.
+`network: null` is omission, so it does not clear an inherited policy.
+Exports use the canonical mode strings and nested proxy mapping.
 
-| Field                 | Accepted values                 | Meaning and default                                                                                                             |
-| --------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `proxy`               | Required mapping                | Managed HTTP/HTTPS and optional SOCKS proxy. See [Proxy settings](#proxy-modes-and-destinations).                               |
-| `sockets`             | Mapping                         | Direct Unix-socket permissions. Omission grants no Unix sockets.                                                                |
-| `allow_local_binding` | `auto`, `null`, `true`, `false` | Local binding and related native socket access. Omission selects `auto`; see [Local services](#unix-sockets-and-local-binding). |
+A network mapping contains the required `proxy` mapping and optional `sockets` and `allow_local_binding` settings; see the [field reference](CONFIGURATION.md#sandbox-settings).
 
 ### Proxy settings {#proxy-modes-and-destinations}
 
@@ -212,14 +196,7 @@ sandbox:
         deny: [blocked.example.org]
 ```
 
-Fields under `sandbox.network.proxy` or `resolver.sandbox.network.proxy`:
-
-| Field                  | Accepted values                                    | Meaning and default                                                                                                        |
-| ---------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `mode`                 | `full`, `limited`                                  | Proxy methods and protocols. Default: `full`.                                                                              |
-| `socks5`               | `disabled`, `tcp`; `tcp_udp` is currently rejected | SOCKS support in full mode. Default: `tcp`. Omit this field in limited mode.                                               |
-| `allow_upstream_proxy` | `true`, `false`                                    | Permit onward routing through the trusted launch environment's proxy. Default: `false`.                                    |
-| `domains`              | Mapping                                            | Destination allow/deny rules. Omission permits no worker destinations or uses the resolver's generated download allowlist. |
+Fields under `sandbox.network.proxy` or `resolver.sandbox.network.proxy` are `mode`, `socks5`, `allow_upstream_proxy`, and `domains`; see the [permission field reference](CONFIGURATION.md#sandbox-settings).
 
 Full mode supports HTTP/HTTPS proxying and the selected SOCKS mode.
 `socks5: disabled` disables SOCKS; `tcp` enables SOCKS5 TCP.
@@ -231,12 +208,7 @@ It is not read-only HTTPS, does not intercept TLS, and does not guarantee side-e
 
 ### Allow or block destinations {#destination-rules}
 
-Fields under `sandbox.network.proxy.domains` or `resolver.sandbox.network.proxy.domains`:
-
-| Field   | Accepted values                          | Meaning and default                                               |
-| ------- | ---------------------------------------- | ----------------------------------------------------------------- |
-| `allow` | List of hostname patterns or IP literals | Permitted destinations. Default within an explicit mapping: `[]`. |
-| `deny`  | List of hostname patterns or IP literals | Blocked destinations; matching deny rules win. Default: `[]`.     |
+Under `sandbox.network.proxy.domains` or `resolver.sandbox.network.proxy.domains`, the `allow` and `deny` lists select destinations; see the [permission field reference](CONFIGURATION.md#sandbox-settings) for their defaults.
 
 Domain rules use hostnames, not URLs, paths, or host-and-port restrictions.
 Exact names match that host only; `*.example.org` matches subdomains but not the apex, and `**.example.org` matches both.
@@ -305,13 +277,7 @@ sandbox:
 ```
 
 `sandbox.tempdir` and `resolver.sandbox.tempdir` select automatic temporary-storage grants.
-Each accepts one of the following strings:
-
-| `tempdir`           | Behavior                                                                                                                                                                               |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `managed` (default) | Create private storage, grant writes there, redirect temporary environment variables, and remove the storage after retirement.                                                         |
-| `read_write`        | Preserve configured/inherited temporary environment variables and grant writes to their host locations and the platform default temp location. Console does not own those directories. |
-| `read_only`         | Preserve temporary environment variables, create no managed storage, and add no temporary write grants.                                                                                |
+The [permission field reference](CONFIGURATION.md#sandbox-settings) compares `managed`, `read_write`, and `read_only` storage.
 
 ### Host temporary directories
 
@@ -378,11 +344,7 @@ Explicit filesystem entries compose with the selected base using the ordinary sp
 Explicit network and temporary-storage settings apply to the selected base; without a network override, the Codex network mode applies.
 Create writable directories such as `./output` before launch.
 
-The `sandbox.profile.inherit_codex` mapping has one option:
-
-| Field      | Accepted values          | Default                                   |
-| ---------- | ------------------------ | ----------------------------------------- |
-| `fallback` | `read_only`, `workspace` | `read_only` when metadata is unavailable. |
+The `sandbox.profile.inherit_codex` mapping has one option, `fallback`, accepting `read_only` (the default) or `workspace`; see the [permission field reference](CONFIGURATION.md#sandbox-settings).
 
 Omitting `fallback`, including with `profile: inherit_codex` or `profile: {inherit_codex: {}}`, selects `read_only` when inheritance is unavailable.
 Unknown profiles, unknown options, and nested fallbacks are errors.
@@ -391,7 +353,8 @@ The standalone `sandbox` command has no client metadata, so it silently uses the
 `config resolve` preserves the selection policy and automatic cache choice without selecting a runtime profile or preparing interpreters.
 Broad-root checks and their warnings apply at launch, so resolving configuration from a broad root does not replace the configured workspace permissions.
 
-In R, use `SandboxPolicy(profile = "inherit_codex")` or `SandboxPolicy(profile = InheritCodexSandboxProfile(fallback = "workspace"))`.
+In R, use `ConsoleConfig(sandbox = list(profile = "inherit_codex"))`.
+For a workspace fallback, set `sandbox = list(profile = list(inherit_codex = list(fallback = "workspace")))`.
 
 ### Metadata and permission translation
 

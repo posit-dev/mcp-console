@@ -10,7 +10,7 @@ config_scalar <- function() {
 }
 
 config_environment <- function() {
-  S7::new_property(NULL | S7::class_character, validator = function(value) {
+  config_property(NULL | S7::class_character, validator = function(value) {
     if (
       !is.null(value) &&
         length(value) &&
@@ -25,53 +25,6 @@ config_environment <- function() {
   })
 }
 
-#' @name ConsoleConfig
-#' @param global,project Whether to discover each configuration source.
-#'   Both default to `TRUE` when `ConfigDiscovery()` is explicitly constructed.
-#' @export
-ConfigDiscovery <- S7::new_class(
-  "ConfigDiscovery",
-  parent = ConfigNode,
-  properties = list(
-    global = S7::new_property(
-      S7::class_logical,
-      default = TRUE,
-      validator = function(value) {
-        if (length(value) != 1L || is.na(value)) "must be TRUE or FALSE"
-      }
-    ),
-    project = S7::new_property(
-      S7::class_logical,
-      default = TRUE,
-      validator = function(value) {
-        if (length(value) != 1L || is.na(value)) "must be TRUE or FALSE"
-      }
-    )
-  )
-)
-
-#' Select R and configure its package preparation
-#'
-#' Use this object as `ConsoleConfig(r = RConfig(...))`. Console captures the
-#' installation and package declaration once per connection. Worker restart
-#' does not rediscover the installation or reread configuration files.
-#'
-#' @param executable `NULL` or a path to an R executable or ordinary launcher,
-#'   such as `/opt/R/bin/R`. Directories and Rscript executables are unsupported.
-#'   Console owns launch-relative resolution and supported `~` expansion.
-#'   Use [current_r()] to select the R installation running this code.
-#' @param packages `NULL` for bundled defaults, or a character vector replacing
-#'   optional startup packages. `character()` requests no optional packages.
-#' @param resolution `NULL` (defaulting to `"implicit"`), `"implicit"`, `"explicit"`,
-#'   `"fixed"`, or `"disabled"`. Implicit permits runtime additions; explicit permits
-#'   later deliberate requirement changes; fixed keeps the startup declaration; disabled uses
-#'   preinstalled R packages and requires an empty or omitted package list.
-#' @param vanilla `NULL`, `TRUE`, or `FALSE`; controls native R startup files.
-#' @inherit ConsoleConfig return
-#' @examples
-#' RConfig(packages = "dplyr", resolution = "fixed")
-#' RConfig(resolution = "disabled")
-#' @export
 RConfig <- S7::new_class(
   "RConfig",
   parent = ConfigNode,
@@ -93,17 +46,7 @@ RConfig <- S7::new_class(
   }
 )
 
-#' Select the current R installation
-#'
-#' Use [RConfig()] with `executable = current_r()` to run Console with the R
-#' installation running this code. `R.home("bin")` accounts for the current
-#' architecture on Windows; the launcher is `R.exe` on Windows and `R` elsewhere. This does not
-#' search `PATH` or copy the current R session's objects, libraries, or options.
-#'
-#' @return A path to the current installation's R launcher.
-#' @examples
-#' RConfig(executable = current_r(), vanilla = TRUE)
-#' @export
+# Internal fallback evaluated only at load/launch, below explicit settings.
 current_r <- function() {
   file.path(R.home("bin"), if (.Platform$OS.type == "windows") "R.exe" else "R")
 }
@@ -114,25 +57,6 @@ PythonConfig <- S7::new_class(
   abstract = TRUE
 )
 
-#' Select a Python environment
-#'
-#' Use one of these objects as `ConsoleConfig(python = ...)`. `ExistingPython()`
-#' uses preinstalled packages in an interpreter or standard virtual environment.
-#' `ManagedPython()` prepares a uv-managed environment. It does not fall back
-#' to a system interpreter when managed preparation is unavailable.
-#'
-#' @param existing Path to a Python executable or standard virtual environment,
-#'   such as `.venv`. Console retains the environment's interpreter spelling,
-#'   captures selection at launch, and rejects unsupported Conda installations.
-#' @inheritParams RConfig
-#' @param version `NULL` or one Python version or supported constraint string,
-#'   such as `"3.13"` or `">=3.12,<3.14"`.
-#' @inherit ConsoleConfig return
-#' @examples
-#' ExistingPython(".venv")
-#' ManagedPython(version = "3.13", packages = "pandas", resolution = "explicit")
-#' @name PythonConfig
-#' @export
 ExistingPython <- S7::new_class(
   "ExistingPython",
   parent = PythonConfig,
@@ -148,11 +72,6 @@ ExistingPython <- S7::new_class(
   )
 )
 
-#' @rdname PythonConfig
-#' @param resolution `NULL` (defaulting to `"explicit"`), `"implicit"`, `"explicit"`,
-#'   or `"fixed"`.
-#'   To use preinstalled packages without preparation, choose `ExistingPython()`.
-#' @export
 ManagedPython <- S7::new_class(
   "ManagedPython",
   parent = PythonConfig,
@@ -163,11 +82,6 @@ ManagedPython <- S7::new_class(
   )
 )
 
-#' @rdname PythonConfig
-#' @param first_available A nonempty list of [ExistingPython()] candidates,
-#'   optionally one `"active_venv"` and a final [ManagedPython()] candidate.
-#'   Only absent paths are skipped; present but unusable environments fail.
-#' @export
 FirstAvailablePython <- S7::new_class(
   "FirstAvailablePython",
   parent = PythonConfig,
@@ -188,7 +102,7 @@ FirstAvailablePython <- S7::new_class(
             ))
         ) {
           return(
-            "must contain ExistingPython(), active_venv, or ManagedPython() candidates"
+            "must contain existing, active_venv, or managed candidates"
           )
         }
         if (sum(vapply(value, identical, logical(1), "active_venv")) > 1L) {
@@ -201,25 +115,13 @@ FirstAvailablePython <- S7::new_class(
           ManagedPython
         ))
         if (length(managed) > 1L || any(managed != length(value))) {
-          "must contain at most one ManagedPython() candidate, last"
+          "must contain at most one managed candidate, last"
         }
       }
     )
   )
 )
 
-#' Configure session startup source
-#'
-#' Pass this object as `ConsoleConfig(startup = StartupConfig(...))` to select
-#' a user-owned SQL connection before the first SQL cell. The source runs once
-#' per worker generation and must select a connection with
-#' `.console$sql_connection()` in R or `_console.sql_connection()` in Python.
-#' Native Console validates source and platform constraints at launch.
-#'
-#' @param language `"r"` or `"python"`, the interpreter running the source.
-#' @param code One string containing startup source.
-#' @inherit ConsoleConfig return
-#' @export
 StartupConfig <- S7::new_class(
   "StartupConfig",
   parent = ConfigNode,
@@ -229,26 +131,12 @@ StartupConfig <- S7::new_class(
   )
 )
 
-#' Configure dependency preparation permissions and environment
-#'
-#' Use this object as `ConsoleConfig(resolver = ResolverConfig(...))`. Worker
-#' permissions and resolver permissions are independent. An omitted resolver
-#' filesystem retains native cache grants; an explicit filesystem mapping
-#' replaces them. Explicit resolver sandbox policies are unsupported on Windows,
-#' where preparation uses host permissions. Environment settings still apply.
-#'
-#' @inheritParams ConsoleConfig
-#' @param sandbox `NULL` or a [SandboxPolicy()] replacing resolver permissions.
-#' @inherit ConsoleConfig return
-#' @examples
-#' ResolverConfig(environment = c(UV_INDEX_URL = "https://pypi.org/simple"))
-#' @export
 ResolverConfig <- S7::new_class(
   "ResolverConfig",
   parent = ConfigNode,
   properties = list(
     environment = config_environment(),
-    sandbox = NULL | SandboxPolicy,
+    sandbox = config_property(NULL | SandboxPolicy),
     inherit_environment = config_flag()
   )
 )
@@ -262,7 +150,7 @@ config_description <- function() {
 }
 
 config_parameters <- function() {
-  S7::new_property(NULL | S7::class_list, validator = function(value) {
+  config_property(NULL | S7::class_list, validator = function(value) {
     if (
       !is.null(value) &&
         length(value) &&
@@ -272,49 +160,11 @@ config_parameters <- function() {
           anyDuplicated(names(value)) ||
           !all(vapply(value, S7::S7_inherits, logical(1), ToolParameterConfig)))
     ) {
-      "must be a named list of ToolParameterConfig() objects with unique, non-empty names"
+      "must be a parameter mapping with unique, non-empty names"
     }
   })
 }
 
-#' Customize the exposed tool definition
-#'
-#' Use `ToolConfig()` as `ConsoleConfig(tool = ...)` to replace tool prose or
-#' hide parameters for evaluations. Descriptions are used verbatim, including
-#' empty strings. Omitted fields retain generated text or inherited settings.
-#'
-#' `ToolParameterConfig(enabled = FALSE)` removes a parameter from the exposed
-#' signature and rejects calls supplying it. Omission keeps its runtime default;
-#' hiding `timeout_ms` retains the 60,000 ms wait budget.
-#'
-#' Parameter names must exist in the schema selected by `ConsoleConfig(languages
-#' = ...)`. Unknown or unavailable parameters and nested parameters under scalar
-#' fields fail launch. Parameter types and runtime defaults cannot be replaced.
-#'
-#' @param description `NULL` or one string replacing the complete tool or
-#'   parameter description.
-#' @param instructions `NULL` or one string replacing MCP initialization
-#'   instructions: server guidance received when the client connects, which some
-#'   clients use for deferred tool search. The tool and parameter descriptions
-#'   are returned later through `tools/list`. The ellmer adapter uses those
-#'   descriptions and does not add initialization instructions to the chat prompt.
-#' @param parameters `NULL` or a named list of [ToolParameterConfig()] objects.
-#'   Nest another `parameters` list to configure fields inside an object parameter.
-#' @param enabled `NULL`, `TRUE`, or `FALSE`; controls parameter visibility.
-#' @param schema `NULL` or a JSON-ready list of read-only type and constraint
-#'   metadata populated by [resolve_console_config()]. Native validation rejects
-#'   changes to the parameter's types or constraints.
-#' @inherit ConsoleConfig return
-#' @examples
-#' ConsoleConfig(tool = ToolConfig(
-#'   description = "Run R code in a persistent session.",
-#'   parameters = list(
-#'     r = ToolParameterConfig(description = "Execute one complete R cell."),
-#'     timeout_ms = ToolParameterConfig(enabled = FALSE)
-#'   )
-#' ))
-#' @name ToolConfig
-#' @export
 ToolParameterConfig <- S7::new_class(
   "ToolParameterConfig",
   parent = ConfigNode,
@@ -326,8 +176,6 @@ ToolParameterConfig <- S7::new_class(
   )
 )
 
-#' @rdname ToolConfig
-#' @export
 ToolConfig <- S7::new_class(
   "ToolConfig",
   parent = ConfigNode,
@@ -338,23 +186,6 @@ ToolConfig <- S7::new_class(
   )
 )
 
-#' Limit concurrent sessions
-#'
-#' Pass this object as `ConsoleConfig(sessions = SessionsConfig(...))` to limit
-#' live sessions on each MCP connection. The `default` session reserves one slot
-#' for the connection's lifetime, even if startup fails. Starting named sessions
-#' occupy a slot, and a restart that starts a replacement worker retains it.
-#' Stopped named sessions release theirs after worker cleanup. A later call can
-#' reuse a stopped name when capacity is available.
-#' Preparing requirements in a stopped named session occupies a slot until
-#' preparation cleanup finishes.
-#'
-#' @param max `NULL` to inherit configuration (unlimited by default), or one
-#'   positive whole number limiting live sessions.
-#' @inherit ConsoleConfig return
-#' @examples
-#' ConsoleConfig(sessions = SessionsConfig(max = 4))
-#' @export
 SessionsConfig <- S7::new_class(
   "SessionsConfig",
   parent = ConfigNode,
@@ -378,92 +209,95 @@ SessionsConfig <- S7::new_class(
 
 #' Configure a Console session
 #'
-#' `ConsoleConfig()` combines runtime selection, package preparation, worker
-#' permissions, resolver settings, and tool presentation for [console_tool()].
-#' Constructors have the same field names as Console's application configuration.
+#' Construct configuration from named fields or one named list using the same
+#' field names and nesting as `config.yaml`. Construction validates the supplied
+#' values without reading files, finding executables, or starting a process.
+#' Nested lists are converted to typed configuration objects; edit properties
+#' with `@`, including replacing a nested object with another named list.
 #'
-#' An empty `ConsoleConfig()` uses built-in defaults without reading
-#' global or project configuration files. Workers can read host files, write
-#' private temporary storage, and cannot use the network. Dependency preparation
-#' retains its independent built-in permissions and may download packages.
+#' Use [load_console_config()] to read configuration files once. Both constructors
+#' return the same class, and passing either result to [console_tools()] disables
+#' further file discovery. Unspecified R selection uses the calling R installation
+#' at load or launch, below explicit configuration.
 #'
-#' @section Discovery and layering:
-#' Prefer [discover_console_config()] to read files once into an inspectable
-#' object, or [materialize_console_config()] to fill defaults without file reads.
-#' [prune_console_config()] produces a compact view of nondefault settings.
-#' [console_tool()] discovers files when `config` is omitted.
+#' `NULL` fields are omitted. Empty mappings and character vectors are retained.
+#' `as.list()` returns JSON-ready application settings; the launch-only choice
+#' `sandbox = FALSE` is not included in that document.
+#' A loaded R executable reset is retained as an explicit JSON `null`, so saving
+#' and reloading the settings preserves native R discovery.
 #'
-#' `ConfigDiscovery()` explicitly enables global and project file discovery at launch.
-#' Disable either source with `global = FALSE` or `project = FALSE`. Project
-#' discovery reads `.agents/console/config.yaml` in `console_tool()`'s launch
-#' directory; no ancestor directories are searched. Files can select runtimes,
-#' child environments, and permissions, so discovery trusts the whole file.
+#' For worker or resolver `network` settings, `TRUE` enables direct networking
+#' and `FALSE` restricts it. The scalar strings `"enabled"` and `"restricted"`
+#' select the same modes; other strings are allowed proxy patterns. Character
+#' vectors and unnamed lists supply allowed patterns, including an empty vector
+#' or list for an explicit empty allow list. Named mappings use
+#' `proxy = list(domains = list(allow = ..., deny = ...))` for explicit rules.
+#' YAML accepts the same boolean, string, and sequence forms. A YAML
+#' `network: null` is omitted when files merge, preserving an earlier network
+#' field. R `network = NULL` is omitted from the constructed settings.
 #'
-#' `NULL` fields are omitted: selected files supply their values before native
-#' defaults apply. Runtime and environment mappings follow Console's recursive
-#' layering rules; supplied package lists replace inherited lists, including
-#' `character()` for no optional startup packages. Python selections replace
-#' the whole `python` node to avoid mixing existing and managed environments.
-#' Explicit worker and resolver [SandboxPolicy()] objects replace their entire
-#' permission nodes; they do not inherit grants from discovered files.
-#'
-#' `sandbox = FALSE` disables enforcement for workers and dependency preparation,
-#' clearing any discovered permission nodes. An explicit resolver policy cannot
-#' be combined with this choice. Host execution has no native runner guarantee
-#' of descendant cleanup.
-#'
-#' `as.list()` returns JSON-ready application settings. It excludes the launch
-#' controls `discovery` and `sandbox = FALSE`; inspect those S7 properties with
-#' `@`. Empty mappings, empty arrays, and omissions stay distinct.
-#'
-#' @param discovery `NULL` (no file discovery), or a [ConfigDiscovery()].
-#' @param r `NULL` or an [RConfig()].
-#' @param python `NULL`, an [ExistingPython()], a [ManagedPython()], or a
-#'   [FirstAvailablePython()].
-#' @param startup `NULL` or a [StartupConfig()] selecting a SQL connection.
-#' @param sessions `NULL` or a [SessionsConfig()] limiting live sessions.
-#' @param resolver `NULL` or a [ResolverConfig()].
-#' @param sandbox `NULL`, a [SandboxPolicy()], or `FALSE` for host execution.
-#' @param languages `NULL` or a character vector selecting `"r"`, `"python"`,
-#'   and/or `"sql"` tool inputs. This does not select the installed runtimes.
-#' @param cache `NULL`, `"managed"`, `"host"`, or `list(directory = "path")`.
-#'   `"console"` is an alias for `"managed"`. A directory uses managed
-#'   caches under `<directory>/dependencies` for preparation and workers.
-#'   Relative paths use the project directory; a leading `~` uses Console's
-#'   launch-home convention. Managed caches require sandboxing.
-#' @param environment `NULL` or a named character vector of child environment
-#'   assignments. Empty string values are allowed; `character()` is an empty
-#'   mapping. Resolver assignments override worker assignments for preparation.
-#' @param inherit_environment `NULL`, `TRUE`, or `FALSE`; controls inheritance
-#'   of the trusted launch environment. Console retains its owned assignments.
-#' @param tool `NULL` or a [ToolConfig()] customizing descriptions and parameter
-#'   visibility.
-#' @return An S7 configuration object. The constructor is also its S7 class.
+#' @param ... A single unnamed list of configuration fields, instead of named
+#'   arguments. All other arguments must be supplied by their full names.
+#' @param r An R executable path, or a list with `executable`, `packages`,
+#'   `resolution`, and `vanilla`. Resolution is `"implicit"` (prepare packages
+#'   as needed), `"explicit"` (only on request), `"fixed"` (startup packages
+#'   only), or `"disabled"` (use installed packages). `vanilla = TRUE` skips
+#'   native R startup files.
+#' @param python An existing environment path, `list(existing = path)`, or
+#'   `list(managed = list(version = "3.13", packages = "pandas",
+#'   resolution = "fixed"))`. Managed Python supports `"implicit"`, `"explicit"`,
+#'   and `"fixed"`. `list(first_available = list(...))` tries existing paths,
+#'   `"active_venv"`, and an optional managed choice, last, in order.
+#' @param resolver A list with `environment`, `inherit_environment`, and
+#'   `sandbox`, controlling package preparation separately from executed code.
+#' @param sandbox A permission list with `profile`, `filesystem`, `network`,
+#'   and `tempdir`, or `FALSE` for host execution. Profiles are `"read_only"`
+#'   (the default), `"workspace"` (project writes with metadata protection),
+#'   and `"inherit_codex"` (client permissions). Filesystem entries are
+#'   `read_only`, `read_write`, and `deny` path vectors. Temporary storage is
+#'   `"managed"` (the default), `"read_write"`, or `"read_only"`.
+#' @param languages A character vector selecting `"r"`, `"python"`, and/or
+#'   `"sql"`. By default all three are visible to the model.
+#' @param cache `"managed"`, `"host"`, or `list(directory = "/path/to/cache")`
+#'   for package caches. Defaults to managed caches with sandboxing and host
+#'   caches with `sandbox = FALSE`.
+#' @param environment Named character vector or list of string environment
+#'   values shared by workers and package preparation.
+#' @param inherit_environment Whether child processes inherit the launch
+#'   environment, `TRUE` by default.
+#' @param tool A list with `description`, `instructions`, and `parameters`.
+#'   Each named parameter accepts `enabled`, `description`, and nested
+#'   `parameters`; for example, `list(parameters = list(timeout_ms =
+#'   list(enabled = FALSE)))` hides the timeout argument.
+#' @param startup A list with `language` (`"r"` or `"python"`) and `code` that
+#'   creates and selects a SQL connection before the first cell in each session.
+#' @param sessions A list with `max`, a positive whole number limiting concurrent
+#'   sessions. By default there is no limit.
+#' @return An S7 configuration object.
+#' @seealso [console_tools()] to launch with this configuration;
+#'   [load_console_config()] to read configuration files;
+#'   `vignette("configuration", package = "mcp.console")` for settings and examples.
 #' @examples
 #' ConsoleConfig()
-#' ConsoleConfig(sandbox = FALSE)
-#' ConsoleConfig(discovery = ConfigDiscovery(global = FALSE))
-#' config <- ConsoleConfig(
-#'   r = RConfig(packages = c("dplyr", "ggplot2"), resolution = "fixed"),
-#'   python = ManagedPython(version = "3.13", packages = "pandas"),
-#'   sandbox = SandboxPolicy(filesystem = SandboxFilesystem(read_write = "./output"))
-#' )
-#' as.list(config)
-#' @name ConsoleConfig
+#' ConsoleConfig(r = list(packages = c("dplyr", "ggplot2")))
+#' ConsoleConfig(sandbox = list(network = c("api.example.com", "*.example.org")))
+#' ConsoleConfig(list(
+#'   python = ".venv",
+#'   sandbox = list(filesystem = list(read_write = "./output"))
+#' ))
 #' @export
 ConsoleConfig <- S7::new_class(
   "ConsoleConfig",
   parent = ConfigNode,
   properties = list(
-    discovery = NULL | ConfigDiscovery,
-    r = NULL | RConfig,
-    python = NULL | PythonConfig,
-    resolver = NULL | ResolverConfig,
-    sandbox = S7::new_property(
+    r = config_property(NULL | RConfig),
+    python = config_property(NULL | PythonConfig),
+    resolver = config_property(NULL | ResolverConfig),
+    sandbox = config_property(
       NULL | S7::class_logical | SandboxPolicy,
       validator = function(value) {
         if (is.logical(value) && !identical(value, FALSE)) {
-          "must be NULL, FALSE, or a SandboxPolicy()"
+          "must be NULL, FALSE, or a sandbox mapping"
         }
       }
     ),
@@ -498,10 +332,60 @@ ConsoleConfig <- S7::new_class(
     ),
     environment = config_environment(),
     inherit_environment = config_flag(),
-    tool = NULL | ToolConfig,
-    startup = NULL | StartupConfig,
-    sessions = NULL | SessionsConfig
+    tool = config_property(NULL | ToolConfig),
+    startup = config_property(NULL | StartupConfig),
+    sessions = config_property(NULL | SessionsConfig)
   ),
+  constructor = function(
+    ...,
+    r = NULL,
+    python = NULL,
+    resolver = NULL,
+    sandbox = NULL,
+    languages = NULL,
+    cache = NULL,
+    environment = NULL,
+    inherit_environment = NULL,
+    tool = NULL,
+    startup = NULL,
+    sessions = NULL
+  ) {
+    fields <- list(
+      r = r,
+      python = python,
+      resolver = resolver,
+      sandbox = sandbox,
+      languages = languages,
+      cache = cache,
+      environment = environment,
+      inherit_environment = inherit_environment,
+      tool = tool,
+      startup = startup,
+      sessions = sessions
+    )
+    if (...length()) {
+      if (any(names(fields) %in% names(match.call()))) {
+        stop(
+          "Supply a single mapping or named fields, not both.",
+          call. = FALSE
+        )
+      }
+      fields <- config_constructor_fields(list(...))
+    }
+    # as.list() uses an unboxed missing string for an explicit JSON null.
+    # Ordinary NULL fields remain omissions in pure construction.
+    r_reset <- is.list(fields[["r"]]) &&
+      identical(fields[["r"]][["executable"]], jsonlite::unbox(NA_character_))
+    if (r_reset) {
+      fields[["r"]][["executable"]] <- NULL
+    }
+    fields <- config_node_fields(ConsoleConfig, fields)
+    config <- S7::new_object(S7::S7_object(), fields)
+    if (r_reset) {
+      attr(config, "r_executable_reset") <- TRUE
+    }
+    config
+  },
   validator = function(self) {
     if (
       identical(self@sandbox, FALSE) &&
@@ -537,51 +421,77 @@ S7::method(print, ConsoleConfig) <- function(x, ...) {
 S7::method(as.list, ConsoleConfig) <- function(x, ...) {
   S7::validate(x)
   fields <- S7::props(x)
-  fields$discovery <- NULL
   if (identical(x@sandbox, FALSE)) {
     fields$sandbox <- NULL
   }
-  config_mapping(fields)
+  fields <- config_mapping(fields)
+  if (
+    isTRUE(attr(x, "r_executable_reset")) &&
+      is.null(fields[["r"]][["executable"]])
+  ) {
+    # This remains JSON null with jsonlite's default null = "list" option.
+    fields[["r"]][["executable"]] <- jsonlite::unbox(NA_character_)
+  }
+  fields
 }
 
-console_cli_arguments <- function(config, file, files = character()) {
+console_cli_arguments <- function(
+  config,
+  directory,
+  files = character(),
+  required_files = character()
+) {
   settings <- S7::props(config)
-  discovery <- if (!is.null(settings$discovery)) S7::props(settings$discovery)
+  document <- as.list(config)
   resolver <- if (!is.null(settings$resolver)) S7::props(settings$resolver)
-  flags <- if (
-    is.null(discovery) || (!discovery$global && !discovery$project)
-  ) {
-    "--no-config"
-  } else {
-    c(
-      if (!discovery$global) "--no-global-config",
-      if (!discovery$project) "--no-project-config"
-    )
-  }
   disabled <- identical(settings$sandbox, FALSE)
-  # Clear permission nodes before replacing them: ordinary map overlays merge.
-  clears <- c(
-    if (disabled || !is.null(settings$sandbox)) "sandbox",
-    if (disabled || !is.null(resolver$sandbox)) "resolver.sandbox",
-    if (!is.null(settings$python)) "python"
-  )
-  values <- as.list(config)
-  overrides <- c(
-    vapply(clears, function(key) paste0(key, "=null"), character(1)),
-    unlist(Map(config_override, names(values), values), use.names = FALSE)
-  )
+  optional_files <- setdiff(files, required_files)
+  # A separate ordinary configuration layer clears complete inherited nodes
+  # before applying replacements. Launching a supplied config has no file layers.
+  if (length(files)) {
+    resets <- list()
+    if (disabled || !is.null(settings$sandbox)) {
+      resets["sandbox"] <- list(NULL)
+    }
+    if (disabled || !is.null(resolver$sandbox)) {
+      resets$resolver <- list(sandbox = NULL)
+    }
+    if (!is.null(settings$python)) {
+      resets["python"] <- list(NULL)
+    }
+    if (length(resets)) {
+      file <- file.path(directory, "replace.json")
+      writeLines(
+        as.character(jsonlite::toJSON(
+          resets,
+          auto_unbox = TRUE,
+          null = "null"
+        )),
+        file,
+        useBytes = TRUE
+      )
+      files <- c(files, file)
+    }
+  }
+  file <- file.path(directory, "config.json")
   writeLines(
     as.character(jsonlite::toJSON(
-      list(files = unname(as.list(files)), values = unname(as.list(overrides))),
-      auto_unbox = TRUE
+      document,
+      auto_unbox = TRUE,
+      null = "null"
     )),
     file,
     useBytes = TRUE
   )
+  # An explicit serialized reset must not inspect the calling R installation.
   c(
-    flags,
+    if (is.null(document[["r"]][["executable"]])) {
+      c("--default-config", config_override("r.executable", current_r()))
+    },
     if (disabled) "--no-sandbox",
-    "--config-overrides-file",
-    file
+    unlist(lapply(c(files, file), function(path) c("--config-file", path))),
+    unlist(lapply(optional_files, function(path) {
+      c("--optional-config-file", path)
+    }))
   )
 }

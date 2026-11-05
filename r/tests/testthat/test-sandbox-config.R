@@ -2,120 +2,25 @@ policy_json <- function(x) {
   as.character(jsonlite::toJSON(as.list(x), auto_unbox = TRUE))
 }
 
-test_that("client sandbox profiles preserve explicit fallback selection", {
-  expect_identical(
-    as.list(SandboxPolicy(profile = "inherit_codex")),
-    list(profile = "inherit_codex")
-  )
-  profile <- InheritCodexSandboxProfile(fallback = "workspace")
-  expect_identical(
-    as.list(SandboxPolicy(profile = profile)),
-    list(profile = list(inherit_codex = list(fallback = "workspace")))
-  )
-  expect_identical(
-    policy_json(SandboxPolicy(profile = InheritCodexSandboxProfile())),
-    '{"profile":{"inherit_codex":{}}}'
-  )
-  expect_identical(
-    as.list(SandboxPolicy(profile = "read_only")),
-    list(profile = "read_only")
-  )
-  expect_identical(
-    as.list(SandboxPolicy(
-      profile = InheritCodexSandboxProfile(fallback = "read_only")
-    )),
-    list(profile = list(inherit_codex = list(fallback = "read_only")))
-  )
-  expect_null(SandboxPolicy()@profile)
-  for (fallback in list(
-    "inherit_codex",
-    "codex",
-    "future",
-    c("workspace", "workspace"),
-    NA_character_,
-    TRUE
-  )) {
-    expect_error(InheritCodexSandboxProfile(fallback = fallback), "fallback")
-  }
-  expect_error(SandboxPolicy(profile = "codex"), "profile")
-  expect_error(SandboxPolicy(inherit_from_codex = TRUE), "unused argument")
-})
-
-test_that("workspace and tempdir selectors preserve their public wire shape", {
-  policy <- SandboxPolicy(profile = "workspace", tempdir = "read_write")
-  expect_identical(
-    as.list(policy),
-    list(profile = "workspace", tempdir = "read_write")
-  )
-  expect_error(SandboxPolicy(tempdir = TRUE), "tempdir")
-  expect_error(SandboxPolicy(tempdir = "unmanaged"), "tempdir")
-  expect_error(SandboxPolicy(profile = ":workspace"), "profile")
-  expect_error(SandboxPolicy(profile = "workspace_write"), "profile")
-})
-
-test_that("omitted mappings and explicit empties stay distinct", {
-  expect_identical(policy_json(SandboxPolicy()), "{}")
-  expect_identical(
-    policy_json(SandboxPolicy(filesystem = SandboxFilesystem())),
-    '{"filesystem":{}}'
-  )
-  expect_identical(
-    policy_json(SandboxPolicy(
-      filesystem = SandboxFilesystem(read_write = character())
-    )),
-    '{"filesystem":{"read_write":[]}}'
-  )
-  expect_identical(
-    policy_json(SandboxPolicy(network = SandboxNetwork())),
-    '{"network":{"proxy":{},"allow_local_binding":"auto"}}'
-  )
-  expect_identical(
-    policy_json(SandboxProxy(domains = SandboxDomains())),
-    '{"domains":{}}'
-  )
-  expect_identical(
-    policy_json(SandboxProxy(domains = SandboxDomains(allow = character()))),
-    '{"domains":{"allow":[]}}'
-  )
-})
-
-test_that("local binding accepts auto, null, and booleans without losing null overrides", {
-  for (value in list("auto", NULL, TRUE, FALSE)) {
-    network <- SandboxNetwork(allow_local_binding = value)
-    expected <- if (is.null(value)) "auto" else value
-    # R's omitted NULL properties normally disappear from overrides. Serialize
-    # this reset as auto so it replaces an earlier boolean during native merge.
-    expect_identical(as.list(network)$allow_local_binding, expected)
-  }
-  for (value in list("true", "false", "AUTO", "", 0, 1, NA, logical())) {
-    expect_error(
-      SandboxNetwork(allow_local_binding = value),
-      "allow_local_binding"
-    )
-  }
-})
-
-test_that("all public fields have the config.yaml wire shape", {
-  x <- SandboxPolicy(
-    filesystem = SandboxFilesystem(
+test_that("sandbox mappings use the same shape as config.yaml", {
+  fields <- list(
+    filesystem = list(
       read_only = c("./data", "./.claude"),
       read_write = ".",
       deny = "./secrets"
     ),
-    network = SandboxNetwork(
-      proxy = SandboxProxy(
+    network = list(
+      proxy = list(
         mode = "full",
-        domains = SandboxDomains(
-          allow = "*.example.org",
-          deny = "bad.example.org"
-        ),
+        domains = list(allow = "*.example.org", deny = "bad.example.org"),
         socks5 = "tcp",
         allow_upstream_proxy = FALSE
       ),
-      sockets = SandboxSockets(unix_sockets = "/tmp/a.sock"),
+      sockets = list(unix_sockets = "/tmp/a.sock"),
       allow_local_binding = FALSE
     )
   )
+  config <- ConsoleConfig(sandbox = fields)
   expected <- list(
     filesystem = list(
       read_only = list("./data", "./.claude"),
@@ -136,78 +41,262 @@ test_that("all public fields have the config.yaml wire shape", {
       allow_local_binding = FALSE
     )
   )
-  expect_identical(as.list(x), expected)
+  expect_identical(as.list(config)$sandbox, expected)
   expect_identical(
-    jsonlite::fromJSON(policy_json(x), simplifyVector = FALSE),
+    jsonlite::fromJSON(policy_json(config), simplifyVector = FALSE)$sandbox,
     expected
   )
-  expect_true(S7::S7_inherits(x, SandboxPolicy))
+  expect_error(
+    ConsoleConfig(
+      sandbox = list(network = list(allow = "api.example.org"))
+    ),
+    "sandbox.network.allow"
+  )
 })
 
-test_that("scalars, lists, and special socket selectors are not conflated", {
+test_that("network shorthands retain canonical modes and proxy domain rules", {
+  for (network in list(TRUE, "enabled", FALSE, "restricted")) {
+    expected <- if (isTRUE(network) || identical(network, "enabled")) {
+      "enabled"
+    } else {
+      "restricted"
+    }
+    config <- ConsoleConfig(sandbox = list(network = network))
+    expect_identical(config@sandbox@network, expected)
+    expect_identical(as.list(config)$sandbox$network, expected)
+    config@sandbox@network <- "api.example.org"
+    config@sandbox@network <- network
+    expect_identical(as.list(config)$sandbox$network, expected)
+  }
+  for (network in list(
+    "api.example.org",
+    c("api.example.org", "*.example.com"),
+    list("api.example.org", "*.example.com"),
+    character(),
+    list()
+  )) {
+    expected <- list(proxy = list(domains = list(allow = as.list(network))))
+    config <- ConsoleConfig(sandbox = list(network = network))
+    expect_identical(as.list(config)$sandbox$network, expected)
+    config@sandbox@network <- FALSE
+    config@sandbox@network <- network
+    expect_identical(as.list(config)$sandbox$network, expected)
+  }
+  for (network in list(NA, c(TRUE, FALSE))) {
+    expect_error(
+      ConsoleConfig(sandbox = list(network = network)),
+      "sandbox.network.*named mapping"
+    )
+  }
+  for (network in list(NA_character_, "")) {
+    expect_error(
+      ConsoleConfig(sandbox = list(network = network)),
+      "@allow must contain non-empty strings"
+    )
+  }
+  expect_error(
+    ConsoleConfig(sandbox = list(network = list(1))),
+    "sandbox.network.proxy.domains.allow.*contain strings"
+  )
+})
+
+test_that("omitted mappings and explicit empty arrays stay distinct", {
+  expect_identical(policy_json(ConsoleConfig()), "{}")
+  expect_identical(
+    policy_json(ConsoleConfig(sandbox = list(filesystem = list()))),
+    '{"sandbox":{"filesystem":{}}}'
+  )
+  expect_identical(
+    policy_json(ConsoleConfig(
+      sandbox = list(filesystem = list(read_write = character()))
+    )),
+    '{"sandbox":{"filesystem":{"read_write":[]}}}'
+  )
+  expect_identical(
+    policy_json(ConsoleConfig(sandbox = list(network = list()))),
+    '{"sandbox":{"network":{"proxy":{"domains":{"allow":[]}}}}}'
+  )
+  expect_identical(
+    policy_json(ConsoleConfig(
+      sandbox = list(network = structure(list(), names = character()))
+    )),
+    '{"sandbox":{"network":{}}}'
+  )
+  expect_identical(
+    policy_json(ConsoleConfig(
+      sandbox = list(
+        network = list(proxy = list(domains = list(deny = character())))
+      )
+    )),
+    '{"sandbox":{"network":{"proxy":{"domains":{"deny":[]}}}}}'
+  )
+  expect_identical(
+    policy_json(ConsoleConfig(
+      sandbox = list(network = list(proxy = list(domains = list())))
+    )),
+    '{"sandbox":{"network":{"proxy":{"domains":{}}}}}'
+  )
+})
+
+test_that("client profiles and temporary storage retain their YAML shape", {
+  for (profile in c("read_only", "workspace", "inherit_codex")) {
+    expect_identical(
+      as.list(ConsoleConfig(sandbox = list(profile = profile)))$sandbox,
+      list(profile = profile)
+    )
+  }
+  fields <- list(profile = list(inherit_codex = list(fallback = "workspace")))
+  expect_identical(as.list(ConsoleConfig(sandbox = fields))$sandbox, fields)
+  expect_identical(
+    policy_json(ConsoleConfig(
+      sandbox = list(profile = list(inherit_codex = list()))
+    )),
+    '{"sandbox":{"profile":{"inherit_codex":{}}}}'
+  )
+  expect_error(ConsoleConfig(sandbox = list(profile = "codex")), "profile")
+  expect_error(
+    ConsoleConfig(
+      sandbox = list(profile = list(inherit_codex = list(fallback = "future")))
+    ),
+    "fallback"
+  )
+  for (tempdir in c("managed", "read_write", "read_only")) {
+    expect_identical(
+      ConsoleConfig(sandbox = list(tempdir = tempdir))@sandbox@tempdir,
+      tempdir
+    )
+  }
+  expect_error(ConsoleConfig(sandbox = list(tempdir = TRUE)), "tempdir")
+})
+
+test_that("local binding preserves omission and explicit resets", {
+  expect_null(
+    ConsoleConfig(
+      sandbox = list(network = list())
+    )@sandbox@network@allow_local_binding
+  )
+  for (value in list("auto", NULL, TRUE, FALSE)) {
+    config <- ConsoleConfig(
+      sandbox = list(network = list(allow_local_binding = value))
+    )
+    expected <- if (is.null(value)) "auto" else value
+    expect_identical(
+      as.list(config)$sandbox$network$allow_local_binding,
+      expected
+    )
+  }
+  for (value in list("true", "false", "AUTO", "", 0, 1, NA, logical())) {
+    expect_error(
+      ConsoleConfig(
+        sandbox = list(network = list(allow_local_binding = value))
+      ),
+      "allow_local_binding"
+    )
+  }
+})
+
+test_that("network scalars, socket selectors, and literal paths stay distinct", {
   for (network in c("restricted", "enabled")) {
     expect_identical(
-      as.list(SandboxPolicy(network = network)),
+      as.list(ConsoleConfig(sandbox = list(network = network)))$sandbox,
       list(network = network)
     )
   }
-  expect_identical(
-    policy_json(SandboxSockets(unix_sockets = character())),
-    '{"unix_sockets":[]}'
-  )
-  expect_identical(
-    policy_json(SandboxSockets(unix_sockets = "dangerously_allow_all")),
-    '{"unix_sockets":"dangerously_allow_all"}'
-  )
+  for (sockets in list(character(), "dangerously_allow_all")) {
+    config <- ConsoleConfig(
+      sandbox = list(network = list(sockets = list(unix_sockets = sockets)))
+    )
+    expected <- if (length(sockets)) sockets else list()
+    expect_identical(
+      as.list(config)$sandbox$network$sockets$unix_sockets,
+      expected
+    )
+  }
   paths <- c(
     named = "./café 雪",
     "../not-created",
     "~/literal",
     "$HOME/literal"
   )
+  config <- ConsoleConfig(sandbox = list(filesystem = list(read_write = paths)))
   expect_identical(
-    as.list(SandboxFilesystem(read_write = paths))$read_write,
+    as.list(config)$sandbox$filesystem$read_write,
     unname(as.list(paths))
   )
 })
 
-test_that("S7 validates both construction and property updates", {
-  expect_error(SandboxFilesystem(read_write = NA_character_), "read_write")
-  expect_error(SandboxFilesystem(read_write = ""), "read_write")
-  expect_error(SandboxFilesystem(read_write = TRUE), "read_write")
-  expect_error(SandboxPolicy(filesystem = list()), "filesystem")
-  expect_error(SandboxPolicy(network = FALSE), "network")
-  expect_error(SandboxPolicy(network = character()), "network")
-  expect_error(SandboxPolicy(network = "enable"), "network")
-  expect_error(SandboxNetwork(proxy = NULL), "proxy")
+test_that("typed nodes validate construction and concise replacement edits", {
+  for (value in list(NA_character_, "", TRUE)) {
+    expect_error(
+      ConsoleConfig(sandbox = list(filesystem = list(read_write = value))),
+      "read_write"
+    )
+  }
   expect_error(
-    SandboxNetwork(allow_local_binding = c(TRUE, FALSE)),
-    "allow_local_binding"
+    ConsoleConfig(
+      sandbox = list(
+        network = list(proxy = list(mode = "limited", socks5 = "disabled"))
+      )
+    ),
+    "socks5"
   )
-  expect_error(SandboxProxy(mode = "limited", socks5 = "disabled"), "socks5")
-  expect_error(SandboxPolicy(unknown = TRUE), "unused argument")
-  x <- SandboxProxy(mode = "full", socks5 = "tcp")
-  expect_error(x@mode <- "limited", "socks5")
-  expect_error(x@socks5 <- "udp", "socks5")
+  config <- ConsoleConfig(
+    sandbox = list(network = "api.example.org")
+  )
+  config@sandbox@filesystem <- list(read_write = "./reports")
+  config@sandbox@network@proxy@mode <- "limited"
+  expect_identical(config@sandbox@filesystem@read_write, "./reports")
+  expect_identical(config@sandbox@network@proxy@mode, "limited")
+  expect_error(
+    config@sandbox@filesystem@read_write <- NA_character_,
+    "read_write"
+  )
+  expect_error(config@sandbox@network@proxy@socks5 <- "tcp", "socks5")
+  `append<-` <- function(x, value) c(x, value)
+  append(config@sandbox@network@proxy@domains@allow) <- "data.example.org"
+  expect_identical(
+    config@sandbox@network@proxy@domains@allow,
+    c("api.example.org", "data.example.org")
+  )
+  config@sandbox@network@proxy <- list(
+    mode = "full",
+    domains = list(allow = "replacement.example.org")
+  )
+  expect_identical(
+    config@sandbox@network@proxy@domains@allow,
+    "replacement.example.org"
+  )
+  config@sandbox@network@proxy@domains <- list(deny = "blocked.example.org")
+  expect_identical(
+    as.list(config)$sandbox$network$proxy$domains,
+    list(deny = list("blocked.example.org"))
+  )
 })
 
-test_that("exported class objects have value semantics and retain context defaults", {
-  x <- SandboxPolicy(network = "restricted")
-  y <- x
-  y@network <- "enabled"
-  expect_identical(x@network, "restricted")
-  expect_identical(y@network, "enabled")
-  # Exactly the same node can be embedded under resolver.sandbox by a caller.
-  json <- jsonlite::toJSON(
-    list(resolver = list(sandbox = as.list(SandboxPolicy()))),
-    auto_unbox = TRUE
+test_that("configurations retain value semantics and separate resolver policy", {
+  config <- ConsoleConfig(
+    sandbox = list(network = "restricted"),
+    resolver = list(sandbox = list())
   )
-  expect_identical(as.character(json), '{"resolver":{"sandbox":{}}}')
+  copy <- config
+  copy@sandbox@network <- "enabled"
+  expect_identical(config@sandbox@network, "restricted")
+  expect_identical(copy@sandbox@network, "enabled")
+  expect_identical(
+    as.list(config)$resolver,
+    list(sandbox = structure(list(), names = character()))
+  )
+  config@resolver@sandbox@network <- list("packages.example.org")
+  expect_identical(config@sandbox@network, "restricted")
+  expect_identical(
+    as.list(config)$resolver$sandbox$network,
+    list(proxy = list(domains = list(allow = list("packages.example.org"))))
+  )
 })
 
 test_that("invalid public launch options fail before executable resolution", {
   expect_error(
-    console_tool(config = list(), path = "missing"),
+    console_tools(config = list(), path = "missing"),
     "ConsoleConfig"
   )
 })

@@ -153,6 +153,69 @@ def test_environment_layers_defaults_overrides_and_writable_roots(
         return [{"stdout": result.stdout}]
 
 
+@requires(SANDBOX)
+def test_environment_network_shorthands_preserve_inherited_proxy(
+    binary: Path,
+) -> Transcript:
+    # fmt: python
+    script = code("""
+        import json
+        import os
+
+        print(
+            json.dumps(
+                {
+                    "managed_proxy": os.environ.get("CODEX_NETWORK_PROXY_ACTIVE") == "1",
+                    "local_binding": os.environ.get("CODEX_NETWORK_ALLOW_LOCAL_BINDING"),
+                }
+            )
+        )
+        """)
+    records = []
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary).resolve()
+        for network in (True, False, "api.example.com", ["api.example.com"], [], None):
+            environment = os.environ | {
+                "MCP_CONSOLE_HOME": str(root / "home"),
+                "TEST_CONFIG": json.dumps({"sandbox": {"network": network}}),
+            }
+            for key in (
+                "CODEX_NETWORK_PROXY_ACTIVE",
+                "CODEX_NETWORK_ALLOW_LOCAL_BINDING",
+            ):
+                environment.pop(key, None)
+            result = subprocess.run(
+                [
+                    binary,
+                    "sandbox",
+                    "--config-env",
+                    "TEST_CONFIG",
+                    "--default-config",
+                    "sandbox.network={proxy: {socks5: disabled, domains: {allow: [inherited.example.com]}}, allow_local_binding: true}",
+                    "-c",
+                    "sandbox.network=null",
+                    "--",
+                    sys.executable,
+                    "-c",
+                    script,
+                ],
+                cwd=root,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            assert result.returncode == 0 and result.stderr == "", result
+            expected = {
+                "managed_proxy": not isinstance(network, bool),
+                "local_binding": None if isinstance(network, bool) else "1",
+            }
+            assert json.loads(result.stdout) == expected, result
+            records.append({"network": network, **expected})
+    return records
+
+
 def test_environment_rejects_invalid_public_configuration(binary: Path) -> Transcript:
     records = []
     for case, payload, diagnostic in (

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Mapping, Sequence
 from concurrent.futures import Future
@@ -6,7 +8,7 @@ from threading import Condition, Event, Lock
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from ._client import AsyncMCPConsole, Requirements
-from ._common import Command, result_text
+from ._common import Command
 
 _CANCELLATION_ERROR = (
     "Request cancellation cleanup did not finish; "
@@ -19,6 +21,8 @@ _CANCELLATION_PENDING = (
 if TYPE_CHECKING:
     from anyio.from_thread import BlockingPortal
     from mcp.types import CallToolResult, Tool
+
+    from ._result import ConsoleResult
 
 
 class _Request:
@@ -33,6 +37,7 @@ class _Request:
         self,
         loop: asyncio.AbstractEventLoop,
         console: AsyncMCPConsole,
+        name: str,
         arguments: Mapping[str, Any],
         *,
         admission: Condition,
@@ -41,6 +46,7 @@ class _Request:
         self.finished = Event()
         self._loop = loop
         self._console = console
+        self._name = name
         self._arguments = arguments
         self._admission = admission
         self._task: asyncio.Task["CallToolResult"] | None = None
@@ -59,7 +65,7 @@ class _Request:
     async def _run(self) -> "CallToolResult":
         if self.future.cancelled():
             raise asyncio.CancelledError
-        return await self._console._call_send(self._arguments)
+        return await self._console.call_tool(self._name, self._arguments)
 
     def _finish(self, task: asyncio.Task["CallToolResult"]) -> None:
         with self._admission:
@@ -165,8 +171,8 @@ class MCPConsole:
         ```
 
         Create framework adapters inside this context, after discovery. See
-        [chatlas](chatlas.tool.html), [Anthropic](anthropic.tool.html),
-        [Responses](openai.responses_tool.html), or [Agents](openai.agents_tool.html).
+        [chatlas](chatlas.tools.html), [Anthropic](anthropic.callable_tools.html),
+        [Responses](openai.responses_tools.html), or [Agents](openai.agents_tools.html).
     """
 
     def __init__(
@@ -231,7 +237,12 @@ class MCPConsole:
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         self.close()
 
-    def _call_send(self, arguments: Mapping[str, Any]) -> "CallToolResult":
+    def call_tool(self, name: str, arguments: Mapping[str, Any]) -> "CallToolResult":
+        """Call a discovered tool by name and return its complete MCP result.
+
+        Arguments, content blocks, structured content, and `is_error` are
+        preserved. Cancellation follows the same rules as `send()`.
+        """
         request: _Request | None = None
         try:
             with self._admission:
@@ -246,7 +257,11 @@ class MCPConsole:
                             "or call `console.connect()` first"
                         )
                     request = _Request(
-                        self._loop, self._async, arguments, admission=self._admission
+                        self._loop,
+                        self._async,
+                        name,
+                        arguments,
+                        admission=self._admission,
                     )
                     request.start()
                     # Waiting releases admission for ordinary concurrent calls.
@@ -291,19 +306,24 @@ class MCPConsole:
         requirements: Requirements | None = None,
         stdin: str | None = None,
         timeout_ms: int | None = None,
-    ) -> str:
-        """Run or control a cell on this connection and return its text output.
+    ) -> ConsoleResult:
+        """Run or control a cell and return its complete `ConsoleResult`.
 
         The arguments and polling behavior match
         [AsyncMCPConsole.send()](AsyncMCPConsole.html#send). Send one language
-        per call. If output ends in `[running; poll with an empty send]`, collect
-        the remaining output with `console.send(session=...)` before submitting
+        per call. If `result.text` ends in `[running; poll with an empty send]`,
+        collect the remaining output with `console.send(session=...)` before submitting
         another cell to that session. Omit `session` on an empty call to poll all
         active sessions and list their statuses.
-        Images appear as MIME placeholders; MCP tool errors raise `RuntimeError`.
+        The result retains ordered text and images. `print(result)` renders image
+        placeholders; IPython notebook display renders the images. `send()` does
+        not display anything itself. MCP tool errors raise `ConsoleError`, a
+        `RuntimeError` subclass retaining the complete response as `error.result`.
         `console(...)` is an alias for `send(...)`.
         If tool configuration hides `timeout_ms`, poll without that argument.
         """
+        from ._result import ConsoleError, ConsoleResult
+
         arguments = {
             "r": r,
             "python": python,
@@ -315,20 +335,29 @@ class MCPConsole:
             "stdin": stdin,
             "timeout_ms": timeout_ms,
         }
-        return result_text(
-            self._call_send(
-                {name: value for name, value in arguments.items() if value is not None}
-            )
+        raw = self.call_tool(
+            "send",
+            {name: value for name, value in arguments.items() if value is not None},
         )
+        # The SDK has already validated these fields; retain its native objects.
+        result = ConsoleResult.model_construct(
+            _fields_set=raw.model_fields_set.copy(), **dict(raw)
+        )
+        if result.is_error:
+            raise ConsoleError(result)
+        return result
 
     __call__ = send
 
     @property
-    def send_tool(self) -> "Tool":
-        """The connected server's MCP tool definition, used by SDK adapters.
+    def tools(self) -> "list[Tool]":
+        """All MCP tool definitions discovered when this connection opened.
 
-        Available after connecting. Its input schema reflects the server's
-        configured capabilities. Use a framework adapter to register this
-        schema; recreate adapters after reconnecting.
+        Discovery includes every page and does not require a `send` tool.
+        Recreate adapters after reconnecting to pick up changed definitions.
         """
-        return self._async.send_tool
+        return self._async.tools
+
+    def get_tool(self, name: str) -> "Tool":
+        """Return a discovered definition, or raise if the name is absent."""
+        return self._async.get_tool(name)

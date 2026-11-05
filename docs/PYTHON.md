@@ -29,26 +29,95 @@ Use [AsyncMCPConsole](https://posit-dev.github.io/mcp-console/python/reference/a
 Enter and close an async connection in the same task.
 The [API reference](https://posit-dev.github.io/mcp-console/python/reference/) documents launch commands, working directories, environment options, and exact signatures.
 
+## Read and display results
+
+`console.send(...)` and its shorthand `console(...)` return a [ConsoleResult](https://posit-dev.github.io/mcp-console/python/reference/consoleresult/).
+The asynchronous client returns the same type after `await`.
+`ConsoleResult` extends the MCP SDK's `CallToolResult`, inheriting its fields and serialization methods.
+It retains the complete MCP response, including images and structured content, and adds text/image views and notebook display:
+
+| Property                    | Contents                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| `result.content`            | MCP content blocks in their original text/image order.                                         |
+| `result.text`               | Text blocks concatenated in their original order, without image placeholders.                  |
+| `result.images`             | The image blocks from `content`, with their original MIME types and base64-encoded image data. |
+| `result.structured_content` | Structured data returned by the tool, when present.                                            |
+| `result.is_error`           | The MCP tool-error flag.                                                                       |
+| `result.meta`               | Metadata attached to the MCP result, when present.                                             |
+
+The result can be passed directly to code accepting `CallToolResult`.
+Use the SDK's `result.model_dump()` or `result.model_dump_json()` methods to serialize it.
+
+`print(result)` produces readable text with MIME placeholders such as `[image/png output]` where images occurred.
+For requirements inspection, `print(result)` retains the formatted JSON representation; use `result.structured_content` to read the complete declaration directly.
+Use `content` when interleaving matters: separate text and image views do not retain each image's position among the text blocks.
+
+In an IPython notebook, display the result to render text and images in order:
+
+```python
+from IPython.display import display
+from mcp_console import MCPConsole
+
+with MCPConsole() as console:
+    result = console(r="plot(1:3)")
+    display(result)
+```
+
+Leaving `result` as the last expression in a notebook cell also displays it.
+Assigning a result does not display it.
+IPython is needed only for notebook display; ordinary client calls and `print(result)` do not require it.
+
+MCP tool errors raise [ConsoleError](https://posit-dev.github.io/mcp-console/python/reference/consoleerror/), a `RuntimeError` subclass whose `result` attribute retains the full `ConsoleResult`.
+For example, if a worker exits after producing a plot, the exception retains the image and the failure text.
+Language errors reported as ordinary Console output remain in the returned result.
+The lower-level `console.call_tool(name, arguments)` continues to return a plain `CallToolResult`, including its error flag.
+
+This changes the return type of `send()` from a string to `ConsoleResult`.
+Existing `print(console.send(...))` calls still work.
+Use `.text` for string operations, such as `result.text.endswith("[running; poll with an empty send]")`, and for collecting text chunks while polling.
+Replace `json.loads(console.send(requirements={"action": "get"}))` with `console.send(requirements={"action": "get"}).structured_content`.
+If you used the earlier wrapper's `result.raw`, use `result` itself instead.
+Construct results with the SDK's keyword fields, such as `ConsoleResult(content=[])`, instead of passing a `CallToolResult` positionally.
+
 ## Choose a model integration
 
 Install the extra for your framework.
-Each reference page provides a complete example, including setup and cleanup.
+The API reference includes examples with setup and cleanup.
 
-| Framework                    | Extra           | Existing Console connection                                                                       | Framework-managed connection                                                                                                            |
-| ---------------------------- | --------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| chatlas                      | `chatlas`       | [tool](https://posit-dev.github.io/mcp-console/python/reference/chatlas.tool/)                    | [register](https://posit-dev.github.io/mcp-console/python/reference/chatlas.register/)                                                  |
-| `openai` — Responses API     | `openai`        | [responses_tool](https://posit-dev.github.io/mcp-console/python/reference/openai.responses_tool/) | Application-owned loop.                                                                                                                 |
-| `openai-agents` — Agents SDK | `openai-agents` | [agents_tool](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_tool/)       | [agents_server](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_server/)                                         |
-| `openai-codex` — Codex SDK   | `codex`         | —                                                                                                 | [server](https://posit-dev.github.io/mcp-console/python/reference/codex.server/) supplies configuration; it does not open a connection. |
-| Anthropic                    | `anthropic`     | [tool](https://posit-dev.github.io/mcp-console/python/reference/anthropic.tool/)                  | [tools](https://posit-dev.github.io/mcp-console/python/reference/anthropic.tools/)                                                      |
+| Framework                    | Extra           | Existing Console connection                                                                          | Framework-managed connection                                                                                                            |
+| ---------------------------- | --------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| chatlas                      | `chatlas`       | [tools](https://posit-dev.github.io/mcp-console/python/reference/chatlas.tools/)                     | [register](https://posit-dev.github.io/mcp-console/python/reference/chatlas.register/)                                                  |
+| `openai` — Responses API     | `openai`        | [responses_tools](https://posit-dev.github.io/mcp-console/python/reference/openai.responses_tools/)  | Application-owned loop.                                                                                                                 |
+| `openai-agents` — Agents SDK | `openai-agents` | [agents_tools](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_tools/)        | [agents_server](https://posit-dev.github.io/mcp-console/python/reference/openai.agents_server/)                                         |
+| `openai-codex` — Codex SDK   | `codex`         | —                                                                                                    | [server](https://posit-dev.github.io/mcp-console/python/reference/codex.server/) supplies configuration; it does not open a connection. |
+| Anthropic                    | `anthropic`     | [callable_tools](https://posit-dev.github.io/mcp-console/python/reference/anthropic.callable_tools/) | [tools](https://posit-dev.github.io/mcp-console/python/reference/anthropic.tools/)                                                      |
 
 Your application still owns its model client, chat or agent, and any function-calling loop.
-Creating a Console tool does not choose a model.
+Registering Console tools does not choose a model.
 
-Use the supplied adapters so the model receives the connected server's actual schema.
+The callable adapters preserve images in successful results using each framework's native content types, with Console's original image bytes, MIME types, and text/image order.
+Text-only results remain strings.
+MCP tool errors raise: Anthropic preserves image error content in its `ToolError`, while the other callable adapters raise text exceptions.
+For OpenAI Agents, use `agents_server()` to retain image content in MCP error results.
+
+Use the plural adapters so the model receives every discovered tool and its actual schema, including tools added or renamed by future servers.
 Inferring a schema from `console.send` annotations loses configured fields.
 Recreate adapters after reconnecting.
-For chatlas, use `set_tools()` on a new chat to retain the adapter's explicit schema.
+For chatlas, use `chat.set_tools(mcp_console.chatlas.tools(console))` on a new chat.
+For a Responses loop, route function calls by name:
+
+```python
+tools = mcp_console.openai.responses_tools(console)
+definitions = [tool.definition for tool in tools]
+by_name = {tool.definition["name"]: tool for tool in tools}
+# Pass definitions to responses.create(tools=definitions).
+# For each returned function call: by_name[call.name](call).
+```
+
+The clients expose all definitions through `console.tools` and preserve complete MCP results through `console.call_tool(name, arguments)`.
+Discovery follows pagination and does not require a tool named `send`.
+Use `console.get_tool(name)` to inspect a particular definition, or `send()` to call the server's `send` tool directly.
+Tool definitions are captured when the connection opens.
 
 ## Work with the session
 

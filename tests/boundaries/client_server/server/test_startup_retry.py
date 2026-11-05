@@ -500,11 +500,15 @@ def test_named_code_retries_missing_selected_python(
                 control="restart",
             )
             client.expect("\n[stopped]", session="beta")
-            assert client.send(timeout_ms=0)["structuredContent"] == {
-                "sessions": [
-                    {"session": "alpha", "status": "idle"},
-                    {"session": "default", "status": "idle"},
-                ]
+            assert client.send(timeout_ms=0) == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": '[session: "alpha"; status: idle]\n\n[idle]\n'
+                        '[session: "default"; status: idle]\n\n[idle]',
+                    }
+                ],
+                "isError": False,
             }
             return json.loads(
                 json.dumps(client.finish()).replace(str(root), "<workspace>")

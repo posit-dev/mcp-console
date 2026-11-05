@@ -1,4 +1,4 @@
-//! Public configuration sources and command-line layering with runtime shorthands.
+//! Public configuration sources and command-line layering with shared shorthands.
 
 use std::path::{Path, PathBuf};
 
@@ -17,13 +17,13 @@ pub struct Loaded {
 /// Assignments within each CLI layer retain their argument order.
 /// Absence is distinct from an explicitly supplied empty configuration.
 /// Relative source paths use the captured launch directory.
-/// Explicitly selected files are required; discovered files may be absent.
+/// Explicitly selected files in `required` must exist; other files may be absent.
 pub fn load(
     directory: &Path,
     paths: &[PathBuf],
     defaults: &[String],
     overrides: &[String],
-    required: bool,
+    required: &[PathBuf],
 ) -> Result<Loaded, String> {
     let mut value = None;
     apply_values(&mut value, defaults, "default")?;
@@ -36,7 +36,7 @@ pub fn load(
         let absolute = directory.join(expanded);
         match std::fs::symlink_metadata(&absolute) {
             Err(error)
-                if !required
+                if !required.contains(path)
                     && matches!(
                         error.kind(),
                         std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
@@ -65,7 +65,7 @@ pub fn load(
                     .map_err(|error| format!("cannot read '{}': {error}", path.display()))?;
                 let mut overlay =
                     yaml::load(&source).map_err(|error| format!("{}: {error}", path.display()))?;
-                expand_runtime_shorthands(&mut overlay);
+                normalize_layer(&mut overlay);
                 merge(
                     value.get_or_insert_with(|| Value::Object(Map::new())),
                     overlay,
@@ -96,7 +96,7 @@ fn apply_values(value: &mut Option<Value>, arguments: &[String], kind: &str) -> 
         for key in keys.into_iter().rev() {
             overlay = Value::Object(Map::from_iter([(key.to_string(), overlay)]));
         }
-        expand_runtime_shorthands(&mut overlay);
+        normalize_layer(&mut overlay);
         merge(
             value.get_or_insert_with(|| Value::Object(Map::new())),
             overlay,
@@ -116,7 +116,7 @@ pub fn load_environment(
         .map_err(|error| format!("cannot read configuration environment '{name}': {error}"))?;
     let mut overlay = yaml::load(&source)
         .map_err(|error| format!("configuration environment '{name}': {error}"))?;
-    expand_runtime_shorthands(&mut overlay);
+    normalize_layer(&mut overlay);
     let mut value = None;
     apply_values(&mut value, defaults, "default")?;
     merge(
@@ -127,9 +127,9 @@ pub fn load_environment(
     Ok(value.expect("selected configuration document"))
 }
 
-// Normalize equivalent runtime forms before merging each input layer. Keep the
-// existing managed representation for typed capture and configuration exports.
-fn expand_runtime_shorthands(value: &mut Value) {
+// Normalize equivalent forms before merging each input layer. Keep canonical
+// mappings for typed capture and exports, so shorthands retain ordinary merging.
+fn normalize_layer(value: &mut Value) {
     if let Some(r) = value.get_mut("r")
         && r.is_string()
     {
@@ -146,6 +146,32 @@ fn expand_runtime_shorthands(value: &mut Value) {
             .find(|key| mapping.contains_key(*key));
         if selector.is_none() && (field.is_some() || mapping.is_empty()) {
             *python = serde_json::json!({"managed": python.take()});
+        }
+    }
+    for path in ["/sandbox", "/resolver/sandbox"] {
+        let Some(policy) = value.pointer_mut(path).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        match policy.get_mut("network") {
+            // Network null is omission in this layer, including when an earlier
+            // layer selected a policy. Keep its containing permission node.
+            Some(Value::Null) => {
+                policy.remove("network");
+            }
+            Some(network) => match network {
+                Value::Bool(enabled) => {
+                    *network = if *enabled { "enabled" } else { "restricted" }.into();
+                }
+                Value::String(mode) if !matches!(mode.as_str(), "enabled" | "restricted") => {
+                    *network =
+                        serde_json::json!({"proxy": {"domains": {"allow": [network.take()]}}});
+                }
+                Value::Array(_) => {
+                    *network = serde_json::json!({"proxy": {"domains": {"allow": network.take()}}});
+                }
+                _ => {}
+            },
+            None => {}
         }
     }
 }
@@ -173,11 +199,11 @@ mod tests {
     fn absent_and_empty_sources_remain_distinct() {
         let directory = tempfile::tempdir().unwrap();
         let paths = [PathBuf::from("global.yaml"), PathBuf::from("project.yaml")];
-        let absent = load(directory.path(), &paths, &[], &[], false).unwrap();
+        let absent = load(directory.path(), &paths, &[], &[], &[]).unwrap();
         assert_eq!(absent.value, None);
         assert!(absent.paths.is_empty());
         std::fs::write(directory.path().join(&paths[0]), "{}").unwrap();
-        let empty = load(directory.path(), &paths, &[], &[], false).unwrap();
+        let empty = load(directory.path(), &paths, &[], &[], &[]).unwrap();
         assert_eq!(empty.value, Some(json!({})));
         assert_eq!(empty.paths, paths[..1]);
     }
@@ -204,7 +230,7 @@ reset: null
 "#,
         )
         .unwrap();
-        let layered = load(directory.path(), &paths, &[], &[], false).unwrap();
+        let layered = load(directory.path(), &paths, &[], &[], &[]).unwrap();
         assert_eq!(layered.paths, paths);
         assert_eq!(
             layered.value,
@@ -220,14 +246,14 @@ reset: null
             "environment.CHANGE=last",
         ]
         .map(String::from);
-        let overridden = load(directory.path(), &paths, &[], &arguments, false).unwrap();
+        let overridden = load(directory.path(), &paths, &[], &arguments, &[]).unwrap();
         let mut expected = layered.value.unwrap();
         expected["environment"]["CHANGE"] = json!("last");
         expected["reset"] = json!({"new": true});
         assert_eq!(overridden.value, Some(expected));
         std::fs::write(directory.path().join(&paths[1]), "{}").unwrap();
-        let empty_project = load(directory.path(), &paths, &[], &[], false).unwrap();
-        let global_only = load(directory.path(), &paths[..1], &[], &[], false).unwrap();
+        let empty_project = load(directory.path(), &paths, &[], &[], &[]).unwrap();
+        let global_only = load(directory.path(), &paths[..1], &[], &[], &[]).unwrap();
         assert_eq!(empty_project.value, global_only.value);
     }
 
@@ -238,7 +264,7 @@ reset: null
         std::fs::write(directory.path().join(&paths[1]), "{}").unwrap();
         for source in ["sandbox: [", "[]", "null", "---\n{}\n---\n{}", ""] {
             std::fs::write(directory.path().join(&paths[0]), source).unwrap();
-            let error = load(directory.path(), &paths, &[], &["sandbox={}".into()], false)
+            let error = load(directory.path(), &paths, &[], &["sandbox={}".into()], &[])
                 .err()
                 .unwrap();
             assert!(error.contains("global.yaml"), "{error}");
@@ -251,16 +277,10 @@ reset: null
         let path = PathBuf::from("config.yaml");
         std::fs::create_dir(directory.path().join(&path)).unwrap();
         assert!(
-            load(
-                directory.path(),
-                std::slice::from_ref(&path),
-                &[],
-                &[],
-                false
-            )
-            .err()
-            .unwrap()
-            .contains("must be a regular file")
+            load(directory.path(), std::slice::from_ref(&path), &[], &[], &[])
+                .err()
+                .unwrap()
+                .contains("must be a regular file")
         );
         std::fs::remove_dir(directory.path().join(&path)).unwrap();
         std::fs::write(directory.path().join(&path), "{}").unwrap();
@@ -269,7 +289,7 @@ reset: null
             &[directory.path().join(&path), path],
             &[],
             &[],
-            false,
+            &[],
         )
         .unwrap();
         assert_eq!(loaded.paths.len(), 1);
@@ -290,12 +310,12 @@ reset: null
             &[global.clone(), project.clone()],
             &[],
             &[],
-            false,
+            &[],
         )
         .unwrap();
         assert_eq!(loaded.paths.as_slice(), std::slice::from_ref(&global));
         std::fs::remove_file(&target).unwrap();
-        let error = load(directory.path(), &[project], &[], &[], false)
+        let error = load(directory.path(), &[project], &[], &[], &[])
             .err()
             .unwrap();
         assert!(
@@ -305,7 +325,7 @@ reset: null
         let target_c = std::ffi::CString::new(target.as_os_str().as_encoded_bytes()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(target_c.as_ptr(), 0o600) }, 0);
         for path in [global, PathBuf::from("/dev/null")] {
-            let error = load(directory.path(), &[path], &[], &[], false)
+            let error = load(directory.path(), &[path], &[], &[], &[])
                 .err()
                 .unwrap();
             assert!(error.contains("must be a regular file"), "{error}");

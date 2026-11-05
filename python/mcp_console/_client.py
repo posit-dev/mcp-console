@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any, Literal, Self, TypedDict
 
-from ._common import Command, result_text, stdio_command
+from ._common import Command, stdio_command
 
 if TYPE_CHECKING:
     from mcp import Client
     from mcp.types import CallToolResult, Tool
+
+    from ._result import ConsoleResult
 
 
 class Requirements(TypedDict, total=False):
@@ -18,8 +22,9 @@ class Requirements(TypedDict, total=False):
     also discards its variables. Python packages run in Console's worker
     environment; installing a framework extra prepares the calling application.
 
-    Inspection normally returns JSON text, but can return a startup notice
-    before the runtime is ready; check the response before parsing it.
+    Inspection normally returns declarations in `result.structured_content`, but
+    can return a startup notice before the runtime is ready. Check that field
+    before reading it; notices are available in `result.text`.
     See the [send reference](../../API.html#requirements) for accepted package
     syntax, preparation policies, and complete replacement rules.
 
@@ -101,8 +106,8 @@ class AsyncMCPConsole:
         ```
 
         Framework adapters are created inside this context, after discovery.
-        See [Anthropic](anthropic.tool.html), [chatlas](chatlas.tool.html),
-        [Responses](openai.responses_tool.html), or [Agents](openai.agents_tool.html).
+        See [Anthropic](anthropic.callable_tools.html), [chatlas](chatlas.tools.html),
+        [Responses](openai.responses_tools.html), or [Agents](openai.agents_tools.html).
     """
 
     def __init__(
@@ -117,7 +122,7 @@ class AsyncMCPConsole:
         self._server_parameters = dict(server_parameters or {})
         self._stack: AsyncExitStack | None = None
         self._client: Client | None = None
-        self._send_tool: Tool | None = None
+        self._tools: list[Tool] | None = None
 
     async def connect(self) -> "Self":
         """Start MCP Console and initialize its MCP client session."""
@@ -134,21 +139,23 @@ class AsyncMCPConsole:
             client = await stack.enter_async_context(
                 Client(StdioServerParameters(**parameters), mode="legacy")
             )
-            tools = await client.list_tools()
-            send_tool = next(
-                (tool for tool in tools.tools if tool.name == "send"), None
-            )
-            if send_tool is None:
-                raise RuntimeError("MCP Console did not expose its send tool")
+            tools = []
+            cursor = None
+            while True:
+                page = await client.list_tools(cursor=cursor)
+                tools.extend(page.tools)
+                cursor = page.next_cursor
+                if cursor is None:
+                    break
             self._stack = stack.pop_all()
             self._client = client
-            self._send_tool = send_tool
+            self._tools = tools
         return self
 
     async def close(self) -> None:
         """Close the MCP client session and terminate its subprocess."""
         stack = self._stack
-        self._stack = self._client = self._send_tool = None
+        self._stack = self._client = self._tools = None
         if stack is not None:
             await stack.aclose()
 
@@ -158,13 +165,21 @@ class AsyncMCPConsole:
     async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> None:
         await self.close()
 
-    async def _call_send(self, arguments: Mapping[str, Any]) -> "CallToolResult":
+    async def call_tool(
+        self, name: str, arguments: Mapping[str, Any]
+    ) -> "CallToolResult":
+        """Call a discovered tool by name and return its complete MCP result.
+
+        Arguments are forwarded unchanged, including explicit null values.
+        The result preserves content blocks, structured content, and `is_error`.
+        This method does not require a tool named `send`.
+        """
         if self._client is None:
             raise RuntimeError(
                 "AsyncMCPConsole is not connected; use `async with AsyncMCPConsole() as console` "
                 "or call `await console.connect()` first"
             )
-        return await self._client.call_tool("send", dict(arguments))
+        return await self._client.call_tool(name, dict(arguments))
 
     async def send(
         self,
@@ -178,11 +193,11 @@ class AsyncMCPConsole:
         requirements: Requirements | None = None,
         stdin: str | None = None,
         timeout_ms: int | None = None,
-    ) -> str:
+    ) -> ConsoleResult:
         """Run or control the persistent R, Python, and SQL console.
 
         Send at most one of r, python, or sql per call.
-        If output ends in ``[running; poll with an empty send]``, call again
+        If `result.text` ends in ``[running; poll with an empty send]``, call again
         with the same `session` and without code or stdin until completion
         before submitting another cell to that session. Different sessions
         can run concurrently. An empty call without `session` polls all active
@@ -203,17 +218,24 @@ class AsyncMCPConsole:
             control: Interrupt the active operation or restart the runtime.
             requirements: Declaration keyed by r, python, or duckdb, with optional
                 python_version and exclude_newer constraints. action defaults to
-                add; get normally returns inspection JSON, but can return a
-                startup notice before the runtime is ready; set replaces omitted
-                fields with empty values; reset restores startup defaults.
+                add; get normally returns inspection data in `structured_content`,
+                but can return a startup notice before the runtime is ready; set
+                replaces omitted fields with empty values; reset restores startup defaults.
                 Changed replacements of a live worker require control="restart".
             stdin: Exact input for an active prompt or debugger.
             timeout_ms: Maximum observation wait; timeout does not cancel work.
                 Omission or None uses the server default of 60,000 ms.
 
         Returns:
-            Collected text output and lifecycle notices. Images appear as MIME
-            placeholders. MCP tool errors raise `RuntimeError`.
+            A `ConsoleResult` retaining the complete MCP response. Its `text`
+            property contains text output and lifecycle notices; `images` holds
+            native image blocks, and `content` preserves their order. Printing
+            the result renders image placeholders; notebook display renders
+            the images. Calling `send()` itself does not display anything.
+
+        Raises:
+            ConsoleError: An MCP tool error, with the complete response available
+                as `error.result`. This is a `RuntimeError` subclass.
 
         Examples:
             A short observation window may return before the cell finishes.
@@ -232,7 +254,7 @@ class AsyncMCPConsole:
                         timeout_ms=0,
                     )
                     print(output, end="")
-                    while output.endswith("[running; poll with an empty send]"):
+                    while output.text.endswith("[running; poll with an empty send]"):
                         output = await console.send(session="default")
                         print(output, end="")
 
@@ -240,6 +262,8 @@ class AsyncMCPConsole:
             asyncio.run(main())
             ```
         """
+        from ._result import ConsoleError, ConsoleResult
+
         arguments = {
             "r": r,
             "python": python,
@@ -251,26 +275,38 @@ class AsyncMCPConsole:
             "stdin": stdin,
             "timeout_ms": timeout_ms,
         }
-        return result_text(
-            await self._call_send(
-                {name: value for name, value in arguments.items() if value is not None}
-            )
+        raw = await self.call_tool(
+            "send",
+            {name: value for name, value in arguments.items() if value is not None},
         )
+        # The SDK has already validated these fields; retain its native objects.
+        result = ConsoleResult.model_construct(
+            _fields_set=raw.model_fields_set.copy(), **dict(raw)
+        )
+        if result.is_error:
+            raise ConsoleError(result)
+        return result
 
     # Ordinary Python shorthand; SDK registration uses the product adapters.
     __call__ = send
 
     @property
-    def send_tool(self) -> "Tool":
-        """The connected server's MCP tool definition, used by SDK adapters.
+    def tools(self) -> "list[Tool]":
+        """All MCP tool definitions discovered when this connection opened.
 
-        Available after connecting. Its input schema reflects the server's
-        configured capabilities. Use a framework adapter to register this
-        schema; automatic inference from `send()` annotations loses that detail.
-        Recreate adapters after reconnecting.
+        Discovery includes every page and does not require a `send` tool.
+        Use plural framework adapters to register every discovered schema.
+        Recreate adapters after reconnecting to pick up changed definitions.
         """
-        if self._send_tool is None:
+        if self._tools is None:
             raise RuntimeError(
                 "Connect the console before creating tools; enter its context or call connect()"
             )
-        return self._send_tool
+        return list(self._tools)
+
+    def get_tool(self, name: str) -> "Tool":
+        """Return a discovered definition, or raise if the name is absent."""
+        for tool in self.tools:
+            if tool.name == name:
+                return tool
+        raise RuntimeError(f"MCP Console did not expose a tool named {name!r}")

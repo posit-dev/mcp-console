@@ -1,0 +1,7 @@
+---
+environment:
+  GLOBAL: present
+  ORDER: project
+  OVERRIDE: present
+  PROJECT: present
+missing_default_skipped: true

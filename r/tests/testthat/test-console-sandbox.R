@@ -1,23 +1,21 @@
-test_that("console_tool transmits the same application policy object", {
+test_that("console_tools transmit the same application policy object", {
   with_console_config_probe(function(path, record) {
-    policy <- SandboxPolicy(
-      filesystem = SandboxFilesystem(read_write = "./space here"),
+    policy <- list(
+      filesystem = list(read_write = list("./space here")),
       network = "restricted"
     )
-    tool <- console_tool(path = path, config = ConsoleConfig(sandbox = policy))
-    overrides <- readLines(paste0(record, ".overrides"))
-    expect_identical(
-      overrides[[1]],
-      "sandbox=null"
+    tools <- console_tools(
+      path = path,
+      config = ConsoleConfig(sandbox = policy)
     )
     expect_identical(
       jsonlite::fromJSON(
-        substring(overrides[[2]], nchar("sandbox=") + 1L),
+        paste0(record, ".config.json"),
         simplifyVector = FALSE
-      ),
-      as.list(policy)
+      )$sandbox,
+      policy
     )
-    rm(tool)
+    rm(tools)
     invisible(gc())
   })
 })
@@ -33,13 +31,13 @@ test_that("no discovery ignores malformed files and retains restrictive defaults
       file.path(Sys.getenv("MCP_CONSOLE_HOME"), "config.yaml")
     )
     writeLines("invalid: [", ".agents/console/config.yaml")
-    send <- console_tool(
+    send <- console_tools(
       path = binary,
       config = ConsoleConfig(
-        r = RConfig(resolution = "disabled"),
+        r = list(resolution = "disabled"),
         languages = "r"
       )
-    )
+    )$send
     result <- send(
       r = 'suppressWarnings(tryCatch(writeLines("bad", "blocked"), error = function(e) cat("denied\\n")))',
       timeout_ms = 60000L
@@ -71,14 +69,16 @@ test_that("project discovery layers runtime settings and can disable enforcement
       ),
       file.path(project, ".agents/console/config.yaml")
     )
-    send <- console_tool(
+    send <- console_tools(
       path = binary,
       project = project,
-      config = ConsoleConfig(
-        discovery = ConfigDiscovery(global = FALSE),
-        sandbox = FALSE
+      config = load_console_config(
+        global_file = NULL,
+        overrides = list(sandbox = FALSE),
+        project = project,
+        path = binary
       )
-    )
+    )$send
     result <- send(
       r = 'writeLines(Sys.getenv("MCP_CONSOLE_TEST_SETTING"), "result"); cat(getwd(), "\\n", sep = "")',
       timeout_ms = 60000L
@@ -102,18 +102,18 @@ test_that("explicit runtime selections reach native configuration", {
     require_sandbox_execution(binary)
     python <- sandbox_test_python()
     config <- ConsoleConfig(
-      r = RConfig(
-        executable = mcp.console::current_r(),
+      r = list(
+        executable = sandbox_test_r(),
         resolution = "disabled"
       ),
-      python = ExistingPython(python),
+      python = python,
       languages = c("r", "python"),
       environment = c(MCP_CONSOLE_TEST_SETTING = "worker"),
-      resolver = ResolverConfig(
+      resolver = list(
         environment = c(MCP_CONSOLE_TEST_SETTING = "resolver")
       )
     )
-    send <- console_tool(path = binary, config = config)
+    send <- console_tools(path = binary, config = config)$send
     result <- send(
       r = 'cat(R.home(), "\\n", Sys.getenv("MCP_CONSOLE_TEST_SETTING"), "\\n", sep = "")',
       timeout_ms = 60000L
@@ -135,19 +135,19 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     skip_if(!nzchar(Sys.which("uv")), "Managed Python requires uv")
-    send <- console_tool(
+    send <- console_tools(
       path = binary,
       config = ConsoleConfig(
-        r = RConfig(resolution = "disabled"),
+        r = list(resolution = "disabled"),
         languages = "python",
-        python = ManagedPython(
+        python = list(
           version = "3.13",
           packages = character(),
           resolution = "fixed"
         ),
         sandbox = FALSE
       )
-    )
+    )$send
     declaration <- jsonlite::fromJSON(
       send(requirements = list(action = "get"), timeout_ms = 60000L)@text
     )
@@ -169,7 +169,7 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
   })
 })
 
-test_that("console_tool replaces ambient grants and retains other settings", {
+test_that("console_tools replace ambient grants and retain other settings", {
   with_sandbox_directory({
     binary <- sandbox_test_binary()
     require_sandbox_execution(binary)
@@ -189,15 +189,15 @@ test_that("console_tool replaces ambient grants and retains other settings", {
       ),
       file.path(Sys.getenv("MCP_CONSOLE_HOME"), "config.yaml")
     )
-    send <- console_tool(
+    send <- console_tools(
       path = binary,
-      config = ConsoleConfig(
-        discovery = ConfigDiscovery(),
-        sandbox = SandboxPolicy(
-          filesystem = SandboxFilesystem(read_write = "./allowed")
-        )
+      config = load_console_config(
+        overrides = list(
+          sandbox = list(filesystem = list(read_write = "./allowed"))
+        ),
+        path = binary
       )
-    )
+    )$send
     expect_false("python" %in% names(formals(send)))
     # fmt: r
     source <- r"(

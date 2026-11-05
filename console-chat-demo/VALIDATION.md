@@ -1,6 +1,7 @@
 # Validation
 
-App checks were rerun locally on macOS on November 5, 2026, with Console `0.0.6+dev.g74e81f4d49ef` and its matching sandbox companion.
+App checks were rerun locally on macOS on November 5, 2026, after merging `main` at `c26e009a`.
+Console was rebuilt from the merged working tree with its matching sandbox companion; all 21 app tests passed without compatibility changes.
 Live browser conversations used `gpt-6.1-terra` through chatlas's Responses API in a local test launcher; the deployed app still uses the configured Anthropic model.
 
 ## App and process checks
@@ -40,6 +41,7 @@ On November 5, two in-app browser clients ran on one Shiny process using the sim
 One queried daily delays in SQL, retrieved them in R and drew an inline ggplot2 chart; Python then reused `r.daily_delays` and confirmed that the other client's variable was absent.
 The other client counted airports and created its own Python variable, then ran a long cell that was stopped through the UI while the first client remained responsive.
 Stop, New session and disconnect removed the clients' runtime directories and recordings.
+These conversations used Console `0.0.6+dev.g74e81f4d49ef` before the merge; afterward, the app was restarted with the merged build and its opening page checked in the browser.
 
 Earlier browser checks on October 31 drove a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
 A second browser client had only its own table views.
@@ -65,11 +67,10 @@ TMPDIR="$PWD/console-chat-demo/.runtime/tmp" \
 
 ## Console checks and limits
 
-The October 31 run of `scripts/preflight` and core checks passed, including Clippy and all 53 Rust tests; these native checks were not rerun for the app-only lifecycle change.
+After the merge, `scripts/preflight` and `scripts/check` passed, including companion staging, Clippy, all 53 Rust tests, a release build and all 17 smoke cases at default concurrency.
 `scripts/format` reported success for Ruff, Yamark, rustfmt and Air on November 5.
-Use a short checkout-local `TMPDIR` for native socket tests on macOS; a longer path exceeded `SUN_LEN` in the first attempt.
-All 17 smoke cases passed with `scripts/test --jobs 2`.
-The first smoke run at default concurrency had four failures involving busy workers or missing results; the lower-concurrency rerun passed without code changes.
+The first native test run exceeded macOS's `SUN_LEN` with the longer temporary path.
+Rerunning with `TMPDIR="$PWD/.tmp"` passed without code changes.
 
 Linux/Connect deployment, service installation, authentication proxies, resource exhaustion and Windows were not revalidated in this audit.
 The deployment files are templates, not evidence of deployment on a new host.

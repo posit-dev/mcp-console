@@ -37,9 +37,11 @@ impl Client {
             && !self.is_configured()
             && self.current_evaluation()?.is_none()
         {
-            let mut response = output::render_response(SendResponse::Stopped(self.0.output.take()));
-            response.recover_to(self.0.output.clone());
-            return Ok(response);
+            let mut output = self.0.output.take();
+            if output.has_pending_output() {
+                output.recover_to(self.0.output.clone());
+            }
+            return Ok(output::render_response(SendResponse::Stopped(output)));
         }
         self.send(request, false).await
     }
@@ -479,7 +481,8 @@ impl Client {
         ))
     }
 
-    /// Drains through an idle-response cut while this call owns the generation.
+    /// Drains through an idle-response cut while this call owns the generation,
+    /// retaining delivery ownership even without an active evaluation.
     pub(super) fn take_idle_response(
         &self,
         generation: &WorkerGeneration,
@@ -491,7 +494,9 @@ impl Client {
                 .into());
         }
         if self.take_startup_failure(generation)? {
-            return Ok(SendResponse::Failed(self.0.output.take()));
+            let mut output = self.0.output.take();
+            output.recover_to(self.0.output.clone());
+            return Ok(SendResponse::Failed(output));
         }
         drop(evaluation);
         self.ensure_generation(generation)?;
@@ -522,12 +527,19 @@ impl Client {
                 }
             }
             self.0.output.push_failure(failure);
-            return Ok(SendResponse::Failed(self.0.output.take()));
+            let mut output = self.0.output.take();
+            output.recover_to(self.0.output.clone());
+            return Ok(SendResponse::Failed(output));
         }
         let stopped = matches!(*worker, WorkerState::Initial | WorkerState::Stopped)
             && self.0.session_kind == super::SessionKind::Named;
         drop(worker);
-        let output = self.0.output.drain_through(snapshot.cut);
+        let mut output = self.0.output.drain_through(snapshot.cut);
+        // An empty stopped observation has no payload to recover. Its synthetic
+        // banner must not become pending output after cancellation.
+        if !stopped || output.has_pending_output() {
+            output.recover_to(self.0.output.clone());
+        }
         Ok(if snapshot.input_requested {
             SendResponse::InputRequested(output)
         } else if stopped {

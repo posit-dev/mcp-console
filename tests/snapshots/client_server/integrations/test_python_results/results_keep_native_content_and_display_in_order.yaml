@@ -1,0 +1,73 @@
+---
+fixture: >-
+  The public result extends the MCP SDK model, retaining native content,
+  metadata, and serialization; IPython displays it without a framework
+  adapter. Client imports and constructors remain usable without optional
+  dependencies.
+---
+result:
+  _meta:
+    source: original result
+  content:
+    - type: text
+      text: |
+        before image
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB8sAAAAASUVORK5CYII=
+      mimeType: image/png
+      annotations:
+        audience:
+          - user
+        priority: 0.5
+      _meta:
+        caption: original image
+    - type: text
+      text: |
+        between images
+    - type: image
+      data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB8sAAAAASUVORK5CYII=
+      mimeType: image/png
+      annotations:
+        audience:
+          - user
+        priority: 0.5
+      _meta:
+        caption: original image
+    - type: text
+      text: |
+        after image
+  structuredContent:
+    summary: original structured content
+  isError: false
+  resultType: complete
+---
+text: |
+  before image
+  between images
+  after image
+printed: |
+  before image
+  [image/png output]
+  between images
+  [image/png output]
+  after image
+displayed:
+  - text/plain: |
+      before image
+  - text/plain: "[image/png output]"
+    image/png: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB8sAAAAASUVORK5CYII=
+  - text/plain: |
+      between images
+  - text/plain: "[image/png output]"
+    image/png: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB8sAAAAASUVORK5CYII=
+  - text/plain: |
+      after image
+---
+empty_display: []
+requirements_text: bounded preview
+requirements_printed: |-
+  {
+    "requirements": {
+      "python": []
+    }
+  }

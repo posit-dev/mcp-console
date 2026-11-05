@@ -94,6 +94,11 @@ class WebsiteTests(unittest.TestCase):
             ignore=shutil.ignore_patterns("docs", "*.Rcheck", "*.tar.gz"),
         )
         shutil.copytree(ROOT / "python", docs.parent / "python")
+        with (docs / "python/index.qmd").open("a") as index:
+            index.write(
+                "\nInline example: `inline_tools[name](reference.md)`.\n\n"
+                "```python\nfenced_tools[name](reference.qmd)\n```\n"
+            )
         for suite in ("test_help", "test_config_init"):
             relative = Path("tests/snapshots/cli/interface") / suite
             shutil.copytree(ROOT / relative, docs.parent / relative)
@@ -105,7 +110,7 @@ class WebsiteTests(unittest.TestCase):
             (directory / "package-links.md").write_text(
                 "# Package links\n\n"
                 "[R reference](https://posit-dev.github.io/mcp-console/"
-                "r/reference/console_tool.html?view=full#arguments)\n\n"
+                "r/reference/console_tools.html?view=full#arguments)\n\n"
                 "[Python reference](https://posit-dev.github.io/mcp-console/"
                 "python/reference/MCPConsole.html?view=full#"
                 "mcp_console.MCPConsole.send)\n\n"
@@ -235,7 +240,7 @@ class WebsiteTests(unittest.TestCase):
     def test_r_reference_offers_automatic_color_scheme(self) -> None:
         for name in (
             "r/index.html",
-            "r/reference/console_tool/index.html",
+            "r/reference/console_tools/index.html",
             "r/articles/autonomous-report/index.html",
         ):
             with self.subTest(page=name):
@@ -249,17 +254,21 @@ class WebsiteTests(unittest.TestCase):
                 )
                 self.assertIsNotNone(soup.select_one('[data-bs-theme-value="auto"]'))
 
-    def test_r_reference_aliases_use_local_directory_urls(self) -> None:
-        for alias, target in (
-            ("sandboxsockets", "sandboxpolicy"),
-            ("existingpython", "pythonconfig"),
-        ):
-            with self.subTest(alias=alias):
-                page = self.site / f"r/reference/{alias}/index.html"
-                soup = BeautifulSoup(page.read_text(), "html.parser")
-                redirect = soup.find("meta", attrs={"http-equiv": "refresh"})
-                self.assertEqual(redirect["content"], f"0;URL=../{target}/")
-                self.assertTrue(linked_file(page, f"../{target}/").is_file())
+    def test_r_reference_has_three_public_entry_points(self) -> None:
+        reference = self.site / "r/reference"
+        self.assertEqual(
+            {path.parent.name for path in reference.glob("*/index.html")},
+            {"consoleconfig", "load_console_config", "console_tools"},
+        )
+        page = reference / "index.html"
+        soup = BeautifulSoup(page.read_text(), "html.parser")
+        destinations = {
+            linked_file(page, link["href"])
+            for link in soup.select("main a[href]")
+            if not urlsplit(link["href"]).scheme
+        }
+        for name in ("consoleconfig", "load_console_config", "console_tools"):
+            self.assertIn(reference / name / "index.html", destinations)
 
     def test_r_report_vignette_is_discoverable(self) -> None:
         article = self.site / "r/articles/autonomous-report/index.html"
@@ -662,7 +671,7 @@ class WebsiteTests(unittest.TestCase):
                 },
             )
 
-    def test_reference_indexes_settings_by_their_owning_page(self) -> None:
+    def test_reference_indexes_one_configuration_field_reference(self) -> None:
         path = self.site / "reference/index.html"
         reference = BeautifulSoup(path.read_text(), "html.parser")
         settings = {}
@@ -673,25 +682,20 @@ class WebsiteTests(unittest.TestCase):
             self.assertIsNotNone(target)
             for name in names:
                 settings[name.get_text()] = linked_file(path, target["href"])
-        for key, owner in {
-            "r.packages": "package_configuration",
-            "python.packages": "package_configuration",
-            "r.resolution": "package_configuration",
-            "python.resolution": "package_configuration",
-            "resolver": "package_configuration",
-            "cache": "package_configuration",
-            "python": "runtime_configuration",
-            "startup": "runtime_configuration",
-            "sandbox.profile": "sandbox_configuration",
-            "languages": "tool_configuration",
-        }.items():
+        for key in settings:
             with self.subTest(setting=key):
-                self.assertEqual(settings.get(key), self.site / owner / "index.html")
+                self.assertEqual(settings[key], self.site / "configuration/index.html")
 
         configuration = BeautifulSoup(
             (self.site / "configuration/index.html").read_text(), "html.parser"
         )
-        self.assertIsNone(configuration.select_one("section#settings-by-task"))
+        fields = {
+            field.get_text()
+            for field in configuration.select(
+                "#top-level-settings table tbody td:first-child code"
+            )
+        }
+        self.assertLessEqual(set(settings), fields)
         packages = self.pages[self.site / "package_configuration/index.html"]
         self.assertLessEqual(
             {
@@ -801,8 +805,8 @@ class WebsiteTests(unittest.TestCase):
             routes = (
                 "/readme/",
                 "/builtin_runtime/",
-                "/python/reference/openai.responses_tool/",
-                "/r/reference/console_tool/",
+                "/python/reference/openai.responses_tools/",
+                "/r/reference/console_tools/",
             )
             # Start from a completed render, as when switching from render-site
             # to preview-site. Preview must retain the outputs Quarto tracks.
@@ -851,8 +855,10 @@ class WebsiteTests(unittest.TestCase):
                         return line
 
             try:
-                ready = wait_for("Browse at ")
-                address = urlsplit(ready.split("Browse at ", 1)[1].strip())
+                # Quarto prints Browse at before starting its HTTP server.
+                # Deno reports Listening on only after binding the socket.
+                ready = wait_for("Listening on ")
+                address = urlsplit(ready.split("Listening on ", 1)[1].strip())
                 self.assertIsNotNone(address.port, ready)
                 base = f"http://127.0.0.1:{address.port}"
                 for route in routes:
@@ -1176,11 +1182,8 @@ class WebsiteTests(unittest.TestCase):
 
     def test_r_package_subsite(self) -> None:
         home = (self.site / "r/index.html").resolve()
-        reference = (self.site / "r/reference/console_tool/index.html").resolve()
         self.assertIn(home, self.pages, "pkgdown home page is missing")
-        self.assertIn(reference, self.pages, "console_tool reference is missing")
         self.assertIn("mcp.console", self.pages[home].title)
-        self.assertIn("console_tool", self.pages[reference].title)
         sitemap = ElementTree.parse(self.site / "r/sitemap.xml")
         urls = {
             element.text
@@ -1188,11 +1191,14 @@ class WebsiteTests(unittest.TestCase):
                 ".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
             )
         }
+        search = json.loads((self.site / "r/search.json").read_text())
+        reference = (self.site / "r/reference/console_tools/index.html").resolve()
+        self.assertIn(reference, self.pages, "console_tools reference is missing")
+        self.assertIn("console_tools", self.pages[reference].title)
         reference_url = (
-            "https://posit-dev.github.io/mcp-console/r/reference/console_tool/"
+            "https://posit-dev.github.io/mcp-console/r/reference/console_tools/"
         )
         self.assertIn(reference_url, urls)
-        search = json.loads((self.site / "r/search.json").read_text())
         self.assertIn(reference_url, {entry["path"] for entry in search})
         self.assertIn("arguments", self.pages[reference].ids)
         navbar = BeautifulSoup(reference.read_text(), "html.parser").select_one(
@@ -1204,11 +1210,45 @@ class WebsiteTests(unittest.TestCase):
                 for link in navbar.select(".nav-link")
                 if link.get_text(strip=True)
             ],
-            ["MCP Console", "Get started", "Guides", "Build", "Reference"],
+            ["Get started", "Guides", "Reference", "Console documentation"],
         )
-        self.assertIn("../../../", self.pages[reference].links)
-        for target in ("getting-started/", "readme/", "build/", "reference/"):
-            self.assertIn(f"../../../{target}", self.pages[reference].links)
+        for name in (
+            "r/index.html",
+            "r/reference/index.html",
+            "r/reference/consoleconfig/index.html",
+            "r/reference/console_tools/index.html",
+            "r/articles/configuration/index.html",
+        ):
+            page = self.site / name
+            navbar = BeautifulSoup(page.read_text(), "html.parser").select_one(
+                ".navbar"
+            )
+            for link in navbar.select("a[href]"):
+                if link.get_text(strip=True) == "Console documentation":
+                    self.assertEqual(
+                        link["href"], "https://posit-dev.github.io/mcp-console/"
+                    )
+                elif link.get("aria-label") == "GitHub":
+                    self.assertEqual(
+                        link["href"], "https://github.com/posit-dev/mcp-console/"
+                    )
+                else:
+                    self.assertFalse(urlsplit(link["href"]).scheme)
+                    self.assertTrue(
+                        linked_file(page, link["href"]).is_relative_to(self.site / "r")
+                    )
+        constructor = self.site / "r/reference/consoleconfig/index.html"
+        soup = BeautifulSoup(constructor.read_text(), "html.parser")
+        heading = soup.select_one("#see-also")
+        self.assertIsNotNone(heading)
+        see_also = heading.find_parent("div", class_="section")
+        self.assertIn(
+            reference,
+            {
+                linked_file(constructor, link["href"])
+                for link in see_also.select("a[href]")
+            },
+        )
         self.assertIn(
             "https://github.com/posit-dev/mcp-console/blob/main/r/R/console-tool.R",
             self.pages[reference].links,
@@ -1269,19 +1309,50 @@ class WebsiteTests(unittest.TestCase):
         for name in ("llms.txt", "llms-full.txt"):
             with self.subTest(download=name):
                 text = (self.site / "python" / name).read_text()
-                links = [
-                    urljoin(base + "python/" + name, link)
-                    for link in re.findall(r"(?<=\]\()([^)\s]+)(?=\))", text)
-                ]
+                parsed = subprocess.run(
+                    [
+                        "quarto",
+                        "pandoc",
+                        "--from=markdown",
+                        "--to=html",
+                        "--syntax-highlighting=none",
+                    ],
+                    input=text,
+                    encoding="utf-8",
+                    capture_output=True,
+                    check=True,
+                )
+                document = BeautifulSoup(parsed.stdout, "html.parser")
+                anchors = {node["id"] for node in document.select("[id]")}
+                links = []
+                for link in document.select("a[href]"):
+                    destination = link["href"]
+                    if destination.startswith("#"):
+                        # Download-local anchors belong to this Markdown document,
+                        # not the separately rendered website page inventory.
+                        self.assertIn(unquote(destination[1:]), anchors)
+                    else:
+                        links.append(urljoin(base + "python/" + name, destination))
                 self.assertTrue(links)
                 self.assert_published_links(links)
                 if name == "llms-full.txt":
                     for target in (
-                        "python/reference/chatlas.tool/",
+                        "python/reference/chatlas.tools/",
                         "python/reference/asyncmcpconsole/#send",
                         "api/#requirements",
                     ):
                         self.assertIn(base + target, links)
+
+    def test_python_downloads_preserve_code(self) -> None:
+        for name in ("index.md", "llms-full.txt"):
+            with self.subTest(download=name):
+                text = (self.site / "python" / name).read_text()
+                self.assertIn("`inline_tools[name](reference.md)`", text)
+                self.assertIn("```python\nfenced_tools[name](reference.qmd)\n```", text)
+        for name in ("reference/openai.responses_tools.md", "llms-full.txt"):
+            with self.subTest(download=name):
+                text = (self.site / "python" / name).read_text()
+                self.assertIn("by_name[call.name](call)", text)
 
     def test_python_package_reference(self) -> None:
         home = (self.site / "python/index.html").resolve()
@@ -1291,15 +1362,17 @@ class WebsiteTests(unittest.TestCase):
         for name in (
             "MCPConsole",
             "AsyncMCPConsole",
+            "ConsoleResult",
+            "ConsoleError",
             "Requirements",
-            "chatlas.tool",
+            "chatlas.tools",
             "chatlas.register",
-            "openai.responses_tool",
+            "openai.responses_tools",
             "openai.ResponsesTool",
             "openai.AsyncResponsesTool",
-            "openai.agents_tool",
+            "openai.agents_tools",
             "openai.agents_server",
-            "anthropic.tool",
+            "anthropic.callable_tools",
             "anthropic.tools",
             "codex.server",
         ):
@@ -1373,6 +1446,16 @@ class WebsiteTests(unittest.TestCase):
                 }
                 self.assertIn(target, destinations)
 
+    def test_python_result_uses_sdk_constructor(self) -> None:
+        path = self.site / "python/reference/consoleresult/index.html"
+        page = BeautifulSoup(path.read_text(), "html.parser")
+        signatures = [
+            signature.get_text("", strip=True)
+            for signature in page.select(".doc-signature code")
+        ]
+        self.assertNotIn("ConsoleResult()", signatures)
+        self.assertIn("ConsoleResult(content=[])", page.select_one("main").get_text())
+
     def test_python_reference_uses_main_website(self) -> None:
         guide = BeautifulSoup(
             (self.site / "python-guide/index.html").read_text(), "html.parser"
@@ -1381,6 +1464,7 @@ class WebsiteTests(unittest.TestCase):
             "python/index.html",
             "python/reference/index.html",
             "python/reference/mcpconsole/index.html",
+            "python/reference/openai.responses_tools/index.html",
             "python/reference/openai.asyncresponsestool/index.html",
         ):
             with self.subTest(page=name):
@@ -1410,24 +1494,27 @@ class WebsiteTests(unittest.TestCase):
             "python/reference/mcpconsole/",
             {urlsplit(entry["href"]).path for entry in search},
         )
-        self.assertTrue(
-            any(
-                "send_tool" in entry["text"]
-                and urlsplit(entry["href"]).path == "python/reference/mcpconsole/"
-                for entry in search
-            ),
-            "The shared search must include inline method documentation",
-        )
+        for method in ("get_tool", "call_tool"):
+            with self.subTest(method=method):
+                self.assertTrue(
+                    any(
+                        method in entry["text"]
+                        and urlsplit(entry["href"]).path
+                        == "python/reference/mcpconsole/"
+                        for entry in search
+                    ),
+                    "The shared search must include inline method documentation",
+                )
 
     def test_python_integrations_are_grouped_by_package(self) -> None:
         groups = {
             "openai — Responses API": {
-                "openai.responses_tool",
+                "openai.responses_tools",
                 "openai.ResponsesTool",
                 "openai.AsyncResponsesTool",
             },
             "openai-agents — Agents SDK": {
-                "openai.agents_tool",
+                "openai.agents_tools",
                 "openai.agents_server",
             },
             "openai-codex — Codex SDK": {"codex.server"},
@@ -1483,8 +1570,10 @@ class WebsiteTests(unittest.TestCase):
                 for method in (
                     "connect",
                     "close",
+                    "tools",
+                    "get_tool",
+                    "call_tool",
                     "send",
-                    "send_tool",
                     *context_methods,
                 ):
                     self.assertIn(f"mcp_console.{name}.{method}", page.ids)
@@ -1507,7 +1596,7 @@ class WebsiteTests(unittest.TestCase):
             with self.subTest(page=name):
                 page = self.pages[self.site / name]
                 for target in (
-                    "r/reference/console_tool/?view=full#arguments",
+                    "r/reference/console_tools/?view=full#arguments",
                     "python/reference/mcpconsole/?view=full#"
                     "mcp_console.MCPConsole.send",
                     "r/",
@@ -1537,14 +1626,14 @@ class WebsiteTests(unittest.TestCase):
 
     def test_python_adapters_show_complete_examples(self) -> None:
         for name, factory in (
-            ("chatlas.tool", "chatlas.tool"),
+            ("chatlas.tools", "chatlas.tools"),
             ("chatlas.register", "chatlas.register"),
-            ("openai.responses_tool", "openai.responses_tool"),
-            ("openai.ResponsesTool", "openai.responses_tool"),
-            ("openai.AsyncResponsesTool", "openai.responses_tool"),
-            ("openai.agents_tool", "openai.agents_tool"),
+            ("openai.responses_tools", "openai.responses_tools"),
+            ("openai.ResponsesTool", "openai.responses_tools"),
+            ("openai.AsyncResponsesTool", "openai.responses_tools"),
+            ("openai.agents_tools", "openai.agents_tools"),
             ("openai.agents_server", "openai.agents_server"),
-            ("anthropic.tool", "anthropic.tool"),
+            ("anthropic.callable_tools", "anthropic.callable_tools"),
             ("anthropic.tools", "anthropic.tools"),
             ("codex.server", "codex.server"),
         ):

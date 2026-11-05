@@ -13,28 +13,53 @@ reference:
     - title: Clients
       contents:
       - name: MCPConsole
-        members: [connect, close, send, send_tool, __enter__, __exit__]
+        members:
+        - connect
+        - close
+        - tools
+        - get_tool
+        - call_tool
+        - send
+        - __enter__
+        - __exit__
       - name: AsyncMCPConsole
-        members: [connect, close, send, send_tool, __aenter__, __aexit__]
+        members:
+        - connect
+        - close
+        - tools
+        - get_tool
+        - call_tool
+        - send
+        - __aenter__
+        - __aexit__
       - name: Requirements
+        members: false
+    - title: Results and errors
+      contents:
+      - name: ConsoleResult
+        members:
+        - text
+        - images
+        - __str__
+      - name: ConsoleError
         members: false
     - title: chatlas
       contents:
-      - chatlas.tool
+      - chatlas.tools
       - chatlas.register
     - title: openai — Responses API
       contents:
-      - openai.responses_tool
+      - openai.responses_tools
       - openai.ResponsesTool
       - openai.AsyncResponsesTool
     - title: openai-agents — Agents SDK
       contents:
-      - openai.agents_tool
+      - openai.agents_tools
       - openai.agents_server
     - title: openai-codex — Codex SDK
       contents:
       - codex.server
     - title: Anthropic
       contents:
-      - anthropic.tool
+      - anthropic.callable_tools
       - anthropic.tools

@@ -86,11 +86,22 @@ Its request and result are journaled without creating a nested numbered cell int
 ## Startup and runtime ownership
 
 The server captures configuration once and constructs tool presentation from it.
-The R adapter sends optional configuration source paths and ordered overrides through a private JSON file using `--config-overrides-file`.
-Native capture owns file parsing, layering, full materialization, and pruning; the adapter converts those results through ordinary S7 constructors.
-Optional source paths require automatic discovery to be disabled and retain the same missing-file, regular-file, and deduplication rules as native discovery.
-Overrides apply after the selected files and before ordinary `-c` overrides; explicit permission nodes retain replacement semantics.
-The adapter removes the file after synchronous materialization or the server's initialization handshake, when native capture has finished reading it.
+The R adapter writes ordinary JSON configuration and uses the public `--config-file` option for loading and launch.
+Repeated file selectors preserve layer order; `--optional-config-file` marks conventional paths that may be absent.
+The conventional default paths remain optional, while all sources retain native regular-file checks, home expansion, and canonical deduplication.
+Native capture owns file parsing and layering; the adapter converts the result through the same S7 constructor used for pure R values.
+The loader uses `config resolve --full --editable` to retain authored tool metadata and omit generated prose/schema rather than turning those defaults into persistent overrides.
+Exports without `--editable` retain their ordinary materialization and pruning behavior.
+Both loader and launch select their complete source list; only the loader includes global or project paths.
+A supplied R object cannot reload its source files at launch or worker restart.
+The calling R executable is supplied through `--default-config`, below selected files and explicit settings.
+The loaded object retains a cleared executable preference through edits and launch so materialization does not turn a file's explicit R reset back into the calling R default.
+Its application-settings serializer emits an explicit `r.executable: null`, preserving that reset through JSON export/reload and direct reconstruction from `as.list()`.
+Launch consults the same serialized setting and evaluates the calling-R default only when the executable is omitted.
+The loader places a JSON null-reset layer before its override document so explicit permission and Python selections replace inherited nodes.
+Override documents apply after the selected files and before ordinary `-c` overrides.
+Configuration files keep long tool descriptions and startup programs out of process arguments and environment size limits.
+The adapter removes its temporary files after synchronous materialization or the server's initialization handshake, when native capture has finished reading them.
 The connection owns a registry of logical sessions; each session owns startup, preparation, accepted requirements, and worker generations.
 The default session discovers runtimes, prepares defaults, and prelaunches the built-in worker in a background task.
 New names enter the registry on their first code call or an explicit integrator `create` request and use the same captured configuration and client authority, with independent startup and execution owners.
@@ -279,6 +290,8 @@ An aggregate poll claims output from each session under one response-delivery ow
 Polling tasks are owned by the call and cannot continue collecting output after cancellation.
 
 One recoverable response per session remains owned until local delivery or cancellation settles it.
+Idle, stopped, and input-waiting workers retain drained output through the same delivery boundary, including failure responses.
+An empty stopped-session observation owns no recovery receipt; cancelling a targeted or aggregate poll cannot turn its synthetic status notice into pending output.
 Failed delivery restores the entire claimed region, including output preceding a combined control-and-cell call.
 An admitted poll waits within its existing deadline for pending response delivery before claiming output, including when a later cell began before the poll's handler ran.
 If another call delivered the terminal result, the poll rechecks the active slot and follows the ordinary idle path, including any submitted input.
