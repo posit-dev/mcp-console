@@ -2,11 +2,11 @@
 
 import asyncio
 import contextlib
-import fcntl
 import json
 import os
 import shutil
 import sys
+import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Literal
@@ -173,7 +173,7 @@ class Catalog:
         except (TimeoutError, asyncio.CancelledError):
             cursor.interrupt()
             # Cancelling the await does not stop the SQL thread. Retire that
-            # operation before closing its cursor or returning the pool slot.
+            # operation before closing its cursor or ending the session.
             with contextlib.suppress(duckdb.InterruptException):
                 await asyncio.shield(task)
             raise
@@ -181,88 +181,25 @@ class Catalog:
             cursor.close()
 
 
-class Pool:
-    """Reserve fixed slots until their Console connection has fully closed.
-
-    Pre-created sibling roots let immutable policies exclude future clients too.
-    Run one Shiny process per root; a process lock prevents accidental sharing.
-    """
-
-    def __init__(
-        self,
-        root: Path,
-        binary: Path,
-        capacity: int = 8,
-        private_paths: tuple[Path, ...] = (),
-        r: Path | None = None,
-    ) -> None:
-        assert capacity > 0
-        private_paths = tuple(path.resolve(strict=True) for path in private_paths)
-        self.root = root.resolve()
-        self.binary = binary.absolute()
-        # None uses Console's R discovery from PATH.
-        self.r = None if r is None else r.absolute()
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self._lock = (self.root / "server.lock").open("a")
-        fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        self.slots = [self.root / "slots" / str(i) for i in range(capacity)]
-        self.private = self.root / "private"
-        self.private.mkdir(exist_ok=True, mode=0o700)
-        for slot in self.slots:
-            slot.mkdir(parents=True, exist_ok=True, mode=0o700)
-        # A smaller capacity must still protect files left in higher-numbered
-        # slots by an earlier server. Allocation and filesystem exclusion differ.
-        self.protected_slots = tuple((self.root / "slots").iterdir())
-        secrets = [
-            Path.home() / name
-            for name in (
-                ".Renviron",
-                ".ssh",
-                ".aws",
-                ".azure",
-                ".kube",
-                ".config",
-                ".netrc",
-                ".npmrc",
-                ".git-credentials",
-            )
-        ]
-        self.denied = [p.resolve() for p in secrets if p.exists()] + list(private_paths)
-        self.catalog = Catalog(self.private / "catalog.duckdb")
-        self.active: dict[Path, Session] = {}
-
-    async def open(self, dynamic: bool = False) -> "Session":
-        """Start a session; `dynamic` lets Console prepare packages on request."""
-        slot = next((p for p in self.slots if p not in self.active), None)
-        if slot is None:
-            raise RuntimeError(
-                "The server is full. Close another session or try later."
-            )
-        session = Session(self, slot, dynamic)
-        self.active[slot] = session
-        try:
-            await session.start()
-        except BaseException:
-            await session.close()
-            raise
-        return session
-
-    async def close(self) -> None:
-        await asyncio.gather(
-            *(session.close() for session in list(self.active.values()))
-        )
-        self.catalog.connection.close()
-        self._lock.close()
-
-
 class Session:
     """Own the agent and its native MCP connection, without shared chat state."""
 
-    def __init__(self, pool: Pool, slot: Path, dynamic: bool) -> None:
-        self.pool = pool
-        self.slot = slot
+    def __init__(
+        self,
+        binary: Path,
+        root: Path,
+        catalog: Catalog,
+        dynamic: bool = False,
+        private_paths: tuple[Path, ...] = (),
+        r: Path | None = None,
+    ) -> None:
+        self.binary = binary.absolute()
+        self.root = root.resolve()
+        self.catalog = catalog
         self.dynamic = dynamic
-        self.workspace = slot / "workspace"
+        self.r = r.absolute() if r else None
+        self.private_paths = tuple(p.resolve(strict=True) for p in private_paths)
+        self.directory: Path | None = None
         self._next_plot = "R"
         self.suggestions: list[tuple[str, str, str]] = []
         # ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL come from the server
@@ -274,7 +211,6 @@ class Session:
             reasoning="low",
             kwargs={"timeout": 120, "max_retries": 0},
         )
-        catalog = pool.catalog
 
         async def show_data(query: str, title: str) -> ContentToolResult:
             """Show a SQL query's result in the Table views tab.
@@ -353,25 +289,37 @@ class Session:
         self.chat.register_tool(suggest_next)
         self._closing: asyncio.Task[None] | None = None
         self._registration: asyncio.Task[Any] | None = None
-        self._owns_slot = False
 
     async def start(self) -> None:
-        self.workspace.mkdir(exist_ok=True, mode=0o700)
-        if any(self.workspace.iterdir()):
-            raise RuntimeError(
-                f"Stale session files at {self.workspace}; inspect before reuse."
+        assert self.directory is None
+        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.directory = Path(tempfile.mkdtemp(prefix="console-", dir=self.root))
+        temporary = self.directory / "tmp"
+        temporary.mkdir(mode=0o700)
+        cache = self.directory / "cache"
+        cache.mkdir(mode=0o700)
+        private = self.root / "private"
+        private.mkdir(exist_ok=True, mode=0o700)
+        state = private / self.directory.name
+        state.mkdir(mode=0o700)
+        # Keep server configuration and recordings outside the agent's readable
+        # files. Console owns temporary storage and its permissions.
+        secrets = [
+            Path.home() / name
+            for name in (
+                ".Renviron",
+                ".ssh",
+                ".aws",
+                ".azure",
+                ".kube",
+                ".config",
+                ".netrc",
+                ".npmrc",
+                ".git-credentials",
             )
-        self._owns_slot = True
-        # Writes through the link are outside the session's writable roots.
-        (self.workspace / "nycflights13").symlink_to(DATA, target_is_directory=True)
-        temporary = self.slot / "tmp"
-        temporary.mkdir(exist_ok=True, mode=0o700)
-        cache = self.slot / "cache"
-        cache.mkdir(exist_ok=True, mode=0o700)
-        state = self.pool.private / self.slot.name
-        state.mkdir(exist_ok=True, mode=0o700)
-        denied = [self.pool.private, *self.pool.denied]
-        denied += [p for p in self.pool.protected_slots if p != self.slot]
+        ]
+        denied = [private, *self.private_paths]
+        denied += [p.resolve() for p in secrets if p.exists()]
         environment = {
             "PATH": os.environ["PATH"],
             "HOME": str(Path.home()),
@@ -397,12 +345,11 @@ class Session:
                 "network": "restricted",
                 "tempdir": "managed",
                 "filesystem": {
-                    "read_write": [str(self.workspace)],
                     "deny": [str(p) for p in denied],
                 },
             },
         }
-        r = {} if self.pool.r is None else {"executable": str(self.pool.r)}
+        r = {} if self.r is None else {"executable": str(self.r)}
         if self.dynamic:
             config["python"] = {
                 "version": "3.13",
@@ -436,12 +383,16 @@ class Session:
         config_path.write_text(json.dumps(config), encoding="utf-8")
         self._registration = asyncio.create_task(
             self.chat.register_mcp_tools_stdio_async(
-                command=str(self.pool.binary),
+                command=str(self.binary),
                 args=["serve", "--config-file", str(config_path)],
-                transport_kwargs={"cwd": str(self.workspace), "env": environment},
+                transport_kwargs={"cwd": str(DATA.parent), "env": environment},
             )
         )
-        await asyncio.shield(self._registration)
+        try:
+            await asyncio.shield(self._registration)
+        except BaseException:
+            await self.close()
+            raise
         self.tool = next(tool for tool in self.chat.get_tools() if tool.name == "send")
         send = self.tool.func
 
@@ -462,7 +413,7 @@ class Session:
         Keep named and restarted sessions separate so rendering cannot mix their
         variables. Documents become available after code runs.
         """
-        state = self.pool.private / self.slot.name
+        state = self.root / "private" / self.directory.name
         documents = sorted(state.glob("sessions/*/sessions/session-*.qmd"))
         reports = {}
         for index, document in enumerate(documents, start=1):
@@ -507,21 +458,11 @@ class Session:
     async def _retire(self) -> None:
         # Chatlas tracks its MCP owner only after initialization completes.
         # Cancellation during startup must settle registration before closing
-        # the chat, deleting files, or making this slot available again.
+        # the chat or deleting its configuration and recordings.
         if self._registration is not None:
             with contextlib.suppress(Exception):
                 await self._registration
         await self.chat.close_async()
-        if not self._owns_slot:
-            self.pool.active.pop(self.slot, None)
-            return
-        # Keep the slot root stable: existing peers deny this exact path.
-        for path in self.slot.iterdir():
-            if path.is_symlink() or path.is_file():
-                path.unlink()
-            else:
-                shutil.rmtree(path)
-        state = self.pool.private / self.slot.name
-        if state.exists():
-            shutil.rmtree(state)
-        self.pool.active.pop(self.slot, None)
+        if self.directory is not None:
+            shutil.rmtree(self.directory)
+            shutil.rmtree(self.root / "private" / self.directory.name)

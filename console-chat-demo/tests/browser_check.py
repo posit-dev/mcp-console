@@ -226,15 +226,16 @@ async def main() -> None:
                 "exactly this Python cell with timeout_ms=1000. A human will press Stop "
                 "to interrupt it. Do not create the release file. Keep polling after "
                 "submission until it stops:\n"
-                "from pathlib import Path\nimport os, time\n"
-                "Path('browser-waiting').write_text(str(os.getpid()))\n"
-                "while not Path('browser-release').exists():\n    time.sleep(0.05)\n",
+                "from pathlib import Path\nimport os, time, tempfile\n"
+                "temporary = Path(tempfile.gettempdir())\n"
+                "(temporary / 'browser-waiting').write_text(str(os.getpid()))\n"
+                "while not (temporary / 'browser-release').exists():\n    time.sleep(0.05)\n",
             )
             async with asyncio.timeout(90):
                 while True:
                     checkpoints = list(
-                        (ROOT / ".runtime/server/slots").glob(
-                            "*/workspace/browser-waiting"
+                        (ROOT / ".runtime/server").glob(
+                            "console-*/tmp/**/browser-waiting"
                         )
                     )
                     if checkpoints:
@@ -266,7 +267,9 @@ async def main() -> None:
             await expect(first.locator("#connection_status")).to_have_text(
                 "Ready", timeout=30000
             )
-            assert not checkpoint.parent.exists(), "Stopped workspace was retained"
+            assert not checkpoint.parent.exists(), (
+                "Stopped temporary files were retained"
+            )
             try:
                 os.kill(worker, 0)
             except ProcessLookupError:

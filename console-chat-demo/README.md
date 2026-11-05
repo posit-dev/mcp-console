@@ -62,7 +62,7 @@ The bundled [nycflights13](https://github.com/tidyverse/nycflights13) data (CC0)
 The agent's runtime has access to five read-only Parquet files, one per table, in `data/nycflights13/`; [data/nycflights13.R](data/nycflights13.R) regenerates them.
 Clients share these files.
 Console's startup code creates a DuckDB connection, `nyc` in R, with a view for each table.
-SQL and dbplyr scan the files as needed; each workspace also links them as `nycflights13/` for direct reads.
+SQL and dbplyr scan the files as needed; Console starts in `data/`, where `nycflights13/` is available for direct reads.
 Opening another session does not load another full copy of the dataset into RAM.
 The OS file cache is shared, while queries, collected results and user-created objects still use memory per session.
 
@@ -73,7 +73,7 @@ The app shares previews of up to 1,000 rows per source table; each agent-created
 Grid filters apply to the displayed preview; ask the agent to filter the full dataset.
 Reusing a view title replaces that view, and earlier named views remain selectable.
 
-Objects and files persist until the browser disconnects, work is stopped, or a new session starts.
+Objects and managed temporary files persist until the browser disconnects, work is stopped, or a new session starts.
 The export uses Console's recorded QMD source and adds an R setup chunk to open the bundled Parquet files.
 It selects knitr even for SQL-only or Python-only conversations, because the setup uses R.
 Named sessions and restarts produce separate documents (`analysis.qmd`, `analysis-2.qmd`, etc.); render each separately to preserve their independent state.
@@ -87,21 +87,18 @@ Download the report before ending the session.
 
 Run one server process.
 Shiny's nonblocking chat stream lets other clients progress while one client waits for a model or executes code.
-The default capacity is eight active conversations; set `--sessions N` before startup to change it.
-A full pool returns a visible error.
+Each Shiny session creates its own chatlas conversation on the first question and registers Console with `register_mcp_tools_stdio_async()`.
+Disconnect, Stop and New session close that conversation with `close_async()`.
+There is no app-managed pool, slot reuse or conversation limit; configure connection limits in the hosting service.
 Each turn has a three-minute deadline, or ten minutes with dynamic packages, and a maximum of sixteen tool calls.
 
-The app pre-creates all session slots.
-Each Console policy denies every other slot, including slots that have not been used yet.
-It also denies slot directories retained from an earlier server with a larger capacity; changing the capacity does not expose or delete those files.
-Its workspace and native temporary files live beneath its own slot.
-Slots are released only after chatlas has closed the MCP connection and Console process.
-A filesystem lock prevents two server processes from sharing one runtime root.
-When scaling beyond one process, give each deployment instance a separate service account or container filesystem as well as its own runtime root.
+Console manages the sandboxed processes and their temporary storage.
+The app removes each conversation's configuration, recordings and package cache after chatlas closes its connection.
 
 ## Sandbox boundary
 
-Evaluated code can write only its own workspace and Console's private temporary storage.
+Evaluated code uses Console's `read_only` profile with managed temporary storage.
+There is no workspace write grant; use R's `tempdir()` or Python's `tempfile` for temporary files.
 Direct networking is restricted.
 Console starts from an explicit configuration file, clears inherited worker environment variables, and starts R with `--vanilla`.
 The server's API key is never passed to Console.
@@ -121,7 +118,10 @@ On the tested macOS host, a client cache reached roughly 1 GiB.
 `--warmup` checks R, Python and SQL with prepared packages on the deployment host.
 
 **Deploy on a dedicated service account and a clean filesystem containing only the intended runtime and app files.** Console's read-only base permits host-file reads.
-This app denies sibling sessions, its private configuration and recordings, common credential paths, and every path supplied with `--private-path`.
+This app denies its private configuration and recordings, common credential paths, and every path supplied with `--private-path`.
+Separate Console processes keep each visitor's variables independent.
+The app does not add filesystem isolation between clients: temporary files and package caches readable by the service account may also be readable by another client.
+Use separate service accounts or containers when mutually untrusted users need that boundary.
 It does not discover arbitrary secrets elsewhere on a developer's machine.
 Do not mount home directories, production databases, cloud credentials, or unrelated application data into the service.
 Create and identify private paths before starting the server; filesystem policy is captured at launch.
@@ -129,7 +129,6 @@ A missing explicit `--private-path` is a startup error.
 
 The native runner also constrains subprocesses and retires their process trees.
 Use host/container resource limits for CPU, memory, process count, and disk capacity.
-Per-session directories provide access isolation, not per-client resource quotas.
 The model receives prompts and the tool output it requests, including data and plots.
 Treat the model provider as a recipient of that data.
 
@@ -141,11 +140,11 @@ Bind to loopback unless the deployment network supplies that boundary.
 
 Install the app and pinned Python requirements on a Linux host supported by Console's native sandbox.
 Install R, `uv`, and a complete Console build from this revision, including its verified companion, under `/opt/mcp-console`.
-Keep runtime executables and packages outside session workspaces and unwritable by evaluated code.
+Keep runtime executables and packages unwritable by evaluated code.
 Copy the app's source files to `/srv/console-chat-demo`, excluding `.runtime` and `.venv`, create its virtual environment, and give the dedicated service account ownership of `.runtime`.
 Check runtime preparation with `run.py --warmup` as that account.
 
-[deploy/console-chat.service](deploy/console-chat.service) is a systemd template for one server process with a bounded session pool and service-level resource limits.
+[deploy/console-chat.service](deploy/console-chat.service) is a systemd template for one server process with service-level resource limits.
 It reads the API key from `/srv/console-chat-secrets/anthropic.env` and explicitly denies that directory to evaluated code and dependency preparation.
 Set that file to mode `0600`, restrict access to the service account, and configure the HTTPS/authentication proxy separately.
 The service template is intended for a host/VM; containers must permit the native Linux sandbox's required namespaces and syscalls.
@@ -180,9 +179,7 @@ Then configure the content:
 - Set `CONSOLE_CHAT_R` to the R executable for the manifest's R version, such as `/opt/R/4.6.1/bin/R`.
   Connect does not put R on Python content's `PATH`.
 - Set `CONSOLE_CHAT_RUNTIME` to a directory under `/tmp`, which Connect keeps local and private to each process, instead of the shared, networked app directory.
-  Each process then owns its own runtime root and session pool.
-- Set **Max connections per process** to the pool capacity, `CONSOLE_CHAT_CAPACITY` (default 8), so Connect starts another process before a pool is full.
-  Bound **Max processes** by the host's CPU, memory, and disk.
+- Set **Max connections per process** and **Max processes** according to the host's CPU, memory and disk capacity.
 - Set `CONSOLE_CHAT_DYNAMIC_PACKAGES=0` to hide the **Allow package installs** checkbox.
   On a fresh Connect host, a dynamic session's first package preparation took about three and a half minutes.
 - Set `CONSOLE_CHAT_PRIVATE_PATHS` to a JSON list of Connect paths that evaluated code must not read: `["/opt/rstudio-connect/mnt/job", "/opt/rstudio-connect/mnt/app-data"]`.
@@ -199,5 +196,5 @@ CONSOLE_CHAT_BINARY="$PWD/../target/release/mcp-console" \
   .venv/bin/python -B -m pytest --basetemp=.runtime/pytest
 ```
 
-The process tests use a dummy API key and exercise persistent R/Python state, concurrent execution, denied cross-client reads, credential protection, denied host writes, and clean slot reuse against real Console processes.
+The process tests use a dummy API key and exercise persistent R/Python state, concurrent execution, protected recordings and credentials, read-only working directories, managed temporary writes, and cleanup after disconnect or cancellation against real Console processes.
 Browser checks and live model validation are described in [VALIDATION.md](VALIDATION.md).

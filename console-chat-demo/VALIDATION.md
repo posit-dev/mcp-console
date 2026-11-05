@@ -1,17 +1,18 @@
 # Validation
 
-Validated locally on macOS on October 31, 2026, with Console `0.0.6+dev.g74e81f4d49ef` and its matching sandbox companion.
+App checks were rerun locally on macOS on November 5, 2026, with Console `0.0.6+dev.g74e81f4d49ef` and its matching sandbox companion.
 Live browser conversations used `gpt-6.1-terra` through chatlas's Responses API in a local test launcher; the deployed app still uses the configured Anthropic model.
 
 ## App and process checks
 
-The final app run passed 20 tests against the rebuilt Console binary.
-The cold package test was excluded from this run after an earlier pass installed and imported `humanize` in a managed environment.
+The app run passed all 21 tests, including installation and use of `humanize` in a managed environment.
+The two HTTP app tests also passed after switching catalog cleanup to Shiny's public `on_shutdown()` hook.
 The checks cover:
 
 - Serving the app and public assets without a model session.
 - R/Python state, plots, SQL, named sessions and package requests.
-- Concurrent clients, slot reuse, cancellation during startup, private files, credentials, blocked networking and denied host writes.
+- Three concurrent clients, independent variables, cancellation during startup, protected server recordings and credentials, blocked networking and denied working-directory writes.
+- Managed temporary writes and cleanup after the chatlas connection closes; no custom pool or reusable slots.
 - Parquet views for the table tool, bounded previews, rejection of multiple SQL statements and denied reads outside the five bundled files.
 - Interrupting a cancelled table query before closing its cursor, using an explicit checkpoint at the SQL driver boundary.
 - Each answer offers Visualize, Investigate, and Model, with one R, one Python and one SQL choice.
@@ -31,11 +32,16 @@ PYTHONDONTWRITEBYTECODE=1 \
 ```
 
 Do not run these tests while rebuilding or staging Console: a changed companion can fail the binary's artifact identity check.
-The cold package test can take several minutes; the final local run omitted it with `-k 'not dynamic_resolution'` after it had passed.
+The cold package test can take several minutes.
 
 ## Browser and export checks
 
-The in-app browser drove real conversations on one Shiny process: a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
+On November 5, two in-app browser clients ran on one Shiny process using the simplified session lifecycle.
+One queried daily delays in SQL, retrieved them in R and drew an inline ggplot2 chart; Python then reused `r.daily_delays` and confirmed that the other client's variable was absent.
+The other client counted airports and created its own Python variable, then ran a long cell that was stopped through the UI while the first client remained responsive.
+Stop, New session and disconnect removed the clients' runtime directories and recordings.
+
+Earlier browser checks on October 31 drove a SQL starter question, an R bootstrap follow-up, Python reuse of its R result with an inline Matplotlib plot, table selection, and the code-format switch.
 A second browser client had only its own table views.
 Generated follow-ups were activated through their buttons.
 The weather-model starter ran SQL queries, retrieved the result as `weather_delay_data` in R, and fit a Python model using `r.weather_delay_data`.
@@ -59,8 +65,8 @@ TMPDIR="$PWD/console-chat-demo/.runtime/tmp" \
 
 ## Console checks and limits
 
-`scripts/preflight` and the core checks passed, including Clippy and all 53 Rust tests.
-`scripts/format` reported success for Ruff, Yamark, rustfmt and Air.
+The October 31 run of `scripts/preflight` and core checks passed, including Clippy and all 53 Rust tests; these native checks were not rerun for the app-only lifecycle change.
+`scripts/format` reported success for Ruff, Yamark, rustfmt and Air on November 5.
 Use a short checkout-local `TMPDIR` for native socket tests on macOS; a longer path exceeded `SUN_LEN` in the first attempt.
 All 17 smoke cases passed with `scripts/test --jobs 2`.
 The first smoke run at default concurrency had four failures involving busy workers or missing results; the lower-concurrency rerun passed without code changes.

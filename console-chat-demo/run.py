@@ -15,7 +15,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--sessions", type=int, default=8)
     parser.add_argument("--binary", type=Path, default=shutil.which("mcp-console"))
     parser.add_argument(
         "--renviron", type=Path, help="Read only ANTHROPIC_API_KEY from this file"
@@ -55,7 +54,6 @@ def main() -> None:
             "PYTHONDONTWRITEBYTECODE": "1",
             "CONSOLE_CHAT_RUNTIME": str(ROOT / ".runtime" / "server"),
             "CONSOLE_CHAT_BINARY": str(Path(args.binary).absolute()),
-            "CONSOLE_CHAT_CAPACITY": str(args.sessions),
             "CONSOLE_CHAT_PRIVATE_PATHS": json.dumps(
                 [str(p.resolve()) for p in args.private_path]
             ),
@@ -63,18 +61,19 @@ def main() -> None:
         }
     )
     if args.warmup:
-        from runtime import Pool
+        from runtime import Catalog, Session
 
         async def warmup() -> None:
-            pool = Pool(
-                ROOT / ".runtime" / "server",
+            catalog = Catalog(temporary / "warmup.duckdb")
+            session = Session(
                 Path(args.binary),
-                args.sessions,
-                tuple(args.private_path),
-                args.r,
+                ROOT / ".runtime" / "server",
+                catalog,
+                private_paths=tuple(args.private_path),
+                r=args.r,
             )
             try:
-                session = await pool.open()
+                await session.start()
                 for code in (
                     {"r": "cat('R ready\\n')"},
                     {"python": "import pandas, matplotlib; print('Python ready')"},
@@ -90,7 +89,8 @@ def main() -> None:
                             raise RuntimeError(f"Runtime check failed: {result.error}")
                         print(result.value)
             finally:
-                await pool.close()
+                await session.close()
+                catalog.connection.close()
 
         asyncio.run(warmup())
     else:

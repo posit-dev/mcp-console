@@ -16,7 +16,7 @@ import pytest_asyncio
 from chatlas.types import ContentImageInline
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from runtime import Pool
+from runtime import Catalog, Session
 
 HERE = Path(__file__).resolve().parents[1]
 
@@ -28,29 +28,47 @@ def text(result) -> str:
     return "\n".join(str(value) for value in values)
 
 
+@pytest.fixture
+def catalog(tmp_path):
+    catalog = Catalog(tmp_path / "catalog.duckdb")
+    try:
+        yield catalog
+    finally:
+        catalog.connection.close()
+
+
 @pytest_asyncio.fixture
-async def pool(tmp_path, monkeypatch):
+async def open_session(tmp_path, monkeypatch, catalog):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-must-not-reach-console")
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://gateway.invalid/anthropic")
     private = tmp_path / "private.txt"
     private.write_text("private-server-data")
     binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
     assert binary, "Install mcp-console or set CONSOLE_CHAT_BINARY"
-    instance = Pool(
-        root=tmp_path / "pool",
-        binary=Path(binary),
-        capacity=2,
-        private_paths=(private,),
-    )
+    clients = []
+
+    async def open_session(dynamic=False, r=None):
+        session = Session(
+            binary=Path(binary),
+            root=tmp_path / "runtime",
+            catalog=catalog,
+            dynamic=dynamic,
+            private_paths=(private,),
+            r=r,
+        )
+        clients.append(session)
+        await session.start()
+        return session
+
     try:
-        yield instance
+        yield open_session
     finally:
-        await instance.close()
+        await asyncio.gather(*(client.close() for client in clients))
 
 
 @pytest.mark.asyncio
-async def test_full_tool_surface_and_sql(pool):
-    session = await pool.open()
+async def test_full_tool_surface_and_sql(open_session):
+    session = await open_session()
     properties = session.tool.schema["function"]["parameters"]["properties"]
     assert {
         "r",
@@ -74,7 +92,7 @@ async def test_full_tool_surface_and_sql(pool):
         await session.send(session="second", sql="SELECT count(*) AS n FROM weather")
     )
     assert (await session.send(requirements={"action": "get"})).error is None
-    other = pool.slots[1] / "cache" / "private.csv"
+    other = session.directory.parent / "private" / "future-client" / "private.csv"
     other.parent.mkdir()
     other.write_text("secret\nother-client-secret\n")
     denied = text(await session.send(sql=f"SELECT * FROM read_csv_auto('{other}')"))
@@ -84,8 +102,8 @@ async def test_full_tool_surface_and_sql(pool):
 
 
 @pytest.mark.asyncio
-async def test_sessions_share_read_only_flights_data(pool):
-    session = await pool.open()
+async def test_sessions_share_read_only_flights_data(open_session):
+    session = await open_session()
     # R and SQL share the startup connection, so R can query the views lazily.
     assert "carriers 16" in text(
         await session.send(
@@ -112,8 +130,32 @@ except OSError as error:
 
 
 @pytest.mark.asyncio
-async def test_show_data_queries_original_tables_read_only(pool, tmp_path):
-    session = await pool.open()
+async def test_analysis_has_only_managed_temporary_writes(open_session):
+    session = await open_session()
+    output = text(
+        await session.send(
+            python="""
+from pathlib import Path
+import tempfile
+try:
+    Path('generated.csv').write_text('x\\n1\\n')
+except PermissionError:
+    print('working-directory-read-only')
+else:
+    raise AssertionError('working directory was writable')
+temporary = Path(tempfile.gettempdir()) / 'analysis.csv'
+temporary.write_text('x\\n1\\n')
+print(temporary.read_text())
+"""
+        )
+    )
+    assert "working-directory-read-only" in output
+    assert "x\n1" in output
+
+
+@pytest.mark.asyncio
+async def test_show_data_queries_original_tables_read_only(open_session, tmp_path):
+    session = await open_session()
     show = next(t for t in session.chat.get_tools() if t.name == "show_data")
     result = await show.func(
         query="SELECT carrier, count(*) AS n FROM flights GROUP BY carrier ORDER BY n DESC;",
@@ -157,8 +199,8 @@ async def test_show_data_queries_original_tables_read_only(pool, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_follow_ups_use_task_categories_and_reusable_data(pool):
-    session = await pool.open()
+async def test_follow_ups_use_task_categories_and_reusable_data(open_session):
+    session = await open_session()
     suggest = next(t for t in session.chat.get_tools() if t.name == "suggest_next")
     await session.send(
         sql="SELECT origin, count(*) AS flights FROM flights GROUP BY origin ORDER BY origin"
@@ -237,9 +279,9 @@ async def test_follow_ups_use_task_categories_and_reusable_data(pool):
 
 @pytest.mark.asyncio
 async def test_follow_up_plots_alternate_with_one_choice_per_language(
-    pool, monkeypatch
+    open_session, monkeypatch
 ):
-    session = await pool.open()
+    session = await open_session()
     suggest = next(t for t in session.chat.get_tools() if t.name == "suggest_next")
     languages = iter([("R", "Python"), ("Python", "R"), ("R", "Python")])
 
@@ -277,15 +319,17 @@ async def test_follow_up_plots_alternate_with_one_choice_per_language(
 
 
 @pytest.mark.asyncio
-async def test_cancelling_table_query_interrupts_before_closing(pool, monkeypatch):
-    session = await pool.open()
+async def test_cancelling_table_query_interrupts_before_closing(
+    open_session, catalog, monkeypatch
+):
+    session = await open_session()
     show = next(t for t in session.chat.get_tools() if t.name == "show_data")
     started = asyncio.Event()
     released = threading.Event()
     finished = threading.Event()
     interrupted = threading.Event()
     loop = asyncio.get_running_loop()
-    connection = pool.catalog.connection
+    connection = catalog.connection
 
     class GatedCursor:
         """Hold the external SQL operation at an explicit cancellation checkpoint."""
@@ -311,7 +355,7 @@ async def test_cancelling_table_query_interrupts_before_closing(pool, monkeypatc
             return GatedCursor()
 
     with monkeypatch.context() as patch:
-        patch.setattr(pool.catalog, "connection", QueryConnection())
+        patch.setattr(catalog, "connection", QueryConnection())
         query = asyncio.create_task(show.func(query="SELECT 1", title="Waiting"))
         try:
             await asyncio.wait_for(started.wait(), timeout=5)
@@ -325,8 +369,8 @@ async def test_cancelling_table_query_interrupts_before_closing(pool, monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_report_renders_beside_the_data(pool, tmp_path):
-    session = await pool.open()
+async def test_report_renders_beside_the_data(open_session, tmp_path):
+    session = await open_session()
     await session.send(note="**Question:** How many flights left each airport?")
     # Notes wait for code to give them a worker session to record into.
     assert session.reports() == {}
@@ -362,16 +406,16 @@ async def test_report_renders_beside_the_data(pool, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_sql_only_report_uses_r_setup(pool):
-    session = await pool.open()
+async def test_sql_only_report_uses_r_setup(open_session):
+    session = await open_session()
     await session.send(note="Count airlines")
     await session.send(sql="SELECT count(*) FROM airlines")
     assert "engine: knitr\n" in session.reports()["analysis.qmd"].split("---\n")[1]
 
 
 @pytest.mark.asyncio
-async def test_export_keeps_independent_sessions_separate(pool):
-    session = await pool.open()
+async def test_export_keeps_independent_sessions_separate(open_session):
+    session = await open_session()
     await session.send(r="first_worker_only <- 42")
     await session.send(session="second", r="stopifnot(!exists('first_worker_only'))")
     reports = session.reports()
@@ -383,7 +427,9 @@ async def test_export_keeps_independent_sessions_separate(pool):
 
 
 @pytest.mark.asyncio
-async def test_duckdb_connections_do_not_ask_for_a_home(pool, tmp_path, monkeypatch):
+async def test_duckdb_connections_do_not_ask_for_a_home(
+    open_session, tmp_path, monkeypatch
+):
     # Posit Connect's HOME has no ~/.duckdb, so an interactive R would ask
     # whether to create one. Keep the R packages visible from the new HOME.
     libraries = await asyncio.create_subprocess_exec(
@@ -394,7 +440,7 @@ async def test_duckdb_connections_do_not_ask_for_a_home(pool, tmp_path, monkeypa
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    session = await pool.open()
+    session = await open_session()
     output = text(
         await session.send(
             r="con <- DBI::dbConnect(duckdb::duckdb())\n"
@@ -407,13 +453,15 @@ async def test_duckdb_connections_do_not_ask_for_a_home(pool, tmp_path, monkeypa
 
 
 @pytest.mark.asyncio
-async def test_prepared_environments_are_the_default(pool, tmp_path, monkeypatch):
+async def test_prepared_environments_are_the_default(
+    open_session, tmp_path, monkeypatch
+):
     # Posit Connect restores the bundle's R packages into R_LIBS and its
     # Python requirements into the app's own environment.
     library = tmp_path / "connect-r-library"
     library.mkdir()
     monkeypatch.setenv("R_LIBS", str(library))
-    session = await pool.open()
+    session = await open_session()
     assert f"prefix {sys.prefix}" in text(
         await session.send(python="import sys, shiny\nprint('prefix', sys.prefix)")
     )
@@ -427,8 +475,8 @@ async def test_prepared_environments_are_the_default(pool, tmp_path, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_dynamic_resolution_prepares_managed_environments(pool):
-    session = await pool.open(dynamic=True)
+async def test_dynamic_resolution_prepares_managed_environments(open_session):
+    session = await open_session(dynamic=True)
     assert (await session.send(requirements={"python": ["humanize"]})).error is None
     assert "12,345" in text(
         await session.send(python="import humanize\nprint(humanize.intcomma(12345))")
@@ -442,8 +490,8 @@ async def test_dynamic_resolution_prepares_managed_environments(pool):
 
 
 @pytest.mark.asyncio
-async def test_persistent_r_and_python(pool):
-    session = await pool.open()
+async def test_persistent_r_and_python(open_session):
+    session = await open_session()
     assert "python-created" in text(
         await session.send(python="values = [3, 6, 9]\nprint('python-created')")
     )
@@ -471,20 +519,25 @@ async def test_persistent_r_and_python(pool):
 
 
 @pytest.mark.asyncio
-async def test_concurrent_clients_and_slot_reuse(pool):
-    first = await pool.open()
+async def test_concurrent_clients_and_cleanup(open_session):
+    first = await open_session()
     await first.send(python="tenant_value = 'first-client'")
     # Open the second client after the first policy is already installed.
-    second = await pool.open()
+    second = await open_session()
     await second.send(python="tenant_value = 'second-client'")
-    with pytest.raises(RuntimeError, match="server is full"):
-        await pool.open()
+    third = await open_session()
+    assert "third-client" in text(await third.send(python="print('third-client')"))
+    output = text(
+        await first.send(python="import tempfile; print(tempfile.gettempdir())")
+    )
+    first_temp = Path(output.strip())
     pending = await first.send(
         python="""
 from pathlib import Path
 import time
-Path('ready').write_text('ready')
-while not Path('release').exists():
+temporary = Path(tempfile.gettempdir())
+(temporary / 'ready').write_text('ready')
+while not (temporary / 'release').exists():
     time.sleep(0.01)
 print('first-finished', tenant_value)
 """,
@@ -492,71 +545,40 @@ print('first-finished', tenant_value)
     )
     assert "running" in text(pending)
     async with asyncio.timeout(30):
-        while not (first.workspace / "ready").exists():
+        while not (first_temp / "ready").exists():
             await asyncio.sleep(0.01)
     try:
         # Completion while the first client is gated proves concurrent progress.
         async with asyncio.timeout(30):
             output = text(await second.send(python="print(tenant_value)"))
         assert "second-client" in output
-        assert not (first.workspace / "release").exists()
-        foreign = first.workspace / "ready"
-        output = text(
-            await second.send(
-                python=f"""
-from pathlib import Path
-import errno
-try:
-    Path({str(foreign)!r}).read_text()
-except OSError as error:
-    assert error.errno in (errno.EACCES, errno.EPERM), error
-    print('peer-read-denied')
-else:
-    raise AssertionError('another client workspace was readable')
-"""
-            )
-        )
-        assert "peer-read-denied" in output
+        assert not (first_temp / "release").exists()
     finally:
-        (first.workspace / "release").write_text("release")
+        (first_temp / "release").write_text("release")
     assert "first-finished first-client" in text(await first.send())
-    # The earlier client's policy also protects a later client's files.
-    later_file = second.workspace / "later.txt"
+    # Server recordings stay unreadable even when a later client creates them.
+    later_file = second.root / "private" / second.directory.name / "private.txt"
     later_file.write_text("later-client-data")
-    output = text(
-        await second.send(
-            python="""
-import tempfile
-temporary_file = Path(tempfile.gettempdir()) / 'private-marker.txt'
-temporary_file.write_text('private temporary data')
-print('TEMP_PATH=' + str(temporary_file))
-"""
-        )
-    )
-    temporary_file = next(
-        line.removeprefix("TEMP_PATH=")
-        for line in output.splitlines()
-        if line.startswith("TEMP_PATH=")
-    )
     output = text(
         await first.send(
             python=f"""
-for private_path in {[str(later_file), temporary_file]!r}:
-    try:
-        Path(private_path).read_text()
-    except PermissionError:
-        pass
-    else:
-        raise AssertionError('later client file was readable: ' + private_path)
-print('later-peer-read-denied')
+from pathlib import Path
+try:
+    Path({str(later_file)!r}).read_text()
+except PermissionError:
+    print('recordings-read-denied')
+else:
+    raise AssertionError('server recordings were readable')
 """
         )
     )
-    assert "later-peer-read-denied" in output
-    previous_workspace = first.workspace
+    assert "recordings-read-denied" in output
+    previous_directory = first.directory
     await first.close()
-    replacement = await pool.open()
-    assert replacement.workspace == previous_workspace
+    replacement = await open_session()
+    assert replacement.directory != previous_directory
+    assert not previous_directory.exists()
+    assert not first_temp.exists()
     output = text(
         await replacement.send(
             python="""
@@ -573,8 +595,8 @@ print('replacement-is-fresh')
 
 
 @pytest.mark.asyncio
-async def test_credentials_and_host_files_are_protected(pool, tmp_path):
-    session = await pool.open()
+async def test_credentials_and_host_files_are_protected(open_session, tmp_path):
+    session = await open_session()
     private = tmp_path / "private.txt"
     outside = tmp_path / "outside.txt"
     output = text(
@@ -636,7 +658,9 @@ else:
 
 
 @pytest.mark.asyncio
-async def test_cancelled_startup_retires_before_releasing_slot(tmp_path, monkeypatch):
+async def test_cancelled_startup_closes_chatlas_connection(
+    tmp_path, monkeypatch, catalog
+):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "unused-by-this-test")
     binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
     assert binary
@@ -656,8 +680,8 @@ os.execv({binary!r}, [{binary!r}, *sys.argv[1:]])
 """
     )
     wrapper.chmod(0o700)
-    pool = Pool(tmp_path / "pool", wrapper, capacity=1)
-    opening = asyncio.create_task(pool.open())
+    session = Session(wrapper, tmp_path / "runtime", catalog)
+    opening = asyncio.create_task(session.start())
     pid = None
     try:
         async with asyncio.timeout(30):
@@ -668,25 +692,18 @@ os.execv({binary!r}, [{binary!r}, *sys.argv[1:]])
         # Startup cannot settle until the explicit release checkpoint. This
         # bounded observation detects early completion without releasing it.
         done, _ = await asyncio.wait({opening}, timeout=0.5)
-        assert not done, (
-            "Cancelled startup released its slot before MCP registration settled"
-        )
-        with pytest.raises(RuntimeError, match="server is full"):
-            await pool.open()
+        assert not done, "Cancelled startup returned before MCP registration settled"
         release.write_text("continue")
         with pytest.raises(asyncio.CancelledError):
             await asyncio.wait_for(opening, timeout=30)
         with pytest.raises(ProcessLookupError):
             os.kill(pid, 0)
-        replacement = await pool.open()
-        assert "fresh-after-cancel" in text(
-            await replacement.send(python="print('fresh-after-cancel')")
-        )
+        assert not session.directory.exists()
     finally:
         release.write_text("continue")
         with contextlib.suppress(asyncio.CancelledError, TimeoutError):
             await asyncio.wait_for(asyncio.shield(opening), timeout=30)
-        await pool.close()
+        await session.close()
         # The red path exposes an unregistered background MCP process. Retire
         # that exact owned PID too, rather than leaving it after the assertion.
         if pid is not None:
@@ -702,7 +719,7 @@ os.execv({binary!r}, [{binary!r}, *sys.argv[1:]])
 
 
 @pytest.mark.asyncio
-async def test_explicit_r_executable_outside_path(tmp_path, monkeypatch):
+async def test_explicit_r_executable_outside_path(open_session, monkeypatch):
     # Posit Connect installs R under /opt/R/<version> without adding it to PATH.
     r = shutil.which("R")
     assert r
@@ -716,57 +733,15 @@ async def test_explicit_r_executable_outside_path(tmp_path, monkeypatch):
             if not (Path(entry) / "R").exists()
         ),
     )
-    pool = Pool(tmp_path / "pool", Path(binary), capacity=1, r=Path(r))
-    try:
-        session = await pool.open()
-        assert "r-selected" in text(await session.send(r="cat('r-selected\\n')"))
-    finally:
-        await pool.close()
+    session = await open_session(r=Path(r))
+    assert "r-selected" in text(await session.send(r="cat('r-selected\\n')"))
 
 
-@pytest.mark.asyncio
-async def test_missing_private_path_is_rejected(tmp_path):
-    binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
-    assert binary
-    pool = None
-    try:
-        with pytest.raises(FileNotFoundError):
-            pool = Pool(
-                tmp_path / "pool",
-                Path(binary),
-                capacity=1,
-                private_paths=(tmp_path / "misspelled-secret-directory",),
-            )
-    finally:
-        if pool is not None:
-            await pool.close()
-
-
-@pytest.mark.asyncio
-async def test_capacity_reduction_keeps_previous_slot_private(tmp_path, monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "unused-by-this-test")
-    binary = os.environ.get("CONSOLE_CHAT_BINARY") or shutil.which("mcp-console")
-    assert binary
-    root = tmp_path / "pool"
-    previous_workspace = root / "slots" / "7" / "workspace"
-    previous_workspace.mkdir(parents=True)
-    previous_file = previous_workspace / "private.txt"
-    previous_file.write_text("previous-client-data")
-    pool = Pool(root, Path(binary), capacity=1)
-    try:
-        session = await pool.open()
-        result = await session.send(
-            python=f"""
-from pathlib import Path
-try:
-    Path({str(previous_file)!r}).read_text()
-except PermissionError:
-    print('previous-slot-protected')
-else:
-    raise AssertionError('previous client workspace was readable')
-"""
+def test_missing_private_path_is_rejected(tmp_path, catalog):
+    with pytest.raises(FileNotFoundError):
+        Session(
+            Path(sys.executable),
+            tmp_path / "runtime",
+            catalog,
+            private_paths=(tmp_path / "misspelled-secret-directory",),
         )
-        assert "previous-slot-protected" in text(result)
-        assert previous_file.read_text() == "previous-client-data"
-    finally:
-        await pool.close()

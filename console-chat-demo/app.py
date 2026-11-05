@@ -11,15 +11,15 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 import zipfile
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 import duckdb
 import sqlglot
 from chatlas import ContentToolRequest, ContentToolResult
 from chatlas.types import ContentImageInline
-from runtime import DATA, MODEL, TABLES, Pool
+from runtime import DATA, MODEL, TABLES, Catalog, Session as AnalysisSession
 from shiny import App, Inputs, Outputs, Session, reactive, render, req, ui
 from shinychat import message_content
 from shinychat.types import ToolResultDisplay
@@ -92,11 +92,22 @@ async def cell(arguments: dict) -> str:
     return "".join(f"\n\n{part}\n\n" for part in parts)
 
 
-def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
+def create_app(
+    binary: Path,
+    root: Path,
+    private_paths: tuple[Path, ...] = (),
+    r: Path | None = None,
+    offer_dynamic: bool = True,
+) -> App:
     """Create one web server; each browser gets its own Console and chat.
 
     `offer_dynamic` shows the checkbox that lets a session prepare packages.
     """
+    root = root.resolve()
+    private_paths = tuple(path.resolve(strict=True) for path in private_paths)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    catalog_files = tempfile.TemporaryDirectory(prefix="catalog-", dir=root)
+    catalog = Catalog(Path(catalog_files.name) / "tables.duckdb")
     # Small previews are shared by all viewers; full tables stay in Parquet.
     originals = {}
     with duckdb.connect() as preview:
@@ -291,8 +302,8 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                                 "Several people can work at once on one app server."
                             ),
                             ui.tags.li(
-                                "The agent can use installed packages and create files in its workspace. "
-                                "The sandbox blocks access to other sessions and restricts file writes and networking."
+                                "The agent can use installed packages and private temporary files. "
+                                "The sandbox restricts file writes and networking."
                             ),
                         ),
                         ui.p(
@@ -368,10 +379,13 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
                     status.set("Starting")
                     with reactive.isolate():
                         dynamic = offer_dynamic and input.dynamic()
-                    backend = await pool.open(dynamic=dynamic)
+                    backend = AnalysisSession(
+                        binary, root, catalog, dynamic, private_paths, r
+                    )
+                    await backend.start()
                     packages = "dynamic packages" if dynamic else "prepared packages"
                     identity.set(
-                        f"Session {backend.workspace.parent.name[:8]} · {MODEL} · {packages}",
+                        f"{MODEL} · {packages}",
                     )
                 status.set("Working")
                 await backend.send(note=f"**Question:** {prompt}")
@@ -698,17 +712,12 @@ def create_app(pool: Pool, offer_dynamic: bool = True) -> App:
             yield buffer.getvalue()
 
     app = App(app_ui, server, static_assets=HERE / "www")
-    shiny_lifespan = app.starlette_app.router.lifespan_context
 
-    @asynccontextmanager
-    async def lifespan(asgi_app):
-        try:
-            async with shiny_lifespan(asgi_app):
-                yield
-        finally:
-            await pool.close()
+    @app.on_shutdown
+    def cleanup_catalog() -> None:
+        catalog.connection.close()
+        catalog_files.cleanup()
 
-    app.starlette_app.router.lifespan_context = lifespan
     return app
 
 
@@ -719,17 +728,11 @@ if binary is None:
     )
 
 app = create_app(
-    Pool(
-        root=Path(os.environ.get("CONSOLE_CHAT_RUNTIME", HERE / ".runtime" / "server")),
-        binary=Path(binary),
-        capacity=int(os.environ.get("CONSOLE_CHAT_CAPACITY", "8")),
-        private_paths=[
-            Path(x)
-            for x in json.loads(os.environ.get("CONSOLE_CHAT_PRIVATE_PATHS", "[]"))
-        ],
-        r=Path(os.environ["CONSOLE_CHAT_R"])
-        if os.environ.get("CONSOLE_CHAT_R")
-        else None,
-    ),
+    root=Path(os.environ.get("CONSOLE_CHAT_RUNTIME", HERE / ".runtime" / "server")),
+    binary=Path(binary),
+    private_paths=[
+        Path(x) for x in json.loads(os.environ.get("CONSOLE_CHAT_PRIVATE_PATHS", "[]"))
+    ],
+    r=Path(os.environ["CONSOLE_CHAT_R"]) if os.environ.get("CONSOLE_CHAT_R") else None,
     offer_dynamic=os.environ.get("CONSOLE_CHAT_DYNAMIC_PACKAGES", "1") == "1",
 )
