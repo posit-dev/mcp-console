@@ -2,7 +2,6 @@
 
 import sys
 import subprocess
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -11,6 +10,7 @@ from support.assertions import (
     assert_result_content,
     last_tool_text,
     release_worker_callback_gate,
+    wait_for_evaluation_output,
     wait_for_idle_output,
 )
 from support.client import McpClient
@@ -28,48 +28,41 @@ def test_routes_input_to_idle_later_callback(
     binary: Path,
     execution: Execution,
 ) -> Transcript:
-    client = McpClient(binary, execution.serve())
-    client.initialize_and_list_tools()
-    client.send(requirements={"r": ["later"]})
+    with McpClient(binary, execution.serve()) as client:
+        client.initialize_and_list_tools()
+        client.send(requirements={"r": ["later"]})
 
-    # fmt: r
-    r = code(r"""
-        callback_gate <- tempfile("mcp-console-callback-gate-")
-        callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
-        run_callback <- function() {
-          if (!file.exists(callback_gate)) {
+        # fmt: r
+        r = code(r"""
+            callback_gate <- tempfile("mcp-console-callback-gate-")
+            callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+            run_callback <- function() {
+              if (!file.exists(callback_gate)) {
+                later::later(run_callback, delay = 0.01)
+                return(invisible(NULL))
+              }
+              stopifnot(file.create(callback_checkpoint))
+              collected_answer <<- readline("later> ")
+            }
             later::later(run_callback, delay = 0.01)
-            return(invisible(NULL))
-          }
-          stopifnot(file.create(callback_checkpoint))
-          collected_answer <<- readline("later> ")
-        }
-        later::later(run_callback, delay = 0.01)
-        cat(callback_gate, callback_checkpoint, sep = "\n")
-        """)
-    client.send(r=r)
-    release_worker_callback_gate(client, "collected input callback")
-    wait_for_idle_output(
-        client,
-        '[input requested: "later> "]\n[waiting for stdin]',
-        "idle callback input request",
-    )
-    poll_start = len(client.transcript)
-    client.send(stdin="yes\n")
-    deadline = time.monotonic() + 3
-    while last_tool_text(client) != "\n[idle]":
-        assert last_tool_text(client) == "\n[waiting for stdin]"
-        if time.monotonic() >= deadline:
-            raise AssertionError("idle callback did not receive submitted stdin")
-        time.sleep(0.01)
-        client.send(session="default")
-    polls = client.transcript[poll_start:]
-    final_poll = polls[-1]
-    final_poll["send"] = polls[0]["send"]
-    client.transcript[poll_start:] = [final_poll]
-    client.send(r="collected_answer")
-    assert last_tool_text(client) == '[1] "yes"\n'
-    return client.finish()
+            cat(callback_gate, callback_checkpoint, sep = "\n")
+            """)
+        client.send(r=r)
+        release_worker_callback_gate(client, "collected input callback")
+        wait_for_idle_output(
+            client,
+            '[input requested: "later> "]\n[waiting for stdin]',
+            "idle callback input request",
+        )
+        wait_for_evaluation_output(
+            client,
+            "\n[idle]",
+            "idle callback stdin consumption",
+            stdin="yes\n",
+        )
+        client.send(r="collected_answer")
+        assert last_tool_text(client) == '[1] "yes"\n'
+        return client.finish()
 
 
 @executions(RUNTIME)

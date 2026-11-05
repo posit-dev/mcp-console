@@ -621,9 +621,11 @@ def test_dispatches_cells_without_reticulate_evaluation(
         assert last_result_text(client) == "[done]"
         client.send(python="direct_state.append(42); direct_state")
         assert last_result_text(client) == "[41, 42]\n"
-        client.send(python='input("direct> ")', stdin="still live\n")
-        assert last_result_text(client) == (
-            "[input requested: \"direct> \"]\n'still live'\n"
+        client.expect(
+            "[input requested: \"direct> \"]\n'still live'\n",
+            python='input("direct> ")',
+            stdin="still live\n",
+            timeout_ms=0,
         )
         client.send(python='raise ValueError("direct exception")')
         assert last_result_text(client).endswith("ValueError: direct exception\n")

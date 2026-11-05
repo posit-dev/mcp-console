@@ -58,9 +58,11 @@ def test_prepares_without_reticulate_environment_mutators(
                 }
                 """)
         )
-        client.send(
+        client.expect(
+            "[input requested: \"\"]\n'queued input'\n",
             requirements={"python": ["py-yaml12"]},
             stdin="queued input\n",
+            timeout_ms=0,
             # fmt: python
             python=code("""
                 import yaml12
@@ -69,9 +71,7 @@ def test_prepares_without_reticulate_environment_mutators(
                 input()
                 """),
         )
-        assert last_result_text(client) == "[input requested: \"\"]\n'queued input'\n"
-        client.send(python="import humanize; humanize.intcomma(1234)")
-        assert last_result_text(client) == "'1,234'\n", last_result_text(client)
+        client.expect("'1,234'\n", python="import humanize; humanize.intcomma(1234)")
         client.send(
             # fmt: r
             r=code("""

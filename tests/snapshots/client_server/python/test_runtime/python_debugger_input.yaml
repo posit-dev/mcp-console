@@ -8,14 +8,24 @@ send:
     debug_value = 41
     pdb.set_trace()
     debug_value += 1
-  stdin: |
-    p debug_value
+  timeout_ms: 0
 result:
   content:
     - type: text
       text: |-
         > <mcp-console:python:e1>(4)<module>()
         [input requested: "(Pdb) "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    p debug_value
+  timeout_ms: 0
+result:
+  content:
+    - type: text
+      text: |-
         41
         [input requested: "(Pdb) "]
         [waiting for stdin]

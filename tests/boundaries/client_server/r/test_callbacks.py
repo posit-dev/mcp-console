@@ -3,7 +3,6 @@
 import os
 import sys
 import tempfile
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -255,51 +254,44 @@ def test_collects_idle_later_callbacks_with_empty_send(
 def test_snapshots_output_while_idle_later_callback_runs(
     binary: Path, execution: Execution
 ) -> Transcript:
-    client = McpClient(binary, execution.serve())
-    client.initialize_and_list_tools()
-    client.send(requirements={"r": ["later"]})
+    with McpClient(binary, execution.serve()) as client:
+        client.initialize_and_list_tools()
+        client.send(requirements={"r": ["later"]})
 
-    # fmt: r
-    r = code(r"""
-        callback_gate <- tempfile("mcp-console-callback-gate-")
-        callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
-        callback_release <- tempfile("mcp-console-callback-release-")
-        run_callback <- function() {
-          if (!file.exists(callback_gate)) {
+        # fmt: r
+        r = code(r"""
+            callback_gate <- tempfile("mcp-console-callback-gate-")
+            callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+            callback_release <- tempfile("mcp-console-callback-release-")
+            run_callback <- function() {
+              if (!file.exists(callback_gate)) {
+                later::later(run_callback, delay = 0.01)
+                return(invisible(NULL))
+              }
+              stopifnot(file.create(callback_checkpoint))
+              while (!file.exists(callback_release)) {
+                Sys.sleep(0.01)
+              }
+              cat("long callback")
+            }
             later::later(run_callback, delay = 0.01)
-            return(invisible(NULL))
-          }
-          stopifnot(file.create(callback_checkpoint))
-          while (!file.exists(callback_release)) {
-            Sys.sleep(0.01)
-          }
-          cat("long callback")
-        }
-        later::later(run_callback, delay = 0.01)
-        cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
-        """)
-    client.send(r=r)
-    (callback_release,) = release_worker_callback_gate(
-        client,
-        "long idle callback",
-        ("release",),
-    )
-    client.send(session="default", timeout_ms=10)
-    assert last_tool_text(client) == "\n[idle]"
-    callback_release.touch()
-    deadline = time.monotonic() + 3
-    poll_start = len(client.transcript)
-    while True:
-        client.send(session="default")
-        if last_tool_text(client) == "long callback\n[idle]":
-            break
+            cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+            """)
+        client.send(r=r)
+        (callback_release,) = release_worker_callback_gate(
+            client,
+            "long idle callback",
+            ("release",),
+        )
+        client.send(session="default", timeout_ms=10)
         assert last_tool_text(client) == "\n[idle]"
-        if time.monotonic() >= deadline:
-            raise AssertionError("idle callback output was not collected")
-    polls = client.transcript[poll_start:]
-    final_poll = polls[-1]
-    client.transcript[poll_start:] = [final_poll]
-    return client.finish()
+        callback_release.touch()
+        wait_for_idle_output(
+            client,
+            "long callback\n[idle]",
+            "released idle callback output",
+        )
+        return client.finish()
 
 
 @requires(R_EVENT_LOOP)
