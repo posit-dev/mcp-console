@@ -37,6 +37,7 @@ send:
   r: readline("after later callback> ")
   stdin: |
     !
+  timeout_ms: 0
 result:
   content:
     - type: text
@@ -102,6 +103,7 @@ send:
   r: identical(readline("after boundary> "), paste0(strrep("x", 6), "!"))
   stdin: |
     !
+  timeout_ms: 0
 result:
   content:
     - type: text

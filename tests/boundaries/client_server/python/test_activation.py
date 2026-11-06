@@ -19,6 +19,7 @@ from support.checkpoints import FifoCheckpoint
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.linux_sandbox import retain_system_bwrap
 from support.normalization import code
+from support.python import python_script_header
 from support.native import LOADER_VARIABLE, build_interposer
 from support.processes import host_process_id, process_exists
 from support.r import r_test_environment
@@ -117,7 +118,7 @@ def managed_environments(root: Path, *, interrupt_site: bool = False) -> dict[st
         uv = {real_uv!r}
         os.execv(uv, [uv, *sys.argv[1:]])
         """)
-    uv.write_text(f"#!{sys.executable}\n" + source)
+    uv.write_text(python_script_header() + source)
     uv.chmod(0o755)
     environment, _ = r_test_environment()
     environment.pop("RETICULATE_PYTHON", None)

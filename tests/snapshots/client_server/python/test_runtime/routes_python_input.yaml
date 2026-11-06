@@ -30,6 +30,7 @@ send:
     color
   stdin: |
     blue
+  timeout_ms: 0
 result:
   content:
     - type: text
@@ -46,6 +47,7 @@ send:
     direct
   stdin: |
     fd 0
+  timeout_ms: 0
 result:
   content:
     - type: text

@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 from support.normalization import code
+from support.python import python_script_header
 from support.requirements import command, gnu_tar
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -442,7 +443,7 @@ unstaged
         for name in ("uv", "cargo", "rustup", "R", "Rscript"):
             self.write(
                 f"commands/{name}",
-                f"#!{sys.executable}\n"
+                python_script_header()
                 # fmt: python
                 + code(r"""
                     import json
@@ -568,7 +569,7 @@ exit 9
         self.assertIn("no installed toolchain", report["tools"]["cargo"]["error"])
         self.write(
             "commands/cargo",
-            f"#!{sys.executable}\n"
+            python_script_header()
             # fmt: python
             + code("""
                 import signal

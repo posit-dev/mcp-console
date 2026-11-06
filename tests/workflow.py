@@ -17,9 +17,29 @@ from support.capture import read_lines
 from support.checkpoints import FifoCheckpoint
 from support.events import Events
 from support.normalization import code
+from support.python import python_script_header
 from support.requirements import PROCESS_EVENTS
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+class InterpreterPathTests(unittest.TestCase):
+    def test_core_checks_with_python_path_containing_spaces(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            interpreter = Path(temporary) / "Python runtime with spaces" / "python"
+            interpreter.parent.mkdir()
+            interpreter.symlink_to(sys.executable)
+            result = subprocess.run(
+                [
+                    interpreter,
+                    __file__,
+                    "WorkflowTests.test_core_profiles_keep_tooling_self_tests_in_full",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 class RCacheTests(unittest.TestCase):
@@ -157,7 +177,7 @@ class WorkflowTests(unittest.TestCase):
 
     def write_script(self, name: str, source: str) -> None:
         path = self.root / name
-        path.write_text(f"#!{sys.executable}\n" + code(source))
+        path.write_text(python_script_header() + code(source))
         path.chmod(0o755)
 
     def run_command(

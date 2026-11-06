@@ -1,4 +1,14 @@
 ---
+!same-as automatic MCP initialization for this execution mode
+---
+send:
+  r: invisible(NULL)
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
 send:
   control: restart
   requirements:

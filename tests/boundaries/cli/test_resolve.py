@@ -19,6 +19,7 @@ from support.client import TextReader
 from support.events import Events
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
+from support.python import python_script_header
 from support.processes import (
     ProcessIdentity,
     capture_process_identity,
@@ -252,7 +253,7 @@ def test_later_stage_failure_does_not_inherit_earlier_control(
         uv.chmod(0o755)
         rscript = r_home / "bin/Rscript"
         rscript.write_text(
-            f"#!{sys.executable}\n"
+            python_script_header()
             # fmt: python
             + code("""
                 import os
@@ -388,7 +389,7 @@ def observe_resolver(binary: Path, *, fail: bool) -> Transcript:
             for name in ("entered", "release", "killed")
         }
         uv = root / "uv"
-        uv.write_text(f"#!{sys.executable}\nimport signal\nsignal.pause()\n")
+        uv.write_text(python_script_header() + "import signal\nsignal.pause()\n")
         uv.chmod(0o755)
         environment = {
             **os.environ,

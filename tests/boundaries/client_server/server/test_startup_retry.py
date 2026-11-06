@@ -687,6 +687,10 @@ def retry_inspection(
                                 assert reached.write(b"1") == 1
                             if mode == "interrupt":
                                 assert signal.sigwait({{signal.SIGINT}}) == signal.SIGINT
+                                with Path({str(reached.path)!r}).open("wb", buffering=0) as reached:
+                                    assert reached.write(b"1") == 1
+                                with Path({str(release.path)!r}).open("rb", buffering=0) as release:
+                                    assert release.read(1) == b"1"
                                 os._exit(130)
                             with Path({str(release.path)!r}).open("rb", buffering=0) as release:
                                 assert release.read(1) == b"1"
@@ -1079,22 +1083,26 @@ def test_interrupted_retry_can_be_restarted(
     with retry_inspection(binary, execution, interruptible=True) as (
         client,
         reached,
-        _,
+        release,
         attempts,
     ):
         pending = client.start_send(control="restart", python="rejected_cell = True")
         reached.wait("retried Python inspection can receive interrupt")
-        interrupt = client.start_send(control="interrupt")
-        client.receive_many([pending, interrupt])
+        interrupt = client.start_send(control="interrupt", timeout_ms=0)
+        reached.wait("retried inspection received interrupt and remains owned")
+        client.receive(interrupt)
         observation = interrupt["result"]
-        assert not observation.get("isError"), observation
-        assert observation["content"] in (
-            [{"type": "text", "text": "[worker starting]"}],
-            [{"type": "text", "text": "\n[phase: startup]\n[worker starting]"}],
-        ), observation
-        # The phase announcement depends on which response observes startup
-        # first; the interrupted inspection and subsequent retry settle below.
-        observation["content"] = [{"type": "text", "text": "[worker starting]"}]
+        assert observation == {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "\n[phase: dependency preparation]\n[worker starting]",
+                }
+            ],
+            "isError": False,
+        }, observation
+        release.release()
+        client.receive(pending)
         failure = pending["result"]
         assert failure == {
             "content": [
@@ -1107,8 +1115,10 @@ def test_interrupted_retry_can_be_restarted(
         }, failure
         assert client.send(session="default") == failure
         (attempts.parent / "inspection-mode").write_text("ready")
-        repaired = client.send(
-            control="restart", python="assert 'rejected_cell' not in globals(); 42"
+        repaired = client.expect(
+            "[runtime discovery retried]\n42\n[done]",
+            control="restart",
+            python="assert 'rejected_cell' not in globals(); 42",
         )
         assert repaired["content"] == [
             {"type": "text", "text": "[runtime discovery retried]\n42\n[done]"}

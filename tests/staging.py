@@ -13,6 +13,7 @@ from pathlib import Path
 from support.capture import read_lines
 from support.checkpoints import FifoCheckpoint
 from support.normalization import code
+from support.python import python_script_header
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -91,7 +92,7 @@ class StagingTests(unittest.TestCase):
         self.environment.pop("MCP_CONSOLE_SANDBOX_SOURCE", None)
 
     def write_command(self, path: Path, program: str) -> None:
-        path.write_text(f"#!{sys.executable}\n" + code(program))
+        path.write_text(python_script_header() + code(program))
         path.chmod(0o755)
 
     def commit(self) -> None:

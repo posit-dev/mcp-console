@@ -753,9 +753,11 @@ def test_replays_console_prefix_after_operation_boundary_interrupt(
             timeout_ms=0,
         )
 
-        client.send(r='readline("after later callback> ")', stdin="!\n")
-        assert last_tool_text(client) == (
-            '[input requested: "after later callback> "]\n[1] "part!"\n'
+        client.expect(
+            '[input requested: "after later callback> "]\n[1] "part!"\n',
+            r='readline("after later callback> ")',
+            stdin="!\n",
+            timeout_ms=0,
         )
 
         # Return one full console buffer, then interrupt before another
@@ -811,13 +813,11 @@ def test_replays_console_prefix_after_operation_boundary_interrupt(
             timeout_ms=0,
         )
 
-        client.send(
+        client.expect(
+            '[input requested: "after boundary> "]\n[1] TRUE\n',
             r='identical(readline("after boundary> "), paste0(strrep("x", 6), "!"))',
             stdin="!\n",
-        )
-        output = last_tool_text(client)
-        assert output == ('[input requested: "after boundary> "]\n[1] TRUE\n'), repr(
-            output
+            timeout_ms=0,
         )
         return client.finish()
 

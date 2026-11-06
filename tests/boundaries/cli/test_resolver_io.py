@@ -17,6 +17,7 @@ from support.events import Events
 from support.records import Transcript
 from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
+from support.python import python_script_header
 from support.requirements import (
     LINUX_SANDBOX,
     MACOS_SANDBOX,
@@ -97,8 +98,7 @@ def test_exit_readiness_waits_for_terminal_status_before_reaping(
         }
         uv = root / "uv"
         uv.write_text(
-            f"#!{sys.executable}\n"
-            "import json\n"
+            python_script_header() + "import json\n"
             f"with open({str(root / 'exit')!r}, 'rb') as gate:\n"
             "    assert gate.read(1) == b'1'\n"
             "print(json.dumps([{\n"
@@ -252,7 +252,7 @@ def interrupted_failure(binary: Path, *, stop_overlap: bool = False) -> Transcri
         )
         uv = root / "uv"
         uv.write_text(
-            f"#!{sys.executable}\n"
+            python_script_header()
             # fmt: python
             + code(f"""
                 import signal
@@ -379,7 +379,7 @@ def test_stdin_failure_retires_live_materializer_and_preserves_diagnostic(
         fail = FifoCheckpoint.create(root / "fail")
         uv = root / "uv"
         uv.write_text(
-            f"#!{sys.executable}\n"
+            python_script_header()
             + (ROOT / "tests/fixtures/resolver_output_holder.py").read_text()
         )
         uv.chmod(0o755)
@@ -458,7 +458,7 @@ def cleanup_failure(
             for name in ("entered", "release", "killed")
         }
         uv = root / "uv"
-        uv.write_text(f"#!{sys.executable}\nimport signal\nsignal.pause()\n")
+        uv.write_text(python_script_header() + "import signal\nsignal.pause()\n")
         uv.chmod(0o755)
         environment = {
             "PATH": str(root),
@@ -565,7 +565,7 @@ def inherited_output(
         }
         uv = root / "uv"
         uv.write_text(
-            f"#!{sys.executable}\n"
+            python_script_header()
             + (ROOT / "tests/fixtures/resolver_output_holder.py").read_text()
         )
         uv.chmod(0o755)

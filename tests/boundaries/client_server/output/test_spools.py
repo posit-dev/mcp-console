@@ -26,6 +26,7 @@ from support.previews import (
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
+from support.python import python_script_header
 from support.records import Transcript
 from support.suites import run_this_suite
 from support.requirements import POSIX, requires
@@ -96,7 +97,7 @@ def test_reports_partial_retention_and_later_unretained_output(
         # Limit regular-file writes using the OS, while leaving enough room for
         # the journal and both projections of the two bounded tool responses.
         launcher.write_text(
-            f"#!{sys.executable}\n"
+            python_script_header()
             # fmt: python
             + code(f"""
                 import os

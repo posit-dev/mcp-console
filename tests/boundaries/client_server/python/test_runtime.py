@@ -1061,12 +1061,11 @@ def test_releases_python_threads_before_running_init_hooks(
                 client,
             )
 
-            client.send(
+            client.expect(
+                "[input requested: \"hook> \"]\n'after hook'\n",
                 python='hook_input = input("hook> "); hook_input',
                 stdin="after hook\n",
-            )
-            assert last_result_text(client) == (
-                "[input requested: \"hook> \"]\n'after hook'\n"
+                timeout_ms=0,
             )
             return client.finish()
         finally:
@@ -1077,44 +1076,48 @@ def test_releases_python_threads_before_running_init_hooks(
 
 @executions(DIRECT, SANDBOXED)
 def test_routes_python_input(binary: Path, execution: Execution) -> Transcript:
-    client = McpClient(binary, execution.serve())
-    client.initialize_and_list_tools()
+    with McpClient(binary, execution.serve()) as client:
+        client.initialize_and_list_tools()
 
-    # fmt: python
-    python = code("""
-        name = input("name> ")
-        name
-        """)
-    client.send(python=python)
-    assert (
-        last_result_text(client) == '[input requested: "name> "]\n[waiting for stdin]'
-    )
-    wait_for_evaluation_output(
-        client,
-        "'Ada'\n",
-        "Python stdin routing",
-        stdin="Ada\n",
-        timeout_ms=0,
-    )
+        # fmt: python
+        python = code("""
+            name = input("name> ")
+            name
+            """)
+        client.send(python=python)
+        assert (
+            last_result_text(client)
+            == '[input requested: "name> "]\n[waiting for stdin]'
+        )
+        wait_for_evaluation_output(
+            client,
+            "'Ada'\n",
+            "Python stdin routing",
+            stdin="Ada\n",
+            timeout_ms=0,
+        )
 
-    # fmt: python
-    python = code("""
-        color = input("color> ")
-        color
-        """)
-    client.send(python=python, stdin="blue\n")
-    assert last_result_text(client) == ("[input requested: \"color> \"]\n'blue'\n")
+        # fmt: python
+        python = code("""
+            color = input("color> ")
+            color
+            """)
+        client.expect(
+            "[input requested: \"color> \"]\n'blue'\n",
+            python=python,
+            stdin="blue\n",
+            timeout_ms=0,
+        )
 
-    # fmt: python
-    python = code("""
-        import sys
+        # fmt: python
+        python = code("""
+            import sys
 
-        direct = sys.stdin.readline()
-        direct
-        """)
-    client.send(python=python, stdin="fd 0\n")
-    assert last_result_text(client) == "'fd 0\\n'\n"
-    return client.finish()
+            direct = sys.stdin.readline()
+            direct
+            """)
+        client.expect("'fd 0\\n'\n", python=python, stdin="fd 0\n", timeout_ms=0)
+        return client.finish()
 
 
 @executions(RUNTIME)
@@ -1263,34 +1266,39 @@ def test_python_input_eof_retires_worker(
 
 @executions(RUNTIME)
 def test_python_debugger_input(binary: Path, execution: Execution) -> Transcript:
-    client = McpClient(binary, execution.serve())
-    client.initialize_and_list_tools()
+    with McpClient(binary, execution.serve()) as client:
+        client.initialize_and_list_tools()
 
-    # fmt: python
-    python = code("""
-        import pdb
+        # fmt: python
+        python = code("""
+            import pdb
 
-        debug_value = 41
-        pdb.set_trace()
-        debug_value += 1
-        """)
-    client.send(python=python, stdin="p debug_value\n")
-    output = last_result_text(client)
-    assert output.count('[input requested: "(Pdb) "]') == 2, output
-    assert output.endswith('41\n[input requested: "(Pdb) "]\n[waiting for stdin]'), (
-        output
-    )
+            debug_value = 41
+            pdb.set_trace()
+            debug_value += 1
+            """)
+        client.expect(None, python=python, timeout_ms=0)
+        output = last_result_text(client)
+        assert output.count('[input requested: "(Pdb) "]') == 1, output
+        assert output.endswith('[input requested: "(Pdb) "]\n[waiting for stdin]'), (
+            output
+        )
+        client.expect(
+            '41\n[input requested: "(Pdb) "]\n[waiting for stdin]',
+            stdin="p debug_value\n",
+            timeout_ms=0,
+        )
 
-    wait_for_evaluation_output(
-        client,
-        "[done]",
-        "Python debugger input",
-        stdin="continue\n",
-        timeout_ms=3_000,
-    )
-    client.send(python="debug_value")
-    assert last_result_text(client) == "42\n"
-    return client.finish()
+        wait_for_evaluation_output(
+            client,
+            "[done]",
+            "Python debugger input",
+            stdin="continue\n",
+            timeout_ms=3_000,
+        )
+        client.send(python="debug_value")
+        assert last_result_text(client) == "42\n"
+        return client.finish()
 
 
 @executions(DIRECT, SANDBOXED)

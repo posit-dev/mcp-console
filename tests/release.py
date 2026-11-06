@@ -27,6 +27,7 @@ import zipfile
 from pathlib import Path
 
 from support.normalization import code
+from support.python import python_script_header
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "release.py"
@@ -39,16 +40,7 @@ def write_executable(path: Path, source: str) -> None:
 
 
 def write_python_executable(path: Path, source: str) -> None:
-    # The shell/Python header preserves the selected interpreter with spaces,
-    # without PATH lookup or consuming the fixture's MCP stdin.
-    launcher = code(
-        f"""
-        #!/bin/sh
-        '''exec' {shlex.quote(sys.executable)} "$0" "$@"
-        ' '''
-        """
-    )
-    write_executable(path, launcher + code(source))
+    write_executable(path, python_script_header() + code(source))
 
 
 def bubblewrap_notice(

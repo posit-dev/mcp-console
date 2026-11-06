@@ -67,6 +67,7 @@ send:
   python: hook_input = input("hook> "); hook_input
   stdin: |
     after hook
+  timeout_ms: 0
 result:
   content:
     - type: text

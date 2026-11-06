@@ -1,4 +1,6 @@
 ---
+!same-as python-only MCP initialization for this execution mode
+---
 send:
   r: invisible(NULL)
 result:

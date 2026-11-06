@@ -44,6 +44,7 @@ send:
   python: input("direct> ")
   stdin: |
     still live
+  timeout_ms: 0
 result:
   content:
     - type: text

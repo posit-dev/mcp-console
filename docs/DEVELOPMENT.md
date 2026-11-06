@@ -37,6 +37,10 @@ Source archives without Git metadata retain plain `+dev`, and release versions h
 Python package metadata and `configure-client --pin-version current` use the package version without the Git suffix; local development installations still need their source or wheel.
 Install the formatting tools used by `scripts/format`, including ruff, yamark, air, rustfmt, and Clippy for checking.
 
+For the [relay/worker transcripts](../tests/boundaries/relay_worker/), make reticulate available in the R library inherited by the test process.
+Their custom-worker proxy bypasses Console's host runtime preparation, so package installation must finish before protocol capture begins.
+CI installs reticulate before running transcripts.
+
 On native Windows use `.cmd` launchers, such as `scripts/check.cmd`, or `python scripts/check`.
 Stage the companion before native build/test/check commands.
 See [Windows validation](WINDOWS_DEVELOPMENT.md#validation) for MXC host requirements and required runtimes.

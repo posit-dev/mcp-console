@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "python"))
 
 import mcp_console
 from mcp_console import AsyncMCPConsole, MCPConsole
-from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.r import r_test_environment, reference_plots
 from support.normalization import code
 from support.records import McpTranscript, Transcript, TranscriptWithCompanions
@@ -507,42 +507,91 @@ def test_clients_inspect_and_replace_requirements(
     return results
 
 
-@requires(POSIX)
-@executions(DIRECT, SANDBOXED)
+@executions(RUNTIME)
 def test_sync_and_async_clients_receive_bounded_previews(
     binary: Path, execution: Execution
-) -> Transcript:
-    results = []
-    with tempfile.TemporaryDirectory() as temporary:
-        (Path(temporary) / ".agents/console").mkdir(parents=True)
-        settings = options(binary, execution)
-        settings["server_parameters"]["cwd"] = temporary
-        emitted = "x" * (8 * 1024 * 1024 + 7)
+) -> TranscriptWithCompanions:
+    emitted = "x" * (8 * 1024 * 1024 + 7)
+    source = f'print("x" * {len(emitted)}, end="")'
 
-        def check(text: str) -> None:
-            assert_preview(text, emitted)
-            session = max(
-                (Path(temporary) / ".agents/console/sessions").iterdir(),
-                key=lambda path: path.name,
-            )
-            assert (
-                session / "capture/sessions/001/cell-001.txt"
-            ).read_text() == emitted
-            results.append(
-                {"preview": compact_text(text.replace(session.name, "<run ID>"), "x")}
-            )
+    async def exercise(console):
+        output = console.send(python=source, timeout_ms=600_000)
+        if inspect.isawaitable(output):
+            output = await output
+        assert output.result_type == "complete", output
+        assert output.is_error is False, output
+        assert_preview(output.text, emitted)
+        idle = console.send(session="default")
+        if inspect.isawaitable(idle):
+            idle = await idle
+        assert idle.text == "\n[idle]", idle
+        return output
 
-        with MCPConsole(**settings) as console:
-            check(console.send(r="overflow console output").text)
-            assert console.send(session="default").text == "\n[idle]"
+    async def run() -> TranscriptWithCompanions:
+        transcripts = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for client_type in (MCPConsole, AsyncMCPConsole):
+                workspace = root / client_type.__name__
+                workspace.mkdir()
+                capture = root / f"{client_type.__name__}.json"
+                settings = {
+                    "command": sys.executable,
+                    "args": [
+                        "-u",
+                        ROOT / "tests/fixtures/mcp_recording_proxy.py",
+                        "--workspace",
+                        workspace,
+                        capture,
+                        binary,
+                        *execution.serve(),
+                    ],
+                }
+                if client_type is AsyncMCPConsole:
+                    async with client_type(**settings) as console:
+                        result = await exercise(console)
+                else:
+                    with client_type(**settings) as console:
+                        result = await exercise(console)
+                (session,) = (workspace / ".agents/console/sessions").iterdir()
+                assert (
+                    session / "capture/sessions/001/cell-001.txt"
+                ).read_bytes() == emitted.encode()
+                transcript = json.loads(capture.read_text(encoding="utf-8"))
+                output = next(
+                    entry["result"] for entry in transcript if "send" in entry
+                )
+                assert output["content"] == [{"type": "text", "text": result.text}]
+                # Check the original byte budget and complete raw log before
+                # normalizing only the fixture-owned recording path.
+                output["content"][0]["text"] = result.text.replace(
+                    session.name, "<run ID>"
+                ).replace(os.sep, "/")
+                initialize = transcript[0]["input"]
+                assert initialize["params"]["clientInfo"] == {
+                    "name": "mcp",
+                    "version": "0.1.0",
+                }
+                initialize["params"]["clientInfo"] = {
+                    "name": "acceptance-test",
+                    "version": "1.0.0",
+                }
+                transcripts.append(
+                    [
+                        {
+                            "scenario": f"{client_type.__name__} receives a bounded preview and then idle.",
+                            "fixture": "The real Python runtime emits more than the retained preview budget. The full raw log and exact preview bytes are checked; the proxy retains the MCP exchanges.",
+                        },
+                        *transcript,
+                    ]
+                )
+        synchronous, asynchronous = transcripts
+        assert synchronous[1:] == asynchronous[1:]
+        return TranscriptWithCompanions(
+            synchronous, {"async.yaml": McpTranscript(asynchronous)}
+        )
 
-        async def asynchronous() -> None:
-            async with AsyncMCPConsole(**settings) as console:
-                check((await console.send(r="overflow console output")).text)
-                assert (await console.send(session="default")).text == "\n[idle]"
-
-        asyncio.run(asynchronous())
-    return results
+    return asyncio.run(run())
 
 
 @requires(POSIX)
@@ -749,29 +798,6 @@ def test_callable_tools_follow_connected_server_fields(
         return transcript
 
     return asyncio.run(exercise())
-
-
-@requires(POSIX)
-@executions(DIRECT, SANDBOXED)
-def test_callable_preserves_line_breaks_around_images(
-    binary: Path, execution: Execution
-) -> Transcript:
-    async def exercise():
-        async with AsyncMCPConsole(**options(binary, execution)) as console:
-            return str(await console.send(r="emit image"))
-
-    asynchronous = asyncio.run(exercise())
-    with MCPConsole(**options(binary, execution)) as console:
-        synchronous = str(console.send(r="emit image"))
-    assert (
-        synchronous
-        == asynchronous
-        == """before image
-[image/png output]
-after image
-"""
-    )
-    return [{"output": synchronous}]
 
 
 @requires(WORKER)

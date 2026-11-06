@@ -11,6 +11,7 @@ result:
 ---
 send:
   python: import mcp_console_distribution_without_module
+  timeout_ms: 0
 result:
   content:
     - type: text

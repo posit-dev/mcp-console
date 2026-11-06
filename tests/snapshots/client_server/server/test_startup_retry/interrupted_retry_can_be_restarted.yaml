@@ -22,10 +22,14 @@ result:
 ---
 send:
   control: interrupt
+  timeout_ms: 0
 result:
   content:
     - type: text
-      text: "[worker starting]"
+      text: |-
+
+        [phase: dependency preparation]
+        [worker starting]
   isError: false
 ---
 send:
