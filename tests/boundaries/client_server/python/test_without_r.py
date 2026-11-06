@@ -1317,6 +1317,15 @@ def automatic_resolution_failure_and_cancel_keep_accepted_state(
                 )
                 interrupt = client.start_send(control="interrupt")
                 client.receive_many([pending, interrupt])
+                # The pending send may still own output when the interrupt
+                # responds. Collect completion before checking retained state.
+                wait_for_evaluation_output(
+                    client,
+                    "\n[idle]",
+                    "automatic Python resolution interruption",
+                    completion_timeout_seconds=client.response_timeout,
+                    received=interrupt,
+                )
                 assert os.read(alive, 1) == b""
                 assert (
                     client.send(requirements={"action": "get"})["structuredContent"][
