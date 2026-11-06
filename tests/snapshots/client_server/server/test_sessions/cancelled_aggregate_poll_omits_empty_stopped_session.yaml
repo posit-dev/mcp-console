@@ -3,9 +3,11 @@ scenario: >-
   Cancelling an aggregate poll while one session is running must not
   restore an empty stopped session's notice.
 fixture: >-
-  The default Python cell waits at a FIFO. A competing targeted poll
-  proves the aggregate owns its wait before cancellation; alpha has
-  already stopped with all output delivered.
+  The default Python cell waits at a FIFO. Its first complete response
+  write is held until a ping is received, so the ping proves delivery
+  settled before the aggregate starts. A targeted poll proves aggregate
+  ownership before cancellation; alpha has stopped with all output
+  delivered.
 ---
 !same-as python-only MCP initialization for this execution mode
 ---
@@ -53,6 +55,10 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+---
+input:
+  method: ping
+result: {}
 ---
 send:
   timeout_ms: 60000

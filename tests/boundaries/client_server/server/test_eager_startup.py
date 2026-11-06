@@ -687,7 +687,7 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
                 wait_for_checkpoint(
                     poll_result_recorded,
                     "startup poll deadline expires before response delivery",
-                    root=journal.parent,
+                    root=journal,
                     client=client,
                     timeout=15,
                 )
@@ -859,7 +859,7 @@ def early_requirements_with_pending_poll(
                     wait_for_checkpoint(
                         pending_received,
                         "poll received while terminal response delivery is held",
-                        root=journal.parent,
+                        root=journal,
                         client=client,
                     )
                     assert "result" not in pending and "error" not in pending, pending

@@ -953,7 +953,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
         wait_for_checkpoint(
             completed_image_output,
             "unpolled cell completion recorded",
-            root=journal.parent,
+            root=journal,
             client=client,
         )
         completed_events = live_events()

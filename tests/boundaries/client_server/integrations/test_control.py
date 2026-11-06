@@ -127,6 +127,7 @@ def wait_for_queued_integrator(client: McpClient, root: Path, source: str) -> No
         "integrator request waiting in its captured generation",
         root=recordings,
         recursive=True,
+        watch_files=lambda: recordings.glob("*/capture/events.jsonl"),
         client=client,
     )
 
@@ -161,6 +162,7 @@ def wait_for_cell_started(client: McpClient, root: Path, source: str) -> None:
         "controller observed foreground cell entry",
         root=recordings,
         recursive=True,
+        watch_files=lambda: recordings.glob("*/capture/events.jsonl"),
         client=client,
     )
 
@@ -372,6 +374,9 @@ def test_previews_and_busy_policies_preserve_mcp_delivery(
                     "agent output captured before integrator preview",
                     root=recordings,
                     recursive=True,
+                    watch_files=lambda: recordings.glob(
+                        "*/capture/sessions/*/cell-*.txt"
+                    ),
                     client=client,
                 )
                 with ControlClient(endpoint) as control:
@@ -689,6 +694,9 @@ def test_cancelled_mcp_control_keeps_recovery_out_of_integrator_result(
                         "integrator output captured before preview",
                         root=recordings,
                         recursive=True,
+                        watch_files=lambda: recordings.glob(
+                            "*/capture/sessions/*/cell-*.txt"
+                        ),
                         client=client,
                     )
                     profile.pause_results(True)
@@ -806,6 +814,7 @@ def test_disconnect_withdraws_waiting_code(
                     "disconnected request settled before releasing the runner",
                     root=recordings,
                     recursive=True,
+                    watch_files=lambda: recordings.glob("*/capture/events.jsonl"),
                     client=client,
                 )
                 release.release()
@@ -888,6 +897,7 @@ def test_disconnect_keeps_admitted_result_journaled(
                     "admitted result recorded after socket disconnect",
                     root=recordings,
                     recursive=True,
+                    watch_files=lambda: recordings.glob("*/capture/events.jsonl"),
                     client=client,
                 )
                 client.expect("\n[idle]")

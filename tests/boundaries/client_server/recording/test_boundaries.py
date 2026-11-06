@@ -88,8 +88,10 @@ def recording(root: Path) -> Path:
 def await_event(
     client: McpClient, root: Path, kind: str, predicate=lambda event: True
 ) -> dict:
+    recordings = root / ".agents/console/sessions"
+
     def observed():
-        paths = list((root / ".agents/console/sessions").glob("*/capture/events.jsonl"))
+        paths = list(recordings.glob("*/capture/events.jsonl"))
         if not paths:
             return None
         # Appends can be observed midway through their final JSONL frame.
@@ -105,7 +107,12 @@ def await_event(
         )
 
     return wait_for_checkpoint(
-        observed, f"recorded {kind}", root=root, client=client, recursive=True
+        observed,
+        f"recorded {kind}",
+        root=recordings,
+        client=client,
+        recursive=True,
+        watch_files=lambda: recordings.glob("*/capture/events.jsonl"),
     )
 
 

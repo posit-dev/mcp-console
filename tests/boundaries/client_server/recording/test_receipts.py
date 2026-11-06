@@ -280,7 +280,7 @@ def replacement_with_stalled_journal(
                     wait_for_checkpoint(
                         lambda: pid if pid.read_text() != previous else None,
                         f"replacement acquired while {event} journal write is stalled",
-                        root=root,
+                        root=pid,
                         client=client,
                     )
                     assert client.request("ping")["result"] == {}

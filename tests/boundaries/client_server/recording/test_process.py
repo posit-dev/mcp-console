@@ -290,8 +290,7 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                         else None
                     ),
                     "first response transport write settled",
-                    root=recording,
-                    recursive=True,
+                    root=recording / "capture/events.jsonl",
                     client=client,
                 )
                 gates["recording-release"].release()

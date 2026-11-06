@@ -67,6 +67,8 @@ Use distinct FIFO paths for successive `release_fixture_checkpoint()` phases.
 Reopening one path can reconnect to a previous phase's writer and receive EOF when it closes.
 Pass the client when its exit should end that wait.
 Marker waits subscribe to native filesystem/process events on macOS and Linux; Windows uses cancellable bounded path polling.
+For content changes in a known file, use that file as the checkpoint root.
+For discovered files, pass `watch_files` so each candidate is watched before its contents are read; directory notifications alone do not report file appends on macOS.
 Pass an owned `Events` instance to `wait_for_path()` when the fixture needs explicit cancellation; `Events.cancel()` wakes the wait without a marker or client.
 
 ```python
@@ -84,6 +86,9 @@ Process startup does not prove a cell log has closed.
 For shutdown output, establish cell completion and its recorded `cell_output` event before asserting which file owns later bytes.
 Sleeps, broader matching, and longer timeouts do not establish ordering.
 Receiving an MCP result frame does not prove its delivery acknowledgment has settled.
+Before starting a long poll whose ownership another call will probe, receive a ping response to settle preceding response writes.
+Otherwise both calls can enter the response-admission queue, leaving the probe behind the long poll it is meant to observe.
+When the next assertion depends on cancellation releasing that claim, observe the cancelled call's recorded result before proceeding.
 Before a nonwaiting integrator operation that requires idle state, observe `status.idle`; use `busy: "wait"` when submitting an ordinary integrator evaluation.
 An accepted interrupt likewise does not prove the input request has closed: collect the expected interruption output before asserting completion.
 Start a liveness deadline at the fixture checkpoint for the operation under test, after unrelated interpreter discovery and preparation have completed.

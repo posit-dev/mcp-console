@@ -100,6 +100,9 @@ def test_restart_orders_cancelled_mcp_error_before_worker_notices(
                         "integrator output captured before MCP cancellation",
                         root=recording,
                         recursive=True,
+                        watch_files=lambda: (recording / "capture/sessions").glob(
+                            "*/cell-*.txt"
+                        ),
                         client=client,
                     )
                     profile.pause_results(True)

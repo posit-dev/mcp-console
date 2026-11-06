@@ -147,7 +147,7 @@ def test_retry_retains_preparation_startup_and_idle_output(
             wait_for_checkpoint(
                 lambda: journal if preparation_capture() == preparation * 2 else None,
                 "retry preparation remains process output before worker launch",
-                root=recording,
+                root=journal,
                 client=client,
             )
             client.receive(restart)
@@ -186,7 +186,7 @@ def test_retry_retains_preparation_startup_and_idle_output(
                     log if log.exists() and log.read_bytes() == expected_raw else None
                 ),
                 "post-repair idle text is retained outside the completed cell",
-                root=log.parent,
+                root=log,
                 client=client,
             )
             client.send(session="default")
@@ -869,7 +869,7 @@ def test_cancelled_restart_shares_retry_and_preserves_next_cell(
         wait_for_checkpoint(
             cancellation_recorded,
             "cancelled restart stops waiting before shared inspection completes",
-            root=journal.parent,
+            root=journal,
             client=client,
         )
         next_cell = client.start_send(
@@ -1000,7 +1000,7 @@ def cancelled_retry_preparation(
             wait_for_checkpoint(
                 cancellation_recorded,
                 "retry cancellation is recorded while changed preparation is gated",
-                root=journal.parent,
+                root=journal,
                 client=client,
             )
             release.release()
@@ -1037,7 +1037,7 @@ def cancelled_retry_preparation(
             wait_for_checkpoint(
                 retry_finished,
                 "retry cancellation result is recovered before further admission",
-                root=journal.parent,
+                root=journal,
                 client=client,
             )
             client.transcript[poll_start:] = [client.transcript[-1]]
