@@ -15,10 +15,11 @@ from boundaries.server_relay._harness import (
     ServerRelayClient,
 )
 from support.assertions import tool_text
-from support.checkpoints import FifoCheckpoint
+from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import stop_client
 from support.execution import DIRECT, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
+from support.previews import live_recording_events, session_directory
 from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, PTHREAD_RUNTIME_PARKING, requires
 from support.suites import run_this_suite
@@ -83,8 +84,23 @@ def test_withholding_attached_cell_preserves_idle_input(
             assert tool_text(client.send(session="default")) == "\n[waiting for stdin]"
             client.send(control="interrupt", timeout_ms=0)
             release.release()
-            # A withheld source has no executed-cell log. The public completion
-            # wait proves detachment before returning the idle callback's input.
+            # Polling can still report the attached idle input until dispatch
+            # settles. This is the only source call so far; its recorded finish
+            # follows detachment and restoration of the idle callback's input.
+            journal = session_directory(client.client) / "capture/events.jsonl"
+            wait_for_checkpoint(
+                lambda: (
+                    journal
+                    if any(
+                        event["event"] == "source_finished"
+                        for event in live_recording_events(journal.parent.parent)
+                    )
+                    else None
+                ),
+                "withheld source detached before returning idle callback input",
+                root=journal,
+                client=client.client,
+            )
             settled = client.send(session="default", timeout_ms=60000)
             assert tool_text(settled) == "[done]", settled
             reply = client.send(stdin="answer\n")
