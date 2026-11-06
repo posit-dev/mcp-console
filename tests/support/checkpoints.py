@@ -3,7 +3,7 @@ import os
 import select
 import time
 from pathlib import Path
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import CancelledError
 from contextlib import nullcontext
 from typing import Self
@@ -68,6 +68,7 @@ def wait_for_checkpoint(
     timeout: float = 10,
     recursive: bool = False,
     events: Events | None = None,
+    watch_files: Callable[[], Iterable[Path]] | None = None,
 ) -> Path:
     deadline = time.monotonic() + timeout
     with Events() if events is None else nullcontext(events) as events:
@@ -93,6 +94,9 @@ def wait_for_checkpoint(
                 description, client
             )
             events.watch_tree(root, recursive=recursive)
+            if watch_files is not None:
+                for path in watch_files():
+                    events.watch_file(path)
             if path := discover():
                 return path
             remaining = deadline - time.monotonic()

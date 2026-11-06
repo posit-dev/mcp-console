@@ -73,6 +73,9 @@ def test_control_keeps_default_state_and_recording_while_named_session_runs(
                     "named output captured while the default session stays idle",
                     root=recordings,
                     recursive=True,
+                    watch_files=lambda: recordings.glob(
+                        "*/capture/sessions/*/cell-*.txt"
+                    ),
                     client=client,
                 )
                 with ControlClient(endpoint) as control:

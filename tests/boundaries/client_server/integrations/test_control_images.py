@@ -120,6 +120,10 @@ def test_previews_images_without_consuming_or_reaccounting(
                     "agent plot and complete text captured before control preview",
                     root=recording,
                     recursive=True,
+                    watch_files=lambda: (
+                        recording / "capture/events.jsonl",
+                        *(recording / "capture/sessions").glob("*/cell-*.txt"),
+                    ),
                     client=client,
                 )
                 with ControlClient(endpoint) as control:
@@ -294,6 +298,9 @@ def test_preview_does_not_publish_omission_for_completed_intervals(
                     "background output retained in its observed post-cell interval",
                     root=recording,
                     recursive=True,
+                    watch_files=lambda: (recording / "capture/sessions").glob(
+                        "*/cell-*-post.txt"
+                    ),
                     client=client,
                 )
                 paths.append(path)

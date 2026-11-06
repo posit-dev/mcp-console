@@ -66,6 +66,7 @@ def assert_prelaunch_failure(
         "worker prelaunch failed before the timed integrator submission",
         root=recordings,
         recursive=True,
+        watch_files=lambda: recordings.glob("*/capture/events.jsonl"),
         client=client,
     )
 
@@ -80,6 +81,7 @@ def assert_prelaunch_failure(
                 "integrator evaluation recorded while startup is held",
                 root=recordings,
                 recursive=True,
+                watch_files=lambda: recordings.glob("*/capture/events.jsonl"),
                 client=client,
             )
             startup_release.release()

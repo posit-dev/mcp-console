@@ -357,8 +357,7 @@ def test_sessions_without_cells_keep_shutdown_in_startup(
                     else None
                 ),
                 "startup text observed before a cell executes",
-                root=recording,
-                recursive=True,
+                root=first,
                 client=client,
             )
             assert first.stat().st_mode & 0o200
@@ -373,8 +372,7 @@ def test_sessions_without_cells_keep_shutdown_in_startup(
                     else None
                 ),
                 "replacement startup text observed without a cell",
-                root=recording,
-                recursive=True,
+                root=second,
                 client=client,
             )
             client.send(stdin="unused input")

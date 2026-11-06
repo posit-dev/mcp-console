@@ -243,7 +243,7 @@ def test_control_only_interrupt_preserves_controlled_completion_marker(
         wait_for_checkpoint(
             completion_recorded,
             "controlled cell completion recorded before interrupt",
-            root=journal.parent,
+            root=journal,
             client=client.client,
         )
 

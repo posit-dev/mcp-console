@@ -163,8 +163,7 @@ def test_records_real_mixed_language_session(
         wait_for_checkpoint(
             readiness_call_recorded,
             "readiness request captured before worker launch",
-            root=recording,
-            recursive=True,
+            root=recording / "capture/events.jsonl",
             client=client,
         )
         release.touch()

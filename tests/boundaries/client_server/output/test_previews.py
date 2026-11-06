@@ -182,6 +182,9 @@ def test_summarizes_empty_cell_after_oversized_startup_output(
                             "startup output recorded outside a cell",
                             root=sessions,
                             recursive=True,
+                            watch_files=lambda: sessions.glob(
+                                "*/capture/sessions/001/startup.txt"
+                            ),
                             client=client,
                         )
                         text = last_tool_text(client)
