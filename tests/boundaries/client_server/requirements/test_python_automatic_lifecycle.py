@@ -5,13 +5,18 @@ import signal
 import shlex
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.progress import phase_progress, without_elapsed, without_elapsed_result
 from support.requirements import POSIX, PROCESS_EVENTS, R, requires
-from support.assertions import entry_result_text, last_result_text
+from support.assertions import (
+    entry_result_text,
+    last_result_text,
+    wait_for_evaluation_output,
+)
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient, stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
@@ -364,11 +369,25 @@ def interrupts_automatic_python_resolver_and_preserves_worker(
                 if child not in existing_children
             ]
             assert len(resolver) == 1, resolver
+            interrupt_deadline = time.monotonic() + 30
             interrupt = client.start_send(control="interrupt", timeout_ms=30_000)
             client.receive(interrupt)
+            # An interrupt reply can still report progress. Require the terminal
+            # error within the original budget before checking resolver cleanup.
+            wait_for_evaluation_output(
+                client,
+                None,
+                "automatic Python resolver interruption",
+                completion_timeout_seconds=max(
+                    0, interrupt_deadline - time.monotonic()
+                ),
+                received=interrupt,
+            )
             # Keep the FIFO blocked until interruption has reaped this resolver.
             assert live_processes(resolver) == [], (
-                "interrupt did not reap the automatic Python resolver"
+                "interrupt did not reap the automatic Python resolver",
+                resolver,
+                interrupt,
             )
             error = entry_result_text(interrupt)
             for expected in (
