@@ -18,6 +18,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: if (FALSE) library(mcpconsolenotarealpackage); 42L
@@ -27,6 +30,9 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: library(mcpconsolenotarealpackage)
@@ -35,6 +41,9 @@ result:
     - type: text
       text: <error output identical to live Rscript>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 transcript_normalization:
   target: result.content[0].text
   reference: same source in live Rscript --vanilla
@@ -48,6 +57,9 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: library(mcpconsolenotarealpackage)
@@ -56,6 +68,9 @@ result:
     - type: text
       text: <error output identical to live Rscript>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 transcript_normalization:
   target: result.content[0].text
   reference: same source in live Rscript --vanilla

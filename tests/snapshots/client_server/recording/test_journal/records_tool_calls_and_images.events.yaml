@@ -87,6 +87,9 @@
         text: |
           after image
     isError: false
+    _meta:
+      posit.mcp-console/send:
+        language: r
   run_id: <run ID>
   sequence: <capture sequence>
   at: <UTC timestamp>

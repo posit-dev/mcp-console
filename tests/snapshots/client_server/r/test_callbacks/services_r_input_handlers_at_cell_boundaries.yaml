@@ -19,6 +19,9 @@ result:
       text: |
         cell end callback
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -34,6 +37,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: cat(cell_start_callback_ran, "\ncell body\n", sep = "")
@@ -44,3 +50,6 @@ result:
         TRUE
         cell body
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

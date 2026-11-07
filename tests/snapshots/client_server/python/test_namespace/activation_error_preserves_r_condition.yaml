@@ -22,6 +22,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -48,6 +51,9 @@ result:
       text: |
         Python exception preserved in R
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -61,3 +67,6 @@ result:
       text: |
         user namespace preserved
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

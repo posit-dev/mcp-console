@@ -6,6 +6,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -43,6 +46,9 @@ result:
       text: |
         initialization callback ran once
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: hook_value
@@ -52,6 +58,9 @@ result:
       text: |
         'existing Python value'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: hook_value = "existing Python value"
@@ -60,6 +69,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -97,6 +109,9 @@ result:
       text: |
         initialization callback ran once
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: hook_value
@@ -106,3 +121,6 @@ result:
       text: |
         'existing Python value'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

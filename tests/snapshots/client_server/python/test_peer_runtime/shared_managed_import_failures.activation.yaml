@@ -14,6 +14,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -129,6 +132,9 @@ result:
 
         requirements: {"python": ["py-yaml12"]}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -234,6 +240,9 @@ result:
       text: |
         worker still running
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -256,3 +265,6 @@ result:
       text: |
         restart retained accepted environment
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -302,6 +302,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -401,6 +404,9 @@ result:
         Python version constraint `~=3.11` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
         Python version constraint `===3.11` is not accepted: host-side managed resolution accepts version numbers and supported PEP 440 version specifiers only
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -413,6 +419,9 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -425,3 +434,6 @@ result:
         Python requirement `./runtime-project` is not accepted: host-side
         managed resolution accepts named package requirements only
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

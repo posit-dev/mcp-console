@@ -64,6 +64,7 @@ def _assert_zod_echo(entry: dict[str, object]) -> None:
     assert result == {
         "content": [{"type": "text", "text": "zod: echo\n"}],
         "isError": False,
+        "_meta": {"posit.mcp-console/send": {"language": "r"}},
     }, result
 
 

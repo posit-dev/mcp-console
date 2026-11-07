@@ -9,6 +9,9 @@ result:
       text: |
         original session
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import os; os._exit(17)
@@ -31,6 +34,9 @@ result:
       text: |
         automatic replacement
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: raise ValueError('retained failure')
@@ -42,3 +48,6 @@ result:
           File "<mcp-console:python:e2>", line 1, in <module>
         ValueError: retained failure
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

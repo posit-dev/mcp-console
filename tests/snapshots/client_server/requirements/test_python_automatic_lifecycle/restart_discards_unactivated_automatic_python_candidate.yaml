@@ -25,6 +25,9 @@ result:
         <activation sent>
         <import release>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -51,6 +54,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -66,6 +72,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -92,3 +101,6 @@ result:
       text: |
         [1]  TRUE FALSE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

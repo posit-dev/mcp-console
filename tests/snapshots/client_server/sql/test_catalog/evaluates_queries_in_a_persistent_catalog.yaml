@@ -9,6 +9,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: |
@@ -18,6 +21,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: |
@@ -33,3 +39,6 @@ result:
         1      42
         2       7
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

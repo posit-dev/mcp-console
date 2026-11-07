@@ -388,6 +388,9 @@ result:
       text: |
         (42, None, None, None, None)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -453,6 +456,9 @@ result:
           <int32>
         1      42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   requirements:
@@ -543,6 +549,9 @@ result:
       text: |
         (42, None, None, None, None)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -624,6 +633,9 @@ result:
       text: |
         (42, True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -699,6 +711,9 @@ result:
         'six'
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -772,6 +787,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -797,6 +815,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -820,6 +841,9 @@ result:
         False
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -1332,6 +1356,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: stopifnot(requireNamespace("ggplot2", quietly = TRUE))
@@ -1340,3 +1367,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

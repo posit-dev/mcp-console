@@ -17,6 +17,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: request input while idle
@@ -25,6 +28,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   timeout_ms: 0
@@ -71,3 +77,6 @@ result:
       text: |
         zod: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

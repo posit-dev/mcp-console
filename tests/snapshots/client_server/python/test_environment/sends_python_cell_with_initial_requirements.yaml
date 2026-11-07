@@ -15,3 +15,6 @@ result:
       text: |
         yaml12
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

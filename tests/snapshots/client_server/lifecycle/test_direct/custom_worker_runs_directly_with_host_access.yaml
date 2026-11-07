@@ -9,6 +9,9 @@ result:
       text: |
         worker escaped sandbox
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -22,3 +25,6 @@ result:
         zod: replacement ready
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

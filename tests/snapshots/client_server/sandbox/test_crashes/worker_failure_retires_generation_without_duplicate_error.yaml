@@ -26,6 +26,9 @@ result:
         child=<detached child pid>
         temp=<sandbox temp>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 transcript_normalization:
   target: result.content[0].text
   process_ids: omitted
@@ -52,3 +55,6 @@ result:
       text: |
         replacement ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

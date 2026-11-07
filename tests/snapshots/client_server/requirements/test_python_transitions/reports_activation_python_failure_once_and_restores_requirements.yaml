@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: before <- reticulate::py_require()
@@ -16,6 +19,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -29,6 +35,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: reticulate::py_require("py-yaml12")
@@ -40,6 +49,9 @@ result:
           ValueError: activation hook failed
         Run `reticulate::py_last_error()` for details.
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: stopifnot(identical(reticulate::py_require(), before))
@@ -48,6 +60,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: runpy.run_path = original_run_path
@@ -56,6 +71,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -87,3 +105,6 @@ result:
         [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
         'yaml12'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

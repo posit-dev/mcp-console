@@ -21,6 +21,9 @@ result:
         [input requested: "short> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   stdin: xx

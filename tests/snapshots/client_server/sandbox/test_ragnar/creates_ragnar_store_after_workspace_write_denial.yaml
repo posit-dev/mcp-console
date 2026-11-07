@@ -26,6 +26,9 @@ result:
     - type: text
       text: <error output identical to live sandboxed Rscript --vanilla>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 transcript_normalization:
   target: result.content[0].text
   comparison: exact equality with live sandboxed Rscript --vanilla
@@ -53,6 +56,9 @@ result:
     - type: text
       text: <error output identical to live sandboxed Rscript --vanilla>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 transcript_normalization:
   target: result.content[0].text
   comparison: exact equality with live sandboxed Rscript --vanilla
@@ -74,3 +80,6 @@ result:
       text: |
         created store under the worker tempdir
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

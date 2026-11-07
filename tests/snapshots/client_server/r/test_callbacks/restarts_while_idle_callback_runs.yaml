@@ -35,6 +35,9 @@ result:
         <worker callback gate>
         <worker callback checkpoint>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   timeout_ms: 10

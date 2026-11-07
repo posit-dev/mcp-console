@@ -22,6 +22,9 @@ result:
         -----
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -40,6 +43,9 @@ result:
       text: |
         selected SQLite
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -61,6 +67,9 @@ result:
         -----
         17
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   requirements:
@@ -133,6 +142,9 @@ result:
         -----
         17
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: assert id(identity) == identity_id; print(input())
@@ -143,6 +155,9 @@ result:
         [input requested: ""]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |
@@ -161,6 +176,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT value FROM retained
@@ -172,6 +190,9 @@ result:
         -----
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: restart
@@ -199,6 +220,9 @@ result:
       text: |
         old worker intact
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -331,6 +355,9 @@ result:
       text: |
         still intact
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -356,3 +383,6 @@ result:
       text: |
         no-op
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

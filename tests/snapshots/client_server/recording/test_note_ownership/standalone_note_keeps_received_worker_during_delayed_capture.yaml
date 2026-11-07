@@ -9,6 +9,9 @@ result:
       text: |
         zod: original
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -27,6 +30,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: The first worker has completed its baseline measurement.
 ---
 input:
   method: ping
@@ -51,3 +57,6 @@ result:
         [starting new worker]
         zod: replacement
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

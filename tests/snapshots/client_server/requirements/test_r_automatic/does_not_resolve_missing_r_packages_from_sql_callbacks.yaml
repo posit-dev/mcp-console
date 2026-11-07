@@ -15,6 +15,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -28,6 +31,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT sql_requires_package() AS resolved
@@ -39,6 +45,9 @@ result:
         --------
         0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: |
@@ -53,3 +62,6 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

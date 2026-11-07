@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -25,6 +28,9 @@ result:
       text: |
         <running Python>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -62,6 +68,9 @@ result:
 
         requirements: {"python": ["scikit-learn"]}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: '"scikit-learn" %in% reticulate::py_require()$packages'
@@ -71,6 +80,9 @@ result:
       text: |
         [1] FALSE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -90,3 +102,6 @@ result:
       text: |
         (True, 42, 43, 1, True, True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

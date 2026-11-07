@@ -36,6 +36,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -74,6 +77,9 @@ result:
       text: |
         ('psutil', 1, 42, True, True, True, True, True, True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: '"psutil" %in% reticulate::py_require()$packages'
@@ -83,6 +89,9 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -103,6 +112,9 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: import psutil; psutil.__name__
@@ -112,3 +124,6 @@ result:
       text: |
         'psutil'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

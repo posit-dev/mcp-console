@@ -11,6 +11,9 @@ result:
     - type: text
       text: <initial managed R library>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -48,3 +51,6 @@ result:
       text: |
         'answer: 42'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

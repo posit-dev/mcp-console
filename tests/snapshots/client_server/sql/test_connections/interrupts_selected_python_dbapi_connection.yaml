@@ -69,6 +69,9 @@ result:
         <SQL interrupt started>
         <SQL interrupt release>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: WAIT
@@ -81,6 +84,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: interrupt
@@ -116,3 +122,6 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

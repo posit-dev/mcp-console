@@ -13,6 +13,9 @@ result:
         styled
         short
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -24,6 +27,9 @@ result:
         styled
         short
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -38,6 +44,9 @@ result:
         [input requested: "prompt> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |

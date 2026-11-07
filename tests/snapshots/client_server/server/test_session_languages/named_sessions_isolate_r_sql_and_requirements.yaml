@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -19,6 +22,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: CREATE TABLE results AS SELECT value FROM source
@@ -28,6 +34,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: |
@@ -43,6 +52,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: CREATE TABLE results AS SELECT value FROM source
@@ -52,6 +64,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: |
@@ -67,6 +82,9 @@ result:
       text: |
         alpha 1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -82,6 +100,9 @@ result:
       text: |
         beta 2
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -93,6 +114,9 @@ result:
       text: |
         default
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: alpha
@@ -475,6 +499,9 @@ result:
       text: |
         alpha 1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -490,3 +517,6 @@ result:
       text: |
         beta 2
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

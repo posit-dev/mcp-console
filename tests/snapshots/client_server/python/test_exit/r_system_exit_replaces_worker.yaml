@@ -10,6 +10,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: r_marker <- 42L
@@ -18,6 +21,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |-
@@ -43,6 +49,9 @@ result:
       text: |
         (False, 2)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: stopifnot(!exists("r_marker", inherits = FALSE)); 1 + 1
@@ -52,3 +61,6 @@ result:
       text: |
         [1] 2
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -9,6 +9,9 @@ result:
       text: |
         ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -23,6 +26,9 @@ result:
         [input requested: "old> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -46,3 +52,6 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

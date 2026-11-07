@@ -146,6 +146,7 @@ def test_projects_ansi_across_every_byte_split(
             assert result == {
                 "content": [{"type": "text", "text": projected * repetitions}],
                 "isError": False,
+                "_meta": {"posit.mcp-console/send": {"language": "r"}},
             }, (sample, result)
             assert len(last_tool_text(client).encode()) <= TEXT_BUDGET
             assert (
@@ -1130,6 +1131,7 @@ def test_orders_queued_cancellation_behind_incomplete_response(
                         }
                     ],
                     "isError": False,
+                    "_meta": {"posit.mcp-console/send": {"language": "r"}},
                 }, live
 
                 ping = client.request("ping")

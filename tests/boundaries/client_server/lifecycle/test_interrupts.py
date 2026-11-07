@@ -278,6 +278,7 @@ def test_supervises_stopped_and_continued_workers(
             assert evaluation["result"] == {
                 "content": [{"type": "text", "text": "zod: echo\n"}],
                 "isError": False,
+                "_meta": {"posit.mcp-console/send": {"language": "r"}},
             }, evaluation
 
             startup_control.write_text("stop startup", encoding="utf-8")
@@ -531,6 +532,7 @@ def test_reports_runtime_r_resolver_interrupt_permission_error(
                     }
                 ],
                 "isError": False,
+                "_meta": {"posit.mcp-console/send": {"language": "r"}},
             }, evaluation
             assert interrupt["result"] == {
                 "content": [{"type": "text", "text": f"[{message}]"}],

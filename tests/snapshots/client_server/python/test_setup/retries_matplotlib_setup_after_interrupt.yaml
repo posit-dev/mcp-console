@@ -11,6 +11,9 @@ result:
         [input requested: "Matplotlib setup> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -38,3 +41,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

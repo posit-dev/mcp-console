@@ -19,6 +19,9 @@ result:
         [input requested: "unicode> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin:
@@ -56,6 +59,9 @@ result:
         [input requested: "partial> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -80,6 +86,9 @@ result:
         [input requested: "replay> "]
         complete input retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: saved_object is original_object
@@ -89,3 +98,6 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

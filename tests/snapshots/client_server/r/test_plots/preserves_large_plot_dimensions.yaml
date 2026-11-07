@@ -42,3 +42,6 @@ result:
         8 x 6 inches at 600 DPI
         32 x 1 inches at 600 DPI
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

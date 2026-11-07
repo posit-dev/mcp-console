@@ -98,11 +98,13 @@ def test_worker_adopts_both_pipes_and_isolates_fork_and_exec(
         assert result == {
             "content": [{"type": "text", "text": "both pipes isolated\n"}],
             "isError": False,
+            "_meta": {"posit.mcp-console/send": {"language": "python"}},
         }, result
         result = client.send(r="cat('parent sideband remains usable\\n')")
         assert result == {
             "content": [{"type": "text", "text": "parent sideband remains usable\n"}],
             "isError": False,
+            "_meta": {"posit.mcp-console/send": {"language": "r"}},
         }, result
         return client.finish()
 

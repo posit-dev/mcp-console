@@ -10,6 +10,9 @@ result:
         selected Python environment, or select a DB-API connection with
         _console.sql_connection(connection)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -29,6 +32,9 @@ result:
       text: |
         custom connection selected
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT value * 2 AS answer FROM custom
@@ -40,6 +46,9 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: >-
@@ -51,6 +60,9 @@ result:
       text: |
         (21,)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 1
@@ -63,3 +75,6 @@ result:
         selected Python environment, or select a DB-API connection with
         _console.sql_connection(connection)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

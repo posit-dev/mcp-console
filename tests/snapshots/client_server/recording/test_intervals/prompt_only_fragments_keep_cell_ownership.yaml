@@ -11,6 +11,9 @@ result:
         [input requested: "x> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |
@@ -32,6 +35,9 @@ result:
         [input requested: "x> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |

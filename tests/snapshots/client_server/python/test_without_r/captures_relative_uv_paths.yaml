@@ -12,6 +12,9 @@ result:
       text: |
         relative startup paths retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -26,3 +29,6 @@ result:
       text: |
         relative startup paths retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

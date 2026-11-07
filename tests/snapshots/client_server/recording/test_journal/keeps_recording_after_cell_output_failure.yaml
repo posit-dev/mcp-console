@@ -9,6 +9,9 @@ result:
       text: |
         zod: first
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo second
@@ -19,6 +22,9 @@ result:
         [cell output file was not created: <output file creation failed>; text omitted from inline responses will be permanently discarded]
         zod: second
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo third
@@ -28,3 +34,6 @@ result:
       text: |
         zod: third
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

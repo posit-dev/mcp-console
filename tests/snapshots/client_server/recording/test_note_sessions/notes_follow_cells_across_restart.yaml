@@ -21,6 +21,12 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: |-
+        ## First measurement
+
+        Record the initial value.
 ---
 send:
   python: print('original')
@@ -31,6 +37,10 @@ result:
       text: |
         original
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: Use the original worker for the baseline.
+      language: python
 ---
 send:
   note: The baseline is ready; this concludes the first session.
@@ -39,6 +49,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: The baseline is ready; this concludes the first session.
 ---
 send:
   control: restart
@@ -56,6 +69,13 @@ result:
         replacement
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: |-
+        ## Follow-up
+
+        Repeat with a fresh worker.
+      language: python
 ---
 send:
   note: The follow-up is complete.
@@ -64,3 +84,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: The follow-up is complete.

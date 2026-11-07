@@ -10,6 +10,9 @@ result:
         [input requested: "startup> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |
@@ -42,6 +45,9 @@ result:
         [input requested: "startup> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: "café\0tail\n"

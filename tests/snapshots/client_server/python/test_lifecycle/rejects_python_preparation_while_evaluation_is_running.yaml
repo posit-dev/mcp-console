@@ -12,6 +12,9 @@ result:
         [input requested: "preparation gate> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -55,3 +58,6 @@ result:
       text: |
         ('original runtime retained', True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

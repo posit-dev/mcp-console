@@ -22,6 +22,9 @@ result:
         [input requested: "small callbacks> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -76,6 +79,9 @@ result:
         [input requested: "between callbacks> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   stdin: xxxxxx

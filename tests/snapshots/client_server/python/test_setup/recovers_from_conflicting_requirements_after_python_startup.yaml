@@ -20,6 +20,9 @@ result:
       text: |
         <running Python>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: raise AssertionError('failed preparation ran the cell')
@@ -59,6 +62,9 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: assert id(retained_object) == retained_object_id; r.startup_marker + 1
@@ -71,3 +77,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

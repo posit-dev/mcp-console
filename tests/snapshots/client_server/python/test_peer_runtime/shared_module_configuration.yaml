@@ -28,6 +28,9 @@ result:
       text: |
         shared module defaults installed
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: >-
@@ -40,3 +43,6 @@ result:
       text: |
         user module options retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

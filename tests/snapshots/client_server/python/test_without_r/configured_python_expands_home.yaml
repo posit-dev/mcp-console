@@ -13,6 +13,9 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 configuration: CLI
 ---
@@ -28,3 +31,6 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

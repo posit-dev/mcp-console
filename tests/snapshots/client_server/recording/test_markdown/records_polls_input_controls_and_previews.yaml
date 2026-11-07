@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -29,6 +32,9 @@ result:
         [input requested: "zod> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   stdin: |
@@ -78,3 +84,6 @@ result:
       text: |
         after final image
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

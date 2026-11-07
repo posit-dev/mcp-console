@@ -16,6 +16,9 @@ result:
       data: <PNG byte-identical to live Rscript page 1>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: plot(3:1)
@@ -25,3 +28,6 @@ result:
       data: <PNG byte-identical to live Rscript page 1>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

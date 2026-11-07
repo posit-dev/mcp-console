@@ -85,6 +85,9 @@ result:
       text: |
         retry retained startup
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -105,3 +108,6 @@ result:
       text: |
         startup still usable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

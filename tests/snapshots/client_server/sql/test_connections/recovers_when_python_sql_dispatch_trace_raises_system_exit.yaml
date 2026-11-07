@@ -40,6 +40,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: ANSWER
@@ -52,6 +55,9 @@ result:
           File "<mcp-console:python:e1>", line 26, in exit_sql_dispatch
         SystemExit: selected SQL dispatch exit
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: connection.answer
@@ -61,6 +67,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: ANSWER
@@ -72,3 +81,6 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

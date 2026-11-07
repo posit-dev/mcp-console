@@ -22,6 +22,9 @@ result:
         [input requested: "R startup gate> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: interrupt
@@ -44,6 +47,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: SELECT 42 AS answer
@@ -54,3 +60,6 @@ result:
         Error: SQL unavailable: configured startup did not complete; explicit
         restart required
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

@@ -19,3 +19,6 @@ result:
           <int64>
         1       1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

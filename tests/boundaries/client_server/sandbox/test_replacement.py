@@ -197,6 +197,7 @@ def test_restarts_after_worker_exit_with_partial_sideband(binary: Path) -> Trans
                 assert client.transcript[-1]["result"] == {
                     "content": [{"type": "text", "text": "zod: echo\n"}],
                     "isError": False,
+                    "_meta": {"posit.mcp-console/send": {"language": "r"}},
                 }, client.transcript[-2:]
                 return client.finish()
         finally:

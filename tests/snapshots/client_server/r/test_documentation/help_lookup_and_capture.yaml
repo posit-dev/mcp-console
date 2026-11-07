@@ -29,6 +29,9 @@ result:
              topic()
 
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: ?consolehelp::topic
@@ -58,6 +61,9 @@ result:
              topic()
 
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -99,6 +105,9 @@ result:
       text: |
         help capture, aliases, search, and indexes retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -119,3 +128,6 @@ result:
         [input requested: "Selection: "]
         native help selection retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

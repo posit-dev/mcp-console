@@ -10,6 +10,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -43,6 +46,9 @@ result:
       data: <PNG byte-identical to live matplotlib savefig 2>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -68,6 +74,9 @@ result:
         after show
         <matplotlib figure displayhook representation>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -105,6 +114,9 @@ result:
       data: <PNG byte-identical to live repeated-show matplotlib savefig 4>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: plt.get_fignums()
@@ -114,6 +126,9 @@ result:
       text: |
         []
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -129,6 +144,9 @@ result:
       text: |
         []
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -140,6 +158,9 @@ result:
       text: |
         []
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -159,6 +180,9 @@ result:
       data: <PNG byte-identical to live error-cell matplotlib savefig 1>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: plt.get_fignums()
@@ -168,6 +192,9 @@ result:
       text: |
         []
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -192,6 +219,9 @@ result:
       data: <PNG byte-identical to live second matplotlib savefig 1>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: plt.get_fignums()
@@ -201,3 +231,6 @@ result:
       text: |
         []
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

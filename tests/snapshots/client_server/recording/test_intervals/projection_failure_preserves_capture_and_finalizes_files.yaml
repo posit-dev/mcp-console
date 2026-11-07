@@ -9,6 +9,9 @@ result:
       text: |
         zod: first
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo second
@@ -18,6 +21,9 @@ result:
       text: |
         zod: second
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo third
@@ -27,3 +33,6 @@ result:
       text: |
         zod: third
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

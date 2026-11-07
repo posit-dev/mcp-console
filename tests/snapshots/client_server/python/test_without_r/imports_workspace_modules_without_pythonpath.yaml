@@ -21,6 +21,9 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -46,3 +49,6 @@ result:
         43
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -32,6 +35,9 @@ result:
         [input requested: "Selection: "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   stdin: |
@@ -56,6 +62,9 @@ result:
       text: |
         [1] FALSE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: 1 + 1
@@ -65,3 +74,6 @@ result:
       text: |
         [1] 2
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

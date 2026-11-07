@@ -289,6 +289,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: restart
@@ -354,6 +357,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: restart

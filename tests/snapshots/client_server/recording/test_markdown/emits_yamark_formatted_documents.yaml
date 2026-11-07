@@ -15,6 +15,9 @@ result:
       text: |
         after image
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |-
@@ -31,6 +34,9 @@ result:
         <div>not markdown</div>
         after
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |2-

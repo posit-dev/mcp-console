@@ -25,3 +25,6 @@ result:
       data: <PNG byte-identical to live Rscript page 2>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

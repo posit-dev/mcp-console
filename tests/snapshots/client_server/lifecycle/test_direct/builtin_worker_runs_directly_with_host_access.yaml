@@ -18,6 +18,9 @@ result:
       text: |
         host write succeeded
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -31,3 +34,6 @@ result:
         False
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

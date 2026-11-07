@@ -9,6 +9,9 @@ result:
       text: |
         [1] "original worker source"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: print('replacement worker source')
@@ -22,6 +25,9 @@ result:
         [1] "replacement worker source"
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: print('surviving worker source')
@@ -35,3 +41,6 @@ result:
         [1] "surviving worker source"
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

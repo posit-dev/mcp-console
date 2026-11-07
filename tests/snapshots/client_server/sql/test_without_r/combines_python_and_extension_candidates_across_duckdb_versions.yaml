@@ -16,6 +16,9 @@ result:
       text: |
         first candidate
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -81,6 +84,9 @@ result:
         [0 rows]
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: import duckdb, six; print(duckdb.__version__)
@@ -90,6 +96,9 @@ result:
       text: |
         1.5.6
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -150,6 +159,9 @@ result:
         [starting new worker]
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -167,6 +179,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: assert sentinel is original; print('candidate prepared together')
@@ -176,3 +191,6 @@ result:
       text: |
         candidate prepared together
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

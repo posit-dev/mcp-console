@@ -9,6 +9,9 @@ result:
         -----
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SELECT value FROM selected_state
@@ -20,6 +23,9 @@ result:
         -----
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SET autoinstall_known_extensions = false; LOAD fts
@@ -31,6 +37,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: >-
@@ -42,6 +51,9 @@ result:
       text: |
         (42,)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -64,6 +76,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   requirements:

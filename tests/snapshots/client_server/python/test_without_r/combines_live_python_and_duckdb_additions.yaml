@@ -18,6 +18,9 @@ result:
       text: |
         state created
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -34,6 +37,9 @@ result:
         -----
         7
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -54,6 +60,9 @@ result:
       text: |
         combined additions retained state
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: _console.sql_connection(None)
@@ -62,6 +71,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: select value from retained
@@ -73,6 +85,9 @@ result:
         -----
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   requirements:

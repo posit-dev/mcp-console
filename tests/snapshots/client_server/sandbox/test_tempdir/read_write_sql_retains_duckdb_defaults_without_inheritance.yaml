@@ -281,3 +281,6 @@ result:
       text: |
         DuckDB retains native storage defaults without inherited environment
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -20,6 +20,9 @@ result:
       text: |
         closed
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 launch_path: custom worker
 send:
@@ -42,6 +45,9 @@ result:
       text: |
         closed
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 launch_path: custom relay and worker
 send:
@@ -64,3 +70,6 @@ result:
       text: |
         closed
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

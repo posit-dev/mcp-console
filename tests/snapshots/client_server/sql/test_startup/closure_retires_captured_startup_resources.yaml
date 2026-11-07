@@ -15,5 +15,8 @@ result:
         [input requested: "Startup close gate> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 blocked_captured_startup_retired: true

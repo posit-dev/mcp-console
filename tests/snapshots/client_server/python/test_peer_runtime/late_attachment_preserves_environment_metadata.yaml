@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -40,6 +43,9 @@ result:
       text: |
         environment metadata retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: assert id(peer_object) == peer_identity; print('same interpreter')
@@ -49,6 +55,9 @@ result:
       text: |
         same interpreter
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 environment: virtualenv
 ---
@@ -59,6 +68,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -91,6 +103,9 @@ result:
       text: |
         environment metadata retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: assert id(peer_object) == peer_identity; print('same interpreter')
@@ -100,6 +115,9 @@ result:
       text: |
         same interpreter
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 environment: conda-marker
 ---
@@ -110,6 +128,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -142,6 +163,9 @@ result:
       text: |
         environment metadata retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: assert id(peer_object) == peer_identity; print('same interpreter')
@@ -151,3 +175,6 @@ result:
       text: |
         same interpreter
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

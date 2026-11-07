@@ -30,6 +30,9 @@ result:
       text: |
         worker network denied
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SET autoinstall_known_extensions = false; LOAD fts
@@ -41,6 +44,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: >-
@@ -54,6 +60,9 @@ result:
         ----------+-------
         True      | True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: import os; print(os.environ['TMPDIR'])
@@ -63,6 +72,9 @@ result:
       text: |
         <worker temporary 1>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -78,6 +90,9 @@ result:
         [0 rows]
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: import os; print(os.environ['TMPDIR'])
@@ -87,6 +102,9 @@ result:
       text: |
         <worker temporary 1>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import os; os._exit(47)
@@ -111,6 +129,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   requirements:

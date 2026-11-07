@@ -32,6 +32,7 @@ def test_cancelled_idle_input_poll_retains_prompt(binary: Path) -> Transcript:
         assert requested["result"] == {
             "content": [{"type": "text", "text": "[done]"}],
             "isError": False,
+            "_meta": {"posit.mcp-console/send": {"language": "r"}},
         }, requested
         release_fixture_checkpoint(
             completed.parent / "zod-release-idle-input-request", client=client

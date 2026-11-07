@@ -12,6 +12,9 @@ result:
       text: |
         ambient available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: >-
@@ -23,6 +26,9 @@ result:
       text: |
         ambient retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: >-
@@ -35,3 +41,6 @@ result:
       text: |
         project paths retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

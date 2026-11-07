@@ -29,6 +29,9 @@ result:
         Error: SQL unavailable: R is unavailable in this session; explicit
         restart required
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: assert 6 * 7 == 42
@@ -37,6 +40,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 42 AS answer
@@ -47,6 +53,9 @@ result:
         Error: SQL unavailable: R is unavailable in this session; explicit
         restart required
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 missing_runtime_withholds_sql: >
   Error: SQL unavailable: R is unavailable in this session; explicit

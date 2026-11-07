@@ -19,6 +19,9 @@ result:
       text: |
         state created
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -40,6 +43,9 @@ result:
         [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
         reached import activated
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -105,6 +111,9 @@ result:
         -----
         7
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -120,6 +129,9 @@ result:
           File "<mcp-console:python:e3>", line 4, in <module>
         ValueError: later statement failed
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -206,6 +218,9 @@ result:
       text: |
         automatic additions survived later failure
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -228,6 +243,9 @@ result:
       text: |
         restart retained imports
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import os; os._exit(47)
@@ -250,3 +268,6 @@ result:
       text: |
         replacement retained imports
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

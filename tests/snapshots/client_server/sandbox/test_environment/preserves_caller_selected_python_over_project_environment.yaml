@@ -14,3 +14,6 @@ result:
       text: |
         caller-selected Python retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

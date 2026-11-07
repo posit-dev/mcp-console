@@ -19,6 +19,9 @@ result:
       text: |
         after final image
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -38,3 +41,6 @@ result:
       text: |
         zod: fresh
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

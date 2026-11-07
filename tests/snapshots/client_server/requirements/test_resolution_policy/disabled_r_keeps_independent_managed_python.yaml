@@ -53,6 +53,9 @@ result:
       text: |
         native R available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: import packaging; print('Python available')
@@ -62,6 +65,9 @@ result:
       text: |
         Python available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -150,6 +156,9 @@ result:
       text: |
         Python addition available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:

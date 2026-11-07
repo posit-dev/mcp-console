@@ -94,6 +94,7 @@ def descriptor_entry(
                 assert result == {
                     "content": [{"type": "text", "text": "closed\n"}],
                     "isError": False,
+                    "_meta": {"posit.mcp-console/send": {"language": "python"}},
                 }, result
                 launchers = child_process_identities(server)
                 expected = 1 + int(has_resolver)

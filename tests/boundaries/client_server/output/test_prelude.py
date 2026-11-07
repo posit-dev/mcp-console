@@ -73,6 +73,7 @@ zod: echo
                     }
                 ],
                 "isError": False,
+                "_meta": {"posit.mcp-console/send": {"language": "r"}},
             }, timed_out
 
             release_fixture_checkpoint(

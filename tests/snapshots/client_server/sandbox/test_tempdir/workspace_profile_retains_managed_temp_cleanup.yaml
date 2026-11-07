@@ -328,3 +328,6 @@ result:
       text: |
         workspace writes with private temp storage
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

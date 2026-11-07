@@ -153,3 +153,6 @@ result:
       text: |
         configured R available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

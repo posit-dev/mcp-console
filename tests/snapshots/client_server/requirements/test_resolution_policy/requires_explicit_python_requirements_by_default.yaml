@@ -9,6 +9,9 @@ result:
       text: |
         Python initialized
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -73,6 +76,9 @@ result:
           File "<mcp-console:python:e2>", line 1, in <module>
         ModuleNotFoundError: No module named 'yaml12'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -92,6 +98,9 @@ result:
       text: |
         dynamic imports require declared dependencies
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -129,6 +138,9 @@ result:
       text: |
         native import errors
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -194,6 +206,9 @@ result:
       text: |
         declared Python package available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:

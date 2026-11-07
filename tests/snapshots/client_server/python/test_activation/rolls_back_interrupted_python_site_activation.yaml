@@ -25,6 +25,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -47,6 +50,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: '"console-activation-fixture" %in% reticulate::py_require()$packages'
@@ -56,6 +62,9 @@ result:
       text: |
         [1] FALSE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -78,3 +87,6 @@ result:
       text: |
         'candidate'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

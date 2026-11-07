@@ -38,6 +38,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: EXIT
@@ -54,6 +57,9 @@ result:
           File "<mcp-console:python:e1>", line 19, in close
         SystemExit: selected DB-API cleanup failure
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: ANSWER
@@ -65,3 +71,6 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

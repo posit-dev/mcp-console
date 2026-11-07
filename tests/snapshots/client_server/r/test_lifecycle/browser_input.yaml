@@ -29,6 +29,9 @@ result:
         [input requested: "Browse[1]> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: "1"

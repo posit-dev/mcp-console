@@ -30,6 +30,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output; phase: dependency preparation]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -64,6 +67,9 @@ result:
       text: |
         Python defaults ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |
@@ -81,3 +87,6 @@ result:
         1 "icu"         
         2 "json"        
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

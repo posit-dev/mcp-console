@@ -43,3 +43,6 @@ result:
       text: |
         (True, 8.25, True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

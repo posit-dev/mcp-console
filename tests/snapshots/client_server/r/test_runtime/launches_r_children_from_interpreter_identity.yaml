@@ -83,3 +83,6 @@ result:
       text: |
         R interpreter and children retain executable, arguments, and environment
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

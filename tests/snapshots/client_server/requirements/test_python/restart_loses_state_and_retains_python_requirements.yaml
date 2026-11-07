@@ -18,6 +18,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -41,3 +44,6 @@ result:
       text: |
         (False, 'yaml12')
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

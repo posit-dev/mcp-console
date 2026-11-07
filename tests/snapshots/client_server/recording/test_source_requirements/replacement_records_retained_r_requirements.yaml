@@ -12,6 +12,9 @@ result:
       text: |
         initial praise available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: stop('rejected source')
@@ -47,6 +50,9 @@ result:
       text: |
         retained praise available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:

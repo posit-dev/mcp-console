@@ -53,6 +53,9 @@ result:
         <font discovery started>
         <font discovery release>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   timeout_ms: 0
@@ -72,6 +75,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   timeout_ms: 100
@@ -105,3 +111,6 @@ result:
         fonts: findfont: Font family ['MCP Console missing test font'] not
         found. Falling back to DejaVu Sans.
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

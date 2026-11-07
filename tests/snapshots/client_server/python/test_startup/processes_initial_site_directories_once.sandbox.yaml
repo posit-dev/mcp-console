@@ -14,6 +14,9 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: builtins.console_startups == 2
@@ -23,3 +26,6 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

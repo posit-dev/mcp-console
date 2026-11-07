@@ -61,6 +61,9 @@ result:
         -----
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: identity = object(); identity_id = id(identity)
@@ -69,6 +72,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -159,6 +165,9 @@ result:
         -----
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: assert id(identity) == identity_id; print('retained')
@@ -168,6 +177,9 @@ result:
       text: |
         retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -227,6 +239,9 @@ result:
         selected Python environment, or select a DB-API connection with
         _console.sql_connection(connection)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -243,6 +258,9 @@ result:
       text: |
         Python remains available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 7 AS custom_value
@@ -254,6 +272,9 @@ result:
         ------------
         7
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: _console.sql_connection(None); selected.execute('SELECT 1').fetchone()
@@ -263,6 +284,9 @@ result:
       text: |
         (1,)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 1
@@ -275,6 +299,9 @@ result:
         selected Python environment, or select a DB-API connection with
         _console.sql_connection(connection)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   requirements:
@@ -385,3 +412,6 @@ result:
         --------
         9
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

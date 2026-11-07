@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo held response
@@ -18,3 +21,6 @@ result:
       text: |
         zod: held response
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -9,6 +9,9 @@ result:
       text: |
         native profile contained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart

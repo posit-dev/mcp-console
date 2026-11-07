@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: report runtime R resolution failure
@@ -19,6 +22,9 @@ result:
         zod R resolution failure: host: failed to interrupt R package resolver
         `ir`: Operation not permitted (os error 1)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -39,3 +45,6 @@ result:
       text: |
         zod: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -38,6 +38,9 @@ result:
         [additional rows omitted]
         [cell values truncated to 160 characters]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -65,6 +68,9 @@ result:
       text: |
         native DuckDB values retrieved once without pandas
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 42 AS answer
@@ -76,6 +82,9 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -89,3 +98,6 @@ result:
       text: |
         automatic cleanup keeps the managed catalog
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

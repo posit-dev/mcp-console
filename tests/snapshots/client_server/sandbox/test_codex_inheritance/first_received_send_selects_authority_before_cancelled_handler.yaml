@@ -74,3 +74,6 @@ result:
       text: |
         first received permissions retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

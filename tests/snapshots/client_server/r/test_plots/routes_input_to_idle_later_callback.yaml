@@ -32,6 +32,9 @@ result:
         <worker callback gate>
         <worker callback checkpoint>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -62,3 +65,6 @@ result:
       text: |
         [1] "yes"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

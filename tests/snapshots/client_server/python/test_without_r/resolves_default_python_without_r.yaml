@@ -43,6 +43,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: assert id(identity) == identity_id; retained + 2
@@ -52,6 +55,9 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: "1"
@@ -69,6 +75,9 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -92,6 +101,9 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -111,6 +123,9 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -135,6 +150,9 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import os.mcp_console_missing
@@ -146,6 +164,9 @@ result:
           File "<mcp-console:python:e7>", line 1, in <module>
         ModuleNotFoundError: No module named 'os.mcp_console_missing'; 'os' is not a package
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: assert id(identity) == identity_id; retained + 2
@@ -155,6 +176,9 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: print(selected)
@@ -164,6 +188,9 @@ result:
       text: |
         <selected Python>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -177,3 +204,6 @@ result:
         <selected Python>
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

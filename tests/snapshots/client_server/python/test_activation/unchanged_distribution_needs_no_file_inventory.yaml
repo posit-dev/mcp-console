@@ -35,6 +35,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -79,6 +82,9 @@ result:
       text: |
         incompatible changes rejected without mutation
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -105,3 +111,6 @@ result:
       text: |
         unchanged loaded distribution retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

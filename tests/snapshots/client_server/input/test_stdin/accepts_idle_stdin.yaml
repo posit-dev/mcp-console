@@ -20,6 +20,9 @@ result:
       text: |
         zod stdin: cold
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   stdin: |
@@ -40,3 +43,6 @@ result:
       text: |
         zod stdin: idle
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

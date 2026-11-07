@@ -70,6 +70,9 @@ result:
       text: |
         [1] 0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: "0"
@@ -79,6 +82,9 @@ result:
       text: |
         0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -95,6 +101,9 @@ result:
         [1] 42
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -112,6 +121,9 @@ result:
         [input requested: "old> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -127,6 +139,9 @@ result:
         [1] 43
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: 40 + 2
@@ -136,3 +151,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

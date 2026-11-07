@@ -9,6 +9,9 @@ result:
       text: |
         [1] "directory"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -29,3 +32,6 @@ result:
       text: |
         [1] "home"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -12,6 +12,9 @@ result:
         [input requested: "restart> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -34,3 +37,6 @@ result:
       text: |
         [1] FALSE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

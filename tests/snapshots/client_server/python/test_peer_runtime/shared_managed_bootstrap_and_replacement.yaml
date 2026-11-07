@@ -59,6 +59,9 @@ result:
       text: |
         managed identity and child environment agree
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: >-
@@ -72,6 +75,9 @@ result:
       text: |
         live import retained objects
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: raise ValueError('after accepted activation')
@@ -83,6 +89,9 @@ result:
           File "<mcp-console:python:e3>", line 1, in <module>
         ValueError: after accepted activation
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -106,6 +115,9 @@ result:
       text: |
         accepted additions survived restart
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import os; os._exit(47)
@@ -131,3 +143,6 @@ result:
       text: |
         accepted additions survived crash
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

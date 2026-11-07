@@ -13,6 +13,9 @@ result:
         <thread release>
         <thread completed>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -41,6 +44,9 @@ result:
         [input requested: "thread progress> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |

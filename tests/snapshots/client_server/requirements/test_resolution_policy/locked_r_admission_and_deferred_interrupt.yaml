@@ -87,6 +87,9 @@ result:
       text: |
         startup available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: print('Python available')
@@ -96,6 +99,9 @@ result:
       text: |
         Python available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -187,6 +193,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -277,6 +286,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -369,6 +381,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -460,6 +475,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -479,6 +497,9 @@ result:
       text: |
         deliberate Python available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -567,6 +588,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -593,6 +617,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:

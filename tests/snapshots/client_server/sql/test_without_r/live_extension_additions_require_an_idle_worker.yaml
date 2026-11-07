@@ -20,6 +20,9 @@ result:
         [input requested: "answer> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -63,6 +66,9 @@ result:
       text: |
         input retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import pdb; pdb.set_trace(); print('debugger continued')
@@ -74,6 +80,9 @@ result:
         [input requested: "(Pdb) "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -119,6 +128,9 @@ result:
       text: |
         still live
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:

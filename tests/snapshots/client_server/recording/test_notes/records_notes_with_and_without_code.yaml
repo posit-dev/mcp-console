@@ -16,6 +16,12 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: |
+        ## Investigation
+
+        Compare the café measurements.
 ---
 send:
   python: total = 6 * 7; print(total)
@@ -27,6 +33,10 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: Check the **total** before comparing groups.
+      language: python
 ---
 send:
   note: |-
@@ -40,6 +50,14 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: |-
+        The total is 42.
+
+        ```python
+        raise RuntimeError('prose only')
+        ```
 ---
 send:
   python: "label = input('label: '); print(label, total)"
@@ -50,6 +68,9 @@ result:
         [input requested: "label: "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   note: Waiting for the measurement label; preserve the active cell.
@@ -58,6 +79,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: Waiting for the measurement label; preserve the active cell.
 ---
 send:
   stdin: |
@@ -69,6 +93,9 @@ result:
       text: |
         sample 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: Use sample A.
 ---
 send:
   python: total = -1
@@ -90,3 +117,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

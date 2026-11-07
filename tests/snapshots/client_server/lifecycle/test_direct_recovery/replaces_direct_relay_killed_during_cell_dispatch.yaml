@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo no-replay
@@ -30,3 +33,6 @@ result:
       text: |
         zod: recovered
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

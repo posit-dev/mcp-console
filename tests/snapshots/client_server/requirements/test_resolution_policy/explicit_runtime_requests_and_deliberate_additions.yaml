@@ -74,6 +74,9 @@ result:
       text: |
         Error in loadNamespace(x) : there is no package called ‘mcpsecond’
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -150,6 +153,9 @@ result:
       text: |
         Python initialized
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import six
@@ -161,6 +167,9 @@ result:
           File "<mcp-console:python:e2>", line 1, in <module>
         ModuleNotFoundError: No module named 'six'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -234,6 +243,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -339,6 +351,9 @@ result:
       text: |
         native import errors
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import yaml12
@@ -356,6 +371,9 @@ result:
             return _find_and_load(name, import_)
         ModuleNotFoundError: No module named 'yaml12'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -445,6 +463,9 @@ result:
       text: |
         deliberate packages available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: >-
@@ -456,6 +477,9 @@ result:
       text: |
         deliberate Python available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:

@@ -35,6 +35,9 @@ result:
       text: |
         zod response-gated operation
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 input:
   method: notifications/cancelled

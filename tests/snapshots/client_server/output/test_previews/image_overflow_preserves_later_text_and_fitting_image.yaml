@@ -18,3 +18,6 @@ result:
       text: |
         after accepted image
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -17,6 +17,9 @@ result:
       text: |
         (42, False, False)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import psutil; psutil.answer
@@ -26,3 +29,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

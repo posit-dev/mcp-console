@@ -28,6 +28,9 @@ result:
       text: |
         HTML remains available for a deferred pager
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -63,3 +66,6 @@ result:
       text: |
         deferred pager reads evaluated results and owns cleanup
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

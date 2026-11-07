@@ -74,6 +74,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: ATTACH 'audit.sqlite' AS audit (TYPE sqlite, READ_ONLY)
@@ -85,6 +88,9 @@ result:
         -------
         [0 rows]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: |
@@ -105,6 +111,9 @@ result:
         --------+-------------+----------
         1234567 | 1234567     | 1234567
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: INSERT INTO audit.events VALUES ('{}')
@@ -115,6 +124,9 @@ result:
         Error: Invalid Input Error: Cannot execute statement of type "INSERT" on
         database "audit" which is attached in read-only mode!
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SELECT count(*) AS events FROM audit.events
@@ -126,3 +138,6 @@ result:
         ------
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

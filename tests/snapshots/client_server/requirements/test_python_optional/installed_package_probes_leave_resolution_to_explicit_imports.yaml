@@ -18,6 +18,9 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import importlib; importlib.reload(package).fallback
@@ -27,6 +30,9 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: >-
@@ -38,6 +44,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: package.delayed_import()
@@ -47,6 +56,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import local_script; local_script.answer
@@ -56,3 +68,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

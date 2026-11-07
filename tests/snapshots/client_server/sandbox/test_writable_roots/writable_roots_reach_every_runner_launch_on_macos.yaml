@@ -345,6 +345,9 @@ result:
         both grants and subprocess writes verified; neighboring and symlink
         writes denied
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -361,6 +364,9 @@ result:
       text: |
         runtime created the writable root
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -416,6 +422,9 @@ result:
         both grants and subprocess writes verified; neighboring and symlink
         writes denied
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -427,6 +436,9 @@ result:
       text: |
         future root is writable after restart
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: os._exit(17)
@@ -484,6 +496,9 @@ result:
         both grants and subprocess writes verified; neighboring and symlink
         writes denied
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -495,3 +510,6 @@ result:
       text: |
         future root is writable after restart
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

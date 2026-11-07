@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: preview same producer
@@ -31,6 +34,9 @@ result:
 
             preview tail: final diagnostic
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 input:
   method: ping
@@ -54,3 +60,6 @@ result:
       text: |
         zod: fresh
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

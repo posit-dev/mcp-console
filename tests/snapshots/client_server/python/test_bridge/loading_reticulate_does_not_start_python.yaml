@@ -11,3 +11,6 @@ result:
       text: |
         reticulate loaded without Python
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

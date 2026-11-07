@@ -46,6 +46,9 @@ result:
       text: |
         <unshown plotnine ggplot>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -63,6 +66,9 @@ result:
       text: |
         <Figure size 300x200 with 1 Axes>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -87,6 +93,9 @@ result:
       text: |
         <Figure size 300x200 with 1 Axes>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: (matplotlib.get_backend().lower(), plt.get_fignums())
@@ -96,3 +105,6 @@ result:
       text: |
         ('agg', [])
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

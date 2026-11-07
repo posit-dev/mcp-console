@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import mcp_console_distribution_without_module
@@ -37,6 +40,9 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: import yaml12; yaml12.__name__
@@ -46,6 +52,9 @@ result:
       text: |
         'yaml12'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -68,3 +77,6 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

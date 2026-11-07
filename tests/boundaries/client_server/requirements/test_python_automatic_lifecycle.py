@@ -514,6 +514,7 @@ def test_restart_discards_unactivated_automatic_python_candidate(
                     }
                 ],
                 "isError": False,
+                "_meta": {"posit.mcp-console/send": {"language": "python"}},
             }, evaluation_result
             import_release.release()
             activation_ready.wait("automatic managed Python activation")

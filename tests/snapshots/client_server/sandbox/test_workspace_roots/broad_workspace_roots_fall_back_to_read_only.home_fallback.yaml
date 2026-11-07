@@ -37,6 +37,9 @@ result:
       text: |
         broad workspace read-only; explicit output and private temp writable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -79,6 +82,9 @@ result:
       text: |
         broad workspace read-only; explicit output and private temp writable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 stderr: >
   Warning: refusing automatic workspace writes to '<launch>'; falling back

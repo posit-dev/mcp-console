@@ -25,6 +25,9 @@ result:
         [input requested: "interrupt gate> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -43,6 +46,9 @@ result:
       text: |
         no duplicate interrupt
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: assert int(r['42L']) == 42
@@ -51,6 +57,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -78,6 +87,9 @@ result:
         [input requested: "interrupt gate> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -96,3 +108,6 @@ result:
       text: |
         no duplicate interrupt
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

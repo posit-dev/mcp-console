@@ -43,6 +43,9 @@ result:
         <activation started>
         <activation release>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -167,6 +170,9 @@ result:
         <worker callback checkpoint>
         <worker callback complete>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -187,6 +193,9 @@ result:
       text: |
         same object
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:

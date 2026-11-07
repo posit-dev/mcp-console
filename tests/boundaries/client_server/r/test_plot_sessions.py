@@ -103,6 +103,7 @@ def test_workers_keep_plot_files_separate(
                         {"type": "text", "text": "\n[running; poll with an empty send]"}
                     ],
                     "isError": False,
+                    "_meta": {"posit.mcp-console/send": {"language": "r"}},
                 }, evaluation
                 directories.append(Path((checkpoint / "directory").read_text().strip()))
             assert directories[0] != directories[1], directories

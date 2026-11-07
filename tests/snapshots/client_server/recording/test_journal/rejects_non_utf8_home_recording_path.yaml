@@ -9,6 +9,9 @@ result:
       text: |
         zod: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 server stderr: >-
   mcp-console: transcript recording disabled: recording path must be UTF-8

@@ -44,7 +44,7 @@ result:
 ---
 send:
   r: echo delayed source
-  timeout_ms: 0
+  timeout_ms: 100
 result:
   content:
     - type: text
@@ -53,6 +53,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output; phase: startup]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default

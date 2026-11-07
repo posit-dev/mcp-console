@@ -134,6 +134,9 @@ result:
       data: <PNG byte-identical to live Rscript page 1>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -144,6 +147,9 @@ result:
       text: |
         7
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |
@@ -160,3 +166,6 @@ result:
         1 "a"           20
         2 "b"           50
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

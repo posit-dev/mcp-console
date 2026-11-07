@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -34,6 +37,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: .console$sql_connection(NULL); invisible()
@@ -47,6 +53,9 @@ result:
         SystemExit: R provider switch exit
         Error: Python function `_mcp_console_sql.use_r` failed
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: connection.execute('SELECT value FROM python_value').fetchone()[0]
@@ -56,6 +65,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT value FROM python_value
@@ -67,6 +79,9 @@ result:
         -----
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: .console$sql_connection(NULL); invisible()
@@ -75,6 +90,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: SELECT value FROM managed_value
@@ -87,3 +105,6 @@ result:
           <int32>
         1       7
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

@@ -11,6 +11,9 @@ result:
       text: |
         local sandbox
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 input:
   method: tools/call
@@ -27,6 +30,9 @@ result:
       text: |
         local sandbox
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 input:
   method: tools/call
@@ -44,6 +50,9 @@ result:
       text: |
         local sandbox
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 input:
   method: tools/call
@@ -63,6 +72,9 @@ result:
       text: |
         local sandbox
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 input:
   method: tools/call
@@ -83,6 +95,9 @@ result:
       text: |
         local sandbox
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 input:
   method: tools/call
@@ -115,6 +130,9 @@ result:
       text: |
         local sandbox
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 stderr: |
   Warning: could not parse Codex sandbox settings; falling back to workspace

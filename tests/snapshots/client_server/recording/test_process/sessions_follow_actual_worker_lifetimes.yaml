@@ -9,6 +9,9 @@ result:
       text: |
         zod: first
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -39,6 +42,9 @@ result:
       text: |
         zod: still first
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -59,6 +65,9 @@ result:
       text: |
         zod: second
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: exit unexpectedly
@@ -81,3 +90,6 @@ result:
       text: |
         zod: third
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

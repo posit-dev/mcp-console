@@ -326,6 +326,7 @@ def test_leaves_explicit_plot_devices_user_controlled(
             }
         ],
         "isError": False,
+        "_meta": {"posit.mcp-console/send": {"language": "r"}},
     }, result
 
     r = "plot(3:1)"

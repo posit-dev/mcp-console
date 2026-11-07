@@ -270,6 +270,7 @@ def test_rejects_non_utf8_home_recording_path(binary: Path) -> Transcript:
             assert client.transcript[-1]["result"] == {
                 "content": [{"type": "text", "text": "zod: echo\n"}],
                 "isError": False,
+                "_meta": {"posit.mcp-console/send": {"language": "r"}},
             }, client.transcript[-1]
             transcript, stderr = client.finish_with_standard_error()
         assert stderr == (
@@ -538,6 +539,7 @@ def test_records_tool_calls_and_images(
                 {"type": "text", "text": "after image\n"},
             ],
             "isError": False,
+            "_meta": {"posit.mcp-console/send": {"language": "r"}},
         }, events[4]
         assert events[5]["call_id"] == events[6]["call_id"] == 2, events
         assert events[5]["request_id"] == invalid["id"], events[5]
@@ -694,6 +696,7 @@ def test_disables_recording_after_transcript_failure(
                 {"type": "text", "text": "after image\n"},
             ],
             "isError": False,
+            "_meta": {"posit.mcp-console/send": {"language": "r"}},
         }, image_result
 
         journal = session / "capture" / "events.jsonl"
@@ -887,6 +890,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
                 {"type": "text", "text": "\n[running; poll with an empty send]"}
             ],
             "isError": False,
+            "_meta": {"posit.mcp-console/send": {"language": "r"}},
         }, client.transcript[-1]
         block = client.transcript[-1]["result"]["content"][0]
         block["text"] = normalize_elapsed(block["text"]).replace(

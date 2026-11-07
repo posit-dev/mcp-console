@@ -214,3 +214,6 @@ result:
              ### less simple examples in "See Also" above
 
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

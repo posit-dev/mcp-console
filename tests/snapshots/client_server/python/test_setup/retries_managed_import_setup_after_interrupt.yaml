@@ -36,6 +36,9 @@ result:
         [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
         managed import setup retried
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:

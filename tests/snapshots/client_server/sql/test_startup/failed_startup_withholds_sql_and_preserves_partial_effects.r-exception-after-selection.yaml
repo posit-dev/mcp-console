@@ -19,6 +19,9 @@ result:
         Error: configured startup did not complete; SQL withheld; explicit restart required
         Error: SQL unavailable: configured startup did not complete; explicit restart required
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SELECT 42 AS answer
@@ -29,6 +32,9 @@ result:
         Error: SQL unavailable: configured startup did not complete; explicit
         restart required
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: stopifnot(startup_count == 1L)
@@ -37,6 +43,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: .console$sql_connection(NULL)
@@ -45,6 +54,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: SELECT 42 AS answer
@@ -55,6 +67,9 @@ result:
         Error: SQL unavailable: configured startup did not complete; explicit
         restart required
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 language: r
 failure: after selection

@@ -22,6 +22,9 @@ result:
       text: |
         selected environment retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -48,6 +51,9 @@ result:
         selected environment retained
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 !same-as python-only MCP initialization for this execution mode
 ---
@@ -72,6 +78,9 @@ result:
       text: |
         selected environment retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -98,3 +107,6 @@ result:
         selected environment retained
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

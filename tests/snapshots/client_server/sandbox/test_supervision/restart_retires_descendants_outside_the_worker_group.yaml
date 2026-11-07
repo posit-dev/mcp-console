@@ -28,6 +28,9 @@ result:
         child=<processx child pid>
         temp=<sandbox temp>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 transcript_normalization:
   target: result.content[0].text
   process_ids: omitted

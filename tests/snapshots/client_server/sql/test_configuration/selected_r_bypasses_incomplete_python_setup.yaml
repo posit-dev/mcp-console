@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -21,6 +24,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: never_run = True
@@ -31,6 +37,9 @@ result:
         [input requested: "Python SQL setup> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -58,6 +67,9 @@ result:
           <int32>
         1      43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: |
@@ -72,6 +84,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: assert "never_run" not in globals()
@@ -81,3 +96,6 @@ result:
       text: |
         Python setup resumed with same objects
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

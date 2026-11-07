@@ -28,6 +28,9 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -40,3 +43,6 @@ result:
       text: |
         'yaml12'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

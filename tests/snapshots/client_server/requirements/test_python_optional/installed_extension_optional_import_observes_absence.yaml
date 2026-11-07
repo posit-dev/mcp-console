@@ -22,6 +22,9 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -44,6 +47,9 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: package.probe()
@@ -53,6 +59,9 @@ result:
       text: |
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: >-
@@ -64,3 +73,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

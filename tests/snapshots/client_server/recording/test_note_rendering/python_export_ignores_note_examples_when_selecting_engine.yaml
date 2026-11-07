@@ -23,6 +23,14 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: |
+        ## Alternative R example
+
+        ```{r}
+        writeLines("example", "note-ran")
+        ```
 ---
 send:
   python: |
@@ -36,6 +44,9 @@ result:
       text: |
         executed-python=42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 rendering:
   engines:

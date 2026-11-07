@@ -47,6 +47,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |-
@@ -81,6 +84,9 @@ result:
         19
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: data = _console.sql_last_result(30)
@@ -115,6 +121,9 @@ result:
       text: |
         resumed retrieval keeps the preview prefix
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |-
@@ -149,6 +158,9 @@ result:
         19
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: _console.sql_last_result(30)
@@ -190,3 +202,6 @@ result:
       text: |
         interrupted retrieval releases the cursor
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

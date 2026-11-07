@@ -10,3 +10,6 @@ result:
         stress final
         useful output
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

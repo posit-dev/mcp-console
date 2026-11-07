@@ -6,6 +6,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -91,6 +94,9 @@ result:
 
         requirements: {"python": ["py-yaml12"]}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -177,6 +183,9 @@ result:
 
         requirements: {"python": ["py-yaml12"]}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -302,6 +311,9 @@ result:
       text: |
         accepted state retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import yaml12; print('retry resolved import')
@@ -312,3 +324,6 @@ result:
         [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
         retry resolved import
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

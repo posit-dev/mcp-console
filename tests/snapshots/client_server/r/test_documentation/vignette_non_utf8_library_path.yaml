@@ -27,3 +27,6 @@ result:
       text: |
         rendered vignettes preserve native filename bytes
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

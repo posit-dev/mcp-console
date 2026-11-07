@@ -44,6 +44,9 @@ result:
         {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
         pid>"}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 transcript_normalization:
   target: result.content[0].text
   process_ids_and_namespace: >-
@@ -92,6 +95,9 @@ result:
         {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
         pid>"}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 transcript_normalization:
   target: result.content[0].text
   process_ids_and_namespace: >-
@@ -140,6 +146,9 @@ result:
         {"child": "<child pid>", "relay": "<relay pid>", "worker": "<worker
         pid>"}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 transcript_normalization:
   target: result.content[0].text
   process_ids_and_namespace: >-

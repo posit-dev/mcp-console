@@ -51,7 +51,7 @@ def test_retains_source_after_an_early_response(
             client.initialize_and_list_tools()
             client.send(requirements={"action": "get"})
             try:
-                result = client.send(r="echo delayed source", timeout_ms=0)
+                result = client.send(r="echo delayed source", timeout_ms=100)
                 reached.wait("evaluation admitted before relay and worker launch")
                 assert not result.get("isError"), result
                 (recording,) = (workspace / ".agents/console/sessions").iterdir()

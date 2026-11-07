@@ -15,6 +15,9 @@ result:
         [input requested: "Python SQL setup> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: interrupt
@@ -39,6 +42,9 @@ result:
       text: |
         Python setup resumed with same objects
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 42 AS answer
@@ -49,3 +55,6 @@ result:
         Error: SQL unavailable: Python initialization is incomplete; explicit
         restart required
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

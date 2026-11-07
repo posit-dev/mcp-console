@@ -38,6 +38,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -57,6 +60,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -76,6 +82,9 @@ result:
       text: |
         (True, 'yaml12')
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -111,3 +120,6 @@ result:
       text: |
         (True, 7.25, True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

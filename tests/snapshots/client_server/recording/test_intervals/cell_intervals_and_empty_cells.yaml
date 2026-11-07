@@ -24,6 +24,9 @@ result:
       data: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -48,6 +51,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: rejected source
@@ -86,3 +92,6 @@ result:
 
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

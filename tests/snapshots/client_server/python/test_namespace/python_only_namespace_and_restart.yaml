@@ -12,6 +12,9 @@ result:
         None, '__annotations__': {}, '__builtins__': <module 'builtins'
         (built-in)>}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -42,6 +45,9 @@ result:
       text: |
         False True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -58,6 +64,9 @@ result:
       text: |
         R unavailable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: retained = object()
@@ -66,6 +75,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -98,3 +110,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -29,6 +29,9 @@ result:
       text: |
         <running Python>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -117,6 +120,9 @@ result:
 
         requirements: {"python": ["mcp_console_test_candidate"]}
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -175,6 +181,9 @@ result:
       text: |
         (42, 42, True, True, True, True, True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -193,6 +202,9 @@ result:
           File "<mcp-console:python:e4>", line 4, in <module>
         RuntimeError: after accepted Python preparation
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -253,3 +265,6 @@ result:
       text: |
         (42, 42, 7, True, True, True, True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

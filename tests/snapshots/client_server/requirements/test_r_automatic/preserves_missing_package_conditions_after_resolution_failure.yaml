@@ -13,6 +13,9 @@ result:
       text: |
         [1] "expected missing-package error"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -56,6 +59,9 @@ result:
         <condition classes, messages, calls, and fields identical to live
         Rscript>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 transcript_normalization:
   target: result.content[0].text
   reference: same source in live Rscript --vanilla
@@ -84,6 +90,9 @@ result:
       text: |
         [1] "expected missing-package error"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -127,6 +136,9 @@ result:
         <condition classes, messages, calls, and fields identical to live
         Rscript>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 transcript_normalization:
   target: result.content[0].text
   reference: same source in live Rscript --vanilla

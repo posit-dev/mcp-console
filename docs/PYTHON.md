@@ -96,7 +96,8 @@ Your application still owns its model client, chat or agent, and any function-ca
 Registering Console tools does not choose a model.
 
 The callable adapters preserve images in successful results using each framework's native content types, with Console's original image bytes, MIME types, and text/image order.
-Text-only results remain strings.
+Chatlas returns a `ContentToolResult` for successful calls, with text-only output in `.value` and server result metadata in `.extra`; requirements inspection returns a string.
+The other callable adapters return strings for text-only results.
 MCP tool errors raise: Anthropic preserves image error content in its `ToolError`, while the other callable adapters raise text exceptions.
 For OpenAI Agents, use `agents_server()` to retain image content in MCP error results.
 

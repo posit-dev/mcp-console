@@ -67,6 +67,9 @@ result:
       text: |
         startup available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -104,6 +107,9 @@ result:
       text: |
         native import errors
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -170,6 +176,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -236,6 +245,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -301,6 +313,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -366,6 +381,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -425,6 +443,9 @@ result:
       text: |
         startup available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:

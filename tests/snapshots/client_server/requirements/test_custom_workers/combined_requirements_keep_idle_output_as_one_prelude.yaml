@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo combined cell
@@ -22,6 +25,9 @@ result:
         [output produced while idle]
         zod: combined cell
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -40,6 +46,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo failed resolver cell ran
@@ -69,3 +78,6 @@ result:
       text: |
         zod: worker still usable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

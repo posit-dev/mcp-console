@@ -37,6 +37,9 @@ result:
         <worker callback checkpoint>
         <worker callback release>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default

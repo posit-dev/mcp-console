@@ -9,6 +9,9 @@ result:
       text: |
         zod: hello
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: echo precise 👩🏽‍💻
@@ -18,6 +21,9 @@ result:
       text: |
         zod python: precise 👩🏽‍💻
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: echo two  spaces
@@ -27,3 +33,6 @@ result:
       text: |
         zod sql: two  spaces
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

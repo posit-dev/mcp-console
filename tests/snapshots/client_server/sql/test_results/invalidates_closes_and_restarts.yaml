@@ -14,6 +14,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |-
@@ -48,6 +51,9 @@ result:
         19
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -61,6 +67,9 @@ result:
       text: |
         retrieval returns data and preserves the transaction
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |-
@@ -95,6 +104,9 @@ result:
         19
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SELECT * FROM missing_table
@@ -104,6 +116,9 @@ result:
       text: |
         Error: no such table: missing_table
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -122,6 +137,9 @@ result:
       text: |
         failed SQL invalidates the previous result
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |-
@@ -156,6 +174,9 @@ result:
         19
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: .console$sql_connection(NULL)
@@ -164,6 +185,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -183,6 +207,9 @@ result:
       text: |
         R selection invalidates Python results without committing
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT i::INTEGER AS id FROM range(57) AS t(i)
@@ -215,6 +242,9 @@ result:
         20      19
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: _console.sql_connection(connection)
@@ -223,6 +253,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -235,6 +268,9 @@ result:
       text: |
         Python selection invalidates R results
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -249,6 +285,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT select_again() AS value
@@ -260,6 +299,9 @@ result:
         -----
         41
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -276,6 +318,9 @@ result:
       text: |
         selection during execution does not retain a stale result
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -288,6 +333,9 @@ result:
         [starting new worker]
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -304,3 +352,6 @@ result:
       text: |
         restart has no retained result
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -17,6 +17,9 @@ result:
       text: |
         conditional startup available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -163,6 +166,9 @@ result:
       text: |
         conditional startup available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:

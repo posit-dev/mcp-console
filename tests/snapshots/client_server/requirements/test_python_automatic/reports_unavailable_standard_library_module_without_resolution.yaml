@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -28,6 +31,9 @@ result:
 
         'winreg' is a Python standard-library module, but it is unavailable in the selected Python build. MCP Console did not try to install a same-named PyPI distribution.
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: 6 * 7
@@ -37,3 +43,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

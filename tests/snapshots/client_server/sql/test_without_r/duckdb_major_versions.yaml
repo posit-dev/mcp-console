@@ -9,6 +9,9 @@ result:
       text: |
         2.0.0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -31,6 +34,9 @@ result:
         -----
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: |
@@ -47,6 +53,9 @@ result:
         ---+--------
         1  | NULL
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -60,6 +69,9 @@ result:
       text: |
         extensions and native results work
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |
@@ -94,6 +106,9 @@ result:
         19
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -117,6 +132,9 @@ result:
       text: |
         discarding unread rows frees the connection
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 42 AS answer
@@ -128,6 +146,9 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -139,6 +160,9 @@ result:
       text: |
         selected connection stays open
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: |
@@ -173,6 +197,9 @@ result:
         20
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -186,3 +213,6 @@ result:
       text: |
         discarding a write result completes its effects
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

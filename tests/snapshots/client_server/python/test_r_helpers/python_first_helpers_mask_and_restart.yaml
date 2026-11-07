@@ -11,6 +11,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -34,6 +37,9 @@ result:
       text: |
         Python-first state attached; user mask preserved
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -46,6 +52,9 @@ result:
       text: |
         Python-first state retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -77,3 +86,6 @@ result:
       text: |
         helpers reinstalled with fresh state
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

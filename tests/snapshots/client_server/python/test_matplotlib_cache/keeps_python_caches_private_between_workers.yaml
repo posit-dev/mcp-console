@@ -16,6 +16,9 @@ result:
       text: |
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -27,6 +30,9 @@ result:
       text: |
         private
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -51,6 +57,9 @@ result:
       text: |
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 !same-as MCP initialization for this execution mode
 ---
@@ -69,6 +78,9 @@ result:
       text: |
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -80,3 +92,6 @@ result:
       text: |
         private
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

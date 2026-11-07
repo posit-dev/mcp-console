@@ -15,6 +15,9 @@ result:
       text: |
         ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 stderr: >
   Warning: refusing automatic workspace writes to '<home>'; falling back

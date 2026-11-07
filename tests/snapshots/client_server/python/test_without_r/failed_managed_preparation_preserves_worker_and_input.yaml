@@ -12,6 +12,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -53,6 +56,9 @@ result:
       text: |
         objects intact
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -81,6 +87,9 @@ result:
       text: |
         objects intact
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -132,6 +141,9 @@ result:
       text: |
         objects intact
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -170,6 +182,9 @@ result:
       text: |
         objects intact
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -254,6 +269,9 @@ result:
         [input requested: ""]
         retained input
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -265,6 +283,9 @@ result:
         [input requested: "remaining> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -321,3 +342,6 @@ result:
         accepted
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

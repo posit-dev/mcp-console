@@ -9,6 +9,9 @@ result:
       text: |
         [1] 100000
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 transcript_normalization:
   target: send.r
   repeated_character: é

@@ -27,6 +27,9 @@ result:
         [input requested: "second> "]
         Ada|Lovelace
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -47,6 +50,9 @@ result:
         [input requested: "after> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   stdin: |
@@ -68,6 +74,9 @@ result:
         [input requested: "color> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   stdin: bl
@@ -102,3 +111,6 @@ result:
       text: |
         [input requested: "quoted \"prompt\"\n> "]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

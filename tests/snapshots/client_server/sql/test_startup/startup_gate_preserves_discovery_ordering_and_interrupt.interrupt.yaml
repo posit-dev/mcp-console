@@ -28,6 +28,9 @@ result:
         [input requested: "Startup gate> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: interrupt
@@ -53,6 +56,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 42 AS answer
@@ -63,6 +69,9 @@ result:
         Error: SQL unavailable: configured startup did not complete; explicit
         restart required
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: restart
@@ -81,6 +90,9 @@ result:
         42
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: assert startup_count == 1
@@ -89,3 +101,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

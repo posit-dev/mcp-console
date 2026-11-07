@@ -29,6 +29,9 @@ result:
       text: |
         synthetic Python initialization hook failure
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -62,6 +65,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: hook_input = input("hook> "); hook_input

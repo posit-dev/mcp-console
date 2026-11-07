@@ -28,6 +28,19 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: |
+        ## Journal
+
+        Keep **formatted prose** and `ordinary code`.
+
+        ---
+
+        Observed group
+        ---
+
+        <span class="journal-label">Observed cohort</span>.
 ---
 send:
   note: |
@@ -85,6 +98,58 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: |
+        ---
+        Observed total: 42
+        ---
+
+        ## Examples
+
+        ---
+        Observed cohort: controls
+        ...
+
+        > ---
+        > Observed replicate: 3
+        > ---
+
+        ~~~yaml
+        ---
+        execute:
+          eval: false
+        ---
+        ~~~
+
+        ```{r}
+        writeLines("fence", "note-fence-ran")
+        ```
+
+        Legacy inline `r {writeLines("inline", "note-inline-ran"); "literal"}`.
+        Quarto inline `{r} {writeLines("inline", "note-quarto-inline-ran"); "literal"}`.
+        Nested backticks ``r cat("`nested`")``.
+
+        > ```{r}
+        > writeLines("quote", "note-quote-ran")
+        > ```
+
+        - A nested example:
+
+          ```{r, example}
+          writeLines("list", "note-list-ran")
+          ```
+
+        ~~~{r}
+        writeLines("tilde", "note-tilde-ran")
+        ~~~
+
+        ```text
+        An inline example: `r {writeLines("literal", "note-literal-ran"); "literal"}`.
+        {{< include included.qmd >}}
+        ```
+
+        {{< include included.qmd >}}
 ---
 send:
   note: |
@@ -99,6 +164,15 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: |
+        #| include: false
+        Keep this literal chunk option visible.
+
+        ```{r}
+        writeLines("option", "note-option-ran")
+        ```
 ---
 send:
   r: writeLines("source", "source-ran")
@@ -108,3 +182,7 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: "--- \r\nexecute:\r\n  eval: false\r\n---\t\r\n"
+      language: r

@@ -34,6 +34,9 @@ result:
       text: |
         True
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   session: default
@@ -68,3 +71,6 @@ result:
       text: |
         (False, 'finished while idle')
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

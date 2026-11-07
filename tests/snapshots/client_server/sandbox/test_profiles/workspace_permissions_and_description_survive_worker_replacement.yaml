@@ -52,6 +52,9 @@ result:
       text: |
         fixed workspace permits edits and protects metadata after cwd changes
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -115,6 +118,9 @@ result:
       text: |
         fixed workspace permits edits and protects metadata after cwd changes
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: os._exit(23)
@@ -180,6 +186,9 @@ result:
       text: |
         fixed workspace permits edits and protects metadata after cwd changes
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -246,6 +255,9 @@ result:
       text: |
         fixed workspace permits edits and protects metadata after cwd changes
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import yaml12; print(yaml12.__name__)
@@ -255,3 +267,6 @@ result:
       text: |
         yaml12
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

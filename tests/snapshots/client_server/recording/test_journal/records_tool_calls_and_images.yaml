@@ -20,6 +20,9 @@ result:
       text: |
         after image
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 input:
   method: tools/call

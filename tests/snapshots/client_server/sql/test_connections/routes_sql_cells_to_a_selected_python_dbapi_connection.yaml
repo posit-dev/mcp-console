@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -32,6 +35,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -45,6 +51,9 @@ result:
       text: |
         `connection` must provide a callable cursor() method or be None
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: CREATE TABLE custom_values (label TEXT, value INTEGER)
@@ -53,6 +62,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: INSERT INTO custom_values VALUES ('a', 2), ('b', NULL)
@@ -61,6 +73,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SELECT label, value FROM custom_values ORDER BY label
@@ -73,6 +88,9 @@ result:
         'a'   | 2
         'b'   | NULL
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SELECT missing FROM missing_values
@@ -82,6 +100,9 @@ result:
       text: |
         Error: no such table: missing_values
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: |-
@@ -95,6 +116,9 @@ result:
         -----------------
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: >-
@@ -108,6 +132,9 @@ result:
         ----------------------------------------------------------------------------------------------------------------------------------------------------------------
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: >-
@@ -151,6 +178,9 @@ result:
         '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
         '🐍🐍🐍🐍🐍…  | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍… | '🐍🐍🐍🐍🐍🐍…
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: |
@@ -188,6 +218,9 @@ result:
         20
         [additional rows omitted]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -220,6 +253,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: CONTROL VALUE
@@ -232,6 +268,9 @@ result:
         tab\tline\nreturn\rcontrol\x01\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\…
         [cell values truncated to 160 characters]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: .console$sql_connection(NULL); invisible()
@@ -240,6 +279,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: SELECT origin FROM managed_values
@@ -252,6 +294,9 @@ result:
           <string> 
         1 "managed"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: _console.sql_connection(sqlite3.connect(':memory:'))
@@ -260,6 +305,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT 42 AS python_value
@@ -271,6 +319,9 @@ result:
         ------------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: _console.sql_connection(None)
@@ -279,6 +330,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT origin FROM managed_values
@@ -291,3 +345,6 @@ result:
           <string> 
         1 "managed"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

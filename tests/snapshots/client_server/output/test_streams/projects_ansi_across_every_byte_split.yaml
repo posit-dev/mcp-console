@@ -17,6 +17,9 @@ result:
               plain red €🙂
             count: 32
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_02
@@ -34,6 +37,9 @@ result:
               new
             count: 20
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_03
@@ -46,6 +52,9 @@ result:
     - type: text
       text: "keep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\nkeep\r\n"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_04
@@ -71,6 +80,9 @@ result:
 
 
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_05
@@ -83,6 +95,9 @@ result:
     - type: text
       text: "\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_06
@@ -95,6 +110,9 @@ result:
     - type: text
       text: "\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_07
@@ -121,6 +139,9 @@ result:
         new
         new
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_08
@@ -148,6 +169,9 @@ result:
         new
         new
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_09
@@ -165,6 +189,9 @@ result:
               keep plus
             count: 16
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_10
@@ -191,6 +218,9 @@ result:
         oldnew
         oldnew
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_11
@@ -208,6 +238,9 @@ result:
               beforeafter
             count: 23
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_12
@@ -225,6 +258,9 @@ result:
               charsettext
             count: 18
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_13
@@ -242,6 +278,9 @@ result:
               €!
             count: 33
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_14
@@ -259,6 +298,9 @@ result:
               beforeafter
             count: 25
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_15
@@ -276,6 +318,9 @@ result:
               safe
             count: 26
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_16
@@ -293,6 +338,9 @@ result:
               label
             count: 46
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_17
@@ -310,6 +358,9 @@ result:
               beforeafter
             count: 34
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_18
@@ -327,6 +378,9 @@ result:
               abcd
             count: 38
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_19
@@ -344,6 +398,9 @@ result:
               C1safe
             count: 30
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_20
@@ -361,6 +418,9 @@ result:
               abcde
             count: 49
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_21
@@ -378,6 +438,9 @@ result:
               ab
             count: 29
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_22
@@ -395,6 +458,9 @@ result:
               new
             count: 18
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_23
@@ -421,6 +487,9 @@ result:
         a🙂b
         a🙂b
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_24
@@ -448,6 +517,9 @@ result:
         new
         new
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_25
@@ -482,6 +554,9 @@ result:
         a
         b
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_26
@@ -506,6 +581,9 @@ result:
         a🙂b
         a🙂b
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_27
@@ -523,6 +601,9 @@ result:
               new
             count: 16
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_28
@@ -540,6 +621,9 @@ result:
               oldsafe
             count: 175
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 fixture:
   operation: project_ansi_sample_29
@@ -557,3 +641,6 @@ result:
               oldsafe
             count: 153
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

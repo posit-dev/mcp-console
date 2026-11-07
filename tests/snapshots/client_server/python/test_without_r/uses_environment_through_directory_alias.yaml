@@ -21,3 +21,6 @@ result:
       text: |
         selected environment retained through directory alias
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

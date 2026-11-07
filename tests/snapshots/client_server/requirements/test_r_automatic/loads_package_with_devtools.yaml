@@ -44,3 +44,6 @@ result:
         [1] 41
 
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

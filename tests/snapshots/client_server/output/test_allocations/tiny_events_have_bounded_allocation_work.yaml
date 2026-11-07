@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: preview many tiny events
@@ -38,6 +41,9 @@ result:
       text: |
         after final image
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 input:
   method: ping

@@ -25,6 +25,9 @@ result:
       text: |
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: 1 + 1
@@ -34,3 +37,6 @@ result:
       text: |
         2
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

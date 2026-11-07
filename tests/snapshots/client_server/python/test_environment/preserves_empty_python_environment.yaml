@@ -10,3 +10,6 @@ result:
       text: |
         [1] "managed"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

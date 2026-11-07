@@ -36,6 +36,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -73,3 +76,6 @@ result:
       text: |
         (False, [])
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

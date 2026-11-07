@@ -23,6 +23,9 @@ result:
         <probe release>
         <probe pid>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: CREATE TABLE startup_state AS SELECT 42 AS answer
@@ -31,6 +34,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: invisible(reticulate::py_config())
@@ -64,6 +70,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: SELECT answer FROM startup_state
@@ -76,6 +85,9 @@ result:
           <int32>
         1      42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: reticulate::py_run_string("print('initialized')")
@@ -85,3 +97,6 @@ result:
       text: |
         initialized
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -68,6 +68,9 @@ result:
         ** testing if installed package keeps a record of temporary installation path
         * DONE (mcpconsolelocalpkg)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -96,3 +99,6 @@ result:
       text: |
         new sandbox library ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

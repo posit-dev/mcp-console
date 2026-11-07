@@ -80,6 +80,9 @@ result:
         [output produced while idle]
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import numpy; print('Python default available')
@@ -89,6 +92,9 @@ result:
       text: |
         Python default available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -174,6 +180,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -245,6 +254,9 @@ result:
       text: |
         2
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart

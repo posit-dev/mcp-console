@@ -346,6 +346,9 @@ result:
       text: |
         captured grants, proxy selection, and restricted network verified
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -402,6 +405,9 @@ result:
       text: |
         captured grants, proxy selection, and restricted network verified
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: os._exit(23)
@@ -460,6 +466,9 @@ result:
       text: |
         captured grants, proxy selection, and restricted network verified
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -519,6 +528,9 @@ result:
       text: |
         captured grants, proxy selection, and restricted network verified
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import yaml12; print(yaml12.__name__)
@@ -528,3 +540,6 @@ result:
       text: |
         yaml12
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -15,6 +15,9 @@ result:
       text: |
         documentation defaults installed after native profiles
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -24,6 +27,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: help("topic", package = "consolehelp")
@@ -33,6 +39,9 @@ result:
       text: |
         user pager
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: vignette("source", package = "consolehelp")
@@ -42,6 +51,9 @@ result:
       text: |
         user pager
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: vignette("rendered", package = "consolehelp")
@@ -51,6 +63,9 @@ result:
       text: |
         user pager
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: capture.output(utils::vignette(consolehelp::source))
@@ -60,6 +75,9 @@ result:
       text: |
         [1] "user pager"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: capture.output(utils::vignette(consolehelp::rendered))
@@ -69,6 +87,9 @@ result:
       text: |
         [1] "user pager"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -83,6 +104,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: vignette("source", package = "consolehelp")
@@ -92,6 +116,9 @@ result:
       text: |
         user vignette
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: vignette("rendered", package = "consolehelp")
@@ -101,6 +128,9 @@ result:
       text: |
         user vignette
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: capture.output(utils::vignette(consolehelp::source))
@@ -110,6 +140,9 @@ result:
       text: |
         [1] "user vignette"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: capture.output(utils::vignette(consolehelp::rendered))
@@ -119,6 +152,9 @@ result:
       text: |
         [1] "user vignette"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: help("topic", package = "consolehelp")
@@ -128,6 +164,9 @@ result:
       text: |
         user pager
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -154,3 +193,6 @@ result:
       text: |
         documentation defaults installed after native profiles
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

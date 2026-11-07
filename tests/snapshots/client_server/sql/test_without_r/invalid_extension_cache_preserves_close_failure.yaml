@@ -16,6 +16,9 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 stderr: |
   resolver input closed; local resolver sandbox exited with exit status: 47

@@ -30,6 +30,9 @@ result:
       text: |
         [1] "configured-by-user"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -94,6 +97,9 @@ result:
         managed Python requirements are disabled because the session uses a user-selected Python environment
         managed Python requirements are disabled because the session uses a user-selected Python environment
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -113,3 +119,6 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

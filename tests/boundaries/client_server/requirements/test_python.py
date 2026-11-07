@@ -667,6 +667,7 @@ def restart_discards_pre_marker_activation(
                     }
                 ],
                 "isError": False,
+                "_meta": {"posit.mcp-console/send": {"language": "r"}},
             }, evaluation_result
 
             restart = client.start_send(

@@ -9,6 +9,9 @@ result:
       text: |
         zod: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: emit image
@@ -24,6 +27,9 @@ result:
       text: |
         after image
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: echo echo
@@ -33,6 +39,9 @@ result:
       text: |
         zod: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 journal after failure:
   - recording_started

@@ -9,6 +9,9 @@ result:
       text: |
         selected existing Python
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -64,3 +67,6 @@ result:
       text: |
         selected existing Python
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

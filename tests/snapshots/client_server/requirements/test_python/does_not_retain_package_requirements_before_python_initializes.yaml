@@ -12,6 +12,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: tools::pskill(Sys.getpid(), signal = 9L)
@@ -35,6 +38,9 @@ result:
       text: |
         [1] FALSE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: library(mcpconsolepyrequire); yaml12 <- reticulate::import("yaml12")
@@ -43,6 +49,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: 'yaml12$parse_yaml("answer: 42")$answer'
@@ -52,6 +61,9 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:

@@ -17,6 +17,9 @@ result:
       text: |
         configured Python available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -80,6 +83,9 @@ result:
       text: |
         packaging available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -192,6 +198,9 @@ result:
       text: |
         worker retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -222,3 +231,6 @@ result:
       text: |
         configured Python available
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

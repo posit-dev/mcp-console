@@ -21,6 +21,9 @@ result:
       text: |
         <worker temporary>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value += 1; print('before error'); raise ValueError('recoverable')
@@ -33,6 +36,9 @@ result:
           File "<mcp-console:python:e2>", line 1, in <module>
         ValueError: recoverable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: value + 1
@@ -42,6 +48,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: answer = input('value> '); answer
@@ -52,6 +61,9 @@ result:
         [input requested: "value> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |
@@ -73,6 +85,9 @@ result:
       data: <PNG byte-identical to selected environment savefig 1>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: input('interrupt> ')
@@ -83,6 +98,9 @@ result:
         [input requested: "interrupt> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -103,6 +121,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -116,6 +137,9 @@ result:
         False
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import tempfile; print(tempfile.gettempdir())
@@ -125,3 +149,6 @@ result:
       text: |
         <worker temporary>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

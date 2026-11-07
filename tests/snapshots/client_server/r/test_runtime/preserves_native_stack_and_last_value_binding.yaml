@@ -9,6 +9,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -37,3 +40,6 @@ result:
         contains internal call: FALSE
         global binding: FALSE
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

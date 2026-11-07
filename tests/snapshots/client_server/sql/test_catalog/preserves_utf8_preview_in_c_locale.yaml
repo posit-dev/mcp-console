@@ -12,6 +12,9 @@ result:
           <string>     
         1 "façade 漢字"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: |
@@ -29,3 +32,6 @@ result:
           <string>                  <string>                     <string> <string>
         1 "line\nbreak\t\"quoted\"" "literal \\u6f22 and \\path" ""       NULL    
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql

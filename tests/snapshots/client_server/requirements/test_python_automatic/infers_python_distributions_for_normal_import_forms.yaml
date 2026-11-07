@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -33,3 +36,6 @@ result:
         [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
         ({'answer': 42}, {'answer': 43}, True, 'Yaml', 'pydash')
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

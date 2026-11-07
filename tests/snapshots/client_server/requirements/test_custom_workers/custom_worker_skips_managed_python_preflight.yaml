@@ -9,6 +9,9 @@ result:
       text: |
         zod python: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -50,6 +53,9 @@ result:
       text: |
         zod: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default

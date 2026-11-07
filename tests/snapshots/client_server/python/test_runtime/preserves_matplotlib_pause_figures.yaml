@@ -73,6 +73,9 @@ result:
       text: |
         'pause loop finished'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: plt.get_fignums()
@@ -82,3 +85,6 @@ result:
       text: |
         []
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

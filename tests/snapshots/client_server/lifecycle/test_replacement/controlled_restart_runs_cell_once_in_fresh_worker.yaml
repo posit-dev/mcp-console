@@ -9,6 +9,9 @@ result:
       text: |
         zod controlled state: old
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -22,6 +25,9 @@ result:
         zod controlled state: fresh; evaluation=1
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default

@@ -10,6 +10,9 @@ result:
         [input requested: "python runtime configuring> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -34,6 +37,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: import yaml12; yaml12.__name__
@@ -44,3 +50,6 @@ result:
         [resolved PyPI distribution 'py-yaml12' for Python import 'yaml12']
         'yaml12'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

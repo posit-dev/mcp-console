@@ -23,6 +23,9 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: >-
@@ -33,6 +36,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: stopifnot(python_initialized() == 1L); r_value$answer
@@ -42,6 +48,9 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: >-
@@ -53,3 +62,6 @@ result:
       text: |
         runtime objects retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

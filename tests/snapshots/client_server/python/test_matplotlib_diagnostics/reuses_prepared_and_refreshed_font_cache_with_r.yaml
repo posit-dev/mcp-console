@@ -53,6 +53,9 @@ result:
       text: |
         prepared font cache and selected configuration reused
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -86,6 +89,9 @@ result:
       text: |
         prepared font cache and selected configuration reused
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -129,6 +135,9 @@ result:
       text: |
         prepared font cache and selected configuration reused
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -173,6 +182,9 @@ result:
       text: |
         prepared font cache and selected configuration reused
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -227,6 +239,9 @@ result:
       text: |
         prepared font cache and selected configuration reused
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -248,3 +263,6 @@ result:
       text: |
         prepared source is read-only; private replacement is writable
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

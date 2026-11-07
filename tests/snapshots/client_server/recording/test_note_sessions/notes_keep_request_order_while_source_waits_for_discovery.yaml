@@ -13,6 +13,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: Record the question before the worker starts.
 ---
 send:
   r: 42L
@@ -26,6 +29,10 @@ result:
         [elapsed: <elapsed>s since admission; no new output; phase: startup]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: Compute the initial answer.
+      language: r
 ---
 send:
   note: The cell is queued; retain this observation after its source.
@@ -34,6 +41,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      note: The cell is queued; retain this observation after its source.
 ---
 send:
   session: default

@@ -54,6 +54,7 @@ def test_projects_console_kinds(binary: Path, execution: Execution) -> Transcrip
             }
         ],
         "isError": False,
+        "_meta": {"posit.mcp-console/send": {"language": "r"}},
     }, result
     return client.finish()
 
@@ -76,6 +77,7 @@ def test_returns_worker_images(binary: Path, execution: Execution) -> Transcript
             {"type": "text", "text": "after image\n"},
         ],
         "isError": False,
+        "_meta": {"posit.mcp-console/send": {"language": "r"}},
     }, result
     return client.finish()
 

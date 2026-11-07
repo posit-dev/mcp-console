@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: preview allocation image
@@ -18,6 +21,9 @@ result:
       data: <image byte-identical to 6 MiB of zero bytes>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 input:
   method: ping
@@ -31,6 +37,9 @@ result:
       data: <image byte-identical to 6 MiB of zero bytes>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 input:
   method: ping
@@ -60,6 +69,9 @@ result:
 
             preview tail
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 input:
   method: ping

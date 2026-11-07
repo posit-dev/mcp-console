@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -62,3 +65,6 @@ result:
         requirements: {"python": ["distribution-name"]}
         nested-direct name: mcp_console_available_root.nested_missing
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

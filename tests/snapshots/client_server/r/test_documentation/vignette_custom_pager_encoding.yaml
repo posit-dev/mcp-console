@@ -37,3 +37,6 @@ result:
       text: |
         custom pagers receive the standard native encoding
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

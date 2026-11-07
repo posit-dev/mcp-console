@@ -12,6 +12,9 @@ result:
         [input requested: "name> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   stdin: |

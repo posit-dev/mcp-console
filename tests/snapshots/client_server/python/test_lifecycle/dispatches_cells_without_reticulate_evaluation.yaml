@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -30,6 +33,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: direct_state.append(42); direct_state
@@ -39,6 +45,9 @@ result:
       text: |
         [41, 42]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: input("direct> ")
@@ -63,6 +72,9 @@ result:
           File "<mcp-console:python:e4>", line 1, in <module>
         ValueError: direct exception
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: direct_state
@@ -72,3 +84,6 @@ result:
       text: |
         [41, 42]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

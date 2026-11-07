@@ -63,6 +63,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   stdin: p
@@ -111,3 +114,6 @@ result:
       text: |
         zod: after completed interrupt
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

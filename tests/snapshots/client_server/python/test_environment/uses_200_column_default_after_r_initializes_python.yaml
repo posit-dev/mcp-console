@@ -24,3 +24,6 @@ result:
         R-first NumPy linewidth: 200
         R-first pandas display.width: 200
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

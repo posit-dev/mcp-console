@@ -10,6 +10,9 @@ result:
         Warning message:
         integer literal 1.0L contains unnecessary decimal point 
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -19,6 +22,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: invisible(1.0L)
@@ -28,6 +34,9 @@ result:
       text: |
         parser warning
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -41,6 +50,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -51,6 +63,9 @@ result:
       text: |
         Error: repeated formal argument 'x' (<input>:1:13)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -63,6 +78,9 @@ result:
         Error: (converted from warning) integer literal 1.0L contains unnecessary decimal point
         error handler warn: 2
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: answer
@@ -72,3 +90,6 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

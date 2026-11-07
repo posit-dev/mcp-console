@@ -10,3 +10,6 @@ result:
         zod output
         zod diagnostic
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

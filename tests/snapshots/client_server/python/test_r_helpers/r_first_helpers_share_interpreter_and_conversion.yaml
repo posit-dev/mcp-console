@@ -34,6 +34,9 @@ result:
       text: |
         R helpers initialized shared Python
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -48,3 +51,6 @@ result:
       text: |
         R-first state retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

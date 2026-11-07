@@ -9,6 +9,9 @@ result:
       text: |
         zod sql: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   r: echo echo
@@ -18,3 +21,6 @@ result:
       text: |
         zod: echo
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -52,3 +52,6 @@ result:
       text: |
         selected environment retained by interpreter and children
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

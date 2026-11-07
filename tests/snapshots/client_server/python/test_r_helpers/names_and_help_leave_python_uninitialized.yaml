@@ -40,3 +40,6 @@ result:
       text: |
         four lazy helpers with reticulate help
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

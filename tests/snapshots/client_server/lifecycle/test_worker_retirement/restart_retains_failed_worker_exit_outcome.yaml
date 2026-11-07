@@ -8,6 +8,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: os._exit(47)
@@ -48,3 +51,6 @@ result:
       text: |
         replacement ran
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

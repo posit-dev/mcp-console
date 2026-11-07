@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: stall
@@ -21,6 +24,9 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   session: default
@@ -42,3 +48,6 @@ result:
       text: |
         zod: recovered
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

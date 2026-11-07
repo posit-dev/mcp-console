@@ -72,6 +72,9 @@ result:
       data: <PNG byte-identical to live seaborn savefig 2>
       mimeType: image/png
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: (matplotlib.get_backend(), plt.get_fignums())
@@ -81,3 +84,6 @@ result:
       text: |
         ('svg', [])
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

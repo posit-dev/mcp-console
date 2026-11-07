@@ -53,6 +53,7 @@ def test_queued_calls_keep_their_response_identity(
         assert second["result"] == {
             "content": [{"type": "text", "text": "zod: queued\n"}],
             "isError": False,
+            "_meta": {"posit.mcp-console/send": {"language": "r"}},
         }, second
         client.finish()
         (recording,) = (Path(directory) / "sessions").iterdir()
@@ -174,6 +175,7 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                     assert pending["result"] == {
                         "content": [{"type": "text", "text": "zod: ready\n"}],
                         "isError": False,
+                        "_meta": {"posit.mcp-console/send": {"language": "r"}},
                     }, pending
                 client.expect("zod: after overflow\n", r="echo after overflow")
                 _, diagnostics = client.finish_with_standard_error()

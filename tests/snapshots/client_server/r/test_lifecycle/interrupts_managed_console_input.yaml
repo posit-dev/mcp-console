@@ -16,6 +16,9 @@ result:
         [input requested: "R interrupt> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -38,6 +41,9 @@ result:
         [input requested: "R replay> "]
         [1] "R partial!"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -53,6 +59,9 @@ result:
         [input requested: "R suspended> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -84,6 +93,9 @@ result:
       text: |
         [1] "accepted"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -100,6 +112,9 @@ result:
         [input requested: "Python interrupt> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -122,6 +137,9 @@ result:
         [input requested: "Python replay> "]
         'Python partial!'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: r_input_state + 1L
@@ -131,6 +149,9 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: python_input_state + 1
@@ -140,3 +161,6 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

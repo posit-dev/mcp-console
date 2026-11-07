@@ -32,6 +32,9 @@ result:
       text: |
         managed R and Python requirements retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -47,6 +50,9 @@ result:
         yaml12
         absent
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -78,6 +84,9 @@ result:
       text: |
         managed R and Python requirements retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   python: |
@@ -93,3 +102,6 @@ result:
         yaml12
         absent
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

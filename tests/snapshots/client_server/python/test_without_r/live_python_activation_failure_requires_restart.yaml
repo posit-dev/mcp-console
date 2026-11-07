@@ -100,6 +100,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   requirements:
@@ -184,3 +187,6 @@ result:
       text: |
         accepted environment retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

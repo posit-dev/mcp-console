@@ -27,3 +27,6 @@ result:
       text: |
         Selected R launcher supplies its default architecture
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

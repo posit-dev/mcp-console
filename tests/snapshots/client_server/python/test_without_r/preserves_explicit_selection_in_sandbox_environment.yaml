@@ -14,6 +14,9 @@ result:
       text: |
         explicit selection retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -32,6 +35,9 @@ result:
         explicit selection retained
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 !same-as python-only MCP initialization for this execution mode
 ---
@@ -48,6 +54,9 @@ result:
       text: |
         explicit selection retained
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -66,3 +75,6 @@ result:
         explicit selection retained
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

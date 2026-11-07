@@ -17,6 +17,9 @@ result:
         Error in f() : seed traceback
         No traceback available 
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: traceback()
@@ -27,6 +30,9 @@ result:
         2: stop("seed traceback") at #1
         1: f()
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -41,6 +47,9 @@ result:
         3: 
           ^
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: traceback()
@@ -51,6 +60,9 @@ result:
         2: stop("seed traceback") at #1
         1: f()
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -65,6 +77,9 @@ result:
         2: )
            ^
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: traceback()
@@ -75,6 +90,9 @@ result:
         2: stop("seed traceback") at #1
         1: f()
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -86,6 +104,9 @@ result:
       text: |
         Error: repeated formal argument 'x' (<input>:2:13)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: traceback()
@@ -96,6 +117,9 @@ result:
         2: stop("seed traceback") at #1
         1: f()
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: |
@@ -108,3 +132,6 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -24,3 +24,6 @@ result:
       text: |
         zod R requirement: prepared=true
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

@@ -11,6 +11,9 @@ result:
       text: |
         executed cell
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: lose relay

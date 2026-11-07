@@ -274,6 +274,7 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                 assert first["result"] == {
                     "content": [{"type": "text", "text": "first response\n"}],
                     "isError": False,
+                    "_meta": {"posit.mcp-console/send": {"language": "python"}},
                 }
                 # A received frame can precede completion of its local write.
                 # Establish delivery before releasing the second handler.
@@ -298,6 +299,7 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                 assert second["result"] == {
                     "content": [{"type": "text", "text": "42\n"}],
                     "isError": False,
+                    "_meta": {"posit.mcp-console/send": {"language": "python"}},
                 }, second
                 recorded = json.dumps(client.finish())
                 for path in (workspace, workspace.resolve()):

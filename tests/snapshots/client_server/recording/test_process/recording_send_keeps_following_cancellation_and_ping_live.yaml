@@ -9,6 +9,9 @@ result:
       text: |
         zod: ready
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: interrupt
@@ -55,3 +58,6 @@ result:
       text: |
         zod: after
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

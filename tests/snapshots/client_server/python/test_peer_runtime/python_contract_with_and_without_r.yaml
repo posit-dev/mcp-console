@@ -21,6 +21,9 @@ result:
         shared stderr
         41
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -34,6 +37,9 @@ result:
           File "<mcp-console:python:e2>", line 2, in <module>
         ValueError: peer runtime sentinel
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -48,6 +54,9 @@ result:
       text: |
         (42, True, True)
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -61,6 +70,9 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -72,3 +84,6 @@ result:
       text: |
         43
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

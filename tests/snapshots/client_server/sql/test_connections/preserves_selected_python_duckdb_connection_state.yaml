@@ -17,6 +17,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT value + 1 AS answer FROM before_selection
@@ -28,6 +31,9 @@ result:
         ------
         42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: CREATE TEMP TABLE later_state AS SELECT 'retained' AS value
@@ -39,6 +45,9 @@ result:
         -----
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: SELECT value FROM later_state
@@ -50,6 +59,9 @@ result:
         ----------
         'retained'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   control: restart
@@ -70,3 +82,6 @@ result:
       text: |
         new interpreter
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

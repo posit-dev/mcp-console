@@ -28,6 +28,9 @@ result:
       text: |
         1.0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: cell_was_run = True
@@ -56,6 +59,9 @@ result:
       text: |
         1.0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: restart
@@ -81,3 +87,6 @@ result:
       text: |
         1.0
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

@@ -15,6 +15,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -41,6 +44,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   control: restart
@@ -67,6 +73,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   r: reticulate::import("yaml12")$`__name__`
@@ -76,3 +85,6 @@ result:
       text: |
         [1] "yaml12"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

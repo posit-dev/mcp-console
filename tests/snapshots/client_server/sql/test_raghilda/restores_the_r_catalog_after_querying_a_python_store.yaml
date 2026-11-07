@@ -6,6 +6,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   requirements:
@@ -73,6 +76,9 @@ result:
       text: |
         beta.md: Bananas are yellow fruit.
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   sql: SELECT origin, text FROM chunks ORDER BY origin LIMIT 2
@@ -85,6 +91,9 @@ result:
         'alpha.md' | 'Apples are red fruit.'
         'beta.md'  | 'Bananas are yellow fruit.'
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   sql: CREATE TEMP TABLE sql_marker AS SELECT 42 AS value
@@ -96,6 +105,9 @@ result:
         -----
         1
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -112,6 +124,9 @@ result:
       text: |
         alpha.md: Apples are red fruit.; SQL marker: 42
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: _console.sql_connection(None)
@@ -120,6 +135,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   r: |
@@ -135,6 +153,9 @@ result:
       text: |
         R-owned managed catalog restored: 7
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   sql: SELECT value FROM managed_marker
@@ -147,6 +168,9 @@ result:
           <int32>
         1       7
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: sql
 ---
 send:
   python: |
@@ -165,3 +189,6 @@ result:
       text: |
         user-owned store survived restoration; private files removed
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

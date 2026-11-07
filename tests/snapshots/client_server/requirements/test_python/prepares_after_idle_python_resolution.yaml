@@ -34,6 +34,9 @@ result:
         <worker callback gate>
         <worker callback checkpoint>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -55,3 +58,6 @@ result:
         [output produced while idle]
         c("py-yaml12", "numpy", "pandas", "matplotlib", "plotnine")
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r

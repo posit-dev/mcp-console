@@ -16,6 +16,9 @@ result:
         <sandbox root> <relay pid> <worker pid> <descendant pid>
         <sandbox temp>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 transcript_normalization:
   target: result.content[0].text
   process_ids: omitted
@@ -33,6 +36,9 @@ result:
         replacement ready
         [done]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: |
@@ -49,6 +55,9 @@ result:
         <sandbox root> <relay pid> <worker pid> <descendant pid>
         <sandbox temp>
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 transcript_normalization:
   target: result.content[0].text
   process_ids: omitted

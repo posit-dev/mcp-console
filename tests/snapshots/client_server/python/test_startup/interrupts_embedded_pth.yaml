@@ -11,6 +11,9 @@ result:
         [input requested: "startup interrupt> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   control: interrupt
@@ -47,6 +50,9 @@ result:
       text: |
         False
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python
 ---
 send:
   python: builtins.startup_attempts
@@ -56,3 +62,6 @@ result:
       text: |
         2
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: python

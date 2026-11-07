@@ -16,6 +16,9 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
 ---
 send:
   requirements:
@@ -55,3 +58,6 @@ result:
       text: |
         project library retained across changes
   isError: false
+  _meta:
+    posit.mcp-console/send:
+      language: r
