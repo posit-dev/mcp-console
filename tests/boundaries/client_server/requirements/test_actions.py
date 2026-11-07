@@ -428,6 +428,13 @@ def test_interrupted_replacement_preserves_worker(
             interrupt_release.release()
             client.receive(pending)
             client.receive(interrupt)
+            wait_for_evaluation_output(
+                client,
+                "\n[idle]",
+                "replacement preparation interruption",
+                completion_timeout_seconds=client.response_timeout,
+                received=interrupt,
+            )
             assert pending["result"].get("isError"), pending
             error = pending["result"]["content"][0]["text"]
             assert "managed Python resolution failed" in error, pending
