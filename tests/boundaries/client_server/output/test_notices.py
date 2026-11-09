@@ -159,7 +159,9 @@ def test_starts_notice_on_new_line_after_polled_partial_line(
             """)
         # The poll that returns the partial line ends its response interval.
         # The later notice must still start on its own line.
-        client.expect("prefix\n[running; poll with an empty send]", python=python)
+        client.expect(
+            "prefix\n[running; poll with an empty send]", python=python, timeout_ms=100
+        )
         release.release()
         client.expect('\n[input requested: ""]\n[waiting for stdin]')
         client.expect("answer\n", stdin="answer\n")
