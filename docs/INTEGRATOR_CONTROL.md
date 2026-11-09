@@ -179,7 +179,13 @@ Integrators remain responsible for safe concurrent object access and for interru
 After initializing Python:
 
 ```json
-{"id":"ui","op":"evaluate","language":"python","execution":"immediate","code":"print(2 + 2)"}
+{
+  "id": "ui",
+  "op": "evaluate",
+  "language": "python",
+  "execution": "immediate",
+  "code": "print(2 + 2)"
+}
 ```
 
 Managed output belongs to the private result, including Python thread cleanup.
@@ -208,7 +214,7 @@ After `{"id":"ghost","result":{"subscribed":true}}`, frames use this shape:
   "event": "preview",
   "result": {
     "resultType": "complete",
-    "content": [{"type":"text","text":"working…"}],
+    "content": [{ "type": "text", "text": "working…" }],
     "isError": false
   }
 }
