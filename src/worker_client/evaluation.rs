@@ -463,7 +463,7 @@ impl Evaluation {
             .adopt_prelude_before(capture_idle_prelude, boundary);
         state.entry_gap = entry_gap;
         if let Some(prelude) = state.idle_prelude.as_mut() {
-            prelude.extend(additional);
+            prelude.extend_stream(additional);
         } else {
             state.idle_prelude = Some(additional);
         }
@@ -487,7 +487,7 @@ impl Evaluation {
         )?;
         // An earlier response may already have consumed the admission prelude.
         match state.idle_prelude.as_mut() {
-            Some(prelude) => prelude.extend(idle),
+            Some(prelude) => prelude.extend_stream(idle),
             None => state.idle_prelude = Some(idle),
         }
         state.cell_entered = true;

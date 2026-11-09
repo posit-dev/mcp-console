@@ -339,7 +339,7 @@ impl OutputTape {
         match &state.recovered {
             Some(recovered) => {
                 let mut response = recovered.snapshot();
-                response.extend_after_recovered(intervals);
+                response.extend_stream(intervals);
                 response
             }
             None => intervals,
@@ -357,7 +357,7 @@ impl OutputTape {
     pub(in crate::worker_client) fn restore_prelude(&self, mut prelude: Response) {
         let mut state = self.change();
         if let Some(recovered) = state.recovered.take() {
-            prelude.extend(recovered);
+            prelude.extend_stream(recovered);
         }
         state.recovered = Some(prelude);
     }
@@ -711,7 +711,7 @@ impl OutputTapeState {
         self.drain_intervals_into(cut, &mut intervals);
         match self.recovered.take() {
             Some(mut recovered) => {
-                recovered.extend_after_recovered(intervals);
+                recovered.extend_stream(intervals);
                 recovered
             }
             None => intervals,

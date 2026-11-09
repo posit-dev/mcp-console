@@ -663,5 +663,82 @@ def test_keeps_recovered_reply_before_later_idle_callback_output(
             return client.finish()
 
 
+@requires(NATIVE_FIXTURES, R_EVENT_LOOP)
+def test_starts_idle_callback_output_after_recovered_idle_notice(
+    binary: Path,
+) -> Transcript:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-control-"
+    ) as directory:
+        root = Path(directory)
+        endpoint = root / "control.sock"
+        with (
+            closing(FifoCheckpoint.create(root / "result-reached")) as result_reached,
+            closing(FifoCheckpoint.create(root / "result-release")) as result_release,
+            closing(AllocationProfile(root)) as profile,
+            McpClient(
+                binary,
+                DIRECT.serve("--control-socket", str(endpoint)),
+                {
+                    **os.environ,
+                    **profile.environment,
+                    "MCP_CONSOLE_TEST_RESULT_REACHED": str(result_reached.path),
+                    "MCP_CONSOLE_TEST_RESULT_RELEASE": str(result_release.path),
+                },
+            ) as client,
+        ):
+            client.initialize_and_list_tools()
+            client.send(requirements={"r": ["later"]})
+            # fmt: r
+            r = code(r"""
+                callback_gate <- tempfile("mcp-console-callback-gate-")
+                callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+                callback_release <- tempfile("mcp-console-callback-release-")
+                run_callback <- function() {
+                  if (!file.exists(callback_gate)) {
+                    later::later(run_callback, delay = 0.01)
+                    return(invisible(NULL))
+                  }
+                  stopifnot(file.create(callback_checkpoint))
+                  while (!file.exists(callback_release)) {
+                    Sys.sleep(0.01)
+                  }
+                  cat("late idle\n")
+                }
+                later::later(run_callback, delay = 0.01)
+                cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+                """)
+            client.send(r=r)
+            (callback_release,) = release_worker_callback_gate(
+                client, "blocked idle callback", ("release",)
+            )
+            # Cancelling an idle poll returns its notice to the session.
+            profile.pause_results(True)
+            pending = client.start_send()
+            cancel_result(client, pending, result_reached, result_release)
+            profile.pause_results(False)
+            # The worker reads the admitted cell only after its callback returns.
+            admitted = client.start_send(r="print(42)", timeout_ms=60_000)
+            with ControlClient(endpoint) as control:
+                while control.request(op="status")["result"]["state"] == "idle":
+                    pass
+            callback_release.touch()
+            client.receive(admitted)
+            # The recovered notice keeps its own line before later output.
+            assert admitted["result"] == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "\n[idle]\nlate idle\n"
+                            "[output produced while idle]\n[1] 42\n"
+                        ),
+                    }
+                ],
+                "isError": False,
+            }, admitted["result"]
+            return client.finish()
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)

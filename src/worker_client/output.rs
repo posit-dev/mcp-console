@@ -343,12 +343,13 @@ impl Response {
         self.with_builder(|builder| builder.append_logical_region(other));
     }
 
-    /// Appends output that followed this recovered response.
+    /// Appends later output from the same session stream.
     ///
-    /// A recovered reply may end with a notice, which occupies its own line;
-    /// recovered output that ended mid-line continues that line.
-    pub(super) fn extend_after_recovered(&mut self, other: Self) {
-        self.with_builder(|builder| builder.append_after_recovered(other));
+    /// Recovered replies and earlier prelude regions may end with a notice,
+    /// which occupies its own line; output that ended mid-line continues
+    /// that line.
+    pub(super) fn extend_stream(&mut self, other: Self) {
+        self.with_builder(|builder| builder.append_stream(other));
     }
 
     /// Appends cell output after this response's owned idle prelude.
@@ -492,7 +493,7 @@ impl ResponseBuilder {
         self.append_response(&mut other);
     }
 
-    fn append_after_recovered(&mut self, mut other: Response) {
+    fn append_stream(&mut self, mut other: Response) {
         if matches!(self.response.preview.last_visible(), Some(Part::Notice(_)))
             && !self.response.preview.ends_with_newline()
             && other.preview.starts_with_text()
