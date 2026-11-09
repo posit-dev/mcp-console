@@ -270,18 +270,20 @@ impl Evaluation {
         // Accept that receipt before copying; preview still neither drains nor
         // acknowledges the response awaiting the MCP client.
         state.settle_delivery().ok()?;
+        // A reclaimed response was assembled earlier and took the preludes
+        // present then, so any prelude now retained is newer output.
         let mut response = state
-            .control_prelude
+            .reclaimed
             .as_ref()
             .map(Response::snapshot)
             .unwrap_or_default();
+        if let Some(control) = &state.control_prelude {
+            response.extend_logical_region(control.snapshot());
+        }
         if !state.retain_idle_prelude
             && let Some(idle) = &state.idle_prelude
         {
             response.extend_logical_region(idle.snapshot());
-        }
-        if let Some(reclaimed) = &state.reclaimed {
-            response.extend_logical_region(reclaimed.snapshot());
         }
         response.extend_logical_region(if self.is_integrator() {
             self.output.snapshot_cell()

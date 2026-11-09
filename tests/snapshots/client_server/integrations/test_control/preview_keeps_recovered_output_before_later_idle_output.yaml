@@ -1,0 +1,77 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  requirements:
+    r:
+      - later
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    callback_gate <- tempfile("mcp-console-callback-gate-")
+    callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+    callback_release <- tempfile("mcp-console-callback-release-")
+    run_callback <- function() {
+      if (!file.exists(callback_gate)) {
+        later::later(run_callback, delay = 0.01)
+        return(invisible(NULL))
+      }
+      cat("early idle\n")
+      stopifnot(file.create(callback_checkpoint))
+      while (!file.exists(callback_release)) {
+        Sys.sleep(0.01)
+      }
+      cat("late idle\n")
+    }
+    later::later(run_callback, delay = 0.01)
+    cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <worker callback gate>
+        <worker callback checkpoint>
+        <worker callback release>
+  isError: false
+---
+send:
+  r: print(42)
+  timeout_ms: 10
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+        early idle
+
+        [elapsed: <elapsed>s since admission; no new output]
+        [running; poll with an empty send]
+  isError: false
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |
+        late idle
+        [output produced while idle]
+        [1] 42
+  isError: false
