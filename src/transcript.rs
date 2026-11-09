@@ -1,5 +1,17 @@
 //! One Console process's capture and derived documents. Before send, capture
 //! lives in temporary storage; publication never changes event time or ownership.
+//!
+//! Logical session names, generations, and recording worker IDs are distinct.
+//! Source admission can precede acquisition or finish without execution; only a
+//! worker cell-entry receipt opens its numbered output interval. Delayed source,
+//! note, image, and requirement records retain that original worker association.
+//! A recorded result proves assembly, not local delivery or client observation.
+//!
+//! Finalization follows producer retirement, transport settlement, and all capture
+//! and result writers, including cancelled handlers. Filesystem calls must return
+//! before these writers can settle: fail-open recording handles reported errors,
+//! not an indefinitely blocked OS write. Projection failure can leave the journal
+//! and raw files usable; failed capture must not gain a completion event.
 use std::collections::BTreeMap;
 use std::fs::{DirBuilder, File, OpenOptions};
 use std::io::{BufWriter, Write};

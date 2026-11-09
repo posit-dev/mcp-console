@@ -7,20 +7,15 @@ For command-line examples, see [Run commands in a sandbox](SANDBOX_COMMAND.md).
 
 ## Which permissions to configure
 
-`sandbox` controls evaluated code and standalone commands; `resolver.sandbox` controls runtime inspection and package preparation.
+`sandbox` controls evaluated code and standalone commands; `resolver.sandbox` independently controls runtime inspection and package preparation.
+Examples below use `sandbox`; the same fields apply to `resolver.sandbox`, except `inherit_codex`.
+Worker defaults allow host reads, including readable secrets, and private temporary writes, with workspace writes and direct networking restricted.
+Preparation also permits cache writes and approved downloads; see [Package settings](PACKAGE_CONFIGURATION.md).
 
-The two policies are independent.
-Examples below configure `sandbox`; the same fields are accepted under `resolver.sandbox`, except for the `inherit_codex` profile.
-Defaults below apply after launch defaults, configuration files, and command-line overrides have been combined.
-Worker defaults permit host reads, including readable secrets, and private temporary writes, with ordinary workspace writes and direct networking restricted.
-Preparation defaults also permit dependency-cache writes and approved downloads; see [Package settings](PACKAGE_CONFIGURATION.md).
-
-Configuration is trusted launcher input and can widen these permissions.
-Setting either whole permission node to `null` clears inherited settings and restores that context's built-in defaults; enforcement remains enabled.
-Child nodes such as `filesystem` and `network.proxy` require their documented types and cannot remain `null` in the final configuration.
-To disable enforcement, see [Run without the sandbox](#run-without-the-sandbox).
-
-[`warmup`](CLI.md#check-your-installation) prepares dependencies with host permissions and the configured caches; its runtime checks retain the worker sandbox.
+Configuration is trusted launcher input and can widen permissions.
+Clearing a whole policy with `null` restores its defaults while retaining enforcement; [merge rules](CONFIGURATION.md#merge-rules) define valid child values.
+Use [host execution](#run-without-the-sandbox) to disable enforcement.
+[`warmup`](CLI.md#check-your-installation) prepares dependencies with host permissions, then checks runtimes under the worker sandbox.
 
 ## Choose a base profile {#profiles-and-temporary-storage}
 
@@ -51,35 +46,16 @@ This also applies when `workspace` is the fallback for unavailable client metada
 The same root check applies to `resolver.sandbox.profile: workspace`.
 Explicit absolute write grants, network settings, and temporary-storage settings still apply.
 
-| Access             | With `profile: workspace`                                                                                                                                                                                            |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host files         | Read files allowed by the host's own permissions, including readable secrets.                                                                                                                                        |
-| Workspace files    | Create, edit, and delete ordinary files throughout the workspace. These files persist after the session ends.                                                                                                        |
-| Workspace metadata | Read but do not write `.git`, `.agents`, `.codex`, `.aws`, or `.claude` at the workspace root. Missing metadata paths are protected from creation too. Referenced Git worktree/submodule metadata is also protected. |
-| Temporary storage  | Keep the default private writable storage with `tempdir: managed`; shared host temporary directories receive no automatic write grant.                                                                               |
-| Network            | Keep restricted direct networking unless configured separately.                                                                                                                                                      |
+| Path                                                | Workspace access                                                                                                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Host files                                          | Read access allowed by the host's own permissions, including readable secrets.                                               |
+| Ordinary workspace files                            | Create, edit, and delete files; changes persist after the session ends.                                                      |
+| Root `.git`, `.agents`, `.codex`, `.aws`, `.claude` | Read-only, including protection against creating missing paths. Referenced Git worktree/submodule metadata is protected too. |
 
-For example, an agent can read `data.csv`, update `analysis.py`, and save `plot.png` in the workspace.
-It cannot edit `.agents/console/config.yaml`, delete `.git`, or write ordinary files outside the workspace and private temporary storage without another grant.
-Package preparation retains its [independent policy](PACKAGE_CONFIGURATION.md).
-
-To construct the same permissions without selecting a profile, use:
-
-```yaml
-sandbox:
-  filesystem:
-    read_write: [.]
-    read_only: [.git, .agents, .codex, .aws, .claude]
-```
-
-The worker's default host reads, managed temporary storage, and restricted networking supply the rest.
-The explicit read-only entries protect those fixed workspace paths, including absent paths and when a broader write root is added.
-Both forms retain native Git pointer protections for the writable root.
-
-When the resolved configuration contains neither a `profile` nor explicit write grants, it retains the host-read baseline without workspace writes.
-Explicit filesystem entries compose with the profile: narrower rules override ancestors, and at the same path deny wins over write, then read.
-An explicit write at a protected metadata path or beneath it can therefore permit changes there; these defaults are not an unchangeable ceiling.
-Network and temporary-storage selections remain independent.
+Private temporary storage and networking keep their defaults unless configured separately.
+Explicit filesystem rules compose with the profile using [path precedence](#filesystem).
+An explicit write grant at or beneath protected metadata can permit changes there; the profile is not an unchangeable permission ceiling.
+Package preparation retains its independent policy.
 
 ### Allow workspace writes across projects
 
@@ -89,9 +65,8 @@ To select workspace writes for future launches across projects, update the globa
 uvx mcp-console configure-client claude -- -c sandbox.profile=workspace
 ```
 
-The profile uses each future launch directory as the workspace; running setup does not bind it to the setup directory.
-The `-c` setting overrides profiles selected in configuration files or inherited from the client.
-Use this option when you want that write policy across projects.
+The profile uses each future launch directory as the workspace.
+The `-c` setting overrides configuration files and client inheritance.
 An existing project client entry may take precedence over the global entry; see [client configuration](CLI.md#configure-a-client).
 
 ## Grant or restrict file access {#filesystem}
@@ -107,9 +82,7 @@ sandbox:
 ```
 
 Create `./output` before launch.
-`sandbox.filesystem` and `resolver.sandbox.filesystem` each require a mapping of `read_only`, `read_write`, and `deny` path entries; see the [permission field reference](CONFIGURATION.md#sandbox-settings).
-
-Each list defaults to `[]` within a supplied mapping.
+The [field reference](CONFIGURATION.md#sandbox-settings) defines the `read_only`, `read_write`, and `deny` lists.
 Paths are concrete paths, not globs.
 They resolve against the captured launch directory, not the configuration file.
 A leading `~` follows the shared [path rules](CONFIGURATION.md#paths).
@@ -123,9 +96,8 @@ Relative `read_write` paths and `--writable-root` arguments that resolve to a fi
 This applies to both worker and resolver filesystem settings.
 This includes `.` when Console starts from one of those directories, parent paths such as `..`, and symlinks to those roots.
 To grant writes there explicitly, supply an absolute path.
-The check includes absent paths that would grant writes to home or its ancestors.
-Console checks relative grants again before every native launch, including after worker replacement, so a changed symlink cannot turn one into a broad grant.
-Absolute grants retain their explicit authority and the native runner's path validation.
+The check includes absent paths and is repeated at native launch so a changed symlink cannot widen a relative grant.
+Absolute paths retain their explicit authority and undergo native validation.
 
 Narrower native rules take precedence.
 At equal paths, deny wins over write, then read.
@@ -157,8 +129,7 @@ The client chooses Console's launch directory, and Console resolves `output` the
 The `read_only` base restricts ordinary workspace writes; `--writable-root` adds the explicit grant.
 Other configured filesystem permissions still apply.
 `--writable-root PATH` may be repeated.
-It adds filesystem grants without selecting the workspace profile, does not create missing directories, and remains subject to more specific permission rules.
-See the [path rules above](#filesystem) for explicit exclusions and more specific permissions.
+It adds a filesystem grant without creating directories or selecting the workspace profile; more specific rules still apply.
 
 ## Configure network access {#network-choices}
 
@@ -170,17 +141,13 @@ Resolver networking defaults to its [download proxy](PACKAGE_CONFIGURATION.md#ex
 The `enabled` and `restricted` modes, including their boolean aliases, replace that generated resolver proxy.
 
 A managed mapping requires a non-null `proxy` mapping.
-The strings `enabled` and `restricted` are reserved mode names; other strings are single allowed hostname patterns or IP literals.
-Use a sequence such as `[enabled]` to treat a reserved name as a destination.
-The R configuration object accepts the corresponding booleans, character vectors, unnamed lists, and named mappings; use `list("enabled")` for a literal reserved name because a one-element character vector is also a scalar string in R.
+`enabled` and `restricted` are reserved mode names; use a list such as `[enabled]` for a literal destination.
+For the equivalent R value use `list("enabled")`, since a one-element character vector is also a scalar string.
 
-Before merging each layer, a destination sequence or string expands to `proxy.domains.allow`.
-This replaces the allow list while retaining inherited deny rules, proxy options, and socket settings.
-An empty sequence explicitly selects an empty allow list; it keeps the managed proxy and does not restore the resolver's download destinations.
-`network: null` is omission, so it does not clear an inherited policy.
-Exports use the canonical mode strings and nested proxy mapping.
-
-A network mapping contains the required `proxy` mapping and optional `sockets` and `allow_local_binding` settings; see the [field reference](CONFIGURATION.md#sandbox-settings).
+Destination lists and strings normalize to `proxy.domains.allow` before layers merge.
+They replace that list while retaining other proxy and socket settings; `[]` allows no destinations.
+`network: null` preserves the earlier layer.
+See [merge rules](CONFIGURATION.md#merge-rules) for clearing inherited settings.
 
 ### Proxy settings {#proxy-modes-and-destinations}
 
@@ -196,8 +163,6 @@ sandbox:
         deny: [blocked.example.org]
 ```
 
-Fields under `sandbox.network.proxy` or `resolver.sandbox.network.proxy` are `mode`, `socks5`, `allow_upstream_proxy`, and `domains`; see the [permission field reference](CONFIGURATION.md#sandbox-settings).
-
 Full mode supports HTTP/HTTPS proxying and the selected SOCKS mode.
 `socks5: disabled` disables SOCKS; `tcp` enables SOCKS5 TCP.
 The schema recognizes `tcp_udp`, but Console currently rejects it on every platform.
@@ -207,8 +172,6 @@ It rejects POST, HTTPS CONNECT, and SOCKS; every explicitly supplied `socks5` fi
 It is not read-only HTTPS, does not intercept TLS, and does not guarantee side-effect-free requests.
 
 ### Allow or block destinations {#destination-rules}
-
-Under `sandbox.network.proxy.domains` or `resolver.sandbox.network.proxy.domains`, the `allow` and `deny` lists select destinations; see the [permission field reference](CONFIGURATION.md#sandbox-settings) for their defaults.
 
 Domain rules use hostnames, not URLs, paths, or host-and-port restrictions.
 Exact names match that host only; `*.example.org` matches subdomains but not the apex, and `**.example.org` matches both.
@@ -237,7 +200,7 @@ sandbox:
     allow_local_binding: true
 ```
 
-The `sandbox.network.sockets` and `resolver.sandbox.network.sockets` mappings each have one field, `unix_sockets`:
+`network.sockets.unix_sockets` controls direct Unix-socket access:
 
 | Value                                                      | Direct Unix-socket access                                                                      |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -249,7 +212,7 @@ There are no deny lists or globs.
 Native macOS direct-socket grants use subpath matching, so this is not an exact-path firewall across every socket route.
 Filesystem permissions still apply.
 
-`sandbox.network.allow_local_binding` and `resolver.sandbox.network.allow_local_binding` accept:
+`network.allow_local_binding` controls local binding:
 
 | Value                      | Behavior                                                                                                 |
 | -------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -344,24 +307,18 @@ Explicit filesystem entries compose with the selected base using the ordinary sp
 Explicit network and temporary-storage settings apply to the selected base; without a network override, the Codex network mode applies.
 Create writable directories such as `./output` before launch.
 
-The `sandbox.profile.inherit_codex` mapping has one option, `fallback`, accepting `read_only` (the default) or `workspace`; see the [permission field reference](CONFIGURATION.md#sandbox-settings).
-
-Omitting `fallback`, including with `profile: inherit_codex` or `profile: {inherit_codex: {}}`, selects `read_only` when inheritance is unavailable.
-Unknown profiles, unknown options, and nested fallbacks are errors.
+The [field reference](CONFIGURATION.md#sandbox-settings) defines fallback values and validation.
+Omitting `fallback` selects `read_only` when inheritance is unavailable.
 A failure to prepare runtimes or start the selected sandbox is an error; it does not select the fallback.
 The standalone `sandbox` command has no client metadata, so it silently uses the configured fallback, defaulting to `read_only`.
 `config resolve` preserves the selection policy and automatic cache choice without selecting a runtime profile or preparing interpreters.
 Broad-root checks and their warnings apply at launch, so resolving configuration from a broad root does not replace the configured workspace permissions.
 
-In R, use `ConsoleConfig(sandbox = list(profile = "inherit_codex"))`.
-For a workspace fallback, set `sandbox = list(profile = list(inherit_codex = list(fallback = "workspace")))`.
-
 ### Metadata and permission translation
 
-When the `inherit_codex` profile is configured, Console advertises the experimental `codex/sandbox-state` capability and its older `codex/sandbox-state-meta` alias.
-It reads that key from the first `send` call's `_meta`, before runtime discovery, dependency preparation, or worker startup.
-Initialization, tool discovery, and pings remain available while waiting for that call.
-Metadata belongs to the MCP request, outside the tool's `arguments`.
+Console reads the first `send` request's sandbox metadata before runtime discovery, preparation, or startup.
+Initialization, discovery, and pings remain available while it waits.
+The capability names, accepted metadata shape, and path validation live in the [Codex permission adapter](../src/server/sandbox.rs).
 
 Console translates the current `permissionProfile` and uses `sandboxCwd` to resolve symbolic project roots:
 
@@ -373,26 +330,19 @@ Console translates the current `permissionProfile` and uses `sandboxCwd` to reso
 | Disabled enforcement (full access) | Disable Console's worker and preparation sandboxes, as with `--no-sandbox`.                                                                     |
 | Restricted or enabled network      | Apply that worker network mode unless `sandbox.network` is explicitly configured.                                                               |
 
-Concrete paths accept absolute native paths or local `file:` URIs.
-Symbolic project roots use the client's sandbox working directory, which can differ from Console's launch directory; inheritance does not change the worker's working directory.
-Symbolic subpaths must be relative and cannot contain parent-directory components, drive prefixes, or NUL characters.
-Root, minimal, and temporary-path entries use Console's corresponding native permissions.
-Existing local grants and denials retain their normal specificity and conflict precedence.
-Console's host-read baseline and temporary-storage setting remain in effect for restricted profiles.
-This translates permissions rather than reproducing every Codex restriction.
+Symbolic project roots use the client's sandbox working directory, which may differ from Console's launch directory; inheritance does not change the worker's working directory.
+Local grants and denials retain their normal precedence.
+Console's host-read baseline and temporary-storage settings still apply to restricted profiles, so inheritance does not reproduce every Codex restriction.
 
-The current Codex metadata does not contain proxy endpoints, destination rules, credentials, or proxy approval settings.
-Console retains an explicitly configured managed proxy, including its destination rules and `allow_upstream_proxy` choice.
-Proxy environment variables passed to the server follow the ordinary environment-inheritance rules; metadata alone cannot reconstruct the client's proxy.
+Client metadata does not supply proxy endpoints, destination rules, credentials, or proxy approvals.
+Console keeps explicit proxy configuration and normally inherited proxy environment variables; metadata alone cannot reconstruct the client's proxy.
 Dependency preparation retains its separate resolver policy unless inherited full access disables sandboxing.
 Full access defaults to host caches; managed caches, including custom cache directories, require sandboxing.
 Inherited full access disables enforcement of local filesystem and network restrictions too.
 
-Missing metadata, an unsupported client profile, an invalid profile shape, or a malformed or unsupported filesystem entry makes the whole `inherit_codex` profile unavailable.
-Console does not drop permission entries individually: omitting a denial could widen access.
-Unknown additional fields and client backend or launcher selections are ignored.
-Console always uses its own pinned runner; metadata cannot select an executable or change its backend.
-Supported translated permissions still undergo ordinary native validation.
+Malformed or unsupported permission entries make the whole inherited profile unavailable: dropping one denial could widen access.
+Unknown additional fields and client backend/launcher selections are ignored.
+Console uses its own pinned runner and validates the translated policy; metadata cannot choose an executable or backend.
 
 ### Policy lifetime
 
@@ -440,25 +390,13 @@ Unsupported hosts and policies fail before the workload executes; there is no ba
 Explicit `serve --no-sandbox` remains available.
 
 The host must support native process security environments and the requested filesystem policy; read-deny rules need native deny-path support.
-The runner probes actual creation and closure, not just exported API names.
+Console probes actual creation and closure.
 Update Windows if that probe fails.
+MXC needs no account provisioning, UAC setup, or persistent state directory.
 
-MXC requires no account provisioning, UAC setup, or persistent state directory.
-Only fresh hosts are supported.
-Previously provisioned hosts require independent removal of legacy Console sandbox accounts, stored account credentials, and persistent firewall rules before use.
-MXC runs as the host identity, so a workload can decrypt readable DPAPI-protected legacy passwords.
-The runner does not detect or clean up legacy state.
-
-Workload environment settings apply after native setup, so clearing inheritance does not remove the launcher's Windows platform variables.
-Configured temporary-directory values reach the workload unchanged.
-Inherited Windows shell metadata whose names start with `=`, such as Command Prompt's `=ExitCode`, is omitted from the workload environment.
-Explicitly configured names containing `=` remain invalid.
-Working directories can contain Windows 8.3 aliases, including aliases in the system temporary path.
-
-Dependency preparation uses a separate MXC policy with host reads, dependency-cache and private temporary writes, and a managed download proxy by default.
-`resolver.sandbox` configures those permissions independently of evaluated code; see [Package preparation](PACKAGE_CONFIGURATION.md).
-Native setup or launch failure stops preparation without falling back to host execution.
-Package downloads, installation hooks, and cache writes use these resolver permissions.
+Only clean hosts are supported: remove any legacy Console sandbox accounts, stored credentials, and firewall rules independently before use.
+MXC runs as the host identity and can decrypt readable DPAPI-protected credentials; the runner neither detects nor cleans up legacy state.
+Environment setup and Windows path handling are documented beside [runner launch](../src/sandbox/runner.rs).
 
 Windows process-creation error 4551 indicates host application-control policy.
 The host must permit the executable and downloaded interpreter DLLs; this is separate from Console's sandbox settings.
@@ -494,8 +432,7 @@ There is no independent recovery process.
 Runner death, a stopped or hung runner, or a forced frontend kill does not guarantee descendant termination, temporary-storage deletion, or terminal restoration.
 Surviving sandboxed processes retain their native enforcement.
 
-Console guarantees temporary-storage cleanup only with an active sandbox and managed storage.
-Other modes use normal runtime cleanup without an added Console guarantee; see [Temporary storage](#temporary-storage) and [Run without the sandbox](#run-without-the-sandbox).
+These guarantees require an active sandbox and managed storage; [other temporary-storage modes](#temporary-storage) use normal runtime cleanup.
 
 ## Supply configuration through an environment variable {#explicit-complete-policy}
 

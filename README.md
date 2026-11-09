@@ -14,30 +14,17 @@ macOS, Linux, and Windows x64 are supported.
 
 ## Quickstart
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then install Console:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then register Console with your client:
 
 ```sh
-uv tool install mcp-console
+uvx mcp-console configure-client codex
+# Or: uvx mcp-console configure-client claude
 ```
 
-[Get started](docs/getting-started.qmd) covers platform prerequisites, optional R installation, and client setup.
-[Build from source](docs/BUILD_FROM_SOURCE.md) covers the development version.
-
-Register Console with your client:
-
-```sh
-mcp-console configure-client codex
-# Or: mcp-console configure-client claude
-```
-
-This registers Console globally, configures the client to launch `uvx mcp-console serve`, and loads Console tools up front.
-Add `--directory .` to register it for the current directory instead.
-Use `--dry-run` to preview the settings or `--no-auto-load` to keep the client's default tool discovery.
-You can also start with `uvx mcp-console configure-client codex claude` to configure both clients without first installing Console.
-Use `--pin-version VERSION` to select the Console version resolved by uvx, or `--no-uvx` to configure an absolute executable path.
-`--pin-version current` pins the version running setup.
-See [client setup](docs/getting-started.qmd#connect-your-client) for project/global scope and other clients.
+Restart your client after setup.
 Run the client and Console on the same host, with the client's shell and filesystem tools using the same workspace.
+[Get started](docs/getting-started.qmd) covers a first analysis; [Install and connect](docs/CLIENTS.md) covers platform prerequisites, optional R installation, and other clients.
+[Build from source](docs/BUILD_FROM_SOURCE.md) covers the development version.
 
 Ask your agent:
 
@@ -61,13 +48,12 @@ Dependency preparation has its own permissions.
 Recordings contain code, input, and output without redaction and have no automatic cleanup.
 Read [Sandbox and trust](docs/SANDBOX.md) before changing permissions and [Recordings](docs/RECORDING.md) before sharing session files.
 
-There is one session and one active code cell per connection.
+One connection can manage several independent sessions, each running one code cell at a time.
 Errors do not roll back earlier effects.
 Restart discards live objects but retains accepted requirements and recordings.
 
 ## Documentation
 
-[Documentation website](https://posit-dev.github.io/mcp-console/) · [Get started](docs/getting-started.qmd) · [User guides](docs/README.md) · [Client integration](docs/CLIENTS.md) · [Development](docs/DEVELOPMENT.md)
+[Documentation website](https://posit-dev.github.io/mcp-console/) · [Get started](docs/getting-started.qmd) · [User guides](docs/README.md) · [Client integration](docs/CLIENTS.md) · [Development](docs/DEVELOPMENT.md) · [Open work](docs/TODO.md)
 
-`mcp-console` was previously called [`mcp-repl`](https://github.com/posit-dev/mcp-console/tree/e60f582d943727a17a38a4162ba63a55b6c773c6).
 Licensed under the [MIT license](LICENSE).

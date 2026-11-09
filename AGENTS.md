@@ -3,7 +3,7 @@
 Read [Development](docs/DEVELOPMENT.md) for setup and validation, [Architecture](docs/ARCHITECTURE.md) for ownership, and the relevant contract from the [documentation index](docs/README.md).
 Do not load every document for every task.
 Source and public acceptance tests settle disagreements with prose.
-`design-sketches/` contains proposals and history, not current requirements.
+Checked-in documentation describes the current implementation; Git history retains past designs and audits.
 
 ## Change discipline
 
@@ -28,7 +28,8 @@ Update the owning document when a contract changes.
 Explain decisions and invariants, not line-by-line mechanics.
 Document intentional limitations beside the owning code or contract, with enough detail to distinguish accepted scope from a regression.
 Keep user contracts separate from developer internals.
-Consolidate unfinished work in [TODO](docs/TODO.md); do not silently promote historical proposals into release requirements.
+Keep unfinished work in [TODO](docs/TODO.md), link to it where relevant, and remove completed entries.
+Keep implementation details beside their source owners and link to the owning contract instead of repeating it.
 
 ## Implementation
 
@@ -55,7 +56,7 @@ Use `scripts/check` as the ordinary final gate; use `--full` when requested or a
 Report commands actually run and unavailable coverage.
 CI is the comprehensive merge gate.
 
-Use Windows `.cmd` launchers or explicit Python invocation there, and follow [Windows validation](docs/WINDOWS.md#validation).
+Use Windows `.cmd` launchers or explicit Python invocation there, and follow [Windows validation](docs/WINDOWS_DEVELOPMENT.md#validation).
 Stage its companion before direct native checks.
 Use `scripts/with-checkout` for direct build commands; never bypass checkout ownership locks or reuse a busy worktree.
 

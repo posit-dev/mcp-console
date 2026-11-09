@@ -209,14 +209,15 @@ See [tool presentation](TOOL_CONFIGURATION.md), [database startup](RUNTIME_CONFI
 
 When Console starts, it reads configuration from these sources, in order:
 
-| Source       | Location or option                                                  | Use                              |
-| ------------ | ------------------------------------------------------------------- | -------------------------------- |
-| Global file  | `~/.agents/console/config.yaml`                                     | Settings shared across projects. |
-| Project file | `.agents/console/config.yaml` in the directory where Console starts | Settings for that project.       |
-| Command line | `-c KEY=VALUE`                                                      | Settings for this launch.        |
+| Source          | Location or option                                                  | Use                                  |
+| --------------- | ------------------------------------------------------------------- | ------------------------------------ |
+| Launch defaults | `--default-config KEY=VALUE`                                        | Preferences that files may override. |
+| Global file     | `~/.agents/console/config.yaml`                                     | Settings shared across projects.     |
+| Project file    | `.agents/console/config.yaml` in the directory where Console starts | Settings for that project.           |
+| Command line    | `-c KEY=VALUE`                                                      | Settings for this launch.            |
 
-You can use all three together.
-Console layers them in the order shown: later settings override matching earlier settings, while other settings stay in effect.
+Later sources override matching earlier settings, while other settings stay in effect.
+Assignments within each command-line layer apply in argument order.
 Neither file is required.
 
 See [Merge rules](#merge-rules) for how nested settings combine, or [Choose which files to load](#choose-which-files-to-load) to select a different file or skip either location.
@@ -326,13 +327,7 @@ Restarting a worker does not reload configuration.
 
 ## Command-line overrides
 
-For `serve` and ordinary `sandbox` launches, settings are applied in this order:
-
-1. Each `--default-config KEY=VALUE` assignment, in argument order.
-2. Global `$MCP_CONSOLE_HOME/config.yaml`, or `~/.agents/console/config.yaml` when the variable is unset.
-3. Project `.agents/console/config.yaml` in the launch directory.
-4. Each `-c KEY=VALUE` override, in argument order.
-
+Use the [configuration layers](#files-and-precedence) to provide launch defaults or override file settings.
 When `--config-file` is supplied, its ordered file list replaces the global and project sources.
 
 ```sh
@@ -476,20 +471,9 @@ Changing `languages` may make saved parameter entries unavailable; resolve the d
 
 ### Inspect and edit settings from R
 
-R has two configuration constructors: [`ConsoleConfig()` and `load_console_config()`](https://posit-dev.github.io/mcp-console/r/articles/configuration/).
-`ConsoleConfig()` accepts named R fields or one mapping, including `ConsoleConfig(yaml12::read_yaml("config.yaml"))`, without discovery or resolution.
-`load_console_config()` combines selected global/project files with optional R `overrides` and returns the same editable S7 class.
-Missing conventional files are skipped; explicitly supplied paths must exist.
-Set `global_file = NULL` or `project_file = NULL` to skip that source.
-`MCP_CONSOLE_HOME` affects the default global path only.
-
-Edit properties with `@`; nested sections accept replacement lists.
-The loader retains authored tool metadata and leaves generated descriptions to the server, so later permission or visibility edits do not freeze stale generated text.
-The calling R installation is a low-priority launch default; file settings and explicit `r.executable` values win.
-A selected file's `r: null` or `r.executable: null` clears that preference through subsequent edits and launch, leaving R discovery to Console.
-`console_tools()` loads conventional files when `config` is omitted.
-A supplied `ConsoleConfig` never discovers additional files, including on worker restart.
-Executable and launch-directory choices remain explicit arguments; inherited environment variables are not snapshotted.
+Use [`ConsoleConfig()` and `load_console_config()`](https://posit-dev.github.io/mcp-console/r/articles/configuration/) to construct, load, and edit the same configuration in R.
+`console_tools()` loads conventional files when `config` is omitted; a supplied `ConsoleConfig` does not discover additional files, including on worker restart.
+The R configuration guide covers constructors, property edits, precedence, and launch arguments.
 
 ## Paths
 

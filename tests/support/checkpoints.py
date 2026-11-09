@@ -12,6 +12,8 @@ from support.client import McpClient
 from support.events import Events
 
 
+# Unlike release_fixture_checkpoint(), this gate permits a release before the
+# fixture opens its reader.
 class FifoCheckpoint:
     def __init__(self, path: Path, *, create: bool) -> None:
         self.path = path
@@ -70,6 +72,10 @@ def wait_for_checkpoint(
     events: Events | None = None,
     watch_files: Callable[[], Iterable[Path]] | None = None,
 ) -> Path:
+    # For content changes in a known file, watch that file as root. Discovery
+    # callers supply watch_files so candidates are watched before reading them;
+    # directory notifications alone do not report file appends on macOS.
+    # An owned Events instance lets the fixture cancel without creating a marker.
     deadline = time.monotonic() + timeout
     with Events() if events is None else nullcontext(events) as events:
         assert client is None or client.process.poll() is None, checkpoint_evidence(
@@ -153,6 +159,8 @@ def release_fixture_checkpoint(
     client: McpClient | None = None,
 ) -> None:
     """Wait for the fixture's reader, without opening a read endpoint ourselves."""
+    # Successive rendezvous need distinct FIFO paths: reopening one can reconnect
+    # to the previous phase's writer and receive EOF when that writer closes.
     assert len(token) == 1
     deadline = time.monotonic() + timeout
     while True:

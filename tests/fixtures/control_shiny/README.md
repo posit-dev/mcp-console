@@ -1,213 +1,111 @@
 # Shiny control-channel fixture
 
-This local Shiny for Python app puts agent chat beside a transcript, Variables pane, plot gallery, and table viewer for Console's named sessions.
-It exercises the integrator control channel through an IDE-style interaction model: the human and agent share a live session, while execution history and object inspection remain visible beside the conversation.
-The conversation uses Shiny's native `ui.Chat`, including streamed Markdown and its chat input.
-The agent owns Console's MCP connection.
-The app uses the private control socket to submit code and observe typed output.
-Evaluation identities keep pending and completed output attached to their submission.
-Immediate requests return their own private output on completion.
-The transcript distinguishes native stdout/stderr, console output, diagnostics, images, and execution errors without parsing formatted MCP text.
+This local Shiny for Python app puts agent chat beside Console's transcript, Variables pane, plots, and table viewer.
+The human and agent share named sessions through the [integrator control channel](../../../docs/INTEGRATOR_CONTROL.md).
+Browsing variables, output, or tables does not add their contents to the model's context.
 
-The layout combines conversational data exploration with an IDE's shared objects, explicit execution, and inspectable results.
-It follows [Querychat's distinction between updating data views and answering analytical questions](https://posit-dev.github.io/querychat/py/tools.html): browsing a table is a human inspection action, while requested analysis runs through the agent's Console tool.
-Viewer filters and row results do not automatically become model context.
-Console owns execution and runtime state; Shiny owns the chat and inspection UI.
+## Run the app
 
-The fixture requires macOS or Linux, a built Console binary, and existing authentication for the `openai-codex` Python package.
-It always selects `gpt-6.1-terra` with low reasoning effort; there is no automatic model substitution.
-Each browser session creates one agent thread and one Console process, and closes both when the session ends.
-Thread-local configuration disables inherited MCP servers and approves the fixture's `send` tool.
-The SDK's effective configuration supplies the server names; the user's configuration files are not modified.
-Console runs without its sandbox in the selected workspace.
+The fixture requires macOS or Linux, a built Console binary, and authentication for `openai-codex` with access to `gpt-6.1-terra`.
+It uses that model with low reasoning effort and runs Console **without its sandbox** in the selected workspace.
+Each browser session owns one agent thread and Console process; closing it stops both.
+The thread disables inherited MCP servers without editing the user's configuration files.
 
-From the repository root, launch it without opening a browser automatically:
+From the repository root:
 
 ```sh
 uv run --script tests/fixtures/control_shiny/app.py --binary target/release/mcp-console
 ```
 
 Open `http://127.0.0.1:8000`.
-Use `--workspace PATH` to retain files in a particular directory, or omit it to use a temporary workspace.
-Use `--port PORT` to choose another local port, for example `--port 8001` if port 8000 is already in use.
+Use `--workspace PATH` to retain files in an existing directory (the default is temporary), and `--port PORT` to change the port.
+The command does not open a browser automatically.
 
-The native **Console session** dropdown selects an active session; **+ New** opens a native dialog to name and create another.
-Each session has separate R and Python objects, SQL connections, requirements, and execution state; workspace files are shared.
-The app uses Console's session registry and capacity limit rather than launching separate Console servers.
-Agent-created sessions appear in the dropdown within the registry observer's one-second interval.
-Each agent prompt identifies the session selected when it was sent; changing the dropdown during a turn does not retarget that prompt or requests already in flight.
-An unscoped agent poll covers all sessions and appears as a separate **All sessions poll** card in the view active when the call began.
+## Work with sessions
 
-Switching sessions preserves their transcript, captured plots, output selections, scroll position, and Environments drafts.
-It closes the previous table snapshot; reopen a table from Variables after returning to that session.
-Inactive sessions continue executing and receiving output.
-**Close** stops the selected named worker and discards its app views; `default` remains available.
-Recreating a closed name starts fresh runtime state and a new app view, while Console retains its requirements declaration and recorded history.
-Late output from a closed view cannot populate its replacement.
-The agent conversation remains shared across sessions; switching the runtime does not clear model context.
+Choose a **Console session** or use **+ New** to create one.
+Each has separate objects, SQL connections, requirements, and execution state; files and the agent conversation are shared.
+Prompts target the session selected when sent.
+Switching the dropdown does not retarget requests in flight or clear model context.
+Inactive sessions keep running and retain their transcript and plots, but their table snapshot closes; reopen it from Variables when returning.
 
-Select R, Python, or SQL in the language radio group and click **Submit**, or ask the agent to run code.
-Both paths retain objects in the selected worker.
-Console selects and prepares its usual managed environments; its embedded Python interpreter is independent of the interpreter running Shiny.
-The app declares its viewer dependencies through Console's ordinary requirements mechanism before making immediate requests.
-Session setup keeps waiting while existing execution holds the worker, renewing expired admission waits.
-Closing a session or replacing its worker cancels pending setup.
-Queued submissions and prompts also belong to the worker generation selected when they were sent.
-Restarting or closing that session cancels their readiness waits; cancelled prompts release the native chat input.
-SQL uses Console's selected SQL connection and ordinary execution semantics.
+**Close** stops a named worker and clears its app views; `default` remains available.
+Recreating a name gives it fresh runtime state while retaining Console's requirements declaration and recording.
 
-Submitted code has separate language and origin labels.
-Console still accepts one language per MCP `send`; a rejected request with multiple language fields shows each submitted language separately.
-The execution selector offers **Ordinary** and **Immediate**.
-Choose Ordinary to submit a console cell that waits for the worker to become available.
-Choose Immediate for private evaluation in the same session, using reentrant R execution or a Python background thread.
-SQL supports Ordinary execution only.
-An already executing R cell pauses when it services events, lets the immediate evaluation run, then resumes.
-Use Immediate only for code that the integrator can safely run alongside the active evaluation; both modes share session state.
-Python needs the GIL, and R cannot preempt native code that does not process events.
-Plotting from idle Immediate R currently fails because the managed plot device requires an ordinary R evaluation; use Ordinary for R plots.
+Select R, Python, or SQL and **Submit**, or ask the agent to run code.
+Both use the same selected worker.
+**Immediate** runs a private request while ordinary execution can service it; it does not make concurrent access atomic.
+It accepts R and Python; use **Ordinary** for SQL and R plots.
+**Interrupt** targets the ordinary evaluation and retains objects; **Restart** replaces the worker and discards its objects and table snapshots.
+The transcript records requests and outcomes separately, so accepting an interrupt does not imply that execution has stopped.
 
-The compact **Interrupt** and **Restart** buttons beside the editor act on the selected session directly through the control channel without an agent turn.
-Interrupt targets the current ordinary evaluation; it does not cancel a standalone immediate request.
-Restart replaces the worker, clears its in-memory objects and viewer snapshots, and prepares the new managed session.
-Connection status reports preparation progress; a preparation failure does not disable Restart.
-The transcript retains previous submissions and marks any running entries as stopped once worker replacement is observed.
+Console prepares its managed environments independently of Shiny's Python interpreter.
+The **Environments** tab shows accepted requirements, including the viewer's pandas and DuckDB dependencies.
+Enter one requirement per line and choose **Add and prepare**.
+Busy execution preserves the draft for retry; failures refresh the accepted declaration because successfully activated changes may remain.
+The panel supports additions, not replacement, reset, or interpreter changes.
+Restart retains accepted requirements and does not apply an unaccepted draft.
 
-The transcript follows incoming output while the viewer is at the bottom.
-Scrolling up preserves the viewer's position, including when pending output completes or an image loads.
-Human and agent interrupt requests are shown separately from their results; accepting a request does not establish that execution has stopped.
+## Read and export output
 
-Each submission offers **Captured output** and **Responses to agent** views.
-Captured output shows the typed worker events received by the app, with stream styling, error tracebacks, and omission notices.
-Per-event truncation appears with the event; the aggregate capture notice reports server history eviction without assigning it to a particular cell.
-The shared notice tracks the current worker's ordinary history; Immediate evaluations report omissions on their own entries.
-Older snapshots cannot reduce omission counts, and worker replacement resets the shared notice.
-Long outputs start collapsed; **Expand** and **Collapse** change their display without executing code.
-The compact output area scrolls independently and follows new output only while its viewer remains at the bottom.
-Responses to agent preserves the actual MCP content blocks observed by the agent SDK, including Console's presentation limits and retained-output references.
-When a response arrives before its captured output, the submission stays marked as awaiting capture; a tool failure is reported separately and does not establish whether code executed.
-Polls and control calls remain separate response cards because a response can span earlier output intervals; the app does not infer a cell association from its text.
-Direct human and private immediate results say **Not sent to agent**.
-Delivery to the agent client does not establish that a model read a response.
+Each submission has two views:
 
-**Open retained output** opens saved output in a native Shiny dialog with bounded pages and an explicit **Refresh** action for running cells.
-Text pages read at most 16 KiB plus a UTF-8 boundary overlap; individual images over the viewer's 8 MiB display limit receive an explicit notice.
-It reads Console's existing recording through the submission's call identity; browsing does not invoke Console or add model context or transcript entries.
-Ordinary cells can have raw text beyond the live capture and MCP response limits.
-Immediate requests have a saved bounded result and retained images, not a separate full raw text log.
-Additional immediate images omitted from the response appear separately; their position relative to omitted text cannot be recovered.
-The viewer follows recorded ownership and does not assign startup or post-cell background output back to a submission.
-The viewer reports unavailable or omitted data and preserves access to earlier recorded cells after worker replacement.
-Both live capture and saved output have [retention limits](../../../docs/RECORDING_REFERENCE.md); neither view promises complete output.
+- **Captured output** shows typed worker events, diagnostics, images, and omission notices.
+- **Responses to agent** shows the actual MCP blocks observed by the SDK.
+  A response can span output from multiple cells or sessions; delivery does not establish that the model read it.
 
-Submitted R, Python, and SQL code uses Shiny's native Markdown component for syntax highlighting, with origin and language labels retained in the chat-style transcript.
-The native Shiny code editor starts in Python mode and follows the selected language.
-The typed-output transcript keeps a small incremental renderer to reconcile concurrent evaluations without replacing messages or resetting the viewer's scroll position.
+Direct human and private immediate results are labeled **Not sent to agent**.
+Long output can be expanded without executing code.
+The transcript follows new output while scrolled to the bottom and preserves a position chosen by the reader.
 
-The transcript's **Code view** toggle switches all human and agent submissions between **Original** and **Formatted**; Formatted is the default.
-R uses Air and Python uses Ruff, found on the Shiny host's `PATH` as in the repository's development setup.
-Formatting runs asynchronously on display copies, with isolated formatter defaults and no project configuration or source-file writes.
-Execution, submission matching, and recorded projections always retain the original code.
-The native code Copy button copies the currently displayed view; Export copies the original recording.
-SQL formatting is not configured.
-Missing formatters, invalid code, truncated captures, and formatting limits leave the original visible with an explanation.
-Each browser session runs at most two formatters concurrently, allows five seconds per process and 64 KiB of source, and caches up to 128 results within 1 MiB; formatted results over 256 KiB are discarded.
-Repeated pending-output updates reuse the result, and formatter processes are cancelled when the browser session closes.
+**Open retained output** reads bounded pages from Console's recording; **Refresh** picks up later output.
+It does not run code or change the transcript or model context.
+Ordinary cells can have a raw log beyond the live view's limits; immediate requests retain a bounded result and images.
+Unavailable or omitted content is reported explicitly.
+See [Recording reference](../../../docs/RECORDING_REFERENCE.md) for retention limits.
 
-The **Export** menu at the transcript's top right copies Console's existing projections to the clipboard.
-**Copy QMD** copies source and environment metadata for the selected session's current worker; a new worker has no QMD until recorded code is submitted.
-**Copy Markdown** copies the recording's transcript across all named sessions and worker replacements, including recorded output and image links.
-Exports read the recording files rather than the browser's bounded output history, and private inspection calls remain omitted.
-These are text copies at read time: image and retained-output links remain relative to the recording directory, and running output can continue afterward.
-The browser reports clipboard permission or read failures instead of claiming the text was copied.
+**Code view** switches between original source and display-only formatting using Air for R and Ruff for Python on the Shiny host.
+Missing tools, invalid input, and formatting limits leave the original visible with an explanation; SQL has no formatter.
+Copy uses the displayed source; execution and exports always use the original.
+The [formatter coordinator](source_format.py) owns process limits and caching.
 
-The Variables pane refreshes about once a second through private immediate requests, including while an ordinary cell is running.
-It uses `utils::ls.str()` for R's global environment and bounded previews of Python's `__main__` symbols, showing up to 100 names per language.
-Python previews display exact builtin values and small containers; other objects appear by type without calling custom `__repr__` methods.
-R uses its usual `str()` methods, which can evaluate promises or active bindings.
-R inspection requires R to service events and waits while an ordinary Python or SQL cell owns the worker; the pane retains its last view until inspection can resume.
-Bounded inspection data crosses the process boundary through a private temporary JSON file, separately from diagnostics emitted by R methods.
-Execution errors appear in the affected pane; later inspections can refresh it after the object is repaired or removed.
-Inspection output stays out of the transcript and pending-output preview.
+**Export** copies the selected worker's QMD or the recording's Markdown transcript across all sessions and worker replacements.
+A worker without source or notes may have no QMD.
+These are text copies: image and output links remain relative to the recording directory, and running output may continue afterward.
+Private inspection stays out of these projections, but its raw journal events remain recorded.
 
-## Manage environments
+## Inspect variables, plots, and tables
 
-The **Environments** tab uses Shiny's native filterable, sortable DataTable for the complete requirements list.
-It shows accepted declarations and Console runtime dependencies, not an installed-package inventory or resolved versions.
-The preparation indicator is Console's aggregate environment flag.
-The app also requests Python `pandas` and `duckdb` for its table viewer during session setup.
+Variables refresh through private immediate requests.
+Python previews avoid custom `__repr__` methods; R uses `str()` methods, which can evaluate promises or active bindings.
+R inspection waits while Python or SQL owns the worker.
+Errors stay in the affected pane, and later refreshes can recover.
+[Inspection programs](inspection.py) own the bounded previews and private result transfer.
 
-Select R, Python, or DuckDB extensions, enter one complete requirement per line, then choose **Add and prepare**.
-For example, keep a Python constraint such as `requests[socks]>=2,<3` on one line.
-Preparation uses Console's existing managed environments and policies without an agent turn or an immediate evaluation.
-Private inspection and table requests pause while the app prepares requirements.
-Busy execution returns a visible status without retrying automatically; the draft is preserved for retry or correction.
-Human preparation requests and outcomes appear as transcript notices, with diagnostics in the Environments tab.
+Plots reuse Console's captured images.
+Resizing scales those images without rerunning code; there is no interactive plot or redraw-at-size support.
+Interaction proposals belong in [Open work](../../../docs/TODO.md#documentation-and-agent-usability).
 
-The accepted list refreshes after operations and worker replacement without overwriting the draft.
-Failures can retain successfully activated changes from a mixed-language request, so the refreshed declaration is the source of truth.
-This first version adds requirements only; replacement, reset, and interpreter changes that require restart remain outside this panel.
-The ordinary Restart button retains accepted requirements and does not apply an unaccepted draft.
-
-## Inspect plots
-
-The Plots pane reuses the images Console already captured for delivery to the agent.
-Open an image to inspect it at a larger size.
-Resizing the pane scales the captured image without running plotting code again.
-These are static images: they do not provide plot-specific hover, zoom, or selection, and resizing does not change their underlying resolution.
-Redrawing at a new device size would require runtime support for retained plotting commands or display lists; this fixture does not add it.
-
-## Explore tables
-
-Open a supported table from the Variables pane.
-The viewer uses Shiny's native table renderer and input controls, with 100 rows per page.
-Choose a sort column, set column filters, and use Previous, Next, or a page number to explore the result.
-Sorting and filters run against the whole snapshot in a private DuckDB connection in the worker's Python interpreter.
-The browser receives only the requested page.
-Shiny's DataGrid and DataTable apply client-side sorting and filtering to the supplied frame, so the fixture uses `render.table` with explicit controls to preserve backend ordering and filtering across pages.
-It does not require AG Grid, vendored UI libraries, or a CDN.
-
-Opening or refreshing a table materializes a snapshot once.
-R data frames are converted on R's owning thread through the existing R/Python bridge.
-Python pandas DataFrames register directly with the private connection.
-Both paths use the same query builder and a stable row ordinal to break sorting ties.
-Filter values are bound as parameters, and column references are checked against the snapshot schema.
-Later row requests reuse this snapshot; they do not convert the whole R data frame again.
-Mutating or replacing the original object does not change an open snapshot: use **Refresh** to capture it again.
-Avoid mutating the selected object while its snapshot is being captured; immediate execution does not make concurrent access atomic.
-
-The private connection, registrations, and helpers do not add bindings to R's global environment, Python's `__main__`, or Console's selected SQL connection.
-Table requests share the immediate-request coordinator with variable inspection.
-Filter changes are debounced, and superseded requests cannot replace the current view.
-A busy worker leaves the view pending instead of receiving a flood of retries.
+Open an R data frame or pandas DataFrame from Variables to create a table snapshot.
+Sort and filter controls apply to the whole snapshot; the browser receives one page of 100 rows.
+**Refresh** captures mutations to the original object.
+Avoid mutating it during capture: snapshot creation is not atomic with concurrent execution.
 Closing the view or replacing the worker releases or invalidates the snapshot.
 
-The app transfers only the requested rows and metadata through private temporary files.
-This avoids Console's text response size limit and keeps exploration out of the model's context and visible transcript.
-The control requests still follow Console's normal raw-journal recording policy.
-Opening a large table requires memory for its snapshot, and filtering or sorting may scan that snapshot even though returned row blocks are bounded.
+The viewer accepts 1–100 uniquely named string columns containing supported scalar values.
+Unsupported types produce an explicit error.
+Long displayed strings have truncation notices; filtering and sorting use complete stored values.
+Large integers and decimals preserve exact displayed values as strings and use text filters when needed.
 
-The first implementation accepts R `data.frame` objects and Python pandas DataFrames with 1–100 uniquely named string columns.
-Supported scalar columns include strings, booleans, numbers, dates, timestamps, and categorical/factor values that DuckDB can represent.
-Nested/list columns, binary columns, arbitrary Python objects, and other unsupported DuckDB types produce an explicit error.
-The viewer requests 100 rows at a time and retains only the current page; the backend permits at most 200 rows per request.
-Displayed strings are shortened after 1,024 characters with a truncation notice; filters and sorting use the complete stored value.
-Large integers and decimals are returned as strings to preserve their displayed precision.
-Decimal columns and integer columns containing values outside JavaScript's exact integer range use text filters for exact matching; sorting still uses their numeric values in DuckDB.
+Snapshots use a private DuckDB connection, separate from Console's selected SQL connection and the user's R/Python namespaces.
+Opening a large table requires snapshot memory; sorting or filtering can scan it even though returned pages are bounded.
+[Table capture and queries](table_runtime.py), [request coordination](tables.py), and [the table pane](table_pane.py) own conversion, validation, limits, and pagination.
 
-## Browser regression and live smoke
+## Browser checks
 
-The browser regression launches the actual app and Console process.
-It blocks an evaluation on a file checkpoint, verifies that pending output arrives before completion, releases the checkpoint, and checks retained state and rendered images.
-Additional cases select Immediate for R and Python while an ordinary cell remains blocked.
-Human controls cases interrupt a running cell without clearing its objects and restart a running session with an open table.
-Session cases exercise independent R/Python/SQL state, output arriving in inactive views, table reopening, per-session requirements and QMD, closing a busy worker, and creating a fresh worker under the same name.
-Live agent cases create named sessions and verify that subsequent prompts use the selected session.
-Formatting cases exercise Air/Ruff display copies, exact original-source restoration, native code Copy, original-source export, unsupported or invalid input, and scrolling across pending/completed updates.
-Variables cases check live changes and deletion during a blocked cell, private output routing, and Python previews without custom repr execution.
-Table checks use the actual control channel and managed runtimes to exercise snapshot freshness, row limits, filters, sorting, and namespace isolation.
-The live smoke additionally asks the agent to mutate an object created through the direct input and verifies the result through both paths.
-The live agent checks make model inference requests; the other checks do not.
+These optional checks launch the actual app and Console process.
+They cover shared state, controls, session switching, output, formatting, exports, inspection, and tables.
+Live agent checks also make model inference requests and require authentication and model access.
 
 ```sh
 uv venv /tmp/console-shiny-test
@@ -219,6 +117,6 @@ MCP_CONSOLE_TEST_BINARY="$PWD/target/release/mcp-console" MCP_CONSOLE_LIVE_AGENT
   /tmp/console-shiny-test/bin/python -m pytest -q tests/fixtures/control_shiny -k 'agent or native_chat'
 ```
 
-These optional checks are separate from the ordinary repository gate because they install a browser and start the agent runtime.
-Set `MCP_CONSOLE_FIXTURE_SCREENSHOT` to a file path to capture the populated UI after a successful live smoke.
-Authentication failures and unavailable model access are reported as failures; the fixture does not log in or select another model.
+They are separate from the ordinary repository gate because they install a browser and start the agent runtime.
+Set `MCP_CONSOLE_FIXTURE_SCREENSHOT` to capture the populated UI after a successful live smoke.
+The fixture does not log in or substitute another model when authentication or access fails.

@@ -1,16 +1,11 @@
 # Package settings
 
-Configure startup packages, when more packages may be prepared, package sources, cache locations, and preparation permissions.
-[Packages and environments](REQUIREMENTS.md) explains how these choices affect an analysis.
-For interpreter selection and native startup, see [Languages and startup](RUNTIME_CONFIGURATION.md).
-
-Put these settings in a [configuration file](CONFIGURATION.md).
-They are captured when the server starts; open a new connection after changing them.
-The `requirements` argument can change the live declaration within the configured policies; its request format is documented in the [send reference](API.md#requirements).
+Configure startup packages, preparation policies, package sources, caches, and preparation permissions in a [configuration file](CONFIGURATION.md).
+These settings are captured when the server starts; changing them requires a new connection.
+Use [`requirements`](API.md#requirements) to change a session's package declaration within those policies.
+For an introduction, see [Packages and environments](REQUIREMENTS.md); for interpreter selection, see [Languages and startup](RUNTIME_CONFIGURATION.md).
 
 ## Choose startup packages {#startup-package-declarations}
-
-Use `r.packages` for `ir` references and `python.packages` for named PEP 508 requirements; see the [R](CONFIGURATION.md#r-executable-selection) and [Python](CONFIGURATION.md#python-environment-selection) field reference.
 
 ```yaml
 r:
@@ -19,23 +14,16 @@ python:
   packages: [numpy, pandas, matplotlib]
 ```
 
-An omitted package list keeps that runtime's [default startup declaration](#default-startup-packages).
-A supplied list replaces it; an empty list (`[]`) requests no optional packages.
-Empty lists do not remove Console's required runtime infrastructure, uninstall packages, or delete cached installations.
+An omitted list keeps the [default startup declaration](#default-startup-packages).
+A supplied list replaces it; `[]` requests no optional packages.
 Preparation makes packages available without attaching R packages or importing Python modules.
+An explicitly listed package is required, even when it also occurs in the defaults.
 
-Packages listed explicitly in configuration are required, even if they also occur in the built-in defaults.
-
-R package strings use single-line `ir` references, including supported remote references; local sources, NUL, and line breaks are rejected.
-Python strings use named PEP 508 registry requirements, including versions, extras, and markers; paths, editable requirements, URLs, archives, and `name @ URL` references are rejected.
-See [accepted requirement input](API.md#accepted-requirement-input) for package-request fields.
-
-Later `requirements` calls with `action: reset` restore the effective startup declaration captured at server launch, rather than rereading a subsequently edited configuration file.
-[Requirements API](API.md#requirements) covers additions, replacement, and changes that require a runtime restart.
+Empty lists do not remove runtime infrastructure, uninstall packages, or delete caches.
+Later `requirements` calls with `action: reset` restore the captured startup declaration without rereading configuration.
+See [accepted requirement input](API.md#accepted-requirement-input) for R references, Python registry requirements, and their restrictions.
 
 ### Default packages and extensions {#default-startup-packages}
-
-Console prepares these packages and extensions at startup:
 
 | Runtime | Packages or extensions                                                                           |
 | ------- | ------------------------------------------------------------------------------------------------ |
@@ -43,19 +31,17 @@ Console prepares these packages and extensions at startup:
 | Python  | `numpy`, `pandas`, `matplotlib`, `plotnine`; also `duckdb` without R                             |
 | DuckDB  | `icu`, `json`, `sqlite`, when the managed provider is available                                  |
 
-Built-in convenience defaults are prepared on a best-effort basis: Console reports each failed default, skips it, and continues with the other defaults.
-Required runtime infrastructure remains strict, including packages used by the R/Python bridge and SQL adapters.
-Default DuckDB extensions follow the same best-effort rule; an extension requested explicitly remains required.
-Extensions already built into the selected DuckDB do not need downloading.
+Convenience defaults are best-effort: Console reports and skips each failed default, then continues.
+Runtime infrastructure, including the R/Python bridge and SQL adapters, remains required.
+Explicitly requested DuckDB extensions are also required; extensions built into the selected DuckDB need no download.
 
 ## Choose when packages may be prepared {#dependency-resolution-policies}
 
 <span id="resolution-policies"></span>
 
-Set `r.resolution` or `python.resolution` to control Console's package preparation.
-The Python setting also applies under `python.managed` and in managed fallback candidates.
-The default preparation policies are shown below.
-Managed Python adds no version constraint by default.
+Set `r.resolution` and `python.resolution` independently.
+The Python setting also applies under `python.managed` and managed fallback candidates.
+The defaults are:
 
 <!-- preparation-defaults -->
 
@@ -67,11 +53,8 @@ python:
     resolution: explicit
 ```
 
-For how these choices affect an analysis, read [When packages are prepared](REQUIREMENTS.md#resolution-policy-admission).
-
-The [package policy table](CONFIGURATION.md#dependency-resolution-policies) compares `implicit`, `explicit`, `fixed`, and R-only `disabled` preparation.
-
-For example, allow explicit R package requests while keeping the Python startup declaration fixed:
+The [policy table](CONFIGURATION.md#dependency-resolution-policies) defines `implicit`, `explicit`, `fixed`, and R-only `disabled`.
+For example, allow explicit R package requests while keeping Python's declaration fixed:
 
 ```yaml
 r:
@@ -82,230 +65,160 @@ python:
   resolution: fixed
 ```
 
-To enable preparation on missing Python imports, set `python.resolution: implicit`.
 For preinstalled-only Python, select an [existing environment](RUNTIME_CONFIGURATION.md#use-an-existing-environment).
-DuckDB extension preparation follows the resolution policy of its managed provider.
-
-Changing a resolution policy requires a new server connection.
-These policies govern Console's preparation; they do not restrict arbitrary installation commands in submitted code or grant network access.
-[Requirements API](API.md#requirements) specifies live-request behavior.
-Preparation permissions and package sources are configured separately, as described below.
+DuckDB extension preparation follows its managed provider's policy.
+These policies control Console's preparation; they do not restrict arbitrary installer code or grant network access.
+The [`send` reference](API.md#requirements) owns live-request admission, automatic resolution, and restart rules.
 
 ## Preparation permissions
 
-The resolver selects environments and prepares packages separately from the agent's code.
-Its filesystem and network permissions are independent of the session's permissions.
-
-Default preparation runs in a native sandbox with host-file reads, private temporary and dependency-cache writes, and a download proxy.
-Windows uses the pinned MXC companion, including for package/build subprocesses, runtime discovery and inspection, and DuckDB extension preparation.
-It requires no administrator privileges, custom AppContainer profiles, or custom firewall rules.
-The managed proxy resolves destination names through Windows system DNS.
-During ordinary sessions, an unavailable or failed native sandbox is an error; Console never retries preparation with host permissions.
+The resolver selects environments and prepares packages separately from submitted code, with its own `resolver.sandbox` permissions.
+By default it permits host-file reads, private temporary and dependency-cache writes, and downloads through the [package-source proxy](#expanded-public-default).
+An unavailable or failed native sandbox is an error during ordinary sessions; Console does not retry with host permissions.
 `--no-sandbox` explicitly selects host permissions.
+See [Sandbox permissions](SANDBOX_CONFIGURATION.md) for platform requirements and network limits.
 
-[`warmup`](CLI.md#check-your-installation), including the background warmup started by `configure-client`, prepares dependencies with host permissions from the outset.
-It uses the same resolver environment and cache locations as the configured session so downloads and builds can populate the caches before sandboxed use.
-Resolver filesystem and network restrictions do not apply during this trusted installation step.
-Runtime checks retain the configured worker sandbox.
-Older pinned releases that do not support this warmup behavior retain their ordinary preparation policy.
-
-Package builds and interpreter hooks execute code.
-Use trusted requirements, package sources, tools, and configuration.
-See [the trust boundary](#trust-boundary).
+[`warmup`](CLI.md#check-your-installation), including background warmup from `configure-client`, prepares dependencies with host permissions from the outset.
+It uses the session's resolver environment and caches, so it can populate them before sandboxed use.
+Runtime checks still use the configured worker sandbox.
 
 ## Cache locations
 
-The [cache field reference](CONFIGURATION.md#environment-and-caches) lists `managed`, `host`, and custom-directory choices.
+`cache` selects where prepared dependencies live:
 
-`console` is an alias for `managed`; configuration exports use `managed`.
+| Choice                               | Use                                                                                      |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `managed` (default with sandboxing)  | Console-owned dependency caches, separate from ordinary host caches.                     |
+| `{directory: PATH}`                  | Console-owned caches under `PATH/dependencies`. Relative paths use the launch directory. |
+| `host` (default with `--no-sandbox`) | Normal tool caches selected by the resolver environment and platform defaults.           |
 
-With [Codex inheritance](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex), the automatic choice waits for client permissions: sandboxed profiles use Console caches; full access uses host caches.
-`config resolve --full` retains `cache: null` for this pending choice.
-Existing Python uses its preinstalled packages in either mode.
+The older value `console` is an alias for `managed` and exports as `managed`.
+A custom directory must be nonempty; a bare path string is not a cache selector.
+Leading `~` follows the [configuration path rules](CONFIGURATION.md#paths).
 
-Managed caches use these default dependency directories:
+For managed caches, an explicit directory wins over `MCP_CONSOLE_CACHE_DIR`; otherwise Console uses that variable or the platform cache directory.
+The [environment reference](ENVIRONMENT.md#cache-and-data-locations) owns the cache paths, redirected variables, and precedence.
+`MCP_CONSOLE_HOME` moves configuration and fallback recordings, not dependencies.
+Existing Python environments continue to use their installed packages.
 
-| Platform | Default dependency directory                    |
-| -------- | ----------------------------------------------- |
-| Linux    | `$HOME/.cache/mcp-console/dependencies`         |
-| macOS    | `$HOME/Library/Caches/mcp-console/dependencies` |
-| Windows  | `%LOCALAPPDATA%/mcp-console/cache/dependencies` |
+With `inherit_codex`, automatic cache selection waits for the client's first usable policy: sandboxed sessions use managed caches and full-access sessions use host caches.
+`config resolve --full` reports `cache: null` while this choice is pending.
 
-An absolute `XDG_CACHE_HOME` selects `<XDG_CACHE_HOME>/mcp-console/dependencies` on every platform.
-Windows has user-profile/home fallbacks when `LOCALAPPDATA` is unavailable.
-To relocate Console-managed caches, set `cache.directory` in the configuration:
-
-```yaml
-cache:
-  directory: /absolute/path/to/console-cache
-```
-
-Dependency caches go under `<directory>/dependencies` for both package preparation and workers.
-`cache.directory` must be a nonempty path.
-Relative directories use the launch directory; a leading `~` follows the shared [path rules](CONFIGURATION.md#paths).
-Put the path under `directory`; a bare path such as `cache: /path/to/cache` is not accepted.
-This path takes precedence over environment variables and platform defaults.
-Configuration and recordings keep their existing locations.
-With `cache: managed`, the launch-time `MCP_CONSOLE_CACHE_DIR` environment variable selects the cache root ahead of `XDG_CACHE_HOME` and platform defaults; an unset or empty value retains the default selection.
-Environment-based selection uses the resolver's effective environment.
-The selected location is captured for the server connection and retained across worker restarts.
-`MCP_CONSOLE_HOME` moves configuration and recordings, not these caches.
-
-Console redirects supported package/cache variables beneath that directory.
-With `sandbox.tempdir: managed`, worker plotting and general-purpose caches use private temporary storage, with prepared caches reused where supported.
-Other tempdir modes and `--no-sandbox` retain normal library selection after cache configuration.
-Existing Python preserves its configured user-site package location.
-[Environment variables](ENVIRONMENT.md#cache-and-data-locations) lists the assignments.
-
-To share ordinary host installations and caches:
-
-```yaml
-cache: host
-```
-
-This retains resolver sandboxing but changes the default cache locations and write grants.
-`MCP_CONSOLE_CACHE_DIR` is ignored with `cache: host`.
-Shared cache writes can affect artifacts later used outside Console.
-`--no-sandbox` defaults to host caches and rejects managed caches, including custom directories, and explicit sandbox policies.
-To keep other file settings while disabling enforcement, clear inherited permission nodes:
-
-```sh
-mcp-console serve --no-sandbox -c sandbox=null -c resolver.sandbox=null
-```
-
-The companion's source/build cache is separate from dependency caches.
-It is not worker-writable under the default policy.
-
-Resolver cache grants cover their complete subtrees, including Git metadata.
-Console creates the cache roots needed for native enforcement; it does not add metadata directories or read-only exceptions inside them.
+Managed temporary storage can redirect worker plotting and general caches into private storage even with `cache: host`.
+The resolver's persistent caches remain separate from that worker storage.
+The pinned native companion has its own build cache, which is not worker-writable.
 
 ## Host cache selection
 
-With `cache: host`, explicit tool variables select locations and corresponding default resolver write grants.
-The principal variables are `UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`, `UV_TOOL_DIR`, `IR_CACHE_DIR`, `IR_LIBRARY_ROOT`, `RENV_PATHS_*`, `PKG_CACHE_DIR`, `R_PKG_CACHE_DIR`, and `MPLCONFIGDIR`.
+To reuse tool caches:
 
-Without overrides, uv uses its cache/data locations under XDG directories or the user's home.
-R-related caches use `R_USER_CACHE_DIR`, then `XDG_CACHE_HOME`, then R's platform cache base.
-Reticulate, ir, renv, and package caches occupy their respective subdirectories.
-Default host-cache grants require an absolute resolver `HOME`, with `USERPROFILE` as the Windows fallback.
-Windows uv defaults use `LOCALAPPDATA/uv/cache` and `APPDATA/uv/{python,tools}`; R uses `LOCALAPPDATA/R/cache` when neither R nor XDG cache overrides are set.
+```yaml
+cache: host
+```
 
-Use `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` for a custom host extension cache.
-Otherwise managed installation and SQL use `.duckdb/extensions` under the resolver's effective home.
-On Windows, an absent or relative `HOME` falls back to an absolute `USERPROFILE` for that directory.
-The location is captured; changing it in a cell does not reconfigure preparation.
-Explicit filesystem policies must grant its writes.
+Console uses the effective resolver environment to select uv, ir, renv, R, plotting, and DuckDB cache paths, then grants preparation access to the selected subtrees.
+An explicit `resolver.sandbox.filesystem` replaces those generated grants.
+Host caches may also be used by other tools, so preparation can change shared host state.
+The selection rules live in [resolver cache selection](../src/resolver/cache.rs); recognized variables and overrides are listed in [Environment variables](ENVIRONMENT.md#cache-and-data-locations).
 
-Exact platform fallbacks and generated grants are implemented in [`src/resolver/cache.rs`](../src/resolver/cache.rs).
+`MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` selects a host-mode extension directory; a relative nonempty value uses the launch directory.
+Otherwise extensions use the resolver home's `.duckdb/extensions`.
+The choice is captured before execution, and changing a cell's environment does not move it or grant additional access.
+
+`--no-sandbox` requires host caches and rejects explicit worker/resolver sandbox mappings.
+Clear inherited selections when opting out:
+
+```sh
+mcp-console serve --no-sandbox -c sandbox=null -c resolver.sandbox=null -c cache=host
+```
 
 ## Configure package sources {#configuration}
 
-The [preparation field reference](CONFIGURATION.md#environment-and-caches) lists `resolver.environment`, `resolver.inherit_environment`, and `resolver.sandbox`.
-
-The complete permission fields are in [Configuration](CONFIGURATION.md#sandbox-settings), with enforcement details in [Sandbox permissions](SANDBOX_CONFIGURATION.md).
-[Environment variables](ENVIRONMENT.md#where-to-set-variables) covers inheritance, value validation, and variables recognized by Console and its package tools.
-
-Python indexes and mirrors use uv's native settings, including user- or system-level `uv.toml` files and environment variables such as `UV_INDEX_URL`.
-For R, pak's `PKG_CRAN_MIRROR` selects a CRAN-compatible repository, including a private Posit Package Manager instance.
-Pass package-manager environment variables through `resolver.environment`.
-R startup files are not read during preparation.
-
-For example, to use private Python and R package mirrors:
+Use uv's native configuration and environment for Python sources, and ir/pak's environment for R sources.
+R discovery and preparation do not load `.Rprofile` or `.Renviron`; set resolver variables directly:
 
 ```yaml
 resolver:
   environment:
-    UV_INDEX_URL: https://packages.example.org/simple
-    PKG_CRAN_MIRROR: https://packages.example.org/cran/latest
+    UV_INDEX_URL: https://packages.example.com/simple
+    PKG_CRAN_MIRROR: https://packages.example.com/cran
   sandbox:
     network:
       proxy:
+        mode: full
         domains:
-          allow: [packages.example.org, artifacts.example.org]
+          allow: [packages.example.com, artifacts.example.com]
 ```
 
-Include every host serving artifacts and redirects, plus other package sources needed by the session.
-An explicit `domains` mapping replaces the **generated** default allowlist; `{}` allows no destinations.
-Ordinary file/CLI mapping merges still apply before defaults are generated.
+Allow both index hosts and any redirected artifact hosts.
+An explicitly configured `domains` mapping replaces the generated public destinations; omitted lists are empty, and `{}` allows none.
+Ordinary configuration layers still merge recursively, so use [ordered clearing](CONFIGURATION.md#merge-rules) to remove entries supplied by an earlier file.
 
-`resolver.sandbox` uses the [public sandbox schema](SANDBOX_CONFIGURATION.md).
-Omitted networking retains the download proxy.
-Explicit `network: restricted` or `network: enabled` (also `false` or `true`) removes it.
-Destination sequences and strings replace its generated allow list; `network: null` leaves the preceding layer or default unchanged.
-Limited proxy mode does not support HTTPS CONNECT and therefore cannot perform ordinary HTTPS downloads.
+Shared `environment` values reach workers and preparation; `resolver.environment` overrides them for preparation only.
+Resolver inheritance defaults to the shared `inherit_environment` choice.
+Console's required internal assignments take precedence, and later cell environment changes do not reconfigure preparation.
 
-Top-level `environment` values also reach preparation.
-`resolver.environment` overrides individual shared values.
-`resolver.inherit_environment` defaults to the top-level setting.
-Console's runtime, cache, proxy, and transport assignments take precedence.
-Worker environment mutations do not reconfigure later preparation.
-
-Windows accepts resolver filesystem, temporary-storage, and network settings using the same schema as worker permissions.
-An MXC managed proxy requires bidirectional host loopback access: `allow_local_binding: auto` selects true, while explicit false is rejected.
-Use proxy-free `network: restricted` to prohibit loopback; Windows also rejects SOCKS5 UDP and Unix-socket grants.
-`--no-sandbox` rejects explicit sandbox policies.
+Worker and resolver networking use the same [network settings](SANDBOX_CONFIGURATION.md#network-choices).
+A restricted/enabled mode replaces the generated proxy, while a destination list changes its allowlist.
+`network: null` preserves the earlier layer.
+Limited proxies reject HTTPS CONNECT and are usually unsuitable for package downloads.
+Windows managed proxies require local binding; Unix-socket and UDP limitations are described in [platform support](SANDBOX_CONFIGURATION.md#native-capabilities).
 
 ## Filesystem grants
 
-Omitting `resolver.sandbox.filesystem` retains generated host reads and cache writes.
-**An explicit filesystem mapping replaces those default entries.** Supply necessary reads and writes yourself:
+Omit `resolver.sandbox.filesystem` to keep generated host reads and cache writes.
+An explicit mapping replaces that whole generated policy, so grant every location your chosen tools need:
 
 ```yaml
 cache: host
 resolver:
   environment:
-    UV_CACHE_DIR: /home/alice/package-caches/uv
+    UV_CACHE_DIR: /var/cache/console-uv
   sandbox:
     filesystem:
-      read_only: [/]
-      read_write: [/home/alice/package-caches/uv]
+      read_only: [/usr, /lib, /lib64, /etc, /opt]
+      read_write: [/var/cache/console-uv]
 ```
 
-This grants only the selected uv cache; Python installations, R libraries, and DuckDB can need additional writable paths.
-Create custom writable directories before Linux launch.
-Paths are relative to the launch directory and support a leading `~` under the shared [path rules](CONFIGURATION.md#paths).
-Environment-variable references and globs are not expanded.
-The [same restrictions on broad write grants](SANDBOX_CONFIGURATION.md#filesystem) apply to resolver paths.
-They also apply to relative cache locations such as `UV_CACHE_DIR=.`, before Console resolves or creates cache directories.
+This example selects only uv's cache; managed Python installations, R libraries, DuckDB extensions, and other tools may need further grants.
+Create writable directories before launch where required by the native backend.
+Paths follow the [shared filesystem rules](SANDBOX_CONFIGURATION.md#filesystem), including protection against relative writes that resolve to a filesystem root or home directory.
 
-To select that cache while retaining generated host-cache grants, omit the filesystem mapping:
+To retain automatic grants while changing only a cache location, omit the filesystem mapping:
 
 ```yaml
 cache: host
 resolver:
   environment:
-    UV_CACHE_DIR: /home/alice/package-caches/uv
+    UV_CACHE_DIR: /var/cache/console-uv
 ```
 
-Console does not read uv configuration files to infer extra writable paths.
-Expose a custom cache path through the corresponding environment variable or grant it explicitly.
-In Console cache mode, Console's cache assignments take precedence.
+Console does not inspect arbitrary uv configuration files for additional writable paths.
+Select cache locations through the documented variables or grant them explicitly.
+Managed/custom cache mode overrides native tool cache paths.
+Generated grants cover complete selected cache subtrees, including any Git metadata inside them.
 
 ## Trust boundary
 
-Preparation can read host files and modify its granted caches.
-Console cache mode separates artifacts from ordinary host caches; it does not make them immutable, inspect package code, or protect readable secrets.
+Package builds and interpreter hooks execute code.
+Use trusted requirements, sources, tools, and configuration.
+The default resolver can read host files, including secrets, and package caches are mutable.
+Separate preparation permissions do not make those inputs immutable or inspect their code.
 
-Keep selected resolver executables, wrappers, installation directories, source files, and configuration outside worker-writable paths.
-Captured names and interpreter identity checks do not prevent every concurrent file replacement or changes to dependencies loaded later.
-
+Keep resolver executables, wrappers, installation directories, sources, and configuration outside worker-writable paths.
+Captured names and interpreter identity checks do not prevent every concurrent replacement or changes to dependencies loaded later.
 `UV_OFFLINE=1` in a worker is a uv setting, not process-level network enforcement or a description of resolver permissions.
-R discovery/preparation is profile-free.
-See [Requirements API](API.md#accepted-requirement-input) for supported request syntax and [live preparation](API.md#live-preparation) for partial effects.
+See [live preparation](API.md#live-preparation) for partial effects after failures.
 
 ## Selecting resolver tools
 
-Without R, managed Python requires `uv` on the launch PATH; there is no managed fallback to a system Python.
-An [existing Python environment](RUNTIME_CONFIGURATION.md#python-environment-selection) bypasses managed Python preparation.
+Without R, managed Python requires `uv` on the launch PATH; there is no managed fallback to system Python.
+An existing Python environment bypasses managed preparation.
 
 With R, preparation prefers PATH `ir` (at least 0.4.0), then `uv tool run --from r-lib-ir ir`, with reticulate bootstrap when available.
-A genuinely unavailable bootstrap can leave a bare R runtime; a selected bootstrap that fails is an error.
-`RETICULATE_UV` affects the R-backed Python preparation path, not R-free preparation.
-
-MXC denies creation of uv's optional Python minor-version junction.
-When uv reports that specific denial after downloading its concrete interpreter, Console resumes the same sandboxed Python materialization once after confirmed cleanup.
-Package/build failures are not retried; failure of the resumed invocation remains an error.
-Sandboxed Windows R preparation sets `RENV_CONFIG_CACHE_SYMLINKS=FALSE` and `RENV_CONFIG_COPY_METHOD=r` so renv uses R's directory copier within the granted caches instead of junctions or Robocopy's restartable-copy operations that MXC denies.
+An unavailable bootstrap can leave a bare R runtime; a selected bootstrap that fails is an error.
+`RETICULATE_UV` affects R-backed Python preparation only.
+Windows compatibility adaptations are documented beside [managed Python preparation](../src/resolver/managed_python.rs) and [resolver sandbox setup](../src/resolver/sandbox.rs).
 
 ## Expanded public default
 

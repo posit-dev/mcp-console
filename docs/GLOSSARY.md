@@ -9,11 +9,15 @@
 **MCP:** Model Context Protocol, the interface through which the client discovers and calls Console's tool.
 
 **Console process:** One server lifetime, from startup to shutdown.
-A process can contain multiple successive sessions.
+It manages the connection's sessions and recording.
 
-**Session:** One lifetime of a worker and its live R, Python, and SQL state.
-Objects remain available between calls.
-Restarting replaces the worker, clears its live state, and starts a new session within the same Console process.
+**Session:** A named workspace with its own R, Python, and SQL state and package requirements.
+The initial session is named `default`; additional named sessions can run concurrently.
+Objects remain available between cells until the session's worker is restarted or the connection closes.
+Restarting replaces the worker and clears its live state while retaining the session's accepted requirements.
+
+**Worker session:** One lifetime of the runtime process backing a named session.
+Recordings number worker sessions separately, so a restart gets a new number even when the public session name stays the same.
 
 **Cell:** One complete block of R, Python, or SQL code submitted for execution.
 Interactive input is supplied separately.
@@ -47,8 +51,6 @@ Recordings are unredacted and do not preserve live state.
 Default permissions restrict writes and direct networking but allow host-file reads, including readable secrets.
 
 For polling and other client operations, see [Drive send directly](SEND_OPERATIONS.md).
-Internal terms such as worker, relay, generation, and retirement are defined in [Architecture](ARCHITECTURE.md).
-
 <span id="developer-terms"></span>
 
-Contributor vocabulary is in [Architecture](ARCHITECTURE.md#developer-terms).
+Internal terms such as relay, generation, and retirement are defined in [Architecture](ARCHITECTURE.md#developer-terms).

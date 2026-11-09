@@ -41,9 +41,6 @@ Use an existing environment when you want to manage its packages yourself, or ma
 
 The [Python field reference](CONFIGURATION.md#python-environment-selection) lists selection forms and defaults.
 
-A Python mapping contains either managed fields directly or exactly one of `existing`, `managed`, or `first_available`.
-Combining direct managed fields with a selection key in the same mapping is an error.
-
 ### Use an existing environment
 
 ```yaml
@@ -81,9 +78,7 @@ Managed selection uses uv-managed CPython, rather than selecting a fallback inte
 It excludes versions older than CPython 3.10 before ranking available versions or applying constraints.
 Without R, managed preparation requires `uv` on the execution host.
 
-Before merging each configuration layer, Console expands direct managed fields to `python.managed`.
-Flat and nested settings in separate layers therefore combine under the ordinary [merge rules](CONFIGURATION.md#merge-rules).
-`config resolve` output and validation diagnostics use the nested paths.
+Flat and nested managed settings combine under the [configuration merge rules](CONFIGURATION.md#merge-rules); resolved output uses nested paths.
 Changing one selection form does not remove incompatible fields inherited from an earlier layer; clear the earlier branch before replacing it when necessary.
 
 ### Try environments in order {#first-available-python}
@@ -103,10 +98,8 @@ python:
 | `active_venv`    | Use the incoming `VIRTUAL_ENV`. An unset or empty value advances to the next candidate; a supplied but unusable environment fails. The launcher must preserve this variable. |
 | `managed: {...}` | Use managed Python with the settings above. This candidate must be last.                                                                                                     |
 
-The list must be flat and nonempty, with at most one `active_venv` and at most one managed candidate.
 Only absence advances to the next candidate; a broken selection does not.
 Exhausting the list is an error.
-Managed candidate fields have paths such as `python.first_available[].managed.packages`, where `[]` denotes a list item.
 
 ## Choose an R installation {#r-executable-selection}
 
@@ -139,10 +132,6 @@ The [environment reference](ENVIRONMENT.md#server-paths-and-executable-discovery
 Console retains the selected installation across runtime restarts.
 If its captured executable or resources change incompatibly, start a new server connection.
 Executables and the code they load are trusted inputs; selecting them does not make them immutable sandbox assets.
-
-<span id="startup-package-declarations"></span> <span id="default-startup-packages"></span> <span id="dependency-resolution-policies"></span> <span id="resolution-policies"></span>
-
-Startup declarations, default packages, and resolution policies are documented in [Package settings](PACKAGE_CONFIGURATION.md).
 
 ## Control R startup files {#native-r-startup}
 

@@ -99,11 +99,24 @@ See [uv's reference](https://docs.astral.sh/uv/reference/environment/) and [reso
 
 ## Cache and data locations
 
-[Package settings](PACKAGE_CONFIGURATION.md#cache-locations) owns root selection and host-cache permissions.
+[Package settings](PACKAGE_CONFIGURATION.md#cache-locations) explains cache choices and resolver write permissions.
 Set `cache.directory` in configuration to select the managed cache root for preparation and workers.
 With `cache: managed`, `MCP_CONSOLE_CACHE_DIR` selects an absolute cache root, taking precedence over XDG and platform defaults.
 An explicit `cache.directory` takes precedence over `MCP_CONSOLE_CACHE_DIR`.
 An unset or empty `MCP_CONSOLE_CACHE_DIR` uses the defaults; `cache: host` ignores it.
+Without either override, managed caches use these dependency directories:
+
+| Platform | Default dependency directory                    |
+| -------- | ----------------------------------------------- |
+| Linux    | `$HOME/.cache/mcp-console/dependencies`         |
+| macOS    | `$HOME/Library/Caches/mcp-console/dependencies` |
+| Windows  | `%LOCALAPPDATA%/mcp-console/cache/dependencies` |
+
+An absolute `XDG_CACHE_HOME` selects `<XDG_CACHE_HOME>/mcp-console/dependencies` on every platform.
+Windows falls back to its home/profile when `LOCALAPPDATA` is unavailable.
+The configured or environment-selected cache root holds dependencies in its `dependencies` subdirectory.
+Environment-based selection uses the resolver's effective environment and is retained across worker restarts.
+
 Let `D` be the selected Console dependency directory.
 `cache: managed` and an explicit cache directory apply these assignments to preparation and eligible workers:
 
@@ -130,10 +143,14 @@ Values observed inside a cell are therefore not necessarily the persistent resol
 With `cache: host`, tool variables/defaults select caches and Console generates appropriate resolver grants.
 An explicit resolver filesystem replaces those generated entries.
 `MCP_CONSOLE_HOME` does not move caches.
-Without an explicit cache path or `MCP_CONSOLE_CACHE_DIR`, Windows cache-root selection uses absolute `XDG_CACHE_HOME`, then absolute `LOCALAPPDATA`, then its home/profile fallback.
+The principal host-cache overrides are `UV_CACHE_DIR`, `UV_PYTHON_INSTALL_DIR`, `UV_TOOL_DIR`, `IR_CACHE_DIR`, `IR_LIBRARY_ROOT`, `RENV_PATHS_*`, `PKG_CACHE_DIR`, `R_PKG_CACHE_DIR`, and `MPLCONFIGDIR`.
+Without overrides, uv uses its XDG or home cache/data locations; R-related caches use `R_USER_CACHE_DIR`, then `XDG_CACHE_HOME`, then R's platform cache base.
+Default host-cache grants require an absolute resolver `HOME`, with `USERPROFILE` as the Windows fallback.
+Windows uv defaults use `LOCALAPPDATA/uv/cache` and `APPDATA/uv/{python,tools}`; R uses `LOCALAPPDATA/R/cache` without R or XDG overrides.
 
 Despite its prefix, `MCP_CONSOLE_DUCKDB_EXTENSION_DIRECTORY` is a supported user cache setting in host mode.
 A relative nonempty value resolves against the launch directory; otherwise managed extensions use the resolver home's `.duckdb/extensions`.
+On Windows, an absent or relative `HOME` falls back to an absolute `USERPROFILE` for that directory.
 It is captured before execution and does not itself grant filesystem access.
 
 ## R startup and libraries

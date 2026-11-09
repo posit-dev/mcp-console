@@ -104,7 +104,18 @@ class WebsiteTests(unittest.TestCase):
             shutil.copytree(ROOT / relative, docs.parent / relative)
         for name in ("pyproject.toml", "great-docs.yml", "LICENSE"):
             shutil.copy2(ROOT / name, docs.parent / name)
-        for directory in (docs, docs / "benchmarks"):
+        # Exercise nested source links without keeping a published evidence page
+        # solely as a rendering fixture.
+        nested = docs / "nested-links"
+        nested.mkdir()
+        configuration = docs / "_quarto.yml"
+        configuration.write_text(
+            configuration.read_text().replace(
+                "    - python/index.qmd\n",
+                "    - nested-links/*.md\n    - python/index.qmd\n",
+            )
+        )
+        for directory in (docs, nested):
             prefix = "" if directory == docs else "../"
             r_readme = prefix + "../r/README.md"
             (directory / "package-links.md").write_text(
@@ -197,10 +208,7 @@ class WebsiteTests(unittest.TestCase):
     def test_guides_have_titles_navigation_and_search(self) -> None:
         search = json.loads((self.site / "search.json").read_text())
         indexed = {urlsplit(entry["href"]).path for entry in search}
-        sources = [
-            *(ROOT / "docs").glob("*.md"),
-            *(ROOT / "docs/benchmarks").glob("*.md"),
-        ]
+        sources = (ROOT / "docs").glob("*.md")
         for source in sources:
             route = source.relative_to(ROOT / "docs").with_suffix("").as_posix().lower()
             if route in ("r", "python"):
@@ -228,7 +236,7 @@ class WebsiteTests(unittest.TestCase):
         for name in (
             "index.html",
             "cli-help/index.html",
-            "benchmarks/transcript-concurrency/index.html",
+            "nested-links/package-links/index.html",
         ):
             with self.subTest(page=name):
                 soup = BeautifulSoup((self.site / name).read_text(), "html.parser")
@@ -356,7 +364,6 @@ class WebsiteTests(unittest.TestCase):
             "clients/index.html",
             "build_from_source/index.html",
             "linux_compatibility/index.html",
-            "windows/index.html",
             "builtin_runtime/index.html",
             "requirements/index.html",
             "sandbox/index.html",
@@ -389,7 +396,7 @@ class WebsiteTests(unittest.TestCase):
                         section.select_one(".sidebar-item-text").get_text(strip=True)
                         for section in sections
                     ],
-                    ["Learn Console", "Set up", "Other tasks"],
+                    ["Learn Console", "Set up"],
                 )
                 learning = sections[0]
                 self.assertEqual(
@@ -397,7 +404,11 @@ class WebsiteTests(unittest.TestCase):
                         linked_file(self.site / name, link["href"])
                         for link in sections[1].select("a[href]")
                     ],
-                    [self.site / "clients/index.html"],
+                    [
+                        self.site / "clients/index.html",
+                        self.site / "build_from_source/index.html",
+                        self.site / "linux_compatibility/index.html",
+                    ],
                 )
                 heading = learning.select_one(".sidebar-item-text")
                 self.assertEqual(heading.get_text(strip=True), "Learn Console")
@@ -432,7 +443,6 @@ class WebsiteTests(unittest.TestCase):
         navigation = []
         for route in (
             "build",
-            "build_on_console",
             "r-guide",
             "python-guide",
             "send_operations",
@@ -449,7 +459,6 @@ class WebsiteTests(unittest.TestCase):
                 self.assertEqual(links, navigation[0])
                 for target in (
                     "build",
-                    "build_on_console",
                     "r-guide",
                     "python-guide",
                     "send_operations",
@@ -461,6 +470,7 @@ class WebsiteTests(unittest.TestCase):
                     self.assertIn(f"{target}/index.html", links)
                 self.assertNotIn("getting-started/index.html", links)
                 self.assertNotIn("requirements/index.html", links)
+                self.assertNotIn("integrator_control/index.html", links)
 
         home = BeautifulSoup((self.site / "index.html").read_text(), "html.parser")
         self.assertEqual(
@@ -508,7 +518,6 @@ class WebsiteTests(unittest.TestCase):
             ("builtin_runtime", "Guides", "true"),
             ("clients", "Guides", "true"),
             ("build", "Build", "page"),
-            ("build_on_console", "Build", "true"),
             ("r-guide", "Build", "true"),
             ("python-guide", "Build", "true"),
             ("send_operations", "Build", "true"),
@@ -571,7 +580,7 @@ class WebsiteTests(unittest.TestCase):
                 for target in (
                     "getting-started",
                     "installation",
-                    "build_on_console",
+                    "build",
                     "sandbox_command",
                 ):
                     self.assertNotIn(f"{target}/index.html", links)
@@ -581,6 +590,11 @@ class WebsiteTests(unittest.TestCase):
             (
                 "architecture/index.html",
                 "windows_development/index.html",
+                "requirements/index.html",
+            ),
+            (
+                "integrator_control/index.html",
+                "architecture/index.html",
                 "requirements/index.html",
             ),
         )
@@ -647,7 +661,7 @@ class WebsiteTests(unittest.TestCase):
             "requirements/index.html",
             "sandbox/index.html",
             "builtin_runtime/index.html",
-            "build_on_console/index.html",
+            "build/index.html#build-a-data-assistant",
             "send_operations/index.html",
             "recording/index.html",
         ):
@@ -665,7 +679,7 @@ class WebsiteTests(unittest.TestCase):
                     "requirements",
                     "sandbox",
                     "recording",
-                    "build_on_console",
+                    "build",
                     "send_operations",
                     "sandbox_command",
                 },
@@ -935,7 +949,7 @@ class WebsiteTests(unittest.TestCase):
         navbar = soup.select_one(".navbar")
         sidebar = soup.find(id="quarto-sidebar")
         for element, included, excluded in (
-            (navbar, "getting-started/index.html", "windows/index.html"),
+            (navbar, "getting-started/index.html", "integrator_control/index.html"),
             (sidebar, "clients/index.html", "configuration/index.html"),
         ):
             links = {
@@ -1034,20 +1048,11 @@ class WebsiteTests(unittest.TestCase):
                 "restarting-with-requirements",
                 "custom-workers",
             ),
-            "WINDOWS": (
-                "install-and-run",
-                "native-sandbox",
-                "build-from-source",
-                "lifecycle-and-platform-differences",
-                "validation",
-                "testing-parity-and-remaining-gaps",
-                "troubleshooting",
-            ),
             "SANDBOX": (
                 "application-policy-and-launch",
                 "policy-extensions-and-compatibility",
             ),
-            "LINUX_COMPATIBILITY": ("reproducing-the-comparisons",),
+            "LINUX_COMPATIBILITY": ("validation",),
             "SEND_OPERATIONS": ("python-client-cancellation",),
             "API": (
                 "server-readiness",
@@ -1257,7 +1262,7 @@ class WebsiteTests(unittest.TestCase):
             "reference/index.html",
             "r-guide/index.html",
             "package-links/index.html",
-            "benchmarks/package-links/index.html",
+            "nested-links/package-links/index.html",
         ):
             with self.subTest(page=name):
                 page = self.site / name
@@ -1591,7 +1596,7 @@ class WebsiteTests(unittest.TestCase):
     def test_package_links_are_relative_at_each_depth(self) -> None:
         for name, prefix in (
             ("package-links/index.html", "../"),
-            ("benchmarks/package-links/index.html", "../../"),
+            ("nested-links/package-links/index.html", "../../"),
         ):
             with self.subTest(page=name):
                 page = self.pages[self.site / name]
@@ -1607,7 +1612,7 @@ class WebsiteTests(unittest.TestCase):
     def test_repository_links_are_classified_at_each_depth(self) -> None:
         for name, prefix in (
             ("package-links/index.html", "../"),
-            ("benchmarks/package-links/index.html", "../../"),
+            ("nested-links/package-links/index.html", "../../"),
         ):
             with self.subTest(page=name):
                 page = self.pages[self.site / name]
