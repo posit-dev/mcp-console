@@ -51,7 +51,7 @@ See [Sessions and languages](BUILTIN_RUNTIME.md) for examples, database connecti
 Console uses native R and Python runtimes, with access to their package ecosystems, including packages with compiled code.
 An OS-level sandbox enforces limits on file and network access.
 
-The default `read_only` sandbox profile restricts network access and filesystem writes.
+The default `read_only` sandbox profile lets the agent's code read your files but prevents it from editing them or connecting to the network.
 You can customize these permissions to allow writes to selected paths, block reads from selected paths, and control network access with domain allowlists or denylists.
 See [Sandbox and trust](SANDBOX.md) for the defaults and how to adapt them to your work.
 
