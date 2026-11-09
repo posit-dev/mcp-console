@@ -168,7 +168,7 @@ impl Evaluation {
                 completion_cut: None,
                 control_prelude: Some(control_prelude),
                 idle_prelude: Some(idle_prelude),
-                entry_gap: super::output::CellEntryGap::Unmarked,
+                entry_gap: super::output::CellEntryGap::Startup,
                 reclaimed: None,
                 delivery: None,
                 delivery_changed: Arc::clone(&delivery_changed),

@@ -13,11 +13,9 @@ use std::collections::VecDeque;
 pub(in crate::worker_client) enum CellEntryGap {
     /// The worker was ready when the cell attached; it was idle until entry.
     Idle,
-    /// Output before entry stays in the call's ordinary response, unmarked.
-    ///
-    /// Either the cell attached while the worker was starting, so that output
-    /// is startup output, or the caller does not capture an idle prelude.
-    Unmarked,
+    /// The cell attached before the worker finished starting: either this
+    /// call starts the worker, or its bootstrap was still running.
+    Startup,
 }
 
 #[derive(Default)]
@@ -432,7 +430,9 @@ impl OutputTape {
                 }
                 idle
             }
-            CellEntryGap::Unmarked => Response::default(),
+            // Startup output for a cell admitted before the worker was ready
+            // stays in the call's ordinary response.
+            CellEntryGap::Startup => Response::default(),
         };
         state.finish_idle_interval();
         state.cell_active = true;
