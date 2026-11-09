@@ -14,7 +14,9 @@ from typing import Any, Self
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from boundaries.client_server.output.test_recovery import cancel_result
 from boundaries.client_server.python.test_without_r import selected_environment
+from support.assertions import release_worker_callback_gate
 from support.allocations import AllocationProfile
 from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import McpClient, TextReader
@@ -22,7 +24,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_recording
 from support.previews import recording_events
 from support.records import Transcript, TranscriptWithCompanions
-from support.requirements import NATIVE_FIXTURES, POSIX, R, requires
+from support.requirements import NATIVE_FIXTURES, POSIX, R, R_EVENT_LOOP, requires
 from support.suites import run_this_suite
 
 
@@ -1176,6 +1178,82 @@ def test_requires_private_socket_directory(binary: Path) -> Transcript:
                 "stderr": result.stderr.replace(str(root), "<workspace>"),
             }
         ]
+
+
+@requires(NATIVE_FIXTURES, R_EVENT_LOOP)
+def test_preview_keeps_recovered_output_before_later_idle_output(
+    binary: Path,
+) -> Transcript:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-control-"
+    ) as directory:
+        root = Path(directory)
+        endpoint = root / "control.sock"
+        with (
+            closing(FifoCheckpoint.create(root / "result-reached")) as result_reached,
+            closing(FifoCheckpoint.create(root / "result-release")) as result_release,
+            closing(AllocationProfile(root)) as profile,
+            McpClient(
+                binary,
+                DIRECT.serve("--control-socket", str(endpoint)),
+                {
+                    **os.environ,
+                    **profile.environment,
+                    "MCP_CONSOLE_TEST_RESULT_REACHED": str(result_reached.path),
+                    "MCP_CONSOLE_TEST_RESULT_RELEASE": str(result_release.path),
+                },
+            ) as client,
+        ):
+            client.initialize_and_list_tools()
+            client.send(requirements={"r": ["later"]})
+            # fmt: r
+            r = code(r"""
+                callback_gate <- tempfile("mcp-console-callback-gate-")
+                callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+                callback_release <- tempfile("mcp-console-callback-release-")
+                run_callback <- function() {
+                  if (!file.exists(callback_gate)) {
+                    later::later(run_callback, delay = 0.01)
+                    return(invisible(NULL))
+                  }
+                  cat("early idle\n")
+                  stopifnot(file.create(callback_checkpoint))
+                  while (!file.exists(callback_release)) {
+                    Sys.sleep(0.01)
+                  }
+                  cat("late idle\n")
+                }
+                later::later(run_callback, delay = 0.01)
+                cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+                """)
+            client.send(r=r)
+            (callback_release,) = release_worker_callback_gate(
+                client, "blocked idle callback", ("release",)
+            )
+            wait_for_pending_text(endpoint, "early idle\n")
+            # The worker reads the cell only after its callback returns. The
+            # running response takes the early output; cancelling its delivery
+            # returns that response to the evaluation.
+            profile.pause_results(True)
+            pending = client.start_send(r="print(42)", timeout_ms=10)
+            cancel_result(client, pending, result_reached, result_release)
+            profile.pause_results(False)
+            callback_release.touch()
+            wait_for_pending_text(endpoint, "[1] 42\n")
+            with ControlClient(endpoint) as control:
+                preview = result_text(control.request(op="preview"))
+            # The preview follows MCP delivery order: the recovered response,
+            # then output the worker wrote after it.
+            assert preview.startswith("early idle\n"), preview
+            assert preview.endswith("late idle\n[1] 42\n"), preview
+            # MCP delivers the recovered response first, then the cell.
+            client.expect(
+                "early idle\n\n[running; poll with an empty send]", session="default"
+            )
+            client.expect(
+                "late idle\n[output produced while idle]\n[1] 42\n", session="default"
+            )
+            return client.finish()
 
 
 if __name__ == "__main__":

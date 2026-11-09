@@ -168,5 +168,22 @@ def test_starts_notice_on_new_line_after_polled_partial_line(
         return client.finish()
 
 
+@executions(DIRECT, SANDBOXED)
+def test_starts_cell_notice_at_line_start_after_partial_cell_output(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with McpClient(binary, execution.serve()) as client:
+        client.initialize_and_list_tools()
+        client.expect("partial", python='print("partial", end="")')
+        # A new cell starts its own output; the previous cell's open line does
+        # not carry into its first notice.
+        client.expect(
+            '[input requested: "next> "]\n[waiting for stdin]',
+            python='print(input("next> "))',
+        )
+        client.expect("answer\n", stdin="answer\n")
+        return client.finish()
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)

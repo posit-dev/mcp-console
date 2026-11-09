@@ -1,0 +1,30 @@
+---
+!same-as MCP initialization for this execution mode
+---
+send:
+  python: print("partial", end="")
+result:
+  content:
+    - type: text
+      text: partial
+  isError: false
+---
+send:
+  python: print(input("next> "))
+result:
+  content:
+    - type: text
+      text: |-
+        [input requested: "next> "]
+        [waiting for stdin]
+  isError: false
+---
+send:
+  stdin: |
+    answer
+result:
+  content:
+    - type: text
+      text: |
+        answer
+  isError: false

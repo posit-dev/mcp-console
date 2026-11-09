@@ -7,6 +7,7 @@ mod terminal;
 mod preview;
 mod tape;
 use preview::{Part, Preview};
+pub(super) use tape::CellEntryGap;
 use tape::OutputTapeState;
 
 pub(super) const WORKER_STARTING_NOTICE: &str = "starting new worker";
@@ -342,6 +343,15 @@ impl Response {
         self.with_builder(|builder| builder.append_logical_region(other));
     }
 
+    /// Appends later output from the same session stream.
+    ///
+    /// Recovered replies and earlier prelude regions may end with a notice,
+    /// which occupies its own line; output that ended mid-line continues
+    /// that line.
+    pub(super) fn extend_stream(&mut self, other: Self) {
+        self.with_builder(|builder| builder.append_stream(other));
+    }
+
     /// Appends cell output after this response's owned idle prelude.
     ///
     /// The canonical builder inserts the separator only when both regions are
@@ -476,6 +486,16 @@ impl ResponseBuilder {
             self.response.preview.last_visible(),
             Some(Part::Text(_) | Part::Notice(_))
         ) && !self.response.preview.ends_with_newline()
+            && other.preview.starts_with_text()
+        {
+            self.response.preview.notice("\n".to_owned());
+        }
+        self.append_response(&mut other);
+    }
+
+    fn append_stream(&mut self, mut other: Response) {
+        if matches!(self.response.preview.last_visible(), Some(Part::Notice(_)))
+            && !self.response.preview.ends_with_newline()
             && other.preview.starts_with_text()
         {
             self.response.preview.notice("\n".to_owned());
