@@ -367,11 +367,10 @@ impl OutputTape {
         let mut state = self.change();
         let cut = state.seal(true);
         let prelude = state.drain(cut);
-        if !prelude.is_empty() {
-            // Cell output follows a nonempty prelude only after the complete
-            // `[output produced while idle]` line.
-            state.current.start_line();
-        }
+        // The admitted call starts a new response. Earlier output either went
+        // to an earlier response or precedes the complete
+        // `[output produced while idle]` line, so it leaves no line open.
+        state.current.start_line();
         (prelude, cut.worker_revision)
     }
 
