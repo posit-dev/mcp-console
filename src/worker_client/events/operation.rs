@@ -2,6 +2,7 @@ use std::sync::{Arc, Condvar, Mutex, mpsc};
 
 use super::{PendingPythonCandidate, WorkerEvent};
 use crate::relay_protocol::RelayEvent;
+use crate::worker_client::output::CellEntryGap;
 use crate::worker_client::{
     Evaluation, IdleResponseSnapshot, OutputTape, PreparationOutcome, PythonPreparationCommit,
     RPreparationCommit,
@@ -380,7 +381,20 @@ impl WorkerOperationState {
             kind: OperationKind::Cell(evaluation.clone()),
             result: Some(result),
         });
-        evaluation.capture_prelude_before(capture_idle_prelude, || {
+        // The worker reads the cell only after bootstrap, so output before
+        // its cell entry is idle only if bootstrap had already finished.
+        let entry_gap = match state.bootstrap {
+            Bootstrap::Running => CellEntryGap::Startup,
+            Bootstrap::Disabled | Bootstrap::Finished | Bootstrap::Interrupted
+                if capture_idle_prelude =>
+            {
+                CellEntryGap::Idle
+            }
+            Bootstrap::Disabled | Bootstrap::Finished | Bootstrap::Interrupted => {
+                CellEntryGap::Startup
+            }
+        };
+        evaluation.capture_prelude_before(capture_idle_prelude, entry_gap, || {
             state.operation = operation.take();
         })?;
         evaluation.associate_session();

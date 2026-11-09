@@ -38,6 +38,7 @@ struct EvaluationState {
     /// Idle output captured before this cell was admitted, extended at worker
     /// cell entry with idle output that arrived after admission.
     idle_prelude: Option<Response>,
+    /// Owner of output received between operation attachment and cell entry.
     entry_gap: super::output::CellEntryGap,
     /// A response returned by the server but not claimed by its MCP transport.
     reclaimed: Option<Response>,
@@ -448,6 +449,7 @@ impl Evaluation {
     pub(super) fn capture_prelude_before(
         &self,
         capture_idle_prelude: bool,
+        entry_gap: super::output::CellEntryGap,
         boundary: impl FnOnce(),
     ) -> Result<(), String> {
         let mut state = self
@@ -457,11 +459,7 @@ impl Evaluation {
         let additional = self
             .output
             .adopt_prelude_before(capture_idle_prelude, boundary);
-        state.entry_gap = if capture_idle_prelude {
-            super::output::CellEntryGap::Idle
-        } else {
-            super::output::CellEntryGap::Startup
-        };
+        state.entry_gap = entry_gap;
         if let Some(prelude) = state.idle_prelude.as_mut() {
             prelude.extend(additional);
         } else {
