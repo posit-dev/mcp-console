@@ -96,6 +96,19 @@ def result_text(response: dict[str, Any]) -> str:
     return "".join(block["text"] for block in result["content"])
 
 
+def wait_for_pending_text(endpoint: Path, text: str) -> None:
+    """Wait until the server holds `text` as pending output, without collecting it."""
+    with ControlClient(endpoint) as observer:
+        subscribed = observer.request(op="subscribe")
+        assert subscribed.get("result") == {"subscribed": True}, subscribed
+        while True:
+            # Each frame replaces the previous preview; the latest retains text.
+            event = json.loads(observer.reader.readline(timeout=30))
+            assert event["event"] == "preview", event
+            if text in result_text(event):
+                return
+
+
 def wait_for_queued_integrator(client: McpClient, root: Path, source: str) -> None:
     recordings = root / ".agents/console/sessions"
 
