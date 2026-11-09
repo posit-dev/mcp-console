@@ -530,5 +530,56 @@ def test_routes_input_to_idle_later_callbacks_before_a_cell(
     return client.finish()
 
 
+@requires(R_EVENT_LOOP)
+@executions(DIRECT, SANDBOXED)
+def test_keeps_idle_callback_output_received_after_cell_admission_idle(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with McpClient(binary, execution.serve()) as client:
+        client.initialize_and_list_tools()
+        client.send(requirements={"r": ["later"]})
+
+        # fmt: r
+        r = code(r"""
+            callback_gate <- tempfile("mcp-console-callback-gate-")
+            callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+            callback_release <- tempfile("mcp-console-callback-release-")
+            run_callback <- function() {
+              if (!file.exists(callback_gate)) {
+                later::later(run_callback, delay = 0.01)
+                return(invisible(NULL))
+              }
+              stopifnot(file.create(callback_checkpoint))
+              while (!file.exists(callback_release)) {
+                Sys.sleep(0.01)
+              }
+              cat("idle callback\n")
+            }
+            later::later(run_callback, delay = 0.01)
+            cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+            """)
+        client.send(r=r)
+        (callback_release,) = release_worker_callback_gate(
+            client,
+            "blocked idle callback",
+            ("release",),
+        )
+        # The worker is still running its idle callback. Console admits the
+        # cell, but the worker reads it only after the callback returns.
+        client.expect(
+            "\n[running; poll with an empty send]", r="print(42)", timeout_ms=10
+        )
+        callback_release.touch()
+        # The worker wrote the callback output before it started the cell,
+        # although Console received it after admission.
+        wait_for_evaluation_output(
+            client,
+            "idle callback\n[output produced while idle]\n[1] 42\n",
+            "idle callback output before the admitted cell",
+            timeout_ms=1000,
+        )
+        return client.finish()
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)

@@ -35,8 +35,10 @@ struct EvaluationState {
     completion_cut: Option<OutputCut>,
     /// Prior operation and lifecycle output transferred into this cell's response.
     control_prelude: Option<Response>,
-    /// Idle output captured immediately before this cell was admitted.
+    /// Idle output captured before this cell was admitted, extended at worker
+    /// cell entry with idle output that arrived after admission.
     idle_prelude: Option<Response>,
+    entry_gap: super::output::CellEntryGap,
     /// A response returned by the server but not claimed by its MCP transport.
     reclaimed: Option<Response>,
     /// Delivery of the most recently assembled response, until one owner settles it.
@@ -165,6 +167,7 @@ impl Evaluation {
                 completion_cut: None,
                 control_prelude: Some(control_prelude),
                 idle_prelude: Some(idle_prelude),
+                entry_gap: super::output::CellEntryGap::Startup,
                 reclaimed: None,
                 delivery: None,
                 delivery_changed: Arc::clone(&delivery_changed),
@@ -454,6 +457,11 @@ impl Evaluation {
         let additional = self
             .output
             .adopt_prelude_before(capture_idle_prelude, boundary);
+        state.entry_gap = if capture_idle_prelude {
+            super::output::CellEntryGap::Idle
+        } else {
+            super::output::CellEntryGap::Startup
+        };
         if let Some(prelude) = state.idle_prelude.as_mut() {
             prelude.extend(additional);
         } else {
@@ -471,11 +479,17 @@ impl Evaluation {
         if state.cell_entered {
             return Err("worker sent a duplicate cell start".into());
         }
-        self.output.begin_cell_output(
+        let idle = self.output.begin_cell_output(
+            state.entry_gap,
             &self.transcript,
             self.call_id,
             self.omit_from_projections,
         )?;
+        // An earlier response may already have consumed the admission prelude.
+        match state.idle_prelude.as_mut() {
+            Some(prelude) => prelude.extend(idle),
+            None => state.idle_prelude = Some(idle),
+        }
         state.cell_entered = true;
         Ok(())
     }

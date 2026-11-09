@@ -7,6 +7,7 @@ mod terminal;
 mod preview;
 mod tape;
 use preview::{Part, Preview};
+pub(super) use tape::CellEntryGap;
 use tape::OutputTapeState;
 
 pub(super) const WORKER_STARTING_NOTICE: &str = "starting new worker";

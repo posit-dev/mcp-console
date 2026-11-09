@@ -90,8 +90,9 @@ Errors do not undo earlier side effects.
 
 Notices may be accompanied by output, elapsed time, preparation phases, or diagnostics.
 A notice within output starts on its own line, including when an earlier poll returned a partial line.
-Output that Console received before admitting a cell precedes `[output produced while idle]` and the cell's output.
-Output that arrives after admission joins the cell's output, even if the worker produced it earlier.
+Console output that a ready worker wrote before starting a cell precedes `[output produced while idle]` and the cell's output, even when it arrives after the cell was admitted.
+Output that an earlier response already returned stays where it was returned.
+Native standard-stream writes, for example from C code or subprocesses, travel separately and may land on either side of the marker near the cell boundary.
 Treat the text as user-visible status rather than an independently versioned machine-state protocol.
 The client packages do not turn it into a structured job API.
 

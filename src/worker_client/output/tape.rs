@@ -4,6 +4,19 @@ use super::preview::Source;
 use super::*;
 use std::collections::VecDeque;
 
+/// What output received between operation attachment and worker cell entry is.
+///
+/// Sideband console output and `CellStarted` share one ordered stream, so the
+/// worker's entry is the boundary regardless of arrival time. Native stdout and
+/// stderr are relayed separately and have no order relative to cell entry.
+#[derive(Clone, Copy)]
+pub(in crate::worker_client) enum CellEntryGap {
+    /// The worker was ready when the cell attached; it was idle until entry.
+    Idle,
+    /// The cell attached while the worker was starting.
+    Startup,
+}
+
 #[derive(Default)]
 pub(super) struct OutputTapeState {
     history: super::events::History,
@@ -385,20 +398,38 @@ impl OutputTape {
         response
     }
 
+    /// Begins raw cell capture at the worker's ordered cell entry.
+    ///
+    /// With `CellEntryGap::Idle`, returns the output received since the
+    /// operation attached. The worker wrote it before entering the cell, so it
+    /// belongs to the idle prelude however late it arrived.
     pub(in crate::worker_client) fn begin_cell_output(
         &self,
+        gap: CellEntryGap,
         transcript: &crate::transcript::Transcript,
         call_id: Option<u64>,
         omit_from_projections: bool,
-    ) -> Result<(), String> {
+    ) -> Result<Response, String> {
         let mut state = self.change();
         if state.cell_active {
             return Err("worker sent a duplicate cell start".into());
         }
-        // Idle response ownership was captured when the operation attached.
-        // Cell entry only changes raw capture ownership; startup/preparation
-        // output arriving in that gap stays in the call's ordinary response.
-        state.seal(true);
+        let cut = state.seal(true);
+        let idle = match gap {
+            CellEntryGap::Idle => {
+                // Recovered MCP replies keep their own owner and position.
+                let mut idle = Response::default();
+                state.drain_intervals_into(cut, &mut idle);
+                if !idle.is_empty() {
+                    // Cell output follows the complete idle marker line.
+                    state.current.start_line();
+                }
+                idle
+            }
+            // Startup output for a cell admitted before the worker was ready
+            // stays in the call's ordinary response.
+            CellEntryGap::Startup => Response::default(),
+        };
         state.finish_idle_interval();
         state.cell_active = true;
         state.history.entered();
@@ -407,7 +438,7 @@ impl OutputTape {
             Err(error) => state.recording_notice(Some(format!("cell output file was not created: {error}; text omitted from inline responses will be permanently discarded"))),
         }
         state.owner = transcript.owner();
-        Ok(())
+        Ok(idle)
     }
 
     pub(in crate::worker_client) fn finish_cell_output(
