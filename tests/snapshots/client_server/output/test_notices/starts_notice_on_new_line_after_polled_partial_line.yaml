@@ -9,6 +9,7 @@ send:
     with open(os.environ["CONSOLE_TEST_RELEASE"], "rb", buffering=0) as gate:
         assert gate.read(1) == b"1"
     print(input())
+  timeout_ms: 100
 result:
   content:
     - type: text
