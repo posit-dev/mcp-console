@@ -384,14 +384,14 @@ impl WorkerOperationState {
         // The worker reads the cell only after bootstrap, so output before
         // its cell entry is idle only if bootstrap had already finished.
         let entry_gap = match state.bootstrap {
-            Bootstrap::Running => CellEntryGap::Startup,
+            Bootstrap::Running => CellEntryGap::Unmarked,
             Bootstrap::Disabled | Bootstrap::Finished | Bootstrap::Interrupted
                 if capture_idle_prelude =>
             {
                 CellEntryGap::Idle
             }
             Bootstrap::Disabled | Bootstrap::Finished | Bootstrap::Interrupted => {
-                CellEntryGap::Startup
+                CellEntryGap::Unmarked
             }
         };
         evaluation.capture_prelude_before(capture_idle_prelude, entry_gap, || {
