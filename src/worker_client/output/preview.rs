@@ -321,6 +321,15 @@ impl Preview {
         }
     }
 
+    /// Whether the last visible part is text that ends mid-line. A notice
+    /// occupies its own line, so it never leaves a line open for later output.
+    pub(super) fn ends_with_partial_text_line(&self) -> bool {
+        matches!(
+            self.last_visible(),
+            Some(Part::Text(text) | Part::Information(text)) if !text.ends_with('\n')
+        )
+    }
+
     pub(super) fn last_visible(&self) -> Option<&Part> {
         self.parts
             .iter()

@@ -9,7 +9,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from boundaries.client_server.integrations.test_control import ControlClient
+from boundaries.client_server.integrations.test_control import (
+    ControlClient,
+    wait_for_pending_text,
+)
 from boundaries.client_server.python.test_without_r import (
     environment as sans_r_environment,
 )
@@ -180,6 +183,10 @@ def test_preparation_rejects_incomplete_interpreter_startup(
                         )["result"]
                         assert busy["status"] == "busy", busy
                         assert {key: busy[key] for key in baseline} == baseline, busy
+                        # The checkpoint proves R wrote the startup output, not
+                        # that the server received it. Only received output
+                        # becomes the cell's idle prelude.
+                        wait_for_pending_text(endpoint, "native startup output\n")
                         release.release()
                         client.expect(
                             "native startup output\n[output produced while idle]\nready\n",
