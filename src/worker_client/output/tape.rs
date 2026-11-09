@@ -289,11 +289,7 @@ impl OutputTape {
         let message = message.into();
         state.history.text("notice", &message);
         // Informational resolver messages share the ordinary text allowance.
-        let prefix = if state.current.needs_line_break() && !state.current.response.is_empty() {
-            "\n"
-        } else {
-            ""
-        };
+        let prefix = if state.current.line_open() { "\n" } else { "" };
         state
             .current
             .response
@@ -357,7 +353,13 @@ impl OutputTape {
     pub(in crate::worker_client) fn take_admission_prelude(&self) -> (Response, u64) {
         let mut state = self.change();
         let cut = state.seal(true);
-        (state.drain(cut), cut.worker_revision)
+        let prelude = state.drain(cut);
+        if !prelude.is_empty() {
+            // Cell output follows a nonempty prelude only after the complete
+            // `[output produced while idle]` line.
+            state.current.start_line();
+        }
+        (prelude, cut.worker_revision)
     }
 
     pub(in crate::worker_client) fn take_prelude_before(
@@ -657,7 +659,8 @@ impl OutputTapeState {
             .response
             .preview
             .source(Source { owner, ..source });
-        let response = std::mem::take(&mut self.current).finish();
+        let next = self.current.continuation();
+        let response = std::mem::replace(&mut self.current, next).finish();
         let cut = self.next_cut;
         self.next_cut += 1;
         // Visible text, notices, and images retain their observed interval.

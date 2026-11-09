@@ -3,14 +3,17 @@
 import os
 import sys
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from support.previews import cell_output_path
 from support.assertions import last_tool_text
+from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
+from support.normalization import code
 from support.previews import OMISSION, TEXT_BUDGET, assert_preview
 from support.records import Transcript
 from support.requirements import POSIX, requires
@@ -128,6 +131,39 @@ def test_does_not_offer_logs_after_recording_failures(
             "poll_consumed_notice": True,
         }
     ]
+
+
+@requires(POSIX)
+@executions(DIRECT, SANDBOXED)
+def test_starts_notice_on_new_line_after_polled_partial_line(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with (
+        tempfile.TemporaryDirectory() as temporary,
+        closing(FifoCheckpoint.create(Path(temporary) / "release")) as release,
+        McpClient(
+            binary,
+            execution.serve(),
+            {**os.environ, "CONSOLE_TEST_RELEASE": str(release.path)},
+        ) as client,
+    ):
+        client.initialize_and_list_tools()
+        # fmt: python
+        python = code("""
+            import os
+
+            print("prefix", end="")
+            with open(os.environ["CONSOLE_TEST_RELEASE"], "rb", buffering=0) as gate:
+                assert gate.read(1) == b"1"
+            print(input())
+            """)
+        # The poll that returns the partial line ends its response interval.
+        # The later notice must still start on its own line.
+        client.expect("prefix\n[running; poll with an empty send]", python=python)
+        release.release()
+        client.expect('\n[input requested: ""]\n[waiting for stdin]')
+        client.expect("answer\n", stdin="answer\n")
+        return client.finish()
 
 
 if __name__ == "__main__":
