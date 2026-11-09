@@ -87,9 +87,9 @@ pub(crate) enum Content {
 #[derive(Default)]
 pub(super) struct ResponseBuilder {
     response: Response,
-    /// Whether earlier output of the same stream, already sealed into another
-    /// interval, ended without a newline. Notices start on their own line
-    /// regardless of where polls cut the stream.
+    /// Whether earlier text of the same stream, already sealed into another
+    /// interval, ended mid-line. Notices start on their own line regardless of
+    /// where polls cut the stream.
     continues_open_line: bool,
 }
 
@@ -574,9 +574,14 @@ impl ResponseBuilder {
 
     /// Starts the next interval of the same stream.
     pub(super) fn continuation(&self) -> Self {
+        let continues_open_line = if self.response.is_empty() {
+            self.continues_open_line
+        } else {
+            self.response.preview.ends_with_partial_text_line()
+        };
         Self {
             response: Response::default(),
-            continues_open_line: self.line_open(),
+            continues_open_line,
         }
     }
 
