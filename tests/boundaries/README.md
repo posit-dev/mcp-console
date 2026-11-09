@@ -1,36 +1,30 @@
 # Boundary tests
 
 Tests capture behavior at process interfaces.
-Use the outermost boundary that can observe a regression; private-boundary tests should cover their seam rather than repeat public result text.
+Use the outermost boundary that observes a regression; private tests cover their seam without repeating public result text.
+Security and liveness cases may need causal/process assertions in addition to snapshots.
+Keep combined cases when their interaction is the failure mode being tested.
 
 | Boundary        | Contract                                                            |
 | --------------- | ------------------------------------------------------------------- |
 | `client_server` | MCP negotiation, tool schema, results, errors, and delivery.        |
 | `server_relay`  | Private JSONL framing, ordering, and generation ownership.          |
-| `relay_worker`  | Worker sideband, standard streams, EOF, crash, and shutdown.        |
+| `relay_worker`  | Worker sideband, native streams, EOF, crash, and shutdown.          |
 | `cli`           | Arguments, exit status, signals, terminals, and sandbox guarantees. |
-
-Security and liveness cases may need causal or process assertions in addition to a snapshot.
-Do not assert incidental internal sequencing.
-Keep a combined case when the interaction itself is a plausible failure mode.
 
 ## Find a contract's test area
 
-Start with a behavior below and search its test areas.
-Use `scripts/test --full --list` to discover exact suites and cases, then `scripts/test --locate SELECTOR` to reach source and snapshots; see [Running cases](#running-cases).
-See [Fixtures](#fixtures) for fixture and harness guidance, and the [architecture source map](../../docs/ARCHITECTURE.md#where-to-look-in-source) for production ownership.
-These areas provide representative transcript coverage; [case capabilities](#requirements-and-execution-modes) determine applicability.
-For native Windows acceptance, use the [Windows validation guide](../../docs/WINDOWS.md#validation).
+Use `scripts/test --full --list` for exact cases and `scripts/test --locate SELECTOR` for source and snapshots.
+[Architecture](../../docs/ARCHITECTURE.md#where-to-look-in-source) maps production ownership; [Windows validation](../../docs/WINDOWS_DEVELOPMENT.md#validation) covers native acceptance.
 
-| Behavior                  | Test areas                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Admission/delivery        | [MCP server](client_server/server/), [MCP output](client_server/output/)                                 |
-| Worker lifecycle          | [MCP lifecycle](client_server/lifecycle/), [relay/worker lifecycle](relay_worker/lifecycle/)             |
-| Sideband/framing          | [CLI relay](cli/relay/), [server/relay failures](server_relay/failures/)                                 |
-| Output retention/previews | [MCP output](client_server/output/)                                                                      |
-| Preparation               | [MCP requirements](client_server/requirements/), [server/relay requirements](server_relay/requirements/) |
-| Recording                 | [MCP recording](client_server/recording/)                                                                |
-| Sandbox guarantees        | [CLI sandbox](cli/sandbox/), [MCP sandbox](client_server/sandbox/)                                       |
+| Behavior           | Test areas                                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| Admission/delivery | [Server](client_server/server/), [output](client_server/output/)                                         |
+| Worker lifecycle   | [MCP lifecycle](client_server/lifecycle/), [relay/worker](relay_worker/lifecycle/)                       |
+| Framing            | [CLI relay](cli/relay/), [server/relay failures](server_relay/failures/)                                 |
+| Preparation        | [MCP requirements](client_server/requirements/), [server/relay requirements](server_relay/requirements/) |
+| Recording          | [MCP recording](client_server/recording/)                                                                |
+| Sandbox            | [CLI sandbox](cli/sandbox/), [MCP sandbox](client_server/sandbox/)                                       |
 
 ## Running cases
 
@@ -42,31 +36,27 @@ scripts/test client_server/server/test_tools::initializes_and_lists_tools
 scripts/test --update client_server/server/test_tools::initializes_and_lists_tools
 ```
 
-A selector names `BOUNDARY/SUITE` or `BOUNDARY/SUITE::CASE`.
-Default runs use the explicit smoke profile; `--full` includes every functional capability-applicable case.
-`--stress` runs allocation and repeated concurrency cases with their original workloads and ceilings.
-Short recovery cases in `--full` check delivery, recording, and image aggregation without claiming bounded allocation growth.
-Selectors retain their scope under every profile.
-See the [validation ladder](../../docs/DEVELOPMENT.md#validation-ladder) for the full workflow, installed-binary override, and build ownership.
+Selectors name `BOUNDARY/SUITE` or `BOUNDARY/SUITE::CASE` and retain scope under every profile.
+Default runs use the smoke profile.
+`--full` includes every functional capability-applicable case; `--stress` runs allocation and repeated concurrency workloads with their original ceilings.
+Short recovery cases do not substitute for allocation stress.
+[Development](../../docs/DEVELOPMENT.md#validation-ladder) covers gates, installed binaries, concurrency defaults, and build ownership.
 
 Cases run in separate processes.
-`--jobs N` controls concurrency; `--timeout
-SECONDS` changes the default 600-second case deadline, including snapshot work.
-On cancellation or timeout, the supervisor requests cleanup and allows 15 seconds before forcibly killing the case.
-Fixtures must retire their own subprocesses.
-Unix case supervision cannot guarantee descendant cleanup; Windows cases additionally use kill-on-close Jobs and confirm empty Jobs before deleting workspaces.
-Runner progress and rerun messages are UI output, not captured protocol records.
+`--jobs N` controls concurrency and `--timeout SECONDS` changes the default 600-second case deadline, including snapshot work.
+Cancellation requests cleanup, then allows 15 seconds before forced case termination.
+Fixtures own their subprocess cleanup.
+Unix supervision does not guarantee descendant retirement; Windows additionally uses kill-on-close Jobs and confirms they are empty before deleting workspaces.
 
-Locally and in CI, case failures are collected while the remaining cases continue.
-After more than 15% of the selected, capability-applicable cases fail, the runner stops starting new cases and lets active cases finish under their existing deadlines.
-The final failure report lists the failed selectors, their diagnostics, and how many cases were not started; any failure makes the command fail.
-Execution modes count as one case, and the initialization case is included in the total.
-User cancellation still interrupts active cases and waits for their cleanup.
+Failures are collected while remaining cases continue, until the runner's failure threshold stops new launches.
+Active cases retain their deadlines.
+The final report lists failed selectors and unstarted cases; any failure fails the command.
+Progress and rerun messages are UI output, not transcript records.
 
 ## Requirements and execution modes
 
-Declare capabilities beside cases with `@requires(...)` from `support.requirements`; platform detection belongs in test support.
-Use explicit execution fixtures:
+Declare capabilities with `@requires(...)` from `support.requirements`; platform detection belongs in shared support.
+Execution fixtures select launch behavior:
 
 ```python
 @executions(DIRECT, SANDBOXED)
@@ -79,107 +69,87 @@ def test_persistent_state(binary: Path, execution: Execution) -> Transcript:
 ```
 
 `DIRECT.serve()` supplies `--no-sandbox`; `SANDBOXED.serve()` uses the default sandbox.
-Use one mode for ordinary language and representation assertions.
-`RUNTIME` selects the sandbox on macOS/Linux and direct execution for shared Windows cases; native Windows acceptance covers its sandbox policy.
-Keep both modes for permissions, inherited environment, cache placement, executable selection, process cleanup, and other mode-dependent contracts.
-Keep representative direct conformance for each runtime, plots, input, restart, and recording.
-Real-library sandbox workloads, including sklearn/joblib, retain their distinct APIs and initial/live activation scenarios.
+`RUNTIME` selects sandboxed macOS/Linux and direct shared Windows execution; native Windows acceptance owns its sandbox coverage.
+Use one mode for ordinary language/representation behavior, both for contracts that depend on mode, and sandbox fixtures for sandbox-only arguments.
 There is no runner `--execution` flag.
-Keep sandbox-only arguments in sandbox fixtures and policy contracts in the owning boundary's `sandbox/` directory.
-Ordinary runtime cases stay with their subject even when sandboxed.
 
-Available modes run sequentially within one case deadline and compare against one snapshot.
-During updates, the first mode writes and later modes must match, not overwrite differences.
-Use `@execution_snapshots` from `support.snapshots` when the case owns differing execution behavior or captured launch policy: direct keeps `CASE.yaml`, sandbox uses `CASE.sandbox.yaml`, and both modes update and verify their own records.
-Fixture write grants alone do not require execution-specific snapshots.
-Unavailable modes report a skip, not validation.
-Test-host requirements such as Linux process-observation facilities do not imply the same runtime requirements.
-Windows full checks run shared direct cases in addition to native acceptance.
-Declare `SQL` for SQL runtime cases and `POSIX` for Unix-only shell/FIFO fixtures explicitly; fixture exclusions are remaining parity debt, not evidence that the supported runtime behavior is unavailable.
-Also declare `R` when a SQL case uses R fixtures or cells, or asserts R-provider output; Python-backed SQL and custom-worker cases remain available without R.
-The shared sandbox mode uses Seatbelt/bubblewrap fixtures; Windows native sandbox acceptance owns Windows policy coverage.
+Preserve representative direct runtime, plot, input, restart, and recording cases, and real-library sandbox cases with distinct permissions or activation paths.
+Policy cases belong in their boundary's `sandbox/` directory; ordinary runtime cases stay with their subject.
+Declare `SQL` for SQL behavior and `R` when the fixture or expected provider requires it.
+Declare `POSIX` for Unix shell/FIFO fixtures; those exclusions do not imply that runtime behavior is unsupported.
 
-Each case uses a temporary workspace and private `MCP_CONSOLE_HOME`, preserving `HOME` and the caller's R/Python/uv environment.
-Home-discovery cases supply their environment explicitly with `use_home_configuration=True`; remove inherited `MCP_CONSOLE_HOME` when testing the default home location.
-Remove fixture-owned directories only after processes exit.
+Modes run sequentially within one case deadline and normally share a snapshot.
+During updates, later modes must match the first rather than overwrite it.
+`@execution_snapshots` is for behavior or captured policies that differ: direct owns `CASE.yaml`, sandbox owns `CASE.sandbox.yaml`.
+Fixture write grants alone do not justify variants.
+Unavailable modes are skips, not validation.
+Test-host observation facilities are not necessarily production requirements.
+
+Every case gets a temporary workspace and private `MCP_CONSOLE_HOME`, preserving `HOME` and the caller's R/Python/uv environment.
+Home-discovery cases explicitly use `use_home_configuration=True` and remove inherited `MCP_CONSOLE_HOME` when testing the default location.
+Remove fixture directories only after their processes exit.
 
 ## Snapshots
 
-A `test_` function returns a `Transcript`.
-Its YAML 1.2 snapshot lives at `tests/snapshots/BOUNDARY/SUITE/CASE.yaml`.
-`TranscriptWithCompanions` adds named siblings: YAML companions compare as values; Markdown and Quarto compare as exact UTF-8 text.
-Wrap additional MCP transcripts in `McpTranscript` from `support.records` to normalize request IDs and apply the primary's exact canonical-handshake comparison.
+A `test_` function returns a `Transcript` stored as YAML 1.2 at `tests/snapshots/BOUNDARY/SUITE/CASE.yaml`.
+`TranscriptWithCompanions` adds named siblings: YAML compares as values; Markdown/Quarto compare as exact UTF-8 text.
+Wrap extra MCP transcripts in `McpTranscript` from `support.records` for request-ID normalization and canonical-handshake comparison.
 Ordinary YAML companions retain protocol IDs.
-Suite paths with an underscore-prefixed component are not discovered.
+Underscore-prefixed suite paths are not discovered.
 
 Never edit snapshots by hand.
-Regenerate intentional changes with `scripts/test --update SELECTOR`, review them, and rerun without `--update`.
-CLI help snapshots use an 80-column width with all standard streams detached from the caller's terminal.
-Only a full unscoped run audits orphan snapshots; a successful full update can remove them.
-Focused updates preserve unselected snapshots, and skipped cases retain their snapshots even during full updates.
-Prefer one shared snapshot across platforms.
-First make fixture output deterministic (for example, write explicit LF bytes), use declared capability requirements for separate SQL or native-policy cases, and normalize incidental paths or executable suffixes after checking the actual output.
-Do not duplicate an otherwise portable case because its handshake, unrelated dependency defaults, or text presentation differs.
-Keep assertions on the behavior the case owns; do not weaken them to make snapshots match.
+Regenerate intentional changes, inspect the diff, and rerun without `--update`.
+Only full unscoped runs audit orphans; only successful full updates remove them.
+Focused updates preserve unselected/skipped cases.
+Successful updates retire obsolete variants only for updated cases and preserve unrun declared modes/platforms and shared references still in use.
 
-Use `@platform_snapshots("win32", reason="...")` from `support.snapshots` only when the case tests the exact differing platform contract, such as Windows tool presentation, native interpreter identity, or an OS filesystem diagnostic.
-The required reason identifies that contract.
-Preserve complete errors, tracebacks, status codes, and signal distinctions; normalization must not erase a failure.
-Canonical handshakes still compare in full against the applicable platform reference before compaction, so ordinary execution-mode transcripts can share a snapshot.
+Prefer shared platform snapshots.
+Make fixtures deterministic, then normalize incidental paths or suffixes after assertions.
+Use `@platform_snapshots("win32",
+reason="...")` only when the case owns the differing platform contract.
+Windows variants place `.win32` before the execution suffix.
+Handshake defaults, unrelated package differences, and presentation alone do not justify duplicating portable cases.
 
-Windows companions use `.win32` before the execution suffix.
-Successful updates, including focused updates, prune obsolete snapshots and companions only for updated cases.
-Removing a platform declaration retires its variants even when updating on another host; this does not require that platform's runner.
-Updates preserve unselected/skipped cases, unrun declared execution modes (including canonical handshakes), other declared platforms, and shared references owned by cases that still declare a platform variant.
+Preserve complete errors, tracebacks, status codes, signals, and meaningful output ordering.
+Do not weaken assertions to match snapshots.
+Use mappings for structured data but retain serialized JSON when escaping is the contract.
+Version/initialization/ recording cases assert actual versions before normalization.
+CLI help uses an 80-column width with streams detached from the caller's terminal.
 
-Preserve complete errors, tracebacks, output, and meaningful ordering.
-Normalize only incidental values such as temporary paths.
-Console versions are asserted by the version, initialization, and recording cases before snapshot normalization, so commit and release changes do not rewrite transcripts.
-Use mappings for data, but retain serialized JSON when quoting or escaping is the contract; code and literal output remain strings.
-The case chooses the representation, not the serializer.
+Narrow compaction requires full evidence first:
 
-Narrow exceptions require stronger evidence, not weaker assertions:
+| Case                                     | Required evidence                                                                                                                                                         |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Requirements supporting a lifecycle case | Compare complete text with `structuredContent`, assert the owned declaration, and retain those fields. Keep full inventories in requirements cases; never project errors. |
+| Native-runtime fidelity                  | Compare complete output/conditions with the live reference before recording the verified comparison. Remove only irrelevant frontend differences.                         |
+| MCP overflow previews                    | Retain literal previews and assert UTF-8 budgets, exact head/tail, and omission accounting. Assert raw bytes separately.                                                  |
+| Repeated synthetic payloads              | Use lossless `support.evidence.compact_text()` only after complete assertions; keep diagnostics, boundaries, omissions, images, and final states.                         |
 
-- When requirements inspection supports a Python lifecycle case, check the complete text against `structuredContent`, assert the owned Python declaration, and record those fields as evidence.
-  Keep complete inventories in requirements/defaults cases, and never project an error this way.
-- Native-runtime fidelity cases may compare complete output and conditions with a live reference, then record the verified comparison.
-  Remove only explicitly irrelevant frontend differences, such as Rscript's `Execution halted` footer.
-- Bounded MCP overflow previews remain literal strings in the output-limit and preview cases.
-  Assert the actual response's UTF-8 byte budget and exact emitted head/tail and omission accounting before normalizing fixture-owned paths.
-  Keep full raw-stream byte assertions separate, including Unicode and newline bytes; a response preview is not a raw recording.
-- Other synthetic payloads and repetition cases may use `support.evidence.compact_text()` after full assertions.
-  Its literal text and repeat/count entries are lossless; retain diagnostics, boundaries, omissions, paths, images, and final states.
-
-`transcript_normalization` is harness metadata, never a wire field.
-MCP request IDs and the invariant JSON-RPC version are abbreviated only after validation.
-Cancellation targets retain matching labels on the request and notification; IDs without a recorded request remain literal.
+`transcript_normalization` is harness metadata, not a wire field.
+Request IDs and invariant JSON-RPC versions abbreviate only after validation.
+Cancellation targets retain matching request/notification labels; unmatched IDs remain literal.
 
 ### Canonical handshake
 
-Generally keep one `mcp-console` invocation per YAML transcript.
-Include initialization once near the top, normally via a matching canonical `!same-as` reference; use separate transcript files for additional invocations.
-Client/server transcripts should generally retain the complete `initialize`, `notifications/initialized`, and `tools/list` exchange before ordinary calls.
-A worker restart within the same Console invocation stays in that transcript.
-Launch-rejection or protocol-failure cases may have no handshake or an incomplete exchange; record what occurred.
+Keep one Console invocation per transcript, normally with initialization and tool discovery near the top.
+Restarts in that invocation stay in the same transcript.
+Launch/protocol failure cases retain whatever complete or partial exchange occurred.
 
-`client_server/server/test_tools::initializes_and_lists_tools` owns full handshake snapshots and their configured/direct/bare/runtime variants.
-Update it before other affected cases.
-The runner compares the complete exchange before replacing an exact match with `!same-as`; the tag records that comparison and does not load a file.
-Different or incomplete handshakes remain in full.
-The canonical case owns mode-specific companions; cases that test different captured policies declare separate execution snapshots.
-After response assertions, `McpClient.finish()` normalizes CLI fixture write roots in tool descriptions to `<writable-root>`; it preserves the grant and leaves other output untouched.
-The canonical writable-root companions retain that policy shape for exact handshake comparison.
-After that comparison, shared execution transcripts use the corresponding base variant's label for fixture write grants; execution-specific transcripts retain the writable-root variant label.
+`client_server/server/test_tools::initializes_and_lists_tools` owns full handshakes and configured/direct/bare/runtime variants.
+Update it before affected cases.
+The runner compares complete exchanges before replacing exact matches with `!same-as`; the tag records that comparison rather than loading another file.
+Different or incomplete exchanges stay in full.
+Fixture write-root normalization belongs in the [shared client](../support/client.py), after behavior assertions.
 
 ## Fixtures
 
-Use `McpClient` as a context manager, then `initialize_and_list_tools()`, `send()`, and `finish()`.
-For overlapping calls, use `start_send()` and `receive()` / `receive_many()`; responses are matched by request ID.
+Use `McpClient` as a context manager with `initialize_and_list_tools()`, `send()`, and `finish()`.
+Overlapping calls use `start_send()` and `receive()` / `receive_many()`, matching response IDs.
 Use `finish_with_standard_error()` when diagnostics are part of the contract.
 
-Shared capability, execution, client, snapshot, checkpoint, and process helpers live in `tests/support/`.
-Each boundary's `_harness.py` owns its concrete launch and capture mechanics.
-Keep large fixture programs in searchable files under `tests/fixtures/`; see [authoring](AUTHORING.md) for examples and causal gates.
+Shared helpers live in `tests/support/`; each boundary's `_harness.py` owns launch and capture mechanics.
+Keep large fixture programs in searchable files under `tests/fixtures/`.
+[Authoring](AUTHORING.md) covers readable sessions and causal gates.
 
-For namespace PIDs, use `support.processes.host_process_id` before host observation or signaling.
-**Never send a namespace process-group ID of 1 to host group signaling: `kill(-1, ...)` is a broadcast.** Fixture cleanup must identify only its own resources.
+Use `support.processes.host_process_id` before host observation or signaling of namespace PIDs.
+**Never send namespace process-group ID 1 to host group signaling: `kill(-1, ...)` is a broadcast.** Cleanup must identify only fixture-owned resources.

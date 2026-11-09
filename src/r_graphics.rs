@@ -1,3 +1,12 @@
+//! Publish physical PNG page boundaries through the device's native callbacks.
+//! `replayPlot()` can start pages without the `plot.new`/`grid.newpage` hooks;
+//! observing only those hooks or cell completion would lose intermediate images
+//! and their order relative to console text. The C trampoline runs the backend
+//! callback without a live Rust frame because R can longjmp, then notifies us
+//! after normal return and page finalization.
+//!
+//! Registrations, not device numbers or filename templates, identify ownership.
+//! Native close retires a registration before a user device can reuse either.
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;

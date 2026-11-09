@@ -84,6 +84,10 @@ pub(crate) fn ensure_initialized() -> Result<(), String> {
 }
 
 fn initialize(installation: &RInstallation) -> Result<(), String> {
+    // Native R startup can mutate the process environment after Python has
+    // started native threads. Owning-thread affinity and the GIL do not serialize
+    // foreign getenv/setenv calls; see RT-1 in docs/TODO.md for this remaining
+    // embedding constraint. Moving R to another thread would not remove it.
     crate::python::configure_r_environment().map_err(|error| error.to_string())?;
     embedded_r::initialize_r(installation, R_SETTINGS.get().unwrap().vanilla)
         .map_err(|error| error.to_string())?;

@@ -11,147 +11,116 @@ Run `mcp-console --help` for the version installed on your machine.
 
 ```sh
 uvx mcp-console configure-client codex claude
-mcp-console configure-client codex
 mcp-console configure-client claude --directory . --dry-run
-mcp-console configure-client claude --directory /path/to/project
-mcp-console configure-client claude --no-auto-load
-mcp-console configure-client claude --no-warmup
 mcp-console configure-client codex --pin-version current
-mcp-console configure-client codex --pin-version v0.0.5
-mcp-console configure-client claude --no-uvx
-mcp-console configure-client codex --directory . --name console-local -- --writable-root /data
+mcp-console configure-client codex --name console-local -- --writable-root /data
 ```
 
 `configure-client` registers a stdio MCP server named `console` that launches `uvx mcp-console serve`.
-Pass one or more client names; all options apply to every selected client, and repeated client names are configured once.
-Use separate invocations for different settings per client.
-`--name NAME` changes the server name; arguments after `--` are appended after `serve`.
-Each call replaces that entry's managed launch arguments, so include every server option you want to retain and restart the client afterward.
-Codex server names must match `^[a-zA-Z0-9_:@/.-]+$`; other names are rejected before installation or configuration changes.
-Its built-in `codex_apps` name is also reserved and rejected before changes.
-When Claude Code is selected, its reserved names (`workspace`, `claude-in-chrome`, `computer-use`, `Claude Preview`, and `Claude Browser`) are rejected before configuration changes.
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) so `uvx` is on the client's `PATH`.
-The client itself does not need to be installed when writing its configuration.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) so `uvx` is on the client's `PATH`; the clients need not be installed to write their settings.
+One invocation applies the same options to every selected client and ignores repeated client names.
+Use separate invocations for different client settings.
 
-After registration, setup starts one background `warmup` and prints its PID and log path.
-It returns without waiting for runtime checks or package preparation.
-If the selected release does not expose `send`, setup checks discovery and shutdown, and reports runtime warmup as skipped.
-Use `--no-warmup` to skip this step; `--dry-run` previews it without starting a job.
-Logs remain in `logs/warmup-*.log` under [Console home](ENVIRONMENT.md#server-paths-and-executable-discovery), normally `~/.agents/console` or the directory selected by `MCP_CONSOLE_HOME`.
+| Option                  | Effect                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `--name NAME`           | Select the server entry to create or update.                                               |
+| `--directory PATH`      | Register in an existing project directory; omission selects global scope, even inside Git. |
+| `--pin-version VERSION` | Use an exact PEP 440 version, `current`, or `latest` in the uvx launch.                    |
+| `--no-uvx`              | Save an absolute executable path; conflicts with `--pin-version`.                          |
+| `--no-auto-load`        | Let the client defer tool discovery. Tool approvals are still configured.                  |
+| `--no-warmup`           | Skip background installation checks.                                                       |
+| `--dry-run`             | Preview settings, any persistent installation, and warmup without making changes.          |
+| `-- SERVER_OPTIONS`     | Append launch arguments after `serve`.                                                     |
 
-The configuring executable runs the warmup checks against the first selected client's `serve` command, preserving its version and launch arguments.
-Pinned releases can predate the `warmup` subcommand.
-It runs in `--directory PATH` when supplied, otherwise the current directory, and uses the [standalone warmup permissions](#check-your-installation).
-Later client sessions may start in other directories or inherit different permissions.
-Warmup errors appear in the log and do not undo registration; a failure to launch prints a warning.
+Updating an entry replaces its managed launch arguments; include every server option you want to retain.
+Codex names must match `^[a-zA-Z0-9_:@/.-]+$` and cannot be `codex_apps`.
+Claude Code reserves `workspace`, `claude-in-chrome`, `computer-use`, `Claude Preview`, and `Claude Browser`.
+Invalid names fail before installation or configuration changes.
 
-Codex launches include `--default-config sandbox.profile=inherit_codex` to [inherit the client's sandbox permissions](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex) when configuration files do not select a profile.
-This applies to uvx and `--no-uvx` launches.
-Global and project configuration take precedence over this client default.
-Arguments after `--` customize the launch; use `-c` to override configuration files too, for example:
+### Launch selection
+
+Codex registration supplies `--default-config sandbox.profile=inherit_codex` for both uvx and direct launches.
+Configuration files can override this default; `-c` overrides files as well:
 
 ```sh
 mcp-console configure-client codex --directory . -- -c sandbox.profile=workspace
 ```
 
 To pass `--no-sandbox`, also clear the generated policy with `-c sandbox=null`.
+See [Codex inheritance](SANDBOX_CONFIGURATION.md#inherit-permissions-from-codex) for policy capture and fallback behavior.
 
-The default uvx command has no version suffix.
-`--pin-version VERSION` appends a Console version suffix after `@`, for example `mcp-console@v0.0.5` or `mcp-console@latest`.
-`--pin-version current` saves the concrete version running setup, so later launches stay on that version.
-Exact versions use PEP 440 syntax and are validated before configuration changes; `latest` and `current` are also accepted, while version ranges and invalid suffixes are rejected.
-Package availability is checked by uv when warmup or the client launches Console.
-For Codex, pinned versions must support `--default-config` and `sandbox.profile=inherit_codex`.
-An unqualified uvx command may reuse an installed or cached version; `latest` requests the latest available release at launch.
+The default uvx command has no version suffix and may reuse an installed or cached release.
+`--pin-version current` records the running version; `latest` requests the latest release at launch.
+Exact versions are validated before changes, while package availability is checked when uv launches Console.
+Version ranges are rejected.
+A pinned Codex release must support `--default-config` and `sandbox.profile=inherit_codex`.
 
-`--no-uvx` configures an absolute path to the running executable instead.
-Invoke the desired installation to select it, for example `/opt/mcp-console/bin/mcp-console configure-client claude --no-uvx`.
-When the executable is in a uv-created environment inside a disposable cache, the command uses `uv pip freeze --python ENVIRONMENT` to identify Console's recorded direct source, then runs `uv tool install REQUIREMENT` and configures the absolute launcher path reported by `uv tool dir --bin`.
-Only uv's disposable cache layout triggers installation; persistent uv tools, Cargo builds, and non-uv environments retain their executable paths even beneath unrelated tagged caches.
-Direct wheel, archive, and Git installations retain their recorded source, including recorded hashes and resolved Git commits.
-Automatic persistent installation requires uv 0.11.29 or newer, which preserves recorded archive hashes in `uv pip freeze` output.
-Directory sources are rebuilt from their recorded path.
-Keep that checkout unchanged during setup; the resulting executable may differ from the temporary build.
-This includes temporary `uvx --no-cache` runs and custom uv cache locations.
-Temporary index and `--find-links` installations record only a version, so setup rejects them before installation or configuration changes rather than resolving through a potentially different source.
-Install persistently with `uv tool install` using the same resolver options first, then invoke the installed executable's `configure-client --no-uvx` command.
-If source metadata for a temporary uv environment cannot be identified, setup fails before installation or configuration changes; install the desired source persistently with `uv tool install SOURCE`, then run its `configure-client --no-uvx` command.
-The persistent installation requires `uv` during setup; subsequent client launches use the saved executable directly.
-The command prints the installation command and executable path before installing.
-The recorded source's URL query is redacted from that report and captured uv output; the original requirement is passed to uv unchanged.
-It leaves existing-tool conflicts to uv and does not force replacement of executable files.
-`--no-uvx` conflicts with `--pin-version`; select the desired version before configuring a direct executable.
+`--no-uvx` selects the executable running setup, for example `/opt/mcp-console/bin/mcp-console configure-client claude --no-uvx`.
+For a disposable uv environment, setup first installs the recorded source persistently with `uv tool install` and saves that launcher.
+This requires uv 0.11.29 or newer during setup; later client launches use the executable directly.
+Wheel, archive, and Git sources preserve recorded hashes or resolved commits.
+Directory sources are rebuilt from the recorded path, so keep that checkout unchanged during setup.
+Persistent uv tools, Cargo builds, and other environments retain their existing executable paths.
 
-Global scope is the default, including inside a Git repository.
-Use `--directory PATH` to write project configuration in an existing directory, or `--directory .` for the current directory.
-Relative paths start at the current directory; setup does not search Git parents or set the client's launch directory.
+Temporary index or `--find-links` installations lack a complete source record and are rejected before changes, as is missing source metadata.
+Install the intended source persistently with the same resolver options, then invoke that installation's `configure-client --no-uvx`.
+Setup reports the installation command and launcher, redacts source URL queries from reports, and leaves existing-tool conflicts to uv without forcing replacement.
+Source detection and installation details live in [client launch selection](../src/configure_client/launch.rs).
+
+### Scope and files
+
+`--directory` selects where registration is written, not the client's later launch directory.
+Relative paths use the current directory; setup does not discover a project by searching Git parents.
 
 | Client      | Project configuration | Global configuration                                        |
 | ----------- | --------------------- | ----------------------------------------------------------- |
 | Codex       | `.codex/config.toml`  | `$CODEX_HOME/config.toml`, default `~/.codex/config.toml`   |
 | Claude Code | `.mcp.json`           | `$CLAUDE_CONFIG_DIR/.claude.json`, default `~/.claude.json` |
 
-Claude Code tool permissions are written separately to `.claude/settings.json` in the selected project, or `$CLAUDE_CONFIG_DIR/settings.json` globally (default `~/.claude/settings.json`).
+Claude Code permissions go in the project's `.claude/settings.json`, or globally in `$CLAUDE_CONFIG_DIR/settings.json` (default `~/.claude/settings.json`).
+Legacy Claude Code `.config.json` layouts are unsupported.
 
-[Codex](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence) and [Claude Code](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence) give loaded project entries precedence over same-named global entries.
-Global registration leaves existing project entries unchanged and warns when it finds one that may take precedence, including during `--dry-run`.
-The warning identifies the nearest matching project file.
-To update an existing project entry, rerun setup with `--directory PATH` for that project directory.
-To use global settings instead, remove only that server's entry from the project configuration listed above.
+[Codex](https://learn.chatgpt.com/docs/config-file/config-basic#configuration-precedence) and [Claude Code](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence) prefer loaded project entries over same-named global entries.
+Global setup warns about the nearest matching project entry, including during dry run.
+Update it with `--directory PATH`, or remove that server's project entry to use the global registration.
+The check follows Codex's configured project-root markers and Claude Code's ancestor `.mcp.json` files; it does not evaluate client trust, profiles, managed settings, or private local entries.
 
-The check searches from the current directory through Codex's project root, using `project_root_markers` from its user configuration or `.git` by default; without a matching marker it checks only the current directory.
-For Claude Code, it checks ancestor `.mcp.json` files, including above Git roots.
-It does not evaluate client trust, approvals, profiles, managed settings, or Claude Code's private local entries.
-An unreadable or malformed project file encountered by this check causes an error before installation or writes.
-
-The command prints the selected scope, file path, and fields it sets.
-Use `--dry-run` to preview settings, any persistent installation, and background warmup without writing files, installing, or starting a job.
-You can also apply the printed settings manually.
-Existing settings outside the printed fields are preserved, including other servers, environment variables, and client preferences.
-TOML key comments and comments around replaced values are preserved.
-Comments inside the managed `args` and `omit_tools_from` arrays are discarded when those arrays are replaced.
-JSON is formatted on write.
-Malformed configuration and an existing remote server with the selected name cause an error without overwriting the file.
-Every selected client's configuration, including Claude Code's permission settings, is parsed before installation or writes begin.
-Existing files are updated in place to retain file identity, symlinks, ownership, and access-control lists, including Windows DACLs.
-These updates are not atomic: an interrupted or failed write may leave an incomplete file.
+Setup prints every selected path and field, and preserves settings outside those fields.
+It parses all selected client and permission files before installation or writes; malformed files, unreadable project files, and conflicting remote-server entries fail without overwriting them.
+TOML comments are retained except inside replaced managed arrays; JSON is reformatted.
+Existing files are updated in place to preserve identity, symlinks, ownership, and ACLs.
+An interrupted write can leave an incomplete file, and a later failure can leave earlier files changed; completed actions remain in stdout.
 New files are created atomically.
-A later file failure can leave earlier files changed, and their completed actions remain in stdout.
-Configuration edits assume no concurrent client or setup writer.
+Avoid concurrent client or setup writers.
 
-By default, configuration also requests that Console tools be visible without a tool search:
+### Tool visibility and approval
 
-- Codex: `enabled = true` and `omit_tools_from = ["deferred"]` in `[mcp_servers.console]`.
-- Claude Code: [`alwaysLoad: true`](https://code.claude.com/docs/en/mcp#exempt-a-server-from-deferral) in `mcpServers.console`.
+Setup writes these settings for the selected server:
 
-`--no-auto-load` writes `omit_tools_from = []` for Codex or `alwaysLoad: false` for Claude Code, leaving tool discovery to the client.
-These settings affect only Console.
-Client startup limits still apply; a cold `uvx` launch can delay tool availability.
-Codex's Strict Code Mode Only controls tool exposure independently and overrides the visibility setting.
-Use a current client version that supports the respective setting.
+| Client      | Visible without tool search                        | Tool approval                                                             |
+| ----------- | -------------------------------------------------- | ------------------------------------------------------------------------- |
+| Codex       | `enabled = true`, `omit_tools_from = ["deferred"]` | `default_tools_approval_mode = "approve"`                                 |
+| Claude Code | `alwaysLoad: true`                                 | `"mcp__console__*"` in `permissions.allow`, using the normalized `--name` |
 
-For Codex, setup also sets `tool_input_schema_max_bytes = 12000` on the selected server.
-This raises its input-schema compaction threshold from 5,000 to 12,000 bytes so Console's argument descriptions are retained, including with `--no-auto-load`.
+`--no-auto-load` writes `omit_tools_from = []` or `alwaysLoad: false`.
+Client startup limits and Codex's Strict Code Mode Only still apply.
+Codex also receives `tool_input_schema_max_bytes = 12000` to retain Console's argument descriptions, including with deferred discovery.
+Use current client versions that support these settings.
 
-Configuration also allows Console tools to run without a per-call approval prompt, including tools added or renamed in later releases:
+Existing Claude Code allow rules and Codex per-tool settings are preserved.
+Per-tool overrides, explicit Claude Code `ask`/`deny` rules, and managed client restrictions can still require approval or block calls.
+Tool approvals do not change Console's sandbox permissions.
+Restart the client after setup; its project-trust and project-server approval decisions remain in effect.
+For other clients, use the [stdio configuration example](CLIENTS.md#other-mcp-clients).
 
-- Codex: [`default_tools_approval_mode = "approve"`](https://learn.chatgpt.com/docs/config-file/config-reference) in `[mcp_servers.console]`.
-- Claude Code: [`"mcp__console__*"`](https://code.claude.com/docs/en/permissions#mcp) in `permissions.allow` in its settings file.
+### Background warmup
 
-`--name` selects the server for both settings; Claude Code's permission rule uses the server's normalized tool-name spelling.
-Existing Claude Code allow rules are retained without adding duplicate entries.
-Existing Codex per-tool settings are retained and take precedence over the server default.
-Run `configure-client` again to update a registration created by an older release.
-`--no-auto-load` affects discovery only; it still configures tool approvals.
-Console's sandbox permissions are unchanged by the tool allowlist.
-Explicit Claude Code `ask` or `deny` rules and managed client restrictions can still require approval or block a call.
-
-Restart the client after configuration.
-Codex requires project trust before loading project configuration, and Claude Code may ask you to approve a project server.
-Configuration leaves those project trust decisions unchanged.
-Legacy Claude Code `.config.json` layouts are not supported by this command.
-
-For other MCP clients, use the [stdio configuration example](CLIENTS.md#other-mcp-clients).
+After registration, setup starts one background [`warmup`](#check-your-installation) against the first selected client's launch command and prints its PID and log path.
+It preserves the selected version and arguments and runs in `--directory`, or the current directory when omitted.
+Logs remain under [Console home](ENVIRONMENT.md#server-paths-and-executable-discovery) in `logs/warmup-*.log`.
+Setup returns immediately; warmup failures appear in the log without undoing registration, and launch failure prints a warning.
+If the selected release has no `send` tool, only discovery and shutdown are checked.
+Later client sessions can use different launch directories, environments, or permissions.
 
 ## Check your installation
 
@@ -228,24 +197,12 @@ These options work before or after `serve`, `warmup`, and ordinary `sandbox`, an
 | `--default-config KEY=VALUE`         | Set a launch default that configuration files can override.       |
 | `-c KEY=VALUE`, `--config KEY=VALUE` | Override settings from configuration files.                       |
 
-Repeat `--config-file` for ordered layers; it cannot be combined with discovery-exclusion flags.
-Each selected file is required unless marked with `--optional-config-file` using the same path before expansion.
-Optional files that exist must still be readable, regular configuration files.
-Both assignment options accept dotted keys and YAML values; repeat them to apply several in order.
+Repeat file and assignment options for ordered layers.
+See [file selection](CONFIGURATION.md#choose-which-files-to-load) for required/optional files and incompatible options, and [command-line overrides](CONFIGURATION.md#command-line-overrides) for YAML syntax and precedence.
+Examples use POSIX shell quoting; PowerShell also needs the complete assignment quoted when it contains spaces or structured values.
 
-```sh
-mcp-console serve --config-file ./session.yaml
-mcp-console serve --no-project-config
-mcp-console serve --default-config sandbox.profile=inherit_codex
-mcp-console serve -c 'languages=[python,sql]' -c 'python=.venv'
-```
-
-Examples use POSIX shell quoting.
-In PowerShell, quote the complete assignment when it contains spaces or structured values.
-
-Project configuration is trusted input and can widen permissions.
-Use `--no-project-config` for an unfamiliar project until you have reviewed its settings.
-See [Configuration files](CONFIGURATION.md#files-and-precedence) for file discovery and precedence, and [Command-line overrides](CONFIGURATION.md#command-line-overrides) for assignment syntax and merge examples.
+Project files are trusted input and can widen permissions.
+Use `--no-project-config` until you have reviewed an unfamiliar project's settings.
 
 ## Initialize configuration
 
@@ -263,8 +220,7 @@ The two options are mutually exclusive.
 These files are shared by clients that launch Console with the same configuration locations.
 Client registration remains a separate operation; see [MCP client setup](CLIENTS.md).
 
-The starter selects `sandbox.profile: workspace`: ordinary workspace writes are allowed, while the project's `.git`, `.agents`, `.codex`, `.aws`, and `.claude` paths stay read-only.
-Other readable host files remain readable.
+The starter selects the [workspace profile](SANDBOX_CONFIGURATION.md#workspace-profile), allowing ordinary project writes while protecting its metadata directories.
 It includes commented examples for permissions, packages, interpreters, environment variables, and caches.
 Lines beginning with `##` are explanations; lines beginning with `#` are YAML examples to uncomment.
 

@@ -33,24 +33,9 @@ The [API reference](https://posit-dev.github.io/mcp-console/python/reference/) d
 
 `console.send(...)` and its shorthand `console(...)` return a [ConsoleResult](https://posit-dev.github.io/mcp-console/python/reference/consoleresult/).
 The asynchronous client returns the same type after `await`.
-`ConsoleResult` extends the MCP SDK's `CallToolResult`, inheriting its fields and serialization methods.
-It retains the complete MCP response, including images and structured content, and adds text/image views and notebook display:
-
-| Property                    | Contents                                                                                       |
-| --------------------------- | ---------------------------------------------------------------------------------------------- |
-| `result.content`            | MCP content blocks in their original text/image order.                                         |
-| `result.text`               | Text blocks concatenated in their original order, without image placeholders.                  |
-| `result.images`             | The image blocks from `content`, with their original MIME types and base64-encoded image data. |
-| `result.structured_content` | Structured data returned by the tool, when present.                                            |
-| `result.is_error`           | The MCP tool-error flag.                                                                       |
-| `result.meta`               | Metadata attached to the MCP result, when present.                                             |
-
-The result can be passed directly to code accepting `CallToolResult`.
-Use the SDK's `result.model_dump()` or `result.model_dump_json()` methods to serialize it.
-
-`print(result)` produces readable text with MIME placeholders such as `[image/png output]` where images occurred.
-For requirements inspection, `print(result)` retains the formatted JSON representation; use `result.structured_content` to read the complete declaration directly.
-Use `content` when interleaving matters: separate text and image views do not retain each image's position among the text blocks.
+Use `print(result)` for readable text with image placeholders, `result.text` for string operations, and `result.structured_content` for structured data such as requirements inspection.
+`result.images` contains the image blocks; `result.content` preserves their order among the text blocks.
+The result extends the MCP SDK's `CallToolResult`, including its fields and serialization methods.
 
 In an IPython notebook, display the result to render text and images in order:
 
@@ -64,20 +49,11 @@ with MCPConsole() as console:
 ```
 
 Leaving `result` as the last expression in a notebook cell also displays it.
-Assigning a result does not display it.
-IPython is needed only for notebook display; ordinary client calls and `print(result)` do not require it.
+Ordinary client calls and `print(result)` do not require IPython.
 
-MCP tool errors raise [ConsoleError](https://posit-dev.github.io/mcp-console/python/reference/consoleerror/), a `RuntimeError` subclass whose `result` attribute retains the full `ConsoleResult`.
-For example, if a worker exits after producing a plot, the exception retains the image and the failure text.
+MCP tool errors raise [ConsoleError](https://posit-dev.github.io/mcp-console/python/reference/consoleerror/), whose `result` retains the complete response, including any images.
 Language errors reported as ordinary Console output remain in the returned result.
-The lower-level `console.call_tool(name, arguments)` continues to return a plain `CallToolResult`, including its error flag.
-
-This changes the return type of `send()` from a string to `ConsoleResult`.
-Existing `print(console.send(...))` calls still work.
-Use `.text` for string operations, such as `result.text.endswith("[running; poll with an empty send]")`, and for collecting text chunks while polling.
-Replace `json.loads(console.send(requirements={"action": "get"}))` with `console.send(requirements={"action": "get"}).structured_content`.
-If you used the earlier wrapper's `result.raw`, use `result` itself instead.
-Construct results with the SDK's keyword fields, such as `ConsoleResult(content=[])`, instead of passing a `CallToolResult` positionally.
+The lower-level `console.call_tool(name, arguments)` returns a plain `CallToolResult`, including its error flag.
 
 ## Choose a model integration
 
@@ -95,12 +71,8 @@ The API reference includes examples with setup and cleanup.
 Your application still owns its model client, chat or agent, and any function-calling loop.
 Registering Console tools does not choose a model.
 
-The callable adapters preserve images in successful results using each framework's native content types, with Console's original image bytes, MIME types, and text/image order.
-Text-only results remain strings.
-MCP tool errors raise: Anthropic preserves image error content in its `ToolError`, while the other callable adapters raise text exceptions.
-For OpenAI Agents, use `agents_server()` to retain image content in MCP error results.
-
-Use the plural adapters so the model receives every discovered tool and its actual schema, including tools added or renamed by future servers.
+The adapters preserve successful text and image results in the framework's native format; their API pages describe error handling.
+Use the plural adapters so the model receives every discovered tool and its actual schema.
 Inferring a schema from `console.send` annotations loses configured fields.
 Recreate adapters after reconnecting.
 For chatlas, use `chat.set_tools(mcp_console.chatlas.tools(console))` on a new chat.
@@ -114,10 +86,8 @@ by_name = {tool.definition["name"]: tool for tool in tools}
 # For each returned function call: by_name[call.name](call).
 ```
 
-The clients expose all definitions through `console.tools` and preserve complete MCP results through `console.call_tool(name, arguments)`.
-Discovery follows pagination and does not require a tool named `send`.
-Use `console.get_tool(name)` to inspect a particular definition, or `send()` to call the server's `send` tool directly.
-Tool definitions are captured when the connection opens.
+Use `console.tools` to inspect all discovered definitions or `console.get_tool(name)` for one definition.
+Discovery happens when the connection opens and does not require a tool named `send`; `send()` calls that particular tool directly.
 
 ## Work with the session
 
@@ -132,4 +102,4 @@ The [MCPConsole reference](https://posit-dev.github.io/mcp-console/python/refere
 <span id="inspect-or-replace-requirements"></span>
 
 For exact dependency fields and replacement rules, see [Requirements](https://posit-dev.github.io/mcp-console/python/reference/requirements/) and the [send reference](API.md#requirements).
-To prepare data and customize what the model sees, follow [Build a data assistant](BUILD_ON_CONSOLE.md).
+To prepare data and customize what the model sees, follow [Build a data assistant](BUILD.md#build-a-data-assistant).

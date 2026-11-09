@@ -2,7 +2,6 @@
 
 For clients that call Console or expose its tool to a model.
 To configure an existing MCP client, start with [Get started](getting-started.qmd).
-The project is a development preview; public interfaces can change, with their changes documented.
 
 ## MCP: `send`
 
@@ -26,7 +25,7 @@ Omit unused arguments.
 A hidden language field is rejected even when its value is `null`.
 `session` and `timeout_ms` cannot be null.
 
-Examples below are **tool argument objects**, not complete JSON-RPC messages:
+Examples are **tool argument objects**, not complete JSON-RPC messages:
 
 ```json
 { "python": "values = [2, 4, 6]; sum(values)" }
@@ -36,29 +35,10 @@ Examples below are **tool argument objects**, not complete JSON-RPC messages:
 { "sql": "SELECT 6 * 7 AS answer", "timeout_ms": 0 }
 ```
 
-```json
-{ "timeout_ms": 300000 }
-```
-
-The last object polls all active sessions without submitting code.
-`{}` uses the default observation budget; it is not a new evaluation.
+Poll without source to collect more output; `{}` uses the default observation budget.
 Pass `{"session":"default"}` to poll only the default session.
-
-```json
-{ "stdin": "yes\n" }
-```
-
-```json
-{ "control": "restart", "python": "answer = 42; answer" }
-```
-
-A control-only interrupt may overlap a pending call.
-Requirements inspection can read the last committed declaration without consuming that call's output.
-Cells within one session remain serial.
-
-For a client walkthrough, see [Drive send directly](SEND_OPERATIONS.md).
-[Calls and session lifetime](#calls-and-session-lifetime) below defines admission, timing, and partial effects.
-[Language behavior](RUNTIME_REFERENCE.md) defines code execution behavior and connection helpers.
+The [operation rules](#calls-and-session-lifetime) below define admission, timing, and partial effects.
+For a walkthrough, see [Drive send directly](SEND_OPERATIONS.md); for code execution and helpers, see [Language behavior](RUNTIME_REFERENCE.md).
 
 ### Named sessions
 
@@ -155,9 +135,8 @@ Elapsed/phase notices describe observations, not a queue position or completion 
 
 Use `note` to record observations, questions, or the purpose of a step.
 It can accompany code, input, requirements, or a control operation without changing that operation.
-Console retains the text in the recording and presents it as prose before any same-call code in `transcript.md` and the associated session QMD.
-It does not evaluate the note.
-Session QMDs pass ordinary Markdown and HTML through unchanged and use a whole-note verbatim fallback for recognized metadata and executable examples.
+Console records the note without evaluating it and presents it before same-call code.
+See [recorded notes and QMD rendering](RECORDING_REFERENCE.md#readable-transcript-and-session-documents) for association and rendering rules.
 
 ```json
 { "note": "Check whether the missing values are confined to one batch." }
@@ -456,56 +435,25 @@ A Python replacement that retains extension requirements must also supply a usab
 
 ### Restarting with requirements
 
-Console prepares and accepts the complete candidate before retiring the old worker.
-Preparation failure preserves the old worker and declaration and withholds same-call input/code.
-Once retirement begins, a replacement failure cannot restore live state.
+[Restart](#explicit-restart) prepares and accepts changed requirements before retiring the old worker.
 A plain restart reuses accepted requirements without resolving again.
-
-Downloads, builds, and cache writes can remain after any failed preparation.
-Accepted declarations and filesystem effects have different lifetimes.
+Downloads, builds, and cache writes can remain after failed preparation; accepted declarations and filesystem effects have different lifetimes.
 
 ### Resolution policy admission
 
-Configuration chooses a policy independently for R and managed Python:
-
-| Policy                         | Prepare startup declaration | Explicit requests | Automatic runtime additions |
-| ------------------------------ | --------------------------- | ----------------- | --------------------------- |
-| `implicit`                     | Yes                         | Yes               | Yes                         |
-| `explicit`                     | Yes                         | Yes               | No                          |
-| `fixed`                        | Yes                         | No                | No                          |
-| R `disabled` / existing Python | No                          | No                | No                          |
-
-Unchanged declarations remain no-ops.
+The [configured package policies](CONFIGURATION.md#dependency-resolution-policies) apply independently to R and managed Python.
 Explicit requests include MCP `add` / `set` changes and managed Python declarations through `reticulate::py_require()`.
-Under `fixed`, `reset` can retry skipped startup defaults.
+Unchanged declarations remain no-ops; under `fixed`, `reset` can retry skipped startup defaults.
+
 A mixed request is checked as a whole before preparation.
 `set` cannot omit a locked language to clear it, and `reset` or restart cannot unlock a policy.
-A policy change requires a new server connection.
+Changing a policy requires a new server connection.
+DuckDB extension preparation follows its managed provider's policy; selecting another SQL connection does not grant preparation authority.
 
-DuckDB extension preparation follows its managed provider's policy.
-Selecting another SQL connection does not grant preparation authority.
-These policies govern Console's resolver, not arbitrary installer code in cells or network permissions.
+## Related references
 
-## Runtime helpers
-
-The built-in runtimes expose the following session helpers:
-
-| Helper                                                                          | Purpose                                                        |
-| ------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Python `r.name`                                                                 | Access an R object through reticulate.                         |
-| R `py$name`                                                                     | Access a Python object through reticulate.                     |
-| R `.console$sql_connection()`                                                   | Get, select, or reset a native SQL connection owned by R.      |
-| Python `_console.sql_connection()`                                              | Get, select, or reset a native SQL connection owned by Python. |
-| R `.console$sql_last_result(n = NULL)`                                          | Retrieve successive rows from a SQL result owned by R.         |
-| Python `_console.sql_last_result(n=None)`                                       | Retrieve successive rows from a SQL result owned by Python.    |
-| R `console.plot.width_in`, `console.plot.height_in`, `console.plot.dpi` options | Configure captured plot dimensions and resolution.             |
-
-[Language behavior](RUNTIME_REFERENCE.md) defines ownership and examples.
-These helpers do not make R and Python connection objects interchangeable.
-
-## CLI and configuration
-
-See [Command-line reference](CLI.md), [Configuration files](CONFIGURATION.md), and [Tool configuration](TOOL_CONFIGURATION.md).
+[Language behavior](RUNTIME_REFERENCE.md) owns R/Python interoperability helpers, SQL connection and result helpers, plots, and output behavior.
+See [Command-line reference](CLI.md) for commands, [Configuration](CONFIGURATION.md) for settings, and [Tool configuration](TOOL_CONFIGURATION.md) for presentation overrides.
 
 ## Client packages
 

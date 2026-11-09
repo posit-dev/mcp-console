@@ -1,213 +1,131 @@
 # Worker protocol
 
-This private interface connects a relay to one worker generation.
-It evolves in lockstep without an independent version.
+This private JSONL interface connects a relay to one worker connection.
+Both endpoints evolve with Console, without independent version negotiation.
+Internal `--worker` and `--relay` overrides exist for testing; fixtures must match the build.
 
-The `--worker` and `--relay` launch overrides are internal testing hooks, not part of Console's public API.
-Test worker fixtures must match the current build's protocol.
-
-[`src/worker_protocol.rs`](../src/worker_protocol.rs) defines the exact message objects.
-[`src/jsonl.rs`](../src/jsonl.rs), [`src/sideband.rs`](../src/sideband.rs), and the boundary tests define framing and endpoints.
-This guide explains the protocol's phases and invariants without duplicating every nested field.
+[worker_protocol.rs](../src/worker_protocol.rs) owns message types and fields; [jsonl.rs](../src/jsonl.rs) and [sideband.rs](../src/sideband.rs) own framing and transport.
+This page explains the lifecycle those messages implement.
 
 ## Launch and transport
 
-On macOS/Linux, the relay supplies stdin/stdout/stderr plus two sideband pipes named by `MCP_CONSOLE_SIDEBAND_READ_FD` and `MCP_CONSOLE_SIDEBAND_WRITE_FD`.
-Adopt the descriptors, remove the variables, set close-on-exec, and close the endpoints in fork-only children without disturbing the parent.
+The relay supplies stdin/stdout/stderr and separate command/event pipes:
 
-Windows supplies decimal named-pipe handles through `MCP_CONSOLE_SIDEBAND_READ_HANDLE` and `MCP_CONSOLE_SIDEBAND_WRITE_HANDLE`, plus `MCP_CONSOLE_INTERRUPT_HANDLE` and `MCP_CONSOLE_INPUT_READY_HANDLE` events.
-Adopt them, clear inheritance, and remove the variables before user code runs.
+| Host        | Sideband endpoints                                                         |
+| ----------- | -------------------------------------------------------------------------- |
+| macOS/Linux | `MCP_CONSOLE_SIDEBAND_READ_FD` and `MCP_CONSOLE_SIDEBAND_WRITE_FD`         |
+| Windows     | `MCP_CONSOLE_SIDEBAND_READ_HANDLE` and `MCP_CONSOLE_SIDEBAND_WRITE_HANDLE` |
 
-Each direction is ordered UTF-8 JSONL: one object and newline, flushed per frame.
-Frames cannot interleave.
-Unknown kinds/fields, wrong types, invalid UTF-8, malformed JSON, and partial-frame closure fail the boundary.
-Nested objects are strict too.
-No general frame-size limit is defined.
+Windows also supplies `MCP_CONSOLE_INTERRUPT_HANDLE` and `MCP_CONSOLE_INPUT_READY_HANDLE` events.
+Adopt the supplied descriptors/handles, remove their environment variables, and prevent inheritance before user code runs.
+Unix fork-only children must close sideband endpoints without disturbing the parent.
+Leaking sideband ownership into descendants violates closure; inherited standard streams instead receive bounded relay drainage.
 
-Stdin is one generation-long byte stream, not cell records.
-Writes append exact UTF-8 bytes without newline or echo.
-Payload end is not EOF; unread bytes can reach later reads.
-There is no general stdin-queue limit.
-Sideband endpoint leakage to descendants violates the closure contract; stdout/stderr inheritance is handled by bounded relay drainage.
+Each direction has one writer emitting complete UTF-8 JSON objects, each followed by a newline and flush.
+Unknown kinds/fields, wrong types, invalid UTF-8, malformed JSON, and partial-frame closure fail the boundary; nested objects are strict too.
+There is no general frame-size cap.
+
+Stdin is a generation-long byte stream.
+Writes append exact UTF-8 bytes without newline or echo; payload end is not EOF and unread bytes can reach later reads.
+There is no general stdin-queue cap.
+[TODO](TODO.md#runtime-and-resource-limits) tracks these resource-policy questions.
 
 ## Message schemas
 
-All objects have `kind`.
-The source enums are the complete schema; these are the principal message families:
+Every frame has a `kind`.
+The source enums define evaluation, preparation, resolver, input, output, and lifecycle messages.
+An ordinary successful evaluation follows `evaluate`, `cell_started`, output events, then `completed`.
+A usable worker emits `execution_error` before completion for an ordinary language failure; diagnostic text alone is not such a failure.
 
-| Direction   | Purpose              | Messages                                                                                                                                          |
-| ----------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| To worker   | Evaluation/control   | `evaluate`, `evaluate_priority`, `shutdown`                                                                                                       |
-| To worker   | Explicit preparation | `prepare_r`, `prepare_python`                                                                                                                     |
-| To worker   | Resolver replies     | `r_resolved`, `r_resolution_failed`, `python_resolved`, `python_resolution_failed`, `python_version_resolved`, `python_version_resolution_failed` |
-| From worker | Readiness/lifecycle  | `ready`, `runtime_initialized`, `r_initialization`, `cell_started`, `completed`                                                                   |
-| From worker | Output/input         | `console_output`, `console_diagnostic`, `execution_error`, `image`, `input_requested`, `input_received`, `input_cancelled`                        |
-| From worker | Concurrent execution | `priority`, carrying the matching `request_id` and output, image, execution-error, or completion event.                                           |
-| From worker | Preparation results  | `r_prepared`, `r_preparation_failed`, `python_prepared`, `python_preparation_failed`, `python_preparation_rejected`                               |
-| From worker | Resolver requests    | `resolve_r`, `resolve_python`, `resolve_python_version`                                                                                           |
-| From worker | Activation receipts  | `r_activated`, `r_activation_failed`, `python_activated`, `python_activation_failed`                                                              |
-
-For example:
-
-```json
-{ "kind": "evaluate", "language": "python", "source": "2 + 2" }
-```
-
-```json
-{ "kind": "cell_started" }
-```
-
-```json
-{ "kind": "console_output", "data": "4\n" }
-```
-
-```json
-{ "kind": "completed" }
-```
-
-Ordinary language errors retain their console text and emit one `execution_error` before `completed` when the worker remains usable.
-Its `error` object contains `ename`, `evalue`, and a `traceback` array of text fragments.
-Diagnostics alone do not imply a language failure.
-The controller exposes this metadata to integrators while preserving the existing MCP text and `isError` behavior.
-Ordinary cells have no poll, output acknowledgment, general request ID, or session name.
-Interrupt delivery belongs to the outer relay; MCP response assembly belongs to the server.
-
-### Concurrent integrator requests
-
-`evaluate_priority` carries `request_id`, `execution` (`r_reentrant` or `python_thread`), and `source`.
-The controller permits one outstanding priority request per worker connection.
-Ingress dispatches it independently of ordinary cell admission, retaining native readiness for the coordinator through a local command pipe.
-The process-local `priority_ready` wakeup is produced by ingress when R work is queued; it is not a controller command.
-R services the request on its owning thread at an event boundary or while idle.
-Python executes on a background thread after initialization.
-
-Managed output and language failures carry the priority request identity and precede its completion.
-They do not produce ordinary `cell_started` or `completed` events or enter the foreground output interval.
-Native streams remain untagged.
-Completion releases the controller's separate priority result owner; retirement fails an outstanding request only for the matching worker connection.
-These requests cannot prepare dependencies or request managed stdin.
-
-Python environment replies contain inspected runtime identity and manifests, not rediscovery hints.
-Runtime callbacks cannot supply arbitrary resolver programs or environment maps.
-Public package declarations and private activation objects are different schemas.
-The captured worker selection carries `automatic_python_resolution` separately from managed-interpreter capability, including when R-side interpreter selection is still lazy.
-Only a managed interpreter with this capability registers the dependency-resolution finder; the host also checks policy admission for every inferred request.
+Ordinary cells carry no session name, poll, output acknowledgment, or general request ID.
+One worker belongs to one session.
+The relay delivers interrupts; the server assembles MCP responses and owns session admission.
 
 ## Readiness and operations
 
-`ready` is the first semantic message and appears exactly once; early diagnostics can use raw streams.
+`ready` appears once as the first semantic message.
+Raw streams can carry earlier diagnostics.
 For built-in workers it means services are connected, not that interpreters are initialized.
-Bootstrap then uses the same interpreter thread and can produce output, input, and resolver requests before evaluation.
+Bootstrap uses the interpreter thread and can emit output, input, and resolver requests before evaluation.
 
 `runtime_initialized` ends built-in bootstrap and reports interruption.
-The server withholds an already admitted cell's evaluation until bootstrap settles.
-Controller interrupt admission, processing this receipt, and enqueueing `evaluate` share a short ordering point.
-An interrupt admitted before dispatch withholds the pending cell even when the worker already sampled `interrupted = false`.
-An interrupted receipt affects only the cell admitted before receipt processing, including an evaluator that has not attached yet.
-Later cells do not inherit that withholding.
-These transitions enqueue commands without waiting for pipe I/O or signal acknowledgment; acknowledgment confirms dispatch, not worker-side interruption or cell completion.
-Native R startup reports its admission and successful completion through `r_initialization`; failed or interrupted R initialization requires explicit restart rather than in-place or automatic retry.
-Test worker fixtures need not send built-in bootstrap events.
+Interrupt admission, receipt handling, and enqueueing a pending cell share an ordering point: a pre-dispatch interrupt must withhold that cell even if bootstrap already sampled its interrupt flag.
+Later cells do not inherit the withholding.
+`r_initialization` reports native R entry/completion; incomplete R initialization requires explicit restart.
+Test workers need not emit built-in bootstrap events.
 
-`cell_started` marks entry into an evaluated cell and must appear exactly once before its `completed` receipt, including during retirement.
-The built-in worker emits it after draining idle events and establishing foreground ownership, so it also permits immediate R admission.
-Completion without entry or duplicate entry fails the protocol.
-The controller uses this receipt to start its numbered output interval; admission alone does not create a cell log.
-`completed` closes the interval, while output observed afterward belongs to the post-cell interval.
+`cell_started` confirms evaluator entry, after foreground ownership is established.
+It must occur once before `completed`, including during retirement.
+Admission alone does not open a cell log.
+Completion closes its output interval; output observed later belongs to the post-cell interval.
 
-Each admitted ordinary operation has one matching terminal result:
+| Operation        | Terminal receipt                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| `evaluate`       | `completed`, with preceding `execution_error` for a language failure if the worker remains usable. |
+| `prepare_r`      | Matching `r_prepared` or `r_preparation_failed`.                                                   |
+| `prepare_python` | `python_prepared`, `python_preparation_rejected`, or `python_preparation_failed`.                  |
+| `shutdown`       | Process exit, without a sideband acknowledgment.                                                   |
 
-| Operation        | Success                                          | Ordinary failure                                               |
-| ---------------- | ------------------------------------------------ | -------------------------------------------------------------- |
-| `evaluate`       | `completed`                                      | Error text and `execution_error`, then `completed`, if usable. |
-| `prepare_r`      | `r_prepared` with the normalized requested path. | `r_preparation_failed`.                                        |
-| `prepare_python` | `python_prepared`                                | `python_preparation_rejected` or `python_preparation_failed`.  |
-| `shutdown`       | Process exit.                                    | No sideband acknowledgment.                                    |
-
-Wrong, duplicate, unsolicited, or mismatched results fail the protocol.
-Semantic output belonging to an operation precedes its result; later events are idle activity.
-Independent stdout/stderr can be observed later regardless of their write time.
+Wrong, duplicate, unsolicited, or mismatched receipts fail the protocol.
+Semantic output belonging to an operation precedes its receipt.
+Independent native streams may be observed later, regardless of when they were written.
 
 ### Managed input
 
-A managed read sends `input_requested` immediately before waiting, then exactly one `input_received` or `input_cancelled` before resuming/unwinding.
-One request may be outstanding, including while idle.
-Completion cannot precede termination of its managed input request.
-Direct stdin readers emit no such events.
+A managed read emits `input_requested` immediately before waiting and exactly one `input_received` or `input_cancelled` before resuming or unwinding.
+Only one can be outstanding, including while idle.
+Its termination precedes cell completion.
+Direct stdin readers emit no managed-input events.
+Preparation is noninteractive; requesting managed input during preparation fails the operation and worker.
 
-Preparation is noninteractive.
-A managed input request during explicit preparation fails preparation and the worker.
+### Preparation and activation
 
-### Nested managed-R resolution
+Resolved environments are provisional.
+For R, apply the matching `r_resolved` library and send `r_activated` before resuming the load.
+For initialized Python, validate and activate the candidate before `python_activated` and final preparation success.
+Before Python initialization, preparation can accept a materialized selection without a live activation receipt.
 
-A runtime `resolve_r` asks the host to prepare the retained declaration plus validated package names.
-`r_resolved` is provisional: apply the library, then send matching `r_activated` before resuming the load.
-Only that current-generation receipt commits it.
-A later load or cell failure does not undo acceptance.
+Python replies carry inspected identity and manifests, not arbitrary resolver programs, environment maps, or rediscovery hints.
+Requests distinguish explicit declarations from inferred imports and physical resolution requirements from the logical retained declaration.
+A matching activation commits the logical manifest; a version-only reply creates no candidate.
+The host checks admission policy on every request, independently of runtime resolver capability.
 
-Report failed activation explicitly before propagating the language error; further requirement changes may need restart.
-Distinguish ordinary host failure, resolver interruption, and boundary-ending operation failure.
-Do not disguise transport failure as an ordinary missing package.
-
-### Live Python preparation
-
-Python environment and version-resolution requests carry `explicit_declaration` when they originate from evaluated `py_require()` declarations or MCP preparation, including still-lazy R declarations.
-The host admits these requests under `explicit` or `implicit`; inferred imports still require `implicit`.
-Declaration authorization does not itself accept a candidate.
-
-The ordinary sequence is:
-
-```text
-prepare_python → resolve_python → python_resolved
-               → python_activated → python_prepared
-```
-
-Before interpreter initialization, final preparation can accept a materialized selection without a live activation receipt.
-After initialization, compatibility checks protect the running interpreter and loaded distributions.
-Pre-mutation rejection leaves the accepted environment usable; unsafe mutation can require restart.
-
-### Nested managed-Python resolution
-
-Environment requests carry physical resolution requirements and logical retained requirements.
-Version constraints may differ to pin physical resolution to the live interpreter.
-A matching complete activation receipt commits the logical manifest; a version-only reply creates no candidate.
-
-Accepted activation survives later import/cell/preparation failure.
-Unaccepted candidates are discarded when the operation ends or the generation retires.
-The relay never decides commits.
-
-### Synchronous resolver waits
-
-Only one nested resolver request may be outstanding.
-Wait for its matching reply; shutdown terminates the wait.
-An already queued evaluation can be retained until the callback finishes.
+Only one nested resolver request can be outstanding.
+Wait for its matching reply; shutdown ends the wait.
+Queued evaluation may wait until the callback finishes.
 Wrong-kind, duplicate, or unsolicited replies fail the boundary.
+Report activation failure before propagating the language error; do not disguise transport failure as a missing package.
+Accepted activation survives later cell failure, while unaccepted candidates are discarded on operation completion or retirement.
+See [preparation ownership](ARCHITECTURE.md#preparation-and-activation).
 
-Explicit preparation and idle callbacks share environment-change ownership.
-Generation checks prevent old candidates from committing to a replacement.
-See [Architecture](ARCHITECTURE.md#preparation-and-activation).
+### Concurrent integrator requests
+
+`evaluate_priority` carries its own request ID and R-reentrant or Python-thread execution mode.
+One request may be outstanding per worker connection.
+R services it on its owning thread; Python uses a background thread after initialization.
+Managed output, language failures, and completion retain that request identity without ordinary cell-entry/completion events.
+Native streams remain untagged.
+Priority work cannot prepare dependencies or request managed stdin.
+Retirement settles only the matching connection's result owner.
+The [integrator guide](INTEGRATOR_CONTROL.md#opt-in-to-immediate-execution) describes admission and caller responsibilities; ingress wakeup mechanics belong in source.
 
 ## Shutdown and closure
 
-The relay closes stdin and attempts shutdown concurrently; workers cannot require a particular order or both signals.
+The relay closes stdin and attempts shutdown concurrently; workers cannot require both signals or a particular order.
 Exit without acknowledgment.
-The relay can forcibly terminate and reap the direct child after grace; descendants/private storage belong to the native runner.
+The relay can terminate and reap the direct child after grace; the native runner owns descendants and managed storage.
 
 Outside intentional retirement, unexpected sideband EOF or worker exit, including status zero, fails the generation.
-Closure and direct-worker outcome do not prove native cleanup.
+Closure and direct-child exit do not prove native cleanup.
 
 ## Test worker fixtures {#custom-worker-conformance}
 
-Test worker fixtures have no built-in defaults or managed Python preparation.
-They do not inherit the built-in SQL implementation.
-Python selection is unavailable with test workers.
-Explicit R settings and configured startup are unsupported with test workers or relays.
-
 `--worker PATH` selects one executable without arguments or shell parsing.
-Fixtures must implement framing, descriptor ownership, readiness, input, results, shutdown, and worker-defined interruption.
-The same internal `--worker` and `--relay` overrides apply to `warmup`, including background warmup after client configuration.
+Fixtures implement framing, descriptor ownership, readiness, input, receipts, shutdown, and worker-defined interruption.
+They have no built-in runtime defaults, managed Python preparation, or inherited SQL implementation.
+Python selection, explicit R settings, and configured startup are unsupported with test workers or relays.
+These overrides also apply to warmup.
 
-Explicit R/DuckDB preparation and optional runtime R callbacks must honor prepared `R_LIBS`, apply the managed R library before loading DuckDB, and use the supplied extension directory when set.
-
-[`tests/fixtures/zod`](../tests/fixtures/zod) exercises conformance; fixture commands are not protocol extensions.
-Use the [boundary tests](../tests/boundaries/README.md), not prose alone, to validate changes to either endpoint.
+Fixtures implementing R/DuckDB preparation must apply supplied `R_LIBS` before loading DuckDB and honor the supplied extension directory.
+[Zod fixtures](../tests/fixtures/zod) exercise conformance; their commands are not protocol extensions.
+Validate endpoint changes through the [boundary tests](../tests/boundaries/README.md).

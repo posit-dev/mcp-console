@@ -63,27 +63,13 @@ These policies control Console's package preparation, not arbitrary installation
 It sets the child's working directory without changing the caller's directory.
 All relative configuration paths use it, including paths written in a global file.
 
-## Configuration fields
+## Select languages and runtimes
 
-The constructor's arguments correspond to the top-level YAML fields.
-Use R lists for nested mappings, character vectors for lists of strings, and `TRUE` or `FALSE` for booleans.
+Use R lists for nested settings, character vectors for lists of strings, and `TRUE` or `FALSE` for booleans.
 `NULL` omits a field from a newly constructed object; empty vectors and mappings are retained.
+The [ConsoleConfig reference](https://posit-dev.github.io/mcp-console/r/reference/consoleconfig/) lists all fields and their accepted values.
 
-| Argument              | Accepted settings                                                                                                                                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `r`                   | An executable path or a list with `executable`, `packages`, `resolution`, and `vanilla`. `vanilla = TRUE` skips native R startup files; the default is `FALSE`.                                                                                  |
-| `python`              | An existing environment path, `list(existing = path)`, or managed settings with `version`, `packages`, and `resolution`. `list(first_available = list(...))` tries existing environments, `"active_venv"`, and an optional managed choice, last. |
-| `languages`           | A nonempty vector containing `"r"`, `"python"`, and/or `"sql"`. All three are visible by default. This changes the tool interface, not permissions or runtime availability.                                                                      |
-| `sandbox`             | A list with `profile`, `filesystem`, `network`, and `tempdir`; see [Permissions](#permissions). `FALSE` runs with host permissions.                                                                                                              |
-| `resolver`            | A list with `environment`, `inherit_environment`, and `sandbox` for package preparation. Its permissions are independent of the worker's.                                                                                                        |
-| `cache`               | `"managed"`, `"host"`, or `list(directory = "/path/to/cache")`. Sandboxed sessions default to managed caches; host execution uses host caches. Managed caches require sandboxing.                                                                |
-| `environment`         | Named string values, such as `c(TZ = "UTC")` or `list(TZ = "UTC")`, shared by workers and preparation.                                                                                                                                           |
-| `inherit_environment` | `TRUE` by default. `FALSE` omits inherited child environment values; explicit settings still apply.                                                                                                                                              |
-| `tool`                | A list with `description`, `instructions`, and `parameters`. Parameter entries accept `enabled`, `description`, and nested `parameters`.                                                                                                         |
-| `startup`             | A list with `language = "r"` or `"python"` and `code` that creates and selects a SQL connection. Runs once per worker, including after restart.                                                                                                  |
-| `sessions`            | `list(max = 4)` limits concurrent sessions, including the default session. `max` must be a positive whole number; omission means no limit.                                                                                                       |
-
-For example, expose only R and SQL, use installed R packages, and limit the connection to one session:
+To expose only R and SQL, use installed R packages, and limit the connection to one session:
 
 ```r
 config <- ConsoleConfig(
@@ -142,10 +128,8 @@ config <- do.call(ConsoleConfig, settings)
 tools <- console_tools(config = config, project = "/path/to/project")
 ```
 
-The only file read here is the one passed to `yaml12::read_yaml()`.
-Neither the constructor nor the subsequent launch discovers additional config files.
-Use YAML strings for values such as Python versions and environment variables.
-You do not need `!!!` splicing or another Console-specific reader.
+Neither construction nor launch discovers additional files.
+Quote Python versions and environment values in YAML so they remain strings.
 
 ## Load global and project settings once {#discover-configuration-once}
 
@@ -209,10 +193,8 @@ During development, use a matching checkout binary.
 
 ## Environment variables and file selection
 
-`MCP_CONSOLE_HOME` changes the default **global** source.
-It does not change `project_file` or `project`.
-An explicit `global_file` bypasses that environment-based default, and `global_file = NULL` disables global loading entirely.
-Console home also participates in fallback session storage; it does not relocate package caches.
+`MCP_CONSOLE_HOME` changes the default global source and fallback recording directory, not the project file or package caches.
+An explicit `global_file` bypasses it; `global_file = NULL` disables global loading.
 
 A leading `~` uses Console's launch-home convention: an absolute `HOME`, with Windows user-profile fallback when `HOME` is absent or empty.
 It is independent of R's `R_USER` and `path.expand()`.
@@ -271,10 +253,8 @@ config@tool <- list(
 )
 ```
 
-The loader retains authored tool fields without copying generated prose or schemas into the object.
-No separate materialize, prune, or description-clearing step is needed after edits.
-Use `as.list()` and `all.equal()` to compare application settings if useful.
-`schema` is read-only metadata; native validation rejects changes to argument types and constraints.
+The loader retains authored tool fields; generated descriptions and schemas are not copied into the object.
+`schema` is read-only metadata; argument types and constraints cannot be changed.
 
 ## Permissions
 
@@ -324,42 +304,19 @@ Use `network = TRUE` (or `"enabled"`) for direct networking and `network = FALSE
 A character vector or unnamed list of allowed patterns, such as `network = c("api.example.com", "*.example.org")`, becomes `network.proxy.domains.allow`.
 The scalar strings `"enabled"` and `"restricted"` are reserved mode names; any other single string is one allowed pattern.
 An empty vector or `list()` selects an explicit empty allow list.
-YAML accepts the same booleans, scalar strings, and sequences:
-
-```yaml
-sandbox:
-  network: [api.example.com, "*.example.org"]
-resolver:
-  sandbox:
-    network: true
-```
-
-These settings have the same meaning whether passed through `ConsoleConfig(yaml12::read_yaml("config.yaml"))` or read by `load_console_config(global_file = NULL, project_file = "config.yaml")`.
-The YAML reader can simplify hostname sequences to character vectors or retain them as lists.
-To use a reserved mode word as a literal destination pattern, put it under `proxy.domains.allow` so simplification cannot turn a one-element sequence into a mode string.
-R `network = NULL` omits the field from constructed settings.
-A YAML `network: null` is omitted when files merge, preserving an earlier network field or using context defaults if none was supplied.
+YAML accepts the same forms when read through either constructor.
+For a literal destination named `enabled` or `restricted`, use `proxy.domains.allow` explicitly.
+R `network = NULL` omits the field; YAML `network: null` preserves an earlier network value when files merge.
 
 A named network mapping keeps the canonical `config.yaml` structure shown above and enables a managed proxy.
 Proxy options stay under `proxy`; `sockets` and `allow_local_binding` control local networking.
 Omitting `proxy.domains` retains context defaults.
 Supplying it selects explicit destination rules; an empty domains mapping or allow list can remove the resolver's generated repository allowlist.
 
-Other permission settings are:
-
-| Setting                              | Accepted values                                                                                                                                           |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tempdir`                            | `"managed"` (default) creates private writable storage; `"read_write"` permits shared host temporary writes; `"read_only"` adds no temporary write grant. |
-| `network$proxy$mode`                 | `"full"` (default) supports HTTP/HTTPS and SOCKS; `"limited"` permits plain HTTP GET, HEAD, and OPTIONS, with no HTTPS CONNECT or SOCKS.                  |
-| `network$proxy$socks5`               | `"tcp"` (default) or `"disabled"`. Omit it in limited mode. `"tcp_udp"` is currently unsupported.                                                         |
-| `network$proxy$allow_upstream_proxy` | `FALSE` by default; `TRUE` permits onward routing through the trusted launch environment's proxy.                                                         |
-| `network$sockets$unix_sockets`       | A vector of absolute socket paths on macOS, or `"dangerously_allow_all"` on macOS/Linux. Windows supports neither grant.                                  |
-| `network$allow_local_binding`        | `"auto"`, `TRUE`, or `FALSE`. Auto disables worker binding on Unix and enables resolver binding; Windows managed proxies require it.                      |
-
-Proxy patterns use hostnames, not URLs: `"*.example.org"` matches subdomains, while `"**.example.org"` also matches the apex.
-Worker and resolver policies are independent; setting worker `network = FALSE` still allows preparation to download packages under its own policy.
-Resolver profiles accept `"read_only"` and `"workspace"`, with cache writes and package-source downloads supplied by its defaults.
-See [sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/) for enforcement and platform details.
+Use `tempdir = "managed"` for private temporary writes (the default), `"read_write"` for shared host temporary writes, or `"read_only"` for no temporary write grant.
+Exact proxy, socket, and platform-specific settings are in [Sandbox permissions](https://posit-dev.github.io/mcp-console/sandbox_configuration/).
+Worker and resolver permissions are independent; see [Package settings](https://posit-dev.github.io/mcp-console/package_configuration/#preparation-permissions) for package preparation.
+`ConsoleConfig(sandbox = FALSE)` disables both sandboxes and runs with host permissions.
 
 ## Launch a configured session {#existing-callers}
 

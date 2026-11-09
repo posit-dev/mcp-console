@@ -15,7 +15,6 @@ project:
     - cli-help.qmd
     - README.md
     - "*.md"
-    - benchmarks/*.md
     - python/index.qmd
     - python/reference/*.qmd
     - "!python/**/*.md"
@@ -68,17 +67,15 @@ website:
       - section: Set up
         contents:
         - CLIENTS.md
-      - section: Other tasks
-        contents:
-        - SANDBOX_COMMAND.md
+        - BUILD_FROM_SOURCE.md
+        - LINUX_COMPATIBILITY.md
+      - SANDBOX_COMMAND.md
     - id: build
       title: Build
       style: docked
       collapse-level: 2
       contents:
       - href: BUILD.md
-        text: Overview
-      - href: BUILD_ON_CONSOLE.md
         text: Build a data assistant
       - section: Integrate
         contents:
@@ -88,8 +85,6 @@ website:
           text: From Python
         - href: SEND_OPERATIONS.md
           text: Drive send directly
-        - href: INTEGRATOR_CONTROL.md
-          text: Internal integrator control
       - section: Builder reference
         contents:
         # Published routes link out without assigning these sources to two sidebars.
@@ -145,15 +140,12 @@ website:
       - ARCHITECTURE.md
       - RELAY_PROTOCOL.md
       - WORKER_PROTOCOL.md
+      - INTEGRATOR_CONTROL.md
       - TOOL_DESCRIPTIONS.md
       - WINDOWS_DEVELOPMENT.md
       - TODO.md
-      - section: Evidence and release
-        contents:
-        - RESOLVER_RELEASE_AUDIT.md
-        - benchmarks/transcript-concurrency.md
-        - href: https://github.com/posit-dev/mcp-console/blob/main/RELEASE.md
-          text: Release procedure
+      - href: https://github.com/posit-dev/mcp-console/blob/main/RELEASE.md
+        text: Release procedure
   page-footer:
     left: MCP Console · MIT License
     right:

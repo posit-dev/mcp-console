@@ -1,5 +1,8 @@
-//! The existing bounded drain owns journal I/O. Observed identities never need
-//! its writer mutex, including during worker retirement and response assembly.
+//! The bounded drain owns journal I/O. Observed identities never need its writer
+//! mutex, including during worker retirement and response assembly.
+//! Reserve worker/cell/image ownership at observation time, before journal I/O;
+//! late delivery and replacement must not reassign it. Queue limits include
+//! in-flight batches. Overflow disables capture instead of blocking producers.
 use super::{
     ActiveTranscript, CallImageOwner, Event, ImageOwner, Interval, Owner, ProcessOutput,
     Transcript, output,

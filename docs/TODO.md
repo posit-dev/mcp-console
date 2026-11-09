@@ -1,107 +1,75 @@
-# Open work and design questions
+# Open work
 
-This page collects unfinished work and deferred questions from the documentation.
-It is not a release scope commitment, a second issue tracker, or a claim that every limitation needs implementation.
-Check the source, applicable tests, and tracker before starting work; add an issue link when an item is selected.
-
-The initial inventory comes from the documentation reviewed at `b9caf7c55e9f9fbb0ce33582e4c61d615813b4eb`.
-Status below distinguishes verification, known limitations, and unselected proposals.
-No priorities, owners, or deadlines have been invented.
-
-## Release verification
-
-**RV-1 — Verify the resolver boundary at the actual release candidate.** The [historical audit](RESOLVER_RELEASE_AUDIT.md) ended pending final-head CI and used an older companion pin.
-Run the relevant trust, cancellation, result-handoff, and cleanup cases on the candidate's supported native platforms.
-Attach exact Console/companion revisions and CI evidence.
-Do not treat a historical NO-GO as permanent current status or an old pass as current approval.
-
-**RV-2 — Complete native Linux floor rehearsal.** Earlier controlled-Jammy results do not replace a release-candidate rehearsal on both native architectures, including R-free/R-present installed wheels, the bundled helper, loader/ABI validation, and bounded shutdown.
-Follow [Release](../RELEASE.md#linux-floor-validation).
-This is a release checkpoint, not a request to redesign packaging.
+Keep unfinished work here, with enough context to find the owning code and decide what to do next.
+Check the source and tests before starting an item, add an issue link when work is selected, and delete the entry when it is resolved.
+The IDs are stable references, not priorities or release commitments.
+Recurring release checks belong in [Release](../RELEASE.md).
 
 ## Runtime and resource limits
 
-**RT-1 — Resolve or explicitly bound late R startup's process-environment risk.** The [peer-runtime sketch](../design-sketches/peer-runtime-completion.md#execution-thread-constraints) records environment mutation during late R initialization while native Python services may already run.
-Establish the remaining behavior on current source before choosing a fix.
-A safe design needs an appropriate R embedding interface or a justified restriction, with startup/object/connection continuity and reentrant-callback regressions.
-Moving runtimes to separate threads does not by itself fix process-wide environment mutation.
+- [ ] **RT-1 — Resolve or bound process-environment changes during late R startup.**
+  R can initialize after Python and its native services are running.
+  [R integration](../src/worker/r_integration.rs) still sets library environment variables before initialization, and R's bootstrap can change the process environment.
+  Establish which changes can race with native readers and choose a safe embedding interface or an explicit restriction.
+  Verify startup-package behavior, existing Python objects and SQL connections, and reentrant callbacks.
+  Separate runtime threads would not remove this process-wide risk.
 
-**RT-2 — Decide whether internal frames and queued stdin need limits.** [Worker protocol](WORKER_PROTOCOL.md#launch-and-transport) has no general sideband frame-size or stdin-queue cap.
-Public output budgets do not bound these allocations.
-Any selected change must define rejection, streaming/backpressure, cancellation, and compatibility behavior at the owning boundary.
+- [ ] **RT-2 — Decide limits for internal frames and queued stdin.**
+  The [worker transport](WORKER_PROTOCOL.md#launch-and-transport) has no general frame-size or stdin-queue cap.
+  Public output budgets do not bound these allocations.
+  Define rejection, streaming or backpressure, and cancellation behavior before adding limits.
 
-**RT-3 — Decide recording retention and retrieval policy.** [Recordings](RECORDING.md) have no aggregate retention quota, automatic cleanup, built-in read tool, or redaction.
-Per-output caps are not a total disk budget.
-Choose a concrete user need before adding cleanup or artifact APIs; protect active sessions and user-managed files.
-Current documentation must continue to state the limits.
+- [ ] **RT-3 — Define recording retention and retrieval policy.**
+  [Recordings](RECORDING_REFERENCE.md) have per-output limits but no aggregate disk quota, automatic cleanup, built-in read tool, or redaction.
+  Select the required retention and retrieval behavior; protect active sessions and user-managed files.
 
-**RT-4 — Remove the managed R DuckDB streaming adapter when the driver supports incremental data frames.** The [temporary workaround](ARCHITECTURE.md#managed-duckdb-streaming-workaround) keeps Arrow fetching and scratch conversion internal.
-Once the supported DuckDB R versions include [upstream streaming support](https://github.com/duckdb/duckdb-r/pull/2587), use the ordinary DBI retrieval path and delete the adapter and Arrow-specific retained-result branches.
-Preserve the existing public data-frame, row-limit, preview, and cleanup contracts; exact preview formatting has a separate use for the scratch catalog.
+- [ ] **RT-4 — Replace the R DuckDB Arrow adapter when incremental data-frame fetching is supported.**
+  The temporary adapter lives in [the SQL bridge](../src/sql/bridge.R).
+  Check supported DuckDB R versions for [upstream streaming support](https://github.com/duckdb/duckdb-r/pull/2587), then use ordinary DBI retrieval and remove Arrow-specific retained-result handling.
+  Preserve data-frame results, row limits, previews, and cleanup; the scratch catalog also serves exact preview formatting.
 
-**RT-5 — Restore interrupt completion during R DuckDB 2.0.0 Arrow fetching.** A running SQL query can remain active after an interrupt while Console fetches an Arrow result.
-In [DuckDB 2.0.0's execution path](https://github.com/duckdb/duckdb-r/blob/v2.0.0/src/statement.cpp#L440-L478), the interrupt handler covers statement submission, but a streamed result runs as it is read after that handler is disabled.
-Reproduce through Console's SQL API and verify interrupt completion and retained connection state before changing the adapter or advancing the [dated SQL fixtures](DEVELOPMENT.md#selecting-and-sizing-test-runs).
-Production package selection remains unchanged; the fixture date does not establish DuckDB 2.0.0 cancellation support.
+- [ ] **RT-5 — Reproduce and fix interrupt completion during R DuckDB 2.0 Arrow fetching.**
+  A query can remain active after an interrupt while its Arrow result is fetched.
+  Exercise this through Console's SQL API and verify interruption and retained connection state before advancing the DuckDB fixture pin in [shared R support](../tests/support/r.py).
+  Those tests pin DuckDB 1.5.6; production package selection is independent of that fixture.
 
 ## Sandbox and platforms
 
-**SP-1 — Review evidence for macOS policy exceptions.** Check each application extension against the actual sandboxed workflow and selected native pin.
-Distinguish historical evidence from speculation and inherited runner allowances.
-Preserve meaningful regressions, including real-library process creation; resolver success is not worker-sandbox evidence.
-See [Sandbox](ARCHITECTURE.md#policy-extensions-and-compatibility).
+- [ ] **SP-1 — Verify the macOS policy exceptions against their callers.**
+  Review each application exception against the sandboxed workflow and selected companion pin.
+  Keep real-library regressions where distinct APIs exercise distinct permissions; resolver success alone does not establish worker permissions.
+  Start with [policy ownership](ARCHITECTURE.md#policy-extensions-and-compatibility).
 
-**SP-2 — Track managed UDP and Unix-socket capability gaps.** Console rejects `tcp_udp` on macOS/Linux and path-specific Unix-socket lists on Linux.
-Historical docs recorded an upstream UDP reply-routing issue.
-Verify the selected companion's current implementation and executable behavior before changing admission or documentation.
-A schema accepting a native option is not proof of usable routing.
-See [native capabilities](SANDBOX_CONFIGURATION.md#native-capabilities).
+- [ ] **SP-2 — Assess managed UDP and path-specific Unix-socket support.**
+  Console rejects `tcp_udp` on macOS/Linux and path-specific Unix-socket lists on Linux.
+  Check the pinned companion's routing and executable behavior before changing admission or the [capability reference](SANDBOX_CONFIGURATION.md#native-capabilities).
+  Schema support alone does not establish usable routing.
 
-**SP-3 — Reduce Windows fixture-only exclusions.** Port shell/shebang, FIFO, and Unix-layout fixtures for otherwise supported admission, resolver, client, and lifecycle behavior.
-The CLI resolver inventory/manifest fixture now uses a native executable, and CLI configuration-conflict and startup-validation cases no longer require POSIX.
-Warmup cases for missing or unusable R and interactive input also run on Windows.
-The [runtime-discovery fixture work](https://github.com/t-kalinowski/mcp-console/issues/695) adds shared coverage for initialization, failure, cancellation, early cells, phase reporting, and explicit retry through a native R probe and loopback gate.
-The [environment-inheritance fixture work](https://github.com/t-kalinowski/mcp-console/issues/701) enables shared Windows coverage for worker and resolver inheritance and restoration after restart through a native uv probe launcher.
-Other fixture exclusions remain.
-Keep genuinely OS-specific contracts on their owning platform.
-Native Windows acceptance does not cover every skipped shared case.
-Audit through full-suite capability diagnostics; see [Windows parity](WINDOWS_DEVELOPMENT.md#testing-parity-and-remaining-gaps).
+- [ ] **SP-3 — Port Windows fixture-only exclusions.**
+  Use full-suite capability diagnostics to find shell/shebang, FIFO, and Unix-layout fixtures for otherwise supported behavior.
+  Port those fixtures while retaining genuinely platform-specific cases on their owning OS.
+  See [Windows validation](WINDOWS_DEVELOPMENT.md#testing-parity-and-remaining-gaps); native acceptance does not cover every skipped shared case.
 
-**SP-4 — Move development and CI to Python 3.15 when DuckDB wheels are available.** DuckDB 1.5.6 has no CPython 3.15 wheels.
-The complete test suite uses Python 3.14 so SQL fixtures can install their native provider without building it from source.
-This concerns the test runner, not a blanket claim that Console cannot embed later Python versions.
+- [ ] **SP-4 — Revisit the Python 3.14 test-runner pin.**
+  Move development and CI to Python 3.15 when the DuckDB versions required by the SQL fixtures have compatible wheels.
+  Verify the complete suite without requiring provider builds from source.
+  This pin concerns development checks, not the versions Console can embed.
 
 ## Documentation and agent usability
 
-**DX-1 — Measure tool-description changes with agent evaluations.** This documentation refactor does not change advertised tool prose.
-A later pass should compare discovery, language choice, correct polling/input, dependency preparation, recovery, and token cost against the same scenarios.
-Smaller prose alone is not evidence of better behavior.
-See [Tool descriptions](TOOL_DESCRIPTIONS.md).
+- [ ] **DX-1 — Evaluate tool-description changes with agents.**
+  Compare discovery, language choice, polling and input, dependency preparation, recovery, and token cost on the same scenarios.
+  Use the [tool-description owners](TOOL_DESCRIPTIONS.md); shorter prose alone does not establish better behavior.
 
-Delete completed entries and empty sections as part of the change that resolves them, and update related links.
+- [ ] **DX-4 — Evaluate explicit context actions in the Shiny fixture.**
+  Consider an “Ask about this object” action that prefills the composer, and links from plots or tables to their producing evaluation.
+  Keep context handoff deliberate: browsing or filtering must not add private queries or rows to the model's context.
+  Interactive plots and redraw-at-size need a runtime output contract beyond captured images.
+  See the [fixture](../tests/fixtures/control_shiny/README.md).
 
-**DX-3 — Support interpreter paths containing spaces in Unix test fixtures.** Several tooling and boundary fixtures embed `sys.executable` directly in a shebang.
-When that path contains spaces, fixture commands can fail to launch or PATH search can reach a real tool instead; staging tests then report that the fake `fixture` Rust toolchain is missing.
-Use the quoted shell/Python launcher pattern already exercised by `tests/release.py`, preserving stdin and interpreter arguments, and validate through the affected public commands with an interpreter installed under a path containing spaces.
-Until this is repaired, run development checks with a Python executable whose path contains no spaces.
+## Design questions
 
-**DX-4 — Explore explicit object and result context actions in the Shiny fixture.** The [integration fixture](../tests/fixtures/control_shiny/README.md) combines conversational data exploration with shared-session execution and private inspection.
-Consider an "Ask about this object" action that prefills the composer, and links from captured plots or table views to their producing evaluation.
-Keep context handoff deliberate: opening a viewer or changing its filters must not add private queries or rows to the model's context.
-Interactive chart specifications and redraw-at-size support would need an output contract beyond captured images.
-These are interaction design proposals, not requirements for the current control channel.
-
-## Unselected proposals, not release blockers
-
-An opt-in Git-aware write policy and a separate project-configuration trust mechanism remain future design questions.
-Resolve project authorization independently of Git before making workspace writes more automatic.
-
-The [design archive](../design-sketches/README.md) describes viewers, a sidecar API, typed object/table inspection, named sessions, separate runtime threads, and SQL-only execution without either language runtime.
-Several sketches also assume old compute targets or an R-hosted Python design.
-
-These are possible directions, not supported features or implied commitments.
-Do not copy their old implementation checklists into the active backlog.
-Select a goal, reconcile it with current architecture, and create a scoped issue before implementation.
-
-Documented native limits—runner-loss cleanup, inherited procfs visibility, mount masking, and unrestricted/external-mode authority—remain limits unless separately selected for work.
-They are not hidden promises of stronger guarantees.
+- [ ] **DQ-1 — Decide whether project trust needs a separate policy.**
+  Consider an opt-in Git-aware write policy only alongside an explicit project-configuration trust model.
+  Git presence alone must not authorize configuration or workspace writes.
+  Current behavior is described in [configuration discovery](CONFIGURATION.md) and [sandbox profiles](SANDBOX_CONFIGURATION.md#profiles-and-temporary-storage).
