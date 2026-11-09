@@ -334,13 +334,16 @@ impl OutputTape {
 
     pub(in crate::worker_client) fn snapshot(&self) -> Response {
         let state = self.lock();
-        let mut response = state
-            .recovered
-            .as_ref()
-            .map(Response::snapshot)
-            .unwrap_or_default();
-        state.snapshot_intervals_into(&mut response);
-        response
+        let mut intervals = Response::default();
+        state.snapshot_intervals_into(&mut intervals);
+        match &state.recovered {
+            Some(recovered) => {
+                let mut response = recovered.snapshot();
+                response.extend_after_recovered(intervals);
+                response
+            }
+            None => intervals,
+        }
     }
 
     pub(in crate::worker_client) fn snapshot_cell(&self) -> Response {
@@ -416,9 +419,10 @@ impl OutputTape {
         let cut = state.seal(true);
         let idle = match gap {
             CellEntryGap::Idle => {
-                // Recovered MCP replies keep their own owner and position.
-                let mut idle = Response::default();
-                state.drain_intervals_into(cut, &mut idle);
+                // As at admission, recovered MCP replies precede newer idle
+                // output. Each part keeps its own owner; only this MCP cell
+                // takes this path, and its response would include them anyway.
+                let idle = state.drain(cut);
                 if !idle.is_empty() {
                     // Cell output follows the complete idle marker line.
                     state.current.start_line();
@@ -703,9 +707,15 @@ impl OutputTapeState {
     }
 
     fn drain(&mut self, cut: OutputCut) -> Response {
-        let mut output = self.recovered.take().unwrap_or_default();
-        self.drain_intervals_into(cut, &mut output);
-        output
+        let mut intervals = Response::default();
+        self.drain_intervals_into(cut, &mut intervals);
+        match self.recovered.take() {
+            Some(mut recovered) => {
+                recovered.extend_after_recovered(intervals);
+                recovered
+            }
+            None => intervals,
+        }
     }
 
     fn drain_intervals_into(&mut self, cut: OutputCut, output: &mut Response) {

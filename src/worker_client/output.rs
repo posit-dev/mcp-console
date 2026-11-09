@@ -343,6 +343,14 @@ impl Response {
         self.with_builder(|builder| builder.append_logical_region(other));
     }
 
+    /// Appends output that followed this recovered response.
+    ///
+    /// A recovered reply may end with a notice, which occupies its own line;
+    /// recovered output that ended mid-line continues that line.
+    pub(super) fn extend_after_recovered(&mut self, other: Self) {
+        self.with_builder(|builder| builder.append_after_recovered(other));
+    }
+
     /// Appends cell output after this response's owned idle prelude.
     ///
     /// The canonical builder inserts the separator only when both regions are
@@ -477,6 +485,16 @@ impl ResponseBuilder {
             self.response.preview.last_visible(),
             Some(Part::Text(_) | Part::Notice(_))
         ) && !self.response.preview.ends_with_newline()
+            && other.preview.starts_with_text()
+        {
+            self.response.preview.notice("\n".to_owned());
+        }
+        self.append_response(&mut other);
+    }
+
+    fn append_after_recovered(&mut self, mut other: Response) {
+        if matches!(self.response.preview.last_visible(), Some(Part::Notice(_)))
+            && !self.response.preview.ends_with_newline()
             && other.preview.starts_with_text()
         {
             self.response.preview.notice("\n".to_owned());
