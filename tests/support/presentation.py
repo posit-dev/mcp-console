@@ -12,6 +12,14 @@ def descriptions(value: dict) -> Iterator[str]:
             yield from descriptions(item)
 
 
+def definition_title(languages: set[str]) -> str:
+    """The static tool title; a single-language interface names its language."""
+    names = {"r": "R", "python": "Python", "sql": "SQL"}
+    if len(languages) == 1:
+        return f"Run {names[next(iter(languages))]} code"
+    return "Run code"
+
+
 def without_descriptions(value: object) -> object:
     if isinstance(value, dict):
         return {

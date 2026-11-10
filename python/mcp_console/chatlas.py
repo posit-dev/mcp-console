@@ -145,6 +145,8 @@ def _tool(console: MCPConsole | AsyncMCPConsole, definition: MCPTool) -> Tool:
         name=definition.name,
         description=definition.description or "",
         parameters=definition.input_schema,
+        # shinychat reads the definition title for multi-call group headers.
+        annotations={"title": definition.title} if definition.title else None,
         strict=False,
     )
 

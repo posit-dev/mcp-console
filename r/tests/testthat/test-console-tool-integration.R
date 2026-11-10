@@ -295,6 +295,24 @@ test_that("console_tools forward result _meta into extra verbatim", {
   })
 })
 
+test_that("console_tools forward the advertised tool title", {
+  with_temp_working_directory({
+    send <- console_tools(
+      path = real_mcp_console(),
+      config = ConsoleConfig(
+        r = list(resolution = "disabled"),
+        languages = "r",
+        sandbox = FALSE
+      )
+    )$send
+    # shinychat reads the definition title for multi-call group headers;
+    # a single-language console names its language.
+    expect_identical(send@annotations$title, "Run R code")
+    rm(send)
+    invisible(gc())
+  })
+})
+
 test_that("console_tools work when registered with an ellmer chat", {
   # fmt: r
   source <- r"(

@@ -134,6 +134,7 @@ impl ConsoleServer {
             .map
             .get_mut("send")
             .expect("send tool must be registered");
+        send.attr.title = Some(profile.title().into());
         send.attr.description = Some(
             tool.description
                 .clone()
@@ -197,6 +198,17 @@ pub(crate) fn parameter_schema(languages: Languages) -> Map<String, Value> {
 }
 
 impl Profile {
+    /// Static definition title. A single-language interface names its
+    /// language; a shared title cannot name one language of several.
+    fn title(&self) -> &'static str {
+        match (self.languages.r, self.languages.python, self.languages.sql) {
+            (true, false, false) => "Run R code",
+            (false, true, false) => "Run Python code",
+            (false, false, true) => "Run SQL code",
+            _ => "Run code",
+        }
+    }
+
     fn restricted_guidance(&self) -> bool {
         !(self.languages.r && self.languages.python && self.languages.sql)
     }

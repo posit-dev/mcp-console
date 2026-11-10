@@ -722,6 +722,12 @@ def test_callable_tools_follow_connected_server_fields(
             (anthropic.to_dict()["input_schema"], lambda: anthropic.call(arguments)),
         )
         outputs = []
+        # shinychat reads the definition title for multi-call group headers;
+        # custom workers that advertise no title keep annotations empty.
+        if live_tool.title is not None:
+            assert chat_tool.annotations["title"] == live_tool.title
+        else:
+            assert chat_tool.annotations is None
         assert chat_tool.schema["function"]["strict"] is False
         assert agent.strict_json_schema is False
         assert responses.definition["strict"] is False
