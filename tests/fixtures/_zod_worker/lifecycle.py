@@ -92,6 +92,8 @@ def close_sideband_with_unread_shutdown(
 def exit_unexpectedly(context: WorkerContext, source: str) -> None:
     if source == "exit after output":
         send_output(context.writer, "zod output before exit\n")
+    elif source.startswith("exit after output: "):
+        send_output(context.writer, source.removeprefix("exit after output: "))
     os._exit(86)
 
 

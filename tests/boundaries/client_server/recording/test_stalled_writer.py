@@ -10,11 +10,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from boundaries.client_server.recording.test_process import recording_events
-from support.checkpoints import FifoCheckpoint
+from support.checkpoints import FifoCheckpoint, wait_for_path
 from support.client import McpClient
 from support.execution import DIRECT
 from support.native import LOADER_VARIABLE, build_interposer
-from support.previews import OMISSION, assert_preview
+from support.previews import OMISSION, TEXT_BUDGET, assert_preview
 from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, POSIX, requires
 from support.suites import run_this_suite
@@ -29,6 +29,7 @@ def stalled_writer(
     """Hold the first matching recording write until the release checkpoint."""
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
+        (root / "startup-control").write_text("ready")
         with (
             closing(FifoCheckpoint.create(root / "observed")) as observed,
             closing(FifoCheckpoint.create(root / "release")) as release,
@@ -44,6 +45,9 @@ def stalled_writer(
                         build_interposer(root, "recording_observation")
                     ),
                     **observation,
+                    "ZOD_STARTUP_CONTROL": str(root / "startup-control"),
+                    "ZOD_STARTUP_STARTED": str(root / "startup-started"),
+                    "ZOD_STARTUP_RELEASE": str(root / "startup-release"),
                     "MCP_CONSOLE_TEST_JOURNAL_OBSERVED": str(observed.path),
                     "MCP_CONSOLE_TEST_JOURNAL_RELEASE": str(release.path),
                 },
@@ -177,6 +181,65 @@ def test_oversized_reply_reports_a_stalled_recording_writer(binary: Path) -> Tra
             {
                 "oversized reply": "bounded wait; raw log path and stalled writer named",
                 "ordinary reply": "returned while the writer was stalled",
+                "raw log after release": "complete",
+            },
+        ]
+
+
+@requires(NATIVE_FIXTURES, POSIX)
+def test_phase_notice_overflow_reports_a_stalled_recording_writer(
+    binary: Path,
+) -> Transcript:
+    notices = (
+        "[worker sideband read failed: worker sideband closed]\n"
+        "[worker exited with status 86]\n"
+        "[worker stopped: in-memory state lost]\n"
+        "[starting new worker]\n"
+    )
+    phase = "[phase: replacement]\n"
+    terminal = "[worker starting]"
+    # The reply fits the text budget without its phase notice and exceeds it
+    # by one byte with it.
+    emitted = "x" * (TEXT_BUDGET - len(notices + phase + terminal)) + "\n"
+    with stalled_writer(
+        binary, {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-002.txt"}
+    ) as (
+        client,
+        root,
+        observed,
+        release,
+    ):
+        client.expect("zod: ready\n", r="echo ready")
+        (root / "startup-control").write_text("block")
+        failed = client.start_send(r=f"exit after output: {emitted}", timeout_ms=1_000)
+        try:
+            observed.wait("cell output file write is stalled", client=client)
+            wait_for_path(
+                root / "startup-started",
+                "replacement worker awaits ready",
+                client=client,
+            )
+            client.receive(failed)
+            text = response_text(failed)
+            assert text.endswith(notices + phase + terminal), text
+            (recording,) = (root / ".agents/console/sessions").iterdir()
+            log = (
+                f".agents/console/sessions/{recording.name}"
+                "/capture/sessions/001/cell-002.txt"
+            )
+            (marker,) = OMISSION.finditer(text)
+            assert marker[0].endswith(f"; raw log: {log}; {BEHIND}]\n"), marker[0]
+        finally:
+            release.release()
+            (root / "startup-release").touch()
+        client.expect("zod: replaced\n", r="echo replaced")
+        transcript = client.finish()
+        completed_calls(root)
+        assert (recording / "capture/sessions/001/cell-002.txt").read_text() == emitted
+        return [
+            *transcript[:3],
+            {
+                "phase-bearing reply": "bounded wait; raw log path and stalled writer named",
                 "raw log after release": "complete",
             },
         ]
