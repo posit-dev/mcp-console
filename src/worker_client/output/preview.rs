@@ -530,8 +530,13 @@ impl Preview {
     }
 
     /// Inspect the same bounded rendering without publishing receipts or
-    /// accounting omissions as if a client had received the output.
-    pub(super) fn render_preview(&mut self) -> Vec<Content> {
+    /// accounting omissions as if a client had received the output. `writer`
+    /// is what the recording already knows; see `Transcript::writer_state`.
+    pub(super) fn render_preview(
+        &mut self,
+        writer: crate::transcript::WriterState,
+    ) -> Vec<Content> {
+        self.writer = writer;
         self.bound();
         self.project(ProjectionMode::Inspect)
             .content

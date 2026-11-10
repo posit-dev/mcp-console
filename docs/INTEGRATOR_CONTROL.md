@@ -201,6 +201,8 @@ Inspection can return `busy` if state cannot be read immediately.
 The response does not reserve the worker.
 
 `preview` reads bounded pending content, including partial terminal lines, without consuming output, acknowledging delivery, or changing omission accounting.
+A preview never waits for the recording writer.
+Its omission notice includes a warning described in [Recording failures](RECORDING_REFERENCE.md#recording-failures) only if recording has stopped or a backlog that a reply's bounded wait gave up on remains.
 Output already claimed by a response writer may no longer be visible there.
 
 ### Subscribe to pending output

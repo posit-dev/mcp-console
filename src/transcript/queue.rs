@@ -671,6 +671,20 @@ impl Transcript {
         }
     }
 
+    /// Where the writer stands, without waiting. A preview repeats while
+    /// output is pending, so it never waits for the writer: it reports a
+    /// stall only after a reply's bounded wait in `settle` has found one.
+    pub(crate) fn writer_state(&self) -> WriterState {
+        let events = self.1.lock().expect("protocol capture lock");
+        if events.failure.is_some() {
+            WriterState::Stopped
+        } else if events.unsettled.is_some_and(|point| events.applied < point) {
+            WriterState::Behind
+        } else {
+            WriterState::Settled
+        }
+    }
+
     fn observe<T>(
         &self,
         operation: impl FnOnce(&mut ProtocolEvents) -> Option<(QueuedEvent, T)>,

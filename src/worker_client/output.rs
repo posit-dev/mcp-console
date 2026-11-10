@@ -256,8 +256,8 @@ impl Response {
         }
     }
 
-    pub(super) fn preview(&self) -> Vec<Content> {
-        self.preview.inspection_copy().render_preview()
+    pub(super) fn preview(&self, writer: crate::transcript::WriterState) -> Vec<Content> {
+        self.preview.inspection_copy().render_preview(writer)
     }
 
     /// The integrator collector owns its result even if its socket disconnects.

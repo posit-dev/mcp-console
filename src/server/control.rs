@@ -352,6 +352,7 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
                     format: *format,
                     changes: worker.integrator_subscribe(),
                     worker,
+                    recording: transcript.clone(),
                 }
             }),
             _ => None,
@@ -407,6 +408,7 @@ struct Subscription {
     worker: crate::worker_client::Client,
     format: SubscriptionFormat,
     changes: watch::Receiver<()>,
+    recording: crate::transcript::Transcript,
 }
 
 async fn stream_snapshots(
@@ -422,13 +424,14 @@ async fn stream_snapshots(
         worker,
         format,
         mut changes,
+        recording,
     } = subscription;
     let mut previous = None;
     loop {
         changes.borrow_and_update();
         let mut event = match format {
             SubscriptionFormat::Preview => {
-                let Ok(content) = worker.integrator_preview() else {
+                let Ok(content) = worker.integrator_preview(recording.writer_state()) else {
                     break;
                 };
                 let result = CallToolResult::success(content_blocks(content));
@@ -666,7 +669,8 @@ async fn handle(
                     .map_err(|error| ("projection_unavailable", error))
             }
             Request::Preview { .. } => {
-                let content = runtime.worker.integrator_preview().map_err(|_| {
+                let writer = runtime.transcript.writer_state();
+                let content = runtime.worker.integrator_preview(writer).map_err(|_| {
                     (
                         "busy",
                         "runner state is changing; retry preview".to_string(),

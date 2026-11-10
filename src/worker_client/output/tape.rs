@@ -329,8 +329,11 @@ impl OutputTape {
         state.drain(cut)
     }
 
-    pub(in crate::worker_client) fn preview(&self) -> Vec<Content> {
-        self.snapshot().preview()
+    pub(in crate::worker_client) fn preview(
+        &self,
+        writer: crate::transcript::WriterState,
+    ) -> Vec<Content> {
+        self.snapshot().preview(writer)
     }
 
     pub(in crate::worker_client) fn snapshot(&self) -> Response {
