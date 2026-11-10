@@ -157,8 +157,10 @@ Creating an output file is limited to 5 seconds.
 A creation that takes longer is reported as a file that was not created.
 Until the creation returns, later output files are not created either, and it can leave an empty file behind.
 
-Output text and images wait for the writer once its backlog passes 16 MiB or 512 operations, so a worker that emits faster than the recording can be written is slowed to the writer's pace.
-Console disables recording, reports the failure on stderr, and continues to receive MCP traffic if the writer completes no operation for 5 seconds while output text or images wait for it, or if its backlog reaches 1,024 operations or 64 MiB.
+When the backlog exceeds 16 MiB or 512 operations, output text and images wait for the writer, slowing a worker that produces them faster than they can be recorded to the writer's pace.
+Console also waits before reading the next MCP message or integrator request when 64 operations, or 16 MiB of operations, without output text or images are queued, slowing a burst of requests to the writer's pace.
+Queued output text and images do not count toward that bound, so a worker flooding output does not delay the request that interrupts it.
+Console disables recording, reports the failure on stderr, and continues to receive MCP traffic if the writer completes no operation for 5 seconds while output, images, or the next request wait for it, or if its backlog reaches 1,024 operations or 64 MiB.
 Shutdown still waits for the writer without a limit ([RT-6](TODO.md)).
 
 The recording journal and generated file formats are not independently versioned APIs.

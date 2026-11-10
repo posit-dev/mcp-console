@@ -147,7 +147,7 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                 DIRECT.serve("--worker", str(worker)),
                 environment,
                 root,
-                response_timeout=5,
+                response_timeout=15,
                 # The stalled writer cannot record a delivery.
                 recording_receipts=False,
             ) as client:
@@ -165,6 +165,10 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                             "isError": False,
                         }, pending
                     baseline = profile.live
+                    # Past 64 queued frames or 16 MiB, Console stops reading
+                    # requests until the writer catches up. This writer never
+                    # does: after 5 seconds without progress, recording stops
+                    # and the remaining requests are read without it.
                     for _ in range(96 if large_frames else 400):
                         client.notify(
                             "notifications/cancelled",
@@ -172,18 +176,19 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                             reason="x" * (1024 * 1024 if large_frames else 1),
                         )
                         assert client.request("ping")["result"] == {}
-                    assert client.request("ping")["result"] == {}
-                    # The byte bound plus the one frame that crosses it.
-                    assert profile.live - baseline < 72 * 1024 * 1024, (
-                        profile.live - baseline
-                    )
+                        # The paced byte bound, the frame that crosses it, and
+                        # the frame being read.
+                        assert profile.live - baseline < 24 * 1024 * 1024, (
+                            profile.live - baseline
+                        )
+                    client.await_recording_disabled()
                 finally:
                     release.release()
                 client.expect("zod: after overflow\n", r="echo after overflow")
                 _, diagnostics = client.finish_with_standard_error()
                 assert diagnostics == (
                     "mcp-console: transcript recording disabled: "
-                    "protocol capture backlog exceeded (1024 events or 67108864 bytes)\n"
+                    "recording writer made no progress for 5 seconds\n"
                 ), diagnostics
                 if large_frames:
                     (recording,) = (root / ".agents/console/sessions").iterdir()

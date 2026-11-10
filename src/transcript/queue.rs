@@ -3,13 +3,20 @@
 //! Reserve worker/cell/image ownership at observation time, before journal I/O;
 //! late delivery and replacement must not reassign it. Queue limits include
 //! in-flight batches. Overflow disables capture instead of blocking producers,
-//! except the producers of file data described below.
+//! except for the two paced producers described below.
 //!
 //! Tool calls, results, activation, and configuration are queued operations
 //! too: handlers enqueue them and return without waiting for the writer.
 //!
+//! Request intake is paced: before a transport reads its next request, it
+//! waits while operations queued by earlier requests exceed a small bound.
+//! Handlers never wait, so without this pacing, a burst of requests fills the
+//! queue behind a writer that is slow but still writing. The bound counts only
+//! operations without file data and leaves room for operations that requests
+//! already read have yet to queue.
+//!
 //! Output-file and image bytes travel in queued operations as well, so the
-//! drain performs every recording write. Their producers alone are paced: a
+//! drain performs every recording write. Their producers are paced too: a
 //! producer waits while the writer makes progress, and a writer that applies
 //! nothing for `WRITER_WAIT` disables capture. A reply that cites a retained
 //! file waits at most `WRITER_WAIT` for the writer and says so if it is behind.
@@ -46,6 +53,9 @@ pub(super) struct ProtocolEvents {
     // Include batches held by flush_protocol while journal I/O is blocked.
     retained_events: usize,
     retained_bytes: usize,
+    /// The share of that retention in operations that carry file data.
+    retained_data_events: usize,
+    retained_data_bytes: usize,
     pub(super) failure: Option<String>,
     draining: bool,
     next_session_id: u64,
@@ -195,6 +205,14 @@ pub(super) enum QueuedEvent {
 }
 
 impl QueuedEvent {
+    /// The file data this operation carries, if any.
+    fn data(&self) -> Option<&Vec<u8>> {
+        match self {
+            Self::OutputWrite { data, .. } | Self::ImageRetained { data, .. } => Some(data),
+            _ => None,
+        }
+    }
+
     fn append(
         self,
         state: &mut super::TranscriptState,
@@ -485,6 +503,13 @@ const MAX_PROTOCOL_BYTES: usize = 64 * 1024 * 1024;
 /// Producers of file data wait for the writer beyond this backlog.
 const PACED_BYTES: usize = 16 * 1024 * 1024;
 const PACED_EVENTS: usize = MAX_PROTOCOL_EVENTS / 2;
+/// Request intake waits for the writer beyond this many queued operations
+/// that carry no file data, or `PACED_BYTES` of them. File data can hold half
+/// of the queue, and a transport can read this many requests before any of
+/// them is handled; the other half then leaves each of them eight operations
+/// of its own. Pacing keeps request traffic alone from reaching the overflow
+/// bounds, which remain the limit for whatever is not paced.
+const PACED_REQUEST_EVENTS: usize = MAX_PROTOCOL_EVENTS / 16;
 /// One merged output range. Smaller ranges keep writer progress observable.
 const MAX_MERGED_BYTES: usize = 1024 * 1024;
 /// The longest a reply or a producer waits for the recording writer, and the
@@ -559,6 +584,7 @@ impl ProtocolEvents {
             *discarded_bytes += next_discarded;
             *measured += next_data.len();
             self.retained_bytes += next_data.len();
+            self.retained_data_bytes += next_data.len();
             return true;
         }
         let mut size = ProtocolBytes::default();
@@ -567,18 +593,31 @@ impl ProtocolEvents {
             return false;
         }
         // File data is not serialized, but the queue retains it.
-        let size = size.0
-            + match &event {
-                QueuedEvent::OutputWrite { data, .. } | QueuedEvent::ImageRetained { data, .. } => {
-                    data.len()
-                }
-                _ => 0,
-            };
+        let size = size.0 + event.data().map_or(0, Vec::len);
+        if event.data().is_some() {
+            self.retained_data_events += 1;
+            self.retained_data_bytes += size;
+        }
         self.queued += 1;
         self.retained_events += 1;
         self.retained_bytes += size;
         self.pending.push((event, at, size));
         true
+    }
+
+    /// Whether a producer of file data must wait for the writer.
+    fn data_paced(&self) -> bool {
+        self.failure.is_none()
+            && (self.retained_bytes >= PACED_BYTES || self.retained_events >= PACED_EVENTS)
+    }
+
+    /// Whether request intake must wait for the writer. File data does not
+    /// count: a worker that floods output must not hold back the request
+    /// that interrupts it.
+    fn intake_paced(&self) -> bool {
+        self.failure.is_none()
+            && (self.retained_events - self.retained_data_events >= PACED_REQUEST_EVENTS
+                || self.retained_bytes - self.retained_data_bytes >= PACED_BYTES)
     }
 
     pub(super) fn stop(&mut self, error: String) {
@@ -594,6 +633,29 @@ impl ProtocolEvents {
             .map(|(_, _, bytes)| bytes)
             .sum::<usize>();
     }
+}
+
+/// Wait while the backlog is `paced` and the writer makes progress. A writer
+/// that applies nothing for `WRITER_WAIT` stops capture instead.
+fn pace(
+    mut events: std::sync::MutexGuard<'_, ProtocolEvents>,
+    paced: fn(&ProtocolEvents) -> bool,
+) -> std::sync::MutexGuard<'_, ProtocolEvents> {
+    while paced(&events) {
+        let applied = events.applied;
+        let wake = events.wake.clone();
+        let (guard, wait) = wake
+            .wait_timeout(events, WRITER_WAIT)
+            .expect("protocol capture lock");
+        events = guard;
+        if wait.timed_out() && events.applied == applied {
+            events.stop(format!(
+                "recording writer made no progress for {} seconds",
+                WRITER_WAIT.as_secs()
+            ));
+        }
+    }
+    events
 }
 
 #[derive(Default)]
@@ -618,27 +680,34 @@ impl Transcript {
     /// writer. The byte bound alone would otherwise turn a fast producer into
     /// a capture failure; the synchronous write this replaces paced it too.
     pub(super) fn queue_data(&self, event: QueuedEvent) {
-        let mut events = self.1.lock().expect("protocol capture lock");
-        while events.failure.is_none()
-            && (events.retained_bytes >= PACED_BYTES || events.retained_events >= PACED_EVENTS)
-        {
-            let applied = events.applied;
-            let wake = events.wake.clone();
-            let (guard, wait) = wake
-                .wait_timeout(events, WRITER_WAIT)
-                .expect("protocol capture lock");
-            events = guard;
-            if wait.timed_out() && events.applied == applied {
-                events.stop(format!(
-                    "recording writer made no progress for {} seconds",
-                    WRITER_WAIT.as_secs()
-                ));
-            }
-        }
+        let mut events = pace(
+            self.1.lock().expect("protocol capture lock"),
+            ProtocolEvents::data_paced,
+        );
         if events.failure.is_none() {
             events.push(event, Utc::now());
         }
         self.start_drain(events);
+    }
+
+    /// Hold the next request back while the writer works through the
+    /// operations that earlier requests queued. Requests queue them without
+    /// waiting, so a burst would otherwise fill the queue and disable capture
+    /// behind a writer that is slow but still writing. Call this before
+    /// reading a request.
+    pub(crate) async fn paced(&self) {
+        if !self.1.lock().expect("protocol capture lock").intake_paced() {
+            return;
+        }
+        let recording = self.clone();
+        tokio::task::spawn_blocking(move || {
+            drop(pace(
+                recording.1.lock().expect("protocol capture lock"),
+                ProtocolEvents::intake_paced,
+            ));
+        })
+        .await
+        .expect("recording pacing task");
     }
 
     pub(super) fn stopped(&self) -> bool {
@@ -779,6 +848,7 @@ impl Transcript {
         // of its retention; the caller then disables recording.
         let mut pending = pending.into_iter();
         while let Some((event, at, bytes)) = pending.next() {
+            let data = event.data().is_some();
             let result = event.append(state, self, at);
             let (count, bytes) = match result {
                 Ok(()) => (1, bytes),
@@ -791,6 +861,11 @@ impl Transcript {
             let mut events = self.1.lock().expect("protocol capture lock");
             events.retained_events -= count;
             events.retained_bytes -= bytes;
+            // A failed batch stops capture, which ends pacing.
+            if data && result.is_ok() {
+                events.retained_data_events -= 1;
+                events.retained_data_bytes -= bytes;
+            }
             events.applied += count as u64;
             if events
                 .unsettled

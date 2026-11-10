@@ -292,6 +292,13 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
         let mut read = BufReader::new(read);
         let mut activated = false;
         loop {
+            // As at MCP receipt, hold intake to the recording writer's pace.
+            tokio::select! {
+                biased;
+                _ = reader_closing.changed() => break,
+                _ = frames.closed() => break,
+                () = incoming.paced() => {}
+            }
             let mut frame = Vec::new();
             let mut bounded = (&mut read).take((MAX_FRAME + 1) as u64);
             let result = tokio::select! {

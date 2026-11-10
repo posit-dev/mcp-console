@@ -176,8 +176,8 @@ A source admission is not evidence that the worker entered the cell.
 
 The bounded capture queue carries every recording operation, including output-file bytes and images, to one writer thread.
 Worker dispatch, retirement, handlers, and replies queue operations and do not perform recording I/O.
-Three waits on the writer remain, each bounded at 5 seconds: creating an output file, pacing a producer of output text or images behind a large backlog, and assembling a reply whose omission notice names retained files.
-Pacing blocks the producer's thread, which can hold that session's output state, so it lasts only while the writer makes progress.
+Four waits on the writer remain, each bounded at 5 seconds: creating an output file, pacing a producer of output text or images behind a large backlog, pacing request intake behind queued request operations, and assembling a reply whose omission notice names retained files.
+Output pacing blocks the producer's thread, which can hold the session's output state, and intake pacing delays every later request, including cancellation, so both continue only while the writer makes progress.
 Markdown and QMD are projections; neither is an interpreter checkpoint.
 Reported capture failures disable recording without stopping computation; projection failures can leave the journal and raw files usable.
 The [recording reference](RECORDING_REFERENCE.md#recording-failures) owns retention limits, file layout, and the visible effects of a slow writer.

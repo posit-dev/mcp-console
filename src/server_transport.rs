@@ -1052,6 +1052,15 @@ where
     }
 
     async fn receive(&mut self) -> Option<RxJsonRpcMessage<RoleServer>> {
+        if let Some(recording) = &self.recording {
+            // Handlers queue their journal operations without waiting, so
+            // intake is where a burst is held to the recording writer's pace.
+            tokio::select! {
+                biased;
+                _ = self.deliveries.wait_for_close() => return None,
+                () = recording.paced() => {}
+            }
+        }
         let mut message = tokio::select! {
             biased;
             _ = self.deliveries.wait_for_close() => return None,
