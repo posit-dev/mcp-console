@@ -336,16 +336,14 @@ impl Evaluation {
         }))
     }
 
-    /// None omits a busy observation; false leaves other owners observable.
-    pub(super) fn replacement_observation(&self) -> Option<bool> {
-        let state = self.state.try_lock().ok()?;
-        Some(!state.retired && matches!(state.phase, EvaluationPhase::ReplacementStarting))
+    /// False leaves other owners observable.
+    pub(super) fn replacement_observation(&self) -> bool {
+        let state = self.state.lock().expect("evaluation state");
+        !state.retired && matches!(state.phase, EvaluationPhase::ReplacementStarting)
     }
 
     pub(super) fn session_status(&self) -> &'static str {
-        let Ok(state) = self.state.try_lock() else {
-            return "running";
-        };
+        let state = self.state.lock().expect("evaluation state");
         match state.phase {
             EvaluationPhase::Evaluating if state.input_request.is_some() => "waiting_for_stdin",
             EvaluationPhase::Evaluating => "running",
