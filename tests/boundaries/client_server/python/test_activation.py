@@ -1052,8 +1052,8 @@ def test_retries_interrupted_startup_with_prepared_candidate_without_r(
                 assert without_elapsed(last_result_text(client)) == (
                     "\n[running; poll with an empty send]"
                 )
-                # Launch holds the lifecycle owner. Disposable phase observations
-                # may be unavailable there; the gate proves startup is unfinished.
+                # The gate proves startup is unfinished; the snapshot retains the
+                # reply's startup phase.
                 launch.release()
                 ready.wait("prepared environment startup probe")
                 child_pid = host_process_id(

@@ -24,15 +24,15 @@ impl Source {
     pub(super) fn phase(&self) -> Option<&'static str> {
         let client = self.client.upgrade()?;
         let replacing = match &self.owner {
-            Owner::Evaluation(evaluation) => match evaluation.upgrade() {
-                Some(evaluation) => evaluation.replacement_observation()?,
-                None => false,
-            },
+            Owner::Evaluation(evaluation) => evaluation
+                .upgrade()
+                .is_some_and(|evaluation| evaluation.replacement_observation()),
             _ => false,
         };
-        // Status is disposable: contention must not extend a response deadline
-        // or keep a cancelled request waiting for the operation owner.
-        let lifecycle = client.lifecycle.try_lock().ok()?;
+        // Wait for the owners instead of omitting a contended observation.
+        // See the guard invariant on `ClientInner`.
+        let active = client.evaluation.lock().expect("worker evaluation lock");
+        let lifecycle = client.lifecycle.lock().expect("worker lifecycle lock");
         if !lifecycle.generation.is(&self.generation)
             || matches!(lifecycle.state, LifecycleState::ShuttingDown { .. })
         {
@@ -64,16 +64,13 @@ impl Source {
         observed.or_else(|| {
             // Retained sources can outlive a failed refresh. Observe the current
             // evaluation before falling back to lifecycle work.
-            let active = client.evaluation.try_lock().ok()?;
-            if let Some(active) = active
+            if active
                 .as_ref()
                 .filter(|active| active.evaluation.admission.generation.is(&self.generation))
-                && active.evaluation.replacement_observation()?
+                .is_some_and(|active| active.evaluation.replacement_observation())
             {
-                return Some("replacement");
-            }
-            drop(active);
-            if let Some(phase) = lifecycle
+                Some("replacement")
+            } else if let Some(phase) = lifecycle
                 .processes
                 .resolver
                 .as_ref()
@@ -103,9 +100,7 @@ impl Client {
         if !self.is_configured() {
             return "stopped";
         }
-        let Ok(lifecycle) = self.0.lifecycle.try_lock() else {
-            return "running";
-        };
+        let lifecycle = self.0.lifecycle.lock().expect("worker lifecycle lock");
         match lifecycle.state {
             LifecycleState::ShuttingDown { .. } => return "stopped",
             LifecycleState::Restarting { .. } => return "starting",
@@ -123,9 +118,7 @@ impl Client {
         let generation = lifecycle.generation.clone();
         let has_worker = lifecycle.has_worker();
         drop(lifecycle);
-        let Ok(evaluation) = self.0.evaluation.try_lock() else {
-            return "running";
-        };
+        let evaluation = self.0.evaluation.lock().expect("worker evaluation lock");
         if let Some(active) = evaluation
             .as_ref()
             .filter(|active| active.evaluation.admission.generation.is(&generation))
@@ -138,21 +131,25 @@ impl Client {
         if has_worker { "idle" } else { "stopped" }
     }
 
-    pub(super) fn status_generation(&self) -> Option<WorkerGeneration> {
-        Some(self.0.lifecycle.try_lock().ok()?.generation.clone())
+    pub(super) fn status_generation(&self) -> WorkerGeneration {
+        self.0
+            .lifecycle
+            .lock()
+            .expect("worker lifecycle lock")
+            .generation
+            .clone()
     }
 
-    pub(super) fn status_source(&self, generation: Option<WorkerGeneration>) -> Option<Source> {
-        let generation = generation?;
+    pub(super) fn status_source(&self, generation: WorkerGeneration) -> Option<Source> {
         let evaluation = self
             .0
             .evaluation
-            .try_lock()
-            .ok()?
+            .lock()
+            .expect("worker evaluation lock")
             .as_ref()
             .filter(|active| active.evaluation.admission.generation.is(&generation))
             .map(|active| std::sync::Arc::downgrade(&active.evaluation));
-        let lifecycle = self.0.lifecycle.try_lock().ok()?;
+        let lifecycle = self.0.lifecycle.lock().expect("worker lifecycle lock");
         if !lifecycle.generation.is(&generation) {
             return None;
         }

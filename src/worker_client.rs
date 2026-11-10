@@ -143,6 +143,12 @@ struct ClientInner {
     /// Disposable presentation fact; admission still uses the startup outcome.
     startup_observation_complete: AtomicBool,
     /// The one evaluation occupying this session, independently of who is polling it.
+    ///
+    /// Lock order is `evaluation`, `lifecycle`, then an evaluation's own state.
+    /// Guards on all three cover state changes and bounded local bookkeeping,
+    /// never a wait for a worker, a resolver, a client, or a response deadline.
+    /// Status readers rely on that: they block on these locks rather than omit
+    /// an observation because of contention.
     evaluation: Mutex<Option<ActiveEvaluation>>,
     priority: Mutex<Option<priority::Request>>,
     /// Wakes queued integrator admissions after response delivery or lifecycle changes.
