@@ -49,6 +49,8 @@ pub(super) struct Preview {
     omitted_artifacts: Location,
     omitted_controls: u64,
     omitted_control_bytes: u64,
+    /// The reply's bounded wait for the recording writer ran out.
+    recording_behind: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -70,6 +72,35 @@ impl Preview {
             }
         }
         preview
+    }
+
+    /// Whether the bounded rendering carries an omission marker, which names
+    /// retained files a reader may open.
+    pub(super) fn cites_recording(&self) -> bool {
+        let mut probe = self.inspection_copy();
+        probe.bound();
+        probe.omitted_images != 0
+            || probe
+                .parts
+                .iter()
+                .any(|part| matches!(part, Part::Gap(_) | Part::Summary(_)))
+    }
+
+    /// Apply the outcome of the reply's wait for the recording writer: place
+    /// each write failure the writer reported after the interval it truncated,
+    /// and let the omission marker say when the writer is still behind.
+    pub(super) fn recording_settled(&mut self, behind: bool) {
+        self.recording_behind = behind;
+        for part in std::mem::take(&mut self.parts) {
+            if let Part::Source(Source {
+                file: Some(file), ..
+            }) = &part
+                && let Some(notice) = file.take_notice()
+            {
+                self.notice(format!("[{notice}]\n"));
+            }
+            self.parts.push(part);
+        }
     }
 
     pub(super) fn phase_before_terminal(&mut self, phase: &str, cell_clock: bool) {
@@ -581,6 +612,7 @@ impl Preview {
                 self.omitted_image_bytes,
                 self.recorded_omitted_images,
                 &self.omitted_artifacts,
+                self.recording_behind,
             )
         });
         // A combined omission can span cells or workers. Preserve one owner only

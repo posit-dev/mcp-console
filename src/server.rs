@@ -303,7 +303,8 @@ impl ConsoleServer {
                     &request.transcript,
                     &self.deliveries,
                     &delivery,
-                ));
+                )
+                .await);
             }
         };
         let runtime = startup.runtime();
@@ -322,7 +323,8 @@ impl ConsoleServer {
                         &runtime.transcript,
                         &self.deliveries,
                         &delivery,
-                    ));
+                    )
+                    .await);
                 }
                 Err(_) => {
                     let response = runtime.worker.starting_response();
@@ -332,7 +334,8 @@ impl ConsoleServer {
                         &runtime.transcript,
                         &self.deliveries,
                         &delivery,
-                    ));
+                    )
+                    .await);
                 }
             }
             if let Some(response) = runtime.worker.take_prelaunch_failure()? {
@@ -342,7 +345,8 @@ impl ConsoleServer {
                     &runtime.transcript,
                     &self.deliveries,
                     &delivery,
-                ));
+                )
+                .await);
             }
             let snapshot = runtime.worker.inspect_requirements();
             let json = serde_json::to_string_pretty(&snapshot).expect("requirements JSON");
@@ -371,7 +375,8 @@ impl ConsoleServer {
             &runtime.transcript,
             &self.deliveries,
             &delivery,
-        ))
+        )
+        .await)
     }
 }
 
@@ -434,17 +439,19 @@ impl ConsoleServer {
             &self.startup.runtime().transcript,
             &self.deliveries,
             delivery,
-        ))
+        )
+        .await)
     }
 }
 
-fn response_to_tool_result(
-    response: crate::worker_client::Response,
+async fn response_to_tool_result(
+    mut response: crate::worker_client::Response,
     call: &crate::transcript::Call,
     transcript: &crate::transcript::Transcript,
     deliveries: &crate::server_transport::ResponseDeliveries,
     delivery: &crate::server_transport::ResponseDeliveryCall,
 ) -> CallToolResult {
+    response.settle_recording(transcript).await;
     let (blocks, is_error, response_delivery, parts) = response.into_parts();
     if let Some(response_delivery) = response_delivery {
         deliveries.register(delivery, response_delivery);
@@ -475,7 +482,7 @@ fn response_to_tool_result(
     }
 }
 
-fn responses_to_tool_result(
+async fn responses_to_tool_result(
     mut responses: Vec<(String, &'static str, crate::worker_client::Response)>,
     call: &crate::transcript::Call,
     transcript: &crate::transcript::Transcript,
@@ -484,7 +491,7 @@ fn responses_to_tool_result(
 ) -> CallToolResult {
     if responses.len() == 1 {
         let (_, _, response) = responses.pop().expect("one visible session");
-        return response_to_tool_result(response, call, transcript, deliveries, delivery);
+        return response_to_tool_result(response, call, transcript, deliveries, delivery).await;
     }
     // Poll output belongs in content. Status-only structured content can hide
     // text, language errors, and images in hosts that prefer structured results.
@@ -494,7 +501,7 @@ fn responses_to_tool_result(
             deliveries.register(delivery, acknowledgment);
         }
     }
-    response_to_tool_result(combined, call, transcript, deliveries, delivery)
+    response_to_tool_result(combined, call, transcript, deliveries, delivery).await
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -651,6 +658,7 @@ impl ServerHandler for ConsoleServer {
                 &self.deliveries,
                 &delivery,
             )
+            .await
             .into()),
             result => result,
         };

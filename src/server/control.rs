@@ -747,11 +747,7 @@ async fn handle(
                 }
                 execution_error = serde_json::to_value(response.execution_error())
                     .expect("execution error serialization");
-                Ok(evaluation_result(
-                    response,
-                    &operation_call,
-                    &runtime.transcript,
-                ))
+                Ok(evaluation_result(response, &operation_call, &runtime.transcript).await)
             }
         }
     };
@@ -834,11 +830,12 @@ fn content_blocks(content: Vec<Content>) -> Vec<ContentBlock> {
         .collect()
 }
 
-fn evaluation_result(
-    response: Response,
+async fn evaluation_result(
+    mut response: Response,
     call: &crate::transcript::Call,
     transcript: &crate::transcript::Transcript,
 ) -> CallToolResult {
+    response.settle_recording(transcript).await;
     let (content, is_error, delivery, parts) = response.into_parts();
     call.record_result_parts(parts);
     record_images(&content, call, transcript);

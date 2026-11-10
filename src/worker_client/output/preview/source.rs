@@ -195,7 +195,8 @@ impl Summary {
                 self.logs.public_directory = Some(file.public_directory.clone());
                 self.logs.add(&file.path, false);
             }
-            self.partial |= source.discarded_bytes != 0;
+            // The writer can truncate a file after its interval was sealed.
+            self.partial |= source.discarded_bytes != 0 || file.truncated();
         } else if let Some(directory) = &source.journal {
             if source.retained_bytes != 0 {
                 let journal = self.journal.get_or_insert_default();
@@ -234,6 +235,7 @@ impl Summary {
         image_bytes: u64,
         recorded_images: u64,
         artifacts: &Location,
+        recording_behind: bool,
     ) -> String {
         let mut details = Vec::new();
         if self.gap.bytes != 0 {
@@ -307,6 +309,11 @@ impl Summary {
                     "images"
                 }
             ));
+        }
+        if recording_behind {
+            details.push(
+                "recording writer stalled; retained files may be missing or incomplete".to_owned(),
+            );
         }
         format!("\n[output omitted: {omitted}; {}]\n", details.join("; "))
     }

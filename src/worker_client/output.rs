@@ -279,6 +279,20 @@ impl Response {
         response
     }
 
+    /// Give the recording writer a bounded chance to catch up before a reply
+    /// names retained files. Other replies never wait for it; see
+    /// `Transcript::settle`.
+    pub(crate) async fn settle_recording(&mut self, transcript: &crate::transcript::Transcript) {
+        if !self.preview.cites_recording() {
+            return;
+        }
+        let recorder = transcript.clone();
+        let behind = tokio::task::spawn_blocking(move || recorder.settle())
+            .await
+            .expect("recording settle task");
+        self.preview.recording_settled(behind);
+    }
+
     /// Consumes the response for the MCP adapter.
     pub(crate) fn into_parts(
         mut self,
