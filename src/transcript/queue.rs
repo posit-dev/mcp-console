@@ -3,11 +3,17 @@
 //! Reserve worker/cell/image ownership at observation time, before journal I/O;
 //! late delivery and replacement must not reassign it. Queue limits include
 //! in-flight batches. Overflow disables capture instead of blocking producers.
+//!
+//! Tool calls, results, activation, and configuration are queued operations
+//! too: handlers enqueue them and return without waiting for the writer.
 use super::{
-    ActiveTranscript, CallImageOwner, Event, ImageOwner, Interval, Owner, ProcessOutput,
-    Transcript, output,
+    CallImageOwner, Event, ImageOwner, Interval, Owner, ProcessOutput, Transcript, output,
 };
 use chrono::{DateTime, Utc};
+use rmcp::{
+    ErrorData,
+    model::{CallToolRequestParams, CallToolResult, RequestId},
+};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -41,6 +47,34 @@ struct WorkerEvents {
 #[derive(Serialize)]
 pub(super) enum QueuedEvent {
     Event(Event<'static>),
+    /// Publish the recording directory on first use.
+    Activate,
+    /// Publishes like Activate, then records the call.
+    ToolCall {
+        call_id: u64,
+        note_target: Option<super::NoteTarget>,
+        request_id: RequestId,
+        request: CallToolRequestParams,
+        origin: Option<&'static str>,
+        omit_from_projections: bool,
+    },
+    ToolResult {
+        call_id: u64,
+        #[serde(skip)]
+        images: super::ResultImages,
+        parts: Vec<super::ResultPart>,
+        response: Result<CallToolResult, ErrorData>,
+        /// The addressed worker, if it still owned output when the call finished.
+        associate: Option<u64>,
+        omit_from_projections: bool,
+    },
+    Configure {
+        session: String,
+        dynamic_resolution: bool,
+        python_preparation: bool,
+        r_available: bool,
+        startup_requirements: crate::worker_client::Declaration,
+    },
     WorkerStarting,
     AssociateWaitingCall {
         call_id: u64,
@@ -117,13 +151,106 @@ pub(super) enum QueuedEvent {
 }
 
 impl QueuedEvent {
-    fn append(self, active: &mut ActiveTranscript, at: DateTime<Utc>) -> Result<(), String> {
+    fn append(
+        self,
+        state: &mut super::TranscriptState,
+        recorder: &Transcript,
+        at: DateTime<Utc>,
+    ) -> Result<(), String> {
+        if matches!(self, Self::Activate | Self::ToolCall { .. }) {
+            let working_directory = state.working_directory.clone()?;
+            state.capture()?.publish(&working_directory)?;
+        }
+        let active = state.capture()?;
         let event = match &self {
             Self::Event(_) => {
                 let Self::Event(event) = self else {
                     unreachable!()
                 };
                 return active.append(event, at);
+            }
+            Self::Activate => return Ok(()),
+            Self::ToolCall {
+                call_id,
+                note_target,
+                request_id,
+                request,
+                origin,
+                omit_from_projections,
+            } => Event::ToolCall {
+                call_id: *call_id,
+                note_target: note_target.clone(),
+                request_id,
+                request,
+                origin: *origin,
+                omit_from_projections: *omit_from_projections,
+            },
+            Self::ToolResult {
+                call_id,
+                images,
+                parts,
+                response,
+                associate,
+                omit_from_projections,
+            } => {
+                // Validation can reject a restart-shaped request before
+                // retirement. Associate otherwise unclaimed source only with
+                // the worker it addressed; actual replacement changes that owner.
+                if let Some(session_id) = associate
+                    && active
+                        .call_sessions
+                        .get(call_id)
+                        .and_then(|call| call.session_id)
+                        .is_none()
+                {
+                    active.append(
+                        Event::SourceAssociated {
+                            call_id: *call_id,
+                            session_id: *session_id,
+                        },
+                        at,
+                    )?;
+                }
+                active.finish(
+                    *call_id,
+                    images.clone(),
+                    parts,
+                    response,
+                    *omit_from_projections,
+                    at,
+                )?;
+                if !active.call_sessions.contains_key(call_id) {
+                    recorder
+                        .1
+                        .lock()
+                        .expect("protocol capture lock")
+                        .omitted_calls
+                        .remove(call_id);
+                }
+                return Ok(());
+            }
+            Self::Configure {
+                session,
+                dynamic_resolution,
+                python_preparation,
+                r_available,
+                startup_requirements,
+            } => {
+                state.dynamic_resolution = *dynamic_resolution;
+                state.python_preparation = *python_preparation;
+                state.r_available = *r_available;
+                state.startup_requirements = startup_requirements.clone();
+                state.metadata_known = true;
+                return state.capture()?.append(
+                    Event::EnvironmentDiscovered {
+                        session,
+                        dynamic_resolution: *dynamic_resolution,
+                        python_preparation: *python_preparation,
+                        r_available: *r_available,
+                        startup_requirements,
+                    },
+                    at,
+                );
             }
             Self::WorkerStarting => return Ok(()),
             Self::AssociateWaitingCall {
@@ -278,7 +405,7 @@ impl QueuedEvent {
 }
 
 const MAX_PROTOCOL_EVENTS: usize = 1024;
-const MAX_PROTOCOL_BYTES: usize = 8 * 1024 * 1024;
+const MAX_PROTOCOL_BYTES: usize = 64 * 1024 * 1024;
 // Raw image files are bounded per interval or immediate call, independently of previews.
 const MAX_INTERVAL_IMAGE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_INTERVAL_IMAGES: u64 = 4096;
@@ -308,6 +435,14 @@ impl ImageBudget {
 
 impl ProtocolEvents {
     fn push(&mut self, event: QueuedEvent, at: DateTime<Utc>) -> bool {
+        // The bounds stop a backlog from growing; they do not cap one event,
+        // whose producer already holds it. Retention can exceed the byte bound
+        // by the one event that crosses it.
+        if self.retained_events == MAX_PROTOCOL_EVENTS || self.retained_bytes >= MAX_PROTOCOL_BYTES
+        {
+            self.stop(format!("protocol capture backlog exceeded ({MAX_PROTOCOL_EVENTS} events or {MAX_PROTOCOL_BYTES} bytes)"));
+            return false;
+        }
         // Consecutive raw ranges have one observed order and no intervening
         // image or boundary. Merge only pending ranges, retaining their first
         // timestamp; tiny writes must not become a queue of per-write objects.
@@ -345,21 +480,11 @@ impl ProtocolEvents {
                 self.stop(format!("protocol capture failed: {error}"));
                 return false;
             }
-            if self.retained_bytes > MAX_PROTOCOL_BYTES {
-                self.stop(format!("protocol capture backlog exceeded ({MAX_PROTOCOL_EVENTS} events or {MAX_PROTOCOL_BYTES} bytes)"));
-                return false;
-            }
             return true;
         }
         let mut size = ProtocolBytes::default();
         if let Err(error) = serde_json::to_writer(&mut size, &event) {
             self.stop(format!("protocol capture failed: {error}"));
-            return false;
-        }
-        if self.retained_events == MAX_PROTOCOL_EVENTS
-            || size.0 > MAX_PROTOCOL_BYTES - self.retained_bytes
-        {
-            self.stop(format!("protocol capture backlog exceeded ({MAX_PROTOCOL_EVENTS} events or {MAX_PROTOCOL_BYTES} bytes)"));
             return false;
         }
         self.retained_events += 1;
@@ -402,12 +527,21 @@ impl Transcript {
         &self,
         operation: impl FnOnce(&mut ProtocolEvents) -> Option<(QueuedEvent, T)>,
     ) -> Option<T> {
+        self.observe_at(None, operation)
+    }
+
+    /// Queue one operation, timestamped now unless it was observed earlier.
+    fn observe_at<T>(
+        &self,
+        at: Option<DateTime<Utc>>,
+        operation: impl FnOnce(&mut ProtocolEvents) -> Option<(QueuedEvent, T)>,
+    ) -> Option<T> {
         let mut events = self.1.lock().expect("protocol capture lock");
         if events.failure.is_some() {
             return None;
         }
         let (event, value) = operation(&mut events)?;
-        let accepted = events.push(event, Utc::now());
+        let accepted = events.push(event, at.unwrap_or_else(Utc::now));
         self.start_drain(events);
         accepted.then_some(value)
     }
@@ -445,18 +579,50 @@ impl Transcript {
             }
             std::mem::take(&mut events.pending)
         };
-        let count = pending.len();
-        let bytes = pending.iter().map(|(_, _, bytes)| bytes).sum::<usize>();
-        let result = (|| {
-            for (event, at, _) in pending {
-                event.append(state.capture()?, at)?;
+        // Release retention per operation. A failed batch releases the rest
+        // of its retention; the caller then disables recording.
+        let mut pending = pending.into_iter();
+        while let Some((event, at, bytes)) = pending.next() {
+            let result = event.append(state, self, at);
+            let (count, bytes) = match result {
+                Ok(()) => (1, bytes),
+                Err(_) => pending
+                    .by_ref()
+                    .fold((1, bytes), |(count, total), (_, _, bytes)| {
+                        (count + 1, total + bytes)
+                    }),
+            };
+            let mut events = self.1.lock().expect("protocol capture lock");
+            events.retained_events -= count;
+            events.retained_bytes -= bytes;
+            drop(events);
+            result?;
+        }
+        Ok(())
+    }
+
+    /// Queue a call and report the worker it addressed, if it carries source.
+    /// Returns None when recording has stopped.
+    pub(super) fn tool_call(
+        &self,
+        event: QueuedEvent,
+        call_id: u64,
+        at: DateTime<Utc>,
+        has_source: bool,
+        omit_from_projections: bool,
+    ) -> Option<Option<u64>> {
+        self.observe_at(Some(at), |events| {
+            if omit_from_projections {
+                events.omitted_calls.insert(call_id);
             }
-            Ok(())
-        })();
-        let mut events = self.1.lock().expect("protocol capture lock");
-        events.retained_events -= count;
-        events.retained_bytes -= bytes;
-        result
+            let addressed = events
+                .workers
+                .get(&self.4)
+                .and_then(|worker| worker.owner)
+                .filter(|_| has_source)
+                .map(|owner| owner.session_id);
+            Some((event, addressed))
+        })
     }
 
     pub(crate) fn source_admitted(&self, call_id: Option<u64>) {

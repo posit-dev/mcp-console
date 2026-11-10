@@ -4,4 +4,4 @@
 protocol backlog: bounded; computation continues
 stderr: >
   mcp-console: transcript recording disabled: protocol capture backlog
-  exceeded (1024 events or 8388608 bytes)
+  exceeded (1024 events or 67108864 bytes)

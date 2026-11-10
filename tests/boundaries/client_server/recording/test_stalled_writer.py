@@ -49,6 +49,8 @@ def stalled_writer(
                 },
                 root,
                 response_timeout=15,
+                # The stalled writer cannot record a delivery.
+                recording_receipts=False,
             ) as client,
         ):
             client.initialize_and_list_tools()
@@ -98,7 +100,9 @@ def test_stalled_result_write_does_not_hold_replies(binary: Path) -> Transcript:
 @requires(NATIVE_FIXTURES, POSIX)
 def test_stalled_output_file_write_does_not_hold_replies(binary: Path) -> Transcript:
     # Journal lines quote the same text, so select the cell file by its path.
-    with stalled_writer(binary, {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-001.txt"}) as (
+    with stalled_writer(
+        binary, {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-001.txt"}
+    ) as (
         client,
         root,
         observed,
@@ -137,7 +141,9 @@ def test_oversized_reply_reports_a_stalled_recording_writer(binary: Path) -> Tra
         + "ab" * 12000
         + "\npreview tail: final diagnostic\nafter final image\n"
     )
-    with stalled_writer(binary, {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-002.txt"}) as (
+    with stalled_writer(
+        binary, {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-002.txt"}
+    ) as (
         client,
         root,
         observed,

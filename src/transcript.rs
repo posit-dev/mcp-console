@@ -27,8 +27,8 @@ use event::{Envelope, Event, Outcome, RecordedContent, RecordedResult};
 use rmcp::{
     ErrorData,
     model::{
-        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, RequestId,
-        RequestMetaObject,
+        CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ImageContent,
+        RequestId, RequestMetaObject,
     },
 };
 use serde::Serialize;
@@ -180,7 +180,7 @@ pub(crate) struct CallReceipt {
     note_target: Option<NoteTarget>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(super) enum NoteTarget {
     Worker {
@@ -209,17 +209,27 @@ pub(crate) struct Artifact {
 }
 impl Transcript {
     #[cfg(unix)]
+    /// Describe the projections after writing every queued operation, so the
+    /// reply covers the request that asked for it.
     pub(crate) fn integrator_recording(&self) -> Result<serde_json::Value, String> {
-        let state = self.0.lock().map_err(|_| "transcript lock poisoned")?;
-        if let Some(error) = &state.failure {
-            return Err(format!("recording is unavailable: {error}"));
-        }
-        let active = state.active.as_ref().ok_or("recording has not started")?;
-        let projections = active
-            .projections
-            .as_ref()
-            .ok_or("recording projections are unavailable")?;
-        Ok(projections.integrator_recording(&self.4))
+        self.update(|state| {
+            let Some(active) = &state.active else {
+                return Ok(Err("recording has not started".to_string()));
+            };
+            Ok(active
+                .projections
+                .as_ref()
+                .map(|projections| projections.integrator_recording(&self.4))
+                .ok_or_else(|| "recording projections are unavailable".to_string()))
+        })
+        .unwrap_or_else(|| {
+            let (state, _) = self.lock();
+            let error = state
+                .failure
+                .as_deref()
+                .unwrap_or("transcript lock poisoned");
+            Err(format!("recording is unavailable: {error}"))
+        })
     }
 
     pub(crate) fn call_images(&self, call: &Call) -> Option<CallImages> {
@@ -291,30 +301,16 @@ impl Transcript {
     }
     pub(crate) fn configure(&self, configured: Self) {
         let (configuration, _) = configured.lock();
-        self.update(|state| {
-            state.capture()?;
-            state.dynamic_resolution = configuration.dynamic_resolution;
-            state.python_preparation = configuration.python_preparation;
-            state.r_available = configuration.r_available;
-            state.startup_requirements = configuration.startup_requirements.clone();
-            state.metadata_known = true;
-            state.capture()?.append(
-                Event::EnvironmentDiscovered {
-                    session: &self.4,
-                    dynamic_resolution: configuration.dynamic_resolution,
-                    python_preparation: configuration.python_preparation,
-                    r_available: configuration.r_available,
-                    startup_requirements: &configuration.startup_requirements,
-                },
-                Utc::now(),
-            )
+        self.queue_event(QueuedEvent::Configure {
+            session: self.4.to_string(),
+            dynamic_resolution: configuration.dynamic_resolution,
+            python_preparation: configuration.python_preparation,
+            r_available: configuration.r_available,
+            startup_requirements: configuration.startup_requirements.clone(),
         });
     }
     pub(crate) fn activate(&self) {
-        self.update(|state| {
-            let working_directory = state.working_directory.clone()?;
-            state.capture()?.publish(&working_directory)
-        });
+        self.queue_event(QueuedEvent::Activate);
     }
     pub(crate) fn protocol(&self, direction: &'static str, message: Value) {
         self.queue_event(QueuedEvent::Event(Event::Protocol { direction, message }));
@@ -399,98 +395,97 @@ impl Transcript {
                 include_in_projections,
             } => (Some("integrator"), !include_in_projections),
         };
-        self.activate();
-        self.update(|state| {
-            let active = state.capture()?;
-            let mut request = request.clone();
-            if !request_meta.is_empty() {
-                request.meta = Some(request_meta.clone());
-            }
-            active.append(
-                Event::ToolCall {
-                    call_id,
-                    note_target,
-                    request_id,
-                    request: &request,
-                    origin,
-                    omit_from_projections,
-                },
-                at,
-            )?;
-            // Validation can reject a restart-shaped request before retirement.
-            // finish() associates otherwise unclaimed source only if this same
-            // worker still owns output; actual replacement changes that owner.
-            let has_source = request.arguments.as_ref().is_some_and(|arguments| {
-                ["r", "python", "sql"]
-                    .iter()
-                    .any(|language| arguments.get(*language).is_some_and(Value::is_string))
-            });
-            let addressed_session = if has_source {
-                self.owner().map(|o| o.session_id)
-            } else {
-                None
-            };
-            if omit_from_projections {
-                self.1
-                    .lock()
-                    .expect("protocol capture lock")
-                    .omitted_calls
-                    .insert(call_id);
-            }
-            Ok(Call {
+        let mut request = request.clone();
+        if !request_meta.is_empty() {
+            request.meta = Some(request_meta.clone());
+        }
+        // Validation can reject a restart-shaped request before retirement.
+        // finish() associates otherwise unclaimed source only if the worker
+        // addressed here still owns output; actual replacement changes that owner.
+        let has_source = request.arguments.as_ref().is_some_and(|arguments| {
+            ["r", "python", "sql"]
+                .iter()
+                .any(|language| arguments.get(*language).is_some_and(Value::is_string))
+        });
+        let event = QueuedEvent::ToolCall {
+            call_id,
+            note_target,
+            request_id: request_id.clone(),
+            request,
+            origin,
+            omit_from_projections,
+        };
+        match self.tool_call(event, call_id, at, has_source, omit_from_projections) {
+            Some(addressed_session) => Call {
                 id: Some(call_id),
                 result_images: Arc::new(Mutex::new(None)),
                 parts: Arc::new(Mutex::new(Vec::new())),
                 addressed_session,
                 omit_from_projections,
-            })
-        })
-        .unwrap_or_else(Call::unrecorded)
+            },
+            None => Call::unrecorded(),
+        }
     }
+    /// Queue the assembled result. The journal names retained image files, so
+    /// the queued copy carries no image payload.
     pub(crate) fn finish(&self, call: Call, response: &Result<CallToolResponse, ErrorData>) {
         let Some(call_id) = call.id else {
             return;
         };
-        self.update(|state| {
+        let event = (|| {
             let images = call.take_result_images()?;
-            let parts = call
-                .parts
-                .lock()
-                .map_err(|_| "tool result association lock poisoned")?;
-            let active = state.capture()?;
-            if active
-                .call_sessions
-                .get(&call_id)
-                .and_then(|call| call.session_id)
-                .is_none()
-                && let Some(session_id) = call.addressed_session
-                && self.owner().is_some_and(|o| o.session_id == session_id)
-            {
-                active.append(
-                    Event::SourceAssociated {
-                        call_id,
-                        session_id,
-                    },
-                    Utc::now(),
-                )?;
-            }
-            active.finish(
+            let parts = std::mem::take(
+                &mut *call
+                    .parts
+                    .lock()
+                    .map_err(|_| "tool result association lock poisoned")?,
+            );
+            let response = match response {
+                Ok(CallToolResponse::Complete(result)) => {
+                    let mut recorded = CallToolResult::default();
+                    recorded.result_type = result.result_type.clone();
+                    recorded.content = result
+                        .content
+                        .iter()
+                        .map(|block| match block {
+                            ContentBlock::Image(image) => {
+                                let mut recorded =
+                                    ImageContent::new(String::new(), image.mime_type.clone());
+                                recorded.meta = image.meta.clone();
+                                recorded.annotations = image.annotations.clone();
+                                ContentBlock::Image(recorded)
+                            }
+                            other => other.clone(),
+                        })
+                        .collect();
+                    recorded.structured_content = result.structured_content.clone();
+                    recorded.is_error = result.is_error;
+                    recorded.meta = result.meta.clone();
+                    Ok(recorded)
+                }
+                Ok(_) => {
+                    return Err(
+                        "console tool unexpectedly returned a non-final MCP response".to_string(),
+                    );
+                }
+                Err(error) => Err(error.clone()),
+            };
+            Ok(QueuedEvent::ToolResult {
                 call_id,
                 images,
-                &parts,
+                parts,
                 response,
-                call.omit_from_projections,
-                Utc::now(),
-            )?;
-            if !active.call_sessions.contains_key(&call_id) {
-                self.1
-                    .lock()
-                    .expect("protocol capture lock")
-                    .omitted_calls
-                    .remove(&call_id);
-            }
-            Ok(())
-        });
+                associate: call.addressed_session.filter(|session_id| {
+                    self.owner()
+                        .is_some_and(|owner| owner.session_id == *session_id)
+                }),
+                omit_from_projections: call.omit_from_projections,
+            })
+        })();
+        match event {
+            Ok(event) => self.queue_event(event),
+            Err(error) => self.disable(error),
+        }
     }
     pub(crate) fn finalize(&self) {
         self.update(|state| {
@@ -835,17 +830,14 @@ impl ActiveTranscript {
         call_id: u64,
         result_images: ResultImages,
         parts: &[ResultPart],
-        response: &Result<CallToolResponse, ErrorData>,
+        response: &Result<CallToolResult, ErrorData>,
         omit_from_projections: bool,
         at: DateTime<Utc>,
     ) -> Result<(), String> {
         let outcome = match response {
-            Ok(CallToolResponse::Complete(result)) => Outcome::Result {
+            Ok(result) => Outcome::Result {
                 result: Self::project_result(call_id, result_images, result)?,
             },
-            Ok(_) => {
-                return Err("console tool unexpectedly returned a non-final MCP response".into());
-            }
             Err(error) => Outcome::Error { error },
         };
         self.append(

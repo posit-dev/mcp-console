@@ -540,7 +540,7 @@ impl ServerHandler for ConsoleServer {
             .extensions
             .remove::<crate::server_transport::RecordingCall>()
             .expect("send carries its recording call");
-        let call = recording.clone().recorded().await;
+        let call = recording.call();
         let session = request
             .arguments
             .as_ref()
@@ -582,18 +582,9 @@ impl ServerHandler for ConsoleServer {
         let (delivery, operation) = match admitted {
             Ok(admitted) => admitted,
             Err(error) => {
-                let recorder = transcript.clone();
-                let recorded_error = error.clone();
-                let completion = recording.clone();
-                if let Err(error) = tokio::task::spawn_blocking(move || {
-                    let _completion = completion;
-                    recorder.finish(call, &Err(recorded_error));
-                })
-                .await
-                {
-                    transcript.disable(format!("transcript task failed: {error}"));
-                }
-                return recording.response(Err(error));
+                let result = Err(error);
+                transcript.finish(call, &result);
+                return recording.response(result);
             }
         };
         let sandbox::CaptureResult(inherited) = context
@@ -675,20 +666,7 @@ impl ServerHandler for ConsoleServer {
                 serde_json::json!({ "r": available }),
             );
         }
-        let result = Arc::new(result);
-        let recorder = transcript.clone();
-        let recording_result = Arc::clone(&result);
-        let completion = recording.clone();
-        if let Err(error) = tokio::task::spawn_blocking(move || {
-            let _completion = completion;
-            recorder.finish(call, recording_result.as_ref());
-        })
-        .await
-        {
-            transcript.disable(format!("transcript task failed: {error}"));
-        }
-        let result =
-            Arc::into_inner(result).expect("transcript task should release the tool result");
+        transcript.finish(call, &result);
         operation.complete();
         recording.response(result)
     }

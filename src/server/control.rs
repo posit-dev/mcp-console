@@ -302,8 +302,7 @@ async fn connection(stream: UnixStream, server: ConsoleServer, mut closing: watc
             };
             if !frame.is_empty() {
                 if !activated {
-                    let activation = incoming.clone();
-                    let _ = tokio::task::spawn_blocking(move || activation.activate()).await;
+                    incoming.activate();
                     activated = true;
                 }
                 incoming.protocol(
@@ -560,11 +559,7 @@ async fn handle(
     let record = matches!(&request, Request::Evaluate { record: true, .. });
     let recording = runtime.transcript.clone();
     let request_id = RequestId::String(request.id().to_string().into());
-    let call = tokio::task::spawn_blocking(move || {
-        recording.begin_integrator(&request_id, &arguments, record)
-    })
-    .await
-    .expect("integrator recording task");
+    let call = recording.begin_integrator(&request_id, &arguments, record);
     let call_id = call.id();
     let operation_call = call.clone();
     let operation = async {
@@ -660,11 +655,16 @@ async fn handle(
                         .await,
                 ))
             }
-            Request::Recording { .. } => runtime
-                .transcript
-                .integrator_recording()
-                .map(CallToolResult::structured)
-                .map_err(|error| ("projection_unavailable", error)),
+            Request::Recording { .. } => {
+                // This reply describes the recording itself, so it alone
+                // waits for the recording writer.
+                let recording = runtime.transcript.clone();
+                tokio::task::spawn_blocking(move || recording.integrator_recording())
+                    .await
+                    .expect("integrator recording task")
+                    .map(CallToolResult::structured)
+                    .map_err(|error| ("projection_unavailable", error))
+            }
             Request::Preview { .. } => {
                 let content = runtime.worker.integrator_preview().map_err(|_| {
                     (
@@ -800,10 +800,7 @@ async fn handle(
             }
         })
         .map_err(|(_, message)| rmcp::ErrorData::internal_error(message, None));
-    let recording = runtime.transcript.clone();
-    tokio::task::spawn_blocking(move || recording.finish(call, &recorded))
-        .await
-        .expect("integrator result recording task");
+    runtime.transcript.finish(call, &recorded);
     (response, call_id)
 }
 
