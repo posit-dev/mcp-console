@@ -319,6 +319,7 @@ impl Transcript {
             startup_requirements: configuration.startup_requirements.clone(),
         });
     }
+    #[cfg(unix)]
     pub(crate) fn activate(&self) {
         self.queue_event(QueuedEvent::Activate);
     }

@@ -79,6 +79,7 @@ struct WorkerEvents {
 pub(super) enum QueuedEvent {
     Event(Event<'static>),
     /// Publish the recording directory on first use.
+    #[cfg(unix)]
     Activate,
     /// Publishes like Activate, then records the call.
     ToolCall {
@@ -200,7 +201,11 @@ impl QueuedEvent {
         recorder: &Transcript,
         at: DateTime<Utc>,
     ) -> Result<(), String> {
-        if matches!(self, Self::Activate | Self::ToolCall { .. }) {
+        #[cfg(unix)]
+        let publishes = matches!(self, Self::Activate | Self::ToolCall { .. });
+        #[cfg(not(unix))]
+        let publishes = matches!(self, Self::ToolCall { .. });
+        if publishes {
             let working_directory = state.working_directory.clone()?;
             state.capture()?.publish(&working_directory)?;
         }
@@ -212,6 +217,7 @@ impl QueuedEvent {
                 };
                 return active.append(event, at);
             }
+            #[cfg(unix)]
             Self::Activate => return Ok(()),
             Self::ToolCall {
                 call_id,
@@ -682,6 +688,7 @@ impl Transcript {
     /// Where the writer stands, without waiting. A preview repeats while
     /// output is pending, so it never waits for the writer: it reports a
     /// stall only after a reply's bounded wait in `settle` has found one.
+    #[cfg(unix)]
     pub(crate) fn writer_state(&self) -> WriterState {
         let events = self.1.lock().expect("protocol capture lock");
         if events.failure.is_some() {
@@ -695,6 +702,7 @@ impl Transcript {
 
     /// Wake when `writer_state` or a file's retention may have changed, so a
     /// preview subscription can replace a snapshot the worker did not change.
+    #[cfg(unix)]
     pub(crate) fn subscribe_writer(&self) -> tokio::sync::watch::Receiver<()> {
         self.1
             .lock()
