@@ -348,5 +348,44 @@ def test_request_burst_waits_for_a_slow_recording_writer(binary: Path) -> Transc
         return transcript
 
 
+@requires(NATIVE_FIXTURES, POSIX)
+def test_pipelined_requests_wait_for_a_slow_recording_writer(
+    binary: Path,
+) -> Transcript:
+    with stalled_writer(
+        binary,
+        {
+            "MCP_CONSOLE_TEST_OBSERVED_TEXT": '"method":"ping"',
+            # As above: the first ping's journal write is slow, not stalled.
+            "MCP_CONSOLE_TEST_WRITE_DELAY_MS": "2000",
+        },
+    ) as (client, root, _, _):
+        # Pings alone do not publish a recording.
+        client.expect("zod: ready\n", r="echo ready")
+        # Each ping queues at least its receipt, so the burst exceeds the
+        # 1,024 operations the recording queue retains.
+        pings = client.send_messages(
+            [
+                {"jsonrpc": "2.0", "id": f"ping-{number}", "method": "ping"}
+                for number in range(1100)
+            ]
+        )
+        client.receive_many(pings)
+        assert all(ping["result"] == {} for ping in pings), pings
+        transcript = client.finish()
+        received = [
+            event["message"]["id"]
+            for event in completed_calls(root, 1)
+            if event["event"] == "protocol"
+            and event["direction"] == "received"
+            and event["message"].get("method") == "ping"
+        ]
+        assert received == [ping["id"] for ping in pings], received
+        return [
+            *transcript[:4],
+            {"pipelined pings behind a slow writer": "all answered and recorded"},
+        ]
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)
