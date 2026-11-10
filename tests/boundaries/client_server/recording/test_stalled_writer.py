@@ -317,5 +317,36 @@ def test_preview_subscription_follows_the_recording_writer(binary: Path) -> Tran
         ]
 
 
+@requires(NATIVE_FIXTURES, POSIX)
+def test_request_burst_waits_for_a_slow_recording_writer(binary: Path) -> Transcript:
+    # A Unix socket path must be short.
+    with (
+        tempfile.TemporaryDirectory(dir="/tmp", prefix="console-slow-") as scratch,
+        stalled_writer(
+            binary,
+            {
+                "MCP_CONSOLE_TEST_OBSERVED_EVENT": "tool_call",
+                # Long enough for the whole burst to arrive behind this write,
+                # and well inside the time a writer may go without progress.
+                "MCP_CONSOLE_TEST_WRITE_DELAY_MS": "2000",
+            },
+            "--control-socket",
+            str(Path(scratch) / "control.sock"),
+        ) as (client, root, _, _),
+    ):
+        # Each request queues at least its call and its result, so the burst
+        # exceeds the 1,024 operations the recording queue retains. A writer
+        # that is slow but still writing must hold requests back, not lose
+        # the recording.
+        burst = 1100
+        with ControlClient(Path(scratch) / "control.sock") as control:
+            for _ in range(burst):
+                response = control.request(op="status")
+                assert response["result"]["state"] == "idle", response
+        transcript = client.finish()
+        completed_calls(root, burst)
+        return transcript
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)

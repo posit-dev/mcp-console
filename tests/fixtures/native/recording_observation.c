@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 static _Atomic int observed;
@@ -47,7 +48,8 @@ static ssize_t observed_write(int descriptor, const void *buffer, size_t length)
     const char *text = getenv("MCP_CONSOLE_TEST_OBSERVED_TEXT");
     const char *file = getenv("MCP_CONSOLE_TEST_OBSERVED_FILE");
     const char *path = getenv("MCP_CONSOLE_TEST_JOURNAL_OBSERVED");
-    if (getpid() == owner && (event != NULL || text != NULL || file != NULL) && path != NULL && result == (ssize_t)length) {
+    const char *delay = getenv("MCP_CONSOLE_TEST_WRITE_DELAY_MS");
+    if (getpid() == owner && (event != NULL || text != NULL || file != NULL) && (path != NULL || delay != NULL) && result == (ssize_t)length) {
         char marker[128];
         int size = text != NULL ? snprintf(marker, sizeof(marker), "%s", text)
                                : snprintf(marker, sizeof(marker), "{\"event\":\"%s\",", event);
@@ -63,7 +65,14 @@ static ssize_t observed_write(int descriptor, const void *buffer, size_t length)
                 }
             }
         }
-        if (matches && !atomic_exchange(&observed, 1)) {
+        if (matches && delay != NULL) {
+            // A slow write: the first match takes this long and still succeeds.
+            if (!atomic_exchange(&observed, 1)) {
+                long milliseconds = atol(delay);
+                struct timespec pause = {milliseconds / 1000, milliseconds % 1000 * 1000000};
+                while (nanosleep(&pause, &pause) != 0 && errno == EINTR) {}
+            }
+        } else if (matches && !atomic_exchange(&observed, 1)) {
             int reached = open(path, O_WRONLY | O_NONBLOCK);
             if (reached < 0 || write(reached, "1", 1) != 1) _exit(124);
             close(reached);
