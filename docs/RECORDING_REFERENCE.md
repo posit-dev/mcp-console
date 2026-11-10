@@ -145,6 +145,7 @@ Replies do not wait for the writer, except when an omission notice names retaine
 If the writer is still behind, the notice gives the same path and adds `recording writer stalled; retained files may be missing or incomplete`.
 The files are completed if the writer resumes.
 While the backlog remains, later replies with such notices carry the same warning without waiting again.
+If recording has stopped, the notice gives the same path and adds `recording stopped; retained files may be missing or incomplete` because output still queued for the writer when it stopped was discarded.
 
 A failed write to an output file is reported by the first reply that waits for the writer and still holds output from that file.
 A reply that shows the file's output in full does not report the failure.

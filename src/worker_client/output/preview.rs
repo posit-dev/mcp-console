@@ -49,8 +49,8 @@ pub(super) struct Preview {
     omitted_artifacts: Location,
     omitted_controls: u64,
     omitted_control_bytes: u64,
-    /// The reply's bounded wait for the recording writer ran out.
-    recording_behind: bool,
+    /// The outcome of the reply's bounded wait for the recording writer.
+    writer: crate::transcript::WriterState,
 }
 
 #[derive(Clone, Copy)]
@@ -88,9 +88,10 @@ impl Preview {
 
     /// Apply the outcome of the reply's wait for the recording writer: place
     /// each write failure the writer reported after the interval it truncated,
-    /// and let the omission marker say when the writer is still behind.
-    pub(super) fn recording_settled(&mut self, behind: bool) {
-        self.recording_behind = behind;
+    /// and let the omission marker qualify the files it names when the writer
+    /// is still behind or recording stopped.
+    pub(super) fn recording_settled(&mut self, writer: crate::transcript::WriterState) {
+        self.writer = writer;
         for part in std::mem::take(&mut self.parts) {
             if let Part::Source(Source {
                 file: Some(file), ..
@@ -612,7 +613,7 @@ impl Preview {
                 self.omitted_image_bytes,
                 self.recorded_omitted_images,
                 &self.omitted_artifacts,
-                self.recording_behind,
+                self.writer,
             )
         });
         // A combined omission can span cells or workers. Preserve one owner only

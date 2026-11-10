@@ -47,6 +47,7 @@ mod event;
 mod files;
 mod queue;
 use files::{CaptureFile, CaptureStorage};
+pub(crate) use queue::WriterState;
 use queue::{ProtocolEvents, QueuedEvent};
 mod markdown;
 mod output;

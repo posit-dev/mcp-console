@@ -287,10 +287,10 @@ impl Response {
             return;
         }
         let recorder = transcript.clone();
-        let behind = tokio::task::spawn_blocking(move || recorder.settle())
+        let writer = tokio::task::spawn_blocking(move || recorder.settle())
             .await
             .expect("recording settle task");
-        self.preview.recording_settled(behind);
+        self.preview.recording_settled(writer);
     }
 
     /// Consumes the response for the MCP adapter.

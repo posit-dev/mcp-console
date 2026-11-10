@@ -235,7 +235,7 @@ impl Summary {
         image_bytes: u64,
         recorded_images: u64,
         artifacts: &Location,
-        recording_behind: bool,
+        writer: crate::transcript::WriterState,
     ) -> String {
         let mut details = Vec::new();
         if self.gap.bytes != 0 {
@@ -251,6 +251,8 @@ impl Summary {
         details.clear();
         let shared = self.logs.shared_recording(artifacts);
         let shared_location = shared.is_some();
+        // Whether this marker names a retained file.
+        let mut cited = shared_location;
         if let Some(location) = shared {
             details.push(location);
         }
@@ -262,12 +264,14 @@ impl Summary {
             if !shared_location {
                 if let Some(logs) = self.logs.describe("raw log", "retained logs") {
                     details.push(logs);
+                    cited = true;
                 } else if journal.is_none() {
                     details.push("no retained log; omitted text unavailable".to_owned());
                 }
             }
             if let Some(journal) = journal {
                 details.push(journal);
+                cited = true;
                 if self.journal_partial {
                     details.push(
                         "journal contains prefixes; later process text unavailable".to_owned(),
@@ -293,6 +297,7 @@ impl Summary {
             && let Some(location) = artifacts.describe("retained image", "retained images")
         {
             details.push(location);
+            cited = true;
         }
         let unretained_images = images
             - if artifacts.resolved_path().is_some() {
@@ -310,10 +315,20 @@ impl Summary {
                 }
             ));
         }
-        if recording_behind {
-            details.push(
-                "recording writer stalled; retained files may be missing or incomplete".to_owned(),
-            );
+        // Receipts are issued when output is queued for the recording writer.
+        // Qualify the files this marker names when the writer has not caught
+        // up, or when recording stopped and discarded what was still queued.
+        let qualifier = match writer {
+            crate::transcript::WriterState::Settled => None,
+            crate::transcript::WriterState::Behind => Some("recording writer stalled"),
+            crate::transcript::WriterState::Stopped => Some("recording stopped"),
+        };
+        if let Some(qualifier) = qualifier
+            && cited
+        {
+            details.push(format!(
+                "{qualifier}; retained files may be missing or incomplete"
+            ));
         }
         format!("\n[output omitted: {omitted}; {}]\n", details.join("; "))
     }

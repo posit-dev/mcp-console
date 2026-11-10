@@ -28,6 +28,18 @@ use std::io::Write;
 use std::sync::{Arc, Condvar};
 use std::time::{Duration, Instant};
 
+/// What a reply that cites retained files learned from its wait for the writer.
+#[derive(Clone, Copy, Default, PartialEq)]
+pub(crate) enum WriterState {
+    /// Everything queued before the reply was written.
+    #[default]
+    Settled,
+    /// The bounded wait ran out with queued operations still unwritten.
+    Behind,
+    /// Recording stopped; operations still queued then were discarded.
+    Stopped,
+}
+
 #[derive(Default)]
 pub(super) struct ProtocolEvents {
     pending: Vec<(QueuedEvent, DateTime<Utc>, usize)>,
@@ -625,28 +637,32 @@ impl Transcript {
     }
 
     /// Wait up to `WRITER_WAIT` for the writer to apply everything queued so
-    /// far, and report whether it is still behind. While an earlier wait's
-    /// backlog remains unapplied, report that at once: one stall delays one
-    /// reply, not every reply that cites a file.
-    pub(crate) fn settle(&self) -> bool {
+    /// far, and report where it stands. While an earlier wait's backlog
+    /// remains unapplied, report that at once: one stall delays one reply, not
+    /// every reply that cites a file.
+    pub(crate) fn settle(&self) -> WriterState {
         let deadline = Instant::now() + WRITER_WAIT;
         let mut events = self.1.lock().expect("protocol capture lock");
         let target = events.queued;
         if let Some(point) = events.unsettled {
             if events.failure.is_none() && events.applied < point {
-                return true;
+                return WriterState::Behind;
             }
             events.unsettled = None;
         }
         let wake = events.wake.clone();
         loop {
-            if events.failure.is_some() || events.applied >= target {
-                return false;
+            // A stop discards queued writes, so check it before the count.
+            if events.failure.is_some() {
+                return WriterState::Stopped;
+            }
+            if events.applied >= target {
+                return WriterState::Settled;
             }
             let now = Instant::now();
             if now >= deadline {
                 events.unsettled = Some(target);
-                return true;
+                return WriterState::Behind;
             }
             events = wake
                 .wait_timeout(events, deadline - now)
