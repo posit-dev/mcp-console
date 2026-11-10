@@ -78,6 +78,12 @@ MCP results contain text and, when produced, images.
 Language exceptions normally appear as console text; preparation, transport, and worker failures are tool errors.
 Errors do not undo earlier side effects.
 
+### Server identity
+
+Every completed `CallToolResult` carries `_meta["io.modelcontextprotocol/serverInfo"]`, the server's `Implementation` object (`name`, `version`, `title`, `description`, `websiteUrl`) as defined by the 2026-07-28 MCP specification.
+The value is self-reported and matches the handshake's `serverInfo`; clients may use it to attribute results to this server or ignore it entirely.
+It is stamped unconditionally, including on errored results and session polls.
+
 | Notice                               | Action                                                                                                    |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | `[running; poll with an empty send]` | Poll without code. Do not resubmit the cell.                                                              |

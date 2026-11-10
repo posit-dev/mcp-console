@@ -375,6 +375,35 @@ impl ConsoleServer {
     }
 }
 
+/// `_meta` key carrying the server's identity, per the 2026-07-28 MCP spec:
+/// an `Implementation` object, self-reported, which clients may ignore.
+/// Stamped on every result so clients can attribute results without a
+/// handshake. Contract: docs/API.md.
+const SERVER_INFO_KEY: &str = "io.modelcontextprotocol/serverInfo";
+
+/// The server's identity, shared between the `get_info` handshake response
+/// and the `_meta` stamp on every result. `Implementation` is
+/// `#[non_exhaustive]` in rmcp, so build via `new` and set fields.
+fn server_info() -> Implementation {
+    let mut info = Implementation::new("mcp-console", env!("MCP_CONSOLE_VERSION"));
+    info.title = Some("MCP Console".into());
+    info.description =
+        Some("An interactive workbench for agents working with data in R, Python, and SQL.".into());
+    info.website_url = Some("https://github.com/posit-dev/mcp-console".into());
+    info
+}
+
+/// Stamp the server's identity on a result's `_meta`, preserving any other
+/// entries.
+fn stamp_server_info(result: &mut CallToolResult) {
+    let info = serde_json::to_value(server_info()).expect("Implementation serializes");
+    result
+        .meta
+        .get_or_insert_with(rmcp::model::MetaObject::new)
+        .0
+        .insert(SERVER_INFO_KEY.into(), info);
+}
+
 impl ConsoleServer {
     async fn poll_sessions(
         &self,
@@ -511,14 +540,25 @@ impl ServerHandler for ConsoleServer {
             ]));
         }
         ServerConfig::new(capabilities)
-            .with_server_info(Implementation::new(
-                "mcp-console",
-                env!("MCP_CONSOLE_VERSION"),
-            ))
+            .with_server_info(server_info())
             .with_instructions(self.instructions.clone())
     }
 
     async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResponse, ErrorData> {
+        let mut response = self.call_tool_inner(request, context).await?;
+        if let CallToolResponse::Complete(result) = &mut response {
+            stamp_server_info(result);
+        }
+        Ok(response)
+    }
+}
+
+impl ConsoleServer {
+    async fn call_tool_inner(
         &self,
         request: CallToolRequestParams,
         mut context: RequestContext<RoleServer>,
@@ -674,6 +714,14 @@ impl ServerHandler for ConsoleServer {
                 crate::warmup::RUNTIME_META.into(),
                 serde_json::json!({ "r": available }),
             );
+        }
+        // Stamp here, not in the `call_tool` wrapper: `recording.response`
+        // captures the whole `_meta` into its transport envelope and restores
+        // it verbatim on the wire, wiping anything stamped after this point.
+        // Stamping before `Arc::new` also records the identity in the
+        // server-side transcript, as the retired vendor key was.
+        if let Ok(CallToolResponse::Complete(result)) = &mut result {
+            stamp_server_info(result);
         }
         let result = Arc::new(result);
         let recorder = transcript.clone();
