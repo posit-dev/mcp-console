@@ -97,9 +97,8 @@ def test_stalled_result_write_does_not_hold_replies(binary: Path) -> Transcript:
 
 @requires(NATIVE_FIXTURES, POSIX)
 def test_stalled_output_file_write_does_not_hold_replies(binary: Path) -> Transcript:
-    # The worker adds the "zod: " prefix, so the cell file receives the first
-    # write containing this text; the request and its journal frames do not.
-    with stalled_writer(binary, {"MCP_CONSOLE_TEST_OBSERVED_TEXT": "zod: first"}) as (
+    # Journal lines quote the same text, so select the cell file by its path.
+    with stalled_writer(binary, {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-001.txt"}) as (
         client,
         root,
         observed,
@@ -138,7 +137,7 @@ def test_oversized_reply_reports_a_stalled_recording_writer(binary: Path) -> Tra
         + "ab" * 12000
         + "\npreview tail: final diagnostic\nafter final image\n"
     )
-    with stalled_writer(binary, {"MCP_CONSOLE_TEST_OBSERVED_TEXT": "preview head"}) as (
+    with stalled_writer(binary, {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-002.txt"}) as (
         client,
         root,
         observed,
