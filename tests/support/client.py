@@ -435,6 +435,12 @@ class McpClient:
                 events.wait(remaining)
         return False
 
+    def await_recording_disabled(self) -> None:
+        """Wait for the server to report that its recording stopped."""
+        deadline = self.response_deadline()
+        while not self._recording_disabled():
+            self._wait_for_output(deadline, "the recording to stop")
+
     def _recording_disabled(self) -> bool:
         # The server reports this once, after its last write to the recording.
         while not self.stderr.eof and select.select([self.stderr], [], [], 0)[0]:
