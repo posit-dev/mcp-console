@@ -111,7 +111,7 @@ static void profile_free(void *pointer) {
     RESOLVE(free);
     // The dispatcher constructs this final diagnostic after consuming the
     // worker outcome. Its thread exit proves WorkerEnded was queued, even while
-    // the journal mutex is held by the result-write checkpoint below.
+    // a case stalls the recording writer.
     const char marker[] = "worker stopped before interrupt completed";
     if (getpid() == owner && dispatcher_exited != NULL && pointer != NULL &&
         access(dispatcher_armed, F_OK) == 0 &&
@@ -135,6 +135,21 @@ static void *profile_realloc(void *pointer, size_t size) {
     return native_realloc(pointer, size);
 }
 
+// A reply to tools/call: a tool result or an MCP error, but not a ping reply.
+static bool tool_reply(const char *buffer, size_t size) {
+    const char prefix[] = "{\"jsonrpc\":\"2.0\",\"id\":";
+    size_t offset = sizeof(prefix) - 1;
+    if (size < offset || memcmp(buffer, prefix, offset) != 0) return false;
+    while (offset < size && buffer[offset] != ',') offset++;
+    const char *const bodies[] = {",\"result\":{\"content\":", ",\"error\":{"};
+    for (size_t index = 0; index < 2; index++) {
+        size_t length = strlen(bodies[index]);
+        if (size - offset >= length && memcmp(buffer + offset, bodies[index], length) == 0)
+            return true;
+    }
+    return false;
+}
+
 static ssize_t profile_write(int descriptor, const void *buffer, size_t size) {
     RESOLVE(write);
     if (thread_marker != NULL && getpid() == owner && !atomic_load(&thread_selected) &&
@@ -145,11 +160,11 @@ static ssize_t profile_write(int descriptor, const void *buffer, size_t size) {
         measured_thread = pthread_self();
         atomic_store(&thread_selected, true);
     }
-    const char marker[] = "{\"event\":\"tool_result\",";
     if (profile != NULL && getpid() == owner && atomic_load(&profile->pause_results) &&
-        size >= sizeof(marker) - 1 && memcmp(buffer, marker, sizeof(marker) - 1) == 0) {
-        // The result is assembled and owns delivery before its journal append.
-        // Hold that public recording write until the client cancels the call.
+        descriptor == STDOUT_FILENO && tool_reply(buffer, size)) {
+        // The reply owns delivery once its write starts. Recording does not
+        // hold a reply, so this write is the public point at which a client
+        // can still cancel a call whose result is already assembled.
         if (native_write(reached, "1", 1) != 1) _exit(124);
         char token;
         ssize_t count;
