@@ -548,6 +548,66 @@ class PortableMcpClientTests(unittest.TestCase):
                 "mcp-console: transcript recording disabled: no space" + os.linesep,
             )
 
+    @unittest.skipUnless(
+        sys.platform == "win32",
+        "only Windows holds a file exclusively while copying it into place",
+    )
+    def test_reply_waits_for_a_journal_that_is_being_published(self) -> None:
+        # fmt: python
+        source = code("""
+            import ctypes
+            import json
+            import sys
+            import time
+            from ctypes import wintypes
+            from pathlib import Path
+
+            request = json.loads(sys.stdin.readline())
+            pid = int(request["params"]["arguments"]["python"])
+            journal = Path(f".agents/console/sessions/run-{pid:010}/capture/events.jsonl")
+            journal.parent.mkdir(parents=True)
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CreateFileW.restype = wintypes.HANDLE
+            kernel32.CreateFileW.argtypes = [
+                wintypes.LPCWSTR,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                wintypes.LPVOID,
+                wintypes.DWORD,
+                wintypes.DWORD,
+                wintypes.HANDLE,
+            ]
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            # GENERIC_WRITE, no sharing, CREATE_NEW: the destination of a copy.
+            handle = kernel32.CreateFileW(str(journal), 0x40000000, 0, None, 1, 0x80, None)
+            assert handle != wintypes.HANDLE(-1).value, ctypes.get_last_error()
+            print(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request["id"],
+                        "result": {"content": [{"type": "text", "text": "42"}], "isError": False},
+                    }
+                ),
+                flush=True,
+            )
+            # The client cannot report a refused open. Keep the journal held
+            # long enough for the client's path discovery to meet it.
+            time.sleep(0.5)
+            assert kernel32.CloseHandle(handle)
+            with journal.open("a") as stream:
+                stream.write(json.dumps({"event": "delivery", "request_id": request["id"]}) + "\\n")
+            assert sys.stdin.read() == ""
+            """)
+        with McpClient(
+            Path(sys.executable), ("-u", "-c", source), response_timeout=5
+        ) as client:
+            # The server's process ID names its recording directory.
+            pending = client.start_send(python=str(client.process.pid))
+            client.receive(pending)
+            self.assertEqual(pending["result"]["content"][0]["text"], "42")
+            client.finish()
+
     def test_partial_pipe_response_has_a_bounded_diagnostic_timeout(self) -> None:
         # fmt: python
         source = code("""
