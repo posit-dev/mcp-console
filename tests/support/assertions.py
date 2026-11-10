@@ -49,7 +49,8 @@ def wait_for_worker_ready(client: McpClient, description: str) -> None:
     deadline = time.monotonic() + client.response_timeout
     poll_start = len(client.transcript)
     result = _send_before(client, deadline, description, session="default")
-    # Phase observation is optional when its owner is busy.
+    # Startup can finish between choosing the reply's terminal state and
+    # reading its phase.
     while tool_text(result) in {
         "[worker starting]",
         "\n[phase: startup]\n[worker starting]",
