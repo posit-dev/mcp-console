@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run --script
 
+import json
 import os
 import sys
 import tempfile
@@ -9,6 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from boundaries.client_server.integrations.test_control import (
+    ControlClient,
+    result_text,
+)
 from boundaries.client_server.recording.test_process import recording_events
 from support.checkpoints import FifoCheckpoint, wait_for_path
 from support.client import McpClient
@@ -24,7 +29,7 @@ BEHIND = "recording writer stalled; retained files may be missing or incomplete"
 
 @contextmanager
 def stalled_writer(
-    binary: Path, observation: dict[str, str]
+    binary: Path, observation: dict[str, str], *arguments: str
 ) -> Iterator[tuple[McpClient, Path, FifoCheckpoint, FifoCheckpoint]]:
     """Hold the first matching recording write until the release checkpoint."""
     with tempfile.TemporaryDirectory() as directory:
@@ -38,6 +43,7 @@ def stalled_writer(
                 DIRECT.serve(
                     "--worker",
                     str(Path(__file__).resolve().parents[3] / "fixtures/zod"),
+                    *arguments,
                 ),
                 {
                     **os.environ,
@@ -244,6 +250,68 @@ def test_phase_notice_overflow_reports_a_stalled_recording_writer(
             {
                 "phase-bearing reply": "bounded wait; raw log path and stalled writer named",
                 "raw log after release": "complete",
+            },
+        ]
+
+
+@requires(NATIVE_FIXTURES, POSIX)
+def test_preview_subscription_follows_the_recording_writer(binary: Path) -> Transcript:
+    # A Unix socket path must be short. Zod publishes its markers in TMPDIR.
+    with (
+        tempfile.TemporaryDirectory(dir="/tmp", prefix="console-stalled-") as scratch,
+        stalled_writer(
+            binary,
+            {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-002.txt", "TMPDIR": scratch},
+            "--control-socket",
+            str(Path(scratch) / "control.sock"),
+        ) as (client, root, observed, release),
+    ):
+        client.expect("zod: ready\n", r="echo ready")
+        oversized = client.start_send(r="preview tiny events")
+        try:
+            observed.wait("cell output file write is stalled", client=client)
+            # This reply's bounded wait finds the writer stalled.
+            client.receive(oversized)
+            assert BEHIND in response_text(oversized), oversized
+            (recording,) = (root / ".agents/console/sessions").iterdir()
+            log = (
+                f".agents/console/sessions/{recording.name}"
+                "/capture/sessions/001/cell-003.txt"
+            )
+            emitted = "x" * (2 * TEXT_BUDGET) + "\n"
+            held = client.start_send(r=f"hold after output: {emitted}")
+            wait_for_path(
+                Path(scratch) / "zod-output-held",
+                "pending oversized output",
+                client=client,
+            )
+            with ControlClient(Path(scratch) / "control.sock") as observer:
+                observer.request(op="subscribe")
+
+                def marker() -> str:
+                    event = json.loads(observer.reader.readline(timeout=30))
+                    assert event["event"] == "preview", event
+                    (marker,) = OMISSION.finditer(result_text(event))
+                    return marker[0]
+
+                assert marker().endswith(f"; raw log: {log}; {BEHIND}]\n")
+                # The worker emits nothing more. The writer catching up is the
+                # only change, and the subscription must replace its snapshot.
+                release.release()
+                assert marker().endswith(f"; raw log: {log}]\n")
+            (Path(scratch) / "zod-release-evaluation").touch()
+            client.receive(held)
+        finally:
+            release.release()
+            (Path(scratch) / "zod-release-evaluation").touch()
+        transcript = client.finish()
+        completed_calls(root)
+        assert (recording / "capture/sessions/001/cell-003.txt").read_text() == emitted
+        return [
+            *transcript[:3],
+            {
+                "subscription while the writer is stalled": "raw log path and stalled writer named",
+                "subscription after the writer catches up": "replaced without new output; raw log path only",
             },
         ]
 

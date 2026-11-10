@@ -181,6 +181,15 @@ def complete_after_release(context: WorkerContext, source: str) -> None:
     echo(context, source)
 
 
+def hold_after_output(context: WorkerContext, source: str) -> None:
+    send_output(context.writer, source.removeprefix("hold after output: "))
+    wait_for_server_to_process_sideband(context.reader, context.writer)
+    publish_marker(context.root / "zod-output-held")
+    while not (context.root / "zod-release-evaluation").exists():
+        time.sleep(0.01)
+    send(context.writer, {"kind": "completed"})
+
+
 def output_then_complete_after_release(context: WorkerContext, source: str) -> None:
     release = context.root / "zod-release-cell-output"
     os.mkfifo(release)

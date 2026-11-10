@@ -106,6 +106,8 @@ def dispatch(context: WorkerContext, source: str) -> LoopAction | None:
         return lifecycle.wait_for_interrupt(context, source)
     if source.startswith("exit after output: "):
         return lifecycle.exit_unexpectedly(context, source)
+    if source.startswith("hold after output: "):
+        return lifecycle.hold_after_output(context, source)
     if source.startswith("stall: "):
         return lifecycle.stall_operation(context, source)
     if source.startswith("preview recovery cell "):
