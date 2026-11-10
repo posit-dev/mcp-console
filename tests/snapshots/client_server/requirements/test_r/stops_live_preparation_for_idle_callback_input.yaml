@@ -10,6 +10,15 @@ result:
     - type: text
       text: "[prepared]"
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: |
@@ -48,6 +57,15 @@ result:
         <worker callback gate>
         <worker callback checkpoint>
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   session: default
@@ -58,6 +76,15 @@ result:
         [input requested: "later> "]
         [waiting for stdin]
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   requirements:
@@ -71,3 +98,12 @@ result:
         [worker terminated by signal 9]
         [worker stopped: in-memory state lost]
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

@@ -9,6 +9,15 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: >-
@@ -20,6 +29,15 @@ result:
       text: |
         <running Python>
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: raise AssertionError('failed preparation ran the cell')
@@ -46,6 +64,15 @@ result:
         error: No solution found when resolving tool dependencies
           cause: you require py-yaml12<0, which does not allow any versions
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: |
@@ -59,6 +86,15 @@ result:
       text: |
         [1] 42
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: assert id(retained_object) == retained_object_id; r.startup_marker + 1
@@ -71,3 +107,12 @@ result:
       text: |
         42
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

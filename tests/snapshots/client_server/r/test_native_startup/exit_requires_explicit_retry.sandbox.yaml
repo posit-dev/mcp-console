@@ -13,6 +13,15 @@ result:
         [worker stopped: in-memory state lost]
         [startup may have executed; explicit restart required]
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send: {}
 result:
@@ -22,6 +31,15 @@ result:
 
         [idle]
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: stop("retry cell must not run")
@@ -30,6 +48,15 @@ result:
     - type: text
       text: "[startup may have executed; explicit restart required]"
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   requirements:
@@ -64,6 +91,15 @@ result:
       r: []
       python: []
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   requirements:
@@ -76,6 +112,15 @@ result:
         dynamic environment resolution is unavailable; install `ir` or `uv` and
         restart MCP Console
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   control: restart
@@ -86,6 +131,15 @@ result:
         [starting new worker]
         [idle]
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: native_repaired
@@ -95,3 +149,12 @@ result:
       text: |
         [1] TRUE
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

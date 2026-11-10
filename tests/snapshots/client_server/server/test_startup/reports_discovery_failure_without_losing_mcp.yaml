@@ -10,6 +10,15 @@ result:
         worker R home discovery failed with exit status: 17: fixture R discovery
         failed
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 input:
   method: ping
@@ -24,6 +33,15 @@ result:
         worker R home discovery failed with exit status: 17: fixture R discovery
         failed
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   requirements:
@@ -35,6 +53,15 @@ result:
         worker R home discovery failed with exit status: 17: fixture R discovery
         failed
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 input:
   method: tools/list

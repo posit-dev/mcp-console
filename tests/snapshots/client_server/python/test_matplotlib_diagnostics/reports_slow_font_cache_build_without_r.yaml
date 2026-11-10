@@ -10,6 +10,15 @@ result:
 
         [idle]
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   requirements:
@@ -20,6 +29,15 @@ result:
     - type: text
       text: "[prepared]"
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   timeout_ms: 60000
@@ -53,6 +71,15 @@ result:
         <font discovery started>
         <font discovery release>
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   timeout_ms: 0
@@ -72,6 +99,15 @@ result:
         [elapsed: <elapsed>s since admission; no new output]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   timeout_ms: 100
@@ -85,6 +121,15 @@ result:
         [elapsed: <elapsed>s since admission]
         [running; poll with an empty send]
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   timeout_ms: 60000
@@ -95,6 +140,15 @@ result:
       text: |
         plot complete
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: _ = matplotlib.font_manager.findfont('MCP Console missing test font')
@@ -105,3 +159,12 @@ result:
         fonts: findfont: Font family ['MCP Console missing test font'] not
         found. Falling back to DejaVu Sans.
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

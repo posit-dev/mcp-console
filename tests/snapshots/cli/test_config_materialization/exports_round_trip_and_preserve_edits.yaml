@@ -13,7 +13,12 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
+    title: MCP Console
     version: <Console version>
+    description: >-
+      An interactive workbench for agents working with data in R, Python, and
+      SQL.
+    websiteUrl: https://github.com/posit-dev/mcp-console
   instructions: Find this workbench.
 ---
 input:
@@ -254,3 +259,12 @@ result:
     - type: text
       text: "`timeout_ms` is hidden by `tool.parameters`"
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

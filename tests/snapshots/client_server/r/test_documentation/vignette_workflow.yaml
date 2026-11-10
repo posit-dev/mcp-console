@@ -15,6 +15,15 @@ result:
         motivations             Motivations for cpp11 (source, html)
         internals               cpp11 internals (source, html)
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: vignette("converting", package = "cpp11")
@@ -197,3 +206,12 @@ result:
         [5]: https://CRAN.R-project.org/package=Rcpp/vignettes/Rcpp-attributes.pdf
         [6]: https://cran.r-project.org/doc/manuals/r-release/R-exts.html#Random-numbers
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

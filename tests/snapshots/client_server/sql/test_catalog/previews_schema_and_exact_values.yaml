@@ -43,6 +43,15 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   sql: |
@@ -85,6 +94,15 @@ result:
         20 NULL     9223372036854775807 12345678901234567890123456789.123456789 [1, NULL, 3]     {'name': Ada, 'active': true}       
         [additional rows omitted]
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   sql: |
@@ -112,6 +130,15 @@ result:
         # ℹ abbreviated names: ¹​column_name_05_is_deliberately_long, ²​column_name_06_is_deliberately_long, ³​column_name_07_is_deliberately_long, ⁴​column_name_08_is_deliberately_long,
         #   ⁵​column_name_09_is_deliberately_long, ⁶​column_name_10_is_deliberately_long, ⁷​column_name_11_is_deliberately_long, ⁸​column_name_12_is_deliberately_long
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   sql: |
@@ -128,6 +155,15 @@ result:
         # ℹ 3 variables: id <int32>, amount <decimal128(10, 2)>, tags <list<l: string>>
         [0 rows]
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: stopifnot(!"arrow" %in% loadedNamespaces())
@@ -136,3 +172,12 @@ result:
     - type: text
       text: "[done]"
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

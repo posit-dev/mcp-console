@@ -19,3 +19,12 @@ result:
                               <int32>                     <int32>                     <int32>                     <int32>                     <int32>                     <int32>
         1                           1                           2                           3                           4                           5                           6
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

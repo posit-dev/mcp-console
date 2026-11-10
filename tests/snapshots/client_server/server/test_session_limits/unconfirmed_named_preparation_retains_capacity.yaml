@@ -13,6 +13,15 @@ result:
         exceeded; cannot terminate local resolver: Operation not permitted (os
         error 1); retirement unconfirmed
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   session: alpha
@@ -26,6 +35,15 @@ result:
         exceeded; cannot terminate local resolver: Operation not permitted (os
         error 1); retirement unconfirmed
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   session: beta
@@ -37,6 +55,15 @@ result:
         session limit reached (sessions.max = 2); stop a named session before
         starting another
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   session: beta
@@ -46,6 +73,15 @@ result:
     - type: text
       text: unknown session "beta"; submit a code cell to create it
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 stderr: >
   selected Python executable is not an absolute file:

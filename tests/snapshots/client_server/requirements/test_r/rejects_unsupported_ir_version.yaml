@@ -10,3 +10,12 @@ result:
     - type: text
       text: R package resolution requires `ir` 0.4.0 or later; found `ir` 0.3.0
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

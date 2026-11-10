@@ -16,3 +16,12 @@ result:
         [R package resolution failed with exit status: 1: synthetic `ir` failure
         for nanoarrow]
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console

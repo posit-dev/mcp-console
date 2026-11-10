@@ -43,7 +43,7 @@ result:
           subset: an optional vector specifying a subset of observations to be
                   used in the fitting process.  (See additional details about
                   how this argument interacts with data-dependent bases in the
-                  'Details' below.)
+                  'Details' section of the 'model.frame' documentation.)
 
          weights: an optional vector of weights to be used in the fitting
                   process.  Should be 'NULL' or a numeric vector.  If non-NULL,
@@ -94,12 +94,9 @@ result:
              form 'first + second' indicates all the terms in 'first' together
              with all the terms in 'second' with duplicates removed.  A
              specification of the form 'first:second' indicates the set of
-             terms obtained by taking the interactions of all terms in 'first'
-             with all t
-        [output omitted: 2985 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
-        s.
-
-            rank: the numeric rank of the fitted linear model.
+             terms obtained by taking the interactions of
+        [output omitted: 2799 UTF-8 bytes; raw log: .agents/console/sessions/<run ID>/capture/sessions/001/cell-001.txt]
+        c rank of the fitted linear model.
 
          weights: (only for weighted fits) the specified weights.
 
@@ -152,17 +149,18 @@ result:
 
              The design was inspired by the S function of the same name
              described in Chambers (1992).  The implementation of model formula
-             by Ross Ihaka was based on Wilkinson and Rogers (1973).
+             by Ross Ihaka was based on Wilkinson & Rogers (1973).
 
         References:
 
-             Chambers JM (1992). "Linear Models." In Chambers JM, Hastie TJ
-             (eds.), _Statistical Models in S_, chapter 4. Wadsworth &
+             Chambers, J. M. (1992) _Linear models._ Chapter 4 of _Statistical
+             Models in S_ eds J. M. Chambers and T. J. Hastie, Wadsworth &
              Brooks/Cole.
 
-             Wilkinson GN, Rogers CE (1973). "Symbolic Description of Factorial
-             Models for Analysis of Variance." _Applied Statistics_, *22*(3),
-             392. doi:10.2307/2346786 <https://doi.org/10.2307/2346786>.
+             Wilkinson, G. N. and Rogers, C. E. (1973).  Symbolic descriptions
+             of factorial models for analysis of variance.  _Applied
+             Statistics_, *22*, 392-399.  doi:10.2307/2346786
+             <https://doi.org/10.2307/2346786>.
 
         See Also:
 
@@ -214,3 +212,12 @@ result:
              ### less simple examples in "See Also" above
 
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
