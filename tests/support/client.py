@@ -460,7 +460,14 @@ class McpClient:
         return None
 
     def _read_journal(self, journal: Path) -> None:
-        with journal.open("rb") as stream:
+        try:
+            stream = journal.open("rb")
+        except PermissionError:
+            # Publication copies the journal into place, and a Windows copy
+            # holds its destination exclusively. The next pass reads it.
+            assert os.name == "nt"
+            return
+        with stream:
             stream.seek(self._journal_offset)
             appended = stream.read()
         complete = appended.rfind(b"\n") + 1
