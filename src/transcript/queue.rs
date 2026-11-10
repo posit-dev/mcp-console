@@ -744,7 +744,12 @@ impl Transcript {
             events.retained_events -= count;
             events.retained_bytes -= bytes;
             events.applied += count as u64;
-            events.wake.notify_all();
+            match &result {
+                Ok(()) => events.wake.notify_all(),
+                // Publish the stop with the count that covers the discarded
+                // operations, so no waiter reads them as written.
+                Err(error) => events.stop(error.clone()),
+            }
             drop(events);
             result?;
         }
