@@ -67,12 +67,12 @@ def response_text(entry: dict) -> str:
     )
 
 
-def completed_calls(root: Path) -> list[dict]:
+def completed_calls(root: Path, count: int = 3) -> list[dict]:
     (recording,) = (root / ".agents/console/sessions").iterdir()
     events = recording_events(recording)
     calls = [e["call_id"] for e in events if e["event"] == "tool_call"]
     results = [e["call_id"] for e in events if e["event"] == "tool_result"]
-    assert calls == results == [1, 2, 3], (calls, results)
+    assert calls == results == list(range(1, count + 1)), (calls, results)
     assert events[-1]["event"] == "recording_ended"
     return events
 
@@ -232,9 +232,12 @@ def test_phase_notice_overflow_reports_a_stalled_recording_writer(
         finally:
             release.release()
             (root / "startup-release").touch()
+        # The poll returns once the replacement worker is ready.
+        client.send()
+        assert "phase:" not in response_text(client.transcript[-1])
         client.expect("zod: replaced\n", r="echo replaced")
         transcript = client.finish()
-        completed_calls(root)
+        completed_calls(root, 4)
         assert (recording / "capture/sessions/001/cell-002.txt").read_text() == emitted
         return [
             *transcript[:3],

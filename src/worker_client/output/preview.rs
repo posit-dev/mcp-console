@@ -75,10 +75,15 @@ impl Preview {
     }
 
     /// Whether the bounded rendering carries an omission marker, which names
-    /// retained files a reader may open.
-    pub(super) fn cites_recording(&self) -> bool {
+    /// retained files a reader may open. `phase` is the phase notice the reply
+    /// will add, with whether it joins the cell clock.
+    pub(super) fn cites_recording(&self, phase: Option<(&str, bool)>) -> bool {
         let mut probe = self.inspection_copy();
         probe.bound();
+        if let Some((phase, cell_clock)) = phase {
+            probe.phase_before_terminal(phase, cell_clock);
+            probe.bound();
+        }
         probe.omitted_images != 0
             || probe
                 .parts
