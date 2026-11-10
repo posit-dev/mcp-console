@@ -137,9 +137,26 @@ A long-location notice may instead name a path relative to the selected Console 
 
 ### Recording failures {#recording-failures}
 
-Recording can fail while computation continues.
+Recording can fail or fall behind while computation continues.
 A notice identifies files or artifacts that are unavailable or only partially retained; do not assume all output was saved.
-If a stalled journal writer exhausts the bounded protocol backlog, Console disables recording and reports the failure on stderr while continuing to receive MCP traffic.
+
+A background writer performs all recording I/O, so recording files can trail the replies that describe them.
+Replies do not wait for the writer, except when an omission notice names retained files: the reply waits up to 5 seconds for the writer to reach them.
+If the writer is still behind, the notice gives the same path and adds `recording writer stalled; retained files may be missing or incomplete`.
+The files are completed if the writer resumes.
+While the backlog remains, later replies with such notices carry the same warning without waiting again.
+
+A failed write to an output file is reported by the first reply that waits for the writer and still holds output from that file.
+A reply that shows the file's output in full does not report the failure.
+In both cases, the file's `cell_output` or `session_output` event records the retained and discarded byte counts.
+
+Creating an output file is limited to 5 seconds.
+A creation that takes longer is reported as a file that was not created.
+Until the creation returns, later output files are not created either, and it can leave an empty file behind.
+
+Output text and images wait for the writer once its backlog passes 16 MiB or 512 operations, so a worker that emits faster than the recording can be written is slowed to the writer's pace.
+Console disables recording, reports the failure on stderr, and continues to receive MCP traffic if the writer completes no operation for 5 seconds while output text or images wait for it, or if its backlog reaches 1,024 operations or 64 MiB.
+Shutdown still waits for the writer without a limit ([RT-6](TODO.md)).
 
 The recording journal and generated file formats are not independently versioned APIs.
 Implementation and failure-handling details belong in [Architecture](ARCHITECTURE.md#output-and-delivery).
