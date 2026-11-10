@@ -43,7 +43,7 @@ from support.processes import (
     live_processes,
 )
 from support.r import r_test_environment
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import (
     NATIVE_FIXTURES,
     POSIX,
@@ -500,7 +500,7 @@ def test_named_code_retries_missing_selected_python(
                 control="restart",
             )
             client.expect("\n[stopped]", session="beta")
-            assert client.send(timeout_ms=0) == {
+            assert without_meta(client.send(timeout_ms=0)) == {
                 "content": [
                     {
                         "type": "text",
@@ -823,7 +823,7 @@ def test_cancelled_restart_shares_retry_and_preserves_next_cell(
         timed_out = client.send(
             control="restart", python="timed_out_cell = True", timeout_ms=0
         )
-        assert timed_out == {
+        assert without_meta(timed_out) == {
             "content": [
                 {
                     "type": "text",
@@ -1092,7 +1092,7 @@ def test_interrupted_retry_can_be_restarted(
         reached.wait("retried inspection received interrupt and remains owned")
         client.receive(interrupt)
         observation = interrupt["result"]
-        assert observation == {
+        assert without_meta(observation) == {
             "content": [
                 {
                     "type": "text",
@@ -1104,7 +1104,7 @@ def test_interrupted_retry_can_be_restarted(
         release.release()
         client.receive(pending)
         failure = pending["result"]
-        assert failure == {
+        assert without_meta(failure) == {
             "content": [
                 {
                     "type": "text",

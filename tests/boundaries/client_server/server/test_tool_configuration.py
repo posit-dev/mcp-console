@@ -13,7 +13,12 @@ from support.assertions import last_tool_text
 from support.client import McpClient
 from support.execution import DIRECT
 from support.presentation import without_descriptions
-from support.records import McpTranscript, Transcript, TranscriptWithCompanions
+from support.records import (
+    McpTranscript,
+    Transcript,
+    TranscriptWithCompanions,
+    without_meta,
+)
 from support.suites import run_this_suite
 
 
@@ -180,7 +185,7 @@ def test_hides_parameters_and_keeps_omission_defaults(binary: Path) -> Transcrip
             assert last_tool_text(client) == "42\n"
             assert client.request("tools/list")["result"]["tools"] == [tool]
             result = client.send()
-            assert result == {
+            assert without_meta(result) == {
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }, result

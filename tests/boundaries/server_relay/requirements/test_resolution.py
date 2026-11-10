@@ -37,7 +37,7 @@ from support.checkpoints import FifoCheckpoint
 from support.client import stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import NATIVE_FIXTURES, POSIX, requires
 from support.resolvers import fake_ir_environment as _fake_ir_environment
 from support.suites import run_this_suite
@@ -300,7 +300,7 @@ def test_restart_consumes_late_r_preparation_retirement_events(
                 "the retired R preparation",
             )
             preparation_result = preparation["result"]
-            assert preparation_result == {
+            assert without_meta(preparation_result) == {
                 "content": [
                     {"type": "text", "text": "R preparation cancelled by restart"}
                 ],
@@ -436,7 +436,7 @@ def test_restart_discards_pre_marker_r_preparation_result(
             resolver_finished.wait()
             client.client.receive_many([preparation, restart])
 
-            assert preparation["result"] == {
+            assert without_meta(preparation["result"]) == {
                 "content": [
                     {"type": "text", "text": "R preparation cancelled by restart"}
                 ],
@@ -541,7 +541,7 @@ def test_r_preparation_failure_requires_restart_and_preserves_worker(
             r="must not execute",
             requirements={"r": ["failing-preparation"]},
         )
-        assert result == {
+        assert without_meta(result) == {
             "content": [
                 {
                     "type": "text",
@@ -559,7 +559,7 @@ def test_r_preparation_failure_requires_restart_and_preserves_worker(
             r="must not execute after restart requirement",
             requirements={"r": ["not-forwarded"]},
         )
-        assert result == {
+        assert without_meta(result) == {
             "content": [
                 {
                     "type": "text",

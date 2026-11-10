@@ -24,7 +24,7 @@ from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_input_handler_client, r_test_environment, reference_plots
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.suites import run_this_suite
 
 
@@ -648,7 +648,7 @@ def test_keeps_recovered_reply_before_later_idle_callback_output(
             callback_release.touch()
             client.receive(admitted)
             # The recovered reply precedes output the worker wrote after it.
-            assert admitted["result"] == {
+            assert without_meta(admitted["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -725,7 +725,7 @@ def test_starts_idle_callback_output_after_recovered_idle_notice(
             callback_release.touch()
             client.receive(admitted)
             # The recovered notice keeps its own line before later output.
-            assert admitted["result"] == {
+            assert without_meta(admitted["result"]) == {
                 "content": [
                     {
                         "type": "text",

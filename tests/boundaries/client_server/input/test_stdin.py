@@ -17,7 +17,7 @@ from support.assertions import last_tool_text
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.processes import stop_process
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import POSIX, PROCESS_EVENTS, requires
 from support.suites import run_this_suite
 
@@ -92,7 +92,7 @@ def test_idle_stdin_startup_blocks_preparation(
                 requirements={"python": ["py-yaml12"]},
             )
             client.receive(preparation)
-            assert preparation["result"] == {
+            assert without_meta(preparation["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -104,7 +104,7 @@ def test_idle_stdin_startup_blocks_preparation(
 
             startup_release.touch()
             client.receive(idle_stdin)
-            assert idle_stdin["result"] == {
+            assert without_meta(idle_stdin["result"]) == {
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }, idle_stdin

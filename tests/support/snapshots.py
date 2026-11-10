@@ -186,6 +186,32 @@ def normalize_console_version(version: str) -> str:
     return "<Console version>"
 
 
+def normalize_meta_versions(value: object) -> object:
+    """Normalize the stamped identity's version in every result-shaped dict,
+    wherever it is nested: under `result`, under keys such as `restart_error`
+    or `live journal` sections, or as a bare recorded result. The stamp is
+    self-reported build identity, so normalizing cannot hide real drift."""
+    if isinstance(value, dict):
+        meta = value.get("_meta")
+        if isinstance(meta, dict):
+            info = meta.get("io.modelcontextprotocol/serverInfo")
+            if isinstance(info, dict) and info.get("name") == "mcp-console":
+                value = {
+                    **value,
+                    "_meta": {
+                        **meta,
+                        "io.modelcontextprotocol/serverInfo": {
+                            **info,
+                            "version": normalize_console_version(info["version"]),
+                        },
+                    },
+                }
+        return {key: normalize_meta_versions(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [normalize_meta_versions(item) for item in value]
+    return value
+
+
 def normalize_console_versions(transcript: Transcript) -> Transcript:
     """Accept older snapshots without rewriting them for each version bump."""
     rendered = []
@@ -206,27 +232,7 @@ def normalize_console_versions(transcript: Transcript) -> Transcript:
                     },
                 },
             }
-        if (
-            isinstance(entry, dict)
-            and isinstance(result := entry.get("result"), dict)
-            and isinstance(meta := result.get("_meta"), dict)
-            and isinstance(info := meta.get("io.modelcontextprotocol/serverInfo"), dict)
-            and info.get("name") == "mcp-console"
-        ):
-            entry = {
-                **entry,
-                "result": {
-                    **result,
-                    "_meta": {
-                        **meta,
-                        "io.modelcontextprotocol/serverInfo": {
-                            **info,
-                            "version": normalize_console_version(info["version"]),
-                        },
-                    },
-                },
-            }
-        rendered.append(entry)
+        rendered.append(normalize_meta_versions(entry))
     return rendered
 
 
@@ -414,6 +420,10 @@ def check_recording(
                 # Canonical companions are MCP handshakes; ordinary YAML
                 # companions can carry protocol IDs that must remain visible.
                 contents = normalize_request_ids(contents)
+            elif isinstance(contents, list):
+                # Event companions are not request transcripts, but their
+                # recorded results carry the same self-reported identity stamp.
+                contents = normalize_console_versions(contents)
             check_snapshot(companion, contents, case, update=update)
         checked.add(companion)
     return checked

@@ -23,7 +23,7 @@ from support.macos import (
     darwin_child_process_identities,
     darwin_process_file_descriptors,
 )
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import (
     MACOS_SANDBOX,
     NATIVE_FIXTURES,
@@ -61,7 +61,7 @@ def _wait_for_startup_cleanup(
 
 def _assert_zod_echo(entry: dict[str, object]) -> None:
     result = entry["result"]
-    assert result == {
+    assert without_meta(result) == {
         "content": [{"type": "text", "text": "zod: echo\n"}],
         "isError": False,
     }, result
@@ -82,7 +82,7 @@ def test_sandbox_setup_failure_is_reported_and_retryable(binary: Path) -> Transc
             server = capture_darwin_process_identity(client.process.pid)
             client.initialize_and_list_tools()
             result = client.send(r="echo echo")
-            assert result == {
+            assert without_meta(result) == {
                 "content": [
                     {
                         "type": "text",
@@ -227,7 +227,7 @@ def _manager_failure_before_readiness(
             output = "[worker relay exited before readiness]"
             if diagnostic_before_cut:
                 output = diagnostic + "\n" + output
-            assert result == {
+            assert without_meta(result) == {
                 "content": [{"type": "text", "text": output}],
                 "isError": True,
             }, result

@@ -23,7 +23,7 @@ from support.processes import (
     process_file_descriptors,
 )
 from support.normalization import code
-from support.records import Transcript, TranscriptEntry
+from support.records import Transcript, TranscriptEntry, without_meta
 from support.requirements import LINUX_NATIVE, PROCESS_EVENTS, requires
 from support.suites import run_this_suite
 
@@ -91,7 +91,7 @@ def descriptor_entry(
                 server = capture_process_identity(client.process.pid)
                 client.initialize_and_list_tools()
                 result = client.send(python=source)
-                assert result == {
+                assert without_meta(result) == {
                     "content": [{"type": "text", "text": "closed\n"}],
                     "isError": False,
                 }, result

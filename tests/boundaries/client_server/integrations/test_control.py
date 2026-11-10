@@ -23,7 +23,7 @@ from support.client import McpClient, TextReader
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code, normalize_recording
 from support.previews import recording_events
-from support.records import Transcript, TranscriptWithCompanions
+from support.records import Transcript, TranscriptWithCompanions, without_meta
 from support.requirements import NATIVE_FIXTURES, POSIX, R, R_EVENT_LOOP, requires
 from support.suites import run_this_suite
 
@@ -738,7 +738,7 @@ def test_cancelled_mcp_control_keeps_recovery_out_of_integrator_result(
                     ), result
                     assert result_text(preview) == "integrator pending\n", preview
                     recovered = client.send(session="default")
-                    assert recovered == {
+                    assert without_meta(recovered) == {
                         "content": [
                             {
                                 "type": "text",

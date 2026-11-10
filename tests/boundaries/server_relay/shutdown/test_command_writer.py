@@ -14,7 +14,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.events import Events
 from support.native import LOADER_VARIABLE, build_interposer
 from support.processes import capture_process_identity, host_process_id, signal_process
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, requires, POSIX
 from support.suites import run_this_suite
 
@@ -270,7 +270,7 @@ def interrupt_shutdown_case(
                 ack.release()
                 kill_release.release()
                 client.receive(interrupt)
-                assert interrupt["result"] == {
+                assert without_meta(interrupt["result"]) == {
                     "content": [
                         {
                             "type": "text",

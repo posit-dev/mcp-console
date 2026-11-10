@@ -33,7 +33,7 @@ from support.normalization import code
 from support.client import McpClient, stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.r import r_test_environment, reference_plots, startup_r_package
-from support.records import Transcript, TranscriptWithCompanions
+from support.records import Transcript, TranscriptWithCompanions, without_meta
 from support.resolvers import bare_runtime_environment, record_resolved_r_library
 from support.suites import run_this_suite
 from support.discovery import discovery_environment
@@ -267,7 +267,7 @@ def test_rejects_non_utf8_home_recording_path(binary: Path) -> Transcript:
             (project_console / "config.yaml").unlink()
             project_console.rmdir()
             client.send(r="echo echo")
-            assert client.transcript[-1]["result"] == {
+            assert without_meta(client.transcript[-1]["result"]) == {
                 "content": [{"type": "text", "text": "zod: echo\n"}],
                 "isError": False,
             }, client.transcript[-1]
@@ -526,7 +526,7 @@ def test_records_tool_calls_and_images(
             "discarded_bytes": 0,
             "retention_limit_bytes": CELL_OUTPUT_RETENTION_LIMIT,
         }, events[3]
-        assert events[4]["result"] == {
+        assert without_meta(events[4]["result"]) == {
             "content": [
                 {"type": "text", "text": "before image\n"},
                 {
@@ -546,7 +546,7 @@ def test_records_tool_calls_and_images(
             "arguments": {"r": "1", "python": "1"},
             "_meta": {"progressToken": "record-me"},
         }, events[5]
-        assert events[6]["result"] == {
+        assert without_meta(events[6]["result"]) == {
             "content": [
                 {
                     "type": "text",
@@ -687,7 +687,7 @@ def test_disables_recording_after_transcript_failure(
 
         client.send(r="emit image")
         image_result = client.transcript[-1]["result"]
-        assert image_result == {
+        assert without_meta(image_result) == {
             "content": [
                 {"type": "text", "text": "before image\n"},
                 {"type": "image", "data": PNG_1X1, "mimeType": "image/png"},
@@ -882,7 +882,9 @@ def test_flushes_calls_and_keeps_unpolled_images(
             r="emit image before completion",
             timeout_ms=0,
         )
-        assert without_elapsed_result(client.transcript[-1]["result"]) == {
+        assert without_meta(
+            without_elapsed_result(client.transcript[-1]["result"])
+        ) == {
             "content": [
                 {"type": "text", "text": "\n[running; poll with an empty send]"}
             ],
@@ -965,7 +967,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
         assert completed_semantic[-1]["call_id"] == 2, completed_semantic[-1]
         client.send(session="default", timeout_ms=3_000)
         poll_result = client.transcript[-1]["result"]
-        assert poll_result == {
+        assert without_meta(poll_result) == {
             "content": [{"type": "image", "data": PNG_1X1, "mimeType": "image/png"}],
             "isError": False,
         }, poll_result
@@ -977,7 +979,7 @@ def test_flushes_calls_and_keeps_unpolled_images(
             "tool_result",
         ], polled_events
         assert polled_semantic[-1]["call_id"] == 3, polled_semantic[-1]
-        assert polled_semantic[-1]["result"] == {
+        assert without_meta(polled_semantic[-1]["result"]) == {
             "content": [
                 {
                     "type": "image",

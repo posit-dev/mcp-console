@@ -21,7 +21,7 @@ from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.native import SHARED_LIBRARY_FLAG
 from support.python import runtime_source_line
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import NATIVE_FIXTURES, POSIX, requires
 from support.resolvers import checkpoint_uv_environment, named_requirement_error
 from support.suites import run_this_suite
@@ -723,7 +723,7 @@ def test_interrupts_live_python_resolver(
                 "control-only interrupt waited for Python preparation to settle"
             )
             client.receive(interrupt)
-            assert without_elapsed_result(interrupt["result"]) == {
+            assert without_meta(without_elapsed_result(interrupt["result"])) == {
                 "content": [
                     {
                         "type": "text",
@@ -820,13 +820,13 @@ def test_restart_cancels_live_python_preparation(
             assert not forced_release.is_set(), (
                 "another tool call waited for live preparation"
             )
-            assert poll["result"] == {
+            assert without_meta(poll["result"]) == {
                 "content": [
                     {"type": "text", "text": "[session is preparing requirements]"}
                 ],
                 "isError": True,
             }, poll
-            assert second_prepare["result"] == {
+            assert without_meta(second_prepare["result"]) == {
                 "content": [
                     {"type": "text", "text": "session is preparing requirements"}
                 ],
@@ -837,7 +837,7 @@ def test_restart_cancels_live_python_preparation(
             client.receive_many([preparation, restart])
 
             preparation_result = preparation["result"]
-            assert preparation_result == {
+            assert without_meta(preparation_result) == {
                 "content": [
                     {
                         "type": "text",

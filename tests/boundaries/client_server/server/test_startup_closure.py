@@ -14,7 +14,7 @@ from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.evidence import compact_text
 from support.native import LOADER_VARIABLE, build_interposer
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import (
     NATIVE_FIXTURES,
     POSIX,
@@ -41,7 +41,7 @@ def test_eof_preserves_queued_first_send_response(binary: Path) -> Transcript:
         call = client.start_send(r=source, python="1")
         client.stdin.close()
         client.receive(call)
-        assert call["result"] == {
+        assert without_meta(call["result"]) == {
             "content": [
                 {
                     "type": "text",
@@ -99,7 +99,7 @@ def test_eof_waits_for_input_queued_before_response_admission(
                 client.stdin.close()
                 checkpoints["release"].release()
                 client.receive(call)
-                assert call["result"] == {
+                assert without_meta(call["result"]) == {
                     "content": [
                         {
                             "type": "text",

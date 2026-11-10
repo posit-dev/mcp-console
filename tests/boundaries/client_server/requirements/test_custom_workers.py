@@ -22,7 +22,7 @@ from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
 from support.processes import capture_process_identity, host_process_id, kill_processes
 from support.r import r_test_environment
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.resolvers import record_resolved_r_library
 from support.suites import run_this_suite
 
@@ -173,7 +173,7 @@ def standalone_preparation(
                 "requirements with standalone stdin started a resolver"
             )
             client.receive(invalid)
-            assert invalid["result"] == {
+            assert without_meta(invalid["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -222,7 +222,7 @@ def standalone_preparation(
             resolver_release.release()
             released = True
             client.receive(preparation)
-            assert preparation["result"] == {
+            assert without_meta(preparation["result"]) == {
                 "content": [{"type": "text", "text": "[prepared]"}],
                 "isError": False,
             }, preparation
@@ -234,7 +234,7 @@ def standalone_preparation(
                 requirements={**action, "r": ["standalone-requirement"]},
                 timeout_ms=0,
             )
-            assert repeated == {
+            assert without_meta(repeated) == {
                 "content": [{"type": "text", "text": "[prepared]"}],
                 "isError": False,
             }, repeated
@@ -641,7 +641,7 @@ def test_custom_worker_prepares_r_and_duckdb_requirements(
                 r="echo active restart-required cell ran",
                 requirements={"r": ["cli"]},
             )
-            assert result == {
+            assert without_meta(result) == {
                 "content": [
                     {
                         "type": "text",
@@ -655,7 +655,9 @@ def test_custom_worker_prepares_r_and_duckdb_requirements(
             }, result
 
             client.send(session="default", timeout_ms=0)
-            assert without_elapsed_result(client.transcript[-1]["result"]) == {
+            assert without_meta(
+                without_elapsed_result(client.transcript[-1]["result"])
+            ) == {
                 "content": [
                     {"type": "text", "text": "before pending image\n"},
                     {"type": "image", "data": PNG_1X1, "mimeType": "image/png"},
@@ -675,7 +677,7 @@ def test_custom_worker_prepares_r_and_duckdb_requirements(
             r="echo restart-required cell ran",
             requirements={"r": ["cli"]},
         )
-        assert result == {
+        assert without_meta(result) == {
             "content": [
                 {
                     "type": "text",
@@ -731,7 +733,7 @@ def test_custom_worker_reports_idle_input_before_preparation_failure(
             "[worker stopped: in-memory state lost]"
         ), result
         result = client.send(requirements={"r": ["zeallot"]})
-        assert result == {
+        assert without_meta(result) == {
             "content": [{"type": "text", "text": "[restart required]"}],
             "isError": False,
         }, result
@@ -816,7 +818,7 @@ def test_combined_requirements_keep_idle_output_as_one_prelude(
             r="echo failed resolver cell ran",
             requirements={"r": ["cli"]},
         )
-        assert result == {
+        assert without_meta(result) == {
             "content": [
                 {"type": "text", "text": "idle before failure image\n"},
                 {"type": "image", "data": PNG_1X1, "mimeType": "image/png"},

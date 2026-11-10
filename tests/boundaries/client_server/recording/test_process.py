@@ -24,7 +24,7 @@ from support.native import LOADER_VARIABLE, build_interposer
 from support.normalization import code
 from support.previews import live_recording_events, session_directory
 from support.processes import host_process_id
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import (
     NATIVE_FIXTURES,
     POSIX,
@@ -271,7 +271,7 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                 )
                 gates["cell-release"].release()
                 client.receive(first)
-                assert first["result"] == {
+                assert without_meta(first["result"]) == {
                     "content": [{"type": "text", "text": "first response\n"}],
                     "isError": False,
                 }
@@ -295,7 +295,7 @@ def test_retains_received_send_while_an_earlier_response_finishes(
                 )
                 gates["recording-release"].release()
                 client.receive(second)
-                assert second["result"] == {
+                assert without_meta(second["result"]) == {
                     "content": [{"type": "text", "text": "42\n"}],
                     "isError": False,
                 }, second
@@ -332,7 +332,7 @@ def test_recording_send_keeps_following_cancellation_and_ping_live(
             profile.pause_results(False)
             release.release()
         client.receive(first)
-        assert first["result"] == {
+        assert without_meta(first["result"]) == {
             "content": [{"type": "text", "text": "\n[idle]"}],
             "isError": False,
         }, first

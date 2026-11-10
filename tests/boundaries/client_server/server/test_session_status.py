@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from boundaries.client_server._harness import expose_idle_input_request
 from support.client import McpClient
 from support.execution import RUNTIME, Execution, executions
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import PROCESS_EVENTS, requires
 from support.suites import run_this_suite
 
@@ -36,13 +36,13 @@ def test_lists_input_requested_outside_a_cell(
             client.initialize_and_list_tools()
             expose_idle_input_request(client, root)
             waiting = client.send(timeout_ms=0)
-            assert waiting == {
+            assert without_meta(waiting) == {
                 "content": [{"type": "text", "text": "\n[waiting for stdin]"}],
                 "isError": False,
             }, waiting
             client.expect("zod: echo\n", r="echo echo", stdin="continue\n")
             result = client.send(timeout_ms=0)
-            assert result == {
+            assert without_meta(result) == {
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }, result

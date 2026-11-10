@@ -12,7 +12,7 @@ from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_test_environment
-from support.records import TranscriptWithCompanions
+from support.records import TranscriptWithCompanions, without_meta
 from support.requirements import SQL
 from support.resolvers import bare_runtime_environment
 from support.suites import run_this_suite
@@ -66,7 +66,7 @@ def test_runs_without_a_resolver_bootstrap(
         assert "there is no package called" in missing, missing
 
         result = client.send(requirements={"r": ["praise"]})
-        assert result == {
+        assert without_meta(result) == {
             "content": [
                 {
                     "type": "text",

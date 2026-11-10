@@ -19,7 +19,7 @@ from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.native import LOADER_VARIABLE, build_interposer
 from support.progress import RUNNING, without_elapsed_result
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import NATIVE_FIXTURES, POSIX, PROCESS_EVENTS, requires
 from support.suites import run_this_suite
 
@@ -69,7 +69,7 @@ def test_session_arguments_have_no_effect_until_valid_code(
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }
-            assert client.send(timeout_ms=0) == baseline
+            assert without_meta(client.send(timeout_ms=0)) == baseline
             for arguments in (
                 {"session": "unknown", "timeout_ms": 0},
                 {"session": None, "python": "retained = 'invalid null'"},
@@ -82,11 +82,11 @@ def test_session_arguments_have_no_effect_until_valid_code(
             ):
                 rejected = client.send(**arguments)
                 assert rejected["isError"] is True, rejected
-                assert client.send(timeout_ms=0) == baseline
+                assert without_meta(client.send(timeout_ms=0)) == baseline
             client.expect("'default state'\n", python="retained")
             client.expect(python="retained = 'empty session name'", session="")
             client.expect("'empty session name'\n", python="retained", session="")
-            assert client.send(timeout_ms=0) == {
+            assert without_meta(client.send(timeout_ms=0)) == {
                 "content": [
                     {
                         "type": "text",
@@ -124,7 +124,7 @@ def test_named_sessions_can_wait_for_input_concurrently(
                 session="beta",
             )
             active = client.send(timeout_ms=0)
-            assert active == {
+            assert without_meta(active) == {
                 "content": [
                     {
                         "type": "text",
@@ -146,7 +146,7 @@ def test_named_sessions_can_wait_for_input_concurrently(
             client.expect(stdin="alpha answer\n", session="alpha")
             client.expect("'alpha answer'\n", python="answer", session="alpha")
             active = client.send(timeout_ms=0)
-            assert active == {
+            assert without_meta(active) == {
                 "content": [
                     {
                         "type": "text",
@@ -210,7 +210,7 @@ def test_named_session_completes_while_another_send_waits(
             finally:
                 release.release()
             client.receive(alpha)
-            assert alpha["result"] == {
+            assert without_meta(alpha["result"]) == {
                 "content": [{"type": "text", "text": "alpha returned\n"}],
                 "isError": False,
             }, alpha
@@ -237,7 +237,7 @@ def test_restarting_named_session_defers_replacement_until_code(
             assert "[worker stopped: in-memory state lost]" in last_result_text(client)
             assert "[starting new worker]" not in last_result_text(client)
             active = client.send(timeout_ms=0)
-            assert active == {
+            assert without_meta(active) == {
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }, active
@@ -320,7 +320,8 @@ def test_cancelled_aggregate_poll_omits_empty_stopped_session(
                     "content": [{"type": "text", "text": RUNNING}],
                     "isError": False,
                 }
-                assert without_elapsed_result(started) == running, started
+                # The server identity stamp is incidental here; strip it.
+                assert without_meta(without_elapsed_result(started)) == running, started
                 started_id = client.transcript[-1]["id"]
                 ready.wait("default is blocked before completion", client=client)
                 write_reached.wait("initial running response has an unsettled write")
@@ -350,7 +351,7 @@ def test_cancelled_aggregate_poll_omits_empty_stopped_session(
                 while True:
                     observed = client.send(session="default", timeout_ms=0)
                     if observed.get("isError"):
-                        assert observed == {
+                        assert without_meta(observed) == {
                             "content": [
                                 {
                                     "type": "text",
@@ -360,7 +361,9 @@ def test_cancelled_aggregate_poll_omits_empty_stopped_session(
                             "isError": True,
                         }, observed
                         break
-                    assert without_elapsed_result(observed) == running, observed
+                    assert without_meta(without_elapsed_result(observed)) == running, (
+                        observed
+                    )
                     assert time.monotonic() < deadline, (
                         "aggregate did not claim default"
                     )
@@ -390,11 +393,11 @@ def test_cancelled_aggregate_poll_omits_empty_stopped_session(
                 write_release.release()
                 release.release()
             result = client.send(timeout_ms=60_000)
-            assert result == {
+            assert without_meta(result) == {
                 "content": [{"type": "text", "text": "default returned\n"}],
                 "isError": False,
             }, result
-            assert client.send(timeout_ms=0) == {
+            assert without_meta(client.send(timeout_ms=0)) == {
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }
@@ -462,7 +465,7 @@ def test_failed_named_session_waits_for_new_code(
             assert "[worker stopped: in-memory state lost]" in last_result_text(client)
             assert "[starting new worker]" not in last_result_text(client)
             active = client.send(timeout_ms=0)
-            assert active == {
+            assert without_meta(active) == {
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }, active
@@ -497,8 +500,8 @@ def test_aggregate_poll_omits_delivered_named_discovery_failure(
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }
-            assert client.send(timeout_ms=0) == active
-            assert client.send(timeout_ms=0) == active
+            assert without_meta(client.send(timeout_ms=0)) == active
+            assert without_meta(client.send(timeout_ms=0)) == active
             assert client.send(session="alpha", timeout_ms=0) == failure
             client.expect("42\n", python="default_value")
             transcript, stderr = client.finish_with_standard_error(

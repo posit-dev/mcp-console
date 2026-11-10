@@ -14,7 +14,7 @@ from support.allocations import AllocationProfile
 from support.checkpoints import FifoCheckpoint
 from support.client import McpClient, stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import NATIVE_FIXTURES, PROCESS_EVENTS, requires
 from support.suites import run_this_suite
 
@@ -54,7 +54,7 @@ def _shutdown_with_collected_output(
             ownership = control.wait_for(waiting["id"], "poll_ownership_observed")
             assert ownership["target_operation"] == 0, ownership
             client.send(session="default", timeout_ms=0)
-            assert client.transcript[-1]["result"] == {
+            assert without_meta(client.transcript[-1]["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -138,7 +138,7 @@ def test_eof_preserves_first_send_response(
                 client.stderr.read()
             )
             client.receive(waiting)
-            assert waiting["result"] == {
+            assert without_meta(waiting["result"]) == {
                 "content": [
                     {
                         "type": "text",

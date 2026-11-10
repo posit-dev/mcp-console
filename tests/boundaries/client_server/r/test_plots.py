@@ -17,7 +17,7 @@ from support.client import McpClient
 from support.execution import DIRECT, RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_test_environment, reference_plots
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.requirements import R_EVENT_LOOP, requires
 from support.suites import run_this_suite
 
@@ -318,7 +318,7 @@ def test_leaves_explicit_plot_devices_user_controlled(
         """)
     client.send(r=r)
     result = client.transcript[-1]["result"]
-    assert result == {
+    assert without_meta(result) == {
         "content": [
             {
                 "type": "text",

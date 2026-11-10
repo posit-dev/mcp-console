@@ -21,7 +21,12 @@ from support.processes import (
     stop_process,
     stop_process_group,
 )
-from support.records import McpTranscript, Transcript, TranscriptWithCompanions
+from support.records import (
+    McpTranscript,
+    Transcript,
+    TranscriptWithCompanions,
+    without_meta,
+)
 from support.requirements import (
     NATIVE_FIXTURES,
     POSIX,
@@ -258,7 +263,7 @@ def test_supervises_stopped_and_continued_workers(
             )
             assert readable, "relay supervision did not answer the interrupt request"
             client.receive(interrupt)
-            assert without_elapsed_result(interrupt["result"]) == {
+            assert without_meta(without_elapsed_result(interrupt["result"])) == {
                 "content": [
                     {
                         "type": "text",
@@ -275,7 +280,7 @@ def test_supervises_stopped_and_continued_workers(
                 client,
             )
             client.receive(evaluation)
-            assert evaluation["result"] == {
+            assert without_meta(evaluation["result"]) == {
                 "content": [{"type": "text", "text": "zod: echo\n"}],
                 "isError": False,
             }, evaluation
@@ -306,7 +311,7 @@ def test_supervises_stopped_and_continued_workers(
                 client,
             )
             client.receive(restarted)
-            assert restarted["result"] == {
+            assert without_meta(restarted["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -416,7 +421,7 @@ def test_reports_resolver_interrupt_permission_error(
                 ],
                 "isError": True,
             }
-            assert preparation["result"] == expected, preparation
+            assert without_meta(preparation["result"]) == expected, preparation
             interrupt_expected = {
                 "content": [
                     {
@@ -426,7 +431,7 @@ def test_reports_resolver_interrupt_permission_error(
                 ],
                 "isError": True,
             }
-            assert interrupt["result"] == interrupt_expected, interrupt
+            assert without_meta(interrupt["result"]) == interrupt_expected, interrupt
 
             client.send(r="echo echo")
             assert last_tool_text(client) == "zod: echo\n"
@@ -523,7 +528,7 @@ def test_reports_runtime_r_resolver_interrupt_permission_error(
                 "failed to interrupt R package resolver `ir`: "
                 "Operation not permitted (os error 1)"
             )
-            assert evaluation["result"] == {
+            assert without_meta(evaluation["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -532,7 +537,7 @@ def test_reports_runtime_r_resolver_interrupt_permission_error(
                 ],
                 "isError": False,
             }, evaluation
-            assert interrupt["result"] == {
+            assert without_meta(interrupt["result"]) == {
                 "content": [{"type": "text", "text": f"[{message}]"}],
                 "isError": True,
             }, interrupt

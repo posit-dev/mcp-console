@@ -26,7 +26,7 @@ from support.macos import (
     signal_darwin_process,
 )
 from support.normalization import code
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.sandbox_observation import observed_sandbox_descendants
 from support.requirements import (
     MACOS_SANDBOX,
@@ -168,7 +168,7 @@ def test_failure_replacement_retires_descendants_outside_the_worker_group(
     with _observed_processx_generation(binary) as (client, generation):
         client.send(r="tools::pskill(Sys.getpid(), signal = 9L)")
         result = client.transcript[-1]["result"]
-        assert result == {
+        assert without_meta(result) == {
             "content": [
                 {
                     "type": "text",

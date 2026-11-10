@@ -35,7 +35,7 @@ from support.processes import (
     stop_process_group,
     stop_process_id,
 )
-from support.records import Transcript
+from support.records import Transcript, without_meta
 from support.sandbox_observation import observed_sandbox_descendants
 from support.requirements import (
     MACOS_SANDBOX,
@@ -732,7 +732,7 @@ def test_restart_does_not_report_never_ready_worker_as_stopped(
                 watchdog.join()
             assert not forced_stop.is_set(), "restart did not finish initial startup"
 
-            assert waiting["result"] == {
+            assert without_meta(waiting["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -744,7 +744,7 @@ def test_restart_does_not_report_never_ready_worker_as_stopped(
                 ],
                 "isError": True,
             }, waiting
-            assert restarted["result"] == {
+            assert without_meta(restarted["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -919,7 +919,7 @@ def test_shutdown_is_bounded_with_detached_stdin_descendant(
             assert ownership_queued < len(poll_stdin) - 1, ownership
             client.send(session="default", timeout_ms=0)
             polling = client.transcript[-1]
-            assert polling["result"] == {
+            assert without_meta(polling["result"]) == {
                 "content": [
                     {
                         "type": "text",
@@ -942,7 +942,7 @@ def test_shutdown_is_bounded_with_detached_stdin_descendant(
             server_stopped = True
 
             client.receive(stalled)
-            assert stalled["result"] == {
+            assert without_meta(stalled["result"]) == {
                 "content": [
                     {
                         "type": "text",
