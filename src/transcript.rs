@@ -7,11 +7,20 @@
 //! note, image, and requirement records retain that original worker association.
 //! A recorded result proves assembly, not local delivery or client observation.
 //!
-//! Finalization follows producer retirement, transport settlement, and all capture
-//! and result writers, including cancelled handlers. Filesystem calls must return
-//! before these writers can settle: fail-open recording handles reported errors,
-//! not an indefinitely blocked OS write. Projection failure can leave the journal
-//! and raw files usable; failed capture must not gain a completion event.
+//! The queue's drain thread performs recording I/O: journal lines, output-file
+//! appends and closes, images, publication, and projections. Handlers, worker
+//! output, and replies queue operations for it and return. Three waits remain,
+//! each bounded by `queue::WRITER_WAIT`: creating an output file, pacing a
+//! producer of file data, and a reply whose omission marker names retained
+//! files. A filesystem call that does not return therefore stalls recording,
+//! not ordinary use.
+//!
+//! The integrator's `recording` request and finalization write under the same
+//! state lock and wait for it without a bound. Finalization follows producer
+//! retirement and transport settlement: fail-open recording handles reported
+//! errors, not an indefinitely blocked OS write. Projection failure can leave
+//! the journal and raw files usable; failed capture must not gain a completion
+//! event.
 use std::collections::BTreeMap;
 use std::fs::{DirBuilder, File, OpenOptions};
 use std::io::{BufWriter, Write};

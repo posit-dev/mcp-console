@@ -2,10 +2,17 @@
 //! mutex, including during worker retirement and response assembly.
 //! Reserve worker/cell/image ownership at observation time, before journal I/O;
 //! late delivery and replacement must not reassign it. Queue limits include
-//! in-flight batches. Overflow disables capture instead of blocking producers.
+//! in-flight batches. Overflow disables capture instead of blocking producers,
+//! except the producers of file data described below.
 //!
 //! Tool calls, results, activation, and configuration are queued operations
 //! too: handlers enqueue them and return without waiting for the writer.
+//!
+//! Output-file and image bytes travel in queued operations as well, so the
+//! drain performs every recording write. Their producers alone are paced: a
+//! producer waits while the writer makes progress, and a writer that applies
+//! nothing for `WRITER_WAIT` disables capture. A reply that cites a retained
+//! file waits at most `WRITER_WAIT` for the writer and says so if it is behind.
 use super::{
     CallImageOwner, Event, ImageOwner, Interval, Owner, ProcessOutput, Transcript, output,
 };
@@ -18,7 +25,8 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::io::Write;
-use std::sync::Arc;
+use std::sync::{Arc, Condvar};
+use std::time::{Duration, Instant};
 
 #[derive(Default)]
 pub(super) struct ProtocolEvents {
@@ -34,6 +42,14 @@ pub(super) struct ProtocolEvents {
     process_output_bytes: u64,
     /// Only calls still awaiting cell entry; interval owners carry the choice later.
     pub(super) omitted_calls: std::collections::BTreeSet<u64>,
+    /// Operations accepted and operations applied or dropped. Merged output
+    /// ranges count once.
+    queued: u64,
+    applied: u64,
+    /// The backlog point a reply last gave up waiting for.
+    unsettled: Option<u64>,
+    /// Notified whenever `applied` advances or capture stops.
+    wake: Arc<Condvar>,
 }
 
 #[derive(Default)]
@@ -102,12 +118,20 @@ pub(super) enum QueuedEvent {
         owner: Owner,
         completion_confirmed: bool,
     },
-    OutputText {
+    /// Append to an output file, then journal the retained range.
+    OutputWrite {
         owner: Owner,
         path: String,
         offset: u64,
-        bytes: usize,
+        #[serde(skip)]
+        data: Vec<u8>,
         discarded_bytes: usize,
+        #[serde(skip)]
+        file: Arc<output::OutputFile>,
+    },
+    OutputClose {
+        #[serde(skip)]
+        file: Arc<output::OutputFile>,
     },
     ImageOmitted {
         owner: Option<ImageOwner>,
@@ -121,12 +145,16 @@ pub(super) enum QueuedEvent {
         path: String,
         mime_type: String,
         bytes: usize,
+        #[serde(skip)]
+        data: Vec<u8>,
     },
     OutputSummary {
         call_id: Option<u64>,
         owner: Owner,
         path: String,
         summary: output::CellOutputSummary,
+        #[serde(skip)]
+        file: Arc<output::OutputFile>,
     },
     ProcessOutput {
         data: String,
@@ -305,19 +333,31 @@ impl QueuedEvent {
                 owner: *owner,
                 completion_confirmed: *completion_confirmed,
             },
-            Self::OutputText {
+            Self::OutputWrite {
                 owner,
                 path,
                 offset,
-                bytes,
+                data,
                 discarded_bytes,
-            } => Event::OutputText {
-                owner: *owner,
-                path,
-                offset: *offset,
-                bytes: *bytes,
-                discarded_bytes: *discarded_bytes,
-            },
+                file,
+            } => {
+                // A failed file journals its truncated range once; its
+                // summary accounts for every later range.
+                let Some(retained) = file.write(*offset, data) else {
+                    return Ok(());
+                };
+                Event::OutputText {
+                    owner: *owner,
+                    path,
+                    offset: *offset,
+                    bytes: retained,
+                    discarded_bytes: data.len() - retained + *discarded_bytes,
+                }
+            }
+            Self::OutputClose { file } => {
+                file.close();
+                return Ok(());
+            }
             Self::ImageOmitted {
                 owner,
                 encoded_bytes,
@@ -334,38 +374,50 @@ impl QueuedEvent {
                 path,
                 mime_type,
                 bytes,
-            } => Event::ImageRetained {
-                owner: *owner,
-                artifact_id: *artifact_id,
-                call_id: *call_id,
-                path,
-                mime_type,
-                bytes: *bytes,
-            },
+                data,
+            } => {
+                recorder.3.write_image(path, data)?;
+                Event::ImageRetained {
+                    owner: *owner,
+                    artifact_id: *artifact_id,
+                    call_id: *call_id,
+                    path,
+                    mime_type,
+                    bytes: *bytes,
+                }
+            }
             Self::OutputSummary {
                 call_id,
                 owner,
                 path,
                 summary,
-            } => match call_id {
-                Some(call_id) => Event::CellOutput {
-                    owner: *owner,
-                    call_id: *call_id,
-                    path,
-                    retained_bytes: summary.retained_bytes,
-                    inline_omitted_bytes: summary.inline_omitted_bytes,
-                    discarded_bytes: summary.discarded_bytes,
-                    retention_limit_bytes: output::MAX_CELL_OUTPUT_BYTES,
-                },
-                None => Event::SessionOutput {
-                    owner: *owner,
-                    path,
-                    retained_bytes: summary.retained_bytes,
-                    inline_omitted_bytes: summary.inline_omitted_bytes,
-                    discarded_bytes: summary.discarded_bytes,
-                    retention_limit_bytes: output::MAX_CELL_OUTPUT_BYTES,
-                },
-            },
+                file,
+            } => {
+                // The producer counted queued bytes. Every write queued
+                // before this summary has run, so correct them to the file.
+                let retained_bytes = file.written().min(summary.retained_bytes);
+                let discarded_bytes =
+                    summary.discarded_bytes + (summary.retained_bytes - retained_bytes);
+                match call_id {
+                    Some(call_id) => Event::CellOutput {
+                        owner: *owner,
+                        call_id: *call_id,
+                        path,
+                        retained_bytes,
+                        inline_omitted_bytes: summary.inline_omitted_bytes,
+                        discarded_bytes,
+                        retention_limit_bytes: output::MAX_CELL_OUTPUT_BYTES,
+                    },
+                    None => Event::SessionOutput {
+                        owner: *owner,
+                        path,
+                        retained_bytes,
+                        inline_omitted_bytes: summary.inline_omitted_bytes,
+                        discarded_bytes,
+                        retention_limit_bytes: output::MAX_CELL_OUTPUT_BYTES,
+                    },
+                }
+            }
             Self::ProcessOutput {
                 data,
                 discarded_bytes,
@@ -406,6 +458,14 @@ impl QueuedEvent {
 
 const MAX_PROTOCOL_EVENTS: usize = 1024;
 const MAX_PROTOCOL_BYTES: usize = 64 * 1024 * 1024;
+/// Producers of file data wait for the writer beyond this backlog.
+const PACED_BYTES: usize = 16 * 1024 * 1024;
+const PACED_EVENTS: usize = MAX_PROTOCOL_EVENTS / 2;
+/// One merged output range. Smaller ranges keep writer progress observable.
+const MAX_MERGED_BYTES: usize = 1024 * 1024;
+/// The longest a reply or a producer waits for the recording writer, and the
+/// longest an output-file creation may take.
+pub(super) const WRITER_WAIT: Duration = Duration::from_secs(5);
 // Raw image files are bounded per interval or immediate call, independently of previews.
 const MAX_INTERVAL_IMAGE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_INTERVAL_IMAGES: u64 = 4096;
@@ -447,39 +507,34 @@ impl ProtocolEvents {
         // image or boundary. Merge only pending ranges, retaining their first
         // timestamp; tiny writes must not become a queue of per-write objects.
         if let Some((
-            QueuedEvent::OutputText {
+            QueuedEvent::OutputWrite {
                 owner,
                 path,
                 offset,
-                bytes,
+                data,
                 discarded_bytes,
+                ..
             },
             _,
-            _,
+            measured,
         )) = self.pending.last_mut()
-            && let QueuedEvent::OutputText {
+            && let QueuedEvent::OutputWrite {
                 owner: next_owner,
                 path: next_path,
                 offset: next_offset,
-                bytes: next_bytes,
+                data: next_data,
                 discarded_bytes: next_discarded,
+                ..
             } = &event
             && owner == next_owner
             && path == next_path
-            && *offset + *bytes as u64 == *next_offset
+            && *offset + data.len() as u64 == *next_offset
+            && data.len() + next_data.len() <= MAX_MERGED_BYTES
         {
-            *bytes += next_bytes;
+            data.extend_from_slice(next_data);
             *discarded_bytes += next_discarded;
-            let mut size = ProtocolBytes::default();
-            let merged = &self.pending.last().expect("pending text range").0;
-            let result = serde_json::to_writer(&mut size, merged);
-            let measured = &mut self.pending.last_mut().expect("pending text range").2;
-            self.retained_bytes = self.retained_bytes - *measured + size.0;
-            *measured = size.0;
-            if let Err(error) = result {
-                self.stop(format!("protocol capture failed: {error}"));
-                return false;
-            }
+            *measured += next_data.len();
+            self.retained_bytes += next_data.len();
             return true;
         }
         let mut size = ProtocolBytes::default();
@@ -487,15 +542,26 @@ impl ProtocolEvents {
             self.stop(format!("protocol capture failed: {error}"));
             return false;
         }
+        // File data is not serialized, but the queue retains it.
+        let size = size.0
+            + match &event {
+                QueuedEvent::OutputWrite { data, .. } | QueuedEvent::ImageRetained { data, .. } => {
+                    data.len()
+                }
+                _ => 0,
+            };
+        self.queued += 1;
         self.retained_events += 1;
-        self.retained_bytes += size.0;
-        self.pending.push((event, at, size.0));
+        self.retained_bytes += size;
+        self.pending.push((event, at, size));
         true
     }
 
     pub(super) fn stop(&mut self, error: String) {
         self.failure.get_or_insert(error);
         self.omitted_calls.clear();
+        self.applied += self.pending.len() as u64;
+        self.wake.notify_all();
         self.retained_events -= self.pending.len();
         self.retained_bytes -= self
             .pending
@@ -521,6 +587,72 @@ impl Write for ProtocolBytes {
 impl Transcript {
     pub(super) fn queue_event(&self, event: QueuedEvent) {
         self.observe(|_| Some((event, ())));
+    }
+
+    /// Queue an operation that carries file data, pacing its producer to the
+    /// writer. The byte bound alone would otherwise turn a fast producer into
+    /// a capture failure; the synchronous write this replaces paced it too.
+    pub(super) fn queue_data(&self, event: QueuedEvent) {
+        let mut events = self.1.lock().expect("protocol capture lock");
+        while events.failure.is_none()
+            && (events.retained_bytes >= PACED_BYTES || events.retained_events >= PACED_EVENTS)
+        {
+            let applied = events.applied;
+            let wake = events.wake.clone();
+            let (guard, wait) = wake
+                .wait_timeout(events, WRITER_WAIT)
+                .expect("protocol capture lock");
+            events = guard;
+            if wait.timed_out() && events.applied == applied {
+                events.stop(format!(
+                    "recording writer made no progress for {} seconds",
+                    WRITER_WAIT.as_secs()
+                ));
+            }
+        }
+        if events.failure.is_none() {
+            events.push(event, Utc::now());
+        }
+        self.start_drain(events);
+    }
+
+    pub(super) fn stopped(&self) -> bool {
+        self.1
+            .lock()
+            .expect("protocol capture lock")
+            .failure
+            .is_some()
+    }
+
+    /// Wait up to `WRITER_WAIT` for the writer to apply everything queued so
+    /// far, and report whether it is still behind. While an earlier wait's
+    /// backlog remains unapplied, report that at once: one stall delays one
+    /// reply, not every reply that cites a file.
+    pub(crate) fn settle(&self) -> bool {
+        let deadline = Instant::now() + WRITER_WAIT;
+        let mut events = self.1.lock().expect("protocol capture lock");
+        let target = events.queued;
+        if let Some(point) = events.unsettled {
+            if events.failure.is_none() && events.applied < point {
+                return true;
+            }
+            events.unsettled = None;
+        }
+        let wake = events.wake.clone();
+        loop {
+            if events.failure.is_some() || events.applied >= target {
+                return false;
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                events.unsettled = Some(target);
+                return true;
+            }
+            events = wake
+                .wait_timeout(events, deadline - now)
+                .expect("protocol capture lock")
+                .0;
+        }
     }
 
     fn observe<T>(
@@ -595,6 +727,8 @@ impl Transcript {
             let mut events = self.1.lock().expect("protocol capture lock");
             events.retained_events -= count;
             events.retained_bytes -= bytes;
+            events.applied += count as u64;
+            events.wake.notify_all();
             drop(events);
             result?;
         }
