@@ -42,7 +42,7 @@ test_that("no discovery ignores malformed files and retains restrictive defaults
       r = 'suppressWarnings(tryCatch(writeLines("bad", "blocked"), error = function(e) cat("denied\\n")))',
       timeout_ms = 60000L
     )
-    expect_identical(result@text, "denied\n")
+    expect_identical(result_text(result), "denied\n")
     expect_false(file.exists("blocked"))
     rm(send)
     invisible(gc())
@@ -83,11 +83,17 @@ test_that("project discovery layers runtime settings and can disable enforcement
       r = 'writeLines(Sys.getenv("MCP_CONSOLE_TEST_SETTING"), "result"); cat(getwd(), "\\n", sep = "")',
       timeout_ms = 60000L
     )
-    expect_identical(normalizePath(trimws(result@text)), normalizePath(project))
+    expect_identical(
+      normalizePath(trimws(result_text(result))),
+      normalizePath(project)
+    )
     expect_identical(readLines(file.path(project, "result")), "retained")
     expect_length(
       jsonlite::fromJSON(
-        send(requirements = list(action = "get"), timeout_ms = 60000L)@text
+        result_text(send(
+          requirements = list(action = "get"),
+          timeout_ms = 60000L
+        ))
       )$requirements$r,
       0L
     )
@@ -118,12 +124,12 @@ test_that("explicit runtime selections reach native configuration", {
       r = 'cat(R.home(), "\\n", Sys.getenv("MCP_CONSOLE_TEST_SETTING"), "\\n", sep = "")',
       timeout_ms = 60000L
     )
-    expect_identical(result@text, paste0(R.home(), "\nworker\n"))
+    expect_identical(result_text(result), paste0(R.home(), "\nworker\n"))
     result <- send(
       python = "import os, sys; print(sys.executable); print(os.environ['MCP_CONSOLE_TEST_SETTING'])",
       timeout_ms = 60000L
     )
-    lines <- strsplit(result@text, "\n", fixed = TRUE)[[1L]]
+    lines <- strsplit(result_text(result), "\n", fixed = TRUE)[[1L]]
     expect_identical(normalizePath(lines[[1L]]), normalizePath(python))
     expect_identical(lines[[2L]], "worker")
     rm(send)
@@ -149,7 +155,10 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
       )
     )$send
     declaration <- jsonlite::fromJSON(
-      send(requirements = list(action = "get"), timeout_ms = 60000L)@text
+      result_text(send(
+        requirements = list(action = "get"),
+        timeout_ms = 60000L
+      ))
     )
     expect_true(declaration$prepared)
     expect_length(declaration$requirements$python, 0L)
@@ -158,12 +167,16 @@ test_that("managed Python prepares an explicit empty startup declaration once", 
       python = "import sys; print(sys.version_info[:2])",
       timeout_ms = 60000L
     )
-    expect_identical(result@text, "(3, 13)\n")
+    expect_identical(result_text(result), "(3, 13)\n")
     result <- send(
       requirements = list(action = "add", python = "requests"),
       timeout_ms = 60000L
     )
-    expect_match(result@text, "python.managed.resolution=fixed", fixed = TRUE)
+    expect_match(
+      result_text(result),
+      "python.managed.resolution=fixed",
+      fixed = TRUE
+    )
     rm(send)
     invisible(gc())
   })
@@ -209,14 +222,17 @@ test_that("console_tools replace ambient grants and retain other settings", {
       cat(Sys.getenv("MCP_CONSOLE_TEST_SETTING"), "\n", sep = "")
     )"
     result <- send(r = source, timeout_ms = 60000L)
-    expect_identical(result@text, "denied\nretained\n")
+    expect_identical(result_text(result), "denied\nretained\n")
     expect_identical(readLines("allowed/result"), "allowed")
     expect_false(file.exists("blocked"))
     declaration <- send(
       requirements = list(action = "get"),
       timeout_ms = 60000L
     )
-    expect_length(jsonlite::fromJSON(declaration@text)$requirements$r, 0L)
+    expect_length(
+      jsonlite::fromJSON(result_text(declaration))$requirements$r,
+      0L
+    )
     rm(send)
     invisible(gc())
   })

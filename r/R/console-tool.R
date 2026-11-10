@@ -20,6 +20,16 @@
 #' See `vignette("autonomous-report", package = "mcp.console")` for an explicit
 #' configuration, permission edits, inspection, and an ellmer launch.
 #'
+#' @section Result shape:
+#'
+#' Successful calls return an [ellmer::ContentToolResult] whose value holds
+#' the ordered text and image content, with the server's result `_meta`
+#' forwarded verbatim in `extra` (e.g. its
+#' `io.modelcontextprotocol/serverInfo` identity, which compatible chat UIs
+#' can use to attribute results).
+#' Errored results keep their existing unwrapped return shape.
+#'
+
 #' @section Executable resolution:
 #'
 #' * If `path` is supplied, `console_tools()` uses that executable directly.
@@ -553,13 +563,30 @@ mcp_contents <- function(result) {
     content <- list(ellmer::ContentText("mcp-console tool call failed."))
   }
 
-  if (length(content) == 0L) {
-    ""
-  } else if (length(content) == 1L) {
-    content[[1L]]
-  } else {
-    content
+  # Errored results keep their existing return shape (bare content), so chat
+  # clients surface the failure exactly as before; they never carry display
+  # metadata.
+  if (isTRUE(result$isError)) {
+    if (length(content) == 0L) {
+      return("")
+    } else if (length(content) == 1L) {
+      return(content[[1L]])
+    } else {
+      return(content)
+    }
   }
+
+  # Every other successful result returns a ContentToolResult so the
+  # server's result `_meta` (e.g. its `io.modelcontextprotocol/serverInfo`
+  # identity) can ride in `extra` verbatim — the same convention-agnostic
+  # pass-through chatlas and mcptools perform on the client-native path.
+  # Presentation belongs to chat UIs, not this package. Inert for clients
+  # that do not read it.
+  meta <- result[["_meta"]]
+  ellmer::ContentToolResult(
+    value = if (length(content) == 1L) content[[1L]] else content,
+    extra = if (length(meta) == 0L) list() else meta
+  )
 }
 
 json_object <- function(x = list()) {
