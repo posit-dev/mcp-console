@@ -29,6 +29,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run code
       description: |-
         Evaluation tool.
 
@@ -124,6 +125,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run code
       description: |-
         Evaluation tool.
 

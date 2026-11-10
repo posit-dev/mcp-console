@@ -42,6 +42,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run R code
       description: >-
         Persistent custom-worker R REPL. Reuse objects across calls to inspect
         results, test hypotheses, and compare approaches.

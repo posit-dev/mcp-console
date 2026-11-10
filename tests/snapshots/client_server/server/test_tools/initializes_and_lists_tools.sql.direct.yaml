@@ -33,6 +33,7 @@ input:
 result:
   tools:
     - name: send
+      title: Run SQL code
       description: >-
         Persistent SQL REPL for calculations, data exploration and analysis,
         database queries, debugging, simulations, and plots. Reuse objects
