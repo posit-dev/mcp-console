@@ -4,21 +4,13 @@ This page documents how R, Python, and SQL code behaves inside Console, includin
 The behavior applies whether you connect through an MCP client, R, or Python.
 Start with [Sessions and languages](BUILTIN_RUNTIME.md) for a guided introduction.
 
-One connection owns a default session and any additional [named sessions](API.md#named-sessions).
-Globals, imports, options, database state, and unread input survive between cells.
-Each session keeps its own state; different sessions can execute concurrently.
-Cells are not transactions: an error can leave earlier changes in place.
-Restart or worker loss discards all live language state.
+Each [session](API.md#named-sessions) retains its globals, imports, options, database state, and unread input between cells.
+Errors can leave earlier changes in place; restart or worker loss discards live language state.
+Submit one complete cell at a time and collect its result before submitting the next.
+The [`send` reference](API.md) owns polling, input, controls, and session lifetime.
 
-Within each session, submit one complete R, Python, or SQL cell, inspect its result, and then submit the next.
-[Drive send directly](SEND_OPERATIONS.md) covers polling, interactive input, interruption, and restart; [`send` API](API.md) lists the arguments.
-
-## Runtime selection
-
-[Languages and startup](RUNTIME_CONFIGURATION.md#python-environment-selection) owns interpreter requirements and selection.
-[Package settings](PACKAGE_CONFIGURATION.md) owns package defaults and preparation policies.
+[Languages and startup](RUNTIME_CONFIGURATION.md) covers interpreter selection, and [Package settings](PACKAGE_CONFIGURATION.md) covers preparation.
 Language visibility changes tool fields, not the availability of a SQL provider.
-Tool discovery is independent of [server readiness](API.md#server-readiness).
 
 ## R
 
@@ -50,13 +42,10 @@ writeLines(text[80:120])
 
 `vignette()` prints readable text from an installed HTML vignette, including its evaluated results.
 The vignette object's rendered-artifact metadata selects the file; Console does not execute its source or render it again.
-Headings, paragraphs, lists, code indentation, simple tables, link destinations, captions, and available image alt text appear as text.
-Scripts, styles, and embedded image payloads are omitted; linked assets are not fetched.
-Figures appear only through their captions and alt text, and JavaScript-dependent content is unavailable.
-The text does not expose image paths or a request mechanism for figure pixels.
+The text preserves document structure, code, simple tables, links, captions, and image alt text.
+It omits scripts, styles, image pixels, and JavaScript-dependent content; linked assets are not fetched.
 To inspect an original figure, locate the installed HTML with `file.path(x$Dir, "doc", x$PDF)` from the retained vignette object and inspect its image references.
-Images may be separate local files, embedded data, or remote URLs.
-A client can use its own image tools or display a locally decoded figure through [ordinary plot capture](#plots-and-images).
+Use client image tools or [ordinary plot capture](#plots-and-images) to inspect those figures.
 Assignment stays quiet, so you can retain the ordinary vignette object and print it later.
 Use `capture.output(print(vignette("topic", package = "pkg")))` to capture its text and print selected line ranges with `writeLines()`.
 
@@ -77,10 +66,8 @@ Ordinary exceptions print a traceback and leave the worker usable.
 An uncaught main-thread `SystemExit` terminates the worker.
 
 Console supplies `r` and `_console.sql_connection()` through Python's builtins; attaching reticulate may also bind `r` in `__main__`.
-Alongside Python's standard workspace metadata and builtins, these are the intentional conveniences available without imports.
-Console's internal imports, setup state, and exception helpers remain private.
-Modules such as `os`, `sys`, and `tempfile` enter the workspace only when user code or startup hooks bind them.
-Later setup and interrupt recovery preserve those user bindings; restart creates a fresh workspace.
+Other modules, such as `os`, `sys`, and `tempfile`, require imports.
+Later setup and interrupt recovery preserve user bindings; restart creates a fresh workspace.
 
 Startup hooks run before cells, and attaching reticulate later preserves the running interpreter and its objects.
 The working-directory import entry follows `os.chdir()`.
@@ -117,10 +104,8 @@ For help, use `help("import", package = "reticulate")` for `py_import()`.
 The other helpers use their matching reticulate help topics, for example `help("py_run_string", package = "reticulate")`.
 
 `py_require()` without arguments returns the current R-side Python declarations.
-Under managed Python's `explicit` and `implicit` policies, evaluated declarations authorize [preparation](API.md#python-declarations-from-r), including calls from R package `.onLoad()` hooks.
-Pre-initialization declarations are accepted when Python is prepared; MCP requirements inspection returns the last committed declaration.
-Before Python initializes, `action = "set"` can replace requirements; after initialization, compatible additions preserve live objects.
-Use [restart](API.md#restarting-with-requirements) for changes that require a fresh environment.
+Evaluated declarations can authorize preparation under managed Python's `explicit` and `implicit` policies.
+The [`send` reference](API.md#python-declarations-from-r) owns acceptance, live changes, and restart requirements.
 
 Ordinary Python does not need to attach reticulate, and R can run without Python.
 
@@ -277,7 +262,6 @@ options(
 ```
 
 Explicit user devices are neither closed nor captured.
-This includes devices that reuse a closed managed device's number and filename template.
 Native R startup happens before the managed device attaches, so its plots use R's native device.
 
 Python captures open pyplot figures at cell end, including after an exception, and then closes them.
@@ -301,8 +285,8 @@ Preparation, transport, and protocol failures are MCP tool errors.
 ## Current limitations
 
 Parallel cells require separate sessions.
-Recordings are not checkpoints and Console provides no file-read/search tool.
-No aggregate retention quota or automatic cleanup is implemented.
+Console provides no file-read/search tool.
+[Recordings](RECORDING_REFERENCE.md) retain activity and output, but cannot restore live state.
 
 Initialize R before starting background threads that access the native process environment; concurrent native environment access during R startup is unsupported.
 Partial runtime initialization can require restart.

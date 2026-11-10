@@ -463,6 +463,9 @@ base::local(
       data
     }
 
+    # The scratch catalog also formats previews without invalidating the source
+    # query. Keep it when removing the temporary Arrow retrieval adapter above.
+    # Only fetched batches enter this catalog; query_arrow never replays user SQL.
     query_arrow <- function(batches, schema, query) {
       render_connection <- ensure_rendering_connection()
       table <- list(schema = schema, batches = batches)

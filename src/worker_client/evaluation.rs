@@ -35,8 +35,11 @@ struct EvaluationState {
     completion_cut: Option<OutputCut>,
     /// Prior operation and lifecycle output transferred into this cell's response.
     control_prelude: Option<Response>,
-    /// Idle output captured immediately before this cell was admitted.
+    /// Idle output captured before this cell was admitted, extended at worker
+    /// cell entry with idle output that arrived after admission.
     idle_prelude: Option<Response>,
+    /// Owner of output received between operation attachment and cell entry.
+    entry_gap: super::output::CellEntryGap,
     /// A response returned by the server but not claimed by its MCP transport.
     reclaimed: Option<Response>,
     /// Delivery of the most recently assembled response, until one owner settles it.
@@ -165,6 +168,7 @@ impl Evaluation {
                 completion_cut: None,
                 control_prelude: Some(control_prelude),
                 idle_prelude: Some(idle_prelude),
+                entry_gap: super::output::CellEntryGap::Startup,
                 reclaimed: None,
                 delivery: None,
                 delivery_changed: Arc::clone(&delivery_changed),
@@ -266,18 +270,20 @@ impl Evaluation {
         // Accept that receipt before copying; preview still neither drains nor
         // acknowledges the response awaiting the MCP client.
         state.settle_delivery().ok()?;
+        // A reclaimed response was assembled earlier and took the preludes
+        // present then, so any prelude now retained is newer output.
         let mut response = state
-            .control_prelude
+            .reclaimed
             .as_ref()
             .map(Response::snapshot)
             .unwrap_or_default();
+        if let Some(control) = &state.control_prelude {
+            response.extend_logical_region(control.snapshot());
+        }
         if !state.retain_idle_prelude
             && let Some(idle) = &state.idle_prelude
         {
             response.extend_logical_region(idle.snapshot());
-        }
-        if let Some(reclaimed) = &state.reclaimed {
-            response.extend_logical_region(reclaimed.snapshot());
         }
         response.extend_logical_region(if self.is_integrator() {
             self.output.snapshot_cell()
@@ -445,6 +451,7 @@ impl Evaluation {
     pub(super) fn capture_prelude_before(
         &self,
         capture_idle_prelude: bool,
+        entry_gap: super::output::CellEntryGap,
         boundary: impl FnOnce(),
     ) -> Result<(), String> {
         let mut state = self
@@ -454,8 +461,9 @@ impl Evaluation {
         let additional = self
             .output
             .adopt_prelude_before(capture_idle_prelude, boundary);
+        state.entry_gap = entry_gap;
         if let Some(prelude) = state.idle_prelude.as_mut() {
-            prelude.extend(additional);
+            prelude.extend_stream(additional);
         } else {
             state.idle_prelude = Some(additional);
         }
@@ -471,11 +479,17 @@ impl Evaluation {
         if state.cell_entered {
             return Err("worker sent a duplicate cell start".into());
         }
-        self.output.begin_cell_output(
+        let idle = self.output.begin_cell_output(
+            state.entry_gap,
             &self.transcript,
             self.call_id,
             self.omit_from_projections,
         )?;
+        // An earlier response may already have consumed the admission prelude.
+        match state.idle_prelude.as_mut() {
+            Some(prelude) => prelude.extend_stream(idle),
+            None => state.idle_prelude = Some(idle),
+        }
         state.cell_entered = true;
         Ok(())
     }

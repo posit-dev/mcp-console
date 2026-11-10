@@ -105,10 +105,7 @@ Require startup, language evaluation, bounded shutdown, installed loader resolut
 Both wheel builders and floor-runtime jobs must pass.
 Retain wheel hashes, ELF/tag reports, image digests/platforms, exact commands, environment versions, and results separately per architecture.
 
-Earlier controlled-Jammy rehearsals at `d26f9771` passed their measured no-R/R-present contracts.
-They are historical evidence, not acceptance of a later source or companion pin.
-The [previous detailed record](https://github.com/t-kalinowski/mcp-console/blob/b9caf7c55e9f9fbb0ce33582e4c61d615813b4eb/RELEASE.md#linux-floor-validation) remains available.
-Perform the native older-runner rehearsal for the actual release candidate.
+Run this rehearsal for the actual release candidate and its companion pin.
 
 ## CI caches and rehearsal
 
@@ -150,8 +147,9 @@ Require all five wheel builds/installed smoke tests and both Linux floor-runtime
 Exercise mixed-language and R-free installed wheels; `smoke-wheel --without-r` isolates R discovery.
 Establish readiness before ordinary cell assertions rather than treating asynchronous tool discovery as runtime readiness.
 
-Revalidate the [resolver trust contract](docs/RESOLVER_RELEASE_AUDIT.md) at the release candidate and its actual companion pin.
-[TODO](docs/TODO.md#release-verification) is an index of outstanding verification, not permission to skip gates.
+Revalidate the [resolver trust boundary](docs/PACKAGE_CONFIGURATION.md#trust-boundary) at the release candidate and its actual companion pin.
+Require the applicable trust, cancellation, result-handoff, and cleanup cases on each supported native platform.
+Record the exact Console and companion revisions with the CI evidence.
 
 ## Publish
 

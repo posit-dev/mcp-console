@@ -10,6 +10,7 @@ It can run Console without a separate Console installation.
 
 Prebuilt packages are available for macOS and Linux on ARM64 and x86-64, and for Windows x64.
 Sandboxed Windows sessions require Windows 11 with [Microsoft Execution Containers (MXC)](https://support.microsoft.com/en-us/servicing/os/windows-11/2026/08/kb5120998-windows-11-24h2-25h2-update#microsoft-execution-containers).
+See [Windows sandbox requirements](SANDBOX_CONFIGURATION.md#windows-mxc-requirement) for host setup and troubleshooting, or [Windows development](WINDOWS_DEVELOPMENT.md) for native builds and validation.
 
 If Console fails to start on Linux, see [Linux host compatibility](LINUX_COMPATIBILITY.md) for missing libraries or sandbox restrictions.
 
@@ -74,7 +75,7 @@ These clients use the same workbench and settings.
 
 <span id="configure-the-models-interface"></span>
 
-[Build a data assistant](BUILD_ON_CONSOLE.md) shows how to change the tool descriptions, exposed languages and parameters, and prepared environment.
+[Build on Console](BUILD.md) shows how to change the tool descriptions, exposed languages and parameters, and prepared environment.
 [Tool configuration](TOOL_CONFIGURATION.md) documents the exact settings.
 
 After connecting, [Sessions and languages](BUILTIN_RUNTIME.md) explains how your agent can work with Console.

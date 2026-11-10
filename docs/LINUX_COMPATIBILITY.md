@@ -41,10 +41,6 @@ Ordinary containers may deny nested namespace setup.
 Console adds no privileged flags or implicit policy changes.
 Deliberately selecting external mode delegates enforcement to the container and has different cleanup guarantees.
 
-A trusted host helper can take precedence.
-When the bundled helper is selected, its digest is verified and it is executed through the verified descriptor.
-Test that path in an approved disposable environment; do not weaken a user's host security policy merely to pass a check.
-
 ## Policy and backend contract
 
 Default execution uses bubblewrap with user, mount, and PID namespaces, requested filesystem/network rules, and supervised retirement.
@@ -61,18 +57,13 @@ Missing native wait evidence causes failure and retained storage, not inferred c
 
 ### Filesystem limits
 
-Native classification uses effective permissions, not only a kind label.
-Full-write policies do not become restricted because their entries contain ineffective carve-outs.
-`unrestricted` ignores narrowing entries; `external-sandbox` without a proxy delegates both filesystem and networking enforcement to an outer boundary.
-
 Mount masking can hide a narrower read beneath a broader denial or make deeper denials fail setup.
 Individual-file write roots can be rejected, and missing write roots are skipped until another launch.
 Create intended writable directories first.
 Console does not create permanent placeholders, grant parents, or switch backends to work around native limits.
 
 [Sandbox permissions](SANDBOX_CONFIGURATION.md#filesystem) owns path precedence and metadata protection.
-Restricted-policy security results must not be attributed to unrestricted or externally enforced workloads.
 
-## Reproducing the comparisons
+## Validation
 
 See [Linux platform validation](DEVELOPMENT.md#linux-platform-validation) for regression probes and release acceptance.

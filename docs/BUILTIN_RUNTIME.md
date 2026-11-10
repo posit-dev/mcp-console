@@ -25,10 +25,10 @@ The agent can supply another `session` name with code to start an independent se
 Each session runs one code cell at a time and keeps its own objects, database state, input, and package requirements.
 An empty call collects output from all active sessions and lists their statuses; supplying a name polls only that session.
 
-Restarting clears the selected session's live objects and in-memory database state.
-A named session restarted without code or nonempty input stays stopped until a later code or nonempty-input call; the default session restarts immediately.
+Restarting clears the selected session's live objects and in-memory database state while retaining its accepted package requirements.
 Closing the connection stops all its sessions.
 Recordings preserve a record of the work, not a saved session that can be resumed.
+For client-side controls, see [Drive send directly](SEND_OPERATIONS.md).
 
 ## Combine languages in one session {#r-and-python-interoperability}
 

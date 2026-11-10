@@ -3,11 +3,15 @@
 import os
 import sys
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from support.requirements import POSIX, R_EVENT_LOOP, requires
+from support.requirements import NATIVE_FIXTURES, POSIX, R_EVENT_LOOP, requires
+from boundaries.client_server.integrations.test_control import ControlClient
+from boundaries.client_server.output.test_recovery import cancel_result
+from support.allocations import AllocationProfile
 from support.assertions import (
     assert_result_content,
     last_tool_text,
@@ -528,6 +532,212 @@ def test_routes_input_to_idle_later_callbacks_before_a_cell(
         stdin="yes\n",
     )
     return client.finish()
+
+
+@requires(R_EVENT_LOOP)
+@executions(DIRECT, SANDBOXED)
+def test_keeps_idle_callback_output_received_after_cell_admission_idle(
+    binary: Path, execution: Execution
+) -> Transcript:
+    with McpClient(binary, execution.serve()) as client:
+        client.initialize_and_list_tools()
+        client.send(requirements={"r": ["later"]})
+
+        # fmt: r
+        r = code(r"""
+            callback_gate <- tempfile("mcp-console-callback-gate-")
+            callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+            callback_release <- tempfile("mcp-console-callback-release-")
+            run_callback <- function() {
+              if (!file.exists(callback_gate)) {
+                later::later(run_callback, delay = 0.01)
+                return(invisible(NULL))
+              }
+              stopifnot(file.create(callback_checkpoint))
+              while (!file.exists(callback_release)) {
+                Sys.sleep(0.01)
+              }
+              cat("idle callback\n")
+            }
+            later::later(run_callback, delay = 0.01)
+            cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+            """)
+        client.send(r=r)
+        (callback_release,) = release_worker_callback_gate(
+            client,
+            "blocked idle callback",
+            ("release",),
+        )
+        # The worker is still running its idle callback. Console admits the
+        # cell, but the worker reads it only after the callback returns.
+        client.expect(
+            "\n[running; poll with an empty send]", r="print(42)", timeout_ms=10
+        )
+        callback_release.touch()
+        # The worker wrote the callback output before it started the cell,
+        # although Console received it after admission.
+        wait_for_evaluation_output(
+            client,
+            "idle callback\n[output produced while idle]\n[1] 42\n",
+            "idle callback output before the admitted cell",
+            timeout_ms=1000,
+        )
+        return client.finish()
+
+
+@requires(NATIVE_FIXTURES, R_EVENT_LOOP)
+def test_keeps_recovered_reply_before_later_idle_callback_output(
+    binary: Path,
+) -> Transcript:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-control-"
+    ) as directory:
+        root = Path(directory)
+        endpoint = root / "control.sock"
+        with (
+            closing(FifoCheckpoint.create(root / "result-reached")) as result_reached,
+            closing(FifoCheckpoint.create(root / "result-release")) as result_release,
+            closing(AllocationProfile(root)) as profile,
+            McpClient(
+                binary,
+                DIRECT.serve("--control-socket", str(endpoint)),
+                {
+                    **os.environ,
+                    **profile.environment,
+                    "MCP_CONSOLE_TEST_RESULT_REACHED": str(result_reached.path),
+                    "MCP_CONSOLE_TEST_RESULT_RELEASE": str(result_release.path),
+                },
+            ) as client,
+        ):
+            client.initialize_and_list_tools()
+            client.send(requirements={"r": ["later"]})
+            # fmt: r
+            r = code(r"""
+                callback_gate <- tempfile("mcp-console-callback-gate-")
+                callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+                callback_release <- tempfile("mcp-console-callback-release-")
+                run_callback <- function() {
+                  if (!file.exists(callback_gate)) {
+                    later::later(run_callback, delay = 0.01)
+                    return(invisible(NULL))
+                  }
+                  stopifnot(file.create(callback_checkpoint))
+                  while (!file.exists(callback_release)) {
+                    tryCatch(Sys.sleep(0.01), interrupt = function(condition) NULL)
+                  }
+                  cat("late idle\n")
+                }
+                later::later(run_callback, delay = 0.01)
+                cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+                """)
+            client.send(r=r)
+            (callback_release,) = release_worker_callback_gate(
+                client, "blocked idle callback", ("release",)
+            )
+            # The worker reads the admitted cell only after its callback returns.
+            admitted = client.start_send(r="print(42)", timeout_ms=60_000)
+            with ControlClient(endpoint) as control:
+                while control.request(op="status")["result"]["state"] == "idle":
+                    pass
+            # The callback survives the interrupt, so the follow-up cell is
+            # rejected. Cancelling that reply returns it to the session.
+            profile.pause_results(True)
+            pending = client.start_send(control="interrupt", r="print(1)")
+            cancel_result(client, pending, result_reached, result_release)
+            profile.pause_results(False)
+            callback_release.touch()
+            client.receive(admitted)
+            # The recovered reply precedes output the worker wrote after it.
+            assert admitted["result"] == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "interrupted evaluation is still active; cell was not run\n"
+                            "late idle\n[output produced while idle]\n[1] 42\n"
+                        ),
+                    }
+                ],
+                "isError": True,
+            }, admitted["result"]
+            return client.finish()
+
+
+@requires(NATIVE_FIXTURES, R_EVENT_LOOP)
+def test_starts_idle_callback_output_after_recovered_idle_notice(
+    binary: Path,
+) -> Transcript:
+    with tempfile.TemporaryDirectory(
+        dir="/tmp", prefix="console-control-"
+    ) as directory:
+        root = Path(directory)
+        endpoint = root / "control.sock"
+        with (
+            closing(FifoCheckpoint.create(root / "result-reached")) as result_reached,
+            closing(FifoCheckpoint.create(root / "result-release")) as result_release,
+            closing(AllocationProfile(root)) as profile,
+            McpClient(
+                binary,
+                DIRECT.serve("--control-socket", str(endpoint)),
+                {
+                    **os.environ,
+                    **profile.environment,
+                    "MCP_CONSOLE_TEST_RESULT_REACHED": str(result_reached.path),
+                    "MCP_CONSOLE_TEST_RESULT_RELEASE": str(result_release.path),
+                },
+            ) as client,
+        ):
+            client.initialize_and_list_tools()
+            client.send(requirements={"r": ["later"]})
+            # fmt: r
+            r = code(r"""
+                callback_gate <- tempfile("mcp-console-callback-gate-")
+                callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+                callback_release <- tempfile("mcp-console-callback-release-")
+                run_callback <- function() {
+                  if (!file.exists(callback_gate)) {
+                    later::later(run_callback, delay = 0.01)
+                    return(invisible(NULL))
+                  }
+                  stopifnot(file.create(callback_checkpoint))
+                  while (!file.exists(callback_release)) {
+                    Sys.sleep(0.01)
+                  }
+                  cat("late idle\n")
+                }
+                later::later(run_callback, delay = 0.01)
+                cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+                """)
+            client.send(r=r)
+            (callback_release,) = release_worker_callback_gate(
+                client, "blocked idle callback", ("release",)
+            )
+            # Cancelling an idle poll returns its notice to the session.
+            profile.pause_results(True)
+            pending = client.start_send()
+            cancel_result(client, pending, result_reached, result_release)
+            profile.pause_results(False)
+            # The worker reads the admitted cell only after its callback returns.
+            admitted = client.start_send(r="print(42)", timeout_ms=60_000)
+            with ControlClient(endpoint) as control:
+                while control.request(op="status")["result"]["state"] == "idle":
+                    pass
+            callback_release.touch()
+            client.receive(admitted)
+            # The recovered notice keeps its own line before later output.
+            assert admitted["result"] == {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "\n[idle]\nlate idle\n"
+                            "[output produced while idle]\n[1] 42\n"
+                        ),
+                    }
+                ],
+                "isError": False,
+            }, admitted["result"]
+            return client.finish()
 
 
 if __name__ == "__main__":

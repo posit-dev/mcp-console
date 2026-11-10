@@ -10,6 +10,8 @@ Otherwise they use `~/.agents/console/sessions/<run-id>/`; `MCP_CONSOLE_HOME` re
 Console does not create a project `.agents` directory just to select project storage.
 There is no aggregate quota or automatic cleanup, so remove old recordings deliberately.
 
+## Recording activation
+
 The first received MCP `tools/call` targeting `send`, or a request on the optional [integrator control channel](INTEGRATOR_CONTROL.md), activates a recording for the Console process.
 Notes, polls, input, controls, rejected submissions, and requests cancelled before execution all activate recording.
 Initialization, tool discovery, pings, startup output, and startup failure alone do not create a persistent recording.
@@ -23,26 +25,17 @@ Named sessions share this recording; each worker lifetime receives its own numbe
 Worker-start events retain the name so concurrent sessions and their replacements can be distinguished.
 Each cell gets a log file when execution starts, even if it produces no text output.
 
-```text
-recording/
-├── capture/
-│   ├── events.jsonl
-│   └── sessions/
-│       ├── 001/
-│       │   ├── startup.txt
-│       │   ├── startup-001.png
-│       │   ├── cell-001.txt
-│       │   ├── cell-001-001.png
-│       │   ├── cell-001-post.txt
-│       │   ├── cell-001-post-001.png
-│       │   └── cell-002.txt
-│       └── 002/
-│           └── startup.txt
-├── sessions/
-│   ├── session-001.qmd
-│   └── session-002.qmd
-└── transcript.md
-```
+| Path within the recording                                                           | Contents                                                                  |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `capture/events.jsonl`                                                              | Protocol, lifecycle, and capture events.                                  |
+| `capture/sessions/NNN/startup.txt`                                                  | Text observed before the first cell.                                      |
+| `capture/sessions/NNN/cell-CCC.txt`                                                 | Text observed while cell `CCC` executes.                                  |
+| `capture/sessions/NNN/cell-CCC-post.txt`                                            | Text observed after cell `CCC` and before the next cell.                  |
+| `capture/sessions/NNN/startup-III.png`, `cell-CCC-III.png`, `cell-CCC-post-III.png` | Numbered images in the corresponding interval; non-PNG images use `.bin`. |
+| `sessions/session-NNN.qmd`                                                          | Notes and source for worker lifetime `NNN`.                               |
+| `transcript.md`                                                                     | Readable calls, results, and links to retained output.                    |
+
+## Readable transcript and session documents
 
 `transcript.md` records calls, notes, source, results, polls, input, controls, and worker session boundaries, with links to source documents and retained output.
 Notes appear as prose before any source in the same call; the journal retains the original `note` string in that call's arguments.
@@ -56,6 +49,9 @@ A note containing recognized metadata delimiters, executable code syntax, or Qua
 Documents with notes select the Quarto engine from recorded source cells, so examples in notes do not change it: `knitr` for R, `jupyter` for Python or SQL without R, and `markdown` without source.
 This fallback covers common notebook annotations; it does not sanitize arbitrary Markdown or HTML, and Quarto may still preprocess shortcodes or inline syntax inside verbatim examples.
 The journal and Markdown transcript retain the original note text.
+
+### Source association
+
 Source admitted before worker acquisition stays pending until its worker is known, even if an initial response has already returned.
 A validation-rejected restart leaves its source with the surviving addressed worker.
 A note submitted with source follows that source's worker association, including across a restart.
@@ -64,6 +60,8 @@ Notes can create a QMD for a worker that receives no source.
 QMD entries follow original call order, with each note before any source from the same call, even when source association is delayed.
 A failed acquisition does not create a session, and a session without source or notes need not create a QMD.
 Source and notes without a worker association remain in the journal and Markdown transcript.
+
+### Requirements and omitted operations
 
 QMD metadata records the owning session's accepted R and Python declarations, Python version and cutoff constraints, and DuckDB extension additions.
 Retained R requirements carry into replacement sessions; rejected additions do not change metadata, and replacement declarations do not rewrite the retiring session's document.
@@ -77,7 +75,7 @@ Their journal events and raw capture remain retained under the same limits and f
 Immediate integrator images use `capture/sessions/NNN/call-CCC-III.png`, where `CCC` is the call ID and `III` is the image number within that request.
 Their image-event owner identifies the session and call, without a cell or interval; each request has its own image retention budget using the limits below.
 
-### Output intervals
+## Output intervals
 
 Each actual worker session numbers executed cells from `001`.
 Notes, polls, input, controls, and rejected source do not create cells.
@@ -104,7 +102,7 @@ Console retains emitted text and images, not arbitrary files written by submitte
 Output observed before worker acquisition or after worker termination is retained in process-output events rather than assigned to a worker session.
 Omission notices for that output reference the capture journal.
 
-### Capture events and completion
+## Capture events and completion
 
 `capture/events.jsonl` records one JSON object per event, including MCP and integrator requests and responses, MCP notifications, canonical calls/results, worker lifetimes, dependency selections, and references to output logs and images.
 MCP protocol events reference the canonical send call/result records instead of duplicating their payloads.
@@ -124,6 +122,8 @@ Interrupting a surviving worker stays in its session.
 The journal can help inspect a recording with scripts or investigate a failed call.
 Its format may change between Console releases.
 
+### File completion
+
 Completed managed files become read-only while retaining their existing privacy permissions.
 Cell logs close at their cell boundary; startup and post-cell logs stay writable until their next boundary.
 Images become read-only after writing.
@@ -135,7 +135,7 @@ Returned paths refer to the Console host.
 Project paths are normally relative to the launch directory; fallback paths are absolute.
 A long-location notice may instead name a path relative to the selected Console directory.
 
-<span id="recording-failures"></span>
+### Recording failures {#recording-failures}
 
 Recording can fail while computation continues.
 A notice identifies files or artifacts that are unavailable or only partially retained; do not assume all output was saved.

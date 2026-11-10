@@ -52,6 +52,9 @@ def r_duckdb_snapshot_environment() -> dict[str, str]:
     # A dated repository retains binaries as well as source packages. Pin only
     # these version-sensitive fixtures; semantic SQL tests still use current R
     # packages. DuckDB 2.0's Arrow interrupt limitation is tracked in docs/TODO.md.
+    # Before advancing the pin, verify complete diagnostics and interrupt
+    # completion in shared and Windows SQL cases. Their explicit version checks
+    # must fail before cancellation if this fixture loses its selected driver.
     environment["IR_EXCLUDE_NEWER"] = "2026-10-22"
     return environment
 

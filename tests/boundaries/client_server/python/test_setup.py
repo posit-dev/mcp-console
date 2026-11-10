@@ -272,6 +272,13 @@ def test_cancels_native_inspection_and_retries(
                 assert result_file.exists()
                 interrupt = client.start_send(control="interrupt", timeout_ms=0)
                 client.receive_many([operation, interrupt])
+                wait_for_evaluation_output(
+                    client,
+                    "\n[idle]",
+                    "native Python inspection interruption",
+                    completion_timeout_seconds=client.response_timeout,
+                    received=interrupt,
+                )
                 assert not process_exists(pid), "inspection child was not reaped"
                 pid = None
                 assert not result_file.exists(), "inspection output was not removed"

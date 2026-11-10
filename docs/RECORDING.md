@@ -10,12 +10,10 @@ Review them before sharing.
 
 Ask the agent for the recording's path, then open `transcript.md` in that directory.
 It shows calls and results across all worker sessions, including recorded images and links to retained output.
-Links labeled “Session NNN source (QMD)” open session documents in `sessions/session-NNN.qmd`, one for each worker session that received source or notes.
-Those files contain notes, code, and environment metadata; recorded results and images remain in `transcript.md` and the capture files.
-An application using the [integrator control channel](INTEGRATOR_CONTROL.md#select-recording-projections) can omit its own calls from these documents while retaining their journal and raw capture.
-Raw text and images are grouped under `capture/sessions/NNN/` by worker session and observed startup, cell, or post-cell interval.
-Completed files are read-only; copy a file before editing it.
-For the dice example in [Get started](getting-started.qmd), you can inspect both the simulation and the later comparison that reused its results.
+Links labeled “Session NNN source (QMD)” open source documents in `sessions/session-NNN.qmd`.
+Each contains the notes, code, and environment metadata for one worker lifetime; a restart begins a new document.
+Recorded results and images remain in `transcript.md` and the capture files.
+See the [recording reference](RECORDING_REFERENCE.md) for file layout, retention, and application-controlled omissions.
 
 The recording documents what happened; it does not save the live Python objects, R objects, or in-memory database for a later session.
 To repeat an analysis, you will need its inputs and reviewed code.
@@ -41,7 +39,6 @@ It can also stand alone between cells:
 ```
 
 Notes appear as prose in `transcript.md` and the associated session QMD, before code submitted in the same call.
-Each QMD preserves call order, so notes sent between cells remain between those cells even when their worker associations become known later.
 A note-only call returns without waiting for a running cell or collecting its output.
 You can use these annotations to retrace an investigation or draft a narrative when reviewing the recording.
 
@@ -65,13 +62,10 @@ Reference: [Retrieve the last SQL result](RUNTIME_REFERENCE.md#retrieve-the-last
 ## Turn the code into a report {#render-a-reviewed-copy}
 
 Each `sessions/session-NNN.qmd` is a starting point for a report, **not a replay or checkpoint**.
-It contains notes and the R, Python, and SQL source associated with that worker, including failed evaluations, rejected calls, and source submitted alongside a control.
-Restarts and automatic worker replacement begin a separate document; an interrupt that preserves the worker stays in the same document.
-A note sent with code follows that code into its worker's document.
-A note without code belongs to the current worker, or the next worker if none exists yet.
-The documents omit interactive input, polling, control operations, output, and recorded images.
+It includes failed evaluations and rejected source, and omits interactive input, polling, controls, output, and images.
+Review the recording to decide which code belongs in the report.
 
-Copy it before editing:
+Completed files are read-only; copy a document before editing:
 
 ```sh
 cp sessions/session-001.qmd report.qmd
@@ -91,7 +85,7 @@ With `ir` already installed, use `ir render report.qmd`.
 Rendering requires R, even when the original session used only Python.
 SQL chunks need a user-supplied DBI connection.
 Package declarations are not a lockfile or a complete history of the environment.
-Each document records accepted requirements for its worker session and describes the original working directory without setting the rendering directory.
+The recorded working directory is descriptive metadata, not the rendering directory.
 Copy required inputs beside the working copy or adjust their paths before rendering.
 Chunks permit errors so a recorded failure does not prevent reviewing later code; review those failures before relying on the report.
 
@@ -100,4 +94,4 @@ Chunks permit errors so a recorded failure does not prevent reviewing later code
 Reference: [Recording storage, files, and retention](RECORDING_REFERENCE.md).
 
 For other workflows, the [documentation index](README.md#task-index) links to guides by what you want to do.
-To prepare Console for a particular project or agent, continue with [Build a data assistant](BUILD_ON_CONSOLE.md).
+To prepare Console for a particular project or agent, continue with [Build a data assistant](BUILD.md#build-a-data-assistant).

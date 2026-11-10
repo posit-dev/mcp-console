@@ -29,6 +29,7 @@ It is currently a **development preview**.
 Console gives agents the interactive affordances of a REPL, so they can work iteratively: run code, inspect results, and decide what to try next.
 They can refine plots, read help, respond to interactive prompts, and step through code in a debugger.
 Long computations can keep running between calls, and agents can interrupt work or restart an unresponsive session.
+The agent can also start separate sessions to run independent analyses concurrently.
 
 The environment is designed for agents, with help and output formatted for them.
 For example, Console collapses progress bar redraws and previews large results to keep them from flooding the model's context.
@@ -51,7 +52,7 @@ See [Sessions and languages](BUILTIN_RUNTIME.md) for examples, database connecti
 Console uses native R and Python runtimes, with access to their package ecosystems, including packages with compiled code.
 An OS-level sandbox enforces limits on file and network access.
 
-The default `read_only` sandbox profile restricts network access and filesystem writes.
+The default `read_only` sandbox profile lets the agent's code read your files but prevents it from editing them or connecting to the network.
 You can customize these permissions to allow writes to selected paths, block reads from selected paths, and control network access with domain allowlists or denylists.
 See [Sandbox and trust](SANDBOX.md) for the defaults and how to adapt them to your work.
 
@@ -85,7 +86,7 @@ They also provide a starting point for reproducible analyses and reports.
 Replace the complete tool description and instructions, choose which language interfaces and parameters the model can use, and preconfigure the runtime.
 Set sandbox permissions to control access to files and networks.
 
-For example, build a data chat with only SQL and a selected database connection, or a reporting assistant with a prepared R or Python environment.
+For example, build a [data chat with only SQL and a selected database connection](BUILD.md#build-a-data-assistant), or a reporting assistant with a prepared R or Python environment.
 
 [Build on Console](BUILD.md) introduces tool customization, prepared sessions, and the R and Python clients.
 

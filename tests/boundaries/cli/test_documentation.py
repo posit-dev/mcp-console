@@ -73,9 +73,8 @@ def test_current_companion_links_match_pin(binary: Path) -> Transcript:
         path
         for path in docs.rglob("*")
         if path.suffix in {".md", ".qmd"}
-        # Dated evidence retains its revision; rendered output is not source.
-        and path.relative_to(docs).parts[0] not in {"benchmarks", "_site", ".quarto"}
-        and path != docs / "RESOLVER_RELEASE_AUDIT.md"
+        # Every checked-in guide describes the current pin; skip build output.
+        and path.relative_to(docs).parts[0] not in {"_site", ".quarto"}
     )
     for document in documents:
         for line_number, line in enumerate(

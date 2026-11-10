@@ -1,38 +1,35 @@
 # Authoring a boundary case
 
-Locate a related case with `scripts/test --locate SELECTOR`, read its contract, and add a public regression before changing behavior.
+Find a related case with `scripts/test --locate SELECTOR`, read its contract, and add a public regression before changing behavior.
 Follow the [validation ladder](../../docs/DEVELOPMENT.md#validation-ladder).
 
 ## Readable session transcripts
 
-A client/server transcript should read as a plausible client session or a focused behavioral regression, not a second unit-test suite.
-Check schema, guidance, and configuration through public discovery or configuration interfaces.
-Extend existing cases rather than launching duplicate sessions for the same permutations.
-Before deleting a case, identify its surviving coverage and remove its producer and owned snapshots together.
+A transcript should read as a plausible session or focused regression.
+Extend existing cases instead of adding duplicate launches for permutations.
+Before removing a case, identify surviving coverage and remove its producer and snapshots together.
+Check schema/configuration through public discovery or configuration.
 
-Prefer equality assertions on complete structured results when the whole value belongs to the case's contract.
-Reuse shared clients and fixtures; avoid adding production APIs solely to let a test inspect private state.
-Pass fixture environment to child processes explicitly instead of changing the test runner's process environment.
+Use real runtimes for ordinary output, plots, validation, and adapters.
+A synthetic worker needs a failure mode that real runtimes cannot reproduce reliably; explain that need in the fixture description.
+Preserve real-library sandbox cases and distinct cold-cache, activation, isolation, and permission paths.
 
-Use real runtimes for ordinary text output, plots, input validation, and adapter behavior.
-Use a synthetic worker only when a worker failure mode is hard or impossible to reproduce deterministically with a real runtime.
-The case's fixture description should explain that need.
+Record actual exchanges, not synthetic summaries of calls.
+Keep adapter return-value checks in Python assertions while retaining their underlying requests/responses.
+Prefer equality assertions on complete structured results.
+Reuse shared helpers; do not add production APIs just to inspect private state.
 
-Make each YAML understandable without reading its Python fixture.
-Record exchanges observed at the tested boundary, rather than synthetic summaries of several calls.
-Keep adapter return-value checks in Python assertions; their YAML transcripts retain the underlying requests and responses.
-Emit a short `scenario` and `fixture` description before initialization when setup is not evident from the exchanges.
-Identify fake workers, hidden runtimes, injected failures, gates, and host-side actions in one to three sentences; keep the prose in the producer so regeneration preserves it.
-Record one Console invocation per transcript, using companions for genuinely distinct sessions.
-
-Focused interrupt handlers and causal lifecycle fixtures are valid behavioral tests even when their cells contain assertions.
-Preserve real-library sandbox regressions and distinct permission, isolation, cold-cache, and activation paths; do not replace them with trivial programs.
+Make YAML understandable without the producer.
+Add short `scenario` and `fixture` descriptions for fake workers, hidden runtimes, injected failures, gates, or host intervention.
+Keep that prose in the producer.
+Use one Console invocation per transcript and companions for distinct sessions.
+Pass child environments explicitly instead of changing the test runner's environment.
 
 ## Embedded programs
 
-Use short strings for short fixtures and dedented multiline literals for longer programs.
+Use short strings for short programs and dedented multiline literals for longer ones.
 Put `# fmt: python` or `# fmt: r` immediately above `code(` and its opening delimiter, including in nested calls.
-Indent the payload and closing delimiter four spaces beyond that line:
+Indent payload and closing delimiter one level deeper:
 
 ```python
 client.send(
@@ -44,32 +41,23 @@ client.send(
 )
 ```
 
-Use raw literals when backslashes belong to the submitted program.
+Use raw literals when backslashes belong to the program.
 Preserve its indentation and trailing newlines.
-Do not label a custom worker's command language as R/Python merely because it travels in that field.
-Run `scripts/format` and inspect every formatter's result and the diff; `--strict` fails after attempting all formatters when any is missing or fails.
+Do not label a custom worker's command language as R/Python just because it travels in that field.
+Run `scripts/format` and inspect all results; `--strict` fails after attempting every formatter if one is missing or fails.
 
 ## Execution modes
 
-Use one execution mode for ordinary language or representation behavior: `@executions(RUNTIME)` selects the platform's runtime mode.
-Use `@executions(DIRECT, SANDBOXED)` only when the contract differs by mode, and launch through `execution.serve()`.
-Put sandbox-only arguments in explicit sandbox fixtures, for example `SANDBOXED.serve("--writable-root", str(root))`, with the appropriate capability.
-See [modes and requirements](README.md#requirements-and-execution-modes).
+Use `@executions(RUNTIME)` for ordinary language or representation behavior and `@executions(DIRECT, SANDBOXED)` when the contract differs by mode.
+Launch through `execution.serve()`.
+Put sandbox-only arguments in explicit fixtures such as `SANDBOXED.serve("--writable-root", str(root))`, with the appropriate capability.
+See [requirements and modes](README.md#requirements-and-execution-modes).
 
 ## Lifecycle receipts and checkpoints
 
-Establish the observable state an assertion needs before releasing a fixture.
-Use `FifoCheckpoint` (`support.checkpoints`), `read_lines` (`support.capture`), and `Events` (`support.events`) for blocking gates, complete stream receipts, and process transitions.
-Keep cleanup in context managers or `finally` blocks.
-Use `wait_for_path()` for known marker paths and worker-file discovery only for worker-owned directories whose names are initially unknown.
-`FifoCheckpoint.release()` buffers an early token; `release_fixture_checkpoint()` instead waits for a real reader with a bounded rendezvous.
-Use distinct FIFO paths for successive `release_fixture_checkpoint()` phases.
-Reopening one path can reconnect to a previous phase's writer and receive EOF when it closes.
-Pass the client when its exit should end that wait.
-Marker waits subscribe to native filesystem/process events on macOS and Linux; Windows uses cancellable bounded path polling.
-For content changes in a known file, use that file as the checkpoint root.
-For discovered files, pass `watch_files` so each candidate is watched before its contents are read; directory notifications alone do not report file appends on macOS.
-Pass an owned `Events` instance to `wait_for_path()` when the fixture needs explicit cancellation; `Events.cancel()` wakes the wait without a marker or client.
+Establish the observed state an assertion needs before releasing the fixture.
+Sleeps, broad matching, and longer timeouts do not establish ordering.
+A marker or stdin write does not prove public admission; a response frame does not prove its delivery acknowledgment has settled; an accepted interrupt does not prove completion.
 
 ```python
 client.send(python=program, timeout_ms=0)
@@ -78,44 +66,32 @@ started.wait("worker reached the release gate")
 release.release()
 ```
 
-A fixture marker alone does not prove public evaluation admission.
-Writing a request to stdin does not prove its handler has started.
-When cancelling a send during gated discovery, observe its exclusive polling claim before submitting a competing cell or cancellation.
-Before closing input to check response delivery, gate an accepted result; EOF can cancel a call that has not been accepted yet.
-Process startup does not prove a cell log has closed.
-For shutdown output, establish cell completion and its recorded `cell_output` event before asserting which file owns later bytes.
-Sleeps, broader matching, and longer timeouts do not establish ordering.
-Receiving an MCP result frame does not prove its delivery acknowledgment has settled.
-Before starting a long poll whose ownership another call will probe, receive a ping response to settle preceding response writes.
-Otherwise both calls can enter the response-admission queue, leaving the probe behind the long poll it is meant to observe.
-When the next assertion depends on cancellation releasing that claim, observe the cancelled call's recorded result before proceeding.
-Before a nonwaiting integrator operation that requires idle state, observe `status.idle`; use `busy: "wait"` when submitting an ordinary integrator evaluation.
-An accepted interrupt likewise does not prove the input request has closed: collect the expected interruption output before asserting completion.
-Start a liveness deadline at the fixture checkpoint for the operation under test, after unrelated interpreter discovery and preparation have completed.
-Use `live_recording_events()` for a journal whose writer is still active; a read can end inside a JSON record or UTF-8 character.
-Parse finalized journals in full so truncated recordings remain failures.
+Use [checkpoints](../support/checkpoints.py) for marker/FIFO gates, [capture](../support/capture.py) for complete stream batches, and [Events](../support/events.py) for process/filesystem observation and cancellation.
+Keep cleanup in context managers or `finally`.
+Start liveness deadlines at the operation's checkpoint, after unrelated discovery/preparation has finished.
+Use `McpClient.response_deadline()` for waits that must preserve shutdown/reap time.
 
-For direct pipe fixtures, `read_lines()` consumes an exact batch up to the producer's next command or checkpoint gate.
-Count all records in that batch; adjacent records may arrive in one read.
-Use `read_relay_ready()` for the ordered `worker_started` and `ready` handshake, and release the worker only after checking both records.
-Raw stdout/stderr and worker sideband events travel independently.
-When a transcript needs raw output after `cell_started`, observe that event in the capture before releasing the producer; receiving an MCP result or writing stdin does not establish that order.
+Choose a receipt at the boundary being asserted.
+Before competing with a gated submission, observe its polling/admission claim.
+Before testing EOF delivery, gate an accepted result.
+Before checking shutdown output attribution, observe cell completion and its recorded output event.
+Settle preceding response writes with a ping before racing a long poll, and observe the cancelled call's recorded result before asserting that its claim was released.
+Integrator callers requiring idle state must observe `status.idle` or use ordinary `busy: "wait"` admission.
 
-`wait_for_evaluation_output()` submits once, accumulates every text delta, and bounds transport receives with its completion budget.
-`client.expect()` uses that collector with the client's existing response budget and checks exact successful output (`[done]` by default).
-Combined control-and-cell calls retain their final `[done]` marker even when earlier polls took all output.
-When collecting such a call directly, including a later stdin or empty-poll continuation, pass `controlled_completion=True` to `wait_for_evaluation_output()`; `client.expect()` selects this for its own combined submissions.
-Use `client.expect(None, ...)` when asserting the collected content separately, such as SQL preview row, column, and byte limits.
-An initial `timeout_ms=0` exercises polling without making query speed part of those assertions.
-Give cold preparation an explicit longer budget.
-The default `send` observation deadline can return while setup is still running; establish completion before dependent requests.
-Combined code and stdin can also return at input readiness before consuming the queued input.
-Collect through the expected final result, retaining every output delta; use an explicit pending-state observation when the test needs a running or input-blocked cell.
-Use local wheels for packages that serve only as installation or import sentinels, while retaining real libraries when their behavior or permissions are the contract being tested.
-Use the client's preparation budget for resolver collection and initial requirements inspection.
-Use `McpClient.response_deadline()` for client-aware fixture waits so the remaining case deadline retains its shutdown and reap reserve.
-Convert the absolute deadline to a nonnegative timeout immediately before blocking.
-Retain raw exchanges when delivery or polling is the contract being tested.
+Raw streams and sideband are independent.
+Use `read_relay_ready()` for the ordered acquisition/readiness handshake and count every record up to the producer's gate.
+Observe sideband cell entry in the capture before releasing raw output whose attribution depends on it.
+Read active journals through `live_recording_events()`; parse finalized journals in full so truncation remains an error.
 
-See the [Python lifecycle cases](client_server/python/test_lifecycle.py) and [retention cases](client_server/output/test_spools.py).
-Preserve complete output assertions and use the [snapshot rules](README.md#snapshots) for normalization.
+`wait_for_evaluation_output()` submits once, retains each output delta, and bounds collection.
+`client.expect()` checks exact successful output through that helper.
+Use `controlled_completion=True` for manually collected control-and-cell calls; their final `[done]` marker still matters after earlier polls took the text.
+`client.expect()` selects this automatically for its own combined submissions.
+
+Give cold preparation an explicit budget and establish completion before dependent calls.
+An observation timeout or code-plus-stdin response can arrive before setup or input consumption finishes.
+Use explicit pending-state assertions when a running or input-blocked cell is the contract.
+Retain raw exchanges when delivery/polling is being tested.
+Local wheels suit import/install sentinels; use real libraries when their behavior or permissions matter.
+
+See [Python lifecycle](client_server/python/test_lifecycle.py), [output retention](client_server/output/test_spools.py), and the [snapshot rules](README.md#snapshots).

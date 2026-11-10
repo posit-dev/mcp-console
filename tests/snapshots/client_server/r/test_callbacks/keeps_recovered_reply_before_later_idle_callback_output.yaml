@@ -1,0 +1,66 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.direct.yaml
+---
+send:
+  requirements:
+    r:
+      - later
+result:
+  content:
+    - type: text
+      text: "[prepared]"
+  isError: false
+---
+send:
+  r: |
+    callback_gate <- tempfile("mcp-console-callback-gate-")
+    callback_checkpoint <- tempfile("mcp-console-callback-checkpoint-")
+    callback_release <- tempfile("mcp-console-callback-release-")
+    run_callback <- function() {
+      if (!file.exists(callback_gate)) {
+        later::later(run_callback, delay = 0.01)
+        return(invisible(NULL))
+      }
+      stopifnot(file.create(callback_checkpoint))
+      while (!file.exists(callback_release)) {
+        tryCatch(Sys.sleep(0.01), interrupt = function(condition) NULL)
+      }
+      cat("late idle\n")
+    }
+    later::later(run_callback, delay = 0.01)
+    cat(callback_gate, callback_checkpoint, callback_release, sep = "\n")
+result:
+  content:
+    - type: text
+      text: |-
+        <worker callback gate>
+        <worker callback checkpoint>
+        <worker callback release>
+  isError: false
+---
+send:
+  r: print(42)
+  timeout_ms: 60000
+result:
+  content:
+    - type: text
+      text: |
+        interrupted evaluation is still active; cell was not run
+        late idle
+        [output produced while idle]
+        [1] 42
+  isError: true
+---
+send:
+  control: interrupt
+  r: print(1)
+id: <cancelled request 1>
+---
+input:
+  method: notifications/cancelled
+  params:
+    requestId: <cancelled request 1>
+---
+input:
+  method: ping
+result: {}

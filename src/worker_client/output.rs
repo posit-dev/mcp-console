@@ -7,6 +7,7 @@ mod terminal;
 mod preview;
 mod tape;
 use preview::{Part, Preview};
+pub(super) use tape::CellEntryGap;
 use tape::OutputTapeState;
 
 pub(super) const WORKER_STARTING_NOTICE: &str = "starting new worker";
@@ -87,6 +88,10 @@ pub(crate) enum Content {
 #[derive(Default)]
 pub(super) struct ResponseBuilder {
     response: Response,
+    /// Whether earlier text of the same stream, already sealed into another
+    /// interval, ended mid-line. Notices start on their own line regardless of
+    /// where polls cut the stream.
+    continues_open_line: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -338,6 +343,15 @@ impl Response {
         self.with_builder(|builder| builder.append_logical_region(other));
     }
 
+    /// Appends later output from the same session stream.
+    ///
+    /// Recovered replies and earlier prelude regions may end with a notice,
+    /// which occupies its own line; output that ended mid-line continues
+    /// that line.
+    pub(super) fn extend_stream(&mut self, other: Self) {
+        self.with_builder(|builder| builder.append_stream(other));
+    }
+
     /// Appends cell output after this response's owned idle prelude.
     ///
     /// The canonical builder inserts the separator only when both regions are
@@ -427,7 +441,10 @@ impl ResponseBuilder {
     }
 
     pub(super) fn from_response(response: Response) -> Self {
-        Self { response }
+        Self {
+            response,
+            continues_open_line: false,
+        }
     }
 
     pub(super) fn finish(self) -> Response {
@@ -476,6 +493,16 @@ impl ResponseBuilder {
         self.append_response(&mut other);
     }
 
+    fn append_stream(&mut self, mut other: Response) {
+        if matches!(self.response.preview.last_visible(), Some(Part::Notice(_)))
+            && !self.response.preview.ends_with_newline()
+            && other.preview.starts_with_text()
+        {
+            self.response.preview.notice("\n".to_owned());
+        }
+        self.append_response(&mut other);
+    }
+
     pub(super) fn append_cell_after_idle_prelude(&mut self, mut cell: Response) {
         if !self.response.is_empty() && !cell.is_empty() {
             self.notice_line("output produced while idle");
@@ -492,11 +519,7 @@ impl ResponseBuilder {
     }
 
     fn control_text(&mut self, text: String) {
-        let prefix = if !self.response.is_empty() && self.needs_line_break() {
-            "\n"
-        } else {
-            ""
-        };
+        let prefix = if self.line_open() { "\n" } else { "" };
         self.response.preview.notice(format!("{prefix}{text}"));
     }
 
@@ -530,7 +553,11 @@ impl ResponseBuilder {
             }
             TerminalState::Running => self.state_banner("running; poll with an empty send"),
             TerminalState::StdinNeeded => {
-                let prefix = if self.needs_line_break() { "\n" } else { "" };
+                let prefix = if self.response.preview.ends_with_newline() {
+                    ""
+                } else {
+                    "\n"
+                };
                 self.response
                     .preview
                     .notice(format!("{prefix}{}", render_notice("waiting for stdin")));
@@ -556,8 +583,31 @@ impl ResponseBuilder {
             .notice(format!("\n{}", render_notice(state)));
     }
 
-    fn needs_line_break(&self) -> bool {
-        !self.response.preview.ends_with_newline()
+    /// Whether output appended next continues a partial line of this stream.
+    pub(super) fn line_open(&self) -> bool {
+        if self.response.is_empty() {
+            self.continues_open_line
+        } else {
+            !self.response.preview.ends_with_newline()
+        }
+    }
+
+    /// Starts the next interval of the same stream.
+    pub(super) fn continuation(&self) -> Self {
+        let continues_open_line = if self.response.is_empty() {
+            self.continues_open_line
+        } else {
+            self.response.preview.ends_with_partial_text_line()
+        };
+        Self {
+            response: Response::default(),
+            continues_open_line,
+        }
+    }
+
+    /// Records that a separator line has ended the stream's open line.
+    pub(super) fn start_line(&mut self) {
+        self.continues_open_line = false;
     }
 }
 

@@ -1,108 +1,79 @@
 # Server-relay protocol
 
-This private JSONL interface connects one server generation to its relay.
-It evolves in lockstep without independent negotiation.
-[`src/relay_protocol.rs`](../src/relay_protocol.rs) owns the exact schema; [`src/worker_relay.rs`](../src/worker_relay.rs) and [`src/worker_client/process.rs`](../src/worker_client/process.rs) implement the endpoints.
+This private JSONL interface connects one server generation to its relay and evolves in lockstep.
+[relay_protocol.rs](../src/relay_protocol.rs) owns the schema; [worker_relay.rs](../src/worker_relay.rs) and [worker_client/process.rs](../src/worker_client/process.rs) implement the endpoints.
 
 ## Process boundary
 
 The relay owns the direct worker's descriptors, standard streams, sideband, interruption, and reaping.
 The native runner owns enforcement and descendant cleanup.
-Dependency resolution, candidate commits, MCP response budgets, and session policy belong to the server and preparation owners.
-
-A native runner inherits the streams without proxying their contents.
-Direct mode omits it.
-Windows uses the same message shapes with native pipes, process handles, and interrupt events.
+Resolution, candidate acceptance, response budgets, and session policy stay with the server.
+The runner inherits streams without proxying their contents; direct mode omits it.
+Windows uses the same message shapes over native pipes, process handles, and interrupt events.
 
 ## Framing and raw bytes
 
-Each direction is UTF-8 JSONL, flushed per complete frame, with one writer.
-Frames must never interleave.
+Each direction has one writer emitting complete UTF-8 JSONL frames.
 Unknown kinds/fields, wrong types, malformed JSON, and partial-frame EOF fail an open command transport.
-The first explicit shutdown ends command parsing; trailing bytes are ignored.
+The first explicit shutdown ends command parsing; trailing command bytes are ignored.
 Worker output remains strictly framed through retirement.
 
-Raw stdout/stderr chunks use text events when the entire chunk is valid UTF-8, otherwise padded standard base64.
-UTF-8 decoding across raw chunks belongs to the server, not the relay.
-Stderr carries infrastructure diagnostics; a framed fatal event is authoritative when available.
+Raw stream chunks use text events when the complete chunk is valid UTF-8 and padded standard base64 otherwise.
+Incremental decoding belongs to the server.
+Stderr can carry infrastructure diagnostics; a framed fatal event is authoritative when present.
 
 ## Server commands and relay events
 
-Semantic [worker messages](WORKER_PROTOCOL.md#message-schemas) cross this boundary flat, without a nested worker-message wrapper.
-The outer transport adds these commands:
+Semantic [worker messages](WORKER_PROTOCOL.md#message-schemas) cross this boundary without an extra wrapper.
+The relay adds stdin forwarding, interrupt requests and receipts, timed shutdown, worker acquisition/exit, raw stream data/closure, and fatal diagnostics.
+Exact fields and payload-free variants live in the source enums.
 
-| Command     | Fields                                                                                  |
-| ----------- | --------------------------------------------------------------------------------------- |
-| `stdin`     | `data`: exact input string.                                                             |
-| `interrupt` | `request_id`: integer identifying the signal attempt.                                   |
-| `shutdown`  | `grace_millis`: remaining worker-exit allowance; replaces payload-free worker shutdown. |
-
-Additional relay events are:
-
-| Events                                                     | Payload                                            |
-| ---------------------------------------------------------- | -------------------------------------------------- |
-| `worker_started`                                           | Direct worker `pid`, after successful acquisition. |
-| `stdout`, `stderr`                                         | UTF-8 `data`.                                      |
-| `stdout_bytes`, `stderr_bytes`                             | Base64 `data`.                                     |
-| `stdout_closed`, `stderr_closed`, `worker_sideband_closed` | None.                                              |
-| `interrupt_result`                                         | Matching `request_id`, optional `error`.           |
-| `shutdown_started`                                         | None; acceptance of the registered shutdown.       |
-| `worker_exited`, `worker_signaled`                         | Exit `code` or termination `signal`.               |
-| `fatal`                                                    | Diagnostic `message`.                              |
-
-Payload-free frames contain only `kind`.
-A successful interrupt receipt means delivery was accepted, not that execution stopped.
-Resolver-targeted interrupts do not cross this boundary.
+Interrupt receipts match the request ID and acknowledge signal delivery, not execution completion.
+Resolver-targeted interrupts never cross this boundary.
+Worker shutdown's payload-free message becomes a relay request carrying the remaining worker-exit allowance.
 
 ## Event production and ordering
 
 Sideband, stdout, stderr, and lifecycle producers publish complete frames through one ordered writer.
-Each producer preserves its own order; no cross-stream chronology is inferred.
-Output written before a semantic completion can be observed afterward.
+Each producer preserves its own order; cross-stream order is observation order.
+Output written before semantic completion can arrive afterward.
 
-The first lifecycle event after successful child acquisition is `worker_started`, before output readers start.
-A launch failure before acquisition emits no such event.
-Readiness remains a separate worker event, and the final exit/signal frame describes the actual child's outcome.
-These observations establish recording sessions independently of generation identity.
-
-The relay continues reading after operation results without an acknowledgment.
-It does not wait for MCP polls, divide output into responses, or decide environment acceptance.
+After direct-child acquisition, `worker_started` precedes output readers.
+Launch failure before acquisition emits no such event.
+Readiness is a separate worker receipt, and the final exit/signal event reports the actual child outcome.
+These observations establish recording lifetimes independently of generation identity.
+The relay keeps reading after operation results without waiting for MCP polling.
 
 ## Output backpressure
 
 Queues are bounded and readers wait for capacity.
-Oversized single frames can be admitted alone; this is not a total-memory ceiling because readers may each hold a frame awaiting admission.
-Supervisor events have a separate allowance but do not overtake earlier output.
+One oversized frame can be admitted alone; readers can each retain a waiting frame, so queue capacity is not a total memory ceiling.
+Supervisor events have a separate allowance without overtaking earlier output.
 
-Bound both downstream writes and queue admission during retirement.
-Pipe/FIFO/socket output supports cancellable nonblocking handling; regular-file output retains filesystem blocking behavior.
-Exact queue capacities and timing constants are implementation parameters, not public API promises.
+Retirement bounds downstream writes and queue admission.
+Pipes, FIFOs, and sockets support cancellable nonblocking output; regular files retain filesystem blocking behavior.
+Capacities and timing constants are implementation parameters.
 
 ## Interruption and shutdown
 
-The server serializes bootstrap and commands with one generation-owned writer.
+The server has one generation-owned command writer.
 Forced retirement closes admission and aborts pending writes or queue waits.
-An aborted partial frame ends that transport; shutdown or interruption must not be inserted into it.
+Aborting a partial frame ends the transport; shutdown or interrupt bytes cannot be inserted into that frame.
 
-The first shutdown/EOF retirement fixes the worker deadline.
-Later observations cannot renew it.
-The relay closes stdin and requests worker shutdown concurrently, then terminates and reaps the direct child if it does not exit.
+The first shutdown/EOF fixes the worker deadline.
+The relay closes stdin and requests shutdown concurrently, then terminates and reaps the direct child if needed.
 Fatal transport failures retire immediately.
-The server's interrupt grace and optional follow-up cell are defined in [send ordering](API.md#operations), not by a new wire message.
-
-Shutdown acceptance, controller EOF, worker-sideband EOF, child exit, and cancellation completion are distinct observations.
-Do not use one as evidence for another.
+Later observations cannot renew the deadline.
+Public interrupt grace and follow-up cells belong to [send ordering](API.md#operations).
 
 ## Retirement and failure
 
-Retirement cancels local I/O before joining tasks and preserves a bounded drain of available output.
-It cannot wait forever for descendants holding standard streams or for a blocked consumer.
-Incomplete trailing sideband frames may be abandoned during forced retirement; malformed ordinary traffic still fails the boundary.
+Retirement cancels local I/O before joining tasks and drains available output within bounds.
+It cannot wait indefinitely for descendants holding streams or a blocked consumer.
+Forced retirement can abandon an incomplete trailing sideband frame; malformed ordinary traffic still fails the boundary.
 
-No raw bytes follow their stream closure, and no event follows the final worker exit/signal event.
-Clean output EOF requires expected stream closures and the direct-worker outcome.
-Available output and fatal diagnostics remain observable before retirement completes.
-
-Direct-worker exit is not native descendant-cleanup evidence.
-Replacement additionally requires the owning launch's cleanup and I/O results.
-See [Architecture](ARCHITECTURE.md#retirement-and-cancellation) and the executable [boundary tests](../tests/boundaries/README.md).
+No bytes follow their stream closure, and no event follows the final child exit/signal event.
+Clean output EOF requires expected stream closures and the worker outcome.
+Shutdown acceptance, controller EOF, sideband EOF, child exit, and cancellation completion remain distinct evidence.
+Replacement also needs the owning launch's cleanup and I/O results; direct-worker exit is not native cleanup.
+See [retirement ownership](ARCHITECTURE.md#retirement-and-cancellation) and the [boundary tests](../tests/boundaries/README.md).

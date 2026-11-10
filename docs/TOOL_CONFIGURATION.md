@@ -4,7 +4,7 @@ Customize which languages, parameters, and descriptions the agent sees through y
 These settings change presentation, not sandbox permissions.
 For interpreter selection and database startup, see [Languages and startup](RUNTIME_CONFIGURATION.md).
 For startup packages and preparation policies, see [Package settings](PACKAGE_CONFIGURATION.md).
-For a guide with examples, see [Build a data assistant](BUILD_ON_CONSOLE.md).
+For a guide with examples, see [Build a data assistant](BUILD.md#build-a-data-assistant).
 
 ## Model-visible languages
 
@@ -50,30 +50,21 @@ tool:
       enabled: false
 ```
 
-`tool.description` replaces the complete `send` description returned by `tools/list`.
-`tool.instructions` replaces the server instructions returned in the earlier `initialize` response.
-Despite their location under `tool`, instructions describe the server as a whole.
-
 | Setting                              | Lifecycle and purpose                                                                                                                                                            |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tool.instructions`                  | Available to the client when the connection initializes. Introduce the workbench and when to select it; a client may use this text for a server summary or deferred tool search. |
 | `tool.description`                   | Returned when the client lists tools, alongside `send`'s input schema. Explain when and how to call `send`, including polling, state, and result handling.                       |
 | `tool.parameters.<name>.description` | Part of that input schema. Explain the corresponding argument and how to supply its value.                                                                                       |
 
-The client controls when these texts enter the model's context.
-A client can fetch `tools/list` at connection time while deferring the full definition until the model searches for it.
-In that workflow, initialization instructions may supply the initial server summary; other clients use their own server description or expose tools immediately.
-Do not assume instructions are always shown, shown in full, or the only text visible before loading a tool.
-See [deferred tool discovery](TOOL_DESCRIPTIONS.md#deferred-tool-discovery) for client-specific guidance and the protocol references.
+The client controls when these texts enter the model's context and whether initialization instructions supply a server summary.
+See [deferred tool discovery](TOOL_DESCRIPTIONS.md#deferred-tool-discovery) for client-specific behavior.
 
 ### Parameter settings
 
 Each entry under `tool.parameters.<name>` accepts `enabled`, `description`, nested `parameters`, and read-only `schema` metadata; see the [parameter field reference](CONFIGURATION.md#tools-and-sessions).
 
-Available top-level names are `r`, `python`, `sql`, `note`, `session`, `requirements`, `control`, `stdin`, and `timeout_ms`.
+The [parameter field reference](CONFIGURATION.md#tools-and-sessions) lists available names, including nested requirement fields.
 Source fields are available only for the selected `languages`.
-Under `tool.parameters.requirements.parameters`, the names are `action`, `r`, `python`, `python_version`, `duckdb`, and `exclude_newer`.
-Each uses the same parameter settings above.
 
 Each parameter's `description` replaces its complete description; nested parameters use another `parameters` mapping.
 Strings are used verbatim, including empty strings, without appending generated guidance or permission text.

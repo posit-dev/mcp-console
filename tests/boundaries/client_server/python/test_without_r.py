@@ -1638,6 +1638,13 @@ def test_live_python_failure_and_interrupt_preserve_accepted_state(
                 interrupt = client.start_send(control="interrupt")
                 client.receive_many([pending, interrupt])
                 assert pending["result"]["isError"], pending
+                wait_for_evaluation_output(
+                    client,
+                    "\n[idle]",
+                    "live Python preparation interruption",
+                    completion_timeout_seconds=client.response_timeout,
+                    received=interrupt,
+                )
                 assert os.read(alive, 1) == b""
                 assert (
                     client.send(requirements={"action": "get"})["structuredContent"][
@@ -1856,6 +1863,13 @@ def test_failed_managed_preparation_preserves_worker_and_input(
                         interrupt = client.start_send(control="interrupt")
                         client.receive_many([pending, interrupt])
                         response = pending["result"]
+                        wait_for_evaluation_output(
+                            client,
+                            "\n[idle]",
+                            "failed restart preparation interruption",
+                            completion_timeout_seconds=client.response_timeout,
+                            received=interrupt,
+                        )
                         assert os.read(alive, 1) == b"", (
                             "resolver survived interruption"
                         )
