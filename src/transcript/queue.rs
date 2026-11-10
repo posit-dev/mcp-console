@@ -62,6 +62,9 @@ pub(super) struct ProtocolEvents {
     unsettled: Option<u64>,
     /// Notified whenever `applied` advances or capture stops.
     wake: Arc<Condvar>,
+    /// Notified whenever the writer changes what a rendering says about
+    /// retained files: a stop, a stall found or cleared, a truncated file.
+    changed: tokio::sync::watch::Sender<()>,
 }
 
 #[derive(Default)]
@@ -358,6 +361,9 @@ impl QueuedEvent {
                 let Some(retained) = file.write(*offset, data) else {
                     return Ok(());
                 };
+                if retained < data.len() {
+                    recorder.writer_changed();
+                }
                 Event::OutputText {
                     owner: *owner,
                     path,
@@ -571,6 +577,7 @@ impl ProtocolEvents {
 
     pub(super) fn stop(&mut self, error: String) {
         self.failure.get_or_insert(error);
+        self.changed.send_replace(());
         self.omitted_calls.clear();
         self.applied += self.pending.len() as u64;
         self.wake.notify_all();
@@ -662,6 +669,7 @@ impl Transcript {
             let now = Instant::now();
             if now >= deadline {
                 events.unsettled = Some(target);
+                events.changed.send_replace(());
                 return WriterState::Behind;
             }
             events = wake
@@ -683,6 +691,24 @@ impl Transcript {
         } else {
             WriterState::Settled
         }
+    }
+
+    /// Wake when `writer_state` or a file's retention may have changed, so a
+    /// preview subscription can replace a snapshot the worker did not change.
+    pub(crate) fn subscribe_writer(&self) -> tokio::sync::watch::Receiver<()> {
+        self.1
+            .lock()
+            .expect("protocol capture lock")
+            .changed
+            .subscribe()
+    }
+
+    fn writer_changed(&self) {
+        self.1
+            .lock()
+            .expect("protocol capture lock")
+            .changed
+            .send_replace(());
     }
 
     fn observe<T>(
@@ -758,6 +784,13 @@ impl Transcript {
             events.retained_events -= count;
             events.retained_bytes -= bytes;
             events.applied += count as u64;
+            if events
+                .unsettled
+                .is_some_and(|point| events.applied >= point)
+            {
+                events.unsettled = None;
+                events.changed.send_replace(());
+            }
             match &result {
                 Ok(()) => events.wake.notify_all(),
                 // Publish the stop with the count that covers the discarded

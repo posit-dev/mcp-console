@@ -223,6 +223,7 @@ After `{"id":"ghost","result":{"subscribed":true}}`, frames use this shape:
 ```
 
 Replace the displayed content with each snapshot, including an empty one after collection.
+A new snapshot is also sent when the recording writer changes an omission notice about retained files, even if the worker emits no output.
 Slow readers can miss coalesced changes or output already collected by MCP.
 Subscriptions retain only the latest change and never block output producers.
 Close the connection to unsubscribe; use other connections for requests.

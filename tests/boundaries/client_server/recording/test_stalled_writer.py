@@ -305,7 +305,8 @@ def test_preview_subscription_follows_the_recording_writer(binary: Path) -> Tran
             release.release()
             (Path(scratch) / "zod-release-evaluation").touch()
         transcript = client.finish()
-        completed_calls(root)
+        # The subscription is a recorded call that outlives the held cell.
+        assert recording_events(recording)[-1]["event"] == "recording_ended"
         assert (recording / "capture/sessions/001/cell-003.txt").read_text() == emitted
         return [
             *transcript[:3],

@@ -427,8 +427,12 @@ async fn stream_snapshots(
         recording,
     } = subscription;
     let mut previous = None;
+    // The recording writer changes what a preview says about retained files
+    // without a worker change.
+    let mut recorded = recording.subscribe_writer();
     loop {
         changes.borrow_and_update();
+        recorded.borrow_and_update();
         let mut event = match format {
             SubscriptionFormat::Preview => {
                 let Ok(content) = worker.integrator_preview(recording.writer_state()) else {
@@ -469,6 +473,7 @@ async fn stream_snapshots(
             _ = disconnect.changed() => break,
             _ = received.recv() => break,
             result = changes.changed() => if result.is_err() { break; },
+            result = recorded.changed() => if result.is_err() { break; },
         }
     }
 }
