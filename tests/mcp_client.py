@@ -771,6 +771,42 @@ class MarkerTests(unittest.TestCase):
                     finally:
                         events.cancel()
 
+    def test_marker_wait_watches_a_directory_created_during_subscription(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, Events() as events:
+            marker = Path(directory) / "late" / "ready"
+            subscribe = events.watch_file
+            arrived = Event()
+
+            def create_then_subscribe(path: Path) -> None:
+                # The directory appears after its ancestor was chosen and
+                # before that ancestor can report the creation.
+                marker.parent.mkdir(exist_ok=True)
+                subscribe(path)
+
+            def discover() -> Path | None:
+                found = marker if marker.exists() else None
+                arrived.set()
+                return found
+
+            with (
+                patch.object(events, "watch_file", create_then_subscribe),
+                ThreadPoolExecutor(max_workers=1) as executor,
+            ):
+                pending = executor.submit(
+                    wait_for_checkpoint,
+                    discover,
+                    "late directory",
+                    root=marker.parent,
+                    events=events,
+                    timeout=2,
+                )
+                try:
+                    self.assertTrue(arrived.wait(1))
+                    marker.touch()
+                    self.assertEqual(pending.result(timeout=1), marker)
+                finally:
+                    events.cancel()
+
     def test_exact_generation_path_and_missing_marker_deadline(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

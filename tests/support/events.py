@@ -82,18 +82,24 @@ class Events:
 
     def watch_tree(self, root: Path, *, recursive: bool) -> None:
         """Subscribe before discovery, including newly created directories."""
-        ancestor = root
-        while not ancestor.exists():
-            ancestor = ancestor.parent
-        self.watch_file(ancestor)
-        if recursive and root.exists():
-            for directory in root.rglob("*"):
-                if directory.is_dir():
-                    try:
-                        self.watch_file(directory)
-                    except FileNotFoundError:
-                        # A worker may retire a temporary directory during discovery.
-                        continue
+        # A path created while its parent was being subscribed reported no
+        # change, so repeat discovery until a pass finds nothing new to watch.
+        while True:
+            watched = len(self.files)
+            ancestor = root
+            while not ancestor.exists():
+                ancestor = ancestor.parent
+            self.watch_file(ancestor)
+            if recursive and root.exists():
+                for directory in root.rglob("*"):
+                    if directory.is_dir():
+                        try:
+                            self.watch_file(directory)
+                        except FileNotFoundError:
+                            # A worker may retire a temporary directory during discovery.
+                            continue
+            if len(self.files) == watched:
+                return
 
     def watch_process(self, pid: int) -> None:
         assert self.native
