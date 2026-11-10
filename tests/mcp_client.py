@@ -103,6 +103,7 @@ def test_waits_with_client(binary: Path) -> list[dict[str, str]]:
         Path(sys.executable),
         ("-u", str(root / "server.py"), "refuse-close", str(root)),
         current_directory=root,
+        recording_receipts=False,
     )
     (root / "server-pid").write_text(str(client.process.pid))
     try:
@@ -135,6 +136,7 @@ def test_waits_with_client(binary: Path) -> list[dict[str, str]]:
         current_directory=root,
         response_timeout=60,
         shutdown_timeout=0.1,
+        recording_receipts=False,
     )
     try:
         with client:
@@ -166,6 +168,7 @@ def test_waits_with_client(binary: Path) -> list[dict[str, str]]:
         ("-u", str(root / "server.py"), "refuse-close", str(root)),
         current_directory=root,
         shutdown_timeout=0.1,
+        recording_receipts=False,
     )
     try:
         with client:
@@ -282,6 +285,8 @@ class McpClientTests(unittest.TestCase):
                 Path(sys.executable),
                 ("-u", "-c", FAKE_SERVER, mode, str(root)),
                 current_directory=root,
+                # The fake server writes no recording.
+                recording_receipts=False,
                 **timeouts,
             )
             try:
@@ -499,13 +504,49 @@ class PortableMcpClientTests(unittest.TestCase):
             )
             assert sys.stdin.read() == ""
             """)
-        with McpClient(Path(sys.executable), ("-u", "-c", source)) as client:
+        with McpClient(
+            Path(sys.executable), ("-u", "-c", source), recording_receipts=False
+        ) as client:
             result = client.send(python="6 * 7")
             self.assertEqual(result["content"][0]["text"], "42")
             transcript, diagnostics = client.finish_with_standard_error()
             self.assertEqual(diagnostics, ("diagnostic" + os.linesep) * 10000)
             self.assertEqual(transcript[0]["send"], {"python": "6 * 7"})
             self.assertEqual(client.process.returncode, 0)
+
+    def test_reply_does_not_wait_for_a_disabled_recording(self) -> None:
+        # fmt: python
+        source = code("""
+            import json
+            import sys
+
+            request = json.loads(sys.stdin.readline())
+            print(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request["id"],
+                        "result": {"content": [{"type": "text", "text": "42"}], "isError": False},
+                    }
+                ),
+                flush=True,
+            )
+            sys.stderr.write("mcp-console: transcript recording disabled: no space\\n")
+            sys.stderr.flush()
+            assert sys.stdin.read() == ""
+            """)
+        with McpClient(
+            Path(sys.executable), ("-u", "-c", source), response_timeout=5
+        ) as client:
+            # No journal ever records this delivery; the report ends the wait.
+            result = client.send(python="6 * 7")
+            self.assertEqual(result["content"][0]["text"], "42")
+            self.assertFalse(client.recording_receipts)
+            _, diagnostics = client.finish_with_standard_error()
+            self.assertEqual(
+                diagnostics,
+                "mcp-console: transcript recording disabled: no space" + os.linesep,
+            )
 
     def test_partial_pipe_response_has_a_bounded_diagnostic_timeout(self) -> None:
         # fmt: python

@@ -135,7 +135,11 @@ def test_previews_images_without_consuming_or_reaccounting(
                     public_image = base64.b64decode(content[0]["data"], validate=True)
                     public_encoded = content[0]["data"]
                     release.release()
+                    # The held write returns only on release, so the recording
+                    # cannot yet hold this reply's delivery.
+                    client.recording_receipts = False
                     client.receive(pending)
+                    client.recording_receipts = True
                     ack_reached.wait(
                         "complete MCP response written before acknowledgment"
                     )

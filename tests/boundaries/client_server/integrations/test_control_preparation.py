@@ -78,10 +78,14 @@ def test_preparation_waits_for_mcp_delivery_acknowledgment(
             )
             client.initialize_and_list_tools()
             try:
+                # The held write returns only on release, so the recording
+                # cannot yet hold this reply's delivery.
+                client.recording_receipts = False
                 client.expect(
                     "delivered before acknowledgment\n",
                     python="print('delivered before acknowledgment')",
                 )
+                client.recording_receipts = True
                 reached.wait(
                     "completed MCP response awaits acknowledgment", client=client
                 )
