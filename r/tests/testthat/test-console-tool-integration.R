@@ -223,13 +223,73 @@ test_that("console_tools expose configured descriptions and omit hidden paramete
       arguments$requirements@json$properties$r$description,
       "R packages."
     )
-    expect_identical(send(r = "6 * 7")@text, "[1] 42\n")
+    expect_identical(send(r = "6 * 7")@value@text, "[1] 42\n")
     expect_identical(
-      send(r = "answer <- 42L", session = "analysis")@text,
+      send(r = "answer <- 42L", session = "analysis")@value@text,
       "[done]"
     )
-    expect_identical(send(r = "answer", session = "analysis")@text, "[1] 42\n")
-    expect_identical(send(r = 'exists("answer")')@text, "[1] FALSE\n")
+    expect_identical(
+      send(r = "answer", session = "analysis")@value@text,
+      "[1] 42\n"
+    )
+    expect_identical(send(r = 'exists("answer")')@value@text, "[1] FALSE\n")
+    rm(send)
+    invisible(gc())
+  })
+})
+
+test_that("console_tools forward result _meta into extra verbatim", {
+  with_temp_working_directory({
+    send <- console_tools(
+      path = real_mcp_console(),
+      config = ConsoleConfig(
+        r = list(resolution = "disabled"),
+        languages = c("r", "python"),
+        sandbox = FALSE
+      )
+    )$send
+
+    # Every result carries the server's standard identity, forwarded
+    # verbatim by the adapter.
+    noted <- send(r = "6 * 7", note = "Check the <answer> first.\nSecond line.")
+    info <- noted@extra[["io.modelcontextprotocol/serverInfo"]]
+    expect_equal(info$name, "mcp-console")
+    expect_true(nzchar(info$version))
+
+    code_only <- send(python = "1 + 1")@extra[[
+      "io.modelcontextprotocol/serverInfo"
+    ]]
+    expect_equal(code_only$name, "mcp-console")
+
+    note_only <- send(note = "Just a thought")@extra[[
+      "io.modelcontextprotocol/serverInfo"
+    ]]
+    expect_equal(note_only$name, "mcp-console")
+
+    # Session polls carry the identity too.
+    expect_equal(
+      send()@extra[["io.modelcontextprotocol/serverInfo"]]$name,
+      "mcp-console"
+    )
+
+    # Requirements responses keep their plain-text shape and errored
+    # results keep their unwrapped shape.
+    requirements <- send(requirements = list(action = "get", r = "praise"))
+    expect_true(S7::S7_inherits(requirements, ellmer::ContentText))
+    errored <- send(r = "1", python = "1")
+    expect_false(S7::S7_inherits(errored, ellmer::ContentToolResult))
+    expect_match(
+      paste(
+        vapply(
+          if (is.list(errored)) errored else list(errored),
+          \(x) if (S7::S7_inherits(x, ellmer::ContentText)) x@text else "",
+          character(1)
+        ),
+        collapse = ""
+      ),
+      "only one of",
+      fixed = TRUE
+    )
     rm(send)
     invisible(gc())
   })
@@ -447,7 +507,7 @@ test_that("ellmer receives native images with their original bytes and order", {
     )
 
     # A language error is console output and must retain the preceding plot.
-    failed <- tools$send(r = paste0(source, '\nstop("after plot")'))
+    failed <- tools$send(r = paste0(source, '\nstop("after plot")'))@value
     expect_length(failed, 3L)
     expect_identical(failed[[1L]], contents[[1L]])
     expect_identical(failed[[2L]], contents[[2L]])
@@ -485,14 +545,17 @@ test_that("requirements actions preserve scalar fields and empty lists", {
         exclude_newer = "2026-01-01"
       )
     )
-    expect_identical(prepared@text, "[prepared]")
+    expect_identical(result_text(prepared), "[prepared]")
     selected <- inspect_requirements(send)
     expect_length(selected$requirements$python, 0L)
     expect_identical(selected$requirements$python_version, ">=3.11")
     expect_identical(selected$requirements$exclude_newer, "2026-01-01")
     declaration <- selected$requirements
     declaration$action <- "set"
-    expect_identical(send(requirements = declaration)@text, "[prepared]")
+    expect_identical(
+      result_text(send(requirements = declaration)),
+      "[prepared]"
+    )
     expect_identical(
       inspect_requirements(send),
       selected
@@ -676,9 +739,12 @@ test_that("resolved configurations can be inspected, edited, and launched", {
     expect_identical(tool@description, "Run an evaluation cell.")
     expect_false("timeout_ms" %in% names(tool@arguments@properties))
     expect_identical(tool@arguments@properties$r@json$description, "")
-    expect_match(tool(r = "cat(6 * 7)")@text, "42", fixed = TRUE)
+    expect_match(result_text(tool(r = "cat(6 * 7)")), "42", fixed = TRUE)
     tool(control = "restart")
-    expect_identical(tool(r = "cat(basename(getwd()))")@text, basename(project))
+    expect_identical(
+      result_text(tool(r = "cat(basename(getwd()))")),
+      basename(project)
+    )
     rm(tool)
     invisible(gc())
   })
@@ -714,7 +780,7 @@ test_that("loaded R resets survive edits and launch without the calling-R prefer
       normalizePath(sandbox_test_r(), mustWork = TRUE)
     )
     send <- launch(config)
-    expect_identical(send(r = "cat(42)")@text, "42")
+    expect_identical(result_text(send(r = "cat(42)")), "42")
     rm(send)
     invisible(gc())
 
@@ -732,7 +798,7 @@ test_that("loaded R resets survive edits and launch without the calling-R prefer
       send <- launch(config)
       expect_identical(send@description, "Edited after loading")
       expect_match(
-        send(r = "cat(42)")@text,
+        result_text(send(r = "cat(42)")),
         "missing-r-reset-home",
         fixed = TRUE
       )
@@ -750,7 +816,7 @@ test_that("loaded R resets survive edits and launch without the calling-R prefer
       expect_null(config@r@executable)
       config@r@executable <- sandbox_test_r()
       send <- launch(config)
-      expect_identical(send(r = "cat(42)")@text, "42")
+      expect_identical(result_text(send(r = "cat(42)")), "42")
       rm(send)
       invisible(gc())
     }
@@ -808,7 +874,11 @@ test_that("materialization preserves typed policies and startup source", {
         path = binary
       )
       tool <- console_tools(config = config, path = binary)$send
-      expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
+      expect_match(
+        result_text(tool(sql = "SELECT 42 AS answer")),
+        "42",
+        fixed = TRUE
+      )
       rm(tool)
       invisible(gc())
 
@@ -920,9 +990,15 @@ test_that("large constructed and materialized settings use bounded launch argume
     for (config in list(source, resolved)) {
       tool <- console_tools(config = config, path = binary)$send
       expect_identical(tool@description, description)
-      expect_match(tool(sql = "SELECT 42 AS answer")@text, "42", fixed = TRUE)
+      expect_match(
+        result_text(tool(sql = "SELECT 42 AS answer")),
+        "42",
+        fixed = TRUE
+      )
       expect_identical(
-        tool(python = "import os; print(os.environ['LARGE_CONFIG'])")@text,
+        result_text(tool(
+          python = "import os; print(os.environ['LARGE_CONFIG'])"
+        )),
         "explicit\n"
       )
       rm(tool)
