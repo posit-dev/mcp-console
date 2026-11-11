@@ -15,6 +15,7 @@ from boundaries.client_server.integrations.test_control import (
     result_text,
 )
 from boundaries.client_server.recording.test_process import recording_events
+from support.allocations import AllocationProfile
 from support.checkpoints import FifoCheckpoint, wait_for_path
 from support.client import McpClient
 from support.execution import DIRECT
@@ -609,6 +610,59 @@ def test_stopped_recording_leaves_file_closes_to_the_writer(binary: Path) -> Tra
         return [
             *transcript[:5],
             {"requests after recording stops": "answered while a file close is held"},
+        ]
+
+
+@requires(NATIVE_FIXTURES, POSIX)
+def test_stalled_writer_does_not_grow_queued_output_buffers(binary: Path) -> Transcript:
+    emitted = "preview head\n" + "ab" * 100000 + "\npreview tail: final diagnostic\n"
+    with (
+        tempfile.TemporaryDirectory() as scratch,
+        closing(AllocationProfile(Path(scratch))) as profile,
+        stalled_writer(
+            binary,
+            {
+                **profile.environment,
+                # Both interposers wrap `write`; each passes the call on.
+                LOADER_VARIABLE: os.pathsep.join(
+                    [
+                        profile.environment[LOADER_VARIABLE],
+                        str(build_interposer(Path(scratch), "recording_observation")),
+                    ]
+                ),
+                "MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-002.txt",
+            },
+        ) as (client, root, observed, release),
+    ):
+        client.expect("zod: ready\n", r="echo ready")
+        profile.start()
+        flood = client.start_send(r="preview same producer")
+        try:
+            observed.wait("cell output file write is stalled", client=client)
+            # Every later two-byte write of this cell queues behind the held
+            # one. The queue joins them into ranges; no range, and nothing
+            # else, may need a buffer above the bound that tiny events keep
+            # while the writer keeps up.
+            client.receive(flood)
+            assert client.request("ping")["result"] == {}
+            _, largest = profile.stop()
+        finally:
+            release.release()
+        assert largest <= 128 * 1024, largest
+        text = response_text(flood)
+        assert_preview(text, emitted)
+        (marker,) = OMISSION.finditer(text)
+        assert marker[0].endswith(f"; {BEHIND}]\n"), marker[0]
+        transcript = client.finish()
+        completed_calls(root, 2)
+        (recording,) = (root / ".agents/console/sessions").iterdir()
+        assert (recording / "capture/sessions/001/cell-002.txt").read_text() == emitted
+        return [
+            *transcript[:3],
+            {
+                "output queued behind the stalled writer": "bounded buffers",
+                "raw log after release": "complete",
+            },
         ]
 
 
