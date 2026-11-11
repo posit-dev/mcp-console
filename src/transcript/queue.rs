@@ -225,7 +225,13 @@ impl QueuedEvent {
         let publishes = matches!(self, Self::ToolCall { .. });
         if publishes {
             let working_directory = state.working_directory.clone()?;
-            state.capture()?.publish(&working_directory)?;
+            let capture = state.capture()?;
+            let published = capture.published;
+            capture.publish(&working_directory)?;
+            if !published {
+                // Receipts issued before publication can now name their files.
+                recorder.writer_changed();
+            }
         }
         let active = state.capture()?;
         let event = match &self {

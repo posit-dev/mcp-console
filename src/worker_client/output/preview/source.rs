@@ -261,13 +261,13 @@ impl Summary {
         }
         let omitted = details.join(", ");
         details.clear();
-        // A stalled writer may not have published the recording, so its
-        // receipts have no path to give yet. Their output is queued, not lost.
-        let behind = writer == crate::transcript::WriterState::Behind;
-        let pending_text = behind
+        // Until the writer publishes the recording, its receipts have no path
+        // to give. Their output is queued, not lost, unless recording stopped.
+        let recording = writer != crate::transcript::WriterState::Stopped;
+        let pending_text = recording
             && (self.logs.unpublished()
                 || self.journal.as_deref().is_some_and(Location::unpublished));
-        let pending_images = behind && artifacts.unpublished();
+        let pending_images = recording && artifacts.unpublished();
         let shared = self.logs.shared_recording(artifacts);
         let shared_location = shared.is_some();
         // Whether this marker names a retained file.
@@ -343,8 +343,15 @@ impl Summary {
             crate::transcript::WriterState::Stopped => Some("recording stopped"),
         };
         if pending_text || pending_images {
-            details
-                .push("recording writer stalled; retained files are not yet published".to_owned());
+            // Only a reply's bounded wait finds the writer stalled.
+            details.push(
+                if writer == crate::transcript::WriterState::Behind {
+                    "recording writer stalled; retained files are not yet published"
+                } else {
+                    "retained files are not yet published"
+                }
+                .to_owned(),
+            );
         } else if let Some(qualifier) = qualifier
             && cited
         {
