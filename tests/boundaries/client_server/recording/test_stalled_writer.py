@@ -318,6 +318,67 @@ def test_preview_subscription_follows_the_recording_writer(binary: Path) -> Tran
 
 
 @requires(NATIVE_FIXTURES, POSIX)
+def test_unretained_omission_does_not_wait_for_the_recording_writer(
+    binary: Path,
+) -> Transcript:
+    # A Unix socket path must be short. Zod publishes its markers in TMPDIR.
+    with (
+        tempfile.TemporaryDirectory(dir="/tmp", prefix="console-stalled-") as scratch,
+        stalled_writer(
+            binary,
+            {"MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-002.txt", "TMPDIR": scratch},
+            "--control-socket",
+            str(Path(scratch) / "control.sock"),
+        ) as (client, root, observed, release),
+    ):
+        client.expect("zod: ready\n", r="echo ready")
+        stalled = client.start_send(r="echo stalled")
+        try:
+            observed.wait("cell output file write is stalled", client=client)
+            client.receive(stalled)
+            (recording,) = (root / ".agents/console/sessions").iterdir()
+            # The next cell's output file cannot be created, so its omitted
+            # text is retained nowhere and its marker names no file.
+            (recording / "capture/sessions/001/cell-003.txt").mkdir()
+            client.send(r="preview tiny events")
+            (marker,) = OMISSION.finditer(response_text(client.transcript[-1]))
+            assert marker[0].endswith("; no retained log; omitted text unavailable]\n")
+            emitted = "x" * (2 * TEXT_BUDGET) + "\n"
+            held = client.start_send(r=f"hold after output: {emitted}")
+            wait_for_path(
+                Path(scratch) / "zod-output-held",
+                "pending oversized output",
+                client=client,
+            )
+            # A preview reports a stall only after a reply's wait for the
+            # writer has found one. The reply above had no file to wait for,
+            # so this preview names its raw log without that warning.
+            log = (
+                f".agents/console/sessions/{recording.name}"
+                "/capture/sessions/001/cell-004.txt"
+            )
+            with ControlClient(Path(scratch) / "control.sock") as control:
+                preview = control.request(op="preview")
+            (marker,) = OMISSION.finditer(result_text(preview))
+            assert marker[0].endswith(f"; raw log: {log}]\n"), marker[0]
+            release.release()
+            (Path(scratch) / "zod-release-evaluation").touch()
+            client.receive(held)
+        finally:
+            release.release()
+            (Path(scratch) / "zod-release-evaluation").touch()
+        transcript = client.finish()
+        completed_calls(root, 4)
+        return [
+            *transcript[:3],
+            {
+                "reply with unretained omitted text": "did not wait for the stalled writer",
+                "later preview": "raw log path without a stalled-writer warning",
+            },
+        ]
+
+
+@requires(NATIVE_FIXTURES, POSIX)
 def test_request_burst_waits_for_a_slow_recording_writer(binary: Path) -> Transcript:
     # A Unix socket path must be short.
     with (
