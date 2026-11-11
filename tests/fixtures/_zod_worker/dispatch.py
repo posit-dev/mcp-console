@@ -12,6 +12,7 @@ EXACT_HANDLERS: dict[str, Callable[[WorkerContext, str], LoopAction | None]] = {
     "overflow console output": output.overflow_console_output,
     "preview image limit": output.preview_image_limit,
     "overflow image retention": output.overflow_image_retention,
+    "emit largest retained image": output.emit_largest_retained_image,
     "preview allocation image": output.preview_allocation_image,
     "preview allocation image then fail": output.preview_allocation_image,
     "preview allocation image and text": output.preview_allocation_image,
