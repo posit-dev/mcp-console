@@ -99,10 +99,13 @@ def test_closes_input_at_the_bound_on_outstanding_sends(binary: Path) -> Transcr
                     "mcp-console: 64 send calls are outstanding; closing MCP input\n"
                 )
                 client.stdin.close()
+                # A closed transport carries no further reply. Discovery stays
+                # gated until the server exits: its failure would otherwise
+                # race shutdown, which retires it, and decide the exit status.
+                transcript, standard_error = client.finish_with_standard_error()
+                assert standard_error == "", standard_error
             finally:
                 discovery.release()
-            # A closed transport carries no further reply.
-            transcript, _ = client.finish_with_standard_error()
         return [
             *transcript[:4],
             {"sends outstanding when input closed": len(outstanding)},
