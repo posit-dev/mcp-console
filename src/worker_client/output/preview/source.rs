@@ -106,6 +106,12 @@ impl Location {
         }
     }
 
+    /// Whether this names a retained file in a recording whose directory the
+    /// recording writer has not chosen yet.
+    fn unpublished(&self) -> bool {
+        self.path.is_some() && self.resolved_path().is_none()
+    }
+
     pub(super) fn describe(&self, singular: &str, plural: &str) -> Option<String> {
         self.resolved_path().map(|path| {
             format!(
@@ -255,6 +261,13 @@ impl Summary {
         }
         let omitted = details.join(", ");
         details.clear();
+        // A stalled writer may not have published the recording, so its
+        // receipts have no path to give yet. Their output is queued, not lost.
+        let behind = writer == crate::transcript::WriterState::Behind;
+        let pending_text = behind
+            && (self.logs.unpublished()
+                || self.journal.as_deref().is_some_and(Location::unpublished));
+        let pending_images = behind && artifacts.unpublished();
         let shared = self.logs.shared_recording(artifacts);
         let shared_location = shared.is_some();
         // Whether this marker names a retained file.
@@ -271,7 +284,7 @@ impl Summary {
                 if let Some(logs) = self.logs.describe("raw log", "retained logs") {
                     details.push(logs);
                     cited = true;
-                } else if journal.is_none() {
+                } else if journal.is_none() && !pending_text {
                     details.push("no retained log; omitted text unavailable".to_owned());
                 }
             }
@@ -306,7 +319,7 @@ impl Summary {
             cited = true;
         }
         let unretained_images = images
-            - if artifacts.resolved_path().is_some() {
+            - if artifacts.resolved_path().is_some() || pending_images {
                 recorded_images
             } else {
                 0
@@ -329,7 +342,10 @@ impl Summary {
             crate::transcript::WriterState::Behind => Some("recording writer stalled"),
             crate::transcript::WriterState::Stopped => Some("recording stopped"),
         };
-        if let Some(qualifier) = qualifier
+        if pending_text || pending_images {
+            details
+                .push("recording writer stalled; retained files are not yet published".to_owned());
+        } else if let Some(qualifier) = qualifier
             && cited
         {
             details.push(format!(

@@ -143,6 +143,7 @@ A notice identifies files or artifacts that are unavailable or only partially re
 A background writer performs all recording I/O, so recording files can trail the replies that describe them.
 Replies do not wait for the writer, except when an omission notice names retained files: the reply waits up to 5 seconds for the writer to reach them.
 If the writer is still behind, the notice gives the same path and adds `recording writer stalled; retained files may be missing or incomplete`.
+If the writer is still behind on the recording's first write, there is no directory yet, so the notice gives no path and adds `recording writer stalled; retained files are not yet published` instead; later notices give the path once the writer resumes.
 The files are completed if the writer resumes.
 While the backlog remains, later replies with such notices carry the same warning without waiting again.
 If recording has stopped, the notice gives the same path and adds `recording stopped; retained files may be missing or incomplete` because output still queued for the writer when it stopped was discarded.
