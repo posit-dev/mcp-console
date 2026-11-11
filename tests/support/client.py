@@ -344,6 +344,8 @@ class McpClient:
             )
         ]
         # A case clears this before it stalls, stops, or hides the recording.
+        # Receipts find the recording by this process's PID, so a case that
+        # starts the server through a launcher also clears it.
         self.recording_receipts = recording_receipts
         self._recording_failed = False
         self._recording_published = False
