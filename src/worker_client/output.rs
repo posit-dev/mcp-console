@@ -52,9 +52,6 @@ pub(crate) struct Response {
     /// omission marker is the one that wait examined.
     settled_phase: Option<Option<&'static str>>,
     execution_error: Option<Box<crate::worker_protocol::ExecutionError>>,
-    /// An aggregate reply's sessions, each holding the copy that returns its
-    /// output to the session if this reply is not delivered.
-    sessions: Vec<ResponseDelivery>,
 }
 
 pub(super) enum ResponseAcknowledgment {
@@ -177,7 +174,13 @@ impl Response {
 
     /// Combine session previews under the ordinary complete-result bounds while
     /// keeping each session's original response available for delivery recovery.
-    pub(crate) fn append_session(&mut self, name: &str, status: &str, mut response: Self) {
+    /// The caller holds the returned copy until `settle_recording` has seen it.
+    pub(crate) fn append_session(
+        &mut self,
+        name: &str,
+        status: &str,
+        mut response: Self,
+    ) -> Option<ResponseDelivery> {
         let phase = response.observed_phase();
         let delivery = response.delivery.take().map(|target| ResponseDelivery {
             target: Some(target),
@@ -189,7 +192,6 @@ impl Response {
                 settled_phase: None,
                 delivery: None,
                 execution_error: response.execution_error.clone(),
-                sessions: Vec::new(),
             }),
         });
         self.push_notice_line(format!(
@@ -203,12 +205,7 @@ impl Response {
                 .phase_before_terminal(phase, response.phase_joins_cell_clock());
         }
         self.extend(response);
-        self.sessions.extend(delivery);
-    }
-
-    /// Hand an aggregate reply's sessions to the caller that settles delivery.
-    pub(crate) fn take_sessions(&mut self) -> Vec<ResponseDelivery> {
-        std::mem::take(&mut self.sessions)
+        delivery
     }
 
     /// The same observation used by the text response, without parsing notices.
@@ -257,7 +254,6 @@ impl Response {
             phase: None,
             settled_phase: None,
             execution_error: self.execution_error.clone(),
-            sessions: Vec::new(),
         }
     }
 
@@ -281,8 +277,14 @@ impl Response {
 
     /// Give the recording writer a bounded chance to catch up before a reply
     /// names retained files. Other replies never wait for it; see
-    /// `Transcript::settle`.
-    pub(crate) async fn settle_recording(&mut self, transcript: &crate::transcript::Transcript) {
+    /// `Transcript::settle`. `sessions` are an aggregate reply's sessions, each
+    /// holding the copy that returns its output to the session if this reply
+    /// is not delivered.
+    pub(crate) async fn settle_recording(
+        &mut self,
+        transcript: &crate::transcript::Transcript,
+        sessions: &mut [ResponseDelivery],
+    ) {
         let phase = self.observed_phase();
         self.settled_phase = Some(phase);
         // A phase notice can itself push the reply past its text budget.
@@ -296,8 +298,7 @@ impl Response {
             .expect("recording settle task");
         // A cancelled aggregate reply returns each session's copy, which must
         // still report the file failures this wait collected.
-        let recoverable = self
-            .sessions
+        let recoverable = sessions
             .iter_mut()
             .filter_map(|session| session.unclaimed.as_mut())
             .map(|response| &mut *response.preview);
@@ -339,7 +340,6 @@ impl Response {
                 phase: self.phase.take(),
                 settled_phase: None,
                 execution_error: self.execution_error.take(),
-                sessions: Vec::new(),
             }),
         });
         (content, is_error, delivery, recorded_parts)
@@ -689,7 +689,6 @@ impl Drop for Response {
             phase: self.phase.take(),
             settled_phase: None,
             execution_error: self.execution_error.take(),
-            sessions: Vec::new(),
         };
         target.unclaimed(response);
     }

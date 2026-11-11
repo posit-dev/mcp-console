@@ -851,7 +851,7 @@ async fn evaluation_result(
     call: &crate::transcript::Call,
     transcript: &crate::transcript::Transcript,
 ) -> CallToolResult {
-    response.settle_recording(transcript).await;
+    response.settle_recording(transcript, &mut []).await;
     let (content, is_error, delivery, parts) = response.into_parts();
     call.record_result_parts(parts);
     record_images(&content, call, transcript);

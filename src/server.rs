@@ -445,14 +445,28 @@ impl ConsoleServer {
 }
 
 async fn response_to_tool_result(
-    mut response: crate::worker_client::Response,
+    response: crate::worker_client::Response,
     call: &crate::transcript::Call,
     transcript: &crate::transcript::Transcript,
     deliveries: &crate::server_transport::ResponseDeliveries,
     delivery: &crate::server_transport::ResponseDeliveryCall,
 ) -> CallToolResult {
-    response.settle_recording(transcript).await;
-    for session in response.take_sessions() {
+    aggregate_to_tool_result(response, Vec::new(), call, transcript, deliveries, delivery).await
+}
+
+/// `sessions` are an aggregate reply's sessions. They stay here, unregistered,
+/// through the wait for the recording writer: a call cancelled during that
+/// wait drops them, which returns each session's copy to its session.
+async fn aggregate_to_tool_result(
+    mut response: crate::worker_client::Response,
+    mut sessions: Vec<crate::worker_client::ResponseDelivery>,
+    call: &crate::transcript::Call,
+    transcript: &crate::transcript::Transcript,
+    deliveries: &crate::server_transport::ResponseDeliveries,
+    delivery: &crate::server_transport::ResponseDeliveryCall,
+) -> CallToolResult {
+    response.settle_recording(transcript, &mut sessions).await;
+    for session in sessions {
         deliveries.register(delivery, session);
     }
     let (blocks, is_error, response_delivery, parts) = response.into_parts();
@@ -499,10 +513,11 @@ async fn responses_to_tool_result(
     // Poll output belongs in content. Status-only structured content can hide
     // text, language errors, and images in hosts that prefer structured results.
     let mut combined = crate::worker_client::Response::default();
+    let mut sessions = Vec::new();
     for (name, status, response) in responses {
-        combined.append_session(&name, status, response);
+        sessions.extend(combined.append_session(&name, status, response));
     }
-    response_to_tool_result(combined, call, transcript, deliveries, delivery).await
+    aggregate_to_tool_result(combined, sessions, call, transcript, deliveries, delivery).await
 }
 
 #[tool_handler(router = self.tool_router)]
