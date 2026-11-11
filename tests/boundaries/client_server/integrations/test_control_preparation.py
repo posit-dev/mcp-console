@@ -143,17 +143,22 @@ def test_preparation_rejects_incomplete_interpreter_startup(
         with (
             closing(FifoCheckpoint.create(root / "entered")) as entered,
             closing(FifoCheckpoint.create(root / "release")) as release,
+            closing(FifoCheckpoint.create(root / "resume")) as resume,
         ):
             # fmt: r
             source = code(f"""
                 local({{
-                  cat("native startup output\\n")
+                  wait <- function(path) {{
+                    gate <- fifo(path, "rb", blocking = TRUE)
+                    stopifnot(identical(readBin(gate, "raw", n = 1L), charToRaw("1")))
+                    close(gate)
+                  }}
                   gate <- fifo({json.dumps(str(entered.path))}, "wb", blocking = TRUE)
                   writeBin(charToRaw("1"), gate)
                   close(gate)
-                  gate <- fifo({json.dumps(str(release.path))}, "rb", blocking = TRUE)
-                  stopifnot(identical(readBin(gate, "raw", n = 1L), charToRaw("1")))
-                  close(gate)
+                  wait({json.dumps(str(release.path))})
+                  cat("native startup output\\n")
+                  wait({json.dumps(str(resume.path))})
                 }})
                 """)
             profile.write_text(source)
@@ -168,6 +173,9 @@ def test_preparation_rejects_incomplete_interpreter_startup(
                 try:
                     entered.wait(timeout=client.response_timeout, client=client)
                     with ControlClient(endpoint) as control:
+                        # R has printed nothing yet. Inspection reports `busy`
+                        # while the server routes worker output, so startup
+                        # output waits until these observations are complete.
                         # Create observes configuration readiness without waiting
                         # for the interpreter, excluding the earlier startup gate.
                         configured = control.request(op="create", session="default")[
@@ -187,11 +195,11 @@ def test_preparation_rejects_incomplete_interpreter_startup(
                         )["result"]
                         assert busy["status"] == "busy", busy
                         assert {key: busy[key] for key in baseline} == baseline, busy
-                        # The checkpoint proves R wrote the startup output, not
-                        # that the server received it. Only received output
-                        # becomes the cell's idle prelude.
-                        wait_for_pending_text(endpoint, "native startup output\n")
                         release.release()
+                        # Only output the server has received becomes the
+                        # cell's idle prelude.
+                        wait_for_pending_text(endpoint, "native startup output\n")
+                        resume.release()
                         client.expect(
                             "native startup output\n[output produced while idle]\nready\n",
                             r='cat("ready\\n")',
@@ -219,6 +227,7 @@ def test_preparation_rejects_incomplete_interpreter_startup(
                     )
                 finally:
                     release.release()
+                    resume.release()
 
 
 @requires(POSIX, R)
