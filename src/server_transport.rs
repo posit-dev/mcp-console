@@ -19,6 +19,9 @@ use crate::worker_client::ResponseDelivery;
 // transport at this bound keeps rmcp's detached handler backlog finite.
 const MAX_RESPONSE_GATED_CALLS: usize = 64;
 
+/// The bound on `send` calls whose handlers have not finished.
+const MAX_OUTSTANDING_SENDS: usize = 64;
+
 #[derive(Clone, Default)]
 pub(crate) struct ResponseDeliveries {
     state: Arc<Mutex<ResponseDeliveryState>>,
@@ -1078,6 +1081,27 @@ where
             && let ClientRequest::CallToolRequest(call) = &request.request
             && call.params.name.as_ref() == "send"
         {
+            // A send can stay outstanding without a deadline, and its handler
+            // retains its request. Closing the transport at this bound keeps
+            // those handlers finite whatever the recording writer's pace.
+            queue.pending.retain_mut(|completion| {
+                matches!(
+                    completion.try_recv(),
+                    Err(tokio::sync::oneshot::error::TryRecvError::Empty)
+                )
+            });
+            if queue.pending.len() >= MAX_OUTSTANDING_SENDS {
+                // The refused call gets no handler. Keep its received frame.
+                match serde_json::to_value(&message) {
+                    Ok(message) => recording.protocol("received", message),
+                    Err(error) => recording.disable(format!("protocol capture failed: {error}")),
+                }
+                eprintln!(
+                    "mcp-console: {MAX_OUTSTANDING_SENDS} send calls are outstanding; closing MCP input"
+                );
+                self.deliveries.close();
+                return None;
+            }
             let session = call
                 .params
                 .arguments
@@ -1113,12 +1137,6 @@ where
                 .cloned()
                 .unwrap_or_default();
             let recorded = recorder.begin(receipt, &request.id, &meta, &call.params);
-            queue.pending.retain_mut(|completion| {
-                matches!(
-                    completion.try_recv(),
-                    Err(tokio::sync::oneshot::error::TryRecvError::Empty)
-                )
-            });
             let (completion, finished) = tokio::sync::oneshot::channel();
             queue.pending.push(finished);
             call.extensions.insert(RecordingCall {

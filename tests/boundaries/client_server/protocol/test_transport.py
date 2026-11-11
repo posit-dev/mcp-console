@@ -101,7 +101,7 @@ def test_closes_input_at_the_bound_on_outstanding_sends(binary: Path) -> Transcr
                 client.stdin.close()
             finally:
                 discovery.release()
-            client.receive_many(outstanding)
+            # A closed transport carries no further reply.
             transcript, _ = client.finish_with_standard_error()
         return [
             *transcript[:4],
