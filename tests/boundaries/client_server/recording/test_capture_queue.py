@@ -181,9 +181,10 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                         assert profile.live - baseline < 24 * 1024 * 1024, (
                             profile.live - baseline
                         )
-                    client.await_recording_disabled()
                 finally:
                     release.release()
+                # The writer reports the failure once its held write returns.
+                client.await_recording_disabled()
                 client.expect("zod: after overflow\n", r="echo after overflow")
                 _, diagnostics = client.finish_with_standard_error()
                 assert diagnostics == (

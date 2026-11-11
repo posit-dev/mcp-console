@@ -163,6 +163,7 @@ When the backlog exceeds 16 MiB or 512 operations, output text and images wait f
 Console also waits before reading the next MCP message or integrator request when 64 operations, or 16 MiB of operations, without output text or images are queued, slowing a burst of requests to the writer's pace.
 Queued output text and images do not count toward that bound, so a worker flooding output does not delay the request that interrupts it.
 If the writer completes no operation for 5 seconds while output, images, or the next request wait for it, or if its backlog reaches 1,024 operations or 64 MiB excluding queued output text and images, Console disables recording, reports the failure on stderr, and continues to receive MCP traffic.
+The writer prints the report after its current filesystem call returns.
 Shutdown still waits for the writer without a limit ([RT-6](TODO.md)).
 
 The recording journal and generated file formats are not independently versioned APIs.

@@ -345,6 +345,7 @@ class McpClient:
         ]
         # A case clears this before it stalls, stops, or hides the recording.
         self.recording_receipts = recording_receipts
+        self._recording_failed = False
         self._recording_published = False
         self._journal_offset = 0
         self._recorded_deliveries: set[int | str] = set()
@@ -446,8 +447,10 @@ class McpClient:
         while not self.stderr.eof and select.select([self.stderr], [], [], 0)[0]:
             self.stderr.fill()
         if b"transcript recording disabled:" in self.stderr.buffer:
+            # A case can opt out of receipts; only this line is the report.
+            self._recording_failed = True
             self.recording_receipts = False
-        return not self.recording_receipts
+        return self._recording_failed
 
     def _watch_journal(self, events: Any) -> Path | None:
         for root in self._recording_roots:
