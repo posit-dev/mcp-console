@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 static _Atomic int observed;
+static _Atomic int close_observed;
 static pid_t owner;
 
 __attribute__((constructor)) static void initialize(void) {
@@ -35,6 +36,22 @@ static int descriptor_path_ends_with(int descriptor, const char *suffix) {
 #endif
     size_t length = strlen(path), tail = strlen(suffix);
     return length >= tail && strcmp(path + length - tail, suffix) == 0;
+}
+
+// Report the checkpoint, then wait for its release when one is configured.
+static void hold(const char *reached_path, const char *release_path) {
+    int reached = open(reached_path, O_WRONLY | O_NONBLOCK);
+    if (reached < 0 || write(reached, "1", 1) != 1) _exit(124);
+    close(reached);
+    if (release_path != NULL) {
+        int release = open(release_path, O_RDONLY);
+        if (release < 0) _exit(125);
+        char token;
+        ssize_t count;
+        do { count = read(release, &token, 1); } while (count < 0 && errno == EINTR);
+        if (count != 1 || token != '1') _exit(126);
+        close(release);
+    }
 }
 
 static ssize_t observed_write(int descriptor, const void *buffer, size_t length) {
@@ -73,22 +90,26 @@ static ssize_t observed_write(int descriptor, const void *buffer, size_t length)
                 while (nanosleep(&pause, &pause) != 0 && errno == EINTR) {}
             }
         } else if (matches && !atomic_exchange(&observed, 1)) {
-            int reached = open(path, O_WRONLY | O_NONBLOCK);
-            if (reached < 0 || write(reached, "1", 1) != 1) _exit(124);
-            close(reached);
-            const char *release_path = getenv("MCP_CONSOLE_TEST_JOURNAL_RELEASE");
-            if (release_path != NULL) {
-                int release = open(release_path, O_RDONLY);
-                if (release < 0) _exit(125);
-                char token;
-                ssize_t count;
-                do { count = read(release, &token, 1); } while (count < 0 && errno == EINTR);
-                if (count != 1 || token != '1') _exit(126);
-                close(release);
-            }
+            hold(path, getenv("MCP_CONSOLE_TEST_JOURNAL_RELEASE"));
         }
     }
     return result;
+}
+
+// Hold the first close of the recording file whose path ends with
+// MCP_CONSOLE_TEST_HELD_CLOSE, on whichever thread closes it.
+static int observed_close(int descriptor) {
+    const char *file = getenv("MCP_CONSOLE_TEST_HELD_CLOSE");
+    if (file != NULL && getpid() == owner && descriptor_path_ends_with(descriptor, file) &&
+        !atomic_exchange(&close_observed, 1)) {
+        hold(getenv("MCP_CONSOLE_TEST_CLOSE_REACHED"), getenv("MCP_CONSOLE_TEST_CLOSE_RELEASE"));
+    }
+#ifdef __APPLE__
+    return close(descriptor);
+#else
+    int (*next_close)(int) = dlsym(RTLD_NEXT, "close");
+    return next_close(descriptor);
+#endif
 }
 
 #ifdef __APPLE__
@@ -97,9 +118,14 @@ __attribute__((used)) static struct {
     const void *replacee;
 } interpose_write __attribute__((section("__DATA,__interpose"))) = {
     (const void *)(uintptr_t)&observed_write, (const void *)(uintptr_t)&write,
+}, interpose_close __attribute__((section("__DATA,__interpose"))) = {
+    (const void *)(uintptr_t)&observed_close, (const void *)(uintptr_t)&close,
 };
 #else
 ssize_t write(int descriptor, const void *buffer, size_t length) {
     return observed_write(descriptor, buffer, length);
+}
+int close(int descriptor) {
+    return observed_close(descriptor);
 }
 #endif

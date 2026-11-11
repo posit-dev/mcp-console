@@ -556,5 +556,61 @@ def test_pipelined_requests_wait_for_a_slow_recording_writer(
         ]
 
 
+@requires(NATIVE_FIXTURES, POSIX)
+def test_stopped_recording_leaves_file_closes_to_the_writer(binary: Path) -> Transcript:
+    with (
+        tempfile.TemporaryDirectory() as scratch,
+        closing(FifoCheckpoint.create(Path(scratch) / "reached")) as close_reached,
+        closing(FifoCheckpoint.create(Path(scratch) / "release")) as close_release,
+        stalled_writer(
+            binary,
+            {
+                "MCP_CONSOLE_TEST_OBSERVED_FILE": "/cell-001.txt",
+                "MCP_CONSOLE_TEST_HELD_CLOSE": "/cell-002.txt",
+                "MCP_CONSOLE_TEST_CLOSE_REACHED": str(close_reached.path),
+                "MCP_CONSOLE_TEST_CLOSE_RELEASE": str(close_release.path),
+            },
+        ) as (client, root, observed, release),
+    ):
+        first = client.start_send(r="echo first")
+        try:
+            try:
+                observed.wait("cell output file write is stalled", client=client)
+                client.receive(first)
+                # The second cell's file is open. Its write and its close wait
+                # behind the stalled write.
+                client.expect("zod: second\n", r="echo second")
+                # Requests alone pass the intake bound. After 5 seconds without
+                # writer progress, recording stops and discards what is queued.
+                # A discarded close must not run on the thread that stopped
+                # recording: this one never returns, and every later request
+                # would wait behind it.
+                for _ in range(100):
+                    assert client.request("ping")["result"] == {}
+                client.expect("zod: third\n", r="echo third")
+            finally:
+                release.release()
+            close_reached.wait("the writer closes the discarded file", client=client)
+            # The writer's close holds no request either.
+            assert client.request("ping")["result"] == {}
+        finally:
+            close_release.release()
+        client.await_recording_disabled()
+        transcript, diagnostics = client.finish_with_standard_error()
+        assert diagnostics == (
+            "mcp-console: transcript recording disabled: "
+            "recording writer made no progress for 5 seconds\n"
+        ), diagnostics
+        (recording,) = (root / ".agents/console/sessions").iterdir()
+        # Recording stopped before the third cell, which has no file.
+        assert sorted(
+            path.name for path in (recording / "capture/sessions/001").iterdir()
+        ) == ["cell-001.txt", "cell-002.txt"]
+        return [
+            *transcript[:5],
+            {"requests after recording stops": "answered while a file close is held"},
+        ]
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)
