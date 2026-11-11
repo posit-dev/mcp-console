@@ -533,20 +533,14 @@ impl Transcript {
     ) -> Option<T> {
         let (mut state, poisoned) = self.lock();
         if let Some(error) = &state.failure {
-            self.1
-                .lock()
-                .expect("protocol capture lock")
-                .stop(error.clone());
+            self.stop(error.clone());
             return None;
         }
         if poisoned {
             let error = "transcript lock poisoned".to_string();
             state.disable(error.clone());
             drop(state);
-            self.1
-                .lock()
-                .expect("protocol capture lock")
-                .stop(error.clone());
+            self.stop(error.clone());
             report_failure(&error);
             return None;
         }
@@ -572,10 +566,7 @@ impl Transcript {
             Err(error) => {
                 state.disable(error.clone());
                 drop(state);
-                self.1
-                    .lock()
-                    .expect("protocol capture lock")
-                    .stop(error.clone());
+                self.stop(error.clone());
                 report_failure(&error);
                 None
             }

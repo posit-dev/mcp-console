@@ -16,6 +16,20 @@ pub(super) struct OutputFile {
     failed: AtomicBool,
     /// The writer's failure report, taken by the first reply that cites this file.
     notice: Mutex<Option<String>>,
+    /// Set once the writer has closed the file.
+    closed: AtomicBool,
+    transcript: Transcript,
+}
+
+impl Drop for OutputFile {
+    /// Dropping an open file closes it, and the last reference can drop on
+    /// any thread: a reply's, a producer's, or one that stops recording and
+    /// discards the queued close. Leave an open file to the writer.
+    fn drop(&mut self) {
+        if !self.closed.load(Ordering::Acquire) {
+            self.transcript.retire(self.file.clone());
+        }
+    }
 }
 
 impl OutputFile {
@@ -56,6 +70,8 @@ impl OutputFile {
                 .expect("output notice lock")
                 .get_or_insert(error);
         }
+        // `finish` releases the handle even when it reports an error.
+        self.closed.store(true, Ordering::Release);
     }
 
     pub(super) fn written(&self) -> u64 {
@@ -215,6 +231,8 @@ impl Transcript {
             written: AtomicU64::new(0),
             failed: AtomicBool::new(false),
             notice: Mutex::new(None),
+            closed: AtomicBool::new(false),
+            transcript: self.clone(),
         });
         Ok(Some(CellOutput {
             file: file.clone(),

@@ -32,7 +32,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::io::Write;
-use std::sync::{Arc, Condvar};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// What a reply that cites retained files learned from its wait for the writer.
@@ -75,6 +75,9 @@ pub(super) struct ProtocolEvents {
     /// Notified whenever the writer changes what a rendering says about
     /// retained files: a stop, a stall found or cleared, a truncated file.
     changed: tokio::sync::watch::Sender<()>,
+    /// Discarded operations and released output files. Dropping one can close
+    /// a file, so only a writer pass drops them, and never under this lock.
+    retired: Vec<Box<dyn Send>>,
 }
 
 #[derive(Default)]
@@ -644,9 +647,13 @@ impl ProtocolEvents {
         self.retained_events -= self.pending.len();
         self.retained_bytes -= self
             .pending
-            .drain(..)
+            .iter()
             .map(|(_, _, bytes)| bytes)
             .sum::<usize>();
+        if !self.pending.is_empty() {
+            self.retired
+                .push(Box::new(std::mem::take(&mut self.pending)));
+        }
     }
 }
 
@@ -719,7 +726,7 @@ impl Transcript {
         }
         let recording = self.clone();
         tokio::task::spawn_blocking(move || {
-            drop(pace(
+            recording.drain_retired(pace(
                 recording.1.lock().expect("protocol capture lock"),
                 ProtocolEvents::intake_paced,
             ));
@@ -840,12 +847,38 @@ impl Transcript {
             loop {
                 recorder.update(|_| Ok(()));
                 let mut events = recorder.1.lock().expect("protocol capture lock");
-                if events.pending.is_empty() {
+                let retired = std::mem::take(&mut events.retired);
+                if events.pending.is_empty() && retired.is_empty() {
                     events.draining = false;
                     return;
                 }
+                drop(events);
+                // This can close files, and one of those drops can retire
+                // its file in turn.
+                drop(retired);
             }
         });
+    }
+
+    /// Start a writer pass for whatever a stop discarded.
+    fn drain_retired(&self, events: std::sync::MutexGuard<'_, ProtocolEvents>) {
+        if !events.retired.is_empty() {
+            self.start_drain(events);
+        }
+    }
+
+    /// Stop capture, leaving what that discards to a writer pass.
+    pub(super) fn stop(&self, error: String) {
+        let mut events = self.1.lock().expect("protocol capture lock");
+        events.stop(error);
+        self.drain_retired(events);
+    }
+
+    /// Leave an open output file for the writer to close.
+    pub(super) fn retire(&self, file: Arc<Mutex<super::CaptureFile>>) {
+        let mut events = self.1.lock().expect("protocol capture lock");
+        events.retired.push(Box::new(file));
+        self.start_drain(events);
     }
 
     pub(crate) fn disable(&self, error: String) {
