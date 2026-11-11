@@ -514,6 +514,33 @@ class PortableMcpClientTests(unittest.TestCase):
             self.assertEqual(transcript[0]["send"], {"python": "6 * 7"})
             self.assertEqual(client.process.returncode, 0)
 
+    def test_recording_disabled_wait_requires_the_report(self) -> None:
+        # fmt: python
+        source = code("""
+            import sys
+
+            sys.stdin.readline()
+            sys.stderr.write("mcp-console: transcript recording disabled: no space\\n")
+            sys.stderr.flush()
+            assert sys.stdin.read() == ""
+            """)
+        with McpClient(
+            Path(sys.executable),
+            ("-u", "-c", source),
+            response_timeout=1,
+            recording_receipts=False,
+        ) as client:
+            # Opting out of receipts is not a report that recording stopped.
+            with self.assertRaises(TimeoutError):
+                client.await_recording_disabled()
+            client.notify("notifications/cancelled", requestId=1)
+            client.await_recording_disabled()
+            _, diagnostics = client.finish_with_standard_error()
+            self.assertEqual(
+                diagnostics,
+                "mcp-console: transcript recording disabled: no space" + os.linesep,
+            )
+
     def test_reply_does_not_wait_for_a_disabled_recording(self) -> None:
         # fmt: python
         source = code("""
