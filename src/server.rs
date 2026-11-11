@@ -452,6 +452,9 @@ async fn response_to_tool_result(
     delivery: &crate::server_transport::ResponseDeliveryCall,
 ) -> CallToolResult {
     response.settle_recording(transcript).await;
+    for session in response.take_sessions() {
+        deliveries.register(delivery, session);
+    }
     let (blocks, is_error, response_delivery, parts) = response.into_parts();
     if let Some(response_delivery) = response_delivery {
         deliveries.register(delivery, response_delivery);
@@ -497,9 +500,7 @@ async fn responses_to_tool_result(
     // text, language errors, and images in hosts that prefer structured results.
     let mut combined = crate::worker_client::Response::default();
     for (name, status, response) in responses {
-        if let Some(acknowledgment) = combined.append_session(&name, status, response) {
-            deliveries.register(delivery, acknowledgment);
-        }
+        combined.append_session(&name, status, response);
     }
     response_to_tool_result(combined, call, transcript, deliveries, delivery).await
 }

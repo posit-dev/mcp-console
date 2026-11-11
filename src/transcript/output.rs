@@ -177,6 +177,10 @@ impl OutputRecord {
         self.file.failed()
     }
 
+    pub(crate) fn same_file(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.file, &other.file)
+    }
+
     /// Take the writer's failure report for a reply that cites this file.
     pub(crate) fn take_notice(&self) -> Option<String> {
         if self.inspection_only {

@@ -52,6 +52,9 @@ pub(crate) struct Response {
     /// omission marker is the one that wait examined.
     settled_phase: Option<Option<&'static str>>,
     execution_error: Option<Box<crate::worker_protocol::ExecutionError>>,
+    /// An aggregate reply's sessions, each holding the copy that returns its
+    /// output to the session if this reply is not delivered.
+    sessions: Vec<ResponseDelivery>,
 }
 
 pub(super) enum ResponseAcknowledgment {
@@ -174,12 +177,7 @@ impl Response {
 
     /// Combine session previews under the ordinary complete-result bounds while
     /// keeping each session's original response available for delivery recovery.
-    pub(crate) fn append_session(
-        &mut self,
-        name: &str,
-        status: &str,
-        mut response: Self,
-    ) -> Option<ResponseDelivery> {
+    pub(crate) fn append_session(&mut self, name: &str, status: &str, mut response: Self) {
         let phase = response.observed_phase();
         let delivery = response.delivery.take().map(|target| ResponseDelivery {
             target: Some(target),
@@ -191,6 +189,7 @@ impl Response {
                 settled_phase: None,
                 delivery: None,
                 execution_error: response.execution_error.clone(),
+                sessions: Vec::new(),
             }),
         });
         self.push_notice_line(format!(
@@ -204,7 +203,12 @@ impl Response {
                 .phase_before_terminal(phase, response.phase_joins_cell_clock());
         }
         self.extend(response);
-        delivery
+        self.sessions.extend(delivery);
+    }
+
+    /// Hand an aggregate reply's sessions to the caller that settles delivery.
+    pub(crate) fn take_sessions(&mut self) -> Vec<ResponseDelivery> {
+        std::mem::take(&mut self.sessions)
     }
 
     /// The same observation used by the text response, without parsing notices.
@@ -253,6 +257,7 @@ impl Response {
             phase: None,
             settled_phase: None,
             execution_error: self.execution_error.clone(),
+            sessions: Vec::new(),
         }
     }
 
@@ -289,7 +294,14 @@ impl Response {
         let writer = tokio::task::spawn_blocking(move || recorder.settle())
             .await
             .expect("recording settle task");
-        self.preview.recording_settled(writer);
+        // A cancelled aggregate reply returns each session's copy, which must
+        // still report the file failures this wait collected.
+        let recoverable = self
+            .sessions
+            .iter_mut()
+            .filter_map(|session| session.unclaimed.as_mut())
+            .map(|response| &mut *response.preview);
+        self.preview.recording_settled(writer, recoverable);
     }
 
     /// Consumes the response for the MCP adapter.
@@ -327,6 +339,7 @@ impl Response {
                 phase: self.phase.take(),
                 settled_phase: None,
                 execution_error: self.execution_error.take(),
+                sessions: Vec::new(),
             }),
         });
         (content, is_error, delivery, recorded_parts)
@@ -676,6 +689,7 @@ impl Drop for Response {
             phase: self.phase.take(),
             settled_phase: None,
             execution_error: self.execution_error.take(),
+            sessions: Vec::new(),
         };
         target.unclaimed(response);
     }

@@ -611,7 +611,9 @@ def test_cancelled_aggregate_poll_keeps_a_file_failure_notice(
             release_fixture_checkpoint(gate, client=client)
             processed.wait(timeout=client.response_timeout)
         client.send(session="alpha")
-        assert last_tool_text(client).endswith("[done]"), last_tool_text(client)
+        assert "later raw text unavailable" in last_tool_text(client)
+        client.send(session="alpha")
+        assert last_tool_text(client) == "\n[idle]"
     return [
         {
             "cancelled_aggregate_reports_file_failure": True,

@@ -120,20 +120,44 @@ impl Preview {
     }
 
     /// Apply the outcome of the reply's wait for the recording writer: place
-    /// each write failure the writer reported after the interval it truncated,
-    /// and let the omission marker qualify the files it names when the writer
-    /// is still behind or recording stopped.
-    pub(super) fn recording_settled(&mut self, writer: crate::transcript::WriterState) {
-        self.writer = writer;
-        for part in std::mem::take(&mut self.parts) {
-            if let Part::Source(Source {
-                file: Some(file), ..
-            }) = &part
-                && let Some(notice) = file.take_notice()
-            {
-                self.notice(format!("[{notice}]\n"));
+    /// each write failure the writer reported before the first interval of the
+    /// file it truncated, and let the omission marker qualify the files it
+    /// names when the writer is still behind or recording stopped.
+    ///
+    /// The writer hands over each report once. `recoverable` holds the copies
+    /// that return an aggregate reply's sessions when it is not delivered, so
+    /// they receive the same outcome as the reply.
+    pub(super) fn recording_settled<'a>(
+        &'a mut self,
+        writer: crate::transcript::WriterState,
+        recoverable: impl Iterator<Item = &'a mut Preview>,
+    ) {
+        let failures: Vec<_> = self
+            .parts
+            .iter()
+            .filter_map(|part| match part {
+                Part::Source(Source {
+                    file: Some(file), ..
+                }) => file.take_notice().map(|notice| (file.clone(), notice)),
+                _ => None,
+            })
+            .collect();
+        for preview in recoverable.chain(std::iter::once(self)) {
+            preview.writer = writer;
+            let mut failures: Vec<_> = failures.iter().collect();
+            for part in std::mem::take(&mut preview.parts) {
+                if let Part::Source(Source {
+                    file: Some(file), ..
+                }) = &part
+                    && let Some(index) = failures
+                        .iter()
+                        .position(|(failed, _)| failed.same_file(file))
+                {
+                    let (_, notice) = failures.swap_remove(index);
+                    preview.notice(format!("[{notice}]\n"));
+                }
+                preview.parts.push(part);
             }
-            self.parts.push(part);
         }
     }
 
