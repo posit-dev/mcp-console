@@ -499,6 +499,7 @@ impl QueuedEvent {
 }
 
 const MAX_PROTOCOL_EVENTS: usize = 1024;
+/// The overflow bound on queued operations that carry no file data.
 const MAX_PROTOCOL_BYTES: usize = 64 * 1024 * 1024;
 /// Producers of file data wait for the writer beyond this backlog.
 const PACED_BYTES: usize = 16 * 1024 * 1024;
@@ -546,8 +547,12 @@ impl ProtocolEvents {
     fn push(&mut self, event: QueuedEvent, at: DateTime<Utc>) -> bool {
         // The bounds stop a backlog from growing; they do not cap one event,
         // whose producer already holds it. Retention can exceed the byte bound
-        // by the one event that crosses it.
-        if self.retained_events == MAX_PROTOCOL_EVENTS || self.retained_bytes >= MAX_PROTOCOL_BYTES
+        // by the one event that crosses it. File data does not count toward
+        // the byte bound: its producers wait at `PACED_BYTES`, and one image
+        // they then queue can be as large as this bound. Counting it would
+        // refuse the events that complete that image's cell.
+        if self.retained_events == MAX_PROTOCOL_EVENTS
+            || self.retained_bytes - self.retained_data_bytes >= MAX_PROTOCOL_BYTES
         {
             self.stop(format!("protocol capture backlog exceeded ({MAX_PROTOCOL_EVENTS} events or {MAX_PROTOCOL_BYTES} bytes)"));
             return false;
