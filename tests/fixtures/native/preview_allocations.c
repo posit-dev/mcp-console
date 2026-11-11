@@ -2,12 +2,14 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 #ifdef __linux__
@@ -83,6 +85,14 @@ __attribute__((constructor)) static void initialize(void) {
     if (dispatcher_exited != NULL &&
         (dispatcher_armed == NULL ||
          pthread_key_create(&dispatcher, notify_dispatcher_exit) != 0)) _exit(127);
+    const char *file_limit = getenv("MCP_CONSOLE_TEST_FILE_LIMIT");
+    if (file_limit != NULL) {
+        // A write past this file size fails with EFBIG instead of raising SIGXFSZ.
+        rlim_t bytes = strtoull(file_limit, NULL, 10);
+        struct rlimit limit = {bytes, bytes};
+        if (signal(SIGXFSZ, SIG_IGN) == SIG_ERR ||
+            setrlimit(RLIMIT_FSIZE, &limit) != 0) _exit(129);
+    }
     const char *checkpoint = getenv("MCP_CONSOLE_TEST_RESULT_REACHED");
     if (checkpoint != NULL) {
         reached = open(checkpoint, O_WRONLY);

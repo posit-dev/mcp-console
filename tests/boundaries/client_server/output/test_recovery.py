@@ -14,7 +14,12 @@ from boundaries.client_server._harness import expose_idle_sideband_output
 from support.progress import elapsed_progress, phase_progress, without_elapsed
 from support.allocations import AllocationProfile
 from support.assertions import last_tool_text
-from support.checkpoints import FifoCheckpoint, wait_for_path
+from support.checkpoints import (
+    FifoCheckpoint,
+    release_fixture_checkpoint,
+    wait_for_path,
+    wait_for_worker_file,
+)
 from support.client import McpClient
 from support.execution import DIRECT
 from support.previews import (
@@ -29,6 +34,8 @@ from support.previews import (
 from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, requires
 from support.suites import run_this_suite
+
+PENDING_TEXT_BUDGET = 8 * 1024 * 1024
 
 
 @requires(NATIVE_FIXTURES)
@@ -327,6 +334,7 @@ def recovery_client(
     *,
     recording_directory: Path | None = None,
     block_replacement: bool = False,
+    file_limit: int | None = None,
 ) -> Iterator[tuple[McpClient, AllocationProfile, FifoCheckpoint, FifoCheckpoint]]:
     worker = Path(__file__).resolve().parents[3] / "fixtures/zod"
     with tempfile.TemporaryDirectory() as temporary:
@@ -347,6 +355,11 @@ def recovery_client(
                     "MCP_CONSOLE_TEST_RESULT_RELEASE": str(release.path),
                     "MCP_CONSOLE_TEST_PREVIEW_DIRECTORY": str(root),
                     "TMPDIR": str(root),
+                    **(
+                        {"MCP_CONSOLE_TEST_FILE_LIMIT": str(file_limit)}
+                        if file_limit is not None
+                        else {}
+                    ),
                     **(
                         {
                             "ZOD_STARTUP_CONTROL": str(root / "startup-control"),
@@ -548,6 +561,63 @@ def test_cancelled_idle_polls_retain_output_until_delivery(binary: Path) -> Tran
             "isError": False,
         }
         return client.finish()
+
+
+@requires(NATIVE_FIXTURES)
+def test_cancelled_aggregate_poll_keeps_a_file_failure_notice(
+    binary: Path,
+) -> Transcript:
+    file_limit = 3 * PENDING_TEXT_BUDGET + 3
+    with recovery_client(binary, file_limit=file_limit) as (
+        client,
+        profile,
+        reached,
+        release,
+    ):
+        pending = client.start_send(r="echo beta output", session="beta")
+        cancel_result(client, pending, reached, release)
+        profile.pause_results(False)
+        client.send(r="overflow cell output file", session="alpha", timeout_ms=0)
+        assert (
+            without_elapsed(last_tool_text(client))
+            == "\n[running; poll with an empty send]"
+        )
+        gate = wait_for_worker_file(
+            reached.path.parent, "zod-release-spooled-output", client
+        )
+        with closing(
+            FifoCheckpoint.attach(gate.with_name("zod-spooled-output-processed"))
+        ) as processed:
+            # The first batch outgrows the file limit before any reply waits
+            # for the writer, so the aggregate poll is the first to report it.
+            release_fixture_checkpoint(gate, client=client)
+            processed.wait(timeout=client.response_timeout)
+            profile.pause_results(True)
+            pending = client.start_send(timeout_ms=0)
+            cancel_result(client, pending, reached, release)
+            profile.pause_results(False)
+            failure = f"stopped after {file_limit} retained bytes"
+            (cancelled,) = pending["result"]["content"]
+            assert failure in cancelled["text"], cancelled["text"]
+            assert "zod: beta output\n" in cancelled["text"], cancelled["text"]
+
+            # Each session's recovered output still reports the failed file.
+            client.send(timeout_ms=0)
+            replayed = last_tool_text(client)
+            assert failure in replayed, replayed
+            assert "zod: beta output\n" in replayed, replayed
+            assert replayed.count("[cell output file ") == 1, replayed
+
+            release_fixture_checkpoint(gate, client=client)
+            processed.wait(timeout=client.response_timeout)
+        client.send(session="alpha")
+        assert last_tool_text(client).endswith("[done]"), last_tool_text(client)
+    return [
+        {
+            "cancelled_aggregate_reports_file_failure": True,
+            "recovered_aggregate_reports_file_failure_once": True,
+        }
+    ]
 
 
 @requires(NATIVE_FIXTURES)
