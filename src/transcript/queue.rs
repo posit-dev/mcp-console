@@ -519,6 +519,9 @@ const PACED_EVENTS: usize = MAX_PROTOCOL_EVENTS / 2;
 const PACED_REQUEST_EVENTS: usize = MAX_PROTOCOL_EVENTS / 16;
 /// One merged output range. Smaller ranges keep writer progress observable.
 const MAX_MERGED_BYTES: usize = 1024 * 1024;
+/// The largest write merged into a pending range. A larger write is already
+/// one buffer; merging it would copy it again on the thread that produced it.
+const MAX_MERGED_WRITE_BYTES: usize = 4 * 1024;
 /// The longest a reply or a producer waits for the recording writer, and the
 /// longest an output-file creation may take.
 pub(super) const WRITER_WAIT: Duration = Duration::from_secs(5);
@@ -589,6 +592,7 @@ impl ProtocolEvents {
             && owner == next_owner
             && path == next_path
             && *offset + data.len() as u64 == *next_offset
+            && next_data.len() <= MAX_MERGED_WRITE_BYTES
             && data.len() + next_data.len() <= MAX_MERGED_BYTES
         {
             data.extend_from_slice(next_data);
