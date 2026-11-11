@@ -360,6 +360,70 @@ def test_preview_subscription_follows_the_recording_writer(binary: Path) -> Tran
 
 
 @requires(NATIVE_FIXTURES, POSIX)
+def test_preview_subscription_follows_recording_publication(binary: Path) -> Transcript:
+    # A Unix socket path must be short. Zod publishes its markers in TMPDIR.
+    with (
+        tempfile.TemporaryDirectory(dir="/tmp", prefix="console-stalled-") as scratch,
+        stalled_writer(
+            binary,
+            {
+                "MCP_CONSOLE_TEST_OBSERVED_TEXT": '"method":"initialize"',
+                "TMPDIR": scratch,
+            },
+            "--control-socket",
+            str(Path(scratch) / "control.sock"),
+        ) as (client, root, observed, release),
+    ):
+        emitted = "x" * (2 * TEXT_BUDGET) + "\n"
+        held = client.start_send(r=f"hold after output: {emitted}")
+        try:
+            observed.wait("the recording's first write is stalled", client=client)
+            wait_for_path(
+                Path(scratch) / "zod-output-held",
+                "pending oversized output",
+                client=client,
+            )
+            assert not (root / ".agents/console/sessions").exists()
+            with ControlClient(Path(scratch) / "control.sock") as observer:
+                observer.request(op="subscribe")
+
+                def marker() -> str:
+                    event = json.loads(observer.reader.readline(timeout=30))
+                    assert event["event"] == "preview", event
+                    (marker,) = OMISSION.finditer(result_text(event))
+                    return marker[0]
+
+                # No reply has waited for the writer, so it is not known to be
+                # stalled. The output is queued for an unpublished recording.
+                assert marker().endswith("; retained files are not yet published]\n")
+                # The worker emits nothing more. Publication is the only
+                # change, and the subscription must replace its snapshot.
+                release.release()
+                published = marker()
+                (recording,) = (root / ".agents/console/sessions").iterdir()
+                log = (
+                    f".agents/console/sessions/{recording.name}"
+                    "/capture/sessions/001/cell-001.txt"
+                )
+                assert published.endswith(f"; raw log: {log}]\n"), published
+            (Path(scratch) / "zod-release-evaluation").touch()
+            client.receive(held)
+        finally:
+            release.release()
+            (Path(scratch) / "zod-release-evaluation").touch()
+        transcript = client.finish()
+        assert recording_events(recording)[-1]["event"] == "recording_ended"
+        assert (recording / "capture/sessions/001/cell-001.txt").read_text() == emitted
+        return [
+            *transcript[:2],
+            {
+                "subscription before the recording is published": "retained files named as not yet published",
+                "subscription after publication": "replaced without new output; raw log path",
+            },
+        ]
+
+
+@requires(NATIVE_FIXTURES, POSIX)
 def test_unretained_omission_does_not_wait_for_the_recording_writer(
     binary: Path,
 ) -> Transcript:
