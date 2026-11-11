@@ -74,9 +74,11 @@ impl Preview {
         preview
     }
 
-    /// Whether the bounded rendering carries an omission marker, which names
-    /// retained files a reader may open. `phase` is the phase notice the reply
-    /// will add, with whether it joins the cell clock.
+    /// Whether the bounded rendering carries an omission marker that names
+    /// retained files a reader may open. Omitted output that no file retained
+    /// does not count: the recording writer cannot change what its marker
+    /// says. `phase` is the phase notice the reply will add, with whether it
+    /// joins the cell clock.
     pub(super) fn cites_recording(&self, phase: Option<(&str, bool)>) -> bool {
         let mut probe = self.inspection_copy();
         probe.bound();
@@ -84,11 +86,37 @@ impl Preview {
             probe.phase_before_terminal(phase, cell_clock);
             probe.bound();
         }
-        probe.omitted_images != 0
-            || probe
-                .parts
-                .iter()
-                .any(|part| matches!(part, Part::Gap(_) | Part::Summary(_)))
+        probe.omission().cites(&probe.omitted_artifacts)
+    }
+
+    /// The combined accounting of every omitted text interval.
+    fn omission(&self) -> Summary {
+        let mut summary = Summary::default();
+        let mut gap = Gap::default();
+        for part in &self.parts {
+            match part {
+                Part::Gap(omitted) => {
+                    gap.bytes += omitted.bytes;
+                    gap.notices += omitted.notices;
+                }
+                Part::Source(source) => {
+                    if gap.bytes != 0 {
+                        summary.gap.bytes += gap.bytes;
+                        summary.gap.notices += gap.notices;
+                        summary.source(source);
+                    }
+                    gap = Gap::default();
+                }
+                Part::Summary(omitted) => summary.extend(omitted.clone()),
+                _ => {}
+            }
+        }
+        if gap.bytes != 0 {
+            summary.gap.bytes += gap.bytes;
+            summary.gap.notices += gap.notices;
+            summary.source(&Source::default());
+        }
+        summary
     }
 
     /// Apply the outcome of the reply's wait for the recording writer: place
@@ -592,31 +620,7 @@ impl Preview {
         }
         // Recompute after each trim. Sizing and delivery use exactly the same
         // combined notice, without retaining a list of omitted source paths.
-        let mut summary = Summary::default();
-        let mut gap = Gap::default();
-        for part in &self.parts {
-            match part {
-                Part::Gap(omitted) => {
-                    gap.bytes += omitted.bytes;
-                    gap.notices += omitted.notices;
-                }
-                Part::Source(source) => {
-                    if gap.bytes != 0 {
-                        summary.gap.bytes += gap.bytes;
-                        summary.gap.notices += gap.notices;
-                        summary.source(source);
-                    }
-                    gap = Gap::default();
-                }
-                Part::Summary(omitted) => summary.extend(omitted.clone()),
-                _ => {}
-            }
-        }
-        if gap.bytes != 0 {
-            summary.gap.bytes += gap.bytes;
-            summary.gap.notices += gap.notices;
-            summary.source(&Source::default());
-        }
+        let mut summary = self.omission();
         let mut marker = (summary.gap.bytes != 0 || self.omitted_images != 0).then(|| {
             summary.notice(
                 self.omitted_images,

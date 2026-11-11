@@ -229,6 +229,12 @@ impl Summary {
         self.journal_partial |= other.journal_partial;
     }
 
+    /// Whether this omission's marker names a retained file once its
+    /// recording is published: a raw log, a capture journal, or an image.
+    pub(super) fn cites(&self, artifacts: &Location) -> bool {
+        self.logs.path.is_some() || self.journal.is_some() || artifacts.path.is_some()
+    }
+
     pub(super) fn notice(
         &self,
         images: u64,

@@ -368,7 +368,9 @@ def test_unretained_omission_does_not_wait_for_the_recording_writer(
             release.release()
             (Path(scratch) / "zod-release-evaluation").touch()
         transcript = client.finish()
-        completed_calls(root, 4)
+        # The preview is a recorded call that completes before the held cell.
+        assert recording_events(recording)[-1]["event"] == "recording_ended"
+        assert (recording / "capture/sessions/001/cell-004.txt").read_text() == emitted
         return [
             *transcript[:3],
             {
