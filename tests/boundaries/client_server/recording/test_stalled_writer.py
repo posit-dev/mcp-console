@@ -25,6 +25,7 @@ from support.requirements import NATIVE_FIXTURES, POSIX, requires
 from support.suites import run_this_suite
 
 BEHIND = "recording writer stalled; retained files may be missing or incomplete"
+UNPUBLISHED = "recording writer stalled; retained files are not yet published"
 
 
 @contextmanager
@@ -187,6 +188,47 @@ def test_oversized_reply_reports_a_stalled_recording_writer(binary: Path) -> Tra
             {
                 "oversized reply": "bounded wait; raw log path and stalled writer named",
                 "ordinary reply": "returned while the writer was stalled",
+                "raw log after release": "complete",
+            },
+        ]
+
+
+@requires(NATIVE_FIXTURES, POSIX)
+def test_oversized_reply_reports_an_unpublished_recording(binary: Path) -> Transcript:
+    emitted = (
+        "preview head\n"
+        + "ab" * 12000
+        + "\npreview tail: final diagnostic\nafter final image\n"
+    )
+    with stalled_writer(
+        binary, {"MCP_CONSOLE_TEST_OBSERVED_TEXT": '"method":"initialize"'}
+    ) as (
+        client,
+        root,
+        observed,
+        release,
+    ):
+        oversized = client.start_send(r="preview tiny events")
+        try:
+            observed.wait("the recording's first write is stalled", client=client)
+            # The writer has not published the recording, so its directory is
+            # not known. The marker must not call queued output unavailable.
+            client.receive(oversized)
+            text = response_text(oversized)
+            assert_preview(text, emitted)
+            assert not (root / ".agents/console/sessions").exists()
+            (marker,) = OMISSION.finditer(text)
+            assert marker[0].endswith(f"; {UNPUBLISHED}]\n"), marker[0]
+        finally:
+            release.release()
+        transcript = client.finish()
+        completed_calls(root, 1)
+        (recording,) = (root / ".agents/console/sessions").iterdir()
+        assert (recording / "capture/sessions/001/cell-001.txt").read_text() == emitted
+        return [
+            *transcript[:2],
+            {
+                "oversized reply": "bounded wait; unpublished recording named",
                 "raw log after release": "complete",
             },
         ]
