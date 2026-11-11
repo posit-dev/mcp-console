@@ -9,6 +9,15 @@ result:
     - type: text
       text: explicit Python executable is not on PATH
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 stderr: |
   explicit Python executable is not on PATH

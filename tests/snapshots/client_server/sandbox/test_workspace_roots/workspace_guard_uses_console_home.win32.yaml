@@ -17,6 +17,15 @@ result:
   instructions: >-
     Persistent custom-worker R, Python, and SQL REPL. Reuse objects across
     calls to inspect results, test hypotheses, and compare approaches.
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 input:
   method: notifications/initialized
@@ -221,6 +230,15 @@ result:
                   type: string
                   minLength: 1
             additionalProperties: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      title: MCP Console
+      version: <Console version>
+      description: >-
+        An interactive workbench for agents working with data in R, Python, and
+        SQL.
+      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 stderr: >
   Warning: refusing automatic workspace writes to '<home>'; falling back
