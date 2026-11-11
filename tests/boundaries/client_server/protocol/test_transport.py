@@ -105,7 +105,10 @@ def test_closes_input_at_the_bound_on_outstanding_sends(binary: Path) -> Transcr
                 transcript, standard_error = client.finish_with_standard_error()
                 assert standard_error == "", standard_error
             finally:
-                discovery.release()
+                # Shutdown retires the gated discovery, so only a failure that
+                # leaves the server running still needs the gate opened.
+                if client.process.poll() is None:
+                    discovery.release()
         return [
             *transcript[:4],
             {"sends outstanding when input closed": len(outstanding)},
