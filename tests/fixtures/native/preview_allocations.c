@@ -48,9 +48,7 @@ static struct profile *profile;
 static pid_t owner;
 static int reached = -1;
 static int release = -1;
-static const char *thread_marker;
-static pthread_t measured_thread;
-static atomic_bool thread_selected;
+static const char *thread_name;
 static const char *dispatcher_exited;
 static const char *dispatcher_armed;
 static pthread_key_t dispatcher;
@@ -79,7 +77,7 @@ __attribute__((constructor)) static void initialize(void) {
     close(descriptor);
     if (mapping == MAP_FAILED) _exit(122);
     profile = mapping;
-    thread_marker = getenv("MCP_CONSOLE_TEST_ALLOCATION_THREAD_MARKER");
+    thread_name = getenv("MCP_CONSOLE_TEST_ALLOCATION_THREAD");
     dispatcher_exited = getenv("MCP_CONSOLE_TEST_DISPATCHER_EXITED");
     dispatcher_armed = getenv("MCP_CONSOLE_TEST_DISPATCHER_ARMED");
     if (dispatcher_exited != NULL &&
@@ -103,8 +101,14 @@ __attribute__((constructor)) static void initialize(void) {
 
 static void observe(size_t size) {
     if (profile == NULL || getpid() != owner || !atomic_load(&profile->enabled)) return;
-    if (thread_marker != NULL && (!atomic_load(&thread_selected) ||
-        !pthread_equal(pthread_self(), measured_thread))) return;
+    if (thread_name != NULL) {
+        // The server names the thread that ingests worker output. The recording
+        // writer drains different batches under different loads; its
+        // allocations do not measure the copies ingestion makes.
+        char name[64];
+        if (pthread_getname_np(pthread_self(), name, sizeof(name)) != 0 ||
+            strcmp(name, thread_name) != 0) return;
+    }
     atomic_fetch_add(&profile->bytes, size);
     uint64_t previous = atomic_load(&profile->largest);
     while (size > previous &&
@@ -162,14 +166,6 @@ static bool tool_reply(const char *buffer, size_t size) {
 
 static ssize_t profile_write(int descriptor, const void *buffer, size_t size) {
     RESOLVE(write);
-    if (thread_marker != NULL && getpid() == owner && !atomic_load(&thread_selected) &&
-        size >= strlen(thread_marker) && memcmp(buffer, thread_marker, strlen(thread_marker)) == 0) {
-        // A raw-output write identifies its ingestion thread during warmup.
-        // Recorder threads may drain different batches under different loads;
-        // their allocations do not measure the direct UTF-8 decoder's copies.
-        measured_thread = pthread_self();
-        atomic_store(&thread_selected, true);
-    }
     if (profile != NULL && getpid() == owner && atomic_load(&profile->pause_results) &&
         descriptor == STDOUT_FILENO && tool_reply(buffer, size)) {
         // The reply owns delivery once its write starts. Recording does not
