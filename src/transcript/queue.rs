@@ -691,10 +691,13 @@ impl Transcript {
     /// writer. The byte bound alone would otherwise turn a fast producer into
     /// a capture failure; the synchronous write this replaces paced it too.
     pub(super) fn queue_data(&self, event: QueuedEvent) {
-        let mut events = pace(
-            self.1.lock().expect("protocol capture lock"),
-            ProtocolEvents::data_paced,
-        );
+        let events = self.1.lock().expect("protocol capture lock");
+        if events.failure.is_some() {
+            // The pass that stopped capture reports the failure. Output after that
+            // must not start a writer thread for each write.
+            return;
+        }
+        let mut events = pace(events, ProtocolEvents::data_paced);
         if events.failure.is_none() {
             events.push(event, Utc::now());
         }
