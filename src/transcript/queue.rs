@@ -520,8 +520,10 @@ const PACED_EVENTS: usize = MAX_PROTOCOL_EVENTS / 2;
 /// of its own. Pacing keeps request traffic alone from reaching the overflow
 /// bounds, which remain the limit for whatever is not paced.
 const PACED_REQUEST_EVENTS: usize = MAX_PROTOCOL_EVENTS / 16;
-/// One merged output range. Smaller ranges keep writer progress observable.
-const MAX_MERGED_BYTES: usize = 1024 * 1024;
+/// One merged output range. Smaller ranges keep writer progress observable,
+/// and a range's buffer doubles as it grows: this bound keeps that buffer
+/// under 128 KiB however far the writer falls behind.
+const MAX_MERGED_BYTES: usize = 64 * 1024;
 /// The largest write merged into a pending range. A larger write is already
 /// one buffer; merging it would copy it again on the thread that produced it.
 const MAX_MERGED_WRITE_BYTES: usize = 4 * 1024;

@@ -1,0 +1,5 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.custom.direct.yaml
+---
+output queued behind the stalled writer: bounded buffers
+raw log after release: complete
