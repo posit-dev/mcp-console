@@ -6,11 +6,12 @@ use std::path::PathBuf;
 
 pub(crate) fn configure(
     selection: Option<Cache>,
+    retention: crate::retention::Settings,
     no_sandbox: bool,
     python: Option<&crate::settings::PythonChoice>,
     resolver: &mut SandboxSettings,
     worker: &mut SandboxSettings,
-) -> Result<(), String> {
+) -> Result<Option<std::sync::Arc<std::fs::File>>, String> {
     let selection = selection.unwrap_or(if no_sandbox {
         Cache::Host
     } else {
@@ -21,7 +22,7 @@ pub(crate) fn configure(
     // Host-side companion staging uses a separate sandbox cache. Grant only
     // dependency storage, never the shared Console cache parent.
     let root = match selection {
-        Cache::Host => return Ok(()),
+        Cache::Host => return Ok(None),
         Cache::Managed | Cache::Directory(_) if no_sandbox => {
             return Err(
                 "Console caches require sandboxing; use cache: host with --no-sandbox".into(),
@@ -29,8 +30,9 @@ pub(crate) fn configure(
         }
         Cache::Managed => console_root(resolver)?,
         Cache::Directory(path) => path,
-    }
-    .join("dependencies");
+    };
+    let lease = crate::retention::cache::lease(&root, retention.cache_days)?;
+    let root = root.join("dependencies");
     let explicit_python = python.map_or_else(
         || {
             std::env::var_os("RETICULATE_PYTHON")
@@ -99,7 +101,7 @@ pub(crate) fn configure(
         entries.push(writable_cache_entry(&root)?);
         filesystem.insert("entries".into(), entries.into());
     }
-    Ok(())
+    Ok(Some(lease))
 }
 
 pub(super) fn writable_cache_entry(root: &std::path::Path) -> Result<Value, String> {

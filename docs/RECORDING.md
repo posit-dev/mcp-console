@@ -18,6 +18,20 @@ See the [recording reference](RECORDING_REFERENCE.md) for file layout, retention
 The recording documents what happened; it does not save the live Python objects, R objects, or in-memory database for a later session.
 To repeat an analysis, you will need its inputs and reviewed code.
 
+## Save a recording
+
+Inactive recordings are pruned after 14 days by default when Console creates another recording in the same storage directory.
+To keep one, create an empty file named `.keep` inside its recording directory:
+
+```sh
+touch /path/to/recording/.keep
+```
+
+You can also copy the whole recording to a location outside Console's `sessions` directory.
+Completed recordings provide a stable copy; live recordings can change during copying.
+Set [`retention.recordings_days`](CONFIGURATION.md#environment-and-caches) to change the age limit, or `null` to disable pruning.
+See the [retention reference](RECORDING_REFERENCE.md#storage-and-retention) for cleanup timing and older recordings.
+
 ## Keep a journal
 
 The agent can use `send`'s `note` argument to record observations, questions, and the purpose of each step as plain text or Markdown.

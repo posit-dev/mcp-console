@@ -8,7 +8,19 @@ For reading a recording, retrieving omitted output, or making a report, see [Rec
 If `.agents/console` already exists in the launch directory, recordings use `.agents/console/sessions/<run-id>/`.
 Otherwise they use `~/.agents/console/sessions/<run-id>/`; `MCP_CONSOLE_HOME` replaces that fallback Console directory.
 Console does not create a project `.agents` directory just to select project storage.
-There is no aggregate quota or automatic cleanup, so remove old recordings deliberately.
+When publishing a new recording, Console prunes inactive recordings in that same `sessions` directory after 14 days by default.
+[`retention.recordings_days`](CONFIGURATION.md#environment-and-caches) changes the age limit; `null` disables pruning.
+Age starts at recording finalization; abruptly terminated recordings use their publication time.
+Active recordings are preserved even when older than the limit.
+
+Create a `.keep` file inside a recording directory to preserve it, or copy the recording outside Console's session storage.
+Removing `.keep` makes the recording eligible for the next cleanup.
+Cleanup removes the whole recording, including its logs, images, source documents, and any files added inside it.
+See [Save a recording](RECORDING.md#save-a-recording).
+
+Cleanup only visits the selected storage directory when a new recording is published; it does not search other projects or run on a background schedule.
+Recordings created before retention support and directories without Console's retention marker are left untouched.
+There is no aggregate disk quota; saved recordings and active sessions can continue to grow.
 
 ## Recording activation
 
