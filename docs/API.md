@@ -13,7 +13,7 @@ Tool schemas use JSON Schema 2020-12.
 
 The Python client uses the official Python SDK to discover the protocol and supply request metadata, including client identity.
 It prefers the modern protocol and retains the SDK's compatibility path for legacy servers.
-The R client uses legacy initialization and identifies itself in each request's `_meta`.
+The R client uses legacy initialization and declares its identity in `initialize`.
 Console advertises tools; it does not advertise resources, prompts, sampling, or subscriptions.
 
 Execution sessions are application state selected by the `session` tool argument.

@@ -59,7 +59,7 @@ repeat {
       content = list(list(
         type = "text",
         text = as.character(jsonlite::toJSON(
-          request$params[c("name", "arguments")],
+          request$params,
           auto_unbox = TRUE,
           null = "null"
         ))
