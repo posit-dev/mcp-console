@@ -207,6 +207,69 @@ SessionsConfig <- S7::new_class(
   )
 )
 
+retention_days <- function() {
+  S7::new_property(
+    NULL | S7::class_integer | S7::class_double,
+    validator = function(value) {
+      if (
+        !is.null(value) &&
+          (length(value) != 1L ||
+            !is.finite(value) ||
+            value <= 0 ||
+            value >= 2^32 ||
+            value != floor(value))
+      ) {
+        "must be NULL or one positive whole number below 2^32"
+      }
+    },
+    setter = function(self, name, value) {
+      S7::prop(self, name) <- value
+      disabled <- attr(self, "disabled_fields")
+      attr(self, "disabled_fields") <- if (is.null(value)) {
+        union(disabled, name)
+      } else {
+        setdiff(disabled, name)
+      }
+      self
+    }
+  )
+}
+
+RetentionConfig <- S7::new_class(
+  "RetentionConfig",
+  parent = ConfigNode,
+  properties = list(
+    cache_days = retention_days(),
+    recordings_days = retention_days()
+  ),
+  constructor = function(cache_days = NULL, recordings_days = NULL) {
+    fields <- list()
+    if (!missing(cache_days)) {
+      fields["cache_days"] <- list(cache_days)
+    }
+    if (!missing(recordings_days)) {
+      fields["recordings_days"] <- list(recordings_days)
+    }
+    config <- S7::new_object(S7::S7_object(), fields)
+    # Here NULL disables cleanup, while an absent field keeps earlier layers.
+    attr(config, "disabled_fields") <- names(fields)[vapply(
+      fields,
+      is.null,
+      logical(1)
+    )]
+    config
+  }
+)
+
+S7::method(as.list, RetentionConfig) <- function(x, ...) {
+  S7::validate(x)
+  fields <- S7::props(x)
+  for (name in attr(x, "disabled_fields")) {
+    fields[[name]] <- jsonlite::unbox(NA_character_)
+  }
+  config_mapping(fields)
+}
+
 #' Configure a Console session
 #'
 #' Construct configuration from named fields or one named list using the same
@@ -220,7 +283,9 @@ SessionsConfig <- S7::new_class(
 #' further file discovery. Unspecified R selection uses the calling R installation
 #' at load or launch, below explicit configuration.
 #'
-#' `NULL` fields are omitted. Empty mappings and character vectors are retained.
+#' `NULL` fields are omitted, except within `retention`, where an explicit `NULL`
+#' disables the corresponding cleanup. Empty mappings and character vectors
+#' are retained.
 #' `as.list()` returns JSON-ready application settings; the launch-only choice
 #' `sandbox = FALSE` is not included in that document.
 #' A loaded R executable reset is retained as an explicit JSON `null`, so saving
@@ -273,6 +338,9 @@ SessionsConfig <- S7::new_class(
 #'   creates and selects a SQL connection before the first cell in each session.
 #' @param sessions A list with `max`, a positive whole number limiting concurrent
 #'   sessions. By default there is no limit.
+#' @param retention A list with `cache_days` and `recordings_days`, each a positive
+#'   whole number of days or `NULL` to disable that cleanup. Both default to 14
+#'   days. Omitted fields keep earlier configuration values.
 #' @return An S7 configuration object.
 #' @seealso [console_tools()] to launch with this configuration;
 #'   [load_console_config()] to read configuration files;
@@ -334,7 +402,8 @@ ConsoleConfig <- S7::new_class(
     inherit_environment = config_flag(),
     tool = config_property(NULL | ToolConfig),
     startup = config_property(NULL | StartupConfig),
-    sessions = config_property(NULL | SessionsConfig)
+    sessions = config_property(NULL | SessionsConfig),
+    retention = config_property(NULL | RetentionConfig)
   ),
   constructor = function(
     ...,
@@ -348,7 +417,8 @@ ConsoleConfig <- S7::new_class(
     inherit_environment = NULL,
     tool = NULL,
     startup = NULL,
-    sessions = NULL
+    sessions = NULL,
+    retention = NULL
   ) {
     fields <- list(
       r = r,
@@ -361,7 +431,8 @@ ConsoleConfig <- S7::new_class(
       inherit_environment = inherit_environment,
       tool = tool,
       startup = startup,
-      sessions = sessions
+      sessions = sessions,
+      retention = retention
     )
     if (...length()) {
       if (any(names(fields) %in% names(match.call()))) {

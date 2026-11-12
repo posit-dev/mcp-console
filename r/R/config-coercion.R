@@ -188,6 +188,12 @@ config_python <- function(value, path = "python") {
 }
 
 config_coerce_value <- function(class, name, value, path) {
+  if (
+    class == "RetentionConfig" &&
+      identical(value, jsonlite::unbox(NA_character_))
+  ) {
+    return(NULL)
+  }
   if (name == "allow_local_binding" && is.null(value)) {
     return("auto")
   }
@@ -236,7 +242,8 @@ config_coerce_value <- function(class, name, value, path) {
       sandbox = SandboxPolicy,
       tool = ToolConfig,
       startup = StartupConfig,
-      sessions = SessionsConfig
+      sessions = SessionsConfig,
+      retention = RetentionConfig
     ),
     ResolverConfig = switch(name, sandbox = SandboxPolicy),
     SandboxPolicy = switch(
