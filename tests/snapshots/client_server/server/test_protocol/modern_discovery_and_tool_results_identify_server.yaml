@@ -10,8 +10,8 @@ input:
     _meta:
       io.modelcontextprotocol/protocolVersion: 2026-07-28
       io.modelcontextprotocol/clientInfo:
-        name: acceptance-test
-        version: 1.0.0
+        name: mcp
+        version: 0.1.0
       io.modelcontextprotocol/clientCapabilities: {}
       io.github.t-kalinowski.mcp-console/warmup-runtime: true
 result:
@@ -28,13 +28,8 @@ result:
       name: mcp-console
       version: <Console version>
 ---
-input:
-  method: tools/call
-  params:
-    name: send
-    arguments:
-      timeout_ms: -1
-    _meta: !same-as modern.direct MCP request metadata (exchange 1)
+send:
+  timeout_ms: -1
 result:
   resultType: complete
   content:
@@ -43,4 +38,3 @@ result:
         failed to deserialize parameters: invalid value: integer `-1`, expected
         u64
   isError: true
-  _meta: !same-as modern-python-sdk.direct MCP result metadata (exchange 1)

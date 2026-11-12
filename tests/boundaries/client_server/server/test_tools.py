@@ -113,12 +113,8 @@ def test_initializes_and_lists_tools(
 ) -> TranscriptWithCompanions:
     variants = {
         "baseline": {},
-        "modern.yaml": {
-            "modern_client_info": {"name": "acceptance-test", "version": "1.0.0"}
-        },
-        "modern-python-sdk.yaml": {
-            "modern_client_info": {"name": "mcp", "version": "0.1.0"}
-        },
+        # Direct wire probes and SDK clients share the SDK's standard identity.
+        "modern.yaml": {"modern_client_info": {"name": "mcp", "version": "0.1.0"}},
         "custom.yaml": {"custom": True},
         "custom-sql.yaml": {"custom": True, "languages": ("sql",)},
         "bare.yaml": {"bare": True},

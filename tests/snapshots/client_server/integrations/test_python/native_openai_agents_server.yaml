@@ -1,6 +1,9 @@
 ---
 result:
-  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
   content:
     - type: text
       text: |

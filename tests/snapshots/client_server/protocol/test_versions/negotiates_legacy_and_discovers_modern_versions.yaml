@@ -46,4 +46,7 @@ result:
     approaches.
   ttlMs: 0
   cacheScope: private
-  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>

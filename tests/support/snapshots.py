@@ -3,7 +3,6 @@ import json
 import re
 import sys
 from collections.abc import Iterator
-from copy import deepcopy
 from pathlib import Path
 
 from yaml12 import Yaml, format_yaml, parse_yaml, read_yaml
@@ -287,6 +286,42 @@ def protocol_metadata_owners(entry: object) -> Iterator[tuple[str, dict]]:
         yield "result", result
 
 
+def compact_tool_call(entry: dict, metadata: dict[str, dict]) -> dict:
+    """Use send shorthand only for a verified modern request/result pair."""
+    if metadata.keys() != {"request", "result"}:
+        return entry
+    if "send" in entry:
+        # The client already abbreviates legacy calls. In a modern exchange,
+        # keep missing metadata distinguishable from a verified standard pair.
+        return {
+            "input": {
+                "method": "tools/call",
+                "params": {"name": "send", "arguments": entry["send"]},
+            },
+            **{key: value for key, value in entry.items() if key != "send"},
+        }
+    message = entry.get("input")
+    result = entry.get("result")
+    if (
+        isinstance(message, dict)
+        and message.keys() == {"method", "params"}
+        and message["method"] == "tools/call"
+        and isinstance(params := message["params"], dict)
+        and params.keys() == {"name", "arguments", "_meta"}
+        and params["name"] == "send"
+        and isinstance(params["arguments"], dict)
+        and isinstance(result, dict)
+        and identical(params["_meta"], metadata["request"])
+        and identical(result.get("_meta"), metadata["result"])
+    ):
+        return {
+            "send": params["arguments"],
+            **{key: value for key, value in entry.items() if key != "input"},
+            "result": {key: value for key, value in result.items() if key != "_meta"},
+        }
+    return entry
+
+
 def compact_initializations(
     actual: Transcript,
     references: list[Path],
@@ -299,26 +334,17 @@ def compact_initializations(
         for path in references
     ]
     assert all(reference for _, reference in expected), "empty initialization reference"
-    metadata = {"request": [], "result": []}
-    for path, reference in expected:
-        variant = path.stem.removeprefix(Path(initialization_reference).stem)
-        if execution is not None:
-            variant = variant.removesuffix(".direct")
-        variant = variant.replace(".win32", "").removeprefix(".")
-        for exchange, entry in enumerate(reference, 1):
-            for kind, owner in protocol_metadata_owners(entry):
-                if isinstance(meta := owner.get("_meta"), dict) and meta:
-                    if not any(identical(meta, value) for value, _ in metadata[kind]):
-                        target = (
-                            f"{variant + ' ' if variant else ''}MCP {kind} metadata"
-                            f" (exchange {exchange})"
-                        )
-                        metadata[kind].append((meta, Yaml(target, tag="!same-as")))
+    metadata = {}
     compacted = []
     index = 0
     while index < len(actual):
         for path, reference in expected:
             if identical(actual[index : index + len(reference)], reference):
+                metadata = {}
+                for entry in reference:
+                    for kind, owner in protocol_metadata_owners(entry):
+                        if isinstance(meta := owner.get("_meta"), dict) and meta:
+                            metadata.setdefault(kind, meta)
                 variant = (
                     path.stem.removeprefix(Path(initialization_reference).stem)
                     .removesuffix(".direct")
@@ -339,18 +365,13 @@ def compact_initializations(
                 index += len(reference)
                 break
         else:
-            compacted.append(actual[index])
+            entry = actual[index]
+            if isinstance(message := entry.get("input"), dict) and message.get(
+                "method"
+            ) in {"initialize", "server/discover"}:
+                metadata = {}
+            compacted.append(compact_tool_call(entry, metadata))
             index += 1
-    # Compare whole handshakes first. Only exact, type-sensitive matches of an
-    # entire metadata map may become references; custom or missing fields stay
-    # visible. Canonical owners are kept in full by check_recording().
-    compacted = deepcopy(compacted)
-    for entry in compacted:
-        for kind, owner in protocol_metadata_owners(entry):
-            for meta, target in metadata[kind]:
-                if identical(owner.get("_meta"), meta):
-                    owner["_meta"] = target
-                    break
     return compacted
 
 

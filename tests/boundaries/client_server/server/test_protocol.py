@@ -24,8 +24,8 @@ def request_metadata(version: str = PROTOCOL_VERSION) -> dict[str, Any]:
     return {
         "io.modelcontextprotocol/protocolVersion": version,
         "io.modelcontextprotocol/clientInfo": {
-            "name": "acceptance-test",
-            "version": "1.0.0",
+            "name": "mcp",
+            "version": "0.1.0",
         },
         "io.modelcontextprotocol/clientCapabilities": {},
     }
@@ -112,8 +112,18 @@ def test_modern_requests_work_without_discovery_and_validate_metadata(
         assert unsupported["data"]["requested"] == "2099-01-01", unsupported
         assert PROTOCOL_VERSION in unsupported["data"]["supported"], unsupported
 
-        listed_again = client.request("tools/list", _meta=request_metadata())["result"]
-        assert listed_again == listed, listed_again
+        recovered = client.request(
+            "tools/call",
+            name="send",
+            arguments={"note": "direct call after version errors"},
+            _meta=request_metadata(),
+        )["result"]
+        assert recovered == {
+            "resultType": "complete",
+            "content": [{"type": "text", "text": "[done]"}],
+            "isError": False,
+            "_meta": {SERVER_INFO: identity},
+        }, recovered
         return client.finish()
 
 

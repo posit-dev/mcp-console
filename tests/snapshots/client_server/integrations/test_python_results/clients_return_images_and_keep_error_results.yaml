@@ -7,25 +7,20 @@ fixture: >-
   reference. The proxy records MCP exchanges; Python asserts result
   preservation and notebook display without model API calls.
 ---
-!same-as modern-python-sdk MCP initialization for this execution mode
+!same-as modern MCP initialization for this execution mode
 ---
-input:
-  method: tools/call
-  params:
-    name: send
-    arguments:
-      r: |
-        options(
-          console.plot.width_in = 4,
-          console.plot.height_in = 3,
-          console.plot.dpi = 100
-        )
-        cat("before image\n")
-        plot(1:3)
-        invisible(dev.off())
-        cat("after image\n")
-      timeout_ms: 300000
-    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
+send:
+  r: |
+    options(
+      console.plot.width_in = 4,
+      console.plot.height_in = 3,
+      console.plot.dpi = 100
+    )
+    cat("before image\n")
+    plot(1:3)
+    invisible(dev.off())
+    cat("after image\n")
+  timeout_ms: 300000
 result:
   resultType: complete
   content:
@@ -39,15 +34,9 @@ result:
       text: |
         after image
   isError: false
-  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
-input:
-  method: tools/call
-  params:
-    name: send
-    arguments:
-      r: cat("text\n")
-    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
+send:
+  r: cat("text\n")
 result:
   resultType: complete
   content:
@@ -55,15 +44,9 @@ result:
       text: |
         text
   isError: false
-  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
-input:
-  method: tools/call
-  params:
-    name: send
-    arguments:
-      r: cat("raw\n")
-    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
+send:
+  r: cat("raw\n")
 result:
   resultType: complete
   content:
@@ -71,43 +54,31 @@ result:
       text: |
         raw
   isError: false
-  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
-input:
-  method: tools/call
-  params:
-    name: send
-    arguments:
-      r: cat("r\n")
-      python: print("python")
-    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
+send:
+  r: cat("r\n")
+  python: print("python")
 result:
   resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
-  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
-input:
-  method: tools/call
-  params:
-    name: send
-    arguments:
-      r: |
-        options(
-          console.plot.width_in = 4,
-          console.plot.height_in = 3,
-          console.plot.dpi = 100
-        )
-        cat("before image\n")
-        plot(1:3)
-        invisible(dev.off())
-        cat("after image\n")
+send:
+  r: |
+    options(
+      console.plot.width_in = 4,
+      console.plot.height_in = 3,
+      console.plot.dpi = 100
+    )
+    cat("before image\n")
+    plot(1:3)
+    invisible(dev.off())
+    cat("after image\n")
 
-        quit(save = "no", status = 33L, runLast = FALSE)
-      timeout_ms: 300000
-    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
+    quit(save = "no", status = 33L, runLast = FALSE)
+  timeout_ms: 300000
 result:
   resultType: complete
   content:
@@ -126,4 +97,3 @@ result:
         [starting new worker]
         [idle]
   isError: true
-  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)

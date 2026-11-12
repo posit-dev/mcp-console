@@ -5,8 +5,8 @@ input:
     _meta:
       io.modelcontextprotocol/protocolVersion: 2026-07-28
       io.modelcontextprotocol/clientInfo:
-        name: acceptance-test
-        version: 1.0.0
+        name: mcp
+        version: 0.1.0
       io.modelcontextprotocol/clientCapabilities: {}
 result:
   resultType: complete
@@ -36,8 +36,8 @@ input:
     _meta:
       io.modelcontextprotocol/protocolVersion: 2026-07-28
       io.modelcontextprotocol/clientInfo:
-        name: acceptance-test
-        version: 1.0.0
+        name: mcp
+        version: 0.1.0
       io.modelcontextprotocol/clientCapabilities: {}
 result:
   resultType: complete

@@ -1,13 +1,8 @@
 ---
-!same-as modern-python-sdk MCP initialization for this execution mode
+!same-as modern MCP initialization for this execution mode
 ---
-input:
-  method: tools/call
-  params:
-    name: send
-    arguments:
-      python: 6 * 7
-    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
+send:
+  python: 6 * 7
 result:
   resultType: complete
   content:
@@ -15,4 +10,3 @@ result:
       text: |
         42
   isError: false
-  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
