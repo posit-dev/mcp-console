@@ -109,10 +109,7 @@ console_tools <- function(
     list(
       protocolVersion = "2025-11-25",
       capabilities = json_object(),
-      clientInfo = list(
-        name = "mcp.console",
-        version = as.character(utils::packageVersion("mcp.console"))
-      )
+      clientInfo = client$info
     )
   )
   mcp_write(client, list(jsonrpc = "2.0", method = "notifications/initialized"))
@@ -357,8 +354,16 @@ resolve_mcp_console_uv <- function(from) {
   normalizePath(utils::tail(output, 1L), mustWork = TRUE)
 }
 
+# Keep the legacy initialization lifecycle for version-pinned executables.
+# A transport SDK must preserve per-tool connection lifetime, interruptible
+# long-running requests, and graceful shutdown. mcptools' current public
+# config-file/global-client API does not provide those guarantees.
 new_mcp_client <- function(binary, arguments, project) {
   client <- new.env(parent = emptyenv())
+  client$info <- list(
+    name = "mcp.console",
+    version = as.character(utils::packageVersion("mcp.console"))
+  )
   client$errors <- tempfile("mcp-console-", fileext = ".log")
   client$process <- processx::process$new(
     binary,
@@ -403,10 +408,8 @@ close_mcp_client <- function(client) {
 mcp_request <- function(client, method, params = NULL) {
   id <- client$id
   client$id <- id + 1L
-  message <- list(jsonrpc = "2.0", id = id, method = method)
-  if (!is.null(params)) {
-    message$params <- params
-  }
+  params$`_meta` <- list(`io.modelcontextprotocol/clientInfo` = client$info)
+  message <- list(jsonrpc = "2.0", id = id, method = method, params = params)
   complete <- FALSE
   on.exit(if (!complete) close_mcp_client(client), add = TRUE)
   mcp_write(client, message)
