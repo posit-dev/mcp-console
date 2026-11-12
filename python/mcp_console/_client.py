@@ -134,10 +134,8 @@ class AsyncMCPConsole:
         command, args = stdio_command(self._command, self._args)
         parameters = self._server_parameters | {"command": command, "args": args}
         async with AsyncExitStack() as stack:
-            # Automatic discovery can time out while remote startup is pending
-            # and switch lifecycles on the same connection. Initialize once.
             client = await stack.enter_async_context(
-                Client(StdioServerParameters(**parameters), mode="legacy")
+                Client(StdioServerParameters(**parameters))
             )
             tools = []
             cursor = None

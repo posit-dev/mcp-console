@@ -9,21 +9,32 @@ fixture: >-
   a live Rscript reference. The proxy records MCP exchanges; adapter
   results are checked in Python.
 ---
-!same-as MCP initialization for this execution mode
+!same-as modern-python-sdk MCP initialization for this execution mode
 ---
-send:
-  r: |
-    options(
-      console.plot.width_in = 4,
-      console.plot.height_in = 3,
-      console.plot.dpi = 100
-    )
-    cat("before image\n")
-    plot(1:3)
-    invisible(dev.off())
-    cat("after image\n")
-  timeout_ms: 300000
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: |
+        options(
+          console.plot.width_in = 4,
+          console.plot.height_in = 3,
+          console.plot.dpi = 100
+        )
+        cat("before image\n")
+        plot(1:3)
+        invisible(dev.off())
+        cat("after image\n")
+      timeout_ms: 300000
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
@@ -35,38 +46,83 @@ result:
       text: |
         after image
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: cat("text\n")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: cat("text\n")
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
         text
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: cat("r\n")
-  python: print("python")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: cat("r\n")
+      python: print("python")
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: |
-    options(
-      console.plot.width_in = 4,
-      console.plot.height_in = 3,
-      console.plot.dpi = 100
-    )
-    cat("before image\n")
-    plot(1:3)
-    invisible(dev.off())
-    cat("after image\n")
-  timeout_ms: 300000
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: |
+        options(
+          console.plot.width_in = 4,
+          console.plot.height_in = 3,
+          console.plot.dpi = 100
+        )
+        cat("before image\n")
+        plot(1:3)
+        invisible(dev.off())
+        cat("after image\n")
+      timeout_ms: 300000
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
@@ -78,38 +134,83 @@ result:
       text: |
         after image
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: cat("text\n")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: cat("text\n")
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
         text
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: cat("r\n")
-  python: print("python")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: cat("r\n")
+      python: print("python")
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: |
-    options(
-      console.plot.width_in = 4,
-      console.plot.height_in = 3,
-      console.plot.dpi = 100
-    )
-    cat("before image\n")
-    plot(1:3)
-    invisible(dev.off())
-    cat("after image\n")
-  timeout_ms: 300000
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: |
+        options(
+          console.plot.width_in = 4,
+          console.plot.height_in = 3,
+          console.plot.dpi = 100
+        )
+        cat("before image\n")
+        plot(1:3)
+        invisible(dev.off())
+        cat("after image\n")
+      timeout_ms: 300000
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
@@ -121,38 +222,83 @@ result:
       text: |
         after image
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: cat("text\n")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: cat("text\n")
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
         text
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: cat("r\n")
-  python: print("python")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: cat("r\n")
+      python: print("python")
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: |
-    options(
-      console.plot.width_in = 4,
-      console.plot.height_in = 3,
-      console.plot.dpi = 100
-    )
-    cat("before image\n")
-    plot(1:3)
-    invisible(dev.off())
-    cat("after image\n")
-  timeout_ms: 300000
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: |
+        options(
+          console.plot.width_in = 4,
+          console.plot.height_in = 3,
+          console.plot.dpi = 100
+        )
+        cat("before image\n")
+        plot(1:3)
+        invisible(dev.off())
+        cat("after image\n")
+      timeout_ms: 300000
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
@@ -164,40 +310,85 @@ result:
       text: |
         after image
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: cat("text\n")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: cat("text\n")
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
         text
   isError: false
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: cat("r\n")
-  python: print("python")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: cat("r\n")
+      python: print("python")
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
 ---
-send:
-  r: |
-    options(
-      console.plot.width_in = 4,
-      console.plot.height_in = 3,
-      console.plot.dpi = 100
-    )
-    cat("before image\n")
-    plot(1:3)
-    invisible(dev.off())
-    cat("after image\n")
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      r: |
+        options(
+          console.plot.width_in = 4,
+          console.plot.height_in = 3,
+          console.plot.dpi = 100
+        )
+        cat("before image\n")
+        plot(1:3)
+        invisible(dev.off())
+        cat("after image\n")
 
-    quit(save = "no", status = 33L, runLast = FALSE)
-  timeout_ms: 300000
+        quit(save = "no", status = 33L, runLast = FALSE)
+      timeout_ms: 300000
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
 result:
+  resultType: complete
   content:
     - type: text
       text: |
@@ -214,3 +405,7 @@ result:
         [starting new worker]
         [idle]
   isError: true
+  _meta:
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
