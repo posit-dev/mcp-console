@@ -135,7 +135,7 @@ Keep one Console invocation per transcript, normally with initialization and too
 Restarts in that invocation stay in the same transcript.
 Launch/protocol failure cases retain whatever complete or partial exchange occurred.
 
-`client_server/server/test_tools::initializes_and_lists_tools` owns full handshakes and configured/direct/bare/runtime variants.
+`client_server/server/test_tools::initializes_and_lists_tools` owns legacy initialization, modern discovery, and configured/direct/bare/runtime variants.
 Update it before affected cases.
 The runner compares complete exchanges before replacing exact matches with `!same-as`; the tag records that comparison rather than loading another file.
 Different or incomplete exchanges stay in full.
