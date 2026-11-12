@@ -3,6 +3,7 @@ import json
 import re
 import sys
 from collections.abc import Iterator
+from copy import deepcopy
 from pathlib import Path
 
 from yaml12 import Yaml, format_yaml, parse_yaml, read_yaml
@@ -274,6 +275,18 @@ def normalize_request_ids(transcript: Transcript) -> Transcript:
     return rendered
 
 
+def protocol_metadata_owners(entry: object) -> Iterator[tuple[str, dict]]:
+    """Select MCP envelope metadata, never similarly named tool payload fields."""
+    if not isinstance(entry, dict):
+        return
+    if isinstance(message := entry.get("input"), dict) and isinstance(
+        params := message.get("params"), dict
+    ):
+        yield "request", params
+    if isinstance(result := entry.get("result"), dict):
+        yield "result", result
+
+
 def compact_initializations(
     actual: Transcript,
     references: list[Path],
@@ -286,6 +299,21 @@ def compact_initializations(
         for path in references
     ]
     assert all(reference for _, reference in expected), "empty initialization reference"
+    metadata = {"request": [], "result": []}
+    for path, reference in expected:
+        variant = path.stem.removeprefix(Path(initialization_reference).stem)
+        if execution is not None:
+            variant = variant.removesuffix(".direct")
+        variant = variant.replace(".win32", "").removeprefix(".")
+        for exchange, entry in enumerate(reference, 1):
+            for kind, owner in protocol_metadata_owners(entry):
+                if isinstance(meta := owner.get("_meta"), dict) and meta:
+                    if not any(identical(meta, value) for value, _ in metadata[kind]):
+                        target = (
+                            f"{variant + ' ' if variant else ''}MCP {kind} metadata"
+                            f" (exchange {exchange})"
+                        )
+                        metadata[kind].append((meta, Yaml(target, tag="!same-as")))
     compacted = []
     index = 0
     while index < len(actual):
@@ -313,6 +341,16 @@ def compact_initializations(
         else:
             compacted.append(actual[index])
             index += 1
+    # Compare whole handshakes first. Only exact, type-sensitive matches of an
+    # entire metadata map may become references; custom or missing fields stay
+    # visible. Canonical owners are kept in full by check_recording().
+    compacted = deepcopy(compacted)
+    for entry in compacted:
+        for kind, owner in protocol_metadata_owners(entry):
+            for meta, target in metadata[kind]:
+                if identical(owner.get("_meta"), meta):
+                    owner["_meta"] = target
+                    break
     return compacted
 
 

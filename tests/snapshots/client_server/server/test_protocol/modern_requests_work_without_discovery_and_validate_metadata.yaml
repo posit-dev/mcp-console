@@ -2,18 +2,10 @@
 input:
   method: tools/list
   params:
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: acceptance-test
-        version: 1.0.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern.direct MCP request metadata (exchange 1)
 result:
   resultType: complete
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk.direct MCP result metadata (exchange 1)
   ttlMs: 0
   cacheScope: public
   tools:
@@ -340,18 +332,10 @@ error:
 input:
   method: tools/list
   params:
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: acceptance-test
-        version: 1.0.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern.direct MCP request metadata (exchange 1)
 result:
   resultType: complete
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk.direct MCP result metadata (exchange 1)
   ttlMs: 0
   cacheScope: public
   tools:

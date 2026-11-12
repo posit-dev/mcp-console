@@ -27,12 +27,7 @@ input:
         invisible(dev.off())
         cat("after image\n")
       timeout_ms: 300000
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -46,10 +41,7 @@ result:
       text: |
         after image
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -57,12 +49,7 @@ input:
     name: send
     arguments:
       r: cat("text\n")
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -70,10 +57,7 @@ result:
       text: |
         text
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -82,22 +66,14 @@ input:
     arguments:
       r: cat("r\n")
       python: print("python")
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -115,12 +91,7 @@ input:
         invisible(dev.off())
         cat("after image\n")
       timeout_ms: 300000
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -134,10 +105,7 @@ result:
       text: |
         after image
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -145,12 +113,7 @@ input:
     name: send
     arguments:
       r: cat("text\n")
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -158,10 +121,7 @@ result:
       text: |
         text
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -170,22 +130,14 @@ input:
     arguments:
       r: cat("r\n")
       python: print("python")
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -203,12 +155,7 @@ input:
         invisible(dev.off())
         cat("after image\n")
       timeout_ms: 300000
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -222,10 +169,7 @@ result:
       text: |
         after image
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -233,12 +177,7 @@ input:
     name: send
     arguments:
       r: cat("text\n")
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -246,10 +185,7 @@ result:
       text: |
         text
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -258,22 +194,14 @@ input:
     arguments:
       r: cat("r\n")
       python: print("python")
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -291,12 +219,7 @@ input:
         invisible(dev.off())
         cat("after image\n")
       timeout_ms: 300000
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -310,10 +233,7 @@ result:
       text: |
         after image
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -321,12 +241,7 @@ input:
     name: send
     arguments:
       r: cat("text\n")
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -334,10 +249,7 @@ result:
       text: |
         text
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -346,22 +258,14 @@ input:
     arguments:
       r: cat("r\n")
       python: print("python")
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
 ---
 input:
   method: tools/call
@@ -381,12 +285,7 @@ input:
 
         quit(save = "no", status = 33L, runLast = FALSE)
       timeout_ms: 300000
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -405,7 +304,4 @@ result:
         [starting new worker]
         [idle]
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)

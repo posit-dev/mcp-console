@@ -13,7 +13,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    version: 0.0.6
+    version: <Console version>
   instructions: >-
     Persistent R, Python, and SQL REPL for calculations, data exploration
     and analysis, database queries, debugging, simulations, and plots. Reuse
@@ -46,7 +46,4 @@ result:
     approaches.
   ttlMs: 0
   cacheScope: private
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: 0.0.6
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)

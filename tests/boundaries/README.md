@@ -139,6 +139,9 @@ Launch/protocol failure cases retain whatever complete or partial exchange occur
 Update it before affected cases.
 The runner compares complete exchanges before replacing exact matches with `!same-as`; the tag records that comparison rather than loading another file.
 Different or incomplete exchanges stay in full.
+Request and result `_meta` maps also use `!same-as` when the entire map exactly matches a canonical handshake, after the existing Console version normalization.
+Canonical owners remain expanded; missing, additional, or changed metadata stays visible.
+Tool payload metadata and ordinary YAML companions are not compacted.
 Fixture write-root normalization belongs in the [shared client](../support/client.py), after behavior assertions.
 
 ## Fixtures

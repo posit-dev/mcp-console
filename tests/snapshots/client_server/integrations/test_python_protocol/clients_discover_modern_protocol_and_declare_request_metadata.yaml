@@ -7,12 +7,7 @@ input:
     name: send
     arguments:
       python: 6 * 7
-    _meta:
-      io.modelcontextprotocol/protocolVersion: 2026-07-28
-      io.modelcontextprotocol/clientInfo:
-        name: mcp
-        version: 0.1.0
-      io.modelcontextprotocol/clientCapabilities: {}
+    _meta: !same-as modern-python-sdk MCP request metadata (exchange 1)
 result:
   resultType: complete
   content:
@@ -20,7 +15,4 @@ result:
       text: |
         42
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      version: <Console version>
+  _meta: !same-as modern-python-sdk MCP result metadata (exchange 1)
