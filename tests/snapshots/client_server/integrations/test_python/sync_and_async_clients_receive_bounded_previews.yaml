@@ -11,7 +11,6 @@ send:
   python: print("x" * 8388615, end="")
   timeout_ms: 600000
 result:
-  resultType: complete
   content:
     - type: text
       text: |-
@@ -23,7 +22,6 @@ result:
 send:
   session: default
 result:
-  resultType: complete
   content:
     - type: text
       text: |-

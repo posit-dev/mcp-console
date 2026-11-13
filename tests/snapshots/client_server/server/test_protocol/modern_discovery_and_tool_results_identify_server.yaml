@@ -31,7 +31,6 @@ result:
 send:
   timeout_ms: -1
 result:
-  resultType: complete
   content:
     - type: text
       text: >-

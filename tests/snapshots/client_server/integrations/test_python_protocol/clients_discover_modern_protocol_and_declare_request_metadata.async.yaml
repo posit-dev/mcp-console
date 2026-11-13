@@ -4,7 +4,6 @@
 send:
   python: 6 * 7
 result:
-  resultType: complete
   content:
     - type: text
       text: |

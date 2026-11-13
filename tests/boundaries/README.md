@@ -139,8 +139,8 @@ Launch/protocol failure cases retain whatever complete or partial exchange occur
 Update it before affected cases.
 The runner compares complete exchanges before replacing exact matches with `!same-as`; the tag records that comparison rather than loading another file.
 Different or incomplete exchanges stay in full.
-After a matching modern handshake, ordinary tool calls use `send:` and omit standard request/result metadata only when both complete `_meta` maps match that handshake, after the existing Console version normalization.
-Missing, additional, or changed metadata keeps the full exchange visible; a new handshake resets the comparison.
+After a matching modern handshake, ordinary tool calls use `send:` and omit standard request/result metadata and `resultType: complete` only when both complete `_meta` maps match that handshake and the result type is exactly `complete`, after the existing Console version normalization.
+Missing, additional, or changed metadata or a missing or unexpected result type keeps the full exchange visible; a new handshake resets the comparison.
 Canonical owners remain expanded, and tool payload metadata and ordinary YAML companions are untouched.
 Fixture write-root normalization belongs in the [shared client](../support/client.py), after behavior assertions.
 

@@ -311,13 +311,18 @@ def compact_tool_call(entry: dict, metadata: dict[str, dict]) -> dict:
         and params["name"] == "send"
         and isinstance(params["arguments"], dict)
         and isinstance(result, dict)
+        and result.get("resultType") == "complete"
         and identical(params["_meta"], metadata["request"])
         and identical(result.get("_meta"), metadata["result"])
     ):
         return {
             "send": params["arguments"],
             **{key: value for key, value in entry.items() if key != "input"},
-            "result": {key: value for key, value in result.items() if key != "_meta"},
+            "result": {
+                key: value
+                for key, value in result.items()
+                if key not in {"_meta", "resultType"}
+            },
         }
     return entry
 

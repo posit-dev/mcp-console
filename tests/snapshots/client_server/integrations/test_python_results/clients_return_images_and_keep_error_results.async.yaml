@@ -22,7 +22,6 @@ send:
     cat("after image\n")
   timeout_ms: 300000
 result:
-  resultType: complete
   content:
     - type: text
       text: |
@@ -38,7 +37,6 @@ result:
 send:
   r: cat("text\n")
 result:
-  resultType: complete
   content:
     - type: text
       text: |
@@ -48,7 +46,6 @@ result:
 send:
   r: cat("raw\n")
 result:
-  resultType: complete
   content:
     - type: text
       text: |
@@ -59,7 +56,6 @@ send:
   r: cat("r\n")
   python: print("python")
 result:
-  resultType: complete
   content:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
@@ -80,7 +76,6 @@ send:
     quit(save = "no", status = 33L, runLast = FALSE)
   timeout_ms: 300000
 result:
-  resultType: complete
   content:
     - type: text
       text: |

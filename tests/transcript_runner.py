@@ -2205,7 +2205,7 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
                 records[index],
                 {
                     "send": {"python": "42"},
-                    "result": {"resultType": "complete"},
+                    "result": {},
                 },
             )
         for index in (0, 3, 6, 7, 8, 10, 11):
@@ -2224,7 +2224,9 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
         self.assertNotEqual(differing.returncode, 0)
         self.assertIn("differs from its snapshot", differing.stderr)
 
-    def test_send_shorthand_preserves_unexpected_or_missing_metadata(self) -> None:
+    def test_send_shorthand_preserves_unexpected_metadata_and_result_types(
+        self,
+    ) -> None:
         from yaml12 import Yaml, read_yaml
 
         request_meta = {
@@ -2258,9 +2260,11 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
                     ]
 
 
-                def exchange(label, request_meta, result_meta):
+                def exchange(label, request_meta, result_meta, result_type="complete"):
                     params = {"name": "send", "arguments": {"note": label}}
-                    result = {"resultType": "complete", "content": []}
+                    result = {"content": []}
+                    if result_type is not ...:
+                        result["resultType"] = result_type
                     if request_meta is not None:
                         params["_meta"] = request_meta
                     if result_meta is not None:
@@ -2285,7 +2289,11 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
                     ] = 1
                     payload = exchange("payload", REQUEST_META, RESULT_META)
                     payload["input"]["params"]["arguments"]["_meta"] = REQUEST_META
-                    payload["result"]["structuredContent"] = {"_meta": RESULT_META}
+                    payload["input"]["params"]["arguments"]["resultType"] = "complete"
+                    payload["result"]["structuredContent"] = {
+                        "_meta": RESULT_META,
+                        "resultType": "complete",
+                    }
                     extra_params = exchange("extra-params", REQUEST_META, RESULT_META)
                     extra_params["input"]["params"]["extra"] = "retained"
                     extra_message = exchange("extra-message", REQUEST_META, RESULT_META)
@@ -2325,6 +2333,11 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
                             exchange("changed-request", changed_request, RESULT_META),
                             exchange("changed-result", REQUEST_META, changed_result),
                             exchange("changed-type", changed_type, RESULT_META),
+                            exchange("missing-type", REQUEST_META, RESULT_META, ...),
+                            exchange("input-required", REQUEST_META, RESULT_META, "input_required"),
+                            exchange("task", REQUEST_META, RESULT_META, "task"),
+                            exchange("unknown-type", REQUEST_META, RESULT_META, "future_result"),
+                            exchange("null-type", REQUEST_META, RESULT_META, None),
                             payload,
                             extra_params,
                             extra_message,
@@ -2369,7 +2382,7 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
                         "result": {
                             key: value
                             for key, value in original["result"].items()
-                            if key != "_meta"
+                            if key not in {"_meta", "resultType"}
                         },
                     }
                 elif label == "precompacted":
@@ -2395,6 +2408,11 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
             'exchange("canonical", REQUEST_META, None)',
             'exchange("canonical", None, None)',
             '{"scenario": "canonical", "send": {"note": "canonical"}, "result": {"resultType": "complete", "content": []}}',
+            'exchange("canonical", REQUEST_META, RESULT_META, ...)',
+            'exchange("canonical", REQUEST_META, RESULT_META, "input_required")',
+            'exchange("canonical", REQUEST_META, RESULT_META, "task")',
+            'exchange("canonical", REQUEST_META, RESULT_META, "future_result")',
+            'exchange("canonical", REQUEST_META, RESULT_META, None)',
         ):
             with self.subTest(replacement=replacement):
                 self.suite.write_text(
