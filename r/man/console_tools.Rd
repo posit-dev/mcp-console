@@ -65,10 +65,10 @@ configuration, permission edits, inspection, and an ellmer launch.
 
 
 Successful calls return an \link[ellmer:ContentToolResult]{ellmer::ContentToolResult} whose value holds
-the ordered text and image content, with the server's result \verb{_meta}
-forwarded verbatim in \code{extra} (e.g. its
-\code{io.modelcontextprotocol/serverInfo} identity, which compatible chat UIs
-can use to attribute results).
+the ordered text and image content.
+Its \code{extra} carries the server's result \verb{_meta} and, under
+\code{io.modelcontextprotocol/serverInfo}, the identity the server reported in
+the handshake, which compatible chat UIs can use to attribute results.
 Errored results keep their existing unwrapped return shape.
 }
 
