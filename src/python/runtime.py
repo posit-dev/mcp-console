@@ -592,6 +592,38 @@ def _mcp_console_install_matplotlib_show(
     return None
 
 
+def _mcp_console_display_result(
+    value,
+    _sys=_sys,
+    _default_displayhook=_sys.__displayhook__,
+    _builtins=_builtins,
+    _getattr=_builtins.getattr,
+    _callable=_builtins.callable,
+    _isinstance=_builtins.isinstance,
+    _bytes=_builtins.bytes,
+    _TypeError=_builtins.TypeError,
+    _base64=_base64,
+    _publish_plot=_services.publish_plot,
+):
+    displayhook = _sys.displayhook
+    if value is None or displayhook is not _default_displayhook:
+        return displayhook(value)
+    represent = _getattr(value, "_repr_png_", None)
+    if not _callable(represent):
+        return displayhook(value)
+
+    # Match displayhook's recursion prevention and last-successful-result update.
+    _builtins._ = None
+    image = represent()
+    if image is None:
+        return displayhook(value)
+    if not _isinstance(image, _bytes):
+        raise _TypeError("_repr_png_() must return bytes or None")
+    _publish_plot(_base64.b64encode(image).decode("ascii"))
+    _builtins._ = value
+    return None
+
+
 def _mcp_console_eval_cell(
     source,
     filename,
@@ -606,7 +638,7 @@ def _mcp_console_eval_cell(
     _BaseException=_builtins.BaseException,
     _SystemExit=_builtins.SystemExit,
     _finalize_plots=_mcp_console_finalize_plots,
-    _sys=_sys,
+    _display_result=_mcp_console_display_result,
     _print_exception=_mcp_console_print_exception,
     _ValueError=_builtins.ValueError,
     _SyntaxError=_builtins.SyntaxError,
@@ -635,7 +667,7 @@ def _mcp_console_eval_cell(
             if statements is not None:
                 _exec(statements, _main.__dict__)
             if expression is not None:
-                _sys.displayhook(_eval(expression, _main.__dict__))
+                _display_result(_eval(expression, _main.__dict__))
         except _BaseException as error:
             if propagate_exit and _isinstance(error, _SystemExit):
                 raise

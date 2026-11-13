@@ -1,0 +1,66 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import builtins
+    import io
+    import os
+    from pathlib import Path
+    import sys
+    from PIL import Image
+
+    assert "matplotlib.pyplot" not in sys.modules
+    original_displayhook = sys.displayhook
+    picture = Image.new("RGB", (3, 2), "red")
+    picture.putpixel((1, 0), (0, 0, 255))
+    png = picture._repr_png_()
+    assert isinstance(png, bytes)
+    with Image.open(io.BytesIO(png)) as decoded:
+        assert decoded.format == "PNG"
+        assert decoded.size == (3, 2)
+        assert decoded.getpixel((0, 0)) == (255, 0, 0)
+        assert decoded.getpixel((1, 0)) == (0, 0, 255)
+    (Path(os.environ["TMPDIR"]) / "reference.png").write_bytes(png)
+    print("before image")
+    picture
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        before image
+    - type: image
+      data: <PNG byte-identical to Pillow PNG representation>
+      mimeType: image/png
+  isError: false
+---
+send:
+  r: stopifnot(reticulate::py_eval("builtins._ is picture"))
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: |
+    assert builtins._ is picture
+    assert sys.displayhook is original_displayhook
+    picture
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to Pillow PNG representation>
+      mimeType: image/png
+  isError: false

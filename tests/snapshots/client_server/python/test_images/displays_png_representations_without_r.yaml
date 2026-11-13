@@ -1,0 +1,202 @@
+---
+!same-as python-only MCP initialization for this execution mode
+---
+send:
+  session: default
+result:
+  content:
+    - type: text
+      text: |-
+
+        [idle]
+  isError: false
+---
+send:
+  python: |
+    import builtins
+    import io
+    import os
+    from pathlib import Path
+    import sys
+    from PIL import Image
+
+    assert "matplotlib.pyplot" not in sys.modules
+    original_displayhook = sys.displayhook
+    picture = Image.new("RGB", (3, 2), "red")
+    picture.putpixel((1, 0), (0, 0, 255))
+    png = picture._repr_png_()
+    assert isinstance(png, bytes)
+    with Image.open(io.BytesIO(png)) as decoded:
+        assert decoded.format == "PNG"
+        assert decoded.size == (3, 2)
+        assert decoded.getpixel((0, 0)) == (255, 0, 0)
+        assert decoded.getpixel((1, 0)) == (0, 0, 255)
+    (Path(os.environ["TMPDIR"]) / "reference.png").write_bytes(png)
+    print("before image")
+    picture
+  timeout_ms: 600000
+result:
+  content:
+    - type: text
+      text: |
+        before image
+    - type: image
+      data: <PNG byte-identical to Pillow PNG representation>
+      mimeType: image/png
+  isError: false
+---
+send:
+  python: assigned = picture
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: assert builtins._ is picture; print("last image retained")
+result:
+  content:
+    - type: text
+      text: |
+        last image retained
+  isError: false
+---
+send:
+  python: None
+result:
+  content:
+    - type: text
+      text: "[done]"
+  isError: false
+---
+send:
+  python: assert builtins._ is picture; print("last image retained")
+result:
+  content:
+    - type: text
+      text: |
+        last image retained
+  isError: false
+---
+send:
+  python: |
+    class Declined:
+        def _repr_png_(self):
+            assert builtins._ is None
+            return None
+
+        def __repr__(self):
+            return "declined PNG"
+
+
+    declined = Declined()
+    declined
+result:
+  content:
+    - type: text
+      text: |
+        declined PNG
+  isError: false
+---
+send:
+  python: assert builtins._ is declined; 42
+result:
+  content:
+    - type: text
+      text: |
+        42
+  isError: false
+---
+send:
+  python: |
+    class TextOnly:
+        _repr_png_ = None
+
+        def __repr__(self):
+            return "text only"
+
+
+    TextOnly()
+result:
+  content:
+    - type: text
+      text: |
+        text only
+  isError: false
+---
+send:
+  python: |
+    class Broken:
+        def _repr_png_(self):
+            assert builtins._ is None
+            raise ValueError("PNG rendering failed")
+
+        def __repr__(self):
+            raise AssertionError("must not retry text after PNG failure")
+
+
+    Broken()
+result:
+  content:
+    - type: text
+      text: |
+        Traceback (most recent call last):
+          File "<mcp-console:python:e9>", line 4, in _repr_png_
+        ValueError: PNG rendering failed
+  isError: false
+---
+send:
+  python: assert builtins._ is None; print("worker recovered")
+result:
+  content:
+    - type: text
+      text: |
+        worker recovered
+  isError: false
+---
+send:
+  python: |
+    class Invalid:
+        def _repr_png_(self):
+            return "not PNG bytes"
+
+
+    Invalid()
+result:
+  content:
+    - type: text
+      text: |
+        TypeError: _repr_png_() must return bytes or None
+  isError: false
+---
+send:
+  python: |
+    assert builtins._ is None
+
+
+    def custom_display(value):
+        assert value is picture
+        print("custom display")
+
+
+    sys.displayhook = custom_display
+    picture
+result:
+  content:
+    - type: text
+      text: |
+        custom display
+  isError: false
+---
+send:
+  python: |
+    assert builtins._ is None
+    sys.displayhook = original_displayhook
+    picture
+result:
+  content:
+    - type: image
+      data: <PNG byte-identical to Pillow PNG representation>
+      mimeType: image/png
+  isError: false
