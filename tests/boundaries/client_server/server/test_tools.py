@@ -113,6 +113,8 @@ def test_initializes_and_lists_tools(
 ) -> TranscriptWithCompanions:
     variants = {
         "baseline": {},
+        # Direct wire probes and SDK clients share the SDK's standard identity.
+        "modern.yaml": {"modern_client_info": {"name": "mcp", "version": "0.1.0"}},
         "custom.yaml": {"custom": True},
         "custom-sql.yaml": {"custom": True, "languages": ("sql",)},
         "bare.yaml": {"bare": True},
@@ -229,6 +231,7 @@ def _initializes_and_lists_tools(
     sandbox_profile: str | None = None,
     bootstrap_languages: str | None = None,
     languages: tuple[str, ...] | None = None,
+    modern_client_info: dict[str, str] | None = None,
 ) -> Transcript:
     environment = os.environ.copy()
     environment.pop("MCP_CONSOLE_LANGUAGES", None)
@@ -298,14 +301,26 @@ def _initializes_and_lists_tools(
             workspace,
             record_in_project=False,
         ) as client:
-            client.initialize_and_list_tools()
+            protocol_metadata = {}
+            if modern_client_info is None:
+                client.initialize_and_list_tools()
+                server_info = client.transcript[0]["result"]["serverInfo"]
+            else:
+                protocol_metadata = {
+                    "_meta": {
+                        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                        "io.modelcontextprotocol/clientInfo": modern_client_info,
+                        "io.modelcontextprotocol/clientCapabilities": {},
+                    }
+                }
+                discovered = client.request("server/discover", **protocol_metadata)
+                server_info = discovered["result"]["_meta"][
+                    "io.modelcontextprotocol/serverInfo"
+                ]
+                client.request("tools/list", **protocol_metadata)
             listed_tools = client.transcript[-1]["result"]["tools"]
             version = subprocess.check_output([binary, "--version"], text=True).strip()
-            assert (
-                version
-                == "mcp-console "
-                + client.transcript[0]["result"]["serverInfo"]["version"]
-            )
+            assert version == "mcp-console " + server_info["version"]
             assert [tool["name"] for tool in listed_tools] == ["send"], listed_tools
             send = listed_tools[0]
             instructions = client.transcript[0]["result"].get("instructions")
@@ -511,27 +526,33 @@ def _initializes_and_lists_tools(
                 if not custom:
                     assert "SQL is not yet supported" in description
             # Inspection does not wait for preparation; it must leave the
-            # configured schema unchanged. Keep the handshake-only snapshot.
+            # configured schema unchanged. Keep the discovery-only snapshot.
             transcript = list(client.transcript)
+            preparation_metadata = protocol_metadata
             if sandbox_profile == "inherit_codex":
-                prepared = client.request(
-                    "tools/call",
-                    name="send",
-                    arguments={"requirements": {"action": "get"}},
-                    _meta={
+                preparation_metadata = {
+                    "_meta": {
+                        **protocol_metadata.get("_meta", {}),
                         "codex/sandbox-state": {
                             "permissionProfile": {
                                 "type": "managed",
                                 "file_system": {"type": "restricted", "entries": []},
                                 "network": "restricted",
                             }
-                        }
-                    },
-                )["result"]
-            else:
-                prepared = client.send(requirements={"action": "get"})
+                        },
+                    }
+                }
+            prepared = client.request(
+                "tools/call",
+                name="send",
+                arguments={"requirements": {"action": "get"}},
+                **preparation_metadata,
+            )["result"]
             assert not prepared.get("isError", False), prepared
-            assert client.request("tools/list")["result"] == transcript[2]["result"]
+            assert (
+                client.request("tools/list", **protocol_metadata)["result"]
+                == transcript[-1]["result"]
+            )
             client.finish()
             for response in transcript:
                 for tool in response.get("result", {}).get("tools", []):

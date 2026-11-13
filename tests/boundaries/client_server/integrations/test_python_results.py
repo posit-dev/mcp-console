@@ -291,7 +291,11 @@ def test_clients_return_images_and_keep_error_results(
                     with client_type(**settings) as console:
                         results = await exercise(console)
                 transcript = json.loads(capture.read_text(encoding="utf-8"))
-                calls = [entry for entry in transcript if "send" in entry]
+                calls = [
+                    entry
+                    for entry in transcript
+                    if entry["input"]["method"] == "tools/call"
+                ]
                 assert len(calls) == len(results)
                 for entry, result in zip(calls, results, strict=True):
                     native = CallToolResult.model_validate(entry["result"])
@@ -307,16 +311,7 @@ def test_clients_return_images_and_keep_error_results(
                             content["data"] = (
                                 "<PNG byte-identical to live Rscript page 1>"
                             )
-                initialize = transcript[0]["input"]
-                assert initialize["method"] == "initialize"
-                assert initialize["params"]["clientInfo"] == {
-                    "name": "mcp",
-                    "version": "0.1.0",
-                }
-                initialize["params"]["clientInfo"] = {
-                    "name": "acceptance-test",
-                    "version": "1.0.0",
-                }
+                assert transcript[0]["input"]["method"] == "server/discover"
                 transcripts.append(
                     [
                         {

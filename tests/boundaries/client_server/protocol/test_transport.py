@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.assertions import last_tool_text
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.suites import run_this_suite
 from support.requirements import POSIX, SQL, requires
 
@@ -46,7 +46,7 @@ def test_projects_console_kinds(binary: Path, execution: Execution) -> Transcrip
     )
     client.initialize_and_list_tools()
     result = client.send(r="emit console kinds")
-    assert without_meta(result) == {
+    assert result == {
         "content": [
             {
                 "type": "text",
@@ -69,7 +69,7 @@ def test_returns_worker_images(binary: Path, execution: Execution) -> Transcript
     client.initialize_and_list_tools()
     client.send(r="emit image")
     result = client.transcript[-1]["result"]
-    assert without_meta(result) == {
+    assert result == {
         "content": [
             {"type": "text", "text": "before image\n"},
             {"type": "image", "data": PNG_1X1, "mimeType": "image/png"},

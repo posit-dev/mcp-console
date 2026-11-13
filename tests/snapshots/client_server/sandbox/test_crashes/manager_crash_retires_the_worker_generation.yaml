@@ -26,15 +26,6 @@ result:
         child=<detached child pid>
         temp=<sandbox temp>
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 transcript_normalization:
   target: result.content[0].text
   process_ids: omitted
@@ -51,15 +42,6 @@ result:
         [worker relay stdout closed before retirement completed; additionally
         failed to stop the worker: worker launcher terminated by signal 9]
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: writeLines("replacement ready")
@@ -70,12 +52,3 @@ result:
         [starting new worker]
         replacement ready
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

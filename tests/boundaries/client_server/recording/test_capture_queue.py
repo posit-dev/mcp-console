@@ -15,7 +15,7 @@ from support.checkpoints import FifoCheckpoint
 from support.client import McpClient
 from support.execution import DIRECT, Execution, executions
 from support.native import LOADER_VARIABLE, build_interposer
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, POSIX, requires
 from support.suites import run_this_suite
 
@@ -46,11 +46,11 @@ def test_queued_calls_keep_their_response_identity(
             profile.pause_results(False)
             release.release()
         client.receive_many([first, second])
-        assert without_meta(first["result"]) == {
+        assert first["result"] == {
             "content": [{"type": "text", "text": "\n[idle]"}],
             "isError": False,
         }, first
-        assert without_meta(second["result"]) == {
+        assert second["result"] == {
             "content": [{"type": "text", "text": "zod: queued\n"}],
             "isError": False,
         }, second
@@ -171,7 +171,7 @@ def protocol_backlog(binary: Path, *, large_frames: bool) -> Transcript:
                     release.release()
                 if pending is not None:
                     client.receive(pending)
-                    assert without_meta(pending["result"]) == {
+                    assert pending["result"] == {
                         "content": [{"type": "text", "text": "zod: ready\n"}],
                         "isError": False,
                     }, pending

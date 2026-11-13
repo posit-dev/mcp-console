@@ -7,7 +7,7 @@ fixture: >-
   reference. The proxy records MCP exchanges; Python asserts result
   preservation and notebook display without model API calls.
 ---
-!same-as MCP initialization for this execution mode
+!same-as modern MCP initialization for this execution mode
 ---
 send:
   r: |
@@ -33,15 +33,6 @@ result:
       text: |
         after image
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: cat("text\n")
@@ -51,15 +42,6 @@ result:
       text: |
         text
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: cat("raw\n")
@@ -69,15 +51,6 @@ result:
       text: |
         raw
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: cat("r\n")
@@ -87,15 +60,6 @@ result:
     - type: text
       text: only one of `r`, `python`, or `sql` may be supplied
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: |
@@ -128,12 +92,3 @@ result:
         [starting new worker]
         [idle]
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

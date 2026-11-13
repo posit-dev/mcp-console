@@ -31,7 +31,7 @@ from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.previews import live_recording_events, session_directory
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import POSIX, PROCESS_EVENTS, requires
 from support.resolvers import fake_ir_environment as _fake_ir_environment
 from support.suites import run_this_suite
@@ -65,7 +65,7 @@ def test_interrupt_requirements_without_cell_is_rejected_before_signal(
         control="interrupt",
         requirements={"r": ["must-not-resolve"]},
     )
-    assert without_meta(result) == {
+    assert result == {
         "content": [
             {
                 "type": "text",
@@ -132,7 +132,7 @@ def test_control_only_interrupt_targets_blocked_controlled_restart_resolver(
             )
             _ordered_input_barrier(client.client)
             recorded = _wait_for_recorded_tool_result(client.client, interrupt)
-            assert without_meta(without_elapsed_result(recorded)) == {
+            assert without_elapsed_result(recorded) == {
                 "content": [
                     {
                         "type": "text",
@@ -702,7 +702,7 @@ def test_controlled_interrupt_does_not_wait_for_an_existing_poll(
         # Stdin reaches the relay only after this send claims the evaluation.
         poll_stdin_received.wait()
         ownership = client.send(session="default", timeout_ms=0)
-        assert without_meta(ownership) == {
+        assert ownership == {
             "content": [
                 {
                     "type": "text",
@@ -720,7 +720,7 @@ def test_controlled_interrupt_does_not_wait_for_an_existing_poll(
         interrupt_ack_release.release()
         interrupt_ack_released = True
         client.client.receive(controlled)
-        assert without_meta(controlled["result"]) == {
+        assert controlled["result"] == {
             "content": [
                 {
                     "type": "text",
@@ -848,7 +848,7 @@ def test_cancelled_interrupt_during_live_preparation_does_not_recover_running(
             interrupt_ack_release.release()
             interrupt_ack_released = True
             recorded = _wait_for_recorded_tool_result(client.client, interrupt)
-            assert without_meta(without_elapsed_result(recorded)) == {
+            assert without_elapsed_result(recorded) == {
                 "content": [
                     {
                         "type": "text",

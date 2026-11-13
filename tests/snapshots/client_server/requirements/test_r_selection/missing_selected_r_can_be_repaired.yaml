@@ -6,13 +6,4 @@ initial_error:
         r.executable <workspace>/chosen R: No such file or directory (os error
         2)
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 repaired_captured_selection: true

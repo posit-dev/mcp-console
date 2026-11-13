@@ -12,7 +12,7 @@ from support.client import McpClient
 from support.execution import RUNTIME, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.progress import without_elapsed_result
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import POSIX, R, requires
 from support.suites import run_this_suite
 
@@ -60,7 +60,7 @@ def test_empty_poll_preserves_completed_r_errors(
                         timeout_ms=0,
                     )
                     try:
-                        assert without_meta(without_elapsed_result(pending)) == {
+                        assert without_elapsed_result(pending) == {
                             "content": [
                                 {
                                     "type": "text",
@@ -80,7 +80,7 @@ def test_empty_poll_preserves_completed_r_errors(
                         )
                     # Hosts can prefer structuredContent over content, so the
                     # complete result must not include a status-only substitute.
-                    assert without_meta(completed) == {
+                    assert completed == {
                         "content": [{"type": "text", "text": expected}],
                         "isError": False,
                     }, completed

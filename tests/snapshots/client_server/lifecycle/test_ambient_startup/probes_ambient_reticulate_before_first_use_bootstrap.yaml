@@ -11,15 +11,6 @@ result:
         [reticulate `uv` resolution failed with exit status: 1: Error: fixture ambient reticulate bootstrap failed
         Execution halted]
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: stop("cell must not run")
@@ -30,15 +21,6 @@ result:
         [reticulate `uv` resolution failed with exit status: 1: Error: fixture ambient reticulate bootstrap failed
         Execution halted]
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   r: stop("retry cell must not run")
@@ -49,15 +31,6 @@ result:
         [reticulate `uv` resolution failed with exit status: 1: Error: fixture ambient reticulate bootstrap failed
         Execution halted]
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 input:
   method: tools/list

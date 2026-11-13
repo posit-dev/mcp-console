@@ -34,7 +34,7 @@ from support.client import stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.native import LOADER_VARIABLE, compile_interposer
 from support.previews import TEXT_BUDGET
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, requires
 from support.suites import run_this_suite
 
@@ -208,9 +208,9 @@ def test_keeps_wire_order_across_cancelled_waiting_send(
                     "isError": False,
                 }
                 client.receive(first)
-                assert without_meta(first["result"]) == expected, first
+                assert first["result"] == expected, first
                 client.receive(second)
-                assert without_meta(second["result"]) == expected, second
+                assert second["result"] == expected, second
                 ping = client.request("ping")
                 assert ping["result"] == {}, ping
                 client.close_input_observer()

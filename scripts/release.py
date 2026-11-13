@@ -308,9 +308,11 @@ def smoke_mcp(
         )
         initialization = receive(process, buffer, startup_timeout)
         require(initialization.get("id") == 1, "unexpected initialize response ID")
+        # Name and version identify the installed build; boundary tests own
+        # the descriptive fields.
+        server = initialization.get("result", {}).get("serverInfo", {})
         require(
-            initialization.get("result", {}).get("serverInfo")
-            == {"name": "mcp-console", "version": version},
+            (server.get("name"), server.get("version")) == ("mcp-console", version),
             "unexpected initialize serverInfo",
         )
 

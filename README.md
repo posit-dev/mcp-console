@@ -1,6 +1,6 @@
 # MCP Console
 
-An interactive workbench for agents working with data in R, Python, and SQL.
+An interactive workbench for agents working in R, Python, and SQL.
 
 Load data once, explore questions, refine plots, read help, and debug code with objects and models still in memory.
 Use one language or combine them in the same process, without intermediate files.

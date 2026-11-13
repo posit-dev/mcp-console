@@ -14,7 +14,7 @@ from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.r import r_test_environment, reference_plots
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import POSIX, requires
 from support.suites import run_this_suite
 
@@ -98,7 +98,7 @@ def test_workers_keep_plot_files_separate(
                 evaluation = client.start_send(r=r, timeout_ms=0)
                 ready.wait("plot device is open")
                 client.receive(evaluation)
-                assert without_meta(without_elapsed_result(evaluation["result"])) == {
+                assert without_elapsed_result(evaluation["result"]) == {
                     "content": [
                         {"type": "text", "text": "\n[running; poll with an empty send]"}
                     ],

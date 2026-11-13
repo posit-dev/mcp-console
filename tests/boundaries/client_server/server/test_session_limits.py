@@ -28,7 +28,7 @@ from support.processes import (
     kill_processes,
     live_processes,
 )
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import (
     NATIVE_FIXTURES,
     POSIX,
@@ -65,7 +65,7 @@ def test_default_reserves_capacity_and_remains_usable(
             absent = client.send(session="alpha", timeout_ms=0)
             assert absent["isError"] is True, absent
             assert 'unknown session "alpha"' in last_result_text(client)
-            assert without_meta(client.send(timeout_ms=0)) == {
+            assert client.send(timeout_ms=0) == {
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }
@@ -122,7 +122,7 @@ def test_stopping_named_session_releases_capacity_for_creation_and_relaunch(
                 client, 2, session="alpha", control="restart", python=rejected_source
             )
             client.expect("\n[stopped]", session="alpha")
-            assert without_meta(client.send(timeout_ms=0)) == {
+            assert client.send(timeout_ms=0) == {
                 "content": [
                     {
                         "type": "text",
@@ -238,7 +238,7 @@ def test_pending_discovery_reserves_capacity_until_failed_preparation_retires(
                 missing = client.send(session=name, timeout_ms=0)
                 assert missing["isError"] is True, missing
                 assert f'unknown session "{name}"' in last_result_text(client)
-            assert without_meta(without_elapsed_result(client.send(timeout_ms=0))) == {
+            assert without_elapsed_result(client.send(timeout_ms=0)) == {
                 "content": [
                     {
                         "type": "text",
@@ -405,7 +405,7 @@ def test_named_worker_crash_releases_capacity_after_retirement(
             assert "[starting new worker]" not in last_result_text(client)
             client.expect("\n[stopped]", session="alpha")
             client.expect("42\n", python="print(42)", session="beta")
-            assert without_meta(client.send(timeout_ms=0)) == {
+            assert client.send(timeout_ms=0) == {
                 "content": [
                     {
                         "type": "text",

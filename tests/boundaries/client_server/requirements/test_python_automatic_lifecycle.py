@@ -26,7 +26,7 @@ from support.processes import (
     live_processes,
 )
 from support.normalization import code, normalize_python_resolution_error
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from boundaries.client_server.python.test_peer_runtime import without_r
 from support.resolvers import (
     checkpoint_uv_environment,
@@ -525,7 +525,7 @@ def test_restart_discards_unactivated_automatic_python_candidate(
             )
             client.receive(evaluation)
             evaluation_result = evaluation["result"]
-            assert without_meta(without_elapsed_result(evaluation_result)) == {
+            assert without_elapsed_result(evaluation_result) == {
                 "content": [
                     {
                         "type": "text",
