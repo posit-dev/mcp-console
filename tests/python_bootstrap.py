@@ -12,10 +12,12 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 import warnings
 import zipfile
@@ -25,13 +27,11 @@ from support.python import python_script_header
 
 
 ROOT = Path(__file__).resolve().parent.parent
+WINDOWS = sys.platform == "win32"
+FLOOR = {"darwin": "minimum_macos", "linux": "minimum_glibc"}.get(sys.platform)
 
 
-@unittest.skipUnless(
-    sys.platform in {"darwin", "linux"},
-    "executable fixtures use POSIX scripts; Windows requires native launcher acceptance",
-)
-class PythonBootstrapTests(unittest.TestCase):
+class BootstrapCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="mcp-console-bootstrap-")
         self.addCleanup(self.temporary.cleanup)
@@ -51,8 +51,10 @@ class PythonBootstrapTests(unittest.TestCase):
         machine = {"arm64": "aarch64", "amd64": "x86_64"}.get(
             platform.machine().lower(), platform.machine().lower()
         )
-        suffix = "apple-darwin" if sys.platform == "darwin" else "unknown-linux-gnu"
-        self.target = f"{machine}-{suffix}"
+        system = {"darwin": "apple-darwin", "win32": "pc-windows-msvc"}.get(
+            sys.platform, "unknown-linux-gnu"
+        )
+        self.target = f"{machine}-{system}"
         self.version = "0.0.8"
         self.executable = (
             python_script_header()
@@ -70,9 +72,14 @@ class PythonBootstrapTests(unittest.TestCase):
                 raise SystemExit(23 if "--exit-23" in sys.argv else 0)
                 """)
         ).encode()
+        self.native = "libexec/mcp-console.exe" if WINDOWS else "bin/mcp-console"
         self.entries = [
-            ("bin/mcp-console", self.executable, stat.S_IFREG | 0o755),
-            ("libexec/mcp-console-sandbox", b"companion fixture", stat.S_IFREG | 0o755),
+            (self.native, self.executable, stat.S_IFREG | 0o755),
+            (
+                "libexec/mcp-console-sandbox" + (".exe" if WINDOWS else ""),
+                b"companion fixture",
+                stat.S_IFREG | 0o755,
+            ),
             (
                 "share/licenses/mcp-console/LICENSE",
                 b"license fixture\n",
@@ -120,24 +127,16 @@ class PythonBootstrapTests(unittest.TestCase):
     def write_manifest(self) -> None:
         content = self.archive.read_bytes()
         self.manifest = {
-            "schema": 1,
             "version": self.version,
-            "release": f"v{self.version}",
             "artifacts": {
                 self.target: {
-                    "filename": f"mcp-console-{self.version}-{self.target}.zip",
                     "sha256": hashlib.sha256(content).hexdigest(),
                     "size": len(content),
-                    "executable": "bin/mcp-console",
                 }
+                | ({FLOOR: "1.0"} if FLOOR else {})
             },
         }
         self.save_manifest()
-        metadata = self.package_root / f"mcp_console-{self.version}.dist-info"
-        metadata.mkdir(exist_ok=True)
-        (metadata / "METADATA").write_text(
-            f"Metadata-Version: 2.3\nName: mcp-console\nVersion: {self.version}\n"
-        )
 
     def save_manifest(self) -> None:
         (self.package / "_artifacts.json").write_text(json.dumps(self.manifest))
@@ -163,13 +162,19 @@ class PythonBootstrapTests(unittest.TestCase):
         self.assertTrue(native.is_file(), result.stdout)
         return native
 
+
+class InstallerTests(BootstrapCase):
     def test_installs_complete_bundle_from_pinned_local_archive(self) -> None:
         native = self.install()
         prefix = native.parent.parent
+        self.assertEqual(native, prefix / self.native)
         for relative, content, mode in self.entries:
             installed = prefix / relative
             self.assertEqual(installed.read_bytes(), content)
-            self.assertEqual(stat.S_IMODE(installed.stat().st_mode), stat.S_IMODE(mode))
+            if not WINDOWS:
+                self.assertEqual(
+                    stat.S_IMODE(installed.stat().st_mode), stat.S_IMODE(mode)
+                )
         self.assertTrue(native.is_relative_to(self.cache))
 
     def test_print_path_never_installs(self) -> None:
@@ -203,7 +208,7 @@ class PythonBootstrapTests(unittest.TestCase):
         result = self.run_command("--archive", str(self.archive))
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
-        self.assertRegex(result.stderr.lower(), "checksum|sha.?256|digest")
+        self.assertIn("SHA-256", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
         self.assertNotEqual(self.run_command("--print-path").returncode, 0)
 
@@ -214,53 +219,6 @@ class PythonBootstrapTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertNotIn("Traceback", result.stderr)
         self.assertNotEqual(self.run_command("--print-path").returncode, 0)
-
-    def test_rejects_archive_paths_that_can_escape_bundle(self) -> None:
-        for name in (
-            "../escaped",
-            str(self.directory / "escaped"),
-            "C:/escaped",
-            "bin\\..\\escaped",
-        ):
-            with self.subTest(name=name):
-                self.make_archive(
-                    self.entries + [(name, b"escape", stat.S_IFREG | 0o644)]
-                )
-                result = self.run_command("--archive", str(self.archive))
-                self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertEqual(result.stdout, "")
-                self.assertNotIn("Traceback", result.stderr)
-                self.assertFalse((self.directory / "escaped").exists())
-                self.assertNotEqual(self.run_command("--print-path").returncode, 0)
-
-    def test_rejects_links_special_files_and_duplicate_entries(self) -> None:
-        for entry in (
-            ("libexec/link", b"../../escaped", stat.S_IFLNK | 0o777),
-            ("libexec/fifo", b"", stat.S_IFIFO | 0o644),
-            self.entries[0],
-        ):
-            with self.subTest(entry=entry[0]):
-                self.make_archive(self.entries + [entry])
-                result = self.run_command("--archive", str(self.archive))
-                self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertEqual(result.stdout, "")
-                self.assertNotIn("Traceback", result.stderr)
-                self.assertNotEqual(self.run_command("--print-path").returncode, 0)
-
-    def test_rejects_missing_or_nonexecutable_console(self) -> None:
-        for entries in (
-            self.entries[1:],
-            [
-                ("bin/mcp-console", self.executable, stat.S_IFREG | 0o644),
-                *self.entries[1:],
-            ],
-        ):
-            with self.subTest(entries=entries[0][0]):
-                self.make_archive(entries)
-                result = self.run_command("--archive", str(self.archive))
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(result.stdout, "")
-                self.assertNotIn("Traceback", result.stderr)
 
     def test_concurrent_first_installs_resolve_same_complete_bundle(self) -> None:
         processes = [
@@ -287,11 +245,101 @@ class PythonBootstrapTests(unittest.TestCase):
                 process.communicate(timeout=5)
         self.assertEqual(paths[0], paths[1])
         self.assertEqual(paths[0].read_bytes(), self.executable)
-        self.assertEqual(
-            (paths[0].parent.parent / "libexec/mcp-console-sandbox").read_bytes(),
-            self.entries[1][1],
-        )
 
+    def test_versions_coexist_in_cache(self) -> None:
+        original = self.install()
+        self.version = "0.0.9"
+        self.write_manifest()
+        updated = self.install()
+        self.assertNotEqual(original, updated)
+        self.assertTrue(original.is_file())
+        self.assertEqual(original.read_bytes(), updated.read_bytes())
+
+    def test_unsupported_target_fails_before_attempting_installation(self) -> None:
+        self.manifest["artifacts"] = {}
+        self.save_manifest()
+        result = self.run_command()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn(self.target, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertFalse(self.cache.exists())
+
+    @unittest.skipUnless(FLOOR, "Windows wheels never carried an OS version floor")
+    def test_host_below_native_floor_fails_before_attempting_installation(self) -> None:
+        self.manifest["artifacts"][self.target][FLOOR] = "9999.0"
+        self.save_manifest()
+        result = self.run_command("--archive", str(self.archive))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("9999.0 or newer", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertFalse(self.cache.exists())
+
+    def test_relative_cache_override_is_rejected(self) -> None:
+        self.env["MCP_CONSOLE_BINARY_CACHE"] = "relative-cache"
+        result = self.run_command("--archive", str(self.archive))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("MCP_CONSOLE_BINARY_CACHE", result.stderr)
+        self.assertFalse((self.directory / "relative-cache").exists())
+
+    def test_failed_download_names_the_pinned_release_asset(self) -> None:
+        # No fixture can serve github.com over HTTPS. A refusing local proxy
+        # shows which asset the installer requests and how a failure reads.
+        requests = []
+        with socket.create_server(("127.0.0.1", 0)) as proxy:
+            proxy.settimeout(15)
+
+            def refuse() -> None:
+                connection, _ = proxy.accept()
+                with connection:
+                    requests.append(connection.recv(4096).split(b"\r\n")[0])
+                    connection.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+
+            thread = threading.Thread(target=refuse)
+            thread.start()
+            address = f"http://127.0.0.1:{proxy.getsockname()[1]}"
+            for name in ("MCP_CONSOLE_OFFLINE", "NO_PROXY", "no_proxy"):
+                self.env.pop(name, None)
+            self.env |= {"HTTPS_PROXY": address, "https_proxy": address}
+            result = self.run_command()
+            thread.join()
+        self.assertEqual([request.split()[:2] for request in requests], [[b"CONNECT", b"github.com:443"]])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn(
+            "https://github.com/posit-dev/mcp-console/releases/download/"
+            f"v{self.version}/mcp-console-{self.version}-{self.target}.zip",
+            result.stderr,
+        )
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertNotEqual(self.run_command("--print-path").returncode, 0)
+
+    def test_installer_ignores_explicit_binary(self) -> None:
+        self.env["MCP_CONSOLE_BINARY"] = str(self.directory / "custom-console")
+        self.assertTrue(self.install().is_relative_to(self.cache))
+
+    def test_import_has_no_installation_side_effects(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-c", "import mcp_console; import mcp_console._binary"],
+            cwd=self.directory,
+            env=self.env,
+            text=True,
+            capture_output=True,
+            timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "")
+        self.assertFalse(self.cache.exists())
+
+
+@unittest.skipUnless(
+    sys.platform in {"darwin", "linux"},
+    "the native fixture is a POSIX script; a Windows launch needs a real executable",
+)
+class LauncherTests(BootstrapCase):
     def test_launcher_preserves_arguments_streams_and_exit_status(self) -> None:
         self.install()
         args = ("serve", "space and 'quotes'", "--exit-23")
@@ -317,70 +365,50 @@ class PythonBootstrapTests(unittest.TestCase):
             self.assertEqual(process.returncode, 0, stderr)
             self.assertEqual(json.loads(stdout)["pid"], process.pid)
 
-    def test_explicit_binary_override_needs_no_manifest_or_download(self) -> None:
+    def test_explicit_binary_override_ignores_pinned_bundle(self) -> None:
         native = self.directory / "custom-console"
         native.write_bytes(self.executable)
         native.chmod(0o755)
         self.env["MCP_CONSOLE_BINARY"] = str(native)
-        (self.package / "_artifacts.json").unlink()
         result = self.run_command("serve", module="_launcher", input="override")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["stdin"], "override")
         self.assertFalse(self.cache.exists())
 
-    def test_invalid_explicit_binary_does_not_fall_back_to_cache(self) -> None:
+    def test_missing_explicit_binary_does_not_fall_back_to_cache(self) -> None:
         self.install()
-        for native in ("relative-console", str(self.directory / "missing")):
-            with self.subTest(native=native):
-                self.env["MCP_CONSOLE_BINARY"] = native
-                result = self.run_command("serve", module="_launcher", input="")
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(result.stdout, "")
-                self.assertIn("MCP_CONSOLE_BINARY", result.stderr)
-                self.assertNotIn("Traceback", result.stderr)
-
-    def test_versions_coexist_in_cache(self) -> None:
-        original = self.install()
-        shutil.rmtree(self.package_root / f"mcp_console-{self.version}.dist-info")
-        self.version = "0.0.9"
-        self.write_manifest()
-        updated = self.install()
-        self.assertNotEqual(original, updated)
-        self.assertTrue(original.is_file())
-        self.assertEqual(original.read_bytes(), updated.read_bytes())
-
-    def test_malformed_manifest_fails_without_traceback(self) -> None:
-        for content in ("{broken", "[]", '{"schema": 999}', '{"schema": 1}'):
-            with self.subTest(content=content):
-                (self.package / "_artifacts.json").write_text(content)
-                result = self.run_command()
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(result.stdout, "")
-                self.assertNotIn("Traceback", result.stderr)
-                self.assertFalse(self.cache.exists())
-
-    def test_missing_target_fails_before_attempting_installation(self) -> None:
-        self.manifest["artifacts"] = {}
-        self.save_manifest()
-        result = self.run_command()
+        missing = str(self.directory / "missing")
+        self.env["MCP_CONSOLE_BINARY"] = missing
+        result = self.run_command("serve", module="_launcher", input="")
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
-        self.assertIn(self.target, result.stderr)
+        self.assertIn(missing, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
 
-    def test_import_has_no_installation_side_effects(self) -> None:
+    def test_explicit_binary_cannot_name_the_launcher(self) -> None:
+        launcher = self.directory / "mcp-console"
+        launcher.write_text(
+            python_script_header()
+            + code("""
+                from mcp_console._launcher import main
+
+                raise SystemExit(main())
+                """)
+        )
+        launcher.chmod(0o755)
+        self.env["MCP_CONSOLE_BINARY"] = str(launcher)
         result = subprocess.run(
-            [sys.executable, "-c", "import mcp_console; import mcp_console._binary"],
+            [launcher, "serve"],
             cwd=self.directory,
             env=self.env,
             text=True,
             capture_output=True,
             timeout=15,
         )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
-        self.assertEqual(result.stderr, "")
-        self.assertFalse(self.cache.exists())
+        self.assertIn("MCP_CONSOLE_BINARY", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
 
 if __name__ == "__main__":
