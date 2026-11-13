@@ -145,5 +145,20 @@ def test_legacy_clients_keep_initialization_and_result_shapes(
         return client.finish()
 
 
+def test_requests_beyond_the_sdk_default_line_limit_are_delivered(
+    binary: Path,
+) -> Transcript:
+    # The Rust SDK drops incoming lines above 16 MiB by default, without a response.
+    note = "x" * (16 * 1024 * 1024)
+    with McpClient(binary, DIRECT.serve()) as client:
+        client.initialize_and_list_tools()
+        result = client.send(note=note)
+        assert result == {
+            "content": [{"type": "text", "text": "[done]"}],
+            "isError": False,
+        }, result
+        return [{"note_bytes": len(note), "result": result}]
+
+
 if __name__ == "__main__":
     run_this_suite(__file__)
