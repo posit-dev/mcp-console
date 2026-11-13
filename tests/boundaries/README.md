@@ -141,6 +141,8 @@ The runner compares complete exchanges before replacing exact matches with `!sam
 Different or incomplete exchanges stay in full.
 After a matching modern handshake, ordinary tool calls use `send:` and omit standard request/result metadata and `resultType: complete` only when both complete `_meta` maps match that handshake and the result type is exactly `complete`, after the existing Console version normalization.
 Missing, additional, or changed metadata or a missing or unexpected result type keeps the full exchange visible; a new handshake resets the comparison.
+Adapter entries containing only `result` omit their wrapper and standard fields when the complete metadata map and `resultType: complete` match the current handshake, or the first canonical discovery result when no handshake is recorded.
+Missing or unexpected fields keep the wrapped result visible.
 Canonical owners remain expanded, and tool payload metadata and ordinary YAML companions are untouched.
 Fixture write-root normalization belongs in the [shared client](../support/client.py), after behavior assertions.
 

@@ -2421,6 +2421,116 @@ class TranscriptDiscoveryTests(TranscriptRunnerFixture):
                 )
                 self.assertIn("differs from its snapshot", differing.stderr)
 
+    def test_result_only_transcripts_elide_verified_standard_fields(self) -> None:
+        from copy import deepcopy
+        from yaml12 import Yaml, read_yaml
+
+        metadata = {
+            "io.modelcontextprotocol/serverInfo": {
+                "name": "mcp-console",
+                "version": "<Console version>",
+            }
+        }
+        result = {
+            "content": [{"type": "text", "text": "adapter output"}],
+            "isError": False,
+            "_meta": metadata,
+            "resultType": "complete",
+            "structuredContent": {
+                "_meta": deepcopy(metadata),
+                "resultType": "complete",
+            },
+        }
+        cases = {
+            label: {"result": deepcopy(result)}
+            for label in (
+                "standard",
+                "missing-meta",
+                "extra-meta",
+                "changed-meta",
+                "missing-type",
+                "unexpected-type",
+            )
+        }
+        del cases["missing-meta"]["result"]["_meta"]
+        cases["extra-meta"]["result"]["_meta"]["custom"] = True
+        cases["changed-meta"]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"][
+            "name"
+        ] = "other-server"
+        del cases["missing-type"]["result"]["resultType"]
+        cases["unexpected-type"]["result"]["resultType"] = "task"
+        initialization = [
+            {
+                "input": {"method": "server/discover"},
+                "result": {"_meta": metadata, "resultType": "complete"},
+            }
+        ]
+        other_metadata = cases["changed-meta"]["result"]["_meta"]
+        other_initialization = [
+            {
+                "input": {"method": "server/discover"},
+                "result": {"_meta": other_metadata, "resultType": "complete"},
+            }
+        ]
+        transcript = [
+            *cases.values(),
+            *other_initialization,
+            cases["changed-meta"],
+            cases["standard"],
+        ]
+        data = {
+            "initialization": initialization,
+            "initialization_companions": {"other.yaml": other_initialization},
+            "transcript": transcript,
+            "record_companions": True,
+        }
+        self.write_compaction_inputs(data)
+        updated = self.run_runner("--full", "--update", "--jobs", "1")
+        self.assertEqual(updated.returncode, 0, updated.stdout + updated.stderr)
+        payload = {
+            key: value
+            for key, value in result.items()
+            if key not in {"_meta", "resultType"}
+        }
+        expected = [
+            payload,
+            *[entry for label, entry in cases.items() if label != "standard"],
+        ]
+        for suffix in ("", ".mcp"):
+            records = read_yaml(self.snapshots / f"selected{suffix}.yaml", multi=True)
+            *standalone, reference, matched, changed = records
+            self.assertEqual(standalone, expected)
+            self.assertIsInstance(reference, Yaml)
+            self.assertEqual(reference.tag, "!same-as")
+            self.assertEqual(matched, payload)
+            self.assertEqual(changed, cases["standard"])
+        self.assertEqual(
+            read_yaml(self.snapshots / "selected.wire.yaml", multi=True),
+            [{"payload": transcript}],
+        )
+        strict = self.run_runner("--full", "--jobs", "1")
+        self.assertEqual(strict.returncode, 0, strict.stdout + strict.stderr)
+        snapshot = self.snapshots / "selected.yaml"
+        for label in (
+            "missing-meta",
+            "extra-meta",
+            "changed-meta",
+            "missing-type",
+            "unexpected-type",
+        ):
+            with self.subTest(mutation=label):
+                data["transcript"] = [
+                    cases[label] if entry is cases["standard"] else entry
+                    for entry in transcript
+                ]
+                self.write_compaction_inputs(data)
+                differing = self.run_runner("client_server/server/test_tools::selected")
+                self.assertNotEqual(differing.returncode, 0)
+                self.assertIn(
+                    f"--- {snapshot.relative_to(self.root)}\n", differing.stderr
+                )
+                self.assertIn("differs from its snapshot", differing.stderr)
+
     def test_documentation_companion_links_check_repository_and_nested_guides(
         self,
     ) -> None:

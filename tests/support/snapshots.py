@@ -286,8 +286,38 @@ def protocol_metadata_owners(entry: object) -> Iterator[tuple[str, dict]]:
         yield "result", result
 
 
-def compact_tool_call(entry: dict, metadata: dict[str, dict]) -> dict:
-    """Use send shorthand only for a verified modern request/result pair."""
+def canonical_metadata(transcript: Transcript) -> dict[str, dict]:
+    metadata = {}
+    for entry in transcript:
+        for kind, owner in protocol_metadata_owners(entry):
+            if isinstance(meta := owner.get("_meta"), dict) and meta:
+                metadata.setdefault(kind, meta)
+    return metadata
+
+
+def compact_mcp_exchange(
+    entry: dict,
+    metadata: dict[str, dict],
+    *,
+    standard_result_metadata: dict | None,
+) -> dict:
+    """Compact verified standard fields while preserving unexpected envelopes."""
+    result = entry.get("result")
+    if entry.keys() == {"result"}:
+        expected = metadata.get("result", standard_result_metadata)
+        if (
+            expected is not None
+            and isinstance(result, dict)
+            and result.get("resultType") == "complete"
+            and identical(result.get("_meta"), expected)
+        ):
+            return {
+                key: value
+                for key, value in result.items()
+                if key not in {"_meta", "resultType"}
+            }
+        # The wrapper distinguishes missing metadata from verified elision.
+        return entry
     if metadata.keys() != {"request", "result"}:
         return entry
     if "send" in entry:
@@ -301,7 +331,6 @@ def compact_tool_call(entry: dict, metadata: dict[str, dict]) -> dict:
             **{key: value for key, value in entry.items() if key != "send"},
         }
     message = entry.get("input")
-    result = entry.get("result")
     if (
         isinstance(message, dict)
         and message.keys() == {"method", "params"}
@@ -334,22 +363,24 @@ def compact_initializations(
     execution: str | None,
     execution_specific: bool,
 ) -> YamlStream:
-    expected = [
-        (path, normalize_request_ids(read_yaml(path, multi=True)))
-        for path in references
-    ]
-    assert all(reference for _, reference in expected), "empty initialization reference"
+    expected = []
+    for path in references:
+        reference = normalize_request_ids(read_yaml(path, multi=True))
+        assert reference, f"empty initialization reference: {path}"
+        expected.append((path, reference, canonical_metadata(reference)))
+    # Adapter snapshots may capture results without request history. Canonical
+    # discovery still supplies the expected server metadata for those results.
+    standard_result_metadata = next(
+        (metadata["result"] for _, _, metadata in expected if "result" in metadata),
+        None,
+    )
     metadata = {}
     compacted = []
     index = 0
     while index < len(actual):
-        for path, reference in expected:
+        for path, reference, reference_metadata in expected:
             if identical(actual[index : index + len(reference)], reference):
-                metadata = {}
-                for entry in reference:
-                    for kind, owner in protocol_metadata_owners(entry):
-                        if isinstance(meta := owner.get("_meta"), dict) and meta:
-                            metadata.setdefault(kind, meta)
+                metadata = reference_metadata
                 variant = (
                     path.stem.removeprefix(Path(initialization_reference).stem)
                     .removesuffix(".direct")
@@ -375,7 +406,11 @@ def compact_initializations(
                 "method"
             ) in {"initialize", "server/discover"}:
                 metadata = {}
-            compacted.append(compact_tool_call(entry, metadata))
+            compacted.append(
+                compact_mcp_exchange(
+                    entry, metadata, standard_result_metadata=standard_result_metadata
+                )
+            )
             index += 1
     return compacted
 
