@@ -238,10 +238,11 @@ test_that("console_tools expose configured descriptions and omit hidden paramete
   })
 })
 
-test_that("console_tools forward result _meta into extra verbatim", {
+test_that("console_tools attach the server identity to successful results", {
   with_temp_working_directory({
+    binary <- real_mcp_console()
     send <- console_tools(
-      path = real_mcp_console(),
+      path = binary,
       config = ConsoleConfig(
         r = list(resolution = "disabled"),
         languages = c("r", "python"),
@@ -249,28 +250,25 @@ test_that("console_tools forward result _meta into extra verbatim", {
       )
     )$send
 
-    # Every result carries the server's standard identity, forwarded
-    # verbatim by the adapter.
-    noted <- send(r = "6 * 7", note = "Check the <answer> first.\nSecond line.")
-    info <- noted@extra[["io.modelcontextprotocol/serverInfo"]]
-    expect_equal(info$name, "mcp-console")
-    expect_true(nzchar(info$version))
-
-    code_only <- send(python = "1 + 1")@extra[[
-      "io.modelcontextprotocol/serverInfo"
-    ]]
-    expect_equal(code_only$name, "mcp-console")
-
-    note_only <- send(note = "Just a thought")@extra[[
-      "io.modelcontextprotocol/serverInfo"
-    ]]
-    expect_equal(note_only$name, "mcp-console")
-
-    # Session polls carry the identity too.
-    expect_equal(
-      send()@extra[["io.modelcontextprotocol/serverInfo"]]$name,
-      "mcp-console"
+    # The legacy handshake is the identity's source; every successful result
+    # carries it under the key a modern server uses in result `_meta`.
+    version <- system2(binary, "--version", stdout = TRUE)
+    identity <- list(
+      name = "mcp-console",
+      title = "MCP Console",
+      version = sub("^mcp-console ", "", version),
+      description = "An interactive workbench for agents working in R, Python, and SQL.",
+      websiteUrl = "https://github.com/posit-dev/mcp-console"
     )
+    server_info <- function(result) {
+      result@extra[["io.modelcontextprotocol/serverInfo"]]
+    }
+    noted <- send(r = "6 * 7", note = "Check the <answer> first.\nSecond line.")
+    expect_mapequal(server_info(noted), identity)
+    expect_mapequal(server_info(send(python = "1 + 1")), identity)
+    expect_mapequal(server_info(send(note = "Just a thought")), identity)
+    # Session polls carry the identity too.
+    expect_mapequal(server_info(send()), identity)
 
     # Requirements responses keep their plain-text shape and errored
     # results keep their unwrapped shape.
