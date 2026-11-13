@@ -82,7 +82,7 @@ An ABI report alone is not runtime or sandbox acceptance.
 
 ## Prepare a thin Python distribution
 
-`scripts/build-python-distribution.py` prepares a separate pure Python project and five native ZIP archives from a complete set of audited native wheels.
+`scripts/build-python-distribution.py` prepares one pure Python wheel and five native ZIP archives from a complete set of audited native wheels.
 The release workflow still publishes native wheels; the remaining switch is tracked in [Open work](docs/TODO.md#python-distribution).
 The root Maturin backend continues to own source and editable installations.
 
@@ -90,24 +90,28 @@ After the native wheel checks above pass, collect the five wheels in one directo
 
 ```sh
 python3 scripts/build-python-distribution.py dist --out prepared
-uv build --wheel --out-dir prepared/pypi prepared/python-project
 ```
 
 The output directory must not already exist.
-For a local development rehearsal, pass `--allow-dev`; that option does not make development artifacts publishable.
-The command copies the Python package and its extras, creates `py3-none-any` wheel metadata, and embeds a manifest with exact archive names, sizes, and SHA-256 digests.
-It carries macOS deployment floors from the native wheel tags; the Python launcher also checks the supported architecture and Linux glibc floor.
-Unsupported native layouts fail preparation rather than losing libraries during relocation.
+The command reads the version from the wheels and writes `prepared/native/mcp-console-VERSION-TARGET.zip` for each target and `prepared/pypi/mcp_console-VERSION-py3-none-any.whl`.
+The ZIPs are GitHub release assets; the wheel is for PyPI.
+
+The Python package, `METADATA`, and license come from the native wheels and must match across all five.
+Windows CRLF line endings in `METADATA` and the license are normalized before comparison.
+The converter generates only `WHEEL`, the `mcp-console` and `mcp-console-install` entry points, `RECORD`, and `mcp_console/_artifacts.json`.
+Wheel members outside the recognized native and shared layouts fail preparation.
 The converter does not replace ABI or installed-runtime acceptance.
 
-Each ZIP preserves the native executable's installation prefix, companion binaries, and license/provenance files.
-Console's own license is included as `share/licenses/mcp-console/console-LICENSE`.
+The manifest records the version and each ZIP's size, SHA-256, and applicable `minimum_macos` or `minimum_glibc` floor from the wheel platform tags.
+The launcher checks the floor because the universal wheel has no platform tag to enforce it.
+Each ZIP is a native installation prefix with the companion binaries and license/provenance files.
+It also contains Console's license as `share/licenses/mcp-console/console-LICENSE` and the wheel's SBOM as `share/sboms/mcp-console.cyclonedx.json`.
 Existing compiled companion identity checks remain in force.
 
-Installing the prepared Python wheel requires no Rust build or binary download.
-Its `mcp-console` entry point fetches the exact native bundle on first use and uses the cached bundle thereafter.
-All installation messages go to stderr, leaving stdout available for MCP.
-Unix replaces the launcher with the native process; Windows retains its handle inheritance and exit-status forwarding.
+Installing the prepared Python wheel requires no Rust build or native binary download.
+Its `mcp-console` entry point downloads the pinned native bundle on first use and uses the cached bundle thereafter.
+Installation messages go to stderr, leaving stdout available for MCP.
+Unix replaces the launcher with the native process; Windows retains handle inheritance and forwards the exit status.
 
 Prefetch before starting a client with a short MCP startup timeout:
 
@@ -124,14 +128,28 @@ mcp-console-install --archive prepared/native/mcp-console-VERSION-TARGET.zip
 
 The local archive must match the manifest in the installed Python wheel.
 `--print-path` never downloads; it fails if the pinned bundle is absent.
-See [Python bootstrap variables](docs/ENVIRONMENT.md#python-bootstrap) for cache placement, offline mode, and an explicit native executable.
+Importing `mcp_console` never downloads.
 
-The cache uses version, target, and archive digest directories.
-Downloads are streamed, checked before extraction, staged on the same filesystem, and published by directory rename while holding a per-artifact OS lock.
-The launcher trusts completed files in the user's cache; it does not hash the entire native payload on every invocation.
+Only the thin wheel reads these variables; native wheels ignore them.
+
+| Variable                   | Purpose                                                                                                                                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MCP_CONSOLE_BINARY_CACHE` | Absolute cache directory. Defaults to `~/.cache/mcp-console/native` on Linux, honoring an absolute `XDG_CACHE_HOME`; `~/Library/Caches/mcp-console/native` on macOS; and `%LOCALAPPDATA%\mcp-console\native` on Windows. |
+| `MCP_CONSOLE_OFFLINE`      | `1`, `true`, or `yes`, case-insensitive, forbids downloading. A cached bundle or `mcp-console-install --archive PATH` still works. This does not restrict the native program's own network access.                       |
+| `MCP_CONSOLE_BINARY`       | Native Console executable for `mcp-console` to start instead of the pinned bundle, without downloading or checking its version. Keep its companion bundle beside it. `mcp-console-install` ignores this variable.        |
+
+Downloads use Python's HTTPS certificate and proxy configuration, not pip's or uv's options.
+A failed download names the release asset URL.
+`MCP_CONSOLE_HOME` does not move the cache.
+
+The wheel's pinned size and SHA-256 authenticate the archive.
+A verified archive is trusted like the wheel's own code; the installer does not inspect its members.
+The cache is user-owned storage, not a security boundary, and the launcher does not re-hash it on each start.
+The cache layout is `VERSION/TARGET/SHA256/`.
+A bundle directory is published by one rename under a per-artifact OS lock, so an existing bundle directory is complete; there is no completion marker.
 Interrupted staging directories and old versions may consume disk until removed manually.
 Do not remove a bundle while its processes are running.
-Uninstalling the Python package leaves this shared cache in place.
+Uninstalling the Python package leaves the cache in place.
 
 The wrapper never checks for newer native releases.
 Upgrades use a new Python wheel and its pinned manifest.
