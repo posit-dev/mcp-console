@@ -126,9 +126,7 @@ class PythonDistributionTests(unittest.TestCase):
                 f"{prefix}/WHEEL",
                 f"Wheel-Version: 1.0\nRoot-Is-Purelib: false\nTag: py3-none-{tag}\n",
             )
-            archive.writestr(
-                f"{prefix}/licenses/LICENSE", f"Console license{newline}"
-            )
+            archive.writestr(f"{prefix}/licenses/LICENSE", f"Console license{newline}")
             archive.writestr(
                 f"{prefix}/sboms/mcp-console.cyclonedx.json", f'"{target}"'
             )
@@ -236,7 +234,9 @@ class PythonDistributionTests(unittest.TestCase):
                 self.assertEqual(names, sorted(names))
                 self.assertFalse(
                     any(
-                        ".data/" in name or ".dist-info/" in name or "mcp_console/" in name
+                        ".data/" in name
+                        or ".dist-info/" in name
+                        or "mcp_console/" in name
                         for name in names
                     )
                 )
@@ -334,9 +334,13 @@ class PythonDistributionTests(unittest.TestCase):
         ):
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-        scripts = environment / ("Scripts" if sys.platform == "win32" else "bin")
+        windows = sys.platform == "win32"
+        scripts = environment / ("Scripts" if windows else "bin")
         result = subprocess.run(
-            [scripts / "mcp-console-install", "--archive", archive],
+            [
+                scripts / ("mcp-console-install" + (".exe" if windows else "")),
+                *("--archive", archive),
+            ],
             env=env,
             capture_output=True,
             text=True,
@@ -344,7 +348,7 @@ class PythonDistributionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(Path(result.stdout.strip()).is_relative_to(cache))
         # The native fixture is a POSIX script; Windows cannot execute it.
-        if sys.platform != "win32":
+        if not windows:
             result = subprocess.run(
                 [scripts / "mcp-console", "serve", "--flag"],
                 env=env,

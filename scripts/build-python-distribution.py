@@ -52,7 +52,11 @@ def identify(wheel):
         matches = [re.fullmatch("py3-none-" + pattern, tag) for tag in tags]
         if all(matches):
             minimum = min(tuple(map(int, match.groups())) for match in matches)
-            return version, target, {floor: ".".join(map(str, minimum))} if floor else {}
+            return (
+                version,
+                target,
+                {floor: ".".join(map(str, minimum))} if floor else {},
+            )
     raise release.ReleaseError(f"unsupported or mixed wheel tags: {wheel.name}")
 
 

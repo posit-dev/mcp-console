@@ -19,7 +19,6 @@ import sys
 import tempfile
 import threading
 import unittest
-import warnings
 import zipfile
 
 from support.normalization import code
@@ -85,43 +84,17 @@ class BootstrapCase(unittest.TestCase):
                 b"license fixture\n",
                 stat.S_IFREG | 0o644,
             ),
-            (
-                "share/licenses/mcp-console/NOTICE",
-                b"notice fixture\n",
-                stat.S_IFREG | 0o644,
-            ),
         ]
-        if sys.platform == "linux":
-            self.entries += [
-                ("libexec/bwrap", b"bwrap fixture", stat.S_IFREG | 0o755),
-                (
-                    "share/licenses/mcp-console/bubblewrap-COPYING",
-                    b"bwrap license\n",
-                    stat.S_IFREG | 0o644,
-                ),
-                (
-                    "share/licenses/mcp-console/bubblewrap-NOTICE",
-                    b"bwrap notice\n",
-                    stat.S_IFREG | 0o644,
-                ),
-                (
-                    "share/licenses/mcp-console/bubblewrap-SOURCE.json",
-                    b"{}\n",
-                    stat.S_IFREG | 0o644,
-                ),
-            ]
         self.archive = self.directory / "native.zip"
         self.make_archive()
 
-    def make_archive(self, entries=None) -> None:
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="Duplicate name:")
-            with zipfile.ZipFile(self.archive, "w", zipfile.ZIP_DEFLATED) as archive:
-                for name, content, mode in self.entries if entries is None else entries:
-                    info = zipfile.ZipInfo(name)
-                    info.create_system = 3
-                    info.external_attr = mode << 16
-                    archive.writestr(info, content)
+    def make_archive(self) -> None:
+        with zipfile.ZipFile(self.archive, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content, mode in self.entries:
+                info = zipfile.ZipInfo(name)
+                info.create_system = 3
+                info.external_attr = mode << 16
+                archive.writestr(info, content)
         self.write_manifest()
 
     def write_manifest(self) -> None:
@@ -305,7 +278,10 @@ class InstallerTests(BootstrapCase):
             self.env |= {"HTTPS_PROXY": address, "https_proxy": address}
             result = self.run_command()
             thread.join()
-        self.assertEqual([request.split()[:2] for request in requests], [[b"CONNECT", b"github.com:443"]])
+        self.assertEqual(
+            [request.split()[:2] for request in requests],
+            [[b"CONNECT", b"github.com:443"]],
+        )
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
         self.assertIn(
