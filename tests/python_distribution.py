@@ -357,6 +357,21 @@ class PythonDistributionTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout), ["serve", "--flag"])
+        # An installer's Windows wrapper names itself without its ".exe" suffix.
+        launcher = scripts / ("mcp-console" + (".exe" if windows else ""))
+        result = subprocess.run(
+            [launcher, "serve"],
+            env=env | {"MCP_CONSOLE_BINARY": str(launcher)},
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(
+            result.stderr.strip(),
+            "mcp-console: MCP_CONSOLE_BINARY names the Python launcher itself.",
+        )
 
 
 def json_bytes(manifest):

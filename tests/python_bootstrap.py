@@ -361,31 +361,6 @@ class LauncherTests(BootstrapCase):
         self.assertIn(missing, result.stderr)
         self.assertNotIn("Traceback", result.stderr)
 
-    def test_explicit_binary_cannot_name_the_launcher(self) -> None:
-        launcher = self.directory / "mcp-console"
-        launcher.write_text(
-            python_script_header()
-            + code("""
-                from mcp_console._launcher import main
-
-                raise SystemExit(main())
-                """)
-        )
-        launcher.chmod(0o755)
-        self.env["MCP_CONSOLE_BINARY"] = str(launcher)
-        result = subprocess.run(
-            [launcher, "serve"],
-            cwd=self.directory,
-            env=self.env,
-            text=True,
-            capture_output=True,
-            timeout=15,
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, "")
-        self.assertIn("MCP_CONSOLE_BINARY", result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

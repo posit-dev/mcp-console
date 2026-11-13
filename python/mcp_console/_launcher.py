@@ -13,8 +13,10 @@ def _pinned() -> Path:
     override = os.environ.get("MCP_CONSOLE_BINARY")
     if override is None:
         return native_binary()
-    # Naming this command would start it again without end.
-    if Path(override).resolve() == Path(sys.argv[0]).resolve():
+    # Naming this command would start it again without end. An installer's
+    # Windows wrapper drops ".exe" from sys.argv[0] before calling main().
+    launcher = Path(sys.argv[0]).resolve()
+    if Path(override).resolve() in {launcher, launcher.with_suffix(".exe")}:
         raise InstallError("MCP_CONSOLE_BINARY names the Python launcher itself.")
     return Path(override)
 
