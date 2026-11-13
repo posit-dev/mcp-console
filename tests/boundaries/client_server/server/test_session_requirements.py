@@ -11,7 +11,7 @@ from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
 from support.python import write_test_wheel
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import command, requires
 from support.suites import run_this_suite
 
@@ -67,7 +67,7 @@ def test_stopped_named_session_prepares_its_next_environment(
                 requirements={"python": [standalone]},
             )
             client.expect("\n[stopped]", session="alpha")
-            assert without_meta(client.send(timeout_ms=0)) == {
+            assert client.send(timeout_ms=0) == {
                 "content": [{"type": "text", "text": "\n[idle]"}],
                 "isError": False,
             }

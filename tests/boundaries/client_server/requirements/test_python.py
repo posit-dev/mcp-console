@@ -25,7 +25,7 @@ from support.normalization import code, normalize_python_resolution_error
 from support.processes import host_process_id, process_group_exists, stop_process_group
 from support.r import r_test_environment
 from support.events import Events
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.python import write_test_wheel
 from boundaries.client_server.python.test_peer_runtime import without_r
 from boundaries.client_server.requirements.test_actions import inspect
@@ -457,7 +457,7 @@ def test_retires_python_resolver_descendant_after_leader_exit(
             )
 
             client.receive(preparation)
-            assert without_meta(preparation["result"]) == {
+            assert preparation["result"] == {
                 "content": [{"type": "text", "text": "[prepared]"}],
                 "isError": False,
             }, preparation
@@ -659,7 +659,7 @@ def restart_discards_pre_marker_activation(
             activation_ready.wait("managed Python activation")
             client.receive(evaluation)
             evaluation_result = evaluation["result"]
-            assert without_meta(without_elapsed_result(evaluation_result)) == {
+            assert without_elapsed_result(evaluation_result) == {
                 "content": [
                     {
                         "type": "text",

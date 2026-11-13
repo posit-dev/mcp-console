@@ -41,7 +41,7 @@ from support.checkpoints import (
     release_fixture_checkpoint,
     wait_for_checkpoint,
 )
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, POSIX, PROCESS_EVENTS, R, requires
 from support.suites import run_this_suite
 
@@ -143,7 +143,7 @@ def test_projects_ansi_across_every_byte_split(
                 {"fixture": {"operation": operation, **inputs[operation]}}
             )
             result = client.send(r=operation)
-            assert without_meta(result) == {
+            assert result == {
                 "content": [{"type": "text", "text": projected * repetitions}],
                 "isError": False,
             }, (sample, result)
@@ -471,7 +471,7 @@ def test_finishes_ansi_at_polls_but_preserves_split_utf8(
                     processed.wait("ANSI bytes reached the output tape")
                     raw += data
                     result = client.send(session="default", timeout_ms=0)
-                    assert without_meta(without_elapsed_result(result)) == {
+                    assert without_elapsed_result(result) == {
                         "content": [{"type": "text", "text": expected + running}],
                         "isError": False,
                     }, result
@@ -543,7 +543,7 @@ def test_keeps_partial_utf8_across_polls_and_orders_stream_switches(
                     processed.wait("direct bytes reached the output tape")
                     raw += data
                     result = client.send(session="default", timeout_ms=0)
-                    assert without_meta(without_elapsed_result(result)) == {
+                    assert without_elapsed_result(result) == {
                         "content": [{"type": "text", "text": expected + running}],
                         "isError": False,
                     }, result
@@ -979,7 +979,7 @@ def test_drains_pending_sideband_output_while_running(
 
         client.send(session="default", timeout_ms=0)
         result = client.transcript[-1]["result"]
-        assert without_meta(without_elapsed_result(result)) == {
+        assert without_elapsed_result(result) == {
             "content": [
                 {"type": "text", "text": "before pending image\n"},
                 {"type": "image", "data": PNG_1X1, "mimeType": "image/png"},
@@ -1122,7 +1122,7 @@ def test_orders_queued_cancellation_behind_incomplete_response(
                 assert started["response_gate_released"] is True, control.diagnostics()
                 control.wait_for(live_id, "worker_operation_completed")
                 client.receive(live)
-                assert without_meta(live["result"]) == {
+                assert live["result"] == {
                     "content": [
                         {
                             "type": "text",

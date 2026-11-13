@@ -29,7 +29,7 @@ __attribute__((constructor)) static void initialize(int argc, char **argv) {
     if (argc < 2 || order == NULL) return;
     await_closed_input = strcmp(argv[1], "warmup") == 0 && strcmp(order, "closed") == 0;
     if (strcmp(argv[1], "serve") == 0 && strcmp(order, "closed") == 0) {
-        // Keep stdout open until the parent attempts initialization, so its
+        // Keep stdout open until the parent attempts discovery, so its
         // transport cannot observe EOF before reaching the write checkpoint.
         // Retain this writer until process exit; EOF is the parent's receipt.
         int lifetime = open(getenv("MCP_CONSOLE_TEST_WARMUP_LIFETIME"), O_WRONLY);
@@ -51,7 +51,7 @@ __attribute__((constructor)) static void initialize(int argc, char **argv) {
 }
 
 static void before_write(const void *buffer, size_t count) {
-    const char method[] = "\"method\":\"initialize\"";
+    const char method[] = "\"method\":\"server/discover\"";
     if (await_closed_input && memmem(buffer, count, method, sizeof(method) - 1) != NULL) {
         await_closed_input = false;
         int lifetime = open(getenv("MCP_CONSOLE_TEST_WARMUP_LIFETIME"), O_RDONLY);

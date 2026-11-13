@@ -23,7 +23,7 @@ from support.assertions import tool_text as _tool_text
 from support.checkpoints import FifoCheckpoint
 from support.client import stop_client
 from support.execution import DIRECT, SANDBOXED, Execution, executions
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.resolvers import fake_ir_environment as _fake_ir_environment
 from support.suites import run_this_suite
 from support.requirements import POSIX, requires
@@ -301,7 +301,7 @@ def test_controlled_restart_requirement_failure_preserves_old_worker(
                 r="must not evaluate",
                 requirements={"r": ["failing-restart-requirement"]},
             )
-            assert without_meta(result) == {
+            assert result == {
                 "content": [
                     {
                         "type": "text",

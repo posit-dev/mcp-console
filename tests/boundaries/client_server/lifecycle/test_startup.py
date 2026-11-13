@@ -43,7 +43,7 @@ from support.normalization import code
 from support.native import LOADER_VARIABLE, build_interposer
 from support.r import r_test_environment
 from support.events import Events
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.suites import run_this_suite
 
 RUNNING = "\n[running; poll with an empty send]"
@@ -368,7 +368,7 @@ def test_explicit_preparation_keeps_its_wait_precondition(
         fixture.release.release()
         client.response_timeout = 600
         client.receive(preparation)
-        assert without_meta(preparation["result"]) == {
+        assert preparation["result"] == {
             "content": [{"type": "text", "text": "[prepared]"}],
             "isError": False,
         }

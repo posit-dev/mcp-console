@@ -67,7 +67,9 @@ def warmup(
 @executions(RUNTIME)
 def test_checks_all_languages(binary: Path, execution: Execution) -> Transcript:
     with TemporaryDirectory() as temporary:
-        result = warmup(binary, Path(temporary), execution)
+        workspace = Path(temporary)
+        (workspace / ".agents/console").mkdir(parents=True)
+        result = warmup(binary, workspace, execution)
         assert result.returncode == 0 and result.stderr == "", result
         assert result.stdout == (
             "MCP Console warmup\n"
@@ -78,6 +80,37 @@ def test_checks_all_languages(binary: Path, execution: Execution) -> Transcript:
             "Shutdown: OK\n"
             "All checks passed. Runtime caches are warm.\n"
         ), result
+        recordings = list((workspace / ".agents/console/sessions").iterdir())
+        assert len(recordings) == 1, recordings
+        events = [
+            json.loads(line)
+            for line in (recordings[0] / "capture/events.jsonl")
+            .read_text()
+            .splitlines()
+        ]
+        requests = [
+            event["message"]["params"]
+            for event in events
+            if event["event"] == "protocol"
+            and event["direction"] == "received"
+            and event["message"].get("method") in {"server/discover", "tools/list"}
+        ]
+        requests += [
+            event["request"] for event in events if event["event"] == "tool_call"
+        ]
+        assert requests, events
+        version = subprocess.check_output([binary, "--version"], text=True).strip()
+        identity = {
+            "name": "mcp-console-warmup",
+            "version": version.removeprefix("mcp-console "),
+        }
+        for request in requests:
+            metadata = request["_meta"]
+            assert (
+                metadata["io.modelcontextprotocol/protocolVersion"] == "2026-07-28"
+            ), request
+            assert metadata["io.modelcontextprotocol/clientInfo"] == identity, request
+            assert metadata["io.modelcontextprotocol/clientCapabilities"] == {}, request
         return [{"stdout": result.stdout}]
 
 

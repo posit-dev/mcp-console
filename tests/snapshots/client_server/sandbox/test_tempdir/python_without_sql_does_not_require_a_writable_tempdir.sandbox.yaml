@@ -13,12 +13,7 @@ result:
     tools: {}
   serverInfo:
     name: mcp-console
-    title: MCP Console
     version: <Console version>
-    description: >-
-      An interactive workbench for agents working with data in R, Python, and
-      SQL.
-    websiteUrl: https://github.com/posit-dev/mcp-console
   instructions: >-
     Persistent Python REPL for calculations, data exploration and analysis,
     database queries, debugging, simulations, and plots. Reuse objects
@@ -235,15 +230,6 @@ result:
       text: |
         42
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   control: restart
@@ -255,15 +241,6 @@ result:
         [starting new worker]
         [idle]
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 ---
 send:
   python: |
@@ -278,12 +255,3 @@ result:
       text: |
         42
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console

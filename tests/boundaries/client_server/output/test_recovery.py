@@ -26,7 +26,7 @@ from support.previews import (
     session_directory,
     TEXT_BUDGET,
 )
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, requires
 from support.suites import run_this_suite
 
@@ -382,7 +382,7 @@ def test_cancelled_aggregate_poll_returns_each_sessions_output(
         profile.pause_results(False)
         for session in ("alpha", "beta"):
             result = client.send(session=session)
-            assert without_meta(result) == {
+            assert result == {
                 "content": [{"type": "text", "text": f"zod: {session} output\n"}],
                 "isError": False,
             }, result
@@ -446,7 +446,7 @@ def test_empty_poll_retains_stopped_session_output(
         cancel_result(client, pending, reached, release)
         profile.pause_results(False)
         result = client.send(timeout_ms=0)
-        assert without_meta(result) == {
+        assert result == {
             "content": [
                 {
                     "type": "text",
@@ -469,11 +469,11 @@ def test_empty_poll_retains_stopped_session_output(
             cancel_result(client, pending, reached, release)
         profile.pause_results(False)
         result = client.send(timeout_ms=0)
-        assert without_meta(result) == {
+        assert result == {
             "content": [{"type": "text", "text": "\n[idle]\n[idle]"}],
             "isError": False,
         }, result
-        assert without_meta(client.send(timeout_ms=0)) == {
+        assert client.send(timeout_ms=0) == {
             "content": [{"type": "text", "text": "\n[idle]"}],
             "isError": False,
         }
@@ -493,7 +493,7 @@ def test_cancelled_idle_polls_retain_output_until_delivery(binary: Path) -> Tran
             cancel_result(client, pending, reached, release)
         profile.pause_results(False)
         result = client.send(timeout_ms=0)
-        assert without_meta(result) == {
+        assert result == {
             "content": [
                 {
                     "type": "text",
@@ -502,7 +502,7 @@ def test_cancelled_idle_polls_retain_output_until_delivery(binary: Path) -> Tran
             ],
             "isError": False,
         }, result
-        assert without_meta(client.send(timeout_ms=0)) == {
+        assert client.send(timeout_ms=0) == {
             "content": [{"type": "text", "text": "\n[idle]"}],
             "isError": False,
         }
@@ -639,7 +639,7 @@ def test_image_recovery_moves_the_retained_preview(binary: Path) -> Transcript:
         release.release()
         client.receive(recovered)
         result = recovered["result"]
-        assert without_meta(result) == {
+        assert result == {
             "content": [
                 {
                     "type": "image",

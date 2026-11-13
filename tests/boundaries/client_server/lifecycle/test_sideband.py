@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED, Execution, executions
 from support.normalization import code
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.resolvers import resolve_managed_python
 from support.suites import run_this_suite
 from support.requirements import POSIX, requires
@@ -95,12 +95,12 @@ def test_worker_adopts_both_pipes_and_isolates_fork_and_exec(
             print("both pipes isolated")
             """)
         result = client.send(python=source)
-        assert without_meta(result) == {
+        assert result == {
             "content": [{"type": "text", "text": "both pipes isolated\n"}],
             "isError": False,
         }, result
         result = client.send(r="cat('parent sideband remains usable\\n')")
-        assert without_meta(result) == {
+        assert result == {
             "content": [{"type": "text", "text": "parent sideband remains usable\n"}],
             "isError": False,
         }, result

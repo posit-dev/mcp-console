@@ -1,0 +1,39 @@
+---
+!same-as tests/snapshots/client_server/server/test_tools/initializes_and_lists_tools.modern.direct.yaml
+---
+input:
+  method: tools/call
+  params:
+    name: send
+    arguments:
+      python: print('modern client')
+    _meta:
+      io.modelcontextprotocol/protocolVersion: 2026-07-28
+      io.modelcontextprotocol/clientInfo:
+        name: mcp
+        version: 0.1.0
+      io.modelcontextprotocol/clientCapabilities: {}
+      io.github.posit-dev.mcp-console/warmup-runtime: true
+result:
+  resultType: complete
+  content:
+    - type: text
+      text: |
+        modern client
+  isError: false
+  _meta:
+    io.github.posit-dev.mcp-console/warmup-runtime:
+      r: true
+    io.modelcontextprotocol/serverInfo:
+      name: mcp-console
+      version: <Console version>
+---
+send:
+  timeout_ms: -1
+result:
+  content:
+    - type: text
+      text: >-
+        failed to deserialize parameters: invalid value: integer `-1`, expected
+        u64
+  isError: true

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from support.client import McpClient
 from support.execution import DIRECT, SANDBOXED
 from support.presentation import assert_tool_guidance, without_descriptions
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import SQL
 from support.suites import run_this_suite
 
@@ -313,7 +313,7 @@ def _configured_language_matrix(binary: Path) -> Transcript:
                 assert result["isError"] is True, result
                 assert client.request("tools/list")["result"]["tools"] == [tool]
                 _, stderr = client.finish_with_standard_error(expected_exit_status=1)
-                assert without_meta(result) == {
+                assert result == {
                     "content": [{"type": "text", "text": MISSING_UV}],
                     "isError": True,
                 }, result

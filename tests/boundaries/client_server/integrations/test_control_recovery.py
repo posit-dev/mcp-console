@@ -14,7 +14,7 @@ from support.checkpoints import FifoCheckpoint, wait_for_checkpoint
 from support.client import McpClient
 from support.execution import DIRECT, Execution, executions
 from support.normalization import code, normalize_recording
-from support.records import TranscriptWithCompanions, without_meta
+from support.records import TranscriptWithCompanions
 from support.requirements import NATIVE_FIXTURES, POSIX, requires
 from support.suites import run_this_suite
 
@@ -122,7 +122,7 @@ def test_restart_orders_cancelled_mcp_error_before_worker_notices(
                     result_release.release()
 
                     restarted = client.send(control="restart")
-                    assert without_meta(restarted) == {
+                    assert restarted == {
                         "content": [
                             {
                                 "type": "text",

@@ -45,7 +45,7 @@ from support.processes import (
 from support.normalization import code
 from support.native import LOADER_VARIABLE, build_interposer
 from support.r import r_test_environment
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.resolvers import (
     ir_run_records,
     local_resolver_owner,
@@ -693,7 +693,7 @@ def test_startup_poll_deadline_preserves_unclaimed_output(
                 )
                 write_release.release()
                 client.receive(pending)
-                assert without_meta(pending["result"]) == {
+                assert pending["result"] == {
                     "content": [
                         {
                             "type": "text",
@@ -885,7 +885,7 @@ def early_requirements_with_pending_poll(
                 write_release.release()
                 client.receive(pending)
                 if completed_response:
-                    assert without_meta(pending["result"]) == {
+                    assert pending["result"] == {
                         "content": [{"type": "text", "text": "\n[idle]"}],
                         "isError": False,
                     }, pending

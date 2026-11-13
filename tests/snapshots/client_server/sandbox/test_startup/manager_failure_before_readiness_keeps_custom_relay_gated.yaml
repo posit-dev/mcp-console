@@ -10,15 +10,6 @@ result:
         mcp-console-sandbox: failed to fill whole buffer
         [worker relay exited before readiness]
   isError: true
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 startup_supervision_failure:
   manager: killed before readiness
   custom_relay: did not execute
@@ -34,14 +25,5 @@ result:
       text: |
         zod: echo
   isError: false
-  _meta:
-    io.modelcontextprotocol/serverInfo:
-      name: mcp-console
-      title: MCP Console
-      version: <Console version>
-      description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
-      websiteUrl: https://github.com/posit-dev/mcp-console
 startup_supervision_recovery:
   custom_relay: executed only for the replacement generation

@@ -32,7 +32,7 @@ from support.previews import (
     normalize_preview_paths,
     session_directory,
 )
-from support.records import Transcript, without_meta
+from support.records import Transcript
 from support.requirements import NATIVE_FIXTURES, POSIX, PROCESS_EVENTS, requires
 from support.resolvers import record_resolved_r_library
 from support.suites import run_this_suite
@@ -125,7 +125,7 @@ def test_reports_replacement_startup_failure_and_retry(
         assert not forced_stop.is_set(), "replacement startup retried automatically"
         assert failure_marker.is_file(), "startup checkpoint was lost during retirement"
         result = failed["result"]
-        assert without_meta(result) == {
+        assert result == {
             "content": [
                 {
                     "type": "text",
@@ -211,7 +211,7 @@ def test_polls_replacement_startup_after_send_timeout(
                 response_returned.set()
                 watchdog.join()
             assert not forced_release.is_set(), "send did not honor its startup timeout"
-            assert without_meta(failed["result"]) == {
+            assert failed["result"] == {
                 "content": [
                     {
                         "type": "text",
@@ -229,7 +229,7 @@ def test_polls_replacement_startup_after_send_timeout(
             }, failed
 
             client.send(requirements={"python": ["py-yaml12"]})
-            assert without_meta(client.transcript[-1]["result"]) == {
+            assert client.transcript[-1]["result"] == {
                 "content": [
                     {
                         "type": "text",
@@ -243,7 +243,7 @@ def test_polls_replacement_startup_after_send_timeout(
                 r="echo startup overlap cell ran",
                 requirements={"r": ["praise"]},
             )
-            assert without_meta(combined) == {
+            assert combined == {
                 "content": [
                     {
                         "type": "text",
@@ -467,7 +467,7 @@ def test_controlled_interrupt_preserves_idle_worker_startup_failure(
 
             assert preparation["result"].get("isError") is True, preparation
             result = controlled["result"]
-            assert without_meta(result) == {
+            assert result == {
                 "content": [
                     {
                         "type": "text",
@@ -572,7 +572,7 @@ def test_control_only_interrupt_returns_while_explicit_preparation_settles(
                     "control-only interrupt waited for explicit preparation to settle"
                 )
                 client.receive(interrupt)
-                assert without_meta(without_elapsed_result(interrupt["result"])) == {
+                assert without_elapsed_result(interrupt["result"]) == {
                     "content": [
                         {
                             "type": "text",
@@ -588,7 +588,7 @@ def test_control_only_interrupt_returns_while_explicit_preparation_settles(
                 interrupt_release.release()
                 interrupt_waiting = False
                 client.receive(preparation)
-                assert without_meta(preparation["result"]) == {
+                assert preparation["result"] == {
                     "content": [
                         {
                             "type": "text",
@@ -668,7 +668,7 @@ def test_restart_preserves_pending_sideband_output(
 
         client.send(control="restart")
         result = client.transcript[-1]["result"]
-        assert without_meta(result) == {
+        assert result == {
             "content": [
                 {"type": "text", "text": "before pending image\n"},
                 {"type": "image", "data": PNG_1X1, "mimeType": "image/png"},
@@ -785,7 +785,7 @@ def test_restart_interrupts_waiting_send(
             watchdog.join()
         assert not forced_stop.is_set(), "restart did not release the waiting send"
 
-        assert without_meta(restarted["result"]) == {
+        assert restarted["result"] == {
             "content": [
                 {
                     "type": "text",
@@ -799,7 +799,7 @@ def test_restart_interrupts_waiting_send(
             ],
             "isError": False,
         }, restarted
-        assert without_meta(waiting["result"]) == {
+        assert waiting["result"] == {
             "content": [
                 {
                     "type": "text",
@@ -834,7 +834,7 @@ def test_restarts_after_worker_exit(binary: Path, execution: Execution) -> Trans
     )
     client.initialize_and_list_tools()
     client.send(r="exit unexpectedly")
-    assert without_meta(client.transcript[-1]["result"]) == {
+    assert client.transcript[-1]["result"] == {
         "content": [
             {
                 "type": "text",
@@ -869,7 +869,7 @@ def test_reports_unexpected_worker_exit_zero(
     client.initialize_and_list_tools()
 
     client.send(r="exit zero")
-    assert without_meta(client.transcript[-1]["result"]) == {
+    assert client.transcript[-1]["result"] == {
         "content": [
             {
                 "type": "text",
