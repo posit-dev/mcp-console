@@ -25,8 +25,7 @@ def server_identity(binary: Path) -> dict[str, str]:
         "title": "MCP Console",
         "version": version.removeprefix("mcp-console "),
         "description": (
-            "An interactive workbench for agents working with data in R, Python, "
-            "and SQL."
+            "An interactive workbench for agents working in R, Python, and SQL."
         ),
         "websiteUrl": "https://github.com/posit-dev/mcp-console",
     }
