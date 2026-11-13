@@ -16,8 +16,7 @@ result:
       title: MCP Console
       version: <Console version>
       description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
+        An interactive workbench for agents working in R, Python, and SQL.
       websiteUrl: https://github.com/posit-dev/mcp-console
   ttlMs: 0
   cacheScope: public
@@ -366,6 +365,5 @@ result:
       title: MCP Console
       version: <Console version>
       description: >-
-        An interactive workbench for agents working with data in R, Python, and
-        SQL.
+        An interactive workbench for agents working in R, Python, and SQL.
       websiteUrl: https://github.com/posit-dev/mcp-console
